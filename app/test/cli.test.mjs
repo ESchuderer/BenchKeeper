@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { main } from '../src/cli.mjs';
+import { HELP, main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
@@ -39,6 +39,15 @@ test('apply --yes, history, undo', async () => {
   assert.match(c.text(), new RegExp(`${id}  apply +done`));
   assert.equal(await c.exec(['undo', id]), 0);
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
+  // Nothing left to restore: a usage error for an unknown step or unit, exit 1 for a second undo, no run either way.
+  assert.equal(await c.exec(['undo', id, '--step', 'typo']), 2);
+  assert.match(c.text(), new RegExp(`run ${id} has no step typo; its steps: \\S`));
+  assert.equal(await c.exec(['undo', id, '--unit', 'typo']), 2);
+  assert.match(c.text(), /has no unit typo; its units: /);
+  assert.equal(await c.exec(['undo', id]), 1);
+  assert.match(c.text(), new RegExp(`nothing to undo in run ${id}: `));
+  await c.exec(['history']);
+  assert.equal(c.text().match(/undo +done/g).length, 1, 'the history lists one undo run');
 });
 
 test('a pack plugin BenchKeeper did not install: shown with its impact, never removed by --yes or --all, only by its own answer', async () => {
@@ -77,6 +86,18 @@ test('help and unknown commands', async () => {
   assert.equal(await c.exec(['--help']), 0);
   assert.match(c.text(), /Usage: benchkeeper/);
   assert.equal(await c.exec(['nope']), 2);
+});
+
+test('the help --json list names the commands the README marks with --json', () => {
+  // `projects plan|list` in the help stands for `projects plan` and `projects list`.
+  const help = HELP.slice(HELP.indexOf('--json (') + 8, HELP.indexOf(')', HELP.indexOf('--json ('))).split(/[,;]/).flatMap((item) => {
+    const words = item.trim().split(/\s+/), last = words.pop();
+    return last.split('|').map((w) => [...words, w].join(' '));
+  });
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const table = readme.slice(readme.indexOf('| Command | --json |')).split('\n\n')[0].split('\n').slice(2);
+  const marked = table.filter((row) => row.split(' | ')[1].startsWith('yes')).flatMap((row) => [...row.split(' | ')[0].matchAll(/`([^`]+)`/g)].map((m) => m[1]));
+  assert.deepEqual(help.toSorted(), marked.toSorted());
 });
 
 test('board writes the sessions page for this user only', async () => {
@@ -133,6 +154,14 @@ test('sessions record runs the command after -- and records its files; sessions 
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /session exit 0, 1 files changed/);
   assert.equal(readFileSync(join(dir, 'n'), 'utf8'), 'x\n');
+  // The agent's exit code is passed on, and the failed session is still recorded for undo.
+  o = await exec(['sessions', 'record', '--project', dir, '--', 'sh', '-c', 'echo y > m; exit 3']);
+  assert.equal(o.code, 3, o.text);
+  assert.match(o.text, /session exit 3, 1 files changed/);
+  assert.equal(await exec(['undo', o.text.match(/run (\S+):/)[1]]).then((u) => u.code), 0);
+  assert.ok(!existsSync(join(dir, 'm')));
+  o = await exec(['sessions', 'record', '--project', dir, '--', 'benchkeeper-no-such-agent']);
+  assert.equal(o.code, 127, o.text);
   o = await exec(['sessions', 'record', '--project', dir]);
   assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
   o = await exec(['sessions']);

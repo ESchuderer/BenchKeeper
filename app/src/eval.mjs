@@ -21,10 +21,12 @@ function targetHash(ctx, target, cases) {
 // --target takes the id of a target, or skill:<name> for an own skill that no library skill shares.
 const picked = (only, target) => only.some((t) => t === target || (target.startsWith(`${t}@`) && !inLibrary(t.slice('skill:'.length))));
 
+// Lines that do not parse (a write cut off by a killed run) are left out, as in the results view.
 function lastResults(ctx) {
   const last = new Map();
   for (const line of (readText(results(ctx)) ?? '').split('\n').filter(Boolean)) {
-    const r = JSON.parse(line);
+    let r;
+    try { r = JSON.parse(line); } catch { continue; }
     last.set(`${r.target}|${r.agent}|${r.model ?? ''}`, r);
   }
   return last;
@@ -39,6 +41,7 @@ const AGENTS = {
   // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
   codex: { argv: (ctx, q, model) => ['codex', 'exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
+export const EVAL_AGENTS = Object.keys(AGENTS);
 export function triggered(output, name) {
   for (const line of output.split('\n')) {
     let e;
@@ -117,7 +120,9 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const result = { time: now(), target: p.target, agent: p.agent, agentVersion: version, model: p.model ?? null, hash: p.hash, appVersion: ctx.appVersion,
       cases: details.length, ...(scope !== 'library' && { scope, ...(p.project && { project: p.project }) }), missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
     mkdirSync(userEvals(ctx), { recursive: true, mode: 0o700 });
-    appendFileSync(results(ctx), `${JSON.stringify(result)}\n`, { mode: 0o600 });
+    // A line cut off by an earlier write would swallow this result.
+    const cut = !(readText(results(ctx)) ?? '\n').endsWith('\n');
+    appendFileSync(results(ctx), `${cut ? '\n' : ''}${JSON.stringify(result)}\n`, { mode: 0o600 });
     // Files and folders of an earlier version, and the skill-only path that wrote no output, keep their modes otherwise.
     chmodSync(userEvals(ctx), 0o700);
     chmodSync(results(ctx), 0o600);

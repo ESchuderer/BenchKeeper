@@ -2,7 +2,7 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import nodePath, { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
@@ -100,7 +100,7 @@ function installedFiles(dir, state, add, skip = () => false) {
 // (its own AGENTS.md text, own skills, docs/agents/, the dev container) stays.
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
-  const state = tryState(dir);
+  const state = readState(dir);
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
   const agentsMd = readText(at('AGENTS.md'));
@@ -130,7 +130,7 @@ export function committedSetup(dir) {
 // shares the exclude list, so its block stays for it.
 export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const at = (p) => join(dir, p);
-  const state = tryState(dir);
+  const state = readState(dir);
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
   const claude = readText(at(LOCAL_CLAUDE));
@@ -164,7 +164,11 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
 
 // State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
 const STATE_SCHEMA = 2;
-export const parseState = (text) => normalizeState(JSON.parse(text));
+export function parseState(text) {
+  const s = JSON.parse(text);
+  if (s === null || typeof s !== 'object' || Array.isArray(s)) throw new Error('not a JSON object');
+  return normalizeState(s);
+}
 // Also for a state the registry kept as an object.
 export function normalizeState(s) {
   if (s?.schemaVersion > STATE_SCHEMA) throw new Error(`schemaVersion ${s.schemaVersion}, this benchkeeper reads up to ${STATE_SCHEMA}: update it with npx benchkeeper@${appVersion.split('.')[0]}`);
@@ -173,10 +177,13 @@ export function normalizeState(s) {
 }
 // Both versions equal this app's and its content's: a project is behind when either differs.
 export const upToDate = (s) => s?.appVersion === appVersion && s?.contentVersion === contentVersion;
+// Only a missing file means no saved setup: a dangling link, any other read error or a broken file throws with the file's path.
 export function readState(dir) {
-  const text = readText(join(dir, STATE));
-  if (!text) return null;
-  try { return parseState(text); } catch (e) { throw new Error(`${join(dir, STATE)}: ${e.message}`); }
+  const file = join(dir, STATE);
+  try { return parseState(readFileSync(file, 'utf8')); } catch (e) {
+    if (e.code === 'ENOENT' && !isLink(file)) return null;
+    throw new Error(`${file}: ${e.code === 'ENOENT' ? 'a link to a missing file' : e.message}`);
+  }
 }
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
@@ -316,7 +323,7 @@ export function ownSkillFiles(name, paths) {
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
 // Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
-export const slashRel = (dir, p, path = { relative, sep }) => path.relative(dir, p).split(path.sep).join('/');
+export const slashRel = (dir, p, path = nodePath) => path.relative(dir, p).split(path.sep).join('/');
 
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);

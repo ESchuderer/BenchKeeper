@@ -587,6 +587,15 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
   assert.match(routes['GET /api/profile-export'](new URLSearchParams({ agents: 'claude' })).text, /"benchkeeper-profile"/);
 });
 
+test('profile import: a project that cannot be registered (the home folder) comes back as refused with the reason', () => {
+  const { ctx, routes } = fixture();
+  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: ctx.home }] });
+  const r = routes['POST /api/profile-import']({ text, register: true });
+  assert.deepEqual(r.projects, []);
+  assert.equal(r.refused.length, 1);
+  assert.match(r.refused[0], /is the home folder or a parent of it/);
+});
+
 test('evals: results without details; broken lines are left out', () => {
   const { ctx, routes } = fixture();
   mkdirSync(join(ctx.config, 'evals'), { recursive: true });
@@ -612,10 +621,16 @@ test('run report: the undo of a created file shows its removal as a diff', () =>
   const { ctx, routes } = fixture();
   const f = join(ctx.home, 'new.txt');
   const run = apply([{ id: '1', step: 's', title: 'create', kind: 'write', path: f, after: 'x\ny\n' }], ctx);
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id, step: 'typo' })), 400);
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id, unit: 'typo' })), 400);
   const u = routes['POST /api/undo']({ run: run.id });
   const [e] = routes['GET /api/run'](new URLSearchParams({ id: u.id })).entries;
   assert.equal(e.removed, true);
   assert.match(e.diff, /\n@@ -1,3 \+0,0 @@\n-x\n-y/);
+  // A second undo restores nothing and records no run.
+  const runs = ctx.ledger.list().length;
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id })), 409);
+  assert.equal(ctx.ledger.list().length, runs);
 });
 
 test('run report: a failed session undo (no files recorded) still opens', () => {

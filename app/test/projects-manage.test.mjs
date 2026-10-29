@@ -309,3 +309,19 @@ test('CLI: rename, relocate, and remove --setup listing every file before one qu
   assert.equal(await exec(['projects', 'remove', moved]), 0);
   assert.deepEqual(listProjects(ctx), []);
 });
+
+test('Remove BenchKeeper setup refuses a state file this app cannot read, before any change', () => {
+  const h = home();
+  const p = localProject(h);
+  addProject(p.ctx, p.dir);
+  const state = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  for (const [text, reason] of [[JSON.stringify({ ...state, schemaVersion: 99 }), /schemaVersion 99, this benchkeeper reads up to \d+: update it/], ['{ damaged', /JSON/]]) {
+    writeFileSync(join(p.dir, STATE), text);
+    const before = tree(p.dir);
+    assert.throws(() => setupRemoval(p.ctx, p.dir), (e) => e.message.startsWith(join(p.dir, STATE)) && reason.test(e.message));
+    const r = removeSetup(p.ctx, p.dir);
+    assert.equal(r.status, 'stopped');
+    assert.match(r.reason, reason);
+    assert.deepEqual(tree(p.dir), before);
+  }
+});

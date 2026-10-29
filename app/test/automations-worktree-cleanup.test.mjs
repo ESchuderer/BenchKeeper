@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -38,15 +38,17 @@ function fixture() {
     root, repo, bin, worktree, merged,
     used: (n) => writeFileSync(join(bin, 'used'), String(n)),
     precheck: (values = {}) => exec(`${genericDir}/${fill(template(), values).precheck}`),
-    sweep: (mode, limit = '80') => exec(`${genericDir}/worktree-cleanup/sweep.sh "$@"`, [mode, limit]),
+    // The sweep commands of the prompt as the agent runs them.
+    prompt: (values = {}) => [...fill(template(), values).prompt.matchAll(/`(worktree-cleanup\/sweep\.sh (?:report|act) "[^`]*)`/g)].map((m) => exec(`${genericDir}/${m[1]}`)),
+    sweep: (mode, limit = '80', ...rest) => exec(`${genericDir}/worktree-cleanup/sweep.sh "$@"`, [mode, limit, ...rest]),
     branches: () => git(repo, 'branch', '--format=%(refname:short)').split('\n'),
   };
 }
 
-test('worktree-cleanup: parameter tmp_limit_percent, report only by default, lint passes', () => {
+test('worktree-cleanup: parameters tmp_limit_percent and rebuildable, report only by default, lint passes', () => {
   const t = template();
-  assert.deepEqual(Object.keys(t.parameters), ['tmp_limit_percent']);
-  assert.deepEqual(fill(t).values, { mode: 'report', tmp_limit_percent: '80' });
+  assert.deepEqual(Object.keys(t.parameters), ['tmp_limit_percent', 'rebuildable']);
+  assert.deepEqual(fill(t).values, { mode: 'report', tmp_limit_percent: '80', rebuildable: 'node_modules,dist,build,.cache' });
   assert.deepEqual(lint(t), []);
   assert.match(t.prompt, /^Remove nothing yourself/m);
 });
@@ -82,6 +84,32 @@ test('worktree-cleanup: a dirty worktree and an unpushed commit remove nothing',
   assert.ok(!r.log.some((l) => / rm /.test(l)), r.log.join('\n'));
 });
 
+test('worktree-cleanup: an ignored file keeps its worktree unless a rebuildable folder or an unchanged .worktreeinclude entry holds it', sh, () => {
+  const f = fixture();
+  writeFileSync(join(f.repo, '.gitignore'), '.env\nnode_modules/\nCLAUDE.local.md\n');
+  git(f.repo, 'add', '.gitignore'); git(f.repo, 'commit', '-qm', 'ignore');
+  writeFileSync(join(f.repo, '.worktreeinclude'), '# copied\nCLAUDE.local.md\n');
+  writeFileSync(join(f.repo, 'CLAUDE.local.md'), 'local');
+  const secret = f.worktree('secret'), deps = f.worktree('deps'), copy = f.worktree('copy'), edited = f.worktree('edited');
+  for (const b of ['secret', 'deps', 'copy', 'edited']) f.merged(b, git(f.repo, 'rev-parse', 'main'));
+  writeFileSync(join(secret, '.env'), 'TOKEN=x');
+  mkdirSync(join(deps, 'app', 'node_modules', 'x'), { recursive: true });
+  writeFileSync(join(deps, 'app', 'node_modules', 'x', 'index.js'), '');
+  writeFileSync(join(copy, 'CLAUDE.local.md'), 'local');
+  writeFileSync(join(edited, 'CLAUDE.local.md'), 'edited');
+  const kept = [`keep worktree ${edited} edited ignored-files`, `keep worktree ${secret} secret ignored-files`];
+  assert.deepEqual(f.sweep('report').out.slice(1).sort(), [...kept, `removable worktree ${copy} copy`, `removable worktree ${deps} deps`].sort());
+  assert.ok(f.sweep('report', '80', '').out.includes(`keep worktree ${deps} deps ignored-files`), 'an empty list rebuilds nothing');
+  const empty = f.prompt({ rebuildable: '' });
+  assert.equal(empty.length, 2);
+  for (const r of empty) assert.ok(r.out.includes(`keep worktree ${deps} deps ignored-files`), `an empty parameter rebuilds nothing: ${r.out.join('\n')}`);
+  assert.match(fill(template(), { rebuildable: '' }).precheck, / "80" ""$/);
+  const act = f.sweep('act');
+  assert.deepEqual(act.out.filter((l) => l.startsWith('keep')).sort(), kept);
+  assert.ok(existsSync(join(secret, '.env')) && existsSync(join(edited, 'CLAUDE.local.md')));
+  assert.ok(!existsSync(deps) && !existsSync(copy));
+});
+
 test('worktree-cleanup sweep: lists before act removes merged work with its container and volume, keeps the rest', sh, async () => {
   const f = fixture();
   const done = f.worktree('done'), open = f.worktree('open'), busy = f.worktree('busy'), lost = f.worktree('lost');
@@ -110,4 +138,40 @@ test('worktree-cleanup sweep: lists before act removes merged work with its cont
     assert.ok(!existsSync(done) && existsSync(open) && existsSync(busy) && existsSync(lost));
     assert.deepEqual(f.branches().sort(), ['busy', 'lost', 'main', 'open', 'other']);
   } finally { session.kill(); }
+});
+
+test('worktree-cleanup: a file named like a rebuildable folder, an untracked file and a failing ignored-file scan keep the worktree', sh, () => {
+  const f = fixture();
+  writeFileSync(join(f.repo, '.gitignore'), 'dist\n');
+  git(f.repo, 'add', '.gitignore'); git(f.repo, 'commit', '-qm', 'ignore');
+  git(f.repo, 'config', 'status.showUntrackedFiles', 'no');
+  const file = f.worktree('file'), folder = f.worktree('folder'), loose = f.worktree('loose');
+  for (const b of ['file', 'folder', 'loose']) f.merged(b, git(f.repo, 'rev-parse', 'main'));
+  writeFileSync(join(file, 'dist'), 'only copy');
+  mkdirSync(join(folder, 'dist'));
+  writeFileSync(join(folder, 'dist', 'a.js'), '');
+  writeFileSync(join(loose, 'notes'), 'untracked');
+  assert.deepEqual(f.sweep('act').out.slice(1).sort(), [
+    `keep worktree ${file} file ignored-files`, `keep worktree ${loose} loose dirty`, `removed branch folder`, `removed worktree ${folder} folder`,
+  ].sort());
+  assert.ok(existsSync(join(file, 'dist')) && existsSync(join(loose, 'notes')));
+  // A git that fails the ignored-file scan only.
+  const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  writeFileSync(join(f.bin, 'git'), `#!/bin/sh\ncase "$*" in *--ignored=*) exit 128 ;; esac\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  rmSync(join(file, 'dist'));
+  assert.ok(f.sweep('act').out.includes(`keep worktree ${file} file ignored-scan`));
+  assert.ok(existsSync(file));
+});
+
+test('worktree-cleanup: a folder whose name joins rebuildable names with a comma and a file named -n keep the worktree', sh, () => {
+  const f = fixture();
+  writeFileSync(join(f.repo, '.gitignore'), 'dist,build/\n-n\n');
+  git(f.repo, 'add', '.gitignore'); git(f.repo, 'commit', '-qm', 'ignore');
+  const comma = f.worktree('comma'), option = f.worktree('option');
+  for (const b of ['comma', 'option']) f.merged(b, git(f.repo, 'rev-parse', 'main'));
+  mkdirSync(join(comma, 'dist,build'));
+  writeFileSync(join(comma, 'dist,build', 'a.js'), 'only copy');
+  writeFileSync(join(option, '-n'), 'only copy');
+  assert.deepEqual(f.sweep('act').out.slice(1).sort(), [`keep worktree ${comma} comma ignored-files`, `keep worktree ${option} option ignored-files`].sort());
+  assert.ok(existsSync(join(comma, 'dist,build', 'a.js')) && existsSync(join(option, '-n')));
 });

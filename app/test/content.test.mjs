@@ -65,6 +65,11 @@ test('state version 1 is read as version 2 with its setup version as both values
   assert.throws(() => readState(stateAt({ schemaVersion: 3, appVersion: '8.0.0', contentVersion: '8.0.0' })), /schemaVersion 3, this benchkeeper reads up to 2.*npx benchkeeper@\d+/);
 });
 
+test('a state file that is not a JSON object is unreadable, named by its path', () => {
+  for (const v of [null, []]) { const d = stateAt(v); assert.throws(() => readState(d), (e) => e.message === `${join(d, STATE)}: not a JSON object`, JSON.stringify(v)); }
+  for (const t of ['1', '"x"']) assert.throws(() => parseState(t), /not a JSON object/, t);
+});
+
 test('a project is behind when either version differs', () => {
   const at = (app, content) => stateAt({ schemaVersion: 2, appVersion: app, contentVersion: content, agents: [] });
   const ctx = context({ home: tmp('bk-behind-'), appVersion });

@@ -1550,9 +1550,45 @@ test.describe('views', () => {
     await expect(history.getByRole('textbox', { name: 'Days since the last activity' })).toHaveValue('30');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
     await expect(history.getByText('Summaries are kept.')).toBeVisible();
-    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    const count = await history.getByText(/\d+ sessions in the cache/).textContent();
+    const clear = history.getByRole('button', { name: 'Clear the sessions cache' });
+    const ask = page.getByRole('dialog', { name: 'Clear the sessions cache?' });
+    await clear.focus();
+    await page.keyboard.press('Enter');
+    await expect(ask).toContainText('are gone for good');
+    await ask.getByRole('button', { name: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(ask).toBeHidden();
+    await expect(history.getByText(count)).toBeVisible();
+    await expect(history.getByText('Cache cleared.')).toBeHidden();
+    await clear.click();
+    await ask.getByRole('button', { name: 'Clear the cache' }).click();
     await expect(history.getByText('Cache cleared.')).toBeVisible();
     await expect(history).toContainText('0 sessions in the cache');
+  });
+
+  test('Preferences: the Clear dialog reads the count again when it opens', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const history = page.getByRole('region', { name: 'Sessions history' });
+    await expect(history).toContainText('sessions in the cache');
+    // Another tab scans meanwhile: the server now holds 7 summaries.
+    await page.route(/\/api\/sessions-cache$/, (r) => (r.request().method() === 'GET' ? r.fulfill({ json: { sessions: 7, keepDays: null } }) : r.continue()));
+    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await expect(page.getByRole('dialog', { name: 'Clear the sessions cache?' })).toContainText('7 session summaries go');
+  });
+
+  test('Preferences: a profile import clears the export warnings', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    await page.route(/\/api\/profile-export/, async (r) => r.fulfill({ json: { ...(await (await r.fetch()).json()), skipped: ['an export warning'] } }));
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export profile' }).click();
+    const file = await download;
+    await expect(page.getByText('an export warning')).toBeVisible();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Import profile' }).click();
+    await (await chooser).setFiles(await file.path());
+    await expect(page.getByRole('region', { name: 'Profile contents' })).toContainText('Agents: claude');
+    await expect(page.getByText('an export warning')).toBeHidden();
   });
 
   test('Preferences: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
@@ -1662,6 +1698,46 @@ test.describe('views', () => {
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
+  test('Agent settings: an edit after Review drops the shown plan; Review again and Apply writes both edits', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    await expect(changes).toBeHidden();
+    await page.getByRole('button', { name: 'Review 2 changes' }).click();
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await expect(changes).toContainText('"DISABLE_TELEMETRY": "1"');
+    await changes.getByRole('button', { name: /^Apply 2 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'cleanupPeriodDays value' })).toHaveValue('21');
+    await expect(page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' })).toBeChecked();
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+
+  test('Agent settings: a Review answered after a newer edit shows no plan for the older edits', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await page.route(/\/api\/settings-plan$/, async (r) => { await held; await r.continue(); });
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    const asked = page.waitForRequest(/\/api\/settings-plan$/);
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await asked;
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    const answered = page.waitForResponse(/\/api\/settings-plan$/);
+    release();
+    await answered;
+    await expect(page.getByRole('button', { name: 'Review 2 changes' })).toBeEnabled();
+    await expect(page.getByRole('region', { name: 'Changes' })).toBeHidden();
+    await page.unroute(/\/api\/settings-plan$/);
+    await page.getByRole('button', { name: 'Review 2 changes' }).click();
+    await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+  });
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();
@@ -1873,6 +1949,46 @@ test.describe('views', () => {
       await changes.getByRole('button', { name: 'Close' }).click();
     }
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
+  });
+
+  test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {
+    await page.route(/\/api\/accounts(\?|$)/, async (route) => {
+      const json = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...json, accounts: [{ name: 'boxed', agent: 'claude', mode: 'container', label: null, default: false, pool: null, limits: json.settings, volume: 'v', mount: '/m', token: { kept: false, created: null } }] } });
+    });
+    // The first project's answer waits until the second project's answer has arrived.
+    let second;
+    const answered = new Promise((r) => { second = r; });
+    let first = null;
+    await page.route(/\/api\/accounts-status\?/, async (route) => {
+      const project = new URL(route.request().url()).searchParams.get('project');
+      first ??= project;
+      if (project === first) {
+        await answered;
+        return route.fulfill({ json: { loggedIn: true, findings: [] } });
+      }
+      await route.fulfill({ json: { loggedIn: false, findings: [] } });
+      second();
+    });
+    await nav(page, 'Accounts').click();
+    const boxed = page.getByRole('article', { name: 'boxed' });
+    await expect(boxed).toContainText('not checked');
+    const select = page.getByRole('combobox', { name: 'Project of the dev container' });
+    await select.click();
+    await page.getByRole('option').nth(0).click();
+    await expect(boxed).toContainText('checking');
+    const late = page.waitForResponse((r) => new URL(r.url()).searchParams.get('project') === first);
+    await select.click();
+    await page.getByRole('option').nth(1).click();
+    await expect(boxed.getByText('not signed in', { exact: true })).toBeVisible();
+    // Let the late answer land, then check it did not replace the second project's result.
+    await late;
+    await expect(boxed.getByText('not signed in', { exact: true })).toBeVisible();
+    await expect(boxed.getByText('signed in', { exact: true })).toHaveCount(0);
+    // Choosing the selected option again clears the project.
+    await select.click();
+    await page.getByRole('option').nth(1).click();
+    await expect(boxed).toContainText('not checked');
   });
 
   // The one-run setup, last: it applies project setups and registers four more projects.

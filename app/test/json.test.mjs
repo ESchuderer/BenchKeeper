@@ -243,6 +243,10 @@ test('--json: the changing commands print their runs and entries, refuse a quest
     assert.ok(Array.isArray((await doc(['skills', 'update', 'frontend-design', '--project', dir, '--yes'], 0, 'skills update', ['runs'])).runs));
     const undo = await doc(['undo', set.id], 0, 'undo', ['runs']);
     assert.ok(undo.runs[0].kind === 'undo' && undo.runs[0].entries.every((e) => e.status === 'done'));
+    const runs = ctx.ledger.list().length;
+    assert.match((await doc(['undo', set.id, '--step', 'typo'], 2, 'undo', ['error'])).error, /has no step typo; its steps: /);
+    assert.match((await doc(['undo', set.id], 2, 'undo', ['error'])).error, /nothing to undo in run/);
+    assert.equal(ctx.ledger.list().length, runs);
 
     const other = mkdtempSync(join(TMP, 'bk-json-other-')), moved = mkdtempSync(join(TMP, 'bk-json-moved-'));
     assert.deepEqual((await doc(['projects', 'add', other], 0, 'projects add', ['runs', 'projects'])).projects, [{ path: other, status: 'added' }]);
@@ -254,6 +258,7 @@ test('--json: the changing commands print their runs and entries, refuse a quest
       [['undo'], 'undo', /needs a name/],
       [['projects', 'relocate', dir], 'projects relocate', /needs the old and the new directory/],
       [['projects', 'rename', join(TMP, 'bk-json-never-added'), 'x'], 'projects rename', /is not a registered project/],
+      [['projects', 'remove', join(TMP, 'bk-json-never-added')], 'projects remove', /bk-json-never-added is not a registered project/],
       [['settings', 'set'], 'settings set', /needs a key/],
       [['settings', 'set', 'no.such.key', 'x', '--yes'], 'settings set', /is not a key of/],
       [['packs', 'enable', 'nope', '--project', dir, '--yes'], 'packs enable', /unknown pack nope/],

@@ -1,4 +1,4 @@
-import { Button, Group, NumberInput, Stack, Switch, Text } from '@mantine/core';
+import { Button, Group, Modal, NumberInput, Stack, Switch, Text, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Section } from './parts.jsx';
@@ -11,6 +11,7 @@ export function SessionsHistory() {
   const [error, setError] = useState(null);
   const [done, setDone] = useState('');
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   const keep = cache.data?.keepDays;
   useEffect(() => { if (keep) setDays(keep); }, [keep]);
   const send = (body, said) => async () => {
@@ -32,7 +33,17 @@ export function SessionsHistory() {
               <Button variant="default" loading={busy} disabled={!Number.isInteger(days) || days < 1} onClick={send({ keepDays: days }, 'Retention set.')}>Set days</Button>
             </Group>
           )}
-          <Group><Button variant="default" loading={busy} onClick={send({ clear: true }, 'Cache cleared.')}>Clear the sessions cache</Button></Group>
+          <Group><Button variant="default" loading={busy} onClick={() => { cache.reload(); setAsking(true); }}>Clear the sessions cache</Button></Group>
+          <Modal opened={asking} onClose={() => setAsking(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Clear the sessions cache?' } }}>
+            <Stack gap="sm">
+              <Title order={2} size="h4">Clear the sessions cache?</Title>
+              <Text size="sm">{c.sessions} session {c.sessions === 1 ? 'summary goes' : 'summaries go'}. Those of transcripts the agent already deleted are gone for good; the next scan reads the others again.</Text>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setAsking(false)}>Cancel</Button>
+                <Button loading={cache.loading} onClick={() => { setAsking(false); void send({ clear: true }, 'Cache cleared.')(); }}>Clear the cache</Button>
+              </Group>
+            </Stack>
+          </Modal>
           {done && <Text size="sm" role="status">{done}</Text>}
           {error && <Note color="red" title="Not changed">{error}</Note>}
         </Stack>

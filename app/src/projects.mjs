@@ -218,12 +218,16 @@ export function addProject(ctx, path, { worktree = false } = {}) {
   if (!found.same) updateRegistry(ctx, (list) => (list.some((x) => x.path === found.path) ? list : [...list, { path: found.path, added: new Date().toISOString() }]));
   return found.path;
 }
-// path or a list of them; the files in the folders stay.
+// path or a list of them; the files in the folders stay. Throws, removing none, when one is not registered.
 export function removeProject(ctx, path) {
   const gone = new Set([path].flat().map(canon));
-  updateRegistry(ctx, (list) => list.filter((x) => !gone.has(x.path)));
+  updateRegistry(ctx, (list) => {
+    const unknown = [...gone].find((p) => !list.some((x) => x.path === p));
+    if (unknown) throw new Error(`${unknown} is not a registered project`);
+    return list.filter((x) => !gone.has(x.path));
+  });
 }
-const registeredEntry = (ctx, path) => {
+export const registeredEntry = (ctx, path) => {
   const p = canon(path), entry = listProjects(ctx).find((x) => x.path === p);
   if (!entry) throw new Error(`${p} is not a registered project`);
   return entry;
@@ -519,7 +523,8 @@ export function unshare(ctx, path, { push = true } = {}) {
 // setup too.
 export function setupRemoval(ctx, path) {
   registeredEntry(ctx, path);
-  const state = tryState(path);
+  // A state file this app cannot read stops the plan: without it the removal would miss what only the file names.
+  const state = readState(path);
   const shared = state?.share === true;
   // A local setup git still tracks leaves with a pull request too, next to the local files git ignores.
   const pr = shared || (isRepo(ctx, path) && tracksState(ctx, path));

@@ -307,6 +307,15 @@ function undoRun(id, ctx, { step, unit } = {}) {
   // Update all on a branch worked in a worktree that is gone; its result is a branch and a pull request. A local run
   // changed the checkout and undoes like any other.
   if (source.note?.updateAll && source.note.branch) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);
+  const picked = [...source.entries].reverse().filter((e) => doneOrTouched(e) && !e.undone && (!step || e.step === step) && (!unit || e.installUnit === unit));
+  // Nothing to restore records no run: a typo in --step or --unit, or a second undo, must not read as a success.
+  if (!picked.length) {
+    for (const [flag, value, key] of [['step', step, 'step'], ['unit', unit, 'installUnit']]) {
+      const names = [...new Set(source.entries.map((e) => e[key]).filter(Boolean))];
+      if (value && !names.includes(value)) throw Object.assign(new Error(`run ${id} has no ${flag} ${value}; its ${flag}s: ${names.join(', ') || 'none'}`), { usage: true, status: 400 });
+    }
+    throw Object.assign(new Error(`nothing to undo in run ${id}${step ? ` step ${step}` : ''}${unit ? ` unit ${unit}` : ''}: its changes are undone already or were never made`), { status: 409 });
+  }
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'undo', of: id, scope: source.scope, entries: [] };
   const save = () => { ctx.ledger.save(run); ctx.ledger.save(source); };
   const begin = (entry) => { Object.assign(entry, { status: 'running', touched: true }); save(); };
@@ -325,8 +334,7 @@ function undoRun(id, ctx, { step, unit } = {}) {
     save();
     if (copyOnly) { copy(path, rec.backup); if (hashPath(rec.backup) !== rec.hashBackup) throw new Error(`backup of ${path} differs from the original`); } else move(path, rec.backup);
   };
-  for (const e of [...source.entries].reverse()) {
-    if (!doneOrTouched(e) || e.undone || (step && e.step !== step) || (unit && e.installUnit !== unit)) continue;
+  for (const e of picked) {
     const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind, ...(e.installUnit ? { installUnit: e.installUnit } : {}) };
     run.entries.push(entry);
     try {

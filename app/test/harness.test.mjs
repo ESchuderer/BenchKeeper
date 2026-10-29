@@ -92,10 +92,16 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   // The library skill is copied into the scratch repository for its own cases only.
   assert.equal(calls.filter((c) => c.lib).length, 12);
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
+  // A cut-off line that does not parse is skipped, not a SyntaxError.
+  appendFileSync(join(ctx.config, 'evals/results.jsonl'), '{"target":"skill:wo');
+  assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
   assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 3);
   assert.equal(evalPlan(ctx, { model: 'opus' }).length, 3);
   addCase(ctx, { target: 'skill:workflow', expected: 'loads', query: 'Rename the CLI flag --out to --output.' });
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }).map((p) => p.target), ['skill:workflow']);
+  // The result appended after the cut-off line is read back.
+  await runEval(ctx, evalPlan(ctx, { model: 'sonnet' }));
+  assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
   assert.equal(triggered('{"type":"x"}\nRead /h/.agents/skills/workflow/SKILL.md', 'workflow'), true);
 });
 
@@ -130,6 +136,30 @@ test('evals plan lists the targets and starts no session, in CI too', async () =
   assert.doesNotMatch(text, /Start \d+ agent sessions/);
   assert.equal(calls.length, 0);
   assert.equal(await main(['evals'], { out, ctx }), 2);
+});
+
+test('evals plan trims the agent names', async () => {
+  const ctx = machine(stubAgent([]));
+  let text = '';
+  const out = new Writable({ write(c, _, done) { text += c; done(); } });
+  assert.equal(await main(['evals', 'plan', '--target', 'skill:workflow', '--agents', 'claude, codex'], { out, ctx }), 0);
+  assert.match(text, /skill:workflow\s+claude\s+\d+ cases/);
+  assert.match(text, /skill:workflow\s+codex\s+\d+ cases/);
+});
+
+test('evals plan and run refuse an agent evals cannot run, before planning', async () => {
+  const calls = [];
+  const ctx = machine(stubAgent(calls));
+  for (const [args, named] of [[['evals', 'plan', '--agents', 'gemini'], 'gemini'], [['evals', 'run', '--agents', 'claud', '--yes'], 'claud'], [['evals', 'plan', '--agents', 'claude,'], '(empty)'], [['evals', 'plan', '--agents', 'claude, '], '(empty)']]) {
+    let text = '';
+    const out = new Writable({ write(c, _, done) { text += c; done(); } });
+    assert.equal(await main(args, { out, ctx }), 2);
+    assert.equal(text, `evals runs claude and codex only, not ${named}\n`);
+    let json = '';
+    const code = await main([...args, '--json'], { out: new Writable({ write(c, _, done) { json += c; done(); } }), err: new Writable({ write(_c, _e, done) { done(); } }), ctx });
+    assert.deepEqual([code, JSON.parse(json).error], [2, text.trim()]);
+  }
+  assert.equal(calls.length, 0);
 });
 
 test('evals --json: the plan starts nothing, run needs --yes and prints the plan and its results, no case text leaks', async () => {

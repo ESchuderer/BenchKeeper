@@ -15,7 +15,7 @@ import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './r
 import { addCase } from './cases.mjs';
 import { childEnv } from './childenv.mjs';
 import { doctor } from './doctor.mjs';
-import { evalPlan, runEval } from './eval.mjs';
+import { EVAL_AGENTS, evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
@@ -25,7 +25,7 @@ import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -106,7 +106,7 @@ Usage: benchkeeper <command> [options]
   evals plan|run [--agents a,b] [--model m] [--target t] [--all] [--yes]
                                     skill trigger evals with real agent sessions (subscription use, never in CI);
                                     only targets changed since their last result unless --all; plan lists the targets and
-                                    sessions and starts none, run asks first (--yes answers it)
+                                    sessions and starts none, run asks first (--yes answers it); --agents default: claude
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--project dir] [--agents a,b]
                                     deterministic checks: files match the ledger, expected plugins and skills,
@@ -202,7 +202,8 @@ Usage: benchkeeper <command> [options]
                                     drops older ones; clear removes them all, the history of deleted transcripts for good
                                     (run it while no scan runs in the web UI: that scan writes them back). Both ask first
   sessions record [--project dir] -- <agent> [args]
-                                    runs an agent session and records the files it changes (undo restores them)
+                                    runs an agent session and records the files it changes (undo restores them);
+                                    exits with the agent's exit code (127: it did not start)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
   accounts add [name] [--agent claude|codex] [--container --mount path] [--label text] [--dir path] [--yes]
                                     registers an account: its own folder (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a
@@ -286,16 +287,18 @@ Usage: benchkeeper <command> [options]
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
---json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list,
-        show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get,
-        sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
-        evals plan, run and results, inventory, dashboard; apply, projects apply, add, remove, rename, relocate and
-        update, settings set, rules and packs enable|disable, skills update, undo)
+--json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
+        automations list|show|diff|status|precheck, packs list|show|warnings, skills list|show|sources,
+        rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
+        profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
+        apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
+        packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
+        sessions cache set|clear)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
                                     that would ask needs --yes: without it exit 2 and nothing changes
 
-Agents: claude, codex, gemini, copilot (default: the installed ones). Packs: see plugins/benchkeeper/library/README.md.
+Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude or codex, default claude). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
@@ -508,6 +511,12 @@ async function printRead(ctx, { cmd, o, positionals, out, err }) {
   return 0;
 }
 
+// --agents claude, gives an empty name; evals has a session command for its own agents only.
+const evalAgentNames = (list) => list?.split(',').map((a) => a.trim()) ?? ['claude'];
+const evalAgentsProblem = (agents) => {
+  const unknown = agents.filter((a) => !EVAL_AGENTS.includes(a));
+  return unknown.length ? `evals runs ${EVAL_AGENTS.join(' and ')} only, not ${unknown.map((a) => a || '(empty)').join(', ')}` : null;
+};
 const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
@@ -744,11 +753,14 @@ async function command(argv, { out, err, ask, ctx }) {
       }
     }
     else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
-    else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.projects?.push({ path: resolve(d), status: 'removed' }); out.write(`removed ${resolve(d)}\n`); });
+    else if (arg === 'remove') {
+      removeProject(ctx, dirs);
+      dirs.map(canon).forEach((path) => { out.projects?.push({ path, status: 'removed' }); out.write(`removed ${path}\n`); });
+    }
     else if (arg === 'unshare') {
       const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
       if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
-      const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
+      const due = (dirs.length ? dirs.map((d) => registeredEntry(ctx, d).path) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);
@@ -804,12 +816,12 @@ async function command(argv, { out, err, ask, ctx }) {
     const run = recordSession({ ...ctx, roots: [dir] }, dir, argv);
     const e = run.entries[0];
     out.write(`session exit ${e.exit}, ${e.files.length} files changed${e.transcript ? `, transcript ${e.transcript}` : ''}\nrun ${run.id}: undo with benchkeeper undo ${run.id}\n`);
-    return 0;
+    return e.exit;
   }
   if (cmd === 'profile') {
     if (arg === 'export') {
       const origins = o.origins ? shownOrigins(ctx, positionals[2] ? out : err) : [];
-      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins });
+      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins, warn: (m) => err.write(`${m}\n`) });
       if (positionals[2]) { writeAtomic(resolve(positionals[2]), text); out.write(`wrote ${resolve(positionals[2])}\n`); } else out.write(text);
       return 0;
     }
@@ -824,6 +836,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
+    for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
@@ -888,8 +901,10 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'evals') {
     if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
+    const agents = evalAgentNames(o.agents), agentsProblem = evalAgentsProblem(agents);
+    if (agentsProblem) { out.write(`${agentsProblem}\n`); return 2; }
     if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
-    const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
+    const plan = evalPlan(ctx, { agents, model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
     for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases${p.project ? `  (project ${p.project})` : ''}\n`);
@@ -933,7 +948,7 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     let uctx;
     try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
-    return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out);
+    try { return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out); } catch (e) { out.write(`${e.message}\n`); return e.usage ? 2 : 1; }
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
     if (positionals.length > 1) { out.write(`unexpected argument ${positionals[1]}\n`); return 2; }
@@ -1278,8 +1293,10 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
   }
   if (cmd === 'evals' && ['plan', 'run'].includes(arg)) {
+    const agents = evalAgentNames(o.agents), agentsProblem = evalAgentsProblem(agents);
+    if (agentsProblem) return fail(agentsProblem);
     if (arg === 'run' && process.env.CI) return fail('evals run starts agent sessions on a subscription and does not run in CI');
-    const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
+    const plan = evalPlan(ctx, { agents, model: o.model, all: o.all, only: o.target });
     // Case ids only: a query or expected text can quote a transcript.
     const doc = { plan: plan.map((p) => ({ target: p.target, agent: p.agent, model: p.model ?? null, cases: p.cases.map((c) => c.id), ...(p.project ? { project: p.project } : {}) })) };
     if (arg === 'plan' || !plan.length) return emit(doc);
@@ -1300,7 +1317,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
-    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [] })) });
+    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }

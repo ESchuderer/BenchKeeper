@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -9,7 +9,7 @@ import { ownPacks, savePack } from '../src/packs.mjs';
 import { exportProfile, readProfile } from '../src/profile.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
-import { projectPlan, readState } from '../src/steps/project.mjs';
+import { STATE, projectPlan, readState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -70,4 +70,34 @@ test('one answer stream serves several questions in one command', async () => {
   await main(['profile', 'import', file], { out: w, ctx: b, input: Readable.from(['y\n', 'n\n'.repeat(80)]) });
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
   assert.ok(!existsSync(join(b.home, '.claude/settings.json')) || !readFileSync(join(b.home, '.claude/settings.json'), 'utf8').includes('opusplan'));
+});
+
+test('a state file this app cannot read: export names the project, import skips it and goes on', async () => {
+  for (const [text, reason] of [['{"schemaVersion": 99}', /schemaVersion 99, this benchkeeper reads up to/], ['{ damaged', /JSON/]]) {
+    const a = machine();
+    const bad = tmp('bk-prof-bad-'), good = tmp('bk-prof-good-');
+    mkdirSync(join(bad, '.benchkeeper'));
+    writeFileSync(join(bad, STATE), text);
+    addProject(a, bad);
+    addProject(a, good);
+    const warned = [];
+    const p = readProfile(exportProfile(a, { agents: ['claude'], packs: [], warn: (m) => warned.push(m) }));
+    assert.equal(warned.length, 1);
+    assert.ok(warned[0].includes(join(bad, STATE)) && reason.test(warned[0]), warned[0]);
+    assert.ok(!('answers' in p.projects.find((x) => x.path === bad)));
+
+    // The other machine has both folders, the unreadable state file included.
+    p.projects.find((x) => x.path === bad).answers = { agents: ['claude'], env: 'host' };
+    p.projects.find((x) => x.path === good).answers = { agents: ['claude'], env: 'host', tier: 'quick' };
+    const b = machine();
+    const file = join(tmp('bk-prof-file-'), 'profile.json');
+    writeFileSync(file, JSON.stringify(p));
+    let out = '';
+    const w = new Writable({ write(c, _, done) { out += c; done(); } });
+    assert.equal(await main(['profile', 'import', file, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
+    assert.match(out, new RegExp(`skipped ${bad}: ${join(bad, STATE)}: .*${reason.source}`));
+    assert.equal(readState(good).tier, 'quick');
+    assert.equal(readFileSync(join(bad, STATE), 'utf8'), text);
+    assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
+  }
 });

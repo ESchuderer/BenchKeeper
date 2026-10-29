@@ -47,8 +47,12 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   addProject(ctx, join(root, 'a'));
   addProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx).map((p) => p.path), [canon(join(root, 'a'))]);
+  // A list with an unregistered folder removes none.
+  assert.throws(() => removeProject(ctx, [join(root, 'a'), join(root, 'e')]), new RegExp(`${canon(join(root, 'e'))} is not a registered project`));
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), [canon(join(root, 'a'))]);
   removeProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx), []);
+  assert.throws(() => removeProject(ctx, join(root, 'a')), /is not a registered project/);
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
 });
 
@@ -103,7 +107,10 @@ test('registry: one folder is one project, also through a symlink, in the regist
   // The scan below the symlink does not offer the registered folder, and removal through either path removes it.
   const found = scan(ctx, link).filter((d) => !listProjects(ctx).some((p) => p.path === canon(d)));
   assert.deepEqual(found, []);
-  removeProject(ctx, join(link, 'app'));
+  // The command prints the path the registry stored, not the one given.
+  let shown = '';
+  assert.equal(await main(['projects', 'remove', join(link, 'app')], { out: new Writable({ write(c, _, done) { shown += c; done(); } }), ctx }), 0);
+  assert.equal(shown, `removed ${canon(join(real, 'app'))}\n`);
   assert.deepEqual(listProjects(ctx), []);
 });
 
@@ -470,6 +477,10 @@ test('projects unshare: a pull request without the committed setup; the checkout
   assert.ok(still(p.dir));
   let out = '';
   const w = new Writable({ write(c, _, done) { out += c; done(); } });
+  // A folder that is not registered, or does not exist, is refused before anything runs.
+  const missing = join(TMP, 'bk-unshare-missing');
+  await assert.rejects(main(['projects', 'unshare', p.dir, missing, '--yes', '--no-push'], { out: w, ctx, input: Readable.from(['']) }), { message: `${canon(missing)} is not a registered project` });
+  assert.equal(out, '');
   assert.equal(await main(['projects', 'unshare', '--yes', '--no-push'], { out: w, ctx, input: Readable.from(['']) }), 0, out);
   assert.match(out, /^committed\s/m);
   assert.equal(p.git('ls-tree', '-r', '--name-only', 'chore/agent-setup-local'), 'README.md\n');

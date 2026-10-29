@@ -193,12 +193,14 @@ export function Accounts({ overview, refresh }) {
       setSaving((await api('/api/apply', { planId: p.planId })).job);
     } catch (e) { setError(e.message); }
   };
+  // Each entry notes the project it was asked for: an answer for a project no longer selected is dropped, and a card shows only the current project's entry.
+  const asked = project ?? '';
   const check = async (a) => {
-    setChecks((c) => ({ ...c, [a.name]: { ...c[a.name], busy: true } }));
+    const keep = (entry) => setChecks((c) => (c[a.name]?.project === asked ? { ...c, [a.name]: { project: asked, ...entry } } : c));
+    setChecks((c) => ({ ...c, [a.name]: { ...(c[a.name]?.project === asked && c[a.name]), project: asked, busy: true } }));
     try {
-      const result = await api(`/api/accounts-status?${new URLSearchParams({ name: a.name, ...(project ? { project } : {}) })}`);
-      setChecks((c) => ({ ...c, [a.name]: { result } }));
-    } catch (e) { setChecks((c) => ({ ...c, [a.name]: { error: e.message } })); }
+      keep({ result: await api(`/api/accounts-status?${new URLSearchParams({ name: a.name, ...(project ? { project } : {}) })}`) });
+    } catch (e) { keep({ error: e.message }); }
   };
   // Each card reads its sign-in and usage when the list loads; a container account once a project is chosen.
   const accounts = state.data?.accounts;
@@ -241,7 +243,7 @@ export function Accounts({ overview, refresh }) {
                   )}
                   <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
                     {data.accounts.map((a) => (
-                      <AccountCard key={a.name} a={a} c={checks[a.name]} onUse={() => now({ op: 'use', name: a.name })} onTrack={() => now({ op: 'track', name: a.name })} onSignIn={() => start(a)} onRemove={() => plan({ op: 'remove', name: a.name })} />
+                      <AccountCard key={a.name} a={a} c={checks[a.name]?.project === asked ? checks[a.name] : undefined} onUse={() => now({ op: 'use', name: a.name })} onTrack={() => now({ op: 'track', name: a.name })} onSignIn={() => start(a)} onRemove={() => plan({ op: 'remove', name: a.name })} />
                     ))}
                   </SimpleGrid>
                   <AddButtons onAdd={add} size="sm" />

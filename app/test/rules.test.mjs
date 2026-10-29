@@ -16,6 +16,7 @@ import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectCtx } from '../src/steps/project.mjs';
+import { jobDone } from './fakes/job.mjs';
 
 const TMP = realpathSync(tmpdir());
 const SHOWN = join('~', '.claude/rules/20-team.md');
@@ -287,7 +288,7 @@ test('the routes: the view, the text, a plan applied through /api/apply; a path 
   assert.deepEqual(plan.changes.map((c) => c.title), [`turn off ${row(ctx, 'claude', team).shown} for Claude Code`]);
   assert.ok(!JSON.stringify(plan).includes(SECRET));
   const job = routes['POST /api/apply']({ planId: plan.planId });
-  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  await jobDone(routes, job.job);
   assert.equal(row(ctx, 'claude', team).load, 'off');
   const other = join(ctx.home, '.claude/rules/30-style.md');
   write(other, 'style\n');
@@ -481,11 +482,111 @@ test('the edit routes: a check and a plan write nothing, /api/apply writes, and 
   assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`, 'a plan writes nothing');
   assert.ok(!plan.changes.some((c) => c.title.includes(SECRET)));
   const job = routes['POST /api/apply']({ planId: plan.planId });
-  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  await jobDone(routes, job.job);
   assert.equal(readFileSync(local, 'utf8'), `${SECRET} new\n`);
   const [last] = ctx.ledger.list();
   assert.equal(undo(last.id, projectCtx(ctx, dir)).status, 'done');
   assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`);
   const records = JSON.stringify([ctx.ledger.list(), routes['GET /api/history'](), routes['GET /api/run'](q({ id: last.id })), routes['GET /api/job'](q({ id: job.job })), exportProfile(ctx, { agents: ['claude'], packs: [] })]);
   assert.ok(!records.includes(SECRET));
+});
+
+test('globs: ? is one character, ** alone crosses folders, a comma or brace outside braces is literal', () => {
+  assert.ok(globRegex('/w/?.md').test('/w/a.md') && !globRegex('/w/?.md').test('/w/ab.md') && !globRegex('/w/?.md').test('/w//.md'));
+  assert.ok(globRegex('/w/**').test('/w/a/b/c.md'));
+  assert.ok(!globRegex('/w/[!a].md').test('/w/a.md'), 'a class negated with !');
+  assert.ok(globRegex('/w/a,b.md').test('/w/a,b.md') && !globRegex('/w/a,b.md').test('/w/a'));
+  assert.ok(globRegex('/w/{a,b}}.md').test('/w/a}.md'), 'a closing brace without an open one');
+  assert.ok(globRegex('/w/{a,b},c.md').test('/w/a,c.md'), 'a comma after the braces closed');
+  assert.ok(globRegex('/w/{a,{b,c}}.md').test('/w/c.md'), 'nested braces');
+});
+
+test('the checks skip front matter, fenced code and headings, normalize list markers, and read every package.json', () => {
+  const ctx = machine();
+  const dir = project();
+  const front = '---\ndescription: a front matter line that is long enough to repeat\n---\n';
+  const same = 'Keep the build green before every merge request please';
+  write(join(dir, 'CLAUDE.md'), `${front}# A heading line that is long enough to be counted twice\n- ${same}\n\`\`\`\n~~~\n[in code](gone-in-code.md)\n\`\`\`\n[after](gone.md) and \`[span](gone-span.md)\` and [web](http://example.com/x) and [bad](%E0%A4%A.md)\nRun npm run lint before a push.\n`);
+  write(join(dir, '.claude/rules/a.md'), `${front}# A heading line that is long enough to be counted twice\n1.   ${same.toUpperCase()}\n* another line that is long enough to repeat as well\n* another line that is long enough to repeat as well\n`);
+  write(join(dir, '.claude/rules/b.md'), '---\npaths: ["src/**", \'lib/*.js\']\n---\n\nscoped\n');
+  write(join(dir, '.claude/rules/c.md'), '---\npaths:\n  - "node_modules/**"\n  - ".git/**"\n---\n\nscoped\n');
+  write(join(dir, 'lib/a.js'), '');
+  write(join(dir, 'node_modules/x/a.js'), '');
+  write(join(dir, 'package.json'), '{ not json');
+  write(join(dir, 'web/package.json'), JSON.stringify({ scripts: { lint: 'true' } }));
+  const found = rulesChecks(ctx, { agents: ['claude'], dir }).filter((f) => f.scope !== 'global');
+  assert.deepEqual(found.map((f) => [f.kind, f.file, f.line]), [
+    ['link', 'CLAUDE.md', 10],
+    ['duplicate', '.claude/rules/a.md', 5],
+    ['glob', '.claude/rules/c.md', 2],
+  ]);
+  assert.match(found[0].message, /links gone\.md, which/);
+  assert.match(found[1].message, /^\.claude\/rules\/a\.md:5 repeats CLAUDE\.md:5: both load/);
+  assert.match(found[2].message, /\(node_modules\/\*\*, \.git\/\*\*\)/);
+});
+
+test('a pair of files that share several lines is one finding with the count', () => {
+  const ctx = machine();
+  const dir = project();
+  const lines = ['first shared line that is long enough to count', 'second shared line that is long enough to count'];
+  write(join(dir, 'CLAUDE.md'), `${lines.join('\n')}\n`);
+  write(join(dir, 'CLAUDE.local.md'), `intro\n${lines.join('\n')}\n`);
+  const [dup] = rulesChecks(ctx, { agents: ['claude'], dir }).filter((f) => f.kind === 'duplicate');
+  assert.equal(dup.message, 'CLAUDE.local.md:2 repeats CLAUDE.md:1 (2 lines in all): both load in the same Claude Code session');
+});
+
+test('unloaded files: the fix depends on the agents chosen, and an override of yours hides a file of yours', () => {
+  const ctx = machine();
+  const dir = project();
+  write(join(dir, 'CLAUDE.md'), 'claude only\n');
+  write(join(dir, 'AGENTS.md'), 'codex only\n');
+  const codex = rulesChecks(ctx, { agents: ['codex'], dir }).filter((f) => f.kind === 'unloaded');
+  assert.deepEqual(codex.map((f) => [f.message, f.fix, f.scope, f.line]), [['CLAUDE.md is read by none of Codex', 'leave it when an agent of the team that is not set up here reads it, else remove it', 'project', 1]]);
+  const claude = rulesChecks(ctx, { agents: ['claude'], dir }).filter((f) => f.kind === 'unloaded');
+  assert.deepEqual(claude.map((f) => [f.message, f.fix]), [['AGENTS.md is read by none of Claude Code', 'import it from CLAUDE.md with a line @AGENTS.md, unless an agent of the team that is not set up here reads it']]);
+  write(join(ctx.home, '.codex/AGENTS.md'), 'mine\n');
+  write(join(ctx.home, '.codex/AGENTS.override.md'), 'override\n');
+  const shadow = rulesChecks(ctx, { agents: ['codex'] }).filter((f) => f.kind === 'unloaded');
+  assert.deepEqual(shadow.map((f) => [f.message, f.fix, f.scope]), [[`${join('~', '.codex/AGENTS.md')} is not read: AGENTS.override.md in the same folder replaces it`, 'move what you need into the override, or remove the override', 'global']]);
+});
+
+test('auto memory: a folder of the user settings with ~ for the home folder; a relative or project setting is ignored', () => {
+  const ctx = machine();
+  const dir = project();
+  const memoryOf = (d) => view(ctx, 'claude', d).budget.items.find((i) => i.kind === 'memory');
+  write(join(ctx.home, 'mem/MEMORY.md'), 'custom\nsecond\n');
+  write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: '~/mem' }));
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: join(ctx.home, 'elsewhere') }));
+  const custom = memoryOf(dir);
+  assert.deepEqual([custom.path, custom.lines, custom.size, custom.bytes, custom.label], [join(ctx.home, 'mem/MEMORY.md'), 2, 14, 14, 'Auto memory (first 200 lines or 25 KB of MEMORY.md)']);
+  write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: 'mem' }));
+  assert.equal(memoryOf(dir), undefined);
+});
+
+test('the budget: kinds summed, path-scoped tokens on demand, project skills and skills without a space after the colon', () => {
+  const ctx = machine();
+  const dir = project();
+  write(join(dir, 'CLAUDE.md'), 'a'.repeat(400));
+  write(join(dir, '.claude/rules/s.md'), `---\npaths: "src/**"\n---\n${'s'.repeat(376)}`);
+  write(join(dir, '.claude/skills/p/SKILL.md'), '---\nname: p\ndescription: "pp"\n---\n');
+  write(join(dir, '.claude/skills/q/SKILL.md'), '---\nname: q\ndescription: "qq"\ndisable-model-invocation:true\n---\n');
+  const { budget } = view(ctx, 'claude', dir);
+  assert.equal(budget.onDemand, 100);
+  assert.deepEqual(budget.byKind, { rules: 100, skills: 1 });
+  assert.deepEqual(budget.items.find((i) => i.kind === 'skills'), { kind: 'skills', label: 'Skill descriptions, project (1)', bytes: 3, tokens: 1 });
+  assert.equal(budget.over, false);
+  write(join(dir, 'CLAUDE.md'), 'a'.repeat(4 * BUDGET_TOKENS + 4));
+  assert.equal(view(ctx, 'claude', dir).budget.over, true);
+});
+
+test('the text of a file stops at 200000 characters, and a longer file is not edited', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'x'.repeat(200_000));
+  assert.equal(ruleText(ctx, { agent: 'claude', file: team }).truncated, false);
+  assert.equal(ruleEdit(ctx, { agent: 'claude', file: team, text: 'y' })[0].after, 'y');
+  write(team, 'x'.repeat(200_001));
+  const long = ruleText(ctx, { agent: 'claude', file: team });
+  assert.deepEqual([long.text.length, long.truncated], [200_000, true]);
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: team, text: 'y' }), /longer than the 200000 characters the view shows/);
 });

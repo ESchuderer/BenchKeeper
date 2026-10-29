@@ -9,7 +9,7 @@ import { doctor } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
-import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, keyState, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -100,18 +100,22 @@ test('facts: the current value names its source: user, project, local or managed
   assert.deepEqual([row.value, row.from, row.summary], ['1', 'environment', facts['env.DISABLE_TELEMETRY'].summary]);
 });
 
-test('facts outside the catalog: no explanation, the schema default, the value, its source and the docs link', () => {
+test('facts outside the catalog: the reference description, the schema default, the value, its source and the docs link', () => {
   const ctx = machine();
   write(claudeUser(ctx), '{ "agent": "reviewer" }');
   write(codexUser(ctx), 'file_opener = "cursor"\n');
   const [agent] = settingFacts(ctx, 'claude', ['agent']);
-  assert.deepEqual(agent, { key: 'agent', summary: null, eli5: null, impact: null, default: null, docs: 'https://code.claude.com/docs/en/settings-reference#agent', value: 'reviewer', from: 'user' });
+  assert.deepEqual(agent, { key: 'agent', summary: describeKey('claude', 'agent').sentence, eli5: null, impact: null, default: null, docs: 'https://code.claude.com/docs/en/settings-reference#agent', value: 'reviewer', from: 'user' });
   // An env.* key outside the catalog's switches never reads the process environment.
   assert.deepEqual(settingFacts(ctx, 'claude', ['env.HOME_SECRET'], { env: { HOME_SECRET: 'x' } }).map((f) => [f.value, f.from]), [[undefined, 'default']]);
   const [opener] = settingFacts(ctx, 'codex', ['file_opener']);
-  assert.deepEqual([opener.summary, opener.value, opener.from, opener.docs], [null, 'cursor', 'user', 'https://learn.chatgpt.com/docs/config-file/config-reference']);
+  assert.deepEqual([opener.summary, opener.value, opener.from, opener.docs], [describeKey('codex', 'file_opener').sentence, 'cursor', 'user', 'https://learn.chatgpt.com/docs/config-file/config-reference']);
   const advanced = listSettings(ctx, 'claude', { advanced: true }).advanced.find((r) => r.key === 'agent');
-  assert.deepEqual([advanced.summary, advanced.from, advanced.docs], [null, 'user', agent.docs]);
+  assert.deepEqual([advanced.summary, advanced.from, advanced.docs], [agent.summary, 'user', agent.docs]);
+  const [excludes] = settingFacts(ctx, 'claude', ['claudeMdExcludes']);
+  assert.equal(excludes.summary, 'Skip specific CLAUDE.md files when memory loads');
+  // A key no catalog, schema or reference describes stays not explained.
+  assert.equal(settingFacts(ctx, 'claude', ['noSuchKey'])[0].summary, null);
 });
 
 test('facts are named where a setting is: a settings plan, a doctor finding and the route', async () => {
@@ -157,6 +161,17 @@ test('a plan is a diff that never shows a secret, and undo restores the file', (
   assert.equal(JSON.parse(readFileSync(claudeUser(ctx), 'utf8')).env.DISABLE_ERROR_REPORTING, '1');
   assert.equal(undo(r.id, ctx).status, 'done');
   assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before);
+});
+
+test('keyState: a settings change is new, changed, removed or current by its keys, whatever else the file holds', () => {
+  assert.equal(keyState('claude', ['model'], null, '{"model":"opus"}'), 'new');
+  assert.equal(keyState('claude', ['model'], '{"theme":"dark","model":"opus"}', '{"theme":"dark","model":"sonnet"}'), 'changed');
+  assert.equal(keyState('claude', ['model', 'theme'], '{"theme":"dark","model":"opus"}', '{"theme":"dark"}'), 'changed');
+  assert.equal(keyState('claude', ['model'], '{"model":"opus"}', '{}'), 'removed');
+  assert.equal(keyState('claude', ['model'], '{"model":"opus"}', '{"model":"opus","theme":"dark"}'), 'current');
+  assert.equal(keyState('claude', ['model'], '{ not json', '{"model":"opus"}'), 'new');
+  // A trusted Codex project is one key, its dotted path included.
+  assert.equal(keyState('codex', ['projects./p/a.b'], '[projects."/p/a.b"]\ntrust_level = "trusted"\n', ''), 'removed');
 });
 
 test('environment switches are set or removed, never 0 or false', () => {

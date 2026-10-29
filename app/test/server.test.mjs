@@ -8,6 +8,7 @@ import { after, before, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { jobDone, waitFor } from './fakes/job.mjs';
 import { fake, missing, RECORDED, replies } from './fakes/orca.mjs';
 import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
@@ -89,7 +90,7 @@ test('a session scan is reused for a minute: the board renders from it and is sa
   const { ctx, routes } = fixture();
   const first = routes['POST /api/sessions-scan']({});
   assert.ok(first.job);
-  await finished(routes, first.job);
+  await jobDone(routes, first.job);
   const file = join(ctx.config, 'board.html');
   assert.match(readFileSync(file, 'utf8'), /<title>Sessions board<\/title>/);
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
@@ -100,14 +101,14 @@ test('a session scan is reused for a minute: the board renders from it and is sa
 test('the sessions cache: retention and Clear through the API drop the reused scan; both refused during a scan', async () => {
   const { ctx, routes } = fixture();
   writeSessions(ctx.home);
-  await finished(routes, routes['POST /api/sessions-scan']({}).job);
+  await jobDone(routes, routes['POST /api/sessions-scan']({}).job);
   assert.equal(routes['GET /api/sessions-cache']().sessions, 3);
   assert.deepEqual(routes['POST /api/sessions-cache']({ keepDays: 30 }), { keepDays: 30, sessions: 3 });
   // The reused scan went with it: the next one reads again.
   const again = routes['POST /api/sessions-scan']({});
   assert.ok(again.job);
   assert.throws(() => routes['POST /api/sessions-cache']({ clear: true }), /scan is running/);
-  await finished(routes, again.job);
+  await jobDone(routes, again.job);
   assert.throws(() => routes['POST /api/sessions-cache']({ keepDays: 0 }), /whole number/);
   assert.throws(() => routes['POST /api/sessions-cache']({}), /clear: true or keepDays/);
 });
@@ -173,9 +174,6 @@ function fixture(extra = () => null) {
   return { ctx, routes: api(ctx) };
 }
 const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
-// Polled, not a fixed wait: under a loaded test run a job may take longer.
-const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
-const finished = async (routes, id) => { let s; await until(() => (s = routes['GET /api/job'](new URLSearchParams({ id }))).done); return s; };
 
 test('inventory: an edited rules file is modified, enabled plugins current, a missing tool missing', () => {
   const { ctx, routes } = fixture();
@@ -214,7 +212,7 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   assert.ok(plan.changes.filter((c) => c.kind === 'write').every((c) => c.prerun === false));
   const { job, total } = routes['POST /api/prerun']({ planId: plan.planId });
   assert.equal(total, 1);
-  const s = await finished(routes, job);
+  const s = await jobDone(routes, job);
   assert.deepEqual(s.results[skill.id].files.map((f) => f.path), [join(ctx.home, '.claude/skills/find-skills/SKILL.md')]);
   assert.ok(!existsSync(join(ctx.home, '.claude/skills/find-skills')));
   assert.equal(status(() => routes['POST /api/prerun']({ planId: 'gone' })), 409);
@@ -222,18 +220,18 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   // The preview reaches its command after a few awaits (checks, sandbox start): a stop that came first must still end it.
   ctx.runAsync = (argv, o) => new Promise((r) => { const stop = () => r({ code: 130, stdout: '', stderr: 'cancelled' }); if (o.signal.aborted) stop(); else o.signal.addEventListener('abort', stop); });
   const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
-  assert.deepEqual((await finished(routes, routes['POST /api/prerun']({ planId: again.planId }).job)).results[skill.id], s.results[skill.id]);
+  assert.deepEqual((await jobDone(routes, routes['POST /api/prerun']({ planId: again.planId }).job)).results[skill.id], s.results[skill.id]);
   // An apply drops kept results and stops a running rehearsal, whose files it changes; a rehearsal is not a running job.
   const write = (plan) => routes['POST /api/apply']({ planId: plan.planId, select: [plan.changes.find((c) => c.kind === 'write').id] }).job;
-  await finished(routes, write(again));
+  await jobDone(routes, write(again));
   const next = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const pre = routes['POST /api/prerun']({ planId: next.planId });
   assert.deepEqual(routes['GET /api/jobs'](), []);
   const applied = write(next);
-  const stopped = await finished(routes, pre.job);
+  const stopped = await jobDone(routes, pre.job);
   assert.equal(stopped.cancelled, true);
   assert.match(stopped.results[skill.id].error, /cancelled/);
-  await finished(routes, applied);
+  await jobDone(routes, applied);
 });
 
 test('prerun: with no sandbox the route answers "unavailable" and runs nothing; only unconfined: true runs the command, and its result is kept apart', async () => {
@@ -248,18 +246,18 @@ test('prerun: with no sandbox the route answers "unavailable" and runs nothing; 
   ctx.sandbox = { platform: 'win32' };
   const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const skill = plan.changes.find((c) => c.step === 'tools:skill:find-skills');
-  const refused = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: 'yes' }).job)).results[skill.id];
+  const refused = (await jobDone(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: 'yes' }).job)).results[skill.id];
   assert.deepEqual(refused, { files: [], unavailable: true, error: 'Windows has no sandbox the app can use (unsupported)' }, 'only the boolean true counts');
   assert.equal(installs, 0);
-  const anyway = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id];
+  const anyway = (await jobDone(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id];
   assert.equal(anyway.sandbox, 'none');
   assert.deepEqual(anyway.files.map((f) => f.path), [join(ctx.home, '.claude/skills/find-skills/SKILL.md')]);
   assert.equal(installs, 1);
   // The kept unconfined result is not served for a request that did not ask for it.
-  const again = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId }).job)).results[skill.id];
+  const again = (await jobDone(routes, routes['POST /api/prerun']({ planId: plan.planId }).job)).results[skill.id];
   assert.equal(again.unavailable, true);
   assert.equal(installs, 1);
-  assert.equal((await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id].sandbox, 'none');
+  assert.equal((await jobDone(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id].sandbox, 'none');
   assert.equal(installs, 1, 'the unconfined result is kept for the next click');
 });
 
@@ -272,7 +270,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
   const { job, total } = routes['POST /api/apply']({ planId: plan.planId, select });
   assert.equal(total, 2);
-  await until(() => release && routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id]);
+  await waitFor(() => release && routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id], `output of job ${job}`);
   let s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, false);
   assert.equal(s.run.entries.at(-1).id, command.id);
@@ -288,7 +286,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(status(() => routes['POST /api/undo']({ run: s.run.id })), 409);
   assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 409);
   release();
-  s = await finished(routes, job);
+  s = await jobDone(routes, job);
   assert.equal(s.done, true);
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
   assert.deepEqual(routes['GET /api/jobs'](), []);
@@ -299,6 +297,19 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(report.entries[1].output, undefined);
   assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: false });
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
+});
+
+test('a job wait that runs out fails with the job and the wait, not with a later assertion on a half-done job', async () => {
+  const { ctx, routes } = fixture();
+  let release;
+  ctx.runAsync = (argv, o) => (argv[1]?.endsWith('verify.mjs') ? Promise.resolve(ctx.run(argv, o)) : new Promise((r) => { release = () => r({ code: 0, stdout: '', stderr: '' }); }));
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command' && !c.destructive);
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await assert.rejects(jobDone(routes, job, 50), { message: `job ${job} not done after 50 ms` });
+  await waitFor(() => release, 'the stubbed command');
+  release();
+  assert.equal((await jobDone(routes, job)).done, true);
 });
 
 test('setup advice: one restricted, read-only agent session; only library ids pass; applies do not wait for it; CI refuses', async () => {
@@ -315,12 +326,12 @@ test('setup advice: one restricted, read-only agent session; only library ids pa
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'codex' })), 400);
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir: TMP, agent: 'claude' })), 400);
     const { job } = routes['POST /api/setup-advice']({ dir, agent: 'claude' });
-    await until(() => seen);
+    await waitFor(() => seen, 'the advice session');
     assert.ok(seen.cwd === dir && ['--restricted', '--strict-mcp-config', 'Read,Grep,Glob'].every((x) => seen.argv.includes(x)) && !seen.argv.includes('Bash'));
     // A read-only job does not block applies.
     assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 200);
     release();
-    const s = await finished(routes, job);
+    const s = await jobDone(routes, job);
     assert.deepEqual(s.results, { env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'frontend', reason: 'package.json uses react' }], skills: [] });
     process.env.CI = '1';
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'claude' })), 400);
@@ -339,7 +350,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
     assert.equal(plan.sessions, plan.targets.reduce((n, t) => n + t.cases, 0));
     const { job, total } = routes['POST /api/eval']({ agents: 'claude' });
     assert.equal(total, plan.sessions);
-    const s = await finished(routes, job);
+    const s = await jobDone(routes, job);
     assert.equal(s.error, null);
     assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:operating-benchkeeper', 'skill:workflow']);
     assert.ok(s.results.every((r) => !('details' in r)));
@@ -363,7 +374,7 @@ test('cancel: an apply skips the changes not started yet; an eval stops and stor
     const { job } = routes['POST /api/apply']({ planId: plan.planId, select });
     // The job has its run but no change yet: the check before each change sees the cancel.
     assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: true });
-    const s = await finished(routes, job);
+    const s = await jobDone(routes, job);
     assert.deepEqual(s.run.entries.map((e) => [e.status, e.reason]), [['skipped', 'cancelled'], ['skipped', 'cancelled']]);
     assert.equal(s.run.status, 'cancelled');
     assert.equal(s.cancelled, true);
@@ -372,7 +383,7 @@ test('cancel: an apply skips the changes not started yet; an eval stops and stor
     const before = routes['GET /api/evals']().length;
     const e = routes['POST /api/eval']({ agents: 'claude' });
     routes['POST /api/job-cancel']({ id: e.job });
-    const es = await finished(routes, e.job);
+    const es = await jobDone(routes, e.job);
     assert.equal(es.error, 'cancelled');
     assert.equal(routes['GET /api/evals']().length, before);
     assert.equal(es.results, null);
@@ -713,17 +724,17 @@ test('a removal runs only with confirmDestructive: naming its id in select is no
   assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: first.planId, select: [rm.id] }] })), 400);
   assert.ok(existsSync(foreign));
   // The refused request did not use up the plan.
-  await finished(routes, routes['POST /api/apply']({ planId: first.planId, select: [rm.id], confirmDestructive: true }).job);
+  await jobDone(routes, routes['POST /api/apply']({ planId: first.planId, select: [rm.id], confirmDestructive: true }).job);
   assert.ok(!existsSync(foreign), 'confirmed: moved to the backup');
   // A change that is not destructive needs no confirmation.
   const second = plan();
   const write = second.changes.find((c) => c.kind === 'write' && !c.destructive);
-  await finished(routes, routes['POST /api/apply']({ planId: second.planId, select: [write.id] }).job);
+  await jobDone(routes, routes['POST /api/apply']({ planId: second.planId, select: [write.id] }).job);
   // apply-all carries one flag for all sections.
   mkdirSync(foreign, { recursive: true });
   const third = plan();
   const again = third.changes.find((c) => c.kind === 'remove' && c.path === foreign);
-  await finished(routes, routes['POST /api/apply-all']({ sections: [{ planId: third.planId, select: [again.id] }], confirmDestructive: true }).job);
+  await jobDone(routes, routes['POST /api/apply-all']({ sections: [{ planId: third.planId, select: [again.id] }], confirmDestructive: true }).job);
   assert.ok(!existsSync(foreign));
 });
 
@@ -734,7 +745,7 @@ test('registry, pack and profile writes wait for a running apply; a profile impo
   const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const command = plan.changes.find((c) => c.kind === 'command' && !c.destructive);
   const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
-  await until(() => release);
+  await waitFor(() => release, 'the stubbed command');
   const dir = join(ctx.home, 'proj');
   mkdirSync(dir);
   assert.equal(status(() => routes['POST /api/projects']({ path: dir })), 409);
@@ -743,7 +754,7 @@ test('registry, pack and profile writes wait for a running apply; a profile impo
   assert.equal(status(() => routes['POST /api/profile-import']({ register: true, profile: {} })), 409);
   assert.notEqual(status(() => routes['POST /api/profile-import']({ profile: {} })), 409);
   release();
-  await finished(routes, job);
+  await jobDone(routes, job);
   assert.notEqual(status(() => routes['POST /api/projects']({ path: dir, action: 'remove' })), 409);
 });
 
@@ -754,14 +765,14 @@ test('Stop: refused while an apply runs; read-only jobs are aborted', async () =
   const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const command = plan.changes.find((c) => c.kind === 'command' && !c.destructive);
   const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
-  await until(() => release);
+  await waitFor(() => release, 'the stubbed command');
   assert.equal(status(() => routes['POST /api/shutdown']({})), 409);
   release();
-  await finished(routes, job);
+  await jobDone(routes, job);
   // A job is done only after its work settles, so the scan still runs when Stop comes right after it.
   const scan = routes['POST /api/sessions-scan']({ force: true }).job;
   assert.deepEqual(routes['POST /api/shutdown']({}), { stopping: true });
-  assert.equal((await finished(routes, scan)).cancelled, true);
+  assert.equal((await jobDone(routes, scan)).cancelled, true);
 });
 
 // Last: it stops the shared server.
@@ -827,14 +838,14 @@ test('apply-all: one job, a section per plan in order, each its own run; a faile
   const sections = [{ planId: global.planId, select: [command.id] }, ...projects.map((p) => ({ planId: p.planId, select: defaults(p) }))];
   const { job, total } = routes['POST /api/apply-all']({ sections });
   assert.equal(total, 3);
-  await until(() => release);
+  await waitFor(() => release, 'the stubbed command');
   let s = routes['GET /api/job'](q({ id: job }));
   assert.deepEqual(s.sections.map((x) => [x.scope, x.status]), [['global', 'running'], [dirs[0], 'waiting'], [dirs[1], 'waiting']]);
   assert.deepEqual(routes['GET /api/jobs'](), [{ id: job, kind: 'apply-all', title: 'one-run setup', total: 3 }]);
   assert.equal(status(() => routes['POST /api/apply-all']({ sections: [] })), 409);
   assert.equal(status(() => routes['POST /api/undo']({ run: s.sections[0].run.id })), 409);
   release();
-  s = await finished(routes, job);
+  s = await jobDone(routes, job);
   assert.deepEqual(s.sections.map((x) => x.status), ['failed', 'done', 'done']);
   assert.match(s.sections[0].error, /boom/);
   assert.equal(s.sections[1].total, defaults(projects[0]).length);
@@ -867,10 +878,10 @@ test('apply-all: a cancel stops after the running change; later changes are skip
   const packs = routes['GET /api/project-plan'](q({ dir, setup: '1', agents: 'claude', env: 'host', sandbox: '0', share: '0', pack: 'frontend' }));
   assert.ok(packs.changes.filter((c) => c.kind === 'command').length > 1);
   const { job } = routes['POST /api/apply-all']({ sections: [{ planId: packs.planId, select: defaults(packs) }, { planId: projects[0].planId, select: defaults(projects[0]) }] });
-  await until(() => release);
+  await waitFor(() => release, 'the stubbed command');
   assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: true });
   release();
-  const s = await finished(routes, job);
+  const s = await jobDone(routes, job);
   assert.equal(s.cancelled, true);
   assert.deepEqual(s.sections.map((x) => x.status), ['cancelled', 'cancelled']);
   const statuses = s.sections[0].run.entries.map((e) => e.status);
@@ -936,6 +947,14 @@ test('runs: without the IDE its runs are null and it is asked nothing more; the 
   assert.deepEqual(asked.filter((c) => /orca/.test(c)).map((c) => c.replace(/^\/\S*\//, '')), ['orca --version', 'orca-ide --version', 'orca --version']);
 });
 
+test('a settings plan with two changes to one key: the second is compared with the file the first leaves', () => {
+  const { ctx, routes } = fixture();
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/settings.json'), JSON.stringify({ sandbox: { enabled: false } }));
+  const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { sandbox: { enabled: true }, 'sandbox.enabled': false } });
+  assert.deepEqual(plan.changes.map((c) => c.keyState), ['changed', 'changed']);
+});
+
 test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {
   const { ctx, routes } = fixture();
   const file = join(ctx.home, '.claude/settings.json');
@@ -943,13 +962,18 @@ test('the tier strip switch: off by default; on and off are plans in the Claude 
   writeFileSync(file, JSON.stringify({ pluginConfigs: { 'other@x': { options: { a: 1 } } } }));
   const band = () => routes['GET /api/tier-band']();
   assert.deepEqual(band(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand', on: false });
+  const keys = [];
   const set = async (on) => {
     const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: on } });
-    return (await finished(routes, routes['POST /api/apply']({ planId: plan.planId }).job)).run;
+    keys.push(plan.changes[0].keyState);
+    return (await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job)).run;
   };
   await set(true);
   assert.equal(band().on, true);
   const off = await set(false);
+  // The plan says what it does to the key: the file around it is the user's.
+  assert.deepEqual(keys, ['new', 'changed']);
+  assert.equal(routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: null } }).changes[0].keyState, 'removed');
   assert.equal(band().on, false);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs, { 'other@x': { options: { a: 1 } }, 'benchkeeper@benchkeeper': { options: { tierBand: false } } });
   routes['POST /api/undo']({ run: off.id });

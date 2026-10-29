@@ -1,8 +1,8 @@
-import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Switch, Table, Text, Textarea, Title } from '@mantine/core';
+import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
@@ -33,7 +33,9 @@ function useSwitch(dir, onPlan) {
 }
 
 // Findings of the checks: severity, file and line in the message, the fix, and a switch-off plan where that is safe.
-function Findings({ findings, dir, onPlan }) {
+// A busy control here and in Files ignores clicks but keeps the keyboard focus (a disabled one loses it).
+// locked: an apply runs, and a new plan would drop its view.
+function Findings({ findings, dir, onPlan, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!findings.length) return <Text>No rule file is over a limit or broken.</Text>;
   return (
@@ -43,18 +45,18 @@ function Findings({ findings, dir, onPlan }) {
         <Table aria-label="Rule findings" verticalSpacing="xs">
           <Table.Thead><Table.Tr><Table.Th w={110}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
-            {findings.map((f) => (
+            {findings.map((f) => { const off = locked || busy === f.action?.file; return (
               <Table.Tr key={f.message}>
                 <Table.Td><Badge variant="default" miw="max-content" leftSection={<Dot color={f.level === 'error' ? 'red' : 'yellow'} />}>{f.level}</Badge></Table.Td>
                 <Table.Td style={{ overflowWrap: 'anywhere' }}>{f.message}</Table.Td>
                 <Table.Td>
                   <Stack gap={4} align="flex-start">
                     <Text size="sm">{f.fix}</Text>
-                    {f.action && <Button size="compact-xs" variant="default" leftSection={icon(IconPlayerStop)} disabled={busy === f.action.file} onClick={() => toggle(f.action.agent, { path: f.action.file, shown: f.file }, false)}>Turn off {f.file}</Button>}
+                    {f.action && <Button size="compact-xs" variant="default" leftSection={icon(IconPlayerStop)} data-disabled={off || undefined} aria-disabled={off || undefined} onClick={() => !off && toggle(f.action.agent, { path: f.action.file, shown: f.file }, false)}>Turn off {f.file}</Button>}
                   </Stack>
                 </Table.Td>
               </Table.Tr>
-            ))}
+            ); })}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
@@ -159,9 +161,8 @@ function Budget({ budget }) {
   );
 }
 
-// pending: the switch whose plan is open shows the requested position until the plan is applied, cancelled or closed;
-// flipping it back closes the plan (onClear).
-function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear }) {
+// pending: the open plan; its row's switch shows it (PlanSwitch).
+function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
   return (
@@ -171,7 +172,7 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear }) {
         <Table aria-label={`${agent.name} instruction files`} verticalSpacing="sm">
           <Table.Thead><Table.Tr><Table.Th>Load order</Table.Th><Table.Th>File</Table.Th><Table.Th>Owner</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>State</Table.Th><Table.Th>Switch</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
-            {agent.rows.map((r) => { const wait = pending?.row.path === r.path; return (
+            {agent.rows.map((r) => { const wait = pending?.row.path === r.path, off = locked || busy === r.path; return (
               <Table.Tr key={r.path}>
                 <Table.Td>{r.order ?? '-'}</Table.Td>
                 <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code><Text size="sm">{r.scope}</Text></Stack></Table.Td>
@@ -181,8 +182,8 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear }) {
                 <Table.Td miw={220}>
                   <Group gap="xs" wrap="nowrap" align="flex-start">
                     {r.switch.by
-                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={wait ? 'Pending' : r.load === 'off' ? 'Turn on' : 'On'} description={wait ? 'Apply or cancel in Changes below' : undefined}
-                        checked={wait ? pending.on : r.load !== 'off'} disabled={busy === r.path} onChange={(e) => (wait ? onClear() : toggle(agent.id, r, e.currentTarget.checked, agent.name))} />
+                      ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
+                        onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
                     <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>
@@ -202,28 +203,29 @@ export function Rules({ overview, params, refresh, project }) {
   const projects = overview.data?.projects ?? [];
   const [dir, setDir] = useState(project ?? params.get('path') ?? GLOBAL);
   const [pending, setPending] = useState(null);
+  const [running, setRunning, idle, dropped] = usePlanRunning();
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
   // A plan asked for under another selection is dropped when it arrives.
   const shown = useRef(chosen);
   shown.current = chosen;
   const state = useApi(`/api/rules${chosen ? `?${new URLSearchParams({ dir: chosen })}` : ''}`);
-  const choose = (v) => { setDir(v ?? GLOBAL); setPending(null); };
-  const onPlan = (p) => { if (p.dir === shown.current) setPending(p); };
+  const choose = (v) => { if (running) return; setDir(v ?? GLOBAL); setPending(null); };
+  const onPlan = (p) => { if (p.dir === shown.current && idle()) setPending(p); };
   return (
     <Stack gap="lg">
       <Note>The instruction files the agents load, who wrote them, what they cost in context and what the checks found. A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
-      {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
+      {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} readOnly={running} aria-disabled={running || undefined} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
       <Loading state={state} label="instruction files">
         {(data) => (
           <Stack gap="xl">
-            <Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} /></Section>
+            <Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} locked={running} /></Section>
             {data.agents.map((a) => (
               <Stack key={a.id} gap="md">
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} />
+                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
                 </Section>
               </Stack>
             ))}
@@ -233,9 +235,11 @@ export function Rules({ overview, params, refresh, project }) {
       {pending && (
         <Section title="Changes">
           {/* done: applied or cancelled, so the switch shows the file's state again. */}
-          <Plan key={pending.plan.planId} plan={pending.plan} why={`You turned the switch ${pending.on ? 'on' : 'off'} in Rules.`} scope={chosen ? 'project' : 'global'}
+          <Plan key={pending.plan.planId} plan={pending.plan} why={`You turned the switch ${pending.on ? 'on' : 'off'} in Rules.`} scope={chosen ? 'project' : 'global'} onRunning={setRunning}
             onCancel={(done) => setPending((p) => ({ ...p, done }))} onDone={() => { setPending((p) => ({ ...p, done: true })); state.reload(); refresh(); }} />
-          <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
+          {/* Closing during an apply would drop the run's view and its reload. */}
+          <PlanDropped dropped={dropped} />
+          <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
         </Section>
       )}
       <Preview key={preview?.path} row={preview} dir={chosen} onClose={() => setPreview(null)} onSaved={() => { state.reload(); refresh(); }} />

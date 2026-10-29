@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Paper, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Paper, Progress, Stack, Switch, Table, Text, Title, VisuallyHidden } from '@mantine/core';
 import { IconCopy, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -151,7 +151,10 @@ const LONG = 5;
 // The status chip: what the item is now. The server marks every removal as foreign; the full setup's removals (steps
 // other:...) are the user's own, the rest BenchKeeper set up.
 const CHIP = { absent: ['new', 'teal'], removed: ['new', 'teal'], outdated: ['outdated', 'yellow'], modified: ['modified', 'indigo'], foreign: ['installed by you', 'grape'], current: ['current', 'gray'] };
+// A settings merge: what it does to its keys, not the state of the whole file.
+const KEY_CHIP = { new: ['new key', 'teal'], changed: ['changed key', 'yellow'], removed: ['removed key', 'orange'], current: ['current', 'gray'] };
 const chipOf = (c) => (c.foreign || (c.kind === 'command' && removes(c) && c.step?.startsWith('other:')) ? CHIP.foreign
+  : c.settings && KEY_CHIP[c.keyState] ? KEY_CHIP[c.keyState]
   : c.kind === 'write' ? CHIP[c.state] ?? CHIP.absent : removes(c) ? ['installed by BenchKeeper', 'gray'] : CHIP.absent);
 const Chip = ({ c }) => {
   const [label, color] = chipOf(c);
@@ -165,6 +168,7 @@ const whatOf = (c) => {
   if (c.kind === 'remove') return `Deletes ${c.path}.`;
   if (c.kind === 'command') return removes(c) ? 'Removes it from the agent: whatever uses it stops working.' : 'Adds it to the agent.';
   if (c.destructive) return `Takes it out of ${c.path}: whatever relies on it stops working.`;
+  if (c.settings) return `${c.keyState === 'removed' ? 'Removes' : 'Sets'} ${c.settings.keys.join(', ')} ${c.keyState === 'removed' ? 'from' : 'in'} ${c.path}; other keys stay.`;
   if (c.state === 'modified') return `Replaces your edits in ${c.path}.`;
   if (!c.state || c.state === 'absent' || c.state === 'removed') return `Creates ${c.path}.`;
   return `Changes ${c.path}.`;
@@ -180,7 +184,7 @@ const whyOf = (c, why) => (c.foreign || c.step?.startsWith('other:') ? 'Not part
 const AFFECTS = { global: 'Every project on this machine.', project: 'This project only.' };
 // What History does to undo it, after the word History; null when it cannot.
 const undoOf = (c) => (c.kind === 'command' ? (c.undoArgv ? (removes(c) ? ' installs it again.' : ' removes it again.') : null)
-  : c.state === 'modified' ? ' restores your edits.' : c.kind === 'remove' ? ' puts the file back.' : ' restores the file as it was.');
+  : c.settings ? ' restores the file as it was before the run.' : c.state === 'modified' ? ' restores your edits.' : c.kind === 'remove' ? ' puts the file back.' : ' restores the file as it was.');
 
 // The labelled lines above a change's diff: what it does, why, who it affects, how to undo it and where it comes from.
 // A settings change takes its source from its setting facts.
@@ -324,6 +328,10 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   const [applied, setApplied] = useState(null);
   const prerun = usePrerun(plan);
   useEffect(() => () => onRunning?.(false), []);
+  // After Cancel or Review again, focus moves to the first control of what replaced the button.
+  const root = useRef(null);
+  const moved = useRef(false);
+  useEffect(() => { if (moved.current) root.current?.querySelector('button:enabled, input:enabled')?.focus(); }, [cancelled]);
   if (applied) {
     return (
       <Stack gap="sm">
@@ -333,10 +341,10 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
     );
   }
   if (!plan.changes.length) return <Text>{NOTHING}</Text>;
-  const cancel = (on) => { setCancelled(on); onCancel?.(on); };
+  const cancel = (on) => { moved.current = true; setCancelled(on); onCancel?.(on); };
   if (cancelled) {
     return (
-      <Group gap="xs">
+      <Group gap="xs" ref={root}>
         <Text role="status">Cancelled. Nothing was changed.</Text>
         <Button size="xs" variant="default" onClick={() => cancel(false)}>Review the changes again</Button>
       </Group>
@@ -350,21 +358,54 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   };
   if (job) return <RunProgress focus job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onRunning?.(false); onDone?.(run, output); }} />;
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" ref={root}>
       {error && <Note color="red" title="Apply failed">{error}</Note>}
       <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} why={why} scope={scope} />
       <Group role="group" aria-label="Selected changes" justify="space-between" gap="xs" py="xs"
         style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--mantine-color-body)', borderTop: '1px solid var(--mantine-color-default-border)' }}>
         <Text size="sm" role="status">{select.length} {select.length === 1 ? 'change' : 'changes'} selected</Text>
         <Group gap="xs">
-          <Button variant="default" onClick={() => cancel(true)}>Cancel</Button>
-          <Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length} aria-label={`Apply ${select.length} changes`}>Apply</Button>
+          {/* While the apply request is out, Cancel would hide a job that has started. */}
+          <Button variant="default" data-disabled={busy || undefined} aria-disabled={busy || undefined} onClick={() => !busy && cancel(true)}>Cancel</Button>
+          <Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length} aria-label={`Apply ${select.length} ${select.length === 1 ? 'change' : 'changes'}`}>Apply</Button>
         </Group>
       </Group>
     </Stack>
   );
 }
 
+// The apply state of a view's open plan: running for its controls, idle() for a plan that arrives later (asked for
+// before the apply started), which must not replace a running plan: that drops the run's view and its reload.
+// dropped: the last plan that arrived was dropped, until one is taken.
+export function usePlanRunning() {
+  const [running, setRunning] = useState(false);
+  const [dropped, setDropped] = useState(false);
+  const now = useRef(false);
+  const onRunning = (on) => { now.current = on; setRunning(on); };
+  const idle = () => { setDropped(now.current); return !now.current; };
+  return [running, onRunning, idle, dropped];
+}
+
+export const PlanDropped = ({ dropped }) => dropped && <Text size="sm" role="status">Finish the running change first, then try again.</Text>;
+
+// Close under a plan: while it applies, closing would drop the run's view and its reload, so the button ignores clicks
+// but keeps the keyboard focus.
+export const PlanClose = ({ running, onClose }) => (
+  <Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && onClose()}>Close</Button>
+);
+
+// A switch whose change is a plan. pending: the plan it opened, shown as the asked-for position and Pending until the
+// plan is applied, cancelled or closed; flipping it then closes the plan (onClear). The label is the name and the state,
+// so the accessible name contains the visible word; hideName keeps the name for screen readers only. off: input is
+// ignored but the switch keeps the keyboard focus.
+export const PlanSwitch = ({ name, hideName, on, pending, off, description, onAsk, onClear }) => {
+  const state = pending ? 'Pending' : on ? 'On' : 'Off';
+  return (
+    <Switch label={<>{hideName ? <VisuallyHidden>{name}: </VisuallyHidden> : `${name}: `}{state}</>} description={pending ? 'Apply or cancel in Changes below' : description}
+      checked={pending ? pending.on : on} aria-disabled={off || undefined} style={off ? { opacity: 0.6 } : undefined}
+      onChange={(e) => (off ? undefined : pending ? onClear() : onAsk(e.currentTarget.checked))} />
+  );
+};
 
 // A started job (apply or eval), polled until it is done. A failed poll is retried; only a lost job (404) or ten
 // misses in a row end the view, the job itself goes on.

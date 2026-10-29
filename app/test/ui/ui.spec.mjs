@@ -4,20 +4,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { openBrowser } from '../../src/server.mjs';
 import { TOKENS } from '../../src/tokens.mjs';
+import { nav, ready } from './views.mjs';
 
-const TOKEN = 'ui-test-token-0123456789';
 const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 // While this file exists, the stubbed automations runner answers (serve.mjs).
 const RUNNER = join(tmpdir(), 'bk-ui-runner-4410');
-// Sidebar label and route of every view, in sidebar order.
-const VIEWS = [['Dashboard', 'dashboard'], ['History', 'history'], ['Projects', 'projects'], ['Catalog', 'catalog'], ['Sessions', 'sessions'], ['Runs', 'runs'], ['Insights', 'insights'], ['Evals', 'evals'],
-  ['Global setup', 'agents'], ['Agent settings', 'agent-settings'], ['Rules', 'rules'], ['Extensions', 'extensions'], ['Accounts', 'accounts'], ['Automations', 'automations'], ['Preferences', 'settings']];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -34,8 +29,6 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
-// A view is up once its CLI block shows; Agent settings has none, its count line shows instead.
-const ready = (page) => page.getByText('CLI', { exact: true }).or(page.getByText(/settings with a suggestion differ from it/));
 // A plan's diffs are folded: open each before reading one.
 const openDiffs = async (scope) => {
   const buttons = scope.getByRole('button', { name: /^Show file diff of / });
@@ -43,63 +36,19 @@ const openDiffs = async (scope) => {
   // An opened fold renames its button, so the first one left is always the next.
   for (let n = await buttons.count(); n > 0; n--) await buttons.first().click();
 };
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
+// Serial on one shared server: later tests read what earlier ones left there (registered and set-up projects, applied
+// plans, undone runs), so a test cannot run alone. Read-only checks of every view are in views-axe.spec.mjs.
 test.describe.configure({ mode: 'serial' });
-let cookie, key;
-
-test.beforeEach(async ({ page }) => {
-  // The URL token works once per server, so later tests reuse the cookie from the first. It comes through the file
-  // the app opens the browser with, so the cookie must survive that cross-site start.
-  if (cookie) return;
-  await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {}, confined: () => false })).href);
-  await page.waitForURL('http://127.0.0.1:4410/');
-});
-test('the token becomes a cookie and an API key; both leave the address bar', async ({ page, context }) => {
-  await expect(page).toHaveURL('http://127.0.0.1:4410/');
-  [cookie] = await context.cookies();
-  key = await page.evaluate(() => localStorage.getItem('benchkeeper-key'));
-  expect(key).toMatch(/^[\w-]{43}$/);
-  expect(cookie).toMatchObject({ name: "bk_session_4410", httpOnly: true, sameSite: 'Strict' });
-  await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
-});
 
 test.describe('views', () => {
   test.beforeEach(async ({ context, page }) => {
-    await context.addCookies([cookie]);
-    await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
     // Projects as a table unless a test picks Cards: the tests of the rows predate the cards.
     await context.addInitScript(() => { if (localStorage.getItem('bk-projects-layout') === null) localStorage.setItem('bk-projects-layout', 'table'); });
     await page.goto('/');
     // Shortcuts and the skip link exist once the app is up, behind the starting screen.
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
-
-  for (const [view] of VIEWS) {
-    for (const scheme of ['light', 'dark']) {
-      test(`no axe violations in ${view}, ${scheme} mode`, async ({ page }) => {
-        await nav(page, view).click();
-        await expect(ready(page)).toBeVisible();
-        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
-        const { violations } = await new AxeBuilder({ page }).analyze();
-        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
-      });
-    }
-  }
-
-  // The same pass at 390 px, where the sidebar is a menu: reflow and link styling differ there.
-  for (const [view, route] of VIEWS) {
-    for (const scheme of ['light', 'dark']) {
-      test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
-        await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`/#/${route}`);
-        await expect(ready(page)).toBeVisible();
-        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
-        const { violations } = await new AxeBuilder({ page }).analyze();
-        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
-      });
-    }
-  }
 
   test('the board tokens are the app variables in both schemes; reduced motion removes the transitions', async ({ page }) => {
     for (const scheme of ['light', 'dark']) {
@@ -1107,7 +1056,7 @@ test.describe('views', () => {
     await page.route(/\/api\/job\?id=stub-job$/, async (route) => route.fulfill({ json: await Promise.race([done, { done: false, run: { entries: [] } }]) }));
     await file.click();
     const changes = page.getByRole('region', { name: 'Changes', exact: true });
-    await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeFocused();
     for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
     finish({ done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} });
@@ -1352,7 +1301,7 @@ test.describe('views', () => {
     await expect(check).toBeFocused();
     await own.getByRole('button', { name: /^Update/ }).click();
     const update = page.getByRole('dialog', { name: 'Update designing-technical-uis in sk-proj' });
-    await update.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await update.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(update.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await update.getByRole('button', { name: 'Close' }).click();
     await expect(own).toContainText('current');
@@ -1379,14 +1328,14 @@ test.describe('views', () => {
     await openDiffs(reset);
     await expect(reset.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toContainText('edited here');
     await noAxe(page);
-    await reset.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await reset.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(reset.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await reset.getByRole('button', { name: 'Close' }).click();
     await expect(own).toContainText('current');
     // Adopt a library skill that is there without a setup: it becomes a single pick, its folder kept.
     await untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ }).click();
     const adopt = page.getByRole('dialog', { name: 'Adopt mermaid-diagrams in sk-proj' });
-    await adopt.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await adopt.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(adopt.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await adopt.getByRole('button', { name: 'Close' }).click();
     const adopted = mine.filter({ hasText: 'mermaid-diagrams' });
@@ -1396,7 +1345,7 @@ test.describe('views', () => {
     await adopted.getByRole('button', { name: /^Remove/ }).click();
     const remove = page.getByRole('dialog', { name: 'Remove mermaid-diagrams in sk-proj' });
     await expect(remove.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove skill mermaid-diagrams');
-    await remove.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await remove.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await remove.getByRole('button', { name: 'Close' }).click();
     await expect(mine.filter({ hasText: 'mermaid-diagrams' })).toHaveCount(0);
@@ -1630,7 +1579,7 @@ test.describe('views', () => {
     const footer = changes.getByRole('group', { name: 'Selected changes' });
     await expect(footer).toContainText(/[1-9]\d* changes? selected/);
     const n = Number((await footer.textContent()).match(/(\d+) change/)[1]);
-    await changes.getByRole('button', { name: `Apply ${n} changes` }).click();
+    await changes.getByRole('button', { name: `Apply ${n} ${n === 1 ? 'change' : 'changes'}` }).click();
     // The result replaces the plan: the run report with each change, its undo, and a link to it in History.
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(changes.getByRole('button', { name: 'Undo run' })).toBeEnabled();
@@ -1827,7 +1776,7 @@ test.describe('views', () => {
     // The hover color of the button under the pointer is lighter than the checked contrast.
     await page.mouse.move(0, 0);
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
@@ -1965,10 +1914,10 @@ test.describe('views', () => {
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
     await page.getByLabel('Search settings').fill('autoMemoryEnabled');
     await expect(about(page.getByRole('table', { name: 'Memory' }), 'autoMemoryEnabled')).toContainText('Current: the default');
-    // A key outside the catalog: no guessed text, the rest of the facts still there.
+    // A key outside the catalog: the reference description, no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
-    await expect(outside).toContainText('Not explained yet.');
+    await expect(outside).toContainText('Keep a saved effort level or auto-compact window per model');
     await expect(outside).toContainText('Default:');
     await expect(outside).not.toContainText('Impact:');
     await page.getByRole('switch', { name: 'Advanced: every key' }).uncheck();
@@ -1979,7 +1928,7 @@ test.describe('views', () => {
     const changes = page.getByRole('region', { name: 'Changes' });
     await facts(about(changes, 'cleanupPeriodDays'));
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     // The doctor and Insights name the keys of a settings finding.
     await nav(page, 'Dashboard').click();
@@ -1999,7 +1948,7 @@ test.describe('views', () => {
     await nav(page, 'Agent settings').click();
     await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('14');
     await page.getByRole('button', { name: 'Review 1 change' }).click();
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
@@ -2068,11 +2017,13 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
-    // A switch is a plan with a diff; the file itself is never changed.
-    // The switch's track lies over its input, which Playwright's hit test refuses.
+    // A switch is a plan with a diff; the file itself is never changed. Space keeps the focus on the switch.
     const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
-    await toggle.click({ force: true });
+    await toggle.focus();
+    await page.keyboard.press('Space');
     const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toBeVisible();
+    await expect(toggle).toBeFocused();
     // The switch shows the requested position as pending until the plan is applied, cancelled or closed.
     await expect(toggle).not.toBeChecked();
     await expect(team).toContainText('Pending');
@@ -2085,13 +2036,17 @@ test.describe('views', () => {
     await expect(changes).not.toContainText('claudeMdExcludes');
     await fold.click();
     await expect(changes).toContainText('claudeMdExcludes');
-    await changes.getByRole('button', { name: 'Cancel' }).click();
+    // Cancel and Review again hand the focus to what replaced them.
+    await changes.getByRole('button', { name: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
     await expect(changes.getByRole('status')).toHaveText('Cancelled. Nothing was changed.');
     await expect(toggle).toBeChecked();
     await expect(team).not.toContainText('Pending');
-    await changes.getByRole('button', { name: 'Review the changes again' }).click();
+    await expect(changes.getByRole('button', { name: 'Review the changes again' })).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(team).toContainText('Pending');
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('checkbox', { name: 'Select all in Settings' })).toBeFocused();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(team).toContainText('off');
     await expect(team).toContainText('user settings');
@@ -2122,6 +2077,147 @@ test.describe('views', () => {
     await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
     await changes.getByRole('button', { name: 'Cancel' }).click();
     await page.unroute(view);
+  });
+
+  test('Rules: Turn off of a finding keeps the keyboard focus while the plan loads and after it opens', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const row = body.agents[0].rows.find((x) => /20-team\.md$/.test(x.path));
+      const findings = [{ level: 'warn', message: `${row.shown} is long`, fix: 'Split it.', file: row.shown, action: { agent: body.agents[0].id, file: row.path } }];
+      await route.fulfill({ response: r, json: { ...body, findings } });
+    });
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/rules-plan$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    const off = page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / });
+    await off.focus();
+    await page.keyboard.press('Enter');
+    await expect(off).toHaveAttribute('aria-disabled', 'true');
+    await expect(off).toBeFocused();
+    answer();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You turned the switch off in Rules.');
+    await expect(off).toBeFocused();
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await page.unroute(view);
+    await page.unroute(/\/api\/rules-plan$/);
+  });
+
+  test('Rules: while an apply runs, Close, the Pending switch and Show ignore input and keep the focus; after it the view shows the new state', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
+    await toggle.click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    const close = changes.getByRole('button', { name: 'Close' });
+    await expect(close).toHaveAttribute('aria-disabled', 'true');
+    await close.focus();
+    await page.keyboard.press('Enter');
+    await expect(close).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    await toggle.click({ force: true });
+    await expect(team).toContainText('Pending');
+    await expect(page.getByRole('combobox', { name: 'Show' })).toHaveAttribute('aria-disabled', 'true');
+    answer();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(team).toContainText('off');
+    await expect(close).not.toHaveAttribute('aria-disabled');
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+  test('Rules: a plan answer that arrives while an apply runs does not replace the running plan and says so', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const row = body.agents[0].rows.find((x) => /20-team\.md$/.test(x.path));
+      await route.fulfill({ response: r, json: { ...body, findings: [{ level: 'warn', message: `${row.shown} is long`, fix: 'Split it.', file: row.shown, action: { agent: body.agents[0].id, file: row.path } }] } });
+    });
+    let answerPlan, answerJob;
+    const planHeld = new Promise((resolve) => { answerPlan = resolve; });
+    const jobHeld = new Promise((resolve) => { answerJob = resolve; });
+    let asked = 0;
+    await page.route(/\/api\/rules-plan$/, async (route) => { if (asked++) await planHeld; await route.continue(); });
+    await page.route(/\/api\/job\?/, async (route) => { await jobHeld; await route.continue(); });
+    await nav(page, 'Rules').click();
+    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    const apply = changes.getByRole('button', { name: /^Apply 1 change$/ });
+    await expect(apply).toBeVisible();
+    // A second plan is asked for, and its answer comes only after the first plan started to apply.
+    await page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / }).click();
+    await apply.click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    const late = page.waitForResponse(/\/api\/rules-plan$/);
+    answerPlan();
+    await late;
+    await expect(changes.getByRole('status').filter({ hasText: 'Finish the running change first, then try again.' })).toBeVisible();
+    answerJob();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await page.unroute(view);
+    await page.unroute(/\/api\/rules-plan$/);
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+  test('A plan: while the apply request is out, Cancel ignores input and the job shows when it starts', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/apply$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    const cancel = changes.getByRole('button', { name: 'Cancel' });
+    await expect(cancel).toHaveAttribute('aria-disabled', 'true');
+    await cancel.click({ force: true });
+    await expect(changes).not.toContainText('Cancelled');
+    answer();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await page.unroute(/\/api\/apply$/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+  test('A settings merge into a hand-edited file: the Rules switch and the Agent settings plans name the key, not the file state', async ({ page }) => {
+    // The fixture's settings file as one the user edited by hand: the server's own plan, its file state modified.
+    const edited = async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      await route.fulfill({ response: r, json: { ...body, changes: body.changes.map((c) => ({ ...c, state: 'modified' })) } });
+    };
+    await page.route(/\/api\/(rules|settings)-plan$/, edited);
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).focus();
+    await page.keyboard.press('Space');
+    let changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('new key');
+    await expect(changes).toContainText('Undo: History restores the file as it was before the run.');
+    await expect(changes).not.toContainText('modified');
+    await expect(changes).not.toContainText('restores your edits');
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('changed key');
+    await expect(changes).toContainText(/What it does: Sets cleanupPeriodDays in \S*\.claude\/settings\.json; other keys stay\./);
+    await expect(changes).toContainText('Undo: History restores the file as it was before the run.');
+    await expect(changes).not.toContainText('Replaces your edits');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await page.unroute(/\/api\/(rules|settings)-plan$/);
   });
 
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
@@ -2157,7 +2253,7 @@ test.describe('views', () => {
     await expect(changes).toContainText('"// why": "kept"');
     await page.mouse.move(0, 0);
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
@@ -2215,8 +2311,9 @@ test.describe('views', () => {
       await page.keyboard.press('Enter');
       const changes = page.getByRole('region', { name: 'Changes' });
       await expect(changes).toContainText('automation Pull request watch, disabled');
+      await expect(changes).toContainText('Why: You asked to install this automation in Automations.');
       await noAxe(page);
-      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).focus();
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await expect(row).toContainText('matches the template');
@@ -2232,7 +2329,7 @@ test.describe('views', () => {
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove the');
       await expect(changes.getByRole('checkbox', { name: /^Remove the / })).toBeChecked();
-      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).focus();
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await expect(row).toContainText('Not installed');
@@ -2260,7 +2357,8 @@ test.describe('views', () => {
       await page.getByLabel('Name', { exact: true }).fill(name);
       await page.getByRole('button', { name: 'Plan the new account' }).click();
       await expect(changes).toContainText(`Add claude account ${name}`);
-      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await expect(changes).toContainText('Why: You asked to add this account in Accounts.');
+      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();
     }
@@ -2288,11 +2386,38 @@ test.describe('views', () => {
     // Back to no account, as the other tests expect the machine.
     for (const card of [home, work]) {
       await card.getByRole('button', { name: /^Remove / }).click();
-      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();
     }
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
+  });
+
+  test('Preferences: the tier strip plan says the user asked for it', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    await views.getByRole('switch', { name: 'Terminal tier strip: Off' }).click({ force: true });
+    await expect(views).toContainText('Why: You turned the tier strip on in Preferences.');
+    // While the plan is open the switch shows the asked-for position as Pending; Close drops the plan.
+    await expect(views.getByRole('switch', { name: 'Terminal tier strip: Pending' })).toBeChecked();
+    await views.getByRole('region', { name: 'Changes' }).getByRole('button', { name: 'Close' }).click();
+    await expect(views.getByRole('switch', { name: 'Terminal tier strip: Off' })).not.toBeChecked();
+  });
+
+  test('Preferences: the tier strip switch ignores input while its plan is asked for', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/settings-plan$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    const strip = views.getByRole('switch', { name: 'Terminal tier strip: Off' });
+    await strip.click({ force: true });
+    await expect(strip).toHaveAttribute('aria-disabled', 'true');
+    answer();
+    const changes = views.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You turned the tier strip on in Preferences.');
+    await page.unroute(/\/api\/settings-plan$/);
+    await changes.getByRole('button', { name: 'Close' }).click();
   });
 
   test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {

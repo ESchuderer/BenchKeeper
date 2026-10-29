@@ -73,13 +73,15 @@ export function readSettings(ctx, agentId, { dir } = {}) {
 }
 
 const pathOf = (key) => key.split('.');
+// A Codex trusted project is one key under projects whose name is a path, dots and all.
+const keyPath = (agentId, key) => (agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key));
 const dig = (data, path) => path.reduce((o, k) => (o != null && typeof o === 'object' ? o[k] : undefined), data);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Where each layer sets a key, highest precedence first; the first is the effective one.
 export function valuesOf(layers, agentId, key) {
   const order = agentSettings(agentId).precedence;
-  const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+  const path = keyPath(agentId, key);
   return layers.filter((l) => !l.error).map((l) => ({ layer: l.layer, path: l.path, value: dig(l.data, path) })).filter((x) => x.value !== undefined)
     .sort((a, b) => order.indexOf(a.layer) - order.indexOf(b.layer));
 }
@@ -128,7 +130,7 @@ const referenceRow = (key) => REFERENCE.find((r) => r.key === key);
 export function describeKey(agentId, key) {
   const listed = agentSettings(agentId).settings.find((s) => s.key === key);
   if (listed) return listed;
-  const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+  const path = keyPath(agentId, key);
   const node = schemaNode(agentId, path);
   const row = agentId === 'claude' ? referenceRow(key) : null;
   if (!node && !row) return null;
@@ -160,6 +162,10 @@ const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v
 function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
+  // The reference's scope holds for every type: a key the target file is not read for is refused.
+  if (def.scope && SCOPE_NOTE[def.scope]) return bad(SCOPE_NOTE[def.scope]);
+  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return bad('this key is taken from the user file only');
+  if (def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
   switch (def.type) {
     case 'switch':
       if (value !== true) return bad('an environment switch is set or removed, never 0 or false: use "set" or remove it');
@@ -187,9 +193,6 @@ function validate(agentId, def, value, layer) {
     case 'object': return bad('edit it in the file; the app shows it only');
     default: {
       // From the pinned schema or the reference: the schema's types, else anything.
-      if (def.advanced && (def.scope && SCOPE_NOTE[def.scope])) return bad(SCOPE_NOTE[def.scope]);
-      if (def.advanced && def.scope === 'User or managed' && layer !== 'user') return bad('this key is taken from the user file only');
-      if (def.advanced && def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
       if (def.values && !def.values.includes(value) && def.types?.every((t) => t === 'string')) return bad(`one of ${def.values.join(', ')}`);
       const ok = { string: 'string', boolean: 'boolean', integer: 'number', number: 'number', array: 'array', object: 'object' };
       if (def.types?.length && !def.types.some((t) => ok[t] === kind(value) && (t !== 'integer' || Number.isInteger(value)))) return bad(`a value of type ${def.types.join(' or ')}`);
@@ -341,15 +344,15 @@ function unknownKeys(agentId, layers, known) {
 
 const DOCS = { claude: 'https://code.claude.com/docs/en/settings-reference', codex: 'https://learn.chatgpt.com/docs/config-file/config-reference' };
 
-// The facts every view shows for a key: summary, eli5 and impact from the catalog (null outside it: not explained yet), the
-// default, and the value in effect with where it comes from: a layer, the process environment for an env.* key no file sets
-// (a file's env value wins over the shell's), or the default.
+// The facts every view shows for a key: summary, eli5 and impact from the catalog (outside it the summary is the reference or
+// schema description, null without one: not explained yet), the default, and the value in effect with where it comes from:
+// a layer, the process environment for an env.* key no file sets (a file's env value wins over the shell's), or the default.
 function facts(agentId, def, vals, env) {
   const name = def.key.startsWith('env.') ? def.key.slice(4) : null;
   // Only the catalog's switches are read from the environment: a key named in a request never reaches another variable.
   const fromEnv = !vals.length && def.type === 'switch' && name && env?.[name] !== undefined;
   const docs = def.source ?? (agentId === 'claude' && referenceRow(def.key) ? `${DOCS.claude}#${def.key.toLowerCase().replaceAll('.', '-')}` : DOCS[agentId]);
-  return { summary: def.summary ?? null, eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
+  return { summary: def.summary ?? (def.sentence || null), eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
     value: vals.length ? maskSecrets(vals[0].value, def.key) : fromEnv ? maskSecrets(env[name], name) : undefined, from: vals[0]?.layer ?? (fromEnv ? 'environment' : 'default') };
 }
 
@@ -466,11 +469,12 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     const bad = key.startsWith('projects.') ? null : hasMask(value) ? `${key}: the value holds the placeholder ${MASK} that stands for a hidden secret: edit the file by hand` : validate(agentId, def, value, layer);
     if (bad) { problems.push(bad); continue; }
     const stored = def.type === 'switch' && value === true ? '1' : value;
-    const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+    const path = keyPath(agentId, key);
     if (stored == null) { const parent = dig(after, path.slice(0, -1)); if (parent && typeof parent === 'object') delete parent[path.at(-1)]; } else {
       let o = after;
       for (const seg of path.slice(0, -1)) o = (o[seg] != null && typeof o[seg] === 'object') ? o[seg] : (o[seg] = {});
-      o[path.at(-1)] = stored;
+      // A copy: a later edit of a key inside this value must not change what this edit writes.
+      o[path.at(-1)] = structuredClone(stored);
     }
     const secret = isSecretName(key) || path.some(isSecretName);
     const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(maskSecrets(stored, key))}`;
@@ -480,6 +484,15 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
   for (const n of notes(agentId, [{ ...target, data: after }]).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
   if (problems.length) throw new Error(problems.join('; '));
   return changes;
+}
+
+// What a settings change does to its keys, from the file text before and after: new when none was set, removed when none
+// is left, current when none changes, changed otherwise. Text that does not parse counts as no keys.
+export function keyState(agentId, keys, before, after) {
+  const read = (t) => { try { return parseLayer(agentId, t ?? ''); } catch { return {}; } };
+  const [b, a] = [read(before), read(after)].map((d) => keys.map((k) => dig(d, keyPath(agentId, k))));
+  if (same(b, a)) return 'current';
+  return b.every((v) => v === undefined) ? 'new' : a.every((v) => v === undefined) ? 'removed' : 'changed';
 }
 
 // The three or two keys of a bundle ("less noise") as edits: switches set, Codex booleans false.

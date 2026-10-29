@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, Paper, Progress, Radio, Select, SimpleGrid,
 import { IconCopy, IconLogin2, IconPlus, IconStar, IconTrash } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, Cli, Plan, Section, useJob } from './parts.jsx';
+import { CancelJob, Cli, Plan, PlanClose, PlanDropped, Section, useJob, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const AGENT = { claude: 'Claude Code', codex: 'Codex' };
@@ -168,12 +168,15 @@ function AccountCard({ a, c, onUse, onTrack, onSignIn, onRemove }) {
   );
 }
 
+const ACCOUNT_WHY = { add: 'You asked to add this account in Accounts.', remove: 'You asked to remove this account in Accounts.' };
+
 // Several accounts per agent: one card each with its sign-in and usage, add by sign-in, a check before a launch. The registry holds no credential.
 export function Accounts({ overview, refresh }) {
   const state = useApi('/api/accounts');
   const projects = overview.data?.projects ?? [];
   const [project, setProject] = useState(null);
   const [pending, setPending] = useState(null);
+  const [running, setRunning, idle, dropped] = usePlanRunning();
   const [signIn, setSignIn] = useState(null);
   const [saving, setSaving] = useState(null);
   const [checks, setChecks] = useState({});
@@ -181,7 +184,7 @@ export function Accounts({ overview, refresh }) {
   const done = () => { state.reload(); refresh(); };
   const plan = async (body) => {
     setError(null);
-    try { setPending(await api('/api/accounts-plan', body)); } catch (e) { setError(e.message); }
+    try { const p = await api('/api/accounts-plan', body); if (idle()) setPending({ plan: p, why: ACCOUNT_WHY[body.op] }); } catch (e) { setError(e.message); }
   };
   // One click: the plan is applied without a review step; History has its run and undo.
   const now = async (body) => {
@@ -251,8 +254,9 @@ export function Accounts({ overview, refresh }) {
               )}
             {pending && (
               <Section title="Changes">
-                <Plan key={pending.planId} plan={pending} scope="global" onDone={done} />
-                <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
+                <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onRunning={setRunning} onDone={done} />
+                <PlanDropped dropped={dropped} />
+                <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
               </Section>
             )}
             {data.accounts.some((a) => a.mode === 'container') && <ContainerRisk />}
@@ -260,7 +264,7 @@ export function Accounts({ overview, refresh }) {
               <summary>Advanced: choose the name, a folder of your own or a dev container</summary>
               <Stack gap="sm" mt="sm">
                 <ContainerRisk />
-                <AddForm onPlan={setPending} />
+                <AddForm onPlan={(p) => idle() && setPending({ plan: p, why: ACCOUNT_WHY.add })} />
               </Stack>
             </details>
             <Section title="Usage limits">

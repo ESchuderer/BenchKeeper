@@ -12,7 +12,7 @@ import { startServer } from '../../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
 import { SANDBOX, viaSrt } from '../fixtures/srt.mjs';
-import { writeSessions, writeTreeSessions } from '../fixtures/sessions.mjs';
+import { writeRunSessions, writeSessions, writeTreeSessions } from '../fixtures/sessions.mjs';
 
 // git from a system folder, so the PATH search does not decide which program runs.
 const GIT = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'].find((p) => existsSync(p));
@@ -169,7 +169,8 @@ if (DEMO) {
 
 // Claude Code and Codex transcripts for the Sessions board, dated relative to the start so the period filter keeps them.
 const now = Date.now();
-if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total', now });
+// In demo mode also the worker sessions of one orchestrated run in shop, for the Runs view.
+if (DEMO) { writeSessions(home, { root: parent, title: 'Fix the cart total', now }); writeRunSessions(home, dir, 'Add the coupon field', { title: 'Add the coupon field' }); }
 else { writeSessions(home, { now }); writeTreeSessions(home, TREES, { now }); }
 // A Ponytail ledger file that is not one: the scan skips it with a note.
 if (!DEMO) { mkdirSync(join(home, '.config/ponytail/band'), { recursive: true }); writeFileSync(join(home, '.config/ponytail/band/broken.csv'), 'a,b\n1,2\n'); }

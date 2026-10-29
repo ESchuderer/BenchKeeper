@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, Select, Stack, Table, Text, TextInput } fro
 import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanDropped, Section, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
@@ -70,11 +70,12 @@ export function Automations({ overview, refresh }) {
   const state = useApi('/api/automations');
   const projects = overview.data?.projects ?? [];
   const [pending, setPending] = useState(null);
+  const [running, setRunning, idle, dropped] = usePlanRunning();
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
   const plan = async (body) => {
     setError(null);
-    try { setPending(await api('/api/automations-plan', body)); setForm(null); } catch (e) { setError(e.message); }
+    try { const p = await api('/api/automations-plan', body); if (idle()) { setPending({ plan: p, why: `You asked to ${body.op} this automation in Automations.` }); setForm(null); } } catch (e) { setError(e.message); }
   };
   const done = () => { state.reload(); refresh(); };
   return (
@@ -129,8 +130,9 @@ export function Automations({ overview, refresh }) {
               )}
               {pending && (
                 <Section title="Changes">
-                  <Plan key={pending.planId} plan={pending} scope="global" onDone={done} />
-                  <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
+                  <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onRunning={setRunning} onDone={done} />
+                  <PlanDropped dropped={dropped} />
+                  <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
                 </Section>
               )}
             </Stack>

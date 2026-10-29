@@ -1,8 +1,8 @@
-import { Button, Code, Group, List, Stack, Switch, Table, Text } from '@mantine/core';
+import { Button, Code, Group, List, Stack, Table, Text } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanSwitch, Section } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
 
 const money = (x) => (x == null ? 'not recorded' : `$${x.toFixed(2)}`);
@@ -79,10 +79,14 @@ export function Runs() {
 export function Surfaces() {
   const band = useApi('/api/tier-band');
   const [plan, setPlan] = useState(null);
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
+  // While a plan is asked for, the switch ignores input: a second answer could replace a plan that already applies.
+  const [asking, setAsking] = useState(false);
   const ask = async (on) => {
-    setError(null); setPlan(null);
-    try { setPlan(await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } })); } catch (e) { setError(e.message); }
+    setError(null); setPlan(null); setAsking(true);
+    try { setPlan({ on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } }) }); } catch (e) { setError(e.message); }
+    setAsking(false);
   };
   return (
     <Section title="Views and their cost">
@@ -93,10 +97,18 @@ export function Surfaces() {
         <List.Item>Runs view: read when you open it or press Refresh, no timer. It reuses the last sessions scan or scans like Sessions; with the multi-agent IDE installed, it asks for its run list and the tasks of each run (at most 21 calls).</List.Item>
       </List>
       <Loading state={band} label="tier strip setting">{(b) => (
-        <Switch label="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." checked={b.on} onChange={(e) => ask(e.currentTarget.checked)} />
+        <PlanSwitch name="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." on={b.on}
+          pending={plan && !plan.done ? plan : null} off={running || asking} onAsk={ask} onClear={() => setPlan(null)} />
       )}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      {plan && <Plan key={plan.planId} plan={plan} scope="global" onDone={band.reload} />}
+      {plan && (
+        <Section title="Changes">
+          {/* done: applied or cancelled, so the switch shows the setting again. */}
+          <Plan key={plan.plan.planId} plan={plan.plan} why={`You turned the tier strip ${plan.on ? 'on' : 'off'} in Preferences.`} scope="global" onRunning={setRunning}
+            onCancel={(done) => setPlan((p) => ({ ...p, done }))} onDone={() => { setPlan((p) => ({ ...p, done: true })); band.reload(); }} />
+          <Group><PlanClose running={running} onClose={() => setPlan(null)} /></Group>
+        </Section>
+      )}
     </Section>
   );
 }

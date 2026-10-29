@@ -2017,11 +2017,13 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
-    // A switch is a plan with a diff; the file itself is never changed.
-    // The switch's track lies over its input, which Playwright's hit test refuses.
+    // A switch is a plan with a diff; the file itself is never changed. Space keeps the focus on the switch.
     const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
-    await toggle.click({ force: true });
+    await toggle.focus();
+    await page.keyboard.press('Space');
     const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toBeVisible();
+    await expect(toggle).toBeFocused();
     // The switch shows the requested position as pending until the plan is applied, cancelled or closed.
     await expect(toggle).not.toBeChecked();
     await expect(team).toContainText('Pending');
@@ -2034,12 +2036,16 @@ test.describe('views', () => {
     await expect(changes).not.toContainText('claudeMdExcludes');
     await fold.click();
     await expect(changes).toContainText('claudeMdExcludes');
-    await changes.getByRole('button', { name: 'Cancel' }).click();
+    // Cancel and Review again hand the focus to what replaced them.
+    await changes.getByRole('button', { name: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
     await expect(changes.getByRole('status')).toHaveText('Cancelled. Nothing was changed.');
     await expect(toggle).toBeChecked();
     await expect(team).not.toContainText('Pending');
-    await changes.getByRole('button', { name: 'Review the changes again' }).click();
+    await expect(changes.getByRole('button', { name: 'Review the changes again' })).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(team).toContainText('Pending');
+    await expect(changes.getByRole('checkbox', { name: 'Select all in Settings' })).toBeFocused();
     await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(team).toContainText('off');
@@ -2071,6 +2077,33 @@ test.describe('views', () => {
     await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
     await changes.getByRole('button', { name: 'Cancel' }).click();
     await page.unroute(view);
+  });
+
+  test('Rules: Turn off of a finding keeps the keyboard focus while the plan loads and after it opens', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const row = body.agents[0].rows.find((x) => /20-team\.md$/.test(x.path));
+      const findings = [{ level: 'warn', message: `${row.shown} is long`, fix: 'Split it.', file: row.shown, action: { agent: body.agents[0].id, file: row.path } }];
+      await route.fulfill({ response: r, json: { ...body, findings } });
+    });
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/rules-plan$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    const off = page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / });
+    await off.focus();
+    await page.keyboard.press('Enter');
+    await expect(off).toHaveAttribute('aria-disabled', 'true');
+    await expect(off).toBeFocused();
+    answer();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You turned the switch off in Rules.');
+    await expect(off).toBeFocused();
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await page.unroute(view);
+    await page.unroute(/\/api\/rules-plan$/);
   });
 
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {

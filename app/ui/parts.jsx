@@ -324,6 +324,10 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   const [applied, setApplied] = useState(null);
   const prerun = usePrerun(plan);
   useEffect(() => () => onRunning?.(false), []);
+  // After Cancel or Review again, focus moves to the first control of what replaced the button.
+  const root = useRef(null);
+  const moved = useRef(false);
+  useEffect(() => { if (moved.current) root.current?.querySelector('button:enabled, input:enabled')?.focus(); }, [cancelled]);
   if (applied) {
     return (
       <Stack gap="sm">
@@ -333,10 +337,10 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
     );
   }
   if (!plan.changes.length) return <Text>{NOTHING}</Text>;
-  const cancel = (on) => { setCancelled(on); onCancel?.(on); };
+  const cancel = (on) => { moved.current = true; setCancelled(on); onCancel?.(on); };
   if (cancelled) {
     return (
-      <Group gap="xs">
+      <Group gap="xs" ref={root}>
         <Text role="status">Cancelled. Nothing was changed.</Text>
         <Button size="xs" variant="default" onClick={() => cancel(false)}>Review the changes again</Button>
       </Group>
@@ -350,7 +354,7 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   };
   if (job) return <RunProgress focus job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onRunning?.(false); onDone?.(run, output); }} />;
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" ref={root}>
       {error && <Note color="red" title="Apply failed">{error}</Note>}
       <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} why={why} scope={scope} />
       <Group role="group" aria-label="Selected changes" justify="space-between" gap="xs" py="xs"

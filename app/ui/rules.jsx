@@ -33,6 +33,7 @@ function useSwitch(dir, onPlan) {
 }
 
 // Findings of the checks: severity, file and line in the message, the fix, and a switch-off plan where that is safe.
+// A busy control here and in Files ignores clicks but keeps the keyboard focus (a disabled one loses it).
 function Findings({ findings, dir, onPlan }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!findings.length) return <Text>No rule file is over a limit or broken.</Text>;
@@ -50,7 +51,7 @@ function Findings({ findings, dir, onPlan }) {
                 <Table.Td>
                   <Stack gap={4} align="flex-start">
                     <Text size="sm">{f.fix}</Text>
-                    {f.action && <Button size="compact-xs" variant="default" leftSection={icon(IconPlayerStop)} disabled={busy === f.action.file} onClick={() => toggle(f.action.agent, { path: f.action.file, shown: f.file }, false)}>Turn off {f.file}</Button>}
+                    {f.action && <Button size="compact-xs" variant="default" leftSection={icon(IconPlayerStop)} data-disabled={busy === f.action.file || undefined} aria-disabled={busy === f.action.file || undefined} onClick={() => busy !== f.action.file && toggle(f.action.agent, { path: f.action.file, shown: f.file }, false)}>Turn off {f.file}</Button>}
                   </Stack>
                 </Table.Td>
               </Table.Tr>
@@ -182,7 +183,8 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear }) {
                   <Group gap="xs" wrap="nowrap" align="flex-start">
                     {r.switch.by
                       ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={wait ? 'Pending' : r.load === 'off' ? 'Turn on' : 'On'} description={wait ? 'Apply or cancel in Changes below' : undefined}
-                        checked={wait ? pending.on : r.load !== 'off'} disabled={busy === r.path} onChange={(e) => (wait ? onClear() : toggle(agent.id, r, e.currentTarget.checked, agent.name))} />
+                        checked={wait ? pending.on : r.load !== 'off'} aria-disabled={busy === r.path || undefined} style={busy === r.path ? { opacity: 0.6 } : undefined}
+                        onChange={(e) => (busy === r.path ? undefined : wait ? onClear() : toggle(agent.id, r, e.currentTarget.checked, agent.name))} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
                     <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>

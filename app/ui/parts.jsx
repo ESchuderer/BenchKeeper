@@ -151,7 +151,10 @@ const LONG = 5;
 // The status chip: what the item is now. The server marks every removal as foreign; the full setup's removals (steps
 // other:...) are the user's own, the rest BenchKeeper set up.
 const CHIP = { absent: ['new', 'teal'], removed: ['new', 'teal'], outdated: ['outdated', 'yellow'], modified: ['modified', 'indigo'], foreign: ['installed by you', 'grape'], current: ['current', 'gray'] };
+// A settings merge: what it does to its keys, not the state of the whole file.
+const KEY_CHIP = { new: ['new key', 'teal'], changed: ['changed key', 'yellow'], removed: ['removed key', 'orange'], current: ['current', 'gray'] };
 const chipOf = (c) => (c.foreign || (c.kind === 'command' && removes(c) && c.step?.startsWith('other:')) ? CHIP.foreign
+  : c.settings && KEY_CHIP[c.keyState] ? KEY_CHIP[c.keyState]
   : c.kind === 'write' ? CHIP[c.state] ?? CHIP.absent : removes(c) ? ['installed by BenchKeeper', 'gray'] : CHIP.absent);
 const Chip = ({ c }) => {
   const [label, color] = chipOf(c);
@@ -165,6 +168,7 @@ const whatOf = (c) => {
   if (c.kind === 'remove') return `Deletes ${c.path}.`;
   if (c.kind === 'command') return removes(c) ? 'Removes it from the agent: whatever uses it stops working.' : 'Adds it to the agent.';
   if (c.destructive) return `Takes it out of ${c.path}: whatever relies on it stops working.`;
+  if (c.settings) return `${c.keyState === 'removed' ? 'Removes' : 'Sets'} ${c.settings.keys.join(', ')} ${c.keyState === 'removed' ? 'from' : 'in'} ${c.path}; other keys stay.`;
   if (c.state === 'modified') return `Replaces your edits in ${c.path}.`;
   if (!c.state || c.state === 'absent' || c.state === 'removed') return `Creates ${c.path}.`;
   return `Changes ${c.path}.`;
@@ -180,7 +184,7 @@ const whyOf = (c, why) => (c.foreign || c.step?.startsWith('other:') ? 'Not part
 const AFFECTS = { global: 'Every project on this machine.', project: 'This project only.' };
 // What History does to undo it, after the word History; null when it cannot.
 const undoOf = (c) => (c.kind === 'command' ? (c.undoArgv ? (removes(c) ? ' installs it again.' : ' removes it again.') : null)
-  : c.state === 'modified' ? ' restores your edits.' : c.kind === 'remove' ? ' puts the file back.' : ' restores the file as it was.');
+  : c.settings ? ' restores the file as it was before the run.' : c.state === 'modified' ? ' restores your edits.' : c.kind === 'remove' ? ' puts the file back.' : ' restores the file as it was.');
 
 // The labelled lines above a change's diff: what it does, why, who it affects, how to undo it and where it comes from.
 // A settings change takes its source from its setting facts.

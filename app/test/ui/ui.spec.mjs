@@ -2106,6 +2106,36 @@ test.describe('views', () => {
     await page.unroute(/\/api\/rules-plan$/);
   });
 
+  test('A settings merge into a hand-edited file: the Rules switch and the Agent settings plans name the key, not the file state', async ({ page }) => {
+    // The fixture's settings file as one the user edited by hand: the server's own plan, its file state modified.
+    const edited = async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      await route.fulfill({ response: r, json: { ...body, changes: body.changes.map((c) => ({ ...c, state: 'modified' })) } });
+    };
+    await page.route(/\/api\/(rules|settings)-plan$/, edited);
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).focus();
+    await page.keyboard.press('Space');
+    let changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('new key');
+    await expect(changes).toContainText('Undo: History restores the file as it was before the run.');
+    await expect(changes).not.toContainText('modified');
+    await expect(changes).not.toContainText('restores your edits');
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('changed key');
+    await expect(changes).toContainText(/What it does: Sets cleanupPeriodDays in \S*\.claude\/settings\.json; other keys stay\./);
+    await expect(changes).toContainText('Undo: History restores the file as it was before the run.');
+    await expect(changes).not.toContainText('Replaces your edits');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await page.unroute(/\/api\/(rules|settings)-plan$/);
+  });
+
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
     const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Presets, pins and policy' });
     await expect(entry).toHaveCount(0);

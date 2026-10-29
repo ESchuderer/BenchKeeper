@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -13,11 +13,12 @@ const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM:
 const git = (dir, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', '-C', dir, ...args], { encoding: 'utf8', env }).trim();
 const commit = (dir, name) => { writeFileSync(join(dir, name), name); git(dir, 'add', name); git(dir, 'commit', '-qm', name); return git(dir, 'rev-parse', 'HEAD'); };
 
-// A checkout with a linked worktree per branch under wt/, and fakes on PATH that log their arguments: gh answers the merged
+// A checkout with a linked worktree per branch under wt/ of the real temporary path (git reports worktrees by it, and on
+// macOS /var links to /private/var), and fakes on PATH that log their arguments: gh answers the merged
 // pull request heads of a branch from the file heads-<branch>, df the used percent from the file used, podman one stopped
 // container and one volume for the worktree of branch done.
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'bk-wc-repo-')), repo = join(root, 'repo'), bin = join(root, 'bin');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'bk-wc-repo-'))), repo = join(root, 'repo'), bin = join(root, 'bin');
   mkdirSync(repo); mkdirSync(bin);
   git(repo, 'init', '-q', '-b', 'main');
   commit(repo, 'base');

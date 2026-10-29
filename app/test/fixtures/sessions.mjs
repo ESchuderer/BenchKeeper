@@ -4,7 +4,11 @@ import { join } from 'node:path';
 
 const jsonl = (file, lines) => { mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`); };
 let work = '/work';
-const common = (t, cwd = `${work}/shop`) => ({ cwd, gitBranch: 'feat/cart', version: '2.1.300', sessionId: 's1', timestamp: t });
+// The fixture dates are written as if now were REF; `now` moves them all by the same offset.
+const REF = Date.parse('2026-10-24T00:00:00.000Z');
+let shift = 0;
+const stamp = (t) => (shift ? new Date(Date.parse(t) + shift).toISOString() : t);
+const common = (t, cwd = `${work}/shop`) => ({ cwd, gitBranch: 'feat/cart', version: '2.1.300', sessionId: 's1', timestamp: stamp(t) });
 const USAGE = { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 0, output_tokens: 5 };
 const assistant = (t, id, content, usage = USAGE) => ({ ...common(t), type: 'assistant', message: { id, model: 'claude-sonnet-5-5', content, usage } });
 const human = (t, content, extra = {}) => ({ ...common(t), type: 'user', origin: { kind: 'human' }, message: { role: 'user', content }, ...extra });
@@ -12,9 +16,11 @@ const result = (t, id, text, isError) => ({ ...common(t), type: 'user', message:
 
 export const TITLE = 'Cart </script><img src=x onerror=alert(1)> fix';
 
-// `root` holds the projects shop and blog; `title` names the first Claude Code session.
-export function writeSessions(home, { root = '/work', title = TITLE } = {}) {
+// `root` holds the projects shop and blog; `title` names the first Claude Code session; `now` (ms) dates the sessions
+// relative to it, the default keeps the fixed dates.
+export function writeSessions(home, { root = '/work', title = TITLE, now = REF } = {}) {
   work = root;
+  shift = now - REF;
   const dir = join(home, '.claude/projects', `${root}/shop`.replaceAll('/', '-'));
   jsonl(join(dir, 's1.jsonl'), [
     { type: 'mode', mode: 'normal', sessionId: 's1' },
@@ -49,10 +55,10 @@ export function writeSessions(home, { root = '/work', title = TITLE } = {}) {
     { ...assistant('2026-10-21T09:00:06.000Z', 'n1', [{ type: 'text', text: 'Fixed.' }]), cwd: `${root}/blog`, sessionId: 's2' },
   ]);
   const codex = join(home, '.codex/sessions/2026/10/21');
-  const ev = (t, type, payload) => ({ timestamp: t, type, payload });
+  const ev = (t, type, payload) => ({ timestamp: stamp(t), type, payload });
   const cmd = (t, command, code) => ev(t, 'event_msg', { type: 'item_completed', item: { type: 'CommandExecution', command: ['/usr/bin/bash', '-lc', command], exit_code: String(code) } });
   jsonl(join(codex, 'rollout-2026-10-21T11-00-00-c1.jsonl'), [
-    ev('2026-10-21T11:00:00.000Z', 'session_meta', { id: 'c1', timestamp: '2026-10-21T11:00:00.000Z', cwd: `${root}/shop`, cli_version: '0.162.1', source: 'cli', git: { branch: 'main' } }),
+    ev('2026-10-21T11:00:00.000Z', 'session_meta', { id: 'c1', timestamp: stamp('2026-10-21T11:00:00.000Z'), cwd: `${root}/shop`, cli_version: '0.162.1', source: 'cli', git: { branch: 'main' } }),
     ev('2026-10-21T11:00:00.100Z', 'response_item', { type: 'message', role: 'developer', content: [{ type: 'input_text', text: '<skills_instructions>\n## Skills\n### Available skills\n- ponytail:ponytail: Lazy mode. (file: r6/ponytail/SKILL.md)\n- tdd: Test first. (file: r0/tdd/SKILL.md)\n### How to use skills\n- not-a-skill: text\n</skills_instructions>' }] }),
     ev('2026-10-21T11:00:00.200Z', 'turn_context', { model: 'gpt-6-astra' }),
     ev('2026-10-21T11:00:00.300Z', 'event_msg', { type: 'task_started', turn_attribution: { turn_trigger: 'user' } }),
@@ -80,14 +86,16 @@ export function writeSessions(home, { root = '/work', title = TITLE } = {}) {
     cmd('2026-10-21T11:00:04.500Z', 'cat /x/skills/grilling/SKILL.md', 0),
     ev('2026-10-21T11:00:05.000Z', 'event_msg', { type: 'token_count', info: { total_token_usage: { total_tokens: 100 } } }),
   ]);
+  shift = 0;
 }
 
 const LINE = 'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.';
 const PREAMBLE = `${LINE}\nYour coordinator's terminal handle is: term_1\nYour task ID is: task_1`;
 const wakeup = (t, id) => assistant(t, id, [{ type: 'tool_use', id: `w${id}`, name: 'ScheduleWakeup', input: { delaySeconds: 1200, prompt: 'check', reason: 'wait' } }]);
 // Sessions of each pattern in the project `app`, kept apart from writeSessions so the counts of the other tests stay.
-// One short Claude Code session in each folder.
-export function writeTreeSessions(home, dirs) {
+// One short Claude Code session in each folder; `now` as in writeSessions.
+export function writeTreeSessions(home, dirs, { now = REF } = {}) {
+  shift = now - REF;
   for (const [i, cwd] of dirs.entries()) {
     const at = (l) => ({ ...l, cwd, sessionId: `w${i}` });
     jsonl(join(home, '.claude/projects', cwd.replaceAll('/', '-'), `w${i}.jsonl`), [
@@ -95,6 +103,7 @@ export function writeTreeSessions(home, dirs) {
       at(assistant(`2026-10-22T0${i}:00:05.000Z`, `w${i}`, [{ type: 'text', text: 'Renamed.' }])),
     ]);
   }
+  shift = 0;
 }
 
 export function writePatternSessions(home, { root = '/work' } = {}) {

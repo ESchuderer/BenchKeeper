@@ -30,6 +30,11 @@ await new Promise((ok, fail) => {
 });
 
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
+// A view that is ready once one element shows: [file name, nav link, role and name of that element].
+const show = (file, view, role, name) => [file, async (page) => {
+  await nav(page, view).click();
+  await expect(page.getByRole(role, { name })).toBeVisible();
+}];
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
   // The Dashboard as the app opens: the one-run buttons, what needs attention and the doctor count.
@@ -75,38 +80,14 @@ const VIEWS = [
     await nav(page, 'Catalog').click();
     await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
   }],
-  ['runs', async (page) => {
-    await nav(page, 'Runs').click();
-    await expect(page.getByRole('heading', { name: 'Last setup change' })).toBeVisible();
-  }],
-  ['insights', async (page) => {
-    await nav(page, 'Insights').click();
-    await expect(page.getByRole('heading', { name: 'Findings' })).toBeVisible();
-  }],
-  ['evals', async (page) => {
-    await nav(page, 'Evals').click();
-    await expect(page.getByRole('table', { name: 'Eval targets' })).toBeVisible();
-  }],
-  ['global', async (page) => {
-    await nav(page, 'Global setup').click();
-    await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
-  }],
-  ['extensions', async (page) => {
-    await nav(page, 'Extensions').click();
-    await expect(page.getByRole('table', { name: 'Claude Code extensions' })).toBeVisible();
-  }],
-  ['automations', async (page) => {
-    await nav(page, 'Automations').click();
-    await expect(page.getByRole('table', { name: 'Automations' })).toBeVisible();
-  }],
-  ['preferences', async (page) => {
-    await nav(page, 'Preferences').click();
-    await expect(page.getByRole('table', { name: 'Keyboard shortcuts' })).toBeVisible();
-  }],
-  ['rules', async (page) => {
-    await nav(page, 'Rules').click();
-    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
-  }],
+  show('runs', 'Runs', 'table', 'Orchestrated runs and tasks'),
+  show('insights', 'Insights', 'heading', 'Findings'),
+  show('evals', 'Evals', 'table', 'Eval targets'),
+  show('global', 'Global setup', 'table', 'Agents'),
+  show('extensions', 'Extensions', 'table', 'Claude Code extensions'),
+  show('automations', 'Automations', 'table', 'Automations'),
+  show('preferences', 'Preferences', 'table', 'Keyboard shortcuts'),
+  show('rules', 'Rules', 'region', 'Checks'),
   ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
   ['accounts', async (page) => {
     await nav(page, 'Accounts').click();

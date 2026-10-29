@@ -168,7 +168,7 @@ function AccountCard({ a, c, onUse, onTrack, onSignIn, onRemove }) {
   );
 }
 
-const ACCOUNT_WHY = { add: 'You added this account in Accounts.', remove: 'You removed this account in Accounts.' };
+const ACCOUNT_WHY = { add: 'You asked to add this account in Accounts.', remove: 'You asked to remove this account in Accounts.' };
 
 // Several accounts per agent: one card each with its sign-in and usage, add by sign-in, a check before a launch. The registry holds no credential.
 export function Accounts({ overview, refresh }) {

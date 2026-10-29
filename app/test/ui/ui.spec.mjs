@@ -1056,7 +1056,7 @@ test.describe('views', () => {
     await page.route(/\/api\/job\?id=stub-job$/, async (route) => route.fulfill({ json: await Promise.race([done, { done: false, run: { entries: [] } }]) }));
     await file.click();
     const changes = page.getByRole('region', { name: 'Changes', exact: true });
-    await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeFocused();
     for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
     finish({ done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} });
@@ -1301,7 +1301,7 @@ test.describe('views', () => {
     await expect(check).toBeFocused();
     await own.getByRole('button', { name: /^Update/ }).click();
     const update = page.getByRole('dialog', { name: 'Update designing-technical-uis in sk-proj' });
-    await update.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await update.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(update.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await update.getByRole('button', { name: 'Close' }).click();
     await expect(own).toContainText('current');
@@ -1328,14 +1328,14 @@ test.describe('views', () => {
     await openDiffs(reset);
     await expect(reset.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toContainText('edited here');
     await noAxe(page);
-    await reset.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await reset.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(reset.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await reset.getByRole('button', { name: 'Close' }).click();
     await expect(own).toContainText('current');
     // Adopt a library skill that is there without a setup: it becomes a single pick, its folder kept.
     await untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ }).click();
     const adopt = page.getByRole('dialog', { name: 'Adopt mermaid-diagrams in sk-proj' });
-    await adopt.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await adopt.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(adopt.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await adopt.getByRole('button', { name: 'Close' }).click();
     const adopted = mine.filter({ hasText: 'mermaid-diagrams' });
@@ -1345,7 +1345,7 @@ test.describe('views', () => {
     await adopted.getByRole('button', { name: /^Remove/ }).click();
     const remove = page.getByRole('dialog', { name: 'Remove mermaid-diagrams in sk-proj' });
     await expect(remove.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove skill mermaid-diagrams');
-    await remove.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await remove.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await remove.getByRole('button', { name: 'Close' }).click();
     await expect(mine.filter({ hasText: 'mermaid-diagrams' })).toHaveCount(0);
@@ -2256,9 +2256,9 @@ test.describe('views', () => {
       await page.keyboard.press('Enter');
       const changes = page.getByRole('region', { name: 'Changes' });
       await expect(changes).toContainText('automation Pull request watch, disabled');
-      await expect(changes).toContainText('Why: You installed this automation in Automations.');
+      await expect(changes).toContainText('Why: You asked to install this automation in Automations.');
       await noAxe(page);
-      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).focus();
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await expect(row).toContainText('matches the template');
@@ -2274,7 +2274,7 @@ test.describe('views', () => {
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove the');
       await expect(changes.getByRole('checkbox', { name: /^Remove the / })).toBeChecked();
-      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).focus();
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await expect(row).toContainText('Not installed');
@@ -2302,7 +2302,7 @@ test.describe('views', () => {
       await page.getByLabel('Name', { exact: true }).fill(name);
       await page.getByRole('button', { name: 'Plan the new account' }).click();
       await expect(changes).toContainText(`Add claude account ${name}`);
-      await expect(changes).toContainText('Why: You added this account in Accounts.');
+      await expect(changes).toContainText('Why: You asked to add this account in Accounts.');
       await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();

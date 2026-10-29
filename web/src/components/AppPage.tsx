@@ -94,9 +94,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     text: [
       'Findings of the setup and the sessions: doctor findings, agent settings, versions behind, installed skills no session used and friction in one project. They are grouped by level (error, warning, info) and area, most severe first, each with its evidence and a fix or a Plan button.',
       'The session signals need 20 Claude Code sessions of the last 90 days and report nothing below that. Dismiss and Snooze 7 days are kept per finding; a finding whose evidence changed comes back.',
-      'The adviser narrative is optional: one agent session on your login summarizes the findings and suggests an order. It runs only on a click, with the exact input shown beside the button.',
+      'The adviser narrative is optional: one agent session on your login summarizes the findings and suggests an order. It runs only on a click, with the exact input shown beside the button. On the command line, --yes starts it; without --yes the command shows a cached narrative, or the input it would send, and starts nothing.',
     ],
-    cli: [`${V} insights --json`, `${V} insights --json --narrative --agent claude`],
+    cli: [`${V} insights --json`, `${V} insights --json --narrative --agent claude --yes`],
   },
   {
     id: 'evals', view: 'evals', title: 'Evals', shot: 'evals',
@@ -130,7 +130,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     alt: 'The Extensions view for the global files: per agent a table of MCP servers, hooks, subagents, commands and output styles with name, scope, owner, what each is with a runs code mark, and the file it comes from.',
     text: [
       'What each agent loads or runs besides rules and skills, globally or for a registered project: MCP servers, hooks, subagents, commands and output styles, with scope, owner and the file each comes from. Runs code marks what executes a command on this machine.',
-      'The view reads the agents\' files only: no agent starts and nothing is written. Environment values, headers and secrets never appear.',
+      'The view reads the agents\' files only: no agent starts and nothing is written. Environment values and headers never appear; secrets in command lines are masked when their name or shape is a known one, so a secret in another form can still show.',
     ],
     cli: [`${V} extensions list --agent claude`, `${V} extensions list --project <dir>`],
   },
@@ -158,7 +158,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     alt: 'The Automations view: what a template is, a note that the runner is not installed, then the templates table with each automation\'s name, id and tier, its schedule, whether it is installed, its last run and an Install button.',
     text: [
       'A template is one scheduled agent run: a schedule, a precheck that skips the run when there is nothing to do, and the prompt. The generic templates come with the app; your own go in automations/ of the config folder.',
-      'Install creates the automation on the runner, disabled and report only, in a registered project. Update sets it back to the template, Remove deletes it with its run history. Each is a plan with a diff and an undo in History, and the table shows whether the runner\'s copy still matches the template.',
+      'Install creates the automation on the runner, disabled and report only, in a registered project. Update sets it back to the template, Remove deletes it with its run history. Undo of a removal restores the local record only: the runner keeps no copy, so install it again to create a new automation. Each is a plan with a diff and an undo in History, and the table shows whether the runner\'s copy still matches the template.',
     ],
     cli: [`${V} automations list`, `${V} automations install <id> --project <dir>`, `${V} automations status`],
   },

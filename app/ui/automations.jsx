@@ -64,8 +64,6 @@ function InstallForm({ a, projects, onPlan, onCancel }) {
   );
 }
 
-const DONE = { install: 'installed', update: 'updated', remove: 'removed' };
-
 // Scheduled agent runs from templates: the generic ones and your private ones, installed on the runner as plans with a
 // diff and undo, and compared with the template they came from.
 export function Automations({ overview, refresh }) {
@@ -77,7 +75,7 @@ export function Automations({ overview, refresh }) {
   const [error, setError] = useState(null);
   const plan = async (body) => {
     setError(null);
-    try { setPending({ plan: await api('/api/automations-plan', body), why: `You ${DONE[body.op]} this automation in Automations.` }); setForm(null); } catch (e) { setError(e.message); }
+    try { setPending({ plan: await api('/api/automations-plan', body), why: `You asked to ${body.op} this automation in Automations.` }); setForm(null); } catch (e) { setError(e.message); }
   };
   const done = () => { state.reload(); refresh(); };
   return (

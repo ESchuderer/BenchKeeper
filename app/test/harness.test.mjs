@@ -102,7 +102,22 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   // The result appended after the cut-off line is read back.
   await runEval(ctx, evalPlan(ctx, { model: 'sonnet' }));
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
-  assert.equal(triggered('{"type":"x"}\nRead /h/.agents/skills/workflow/SKILL.md', 'workflow'), true);
+});
+
+test('triggered counts a skill call or a read of its SKILL.md, not a listed path', () => {
+  const stream = (...events) => events.map((e) => JSON.stringify(e)).join('\n');
+  const use = (name, input) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name, input }] } });
+  const cmd = (command, output = '') => ({ type: 'item.completed', item: { type: 'command_execution', command, aggregated_output: output, exit_code: 0 } });
+  // Claude: a Glob whose result lists the path is no load.
+  const listed = stream(use('Glob', { pattern: '**/*.md' }), { type: 'user', message: { content: [{ type: 'tool_result', content: 'README.md\n.claude/skills/workflow/SKILL.md' }] } });
+  assert.equal(triggered(listed, 'workflow'), false);
+  assert.equal(triggered(stream(use('Read', { file_path: '/tmp/bk-eval-x/.claude/skills/workflow/SKILL.md' })), 'workflow'), true);
+  assert.equal(triggered(stream(use('Read', { file_path: '/tmp/bk-eval-x/.claude/skills/other/SKILL.md' })), 'workflow'), false);
+  assert.equal(triggered(stream(use('Skill', { skill: 'benchkeeper:workflow' })), 'workflow'), true);
+  // Codex: the command reads the file; a listing that prints the path in its output does not.
+  assert.equal(triggered(stream(cmd(['bash', '-lc', 'cat .agents/skills/workflow/SKILL.md'])), 'workflow'), true);
+  assert.equal(triggered(stream(cmd('bash -lc "ls -R .agents/skills"', '.agents/skills/workflow/SKILL.md')), 'workflow'), false);
+  assert.equal(triggered('Read /h/.agents/skills/workflow/SKILL.md', 'workflow'), false);
 });
 
 test('eval asks before starting sessions and refuses in CI', async () => {

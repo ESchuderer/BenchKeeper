@@ -466,6 +466,8 @@ test('install units: each install step of the global plan maps to one unit, and 
     ...Object.fromEntries(plan.filter((c) => c.step.startsWith('tools:skill:')).map((c) => [c.step, `skill:${c.step.slice('tools:skill:'.length)} skill git`])),
   });
   assert.ok(map['tools:skill:find-skills']);
+  // The title names the repository as the inventory does, not the clone URL.
+  assert.equal(plan.find((c) => c.step === 'tools:skill:find-skills').title, 'global skill find-skills from vercel-labs/skills');
   const fetched = plan.filter((c) => c.argv?.[0] === 'npx' || (c.argv?.[0] === 'npm' && c.argv[1] === 'i'));
   assert.ok(fetched.length >= 2);
   for (const c of fetched) assert.ok(c.verify && c.env.npm_config_before, c.title);

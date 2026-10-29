@@ -437,7 +437,7 @@ export function globalPlan(env) {
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
   if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
-  const skill = (source, name, flags, step = `tools:skill:${name}`, title = `global skill ${name} from ${source}`) => add(step, title, {
+  const skill = (source, name, flags, step, title) => add(step, title, {
     kind: 'command', argv: ['npx', '-y', skillsSpec(ctx), 'add', source, '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: skillsVerify(ctx),
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
     installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: source }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
@@ -445,7 +445,7 @@ export function globalPlan(env) {
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
-  for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f); }
+  for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f, `tools:skill:${name}`, `global skill ${name} from ${repo}`); }
   // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the library.
   for (const p of globalPacks) {
     for (const s of lib.skills.filter((x) => p.skills.includes(x.name))) {

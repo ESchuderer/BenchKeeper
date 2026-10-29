@@ -22,7 +22,8 @@ export function Projects(props) {
   // Older links (#/projects?path=...) open the Installs tab; replace keeps Back from landing on the redirect again.
   useEffect(() => { if (legacy) window.location.replace(projectHref(legacy, 'installs')); }, [legacy]);
   if (legacy) return null;
-  return props.rest[0] ? <ProjectPage {...props} /> : <ProjectList {...props} />;
+  // Keyed by folder: another project gets fresh form, dialog and Installs state.
+  return props.rest[0] ? <ProjectPage key={props.rest[0]} {...props} /> : <ProjectList {...props} />;
 }
 
 function ProjectPage({ rest, params, overview, history, refresh }) {

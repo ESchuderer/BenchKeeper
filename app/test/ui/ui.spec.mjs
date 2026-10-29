@@ -1003,6 +1003,35 @@ test.describe('views', () => {
     await unregister(page, ['Docs site']);
   });
 
+  test('Projects: another project opened from the palette starts with its own edit form', async ({ page }) => {
+    const [a, b] = [folder('mv-pal-a'), folder('mv-pal-b')];
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, a);
+    await expect(table.getByRole('link', { name: 'mv-pal-a', exact: true })).toBeVisible();
+    await addFolder(page, b);
+    await table.getByRole('link', { name: 'mv-pal-b', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Beta');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('heading', { name: 'Beta' })).toBeVisible();
+    await page.getByRole('link', { name: 'All projects' }).click();
+    await table.getByRole('link', { name: 'mv-pal-a', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Alpha');
+    await page.getByRole('button', { name: /^Search/ }).click();
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    await palette.getByLabel('Search').fill(b);
+    await expect(palette.locator('[data-selected]')).toContainText(b);
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Beta' })).toBeVisible();
+    await expect(page.getByLabel('Display name')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await expect(page.getByLabel('Display name')).toHaveValue('Beta');
+    await page.getByRole('link', { name: 'All projects' }).click();
+    await unregister(page, ['mv-pal-a', 'Beta']);
+  });
+
   test('Projects: another worktree of a registered repository is offered, not added; bulk removal from the list names the count', async ({ page }) => {
     const main = folder('mv-main');
     const git = (...a) => execFileSync('git', ['-C', main, '-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { stdio: 'pipe' });

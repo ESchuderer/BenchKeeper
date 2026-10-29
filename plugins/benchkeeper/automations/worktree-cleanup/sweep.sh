@@ -57,13 +57,16 @@ unmerged() {
   printf '%s\n' "$heads" | grep -qx "$2" || echo unpushed
 }
 
-# Removes worktree $1 of branch $2 at commit $3 with its containers and volumes; stops at the first failure.
+# Removes worktree $1 of branch $2 at commit $3 with its containers and volumes; stops at the first failure. Keeps the
+# branch when its tip moved away from $3 meanwhile.
 remove() {
   [ "$(git -C "$1" rev-parse HEAD)" = "$3" ] || return 1
   for c in $(containers -a -q --filter "$(label "$1")"); do "$engine" rm -v "$c" >/dev/null && echo "removed container $c $1" || return 1; done
   for v in $(volumes "$1"); do "$engine" volume rm "$v" >/dev/null && echo "removed volume $v $1" || return 1; done
   git worktree remove "$1" && echo "removed worktree $1 $2" || return 1
-  [ "$(git rev-parse "refs/heads/$2")" = "$3" ] && git branch -D "$2" >/dev/null && echo "removed branch $2"
+  if [ "$(git rev-parse "refs/heads/$2")" = "$3" ]; then git branch -D "$2" >/dev/null && echo "removed branch $2"
+  else echo "kept branch $2 moved"
+  fi
 }
 
 tab=$(printf '\t')

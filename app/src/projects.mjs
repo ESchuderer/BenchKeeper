@@ -149,6 +149,12 @@ function save(ctx, projects) {
   if (problem) throw Object.assign(new Error(problem), { status: 409 });
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }
+// Every change of the registry: read and write under the run lock, so the UI server and a CLI command do not drop each
+// other's entries. Re-entrant: a caller inside a run goes on.
+function updateRegistry(ctx, change) {
+  const release = ctx.ledger.lock();
+  try { save(ctx, change(listProjects(ctx))); } finally { release(); }
+}
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
 // Normalized like a state file: an earlier app kept version 1.
@@ -163,9 +169,10 @@ const kept = (ctx, path) => { try { return keptStrict(ctx, path); } catch { retu
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, dir, state) {
   const path = canon(dir);
-  const list = listProjects(ctx);
-  if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
-  save(ctx, list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p))));
+  updateRegistry(ctx, (list) => {
+    if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
+    return list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p)));
+  });
 }
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
@@ -208,13 +215,13 @@ export function checkAdd(ctx, path) {
 export function addProject(ctx, path, { worktree = false } = {}) {
   const found = checkAdd(ctx, path);
   if (found.worktree && !worktree) throw new Error(`${found.path} is the same repository as ${found.worktree} (another worktree): not added as a second project`);
-  if (!found.same) save(ctx, [...listProjects(ctx), { path: found.path, added: new Date().toISOString() }]);
+  if (!found.same) updateRegistry(ctx, (list) => (list.some((x) => x.path === found.path) ? list : [...list, { path: found.path, added: new Date().toISOString() }]));
   return found.path;
 }
 // path or a list of them; the files in the folders stay.
 export function removeProject(ctx, path) {
   const gone = new Set([path].flat().map(canon));
-  save(ctx, listProjects(ctx).filter((x) => !gone.has(x.path)));
+  updateRegistry(ctx, (list) => list.filter((x) => !gone.has(x.path)));
 }
 const registeredEntry = (ctx, path) => {
   const p = canon(path), entry = listProjects(ctx).find((x) => x.path === p);
@@ -233,12 +240,16 @@ const field = (v, what, max, multiline) => {
 // Display name and notes live in projects.json only. A missing key stays as it is; an empty one clears it.
 export function renameProject(ctx, path, { name, notes } = {}) {
   const entry = registeredEntry(ctx, path);
-  const next = { ...entry };
-  for (const [key, v] of [['name', name === undefined ? undefined : field(name, 'the name', 80, false)], ['notes', notes === undefined ? undefined : field(notes, 'the notes', 2000, true)]]) {
-    if (v === undefined) continue;
-    if (v == null) delete next[key]; else next[key] = v;
-  }
-  save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? next : x)));
+  const set = [['name', name === undefined ? undefined : field(name, 'the name', 80, false)], ['notes', notes === undefined ? undefined : field(notes, 'the notes', 2000, true)]];
+  updateRegistry(ctx, (list) => list.map((x) => {
+    if (x.path !== entry.path) return x;
+    const next = { ...x };
+    for (const [key, v] of set) {
+      if (v === undefined) continue;
+      if (v == null) delete next[key]; else next[key] = v;
+    }
+    return next;
+  }));
 }
 // A moved or renamed folder: the entry (name, notes, kept answers) takes the new path, and so does every run of the
 // project in the history, so undo and the drift checks find its files there. The state file moved with the folder.
@@ -251,7 +262,7 @@ export function relocateProject(ctx, path, to) {
   const release = ctx.ledger.lock();
   try {
     ctx.ledger.relocate(entry.path, dest);
-    try { save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
+    try { updateRegistry(ctx, (list) => list.map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
   } finally { release(); }
   return dest;
 }
@@ -422,7 +433,7 @@ export function unconfirmedGit(ctx, path) {
 // Records the project's current list as confirmed by its owner.
 export function confirmGit(ctx, path) {
   const entry = registeredEntry(ctx, path), gitConfirmed = fingerprint(gitCodeConfig(ctx, entry.path));
-  save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, gitConfirmed } : x)));
+  updateRegistry(ctx, (list) => list.map((x) => (x.path === entry.path ? { ...x, gitConfirmed } : x)));
   return gitConfirmed;
 }
 

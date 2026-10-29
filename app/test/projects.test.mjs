@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -50,6 +50,26 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   removeProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx), []);
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
+});
+
+test('registry: a change waits for the run lock another process holds and keeps that process\'s entries', () => {
+  const ctx = context({ home: home() });
+  const root = mkdtempSync(join(TMP, 'bk-reg-'));
+  for (const d of ['a', 'b', 'c']) mkdirSync(join(root, d));
+  addProject(ctx, join(root, 'a'));
+  // Another process (the parent is alive) holds the lock and adds c meanwhile.
+  writeFileSync(join(ctx.config, 'lock'), JSON.stringify({ pid: process.ppid }));
+  const theirs = [...listProjects(ctx), { path: canon(join(root, 'c')), added: new Date().toISOString() }];
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: theirs }));
+  assert.throws(() => addProject(ctx, join(root, 'b')), /another BenchKeeper run is in progress/);
+  assert.throws(() => removeProject(ctx, join(root, 'a')), /another BenchKeeper run is in progress/);
+  rmSync(join(ctx.config, 'lock'));
+  addProject(ctx, join(root, 'b'));
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), ['a', 'c', 'b'].map((d) => canon(join(root, d))));
+  // Re-entrant: a caller inside a run of this process goes on.
+  const release = ctx.ledger.lock();
+  try { removeProject(ctx, join(root, 'c')); } finally { release(); }
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), ['a', 'b'].map((d) => canon(join(root, d))));
 });
 
 test('registry: a parsed file without a projects list is empty', () => {

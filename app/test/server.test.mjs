@@ -708,7 +708,7 @@ test('run report: a failed session undo (no files recorded) still opens', () => 
 test('the browser opens a file only this user can read, which forwards to the URL; the URL stays out of the arguments', () => {
   let opened;
   const file = openBrowser('http://127.0.0.1:1/?token=a&b', { wait: 0, open: (f) => { opened = f; }, confined: () => false });
-  assert.equal(opened, file);
+  assert.equal(opened, pathToFileURL(file).href);
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /content="0;url=http:\/\/127\.0\.0\.1:1\/\?token=a&#38;b"/);
 });

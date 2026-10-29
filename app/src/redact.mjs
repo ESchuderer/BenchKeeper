@@ -6,13 +6,16 @@ const SHAPES = /\b(?:sk-ant-|sk-|ghp_|gho_|ghs_|ghu_|ghr_|github_pat_|npm_|glpat
 const ASSIGN = new RegExp(`(\\b${NAME}["']?\\s*[=:]\\s*)(?:(?:Bearer|Basic|token)\\s+)?("(?:[^"\\\\]|\\\\.)*"|'[^']*'|[^\\s,;"']+)`, 'gi');
 const FLAG = new RegExp(`(--?${NAME}[ =])("(?:[^"\\\\]|\\\\.)*"|'[^']*'|\\S+)`, 'gi');
 // A body stops at the next BEGIN line: a BEGIN without END scans only to the next block, so the match stays linear.
-const PEM = /(-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----)(?:(?!-----BEGIN )[\s\S])*?(-----END \2PRIVATE KEY-----)/g;
+const PEM = /(-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY( BLOCK)?-----)((?:(?!-----BEGIN )[\s\S])*?)(-----END \2PRIVATE KEY\3-----)/g;
 const SHAPED = (t) => t.replace(/\bBearer\s+\S+/gi, 'Bearer ***').replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '***').replace(/(:\/\/)[^\s/:@]+:[^\s/@]+@/g, '$1***@').replace(SHAPES, '***');
+
+// Each line of a key body becomes ***, so masking never adds or removes a line break.
+export const maskKeys = (text) => String(text ?? '').replace(PEM, (_, begin, _t, _b, body, end) => begin + body.replace(/[^\r\n]+/g, '***') + end);
 
 // keys false: free text (rules, skills), where only token shapes are masked; true: settings, configuration and commands.
 export function mask(text, { keys = true } = {}) {
   // The key block goes first: a key=value pattern inside its base64 body could eat its END line.
-  const t = String(text ?? '').replace(PEM, '$1\n***\n$3');
+  const t = maskKeys(text);
   return SHAPED(keys ? t.replace(FLAG, '$1***').replace(ASSIGN, '$1***') : t);
 }
 

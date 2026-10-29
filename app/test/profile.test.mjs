@@ -120,7 +120,7 @@ test('an own pack this library cannot take is skipped with its reason; the other
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
 });
 
-test('a round trip keeps guards, agent files and the pack scopes; an agent file this catalog does not know is dropped', async () => {
+test('a round trip keeps guards, agent files and the pack scopes, which the import reports as notes; an agent file this catalog does not know is dropped', async () => {
   const a = machine();
   savePack(a, { id: 'ui', skills: ['accessibility'] });
   mkdirSync(a.config, { recursive: true });
@@ -143,43 +143,34 @@ test('a round trip keeps guards, agent files and the pack scopes; an agent file 
   let out = '';
   const w = new Writable({ write(c, _, done) { out += c; done(); } });
   assert.equal(await main(['profile', 'import', at, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
-  assert.deepEqual(JSON.parse(readFileSync(scopeFile(b), 'utf8')).scopes, p.global.scopes);
+  assert.ok(!existsSync(scopeFile(b)));
   assert.deepEqual(readState(proj).guards, false);
   assert.deepEqual(readState(proj).agentFiles, [file]);
-  assert.match(out, /pack ui: all projects/);
+  const notes = importPlan(b, p).notes;
+  assert.deepEqual(notes, [
+    'pack ui: selected projects here, all projects in the profile; to change it: benchkeeper packs scope ui global',
+    'pack matt-pocock: all projects here, selected projects in the profile; to change it: benchkeeper packs scope matt-pocock projects',
+  ]);
+  for (const m of notes) assert.ok(out.includes(`note: ${m}\n`), out);
 });
 
-test('an import project plan keeps its skills when it is applied before the scope change, or that change is declined', () => {
+test('an import writes no pack scope: its plans follow the scopes saved here', () => {
   const b = machine();
   savePack(b, { id: 'ui', skills: ['accessibility'] });
   const proj = tmp('bk-prof-proj-');
-  const p = { global: { agents: ['claude'], scopes: { ui: 'global' } }, projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], singles: [], tier: 'quick' } }] };
-  const [x] = importPlan(b, p).projects;
-  assert.ok(x.changes.some((c) => c.title.includes('accessibility')));
-  apply(x.changes, x.ctx, { scope: x.path });
-  assert.deepEqual(readState(proj).skills.map((s) => s.name), ['accessibility']);
-  assert.ok(!existsSync(scopeFile(b)));
+  const p = { global: { agents: ['claude'], packs: ['ui'], scopes: { ui: 'global' } }, projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], singles: [], tier: 'quick' } }] };
+  const plan = importPlan(b, p);
+  assert.ok(!plan.global.some((c) => c.step.startsWith('scope:') || c.step === 'pack:ui'));
+  assert.ok(plan.projects[0].changes.some((c) => c.title.includes('accessibility')));
+  assert.deepEqual(plan.notes, ['pack ui: selected projects here, all projects in the profile; to change it: benchkeeper packs scope ui global']);
 
-  // Global here and in the profile: the project gets no copies.
+  // Global here as in the profile: no note, the global plan copies the skills and the project gets none.
   mkdirSync(b.config, { recursive: true });
   writeFileSync(scopeFile(b), JSON.stringify({ schemaVersion: 1, scopes: { ui: 'global' } }));
-  const other = tmp('bk-prof-proj-');
-  const [y] = importPlan(b, { ...p, projects: [{ ...p.projects[0], path: other }] }).projects;
-  assert.ok(!y.changes.some((c) => c.title.includes('accessibility')));
-});
-
-test('a pack moved to all projects: its global installs and its scope write are applied together or not at all', () => {
-  const b = machine();
-  savePack(b, { id: 'ui', skills: ['accessibility'] });
-  const { global } = importPlan(b, { global: { agents: ['claude'], scopes: { ui: 'global' } } });
-  const scope = global.find((c) => c.id === 'scope:ui');
-  const installs = global.filter((c) => c.step === 'pack:ui');
-  assert.ok(scope.unit && installs.length && installs.every((c) => c.unit === scope.unit));
-  const runs = [];
-  const ctx = { ...b, run: (argv) => { runs.push(argv); return b.run(argv); } };
-  assert.throws(() => apply(global, ctx, { scope: 'global', select: global.filter((c) => c !== scope).map((c) => c.id) }), /go together/);
-  assert.ok(!runs.some((argv) => argv.includes('accessibility')));
-  assert.ok(!existsSync(scopeFile(b)));
+  const same = importPlan(b, p);
+  assert.deepEqual(same.notes, []);
+  assert.ok(same.global.some((c) => c.step === 'pack:ui'));
+  assert.ok(!same.projects[0].changes.some((c) => c.title.includes('accessibility')));
 });
 
 test('a profile scope must be one of the pack scopes', () => {

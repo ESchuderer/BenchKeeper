@@ -600,7 +600,7 @@ export function api(ctx) {
       if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
       const done = input(() => importChoices(ctx, p));
       const plan = importPlan(ctx, p);
-      return { ...done, missing: plan.missing, skipped: plan.skipped, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
         plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
     },
     'POST /api/scan': (b) => {

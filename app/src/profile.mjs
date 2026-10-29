@@ -5,7 +5,7 @@ import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { keptFrom } from './frameworks.mjs';
-import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, scopeWrite, storedScopes } from './packs.mjs';
+import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, storedScopes } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { ruleStates } from './rules.mjs';
 import { unfit } from './roots.mjs';
@@ -51,35 +51,30 @@ export function readProfile(text) {
   return p;
 }
 
-// The import plan: the profile's pack scopes (written first, the global plan is built with them), the global changes for its
-// agents and packs, plus the project setup of registered paths that exist here and have no state file yet. Paths missing
-// here are listed and skipped, and so are projects whose plan fails (a state file this app cannot read): skipped holds their messages.
+// The import plan: the global changes for the profile's agents and packs, plus the project setup of registered paths that
+// exist here and have no state file yet, both against the pack scopes saved here. Paths missing here are listed and skipped,
+// and so are projects whose plan fails (a state file this app cannot read): skipped holds their messages.
+// The import never changes a pack scope: notes name each pack whose scope in the profile differs from the one here.
 // Scopes of packs this machine does not have (an own pack that was not saved) are left out.
 export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const lib = libraryWith(ctx);
-  const scopes = Object.entries(p.global.scopes ?? {}).filter(([id]) => lib.packs.some((x) => x.id === id));
-  // The scope writes may be applied after the project plans or declined, so a project copies a pack's skills unless it is
-  // global both now and in the profile.
-  const changed = scopes.filter(([id, s]) => s !== packScope(ctx, lib.packs.find((x) => x.id === id)));
-  const projectBase = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(changed.map(([id]) => [id, 'projects'])) } };
-  ctx = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(scopes) } };
-  // A changed scope and the global installs of that pack form one unit: the saved scope never disagrees with what is installed.
-  const unitOf = (id) => (changed.some(([x]) => x === id) ? { unit: `scope:${id}` } : {});
-  const scopeChanges = scopes.map(([id, s]) => ({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(s)}`, ...scopeWrite(ctx, id, s), ...unitOf(id) }));
-  const globalChanges = globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }).map((c) => (c.step.startsWith('pack:') ? { ...c, ...unitOf(c.step.slice(5)) } : c));
-  const global = preview([...scopeChanges, ...globalChanges]);
+  const notes = Object.entries(p.global.scopes ?? {}).flatMap(([id, s]) => {
+    const pack = lib.packs.find((x) => x.id === id), here = pack && packScope(ctx, pack);
+    return pack && s !== here ? [`pack ${id}: ${scopeText(here)} here, ${scopeText(s)} in the profile; to change it: benchkeeper packs scope ${id} ${s}`] : [];
+  });
+  const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }));
   const projects = [], missing = [], skipped = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
     // A folder that cannot be a project (a drive root, the home folder) is not given a plan, whatever the file says.
     if (unfit(ctx, x.path)) continue;
     try {
-      const pctx = projectCtx(projectBase, x.path);
+      const pctx = projectCtx(ctx, x.path);
       const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined, agentFiles: keptFrom(x.answers).agentFiles } }).changes);
       projects.push({ path: x.path, ctx: pctx, changes });
     } catch (e) { skipped.push(`${x.path}: ${e.message}`); }
   }
-  return { global, projects, missing, skipped };
+  return { global, projects, missing, skipped, notes };
 }
 
 // Own packs and the project registry; the plans apply through the step engine like any other run.

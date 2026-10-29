@@ -838,6 +838,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
+    for (const m of plan.notes) out.write(`note: ${m}\n`);
     if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);

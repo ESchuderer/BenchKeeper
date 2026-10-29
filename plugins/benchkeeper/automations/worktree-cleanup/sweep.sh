@@ -43,9 +43,10 @@ busy() {
 ignored() {
   s=$(git -C "$1" status --porcelain --ignored=matching --untracked-files=normal) || return 1
   printf '%s\n' "$s" | sed -n 's|^!! ||p' |
-    awk -F/ -v r=",$rebuildable," '{ for (i = 1; i < NF; i++) if (index(r, "," $i ",")) next; sub(/\/+$/, ""); print }' |
+    awk -F/ -v r="$rebuildable" 'BEGIN { n = split(r, a, ","); for (i = 1; i <= n; i++) keep[a[i]] = 1 }
+      { for (i = 1; i < NF; i++) if ($i in keep) next; sub(/\/+$/, ""); print }' |
     while IFS= read -r p; do
-      grep -qxF -- "$p" "$top/.worktreeinclude" 2>/dev/null && diff -rq -- "$top/$p" "$1/$p" >/dev/null 2>&1 || echo "$p"
+      grep -qxF -- "$p" "$top/.worktreeinclude" 2>/dev/null && diff -rq -- "$top/$p" "$1/$p" >/dev/null 2>&1 || printf '%s\n' "$p"
     done
 }
 

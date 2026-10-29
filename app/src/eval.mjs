@@ -21,10 +21,12 @@ function targetHash(ctx, target, cases) {
 // --target takes the id of a target, or skill:<name> for an own skill that no library skill shares.
 const picked = (only, target) => only.some((t) => t === target || (target.startsWith(`${t}@`) && !inLibrary(t.slice('skill:'.length))));
 
+// Lines that do not parse (a write cut off by a killed run) are left out, as in the results view.
 function lastResults(ctx) {
   const last = new Map();
   for (const line of (readText(results(ctx)) ?? '').split('\n').filter(Boolean)) {
-    const r = JSON.parse(line);
+    let r;
+    try { r = JSON.parse(line); } catch { continue; }
     last.set(`${r.target}|${r.agent}|${r.model ?? ''}`, r);
   }
   return last;

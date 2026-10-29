@@ -247,7 +247,7 @@ function pathsOf(text) {
   if (at < 0) return null;
   const inline = lines[at].slice('paths:'.length).trim();
   const list = [];
-  for (let i = at + 1; !inline && /^\s*-\s/.test(lines[i] ?? ''); i++) list.push(lines[i].replace(/^\s*-\s/, ''));
+  if (!inline) for (let i = at + 1; /^\s*-\s/.test(lines[i] ?? ''); i++) list.push(lines[i].replace(/^\s*-\s/, ''));
   const globs = (inline ? inline.replace(/^\[|\]$/g, '').split(',') : list).map((g) => g.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
   return { line: at + 2, globs };
 }

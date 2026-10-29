@@ -471,7 +471,7 @@ test('a user-started step: project-plan names the record command, doctor repeats
   assert.equal(status(() => routes['GET /api/doctor'](q)), 400);
   routes['POST /api/projects']({ action: 'add', path: dir });
   const pack = routes['GET /api/project-plan'](q).prompts[1];
-  assert.equal(pack.command, `benchkeeper sessions record --project '${dir.replace("'", "'\\''")}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
+  assert.equal(pack.command, `benchkeeper sessions record --project '${dir.replaceAll("'", "'\\''")}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
   assert.equal(pack.command, recordCommand(dir, 'claude', pack.prompt));
   const packs = () => routes['GET /api/doctor'](q).filter((i) => i.check === 'packs');
   assert.deepEqual(packs().map((i) => [i.level, i.start]), [['warning', { agent: 'claude', dir, prompt: pack.prompt, command: pack.command }]]);

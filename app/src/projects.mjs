@@ -378,7 +378,7 @@ export function unconfirmedGit(ctx, path) {
   const confirmed = new Set(listProjects(ctx).find((p) => p.path === canon(path))?.gitConfirmed ?? []);
   const now = new Set(fingerprint(gitCodeConfig(ctx, path)));
   const key = (f) => f.replace(/=[^=]*$/, '');
-  return [...new Set([...now].filter((f) => !confirmed.has(f)).concat([...confirmed].filter((f) => !now.has(f))).map(key))].sort();
+  return [...new Set([...now].filter((f) => !confirmed.has(f)).concat([...confirmed].filter((f) => !now.has(f))).map(key))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 // Records the project's current list as confirmed by its owner.
 export function confirmGit(ctx, path) {

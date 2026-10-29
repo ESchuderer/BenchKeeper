@@ -19,8 +19,9 @@ for r in $repos; do
     | select((.event == "push" or .event == "schedule") and (.path | startswith(".github/workflows/")))
     | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "startup_failure")
     | "\(.workflow_id) \(.id) \(.run_attempt) \(if .conclusion == "success" then "pass" else "fail" end) \(if (.created_at | fromdateiso8601) > now - 86400 then "new" else "old" end) \(.path)"') || continue
-  out=$(printf '%s\n' "$runs" | awk -v r="$r" -v w=",$2," -v st="$(cat "$dir/$(echo "$r" | tr / _)" 2>/dev/null)" '
-    BEGIN { n = split(st, l, "\n"); for (i = 1; i <= n; i++) { split(l[i], f, " "); key[f[1]] = f[2]; res[f[1]] = f[3] } }
+  # The state goes through the environment: macOS awk refuses a newline in a -v value.
+  out=$(printf '%s\n' "$runs" | st="$(cat "$dir/$(echo "$r" | tr / _)" 2>/dev/null)" awk -v r="$r" -v w=",$2," '
+    BEGIN { n = split(ENVIRON["st"], l, "\n"); for (i = 1; i <= n; i++) { split(l[i], f, " "); key[f[1]] = f[2]; res[f[1]] = f[3] } }
     $1 !~ /^[0-9]+$/ || $2 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ || $6 !~ /^[A-Za-z0-9_.\/-]+$/ || seen[$1]++ { next }
     { base = $6; sub(/.*\//, "", base) }
     w != ",," && index(w, "," base ",") == 0 { next }

@@ -85,7 +85,8 @@ EOT
 default=$(git symbolic-ref -q --short refs/remotes/origin/HEAD | sed 's|^origin/||')
 branches=$(git for-each-ref --format='%(objectname) %(refname:short) %(worktreepath)' refs/heads/ | while read -r head branch wt; do
   [ -z "$wt" ] || continue
-  case "$branch" in "$default"|main|master) continue ;; esac
+  # The opening parenthesis lets bash 3.2 (sh on macOS) parse this case inside $().
+  case "$branch" in ("$default"|main|master) continue ;; esac
   [ -n "$(unmerged "$branch" "$head")" ] || echo "$head $branch"
 done)
 while read -r head branch; do

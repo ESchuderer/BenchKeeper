@@ -446,7 +446,7 @@ function cacheCommand(ctx, o, positionals) {
   if (sub === 'show') return { sub };
   const now = sessionCache(ctx);
   if (sub === 'clear') return { sub, lines: [`remove the ${now.sessions} session summaries: those of transcripts the agent already deleted are gone for good, the next scan reads the others again; the retention stays ${kept(now.keepDays)}`], change: () => clearSessionCache(ctx) };
-  const v = o['keep-days'], days = v === 'none' ? null : /^\d+$/.test(v ?? '') ? Number(v) : NaN;
+  const v = o['keep-days'], days = v === 'none' ? null : /^\d+$/.test(v ?? '') ? Number(v) : Number.NaN;
   if (Number.isNaN(days) || (days !== null && (days < 1 || days > 3650))) return { error: 'usage: sessions cache set --keep-days N|none (N: a whole number from 1 to 3650)' };
   return { sub, lines: [`keep session summaries ${kept(days)} instead of ${kept(now.keepDays)}${days === null ? '' : `: the next scan drops those older than ${days} days`}`], change: () => keepSessionsFor(ctx, days) };
 }
@@ -1621,9 +1621,8 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       change = sub === 'use' ? useChange(ctx, name) : removeChange(ctx, name, !!gone.token);
     }
     const plan = preview([change]);
-    if (!plan.length) { out.write('nothing to change\n'); return 0; }
-    const select = await choose(plan, o, ask, out);
-    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    const { stop, select } = await chooseOrStop(plan, { o, ask, out });
+    if (stop !== undefined) return stop;
     // The token goes first: after the registry change nothing would point to a token that failed to delete.
     if (sub === 'remove' && gone.token) {
       try { store(ctx).delete(gone.name); } catch (e) {
@@ -1649,15 +1648,22 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
   }
 }
 
+// The changes chosen from a plan, or stop: 0 when there is nothing to change, 1 when none was chosen.
+async function chooseOrStop(plan, { o, ask, out }) {
+  if (!plan.length) { out.write('nothing to change\n'); return { stop: 0 }; }
+  const select = await choose(plan, o, ask, out);
+  if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return { stop: 1 }; }
+  return { select };
+}
+
 // Installs or removes the usage script, the status line and the hook of an account (Claude Code).
 async function trackAccount(ctx, a, { o, out, ask }) {
   const remove = !!o.off;
   const done = () => out.write(remove ? 'removed; the readings already kept stay in the folder\n' : 'tracking starts with the next Claude Code session of this account; usage shows after its first response. A status line in a project\'s settings takes precedence over this one, and then no reading is kept\n');
   if (a.mode === 'host') {
     const plan = preview(trackChanges(a, { remove }));
-    if (!plan.length) { out.write('nothing to change\n'); return 0; }
-    const select = await choose(plan, o, ask, out);
-    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    const { stop, select } = await chooseOrStop(plan, { o, ask, out });
+    if (stop !== undefined) return stop;
     // The folder may lie outside the home folder: it is the one extra root of this change, and it is for this user alone.
     if (!remove) mkdirSync(a.dir, { recursive: true, mode: 0o700 });
     const code = report(apply(plan, { ...ctx, roots: [...ctx.roots, a.dir] }, { scope: 'global', select }), out);

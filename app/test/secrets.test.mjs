@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix as posixPath, win32 } from 'node:path';
 import { test } from 'node:test';
 import { addCase } from '../src/cases.mjs';
 import { childEnv } from '../src/childenv.mjs';
 import { cooled } from '../src/cooldown.mjs';
 import { diffLines } from '../src/diff.mjs';
-import { Ledger, runId } from '../src/ledger.mjs';
+import { Ledger, backupRel, runId } from '../src/ledger.mjs';
 import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
@@ -202,6 +202,14 @@ test('backups of runs older than the retention period go; newer and setup.sh one
   assert.equal(existsSync(join(l.backups, old)), false);
   assert.ok(existsSync(join(l.backups, recent)) && existsSync(join(l.backups, '2026-01-01-000000')));
   assert.deepEqual(l.prune(0, now), [], '0 keeps every backup');
+});
+
+test('a backup outside HOME holds no drive colon; Windows compares HOME case-insensitively', () => {
+  assert.equal(backupRel('C:\\Users\\me', 'D:\\code\\proj\\AGENTS.md', win32), '_root\\D\\code\\proj\\AGENTS.md');
+  assert.equal(backupRel('C:\\Users\\me', '\\\\server\\share\\proj\\AGENTS.md', win32), '_root\\UNC\\server\\share\\proj\\AGENTS.md');
+  assert.equal(backupRel('C:\\Users\\me', 'c:\\users\\me\\.claude\\settings.json', win32), '.claude\\settings.json');
+  assert.equal(backupRel('/h', '/srv/proj/AGENTS.md', posixPath), '_root/srv/proj/AGENTS.md');
+  assert.equal(backupRel('/h', '/H/x', posixPath), '_root/H/x', 'POSIX paths stay case-sensitive');
 });
 
 test('eval outputs and results are private, also in folders an earlier version made', posix, async () => {

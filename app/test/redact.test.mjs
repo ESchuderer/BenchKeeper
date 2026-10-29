@@ -47,3 +47,15 @@ test('maskStream: an unfinished line longer than the kept tail keeps its key blo
   // No key block: only the tail of the line stays.
   assert.equal(shown(run(8, 'abcdefghijkl')), 'efghijkl');
 });
+
+test('maskStream: a secret assignment split across a line break masks the first token of the next line', () => {
+  const feed = (...chunks) => chunks.reduce((s, c) => maskStream(s, c), { text: '', rest: '', end: null });
+  assert.equal(shown(feed('password =\n', 'abc rest\nok\n')), 'password =\n*** rest\nok\n');
+  assert.equal(shown(feed('api_key: Bearer\n\n  abc')), 'api_key: ***\n\n  ***');
+  assert.equal(feed('token =\r\n"a b", c\n').text, 'token =\r\n***, c\n');
+  // A complete assignment leaves the next line alone, and a line that masks today masks the same way.
+  assert.equal(shown(feed('secret=abc\nplain\n')), 'secret=***\nplain\n');
+  assert.equal(shown(feed('x --token abc ghp_abcdefgh123\n')), 'x --token *** ***\n');
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} RSA PRIVATE KEY-----`);
+  assert.equal(shown(feed(`key:\n${b}\nabc\n${e}\n`)), `key:\n${b}\n***\n${e}\n`);
+});

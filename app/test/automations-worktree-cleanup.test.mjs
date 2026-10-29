@@ -162,3 +162,16 @@ test('worktree-cleanup: a file named like a rebuildable folder, an untracked fil
   assert.ok(f.sweep('act').out.includes(`keep worktree ${file} file ignored-scan`));
   assert.ok(existsSync(file));
 });
+
+test('worktree-cleanup: a folder whose name joins rebuildable names with a comma and a file named -n keep the worktree', sh, () => {
+  const f = fixture();
+  writeFileSync(join(f.repo, '.gitignore'), 'dist,build/\n-n\n');
+  git(f.repo, 'add', '.gitignore'); git(f.repo, 'commit', '-qm', 'ignore');
+  const comma = f.worktree('comma'), option = f.worktree('option');
+  for (const b of ['comma', 'option']) f.merged(b, git(f.repo, 'rev-parse', 'main'));
+  mkdirSync(join(comma, 'dist,build'));
+  writeFileSync(join(comma, 'dist,build', 'a.js'), 'only copy');
+  writeFileSync(join(option, '-n'), 'only copy');
+  assert.deepEqual(f.sweep('act').out.slice(1).sort(), [`keep worktree ${comma} comma ignored-files`, `keep worktree ${option} option ignored-files`].sort());
+  assert.ok(existsSync(join(comma, 'dist,build', 'a.js')) && existsSync(join(option, '-n')));
+});

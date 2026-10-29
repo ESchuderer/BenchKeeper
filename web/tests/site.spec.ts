@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { BASE } from './base';
 
 for (const path of ['./', './overview/', './app/', './404.html']) {
   test(`${path} links back to the repository and its security policy`, async ({ page }) => {
@@ -32,5 +33,5 @@ for (const path of ['./', './overview/', './app/', './404.html']) {
 
 test('the sitemap lists the three pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();
-  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual(['/BenchKeeper/', '/BenchKeeper/overview/', '/BenchKeeper/app/']);
+  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`]);
 });

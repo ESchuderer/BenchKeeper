@@ -547,6 +547,27 @@ test('dashboard: a skill pack for all projects is a global pack of Claude Code a
   assert.deepEqual(d.coverage.packs.find((x) => x.id === 'docs').cells, { claude: 0, codex: 0 });
 });
 
+test('dashboard: a community skill in place is current; an unknown agent in the state file leaves the known ones and the error', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(TMP, 'bk-dash-'));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  const row = () => dashboard(ctx, ['claude'], []).projects.find((x) => x.path === dir);
+  const before = row().states;
+  // Its install command ran: the folder is there, so the plan holds no step for it.
+  mkdirSync(join(dir, '.claude/skills/frontend-design'), { recursive: true });
+  writeFileSync(join(dir, '.claude/skills/frontend-design/SKILL.md'), '---\nname: frontend-design\n---\n');
+  const after = row();
+  assert.deepEqual([after.states.current, after.untracked], [before.current + 1, 0]);
+  const file = join(dir, '.benchkeeper/state.json');
+  const state = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...state, agents: ['claude', 'nobody'] }));
+  const odd = row();
+  assert.deepEqual([odd.setup, odd.agents, odd.packs], [true, ['claude'], ['frontend']]);
+  assert.match(odd.error, /nobody/);
+});
+
 test('packs: save, export, import and remove; bad input is a 400', () => {
   const { routes } = fixture();
   const packs = routes['POST /api/packs'];
@@ -724,6 +745,23 @@ test('registry, pack and profile writes wait for a running apply; a profile impo
   release();
   await finished(routes, job);
   assert.notEqual(status(() => routes['POST /api/projects']({ path: dir, action: 'remove' })), 409);
+});
+
+test('Stop: refused while an apply runs; read-only jobs are aborted', async () => {
+  const { ctx, routes } = fixture();
+  let release;
+  ctx.runAsync = (argv, o) => (argv[1]?.endsWith('verify.mjs') ? Promise.resolve(ctx.run(argv, o)) : new Promise((r) => { release = () => r({ code: 0, stdout: '', stderr: '' }); }));
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command' && !c.destructive);
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await until(() => release);
+  assert.equal(status(() => routes['POST /api/shutdown']({})), 409);
+  release();
+  await finished(routes, job);
+  // A job is done only after its work settles, so the scan still runs when Stop comes right after it.
+  const scan = routes['POST /api/sessions-scan']({ force: true }).job;
+  assert.deepEqual(routes['POST /api/shutdown']({}), { stopping: true });
+  assert.equal((await finished(routes, scan)).cancelled, true);
 });
 
 // Last: it stops the shared server.

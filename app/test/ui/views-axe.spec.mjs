@@ -11,6 +11,8 @@ test.beforeEach(({ context }) => context.addInitScript(() => { if (localStorage.
 const noViolations = async (page, scheme) => {
   await expect(ready(page)).toBeVisible();
   await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+  // A switched scheme starts color transitions (the segmented control labels): measure the colors they end at.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
   const { violations } = await new AxeBuilder({ page }).analyze();
   expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
 };

@@ -28,6 +28,8 @@ async function noAxe(page) {
     && [...document.querySelectorAll('[role=dialog], [class*="Overlay"]')].every((e) => getComputedStyle(e).opacity === '1'), null, { polling: 'raf' });
   for (const scheme of ['light', 'dark']) {
     await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    // A switched scheme starts color transitions (the segmented control labels): measure the colors they end at.
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
     const { violations } = await new AxeBuilder({ page }).analyze();
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
@@ -233,8 +235,11 @@ test.describe('views', () => {
     await expect(page.getByRole('main')).not.toContainText(/transcript|cache/i);
     await expect(board.locator('main')).not.toContainText(/cleanup period|cache of summaries/i);
     // A skipped Ponytail ledger file is named after a scan.
+    const before = await page.locator('iframe[title="Sessions board"]').getAttribute('src');
     await page.getByRole('button', { name: 'Rescan' }).click();
     await expect(page.getByRole('main')).toContainText('Ponytail ledger broken.csv skipped: not a Ponytail ledger');
+    // The scan loads a new frame after the note: the filter is set on that one, not on the frame it replaces.
+    await expect(page.locator('iframe[title="Sessions board"]')).not.toHaveAttribute('src', before);
     await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
@@ -525,7 +530,9 @@ test.describe('views', () => {
     await page.route(/\/api\/history(\?|$)/, (r) => (n++ === 0 ? r.abort('connectionreset') : r.continue()));
     await page.reload();
     await nav(page, 'History').click();
-    await expect(page.locator('a[href*="history?run="]').first()).toBeVisible();
+    // The Dashboard's doctor links runs too: the link counted is one the History view lists.
+    await expect(page.getByRole('heading', { level: 2, name: 'History' })).toBeVisible();
+    await expect(page.getByRole('main').locator('a[href*="history?run="]').first()).toBeVisible();
     expect(n).toBe(2);
     await page.unroute(/\/api\/history(\?|$)/);
     await page.route(/\/api\/history(\?|$)/, (r) => r.abort('connectionreset'));
@@ -761,7 +768,8 @@ test.describe('views', () => {
 
   test('Projects cards: totals equal the cards, health with findings, setup line, the graph as text; selection by keyboard shows the bulk bar; the choice is remembered; 390 px without sideways scroll; no axe violations', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
-    await nav(page, 'Projects').click();
+    // At this width the sidebar is a closed menu.
+    await page.goto('/#/projects');
     await page.getByText('Cards', { exact: true }).click();
     const cards = page.getByRole('list', { name: 'Projects' });
     const n = await cards.getByRole('listitem').count();
@@ -884,7 +892,8 @@ test.describe('views', () => {
     await expect(detail.getByText(/is not a folder/)).toBeVisible();
     await detail.getByLabel('New folder').fill(moved);
     await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
-    await chip(page, 'Folder not found').click();
+    // Relocate leaves the project page for the whole list, with no filter on.
+    await expect(page.getByRole('group', { name: 'Filters' }).getByRole('checkbox', { name: 'Folder not found' })).not.toBeChecked();
     await expect(table.getByRole('link', { name: 'Docs site', exact: true })).toBeVisible();
     await expect(table).not.toContainText('Folder not found');
     await unregister(page, ['Docs site']);
@@ -1455,9 +1464,11 @@ test.describe('views', () => {
     const advisor = about(page, 'advisorModel');
     await facts(advisor);
     await expect(advisor).toContainText('from the user file');
-    await expect(about(page, 'autoMemoryEnabled')).toContainText('Current: the default');
-    // A key outside the catalog: no guessed text, the rest of the facts still there.
+    // A catalog key that is not basic is listed in its group with every key.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
+    await page.getByLabel('Search settings').fill('autoMemoryEnabled');
+    await expect(about(page.getByRole('table', { name: 'Memory' }), 'autoMemoryEnabled')).toContainText('Current: the default');
+    // A key outside the catalog: no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
     await expect(outside).toContainText('Not explained yet.');

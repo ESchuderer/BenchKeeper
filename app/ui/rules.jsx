@@ -19,9 +19,14 @@ const Limit = ({ label, value, max, unit, by }) => (
 function useSwitch(dir, onPlan) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
-  const toggle = async (agent, row, on) => {
+  // name: the agent's name, for the plan's sentence on the context the file costs.
+  const toggle = async (agent, row, on, name) => {
     setBusy(row.path); setError(null);
-    try { onPlan({ row, dir, plan: await api('/api/rules-plan', { agent, file: row.path, dir, on }) }); } catch (e) { setError(e.message); }
+    try {
+      const plan = await api('/api/rules-plan', { agent, file: row.path, dir, on });
+      const what = name && row.tokens != null && `${name} ${on ? 'loads this file again' : 'stops loading this file'}: about ${number(row.tokens)} tokens ${on ? 'more' : 'less'} in every turn`;
+      onPlan({ row, dir, on, plan: what ? { ...plan, changes: plan.changes.map((c) => ({ impact: what, ...c })) } : plan });
+    } catch (e) { setError(e.message); }
     setBusy(null);
   };
   return { busy, error, toggle };
@@ -154,7 +159,9 @@ function Budget({ budget }) {
   );
 }
 
-function Files({ agent, dir, limit, onPlan, onPreview }) {
+// pending: the switch whose plan is open shows the requested position until the plan is applied, cancelled or closed;
+// flipping it back closes the plan (onClear).
+function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
   return (
@@ -164,7 +171,7 @@ function Files({ agent, dir, limit, onPlan, onPreview }) {
         <Table aria-label={`${agent.name} instruction files`} verticalSpacing="sm">
           <Table.Thead><Table.Tr><Table.Th>Load order</Table.Th><Table.Th>File</Table.Th><Table.Th>Owner</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>State</Table.Th><Table.Th>Switch</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
-            {agent.rows.map((r) => (
+            {agent.rows.map((r) => { const wait = pending?.row.path === r.path; return (
               <Table.Tr key={r.path}>
                 <Table.Td>{r.order ?? '-'}</Table.Td>
                 <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code><Text size="sm">{r.scope}</Text></Stack></Table.Td>
@@ -174,13 +181,14 @@ function Files({ agent, dir, limit, onPlan, onPreview }) {
                 <Table.Td miw={220}>
                   <Group gap="xs" wrap="nowrap" align="flex-start">
                     {r.switch.by
-                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={r.load === 'off' ? 'Turn on' : 'On'} checked={r.load !== 'off'} disabled={busy === r.path} onChange={(e) => toggle(agent.id, r, e.currentTarget.checked)} />
+                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={wait ? 'Pending' : r.load === 'off' ? 'Turn on' : 'On'} description={wait ? 'Apply or cancel in Changes below' : undefined}
+                        checked={wait ? pending.on : r.load !== 'off'} disabled={busy === r.path} onChange={(e) => (wait ? onClear() : toggle(agent.id, r, e.currentTarget.checked, agent.name))} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
                     <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>
                 </Table.Td>
               </Table.Tr>
-            ))}
+            ); })}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
@@ -215,7 +223,7 @@ export function Rules({ overview, params, refresh, project }) {
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} />
+                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} />
                 </Section>
               </Stack>
             ))}
@@ -224,7 +232,9 @@ export function Rules({ overview, params, refresh, project }) {
       </Loading>
       {pending && (
         <Section title="Changes">
-          <Plan key={pending.plan.planId} plan={pending.plan} onDone={() => { state.reload(); refresh(); }} />
+          {/* done: applied or cancelled, so the switch shows the file's state again. */}
+          <Plan key={pending.plan.planId} plan={pending.plan} why={`You turned the switch ${pending.on ? 'on' : 'off'} in Rules.`} scope={chosen ? 'project' : 'global'}
+            onCancel={(done) => setPending((p) => ({ ...p, done }))} onDone={() => { setPending((p) => ({ ...p, done: true })); state.reload(); refresh(); }} />
           <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
         </Section>
       )}

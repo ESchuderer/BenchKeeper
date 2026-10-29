@@ -138,7 +138,7 @@ export function Folded({ title, children, label = ['Show diff', 'Hide diff'], na
 }
 
 // The cards of a plan in this order; plugins BenchKeeper did not install get their own card after them.
-const GROUPS = [['install', 'Install'], ['update', 'Update'], ['remove', 'Remove'], ['settings', 'Settings changes'], ['action', 'Needs your action']];
+const GROUPS = [['install', 'Install'], ['update', 'Update'], ['remove', 'Remove'], ['settings', 'Settings'], ['action', 'Needs your action']];
 // A unit's changes share one card: the first of these that one of them belongs to.
 const PRECEDENCE = ['action', 'remove', 'settings', 'update', 'install'];
 // A removal: a destructive change, a file removal, or a command that removes (a skill BenchKeeper installed is preselected).
@@ -160,15 +160,46 @@ const Chip = ({ c }) => {
 
 const sentence = (t) => `${t[0].toUpperCase()}${t.slice(1)}${t.endsWith('.') ? '' : '.'}`;
 // What changes for the user and what could stop working.
-const impactOf = (c) => {
+const whatOf = (c) => {
   if (c.impact) return sentence(c.impact);
-  if (c.kind === 'remove') return `Deletes ${c.path}. Undo in History puts it back.`;
-  if (c.kind === 'command') return removes(c) ? `Removes it from the agent: whatever uses it stops working.${c.undoArgv ? ' Undo in History installs it again.' : ''}` : `Adds it to the agent.${c.undoArgv ? ' Undo in History removes it.' : ''}`;
-  if (c.destructive) return `Takes it out of ${c.path}: whatever relies on it stops working. Undo in History restores the file.`;
-  if (c.state === 'modified') return `Replaces your edits in ${c.path}. Undo in History restores them.`;
+  if (c.kind === 'remove') return `Deletes ${c.path}.`;
+  if (c.kind === 'command') return removes(c) ? 'Removes it from the agent: whatever uses it stops working.' : 'Adds it to the agent.';
+  if (c.destructive) return `Takes it out of ${c.path}: whatever relies on it stops working.`;
+  if (c.state === 'modified') return `Replaces your edits in ${c.path}.`;
   if (!c.state || c.state === 'absent' || c.state === 'removed') return `Creates ${c.path}.`;
-  return `Changes ${c.path}. Undo in History restores the file.`;
+  return `Changes ${c.path}.`;
 };
+// Why BenchKeeper offers it, from its state; a view that knows the user asked for it says so instead (why).
+const whyOf = (c, why) => (c.foreign || c.step?.startsWith('other:') ? 'Not part of BenchKeeper\'s setup: offered for removal, kept unless you tick it.'
+  : c.optional ? 'Optional: BenchKeeper suggests it, it stays off unless you tick it.'
+  : why ?? (removes(c) ? 'It is no longer part of BenchKeeper\'s setup, or you asked to remove it.'
+    : c.state === 'outdated' ? 'BenchKeeper\'s setup has a newer version.'
+    : c.state === 'modified' ? 'The file differs from BenchKeeper\'s setup.'
+    : c.always ? 'BenchKeeper records what it set up, for updates and the doctor.'
+    : c.state === 'current' ? 'Part of BenchKeeper\'s setup.' : 'Part of BenchKeeper\'s setup and not there yet.'));
+const AFFECTS = { global: 'Every project on this machine.', project: 'This project only.' };
+// What History does to undo it, after the word History; null when it cannot.
+const undoOf = (c) => (c.kind === 'command' ? (c.undoArgv ? (removes(c) ? ' installs it again.' : ' removes it again.') : null)
+  : c.state === 'modified' ? ' restores your edits.' : c.kind === 'remove' ? ' puts the file back.' : ' restores the file as it was.');
+
+// The labelled lines above a change's diff: what it does, why, who it affects, how to undo it and where it comes from.
+// A settings change takes its source from its setting facts.
+function About({ c, why, scope }) {
+  const affects = AFFECTS[c.installUnit?.scope ?? scope], undo = undoOf(c);
+  // A git source names owner/name or a full URL.
+  const repo = c.installUnit?.source?.type === 'git' && c.installUnit.source.repo;
+  const url = repo && (/^https?:\/\//.test(repo) ? repo : `https://github.com/${repo}`);
+  const line = (label, text) => <Text size="sm"><Text span size="sm" fw={600}>{label}:</Text> {text}</Text>;
+  return (
+    <Stack gap={2} role="group" aria-label={`About ${c.title}`}>
+      {line('What it does', whatOf(c))}
+      {line('Why', whyOf(c, why))}
+      {affects && line('Affects', affects)}
+      {line('Undo', undo ? <><Anchor size="sm" underline="always" href={href('history')}>History</Anchor>{undo}</> : 'History cannot undo this command.')}
+      {repo && line('Source', <Anchor size="sm" underline="always" href={url} target="_blank" rel="noreferrer">{repo.replace(/^https:\/\/github\.com\//, '')}</Anchor>)}
+    </Stack>
+  );
+}
 
 // One card per group with its count; a long one opens on a button. With select, a box selects or clears the whole card.
 function Card({ title, rows, select, setSelect, selectable, folded, children }) {
@@ -194,12 +225,13 @@ function Card({ title, rows, select, setSelect, selectable, folded, children }) 
   );
 }
 
-// The changes of a plan in cards by group (Install, Update, Remove, Settings changes, Needs your action), each with a
-// sentence, its impact, a status chip, the command behind a button, its diff and rehearsed skill installs. With select and
-// setSelect, one checkbox per change; changes of one unit go together: toggling one toggles all of them. collapsed: each
-// diff (and the files a rehearsal wrote) opens on a button.
-export function ChangeList({ plan, select, setSelect, prerun, collapsed = false }) {
-  if (!plan.changes.length) return <Text>Nothing to change.</Text>;
+// The changes of a plan in cards by group (Install, Update, Remove, Settings, Needs your action), each with a
+// sentence, a status chip, what it does, why, who it affects and its undo, the command and the diff behind a button, and
+// rehearsed skill installs. With select and setSelect, one checkbox per change; changes of one unit go together: toggling
+// one toggles all of them. why: the reason when the user asked for these changes; scope: global or project, where a change
+// does not name its own.
+export function ChangeList({ plan, select, setSelect, prerun, why, scope }) {
+  if (!plan.changes.length) return <Text>{NOTHING}</Text>;
   const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
   const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
   // A unit's changes are listed together under one note, at the place of its first change.
@@ -216,7 +248,7 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
   const foreignRow = ([c, i]) => (
     <Stack key={`${c.id}:${i}`} gap={4} style={{ overflowWrap: 'anywhere' }}>
       <Group gap="xs" align="flex-start"><Text size="sm">{c.title}</Text><Chip c={c} /></Group>
-      <Text size="sm">{impactOf(c)}</Text>
+      <About c={c} why={why} scope={scope} />
       <Group><Button component="a" href={href('projects')} size="xs" variant="default">Add {c.pack} to a project</Button></Group>
       {select && <Checkbox checked={select.includes(c.id)} disabled={!!c.error} onChange={() => toggle(c)} label={`Remove ${c.argv.at(-1)}`} />}
     </Stack>
@@ -229,19 +261,13 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
         ) : <Text size="sm" fw={600}>{sentence(c.title)}</Text>}
         <Chip c={c} />
       </Group>
-      <Text size="sm">{impactOf(c)}</Text>
+      <About c={c} why={why} scope={scope} />
       {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
       {c.settings && <SettingFactsOf settings={c.settings} />}
       {c.argv && !c.diff && <Folded title={c.title} label={['Show command', 'Hide command']} name={`command of ${c.title}`}><CommandLine command={c.argv.join(' ')} name={`the command of ${c.title}`} /></Folded>}
-      {(() => {
-        const detail = (
-          <>
-            {(c.kind !== 'command' || c.diff) && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
-            {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
-          </>
-        );
-        return collapsed && (c.diff || (c.prerun && prerun)) && !c.diff?.startsWith('copy ') ? <Folded title={c.title}>{detail}</Folded> : detail;
-      })()}
+      {c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text>
+        : c.diff && <Folded title={c.title} label={['Show file diff', 'Hide file diff']} name={`file diff of ${c.title}`}><DiffView diff={c.diff} path={c.path} /></Folded>}
+      {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
     </Stack>
   );
   const card = (g) => (g.length > 1 ? (
@@ -282,11 +308,14 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
 // The server runs a removal only with this flag: the user ticks each removal on its own.
 export const confirms = (plan, select) => ({ confirmDestructive: plan.changes.some((c) => c.destructive && select?.includes(c.id)) });
 
+const NOTHING = 'Nothing to change: everything already matches.';
+
 export const defaultSelect = (plan) => plan.changes.filter((c) => c.selected && !c.error).map((c) => c.id);
 
 // A plan from the server: its changes (removals off by default), then apply from a footer that stays in view. After the
-// apply, the run with its undo replaces the plan. onRunning hears when an apply starts and ends.
-export function Plan({ plan, onDone, onRunning }) {
+// apply, the run with its undo replaces the plan. onRunning hears when an apply starts and ends, onCancel when the user
+// cancels (true) or reviews the changes again (false). why and scope go to the change list.
+export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   const [select, setSelect] = useState(() => defaultSelect(plan));
   const [cancelled, setCancelled] = useState(false);
   const [job, setJob] = useState(null);
@@ -303,12 +332,13 @@ export function Plan({ plan, onDone, onRunning }) {
       </Stack>
     );
   }
-  if (!plan.changes.length) return <Text>Nothing to change.</Text>;
+  if (!plan.changes.length) return <Text>{NOTHING}</Text>;
+  const cancel = (on) => { setCancelled(on); onCancel?.(on); };
   if (cancelled) {
     return (
       <Group gap="xs">
-        <Text role="status">Nothing applied.</Text>
-        <Button size="xs" variant="default" onClick={() => setCancelled(false)}>Review the changes again</Button>
+        <Text role="status">Cancelled. Nothing was changed.</Text>
+        <Button size="xs" variant="default" onClick={() => cancel(false)}>Review the changes again</Button>
       </Group>
     );
   }
@@ -322,12 +352,12 @@ export function Plan({ plan, onDone, onRunning }) {
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}
-      <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} />
+      <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} why={why} scope={scope} />
       <Group role="group" aria-label="Selected changes" justify="space-between" gap="xs" py="xs"
         style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--mantine-color-body)', borderTop: '1px solid var(--mantine-color-default-border)' }}>
         <Text size="sm" role="status">{select.length} {select.length === 1 ? 'change' : 'changes'} selected</Text>
         <Group gap="xs">
-          <Button variant="default" onClick={() => setCancelled(true)}>Cancel</Button>
+          <Button variant="default" onClick={() => cancel(true)}>Cancel</Button>
           <Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length} aria-label={`Apply ${select.length} changes`}>Apply</Button>
         </Group>
       </Group>

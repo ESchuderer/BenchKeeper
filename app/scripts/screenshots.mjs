@@ -50,7 +50,7 @@ const VIEWS = [
     await nav(page, 'Projects').click();
     await page.getByRole('list', { name: 'Projects' }).getByRole('link', { name: 'shop', exact: true }).click();
     await page.getByRole('tab', { name: 'Installs' }).click();
-    await expect(page.getByRole('region', { name: /^Changes in / })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Changes', exact: true })).toBeVisible();
   }],
   ['setup', async (page) => {
     await nav(page, 'Projects').click();

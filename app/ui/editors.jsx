@@ -33,7 +33,7 @@ function FileEditor({ dir, entry, onDone }) {
       {errors.length > 0 && <List size="sm" aria-label={`Errors in ${entry.file}`}>{errors.map((e) => <List.Item key={errorLine(e)}>{errorLine(e)}</List.Item>)}</List>}
       {failed && <Note color="red" title="Not planned">{failed}</Note>}
       {plan
-        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={onDone} /></Section>
+        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} why="You edited this file here." scope="project" onDone={onDone} /></Section>
         : <Group><Button onClick={review} disabled={errors.length > 0}>Review change</Button></Group>}
     </Stack>
   );

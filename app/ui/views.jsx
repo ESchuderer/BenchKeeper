@@ -574,8 +574,8 @@ function Profile({ overview, refresh }) {
           {[...plans.skippedPacks, ...plans.skipped].map((m) => <Note key={m} color="yellow">Skipped {m}</Note>)}
           {plans.refused.map((m) => <Note key={m} color="yellow">Not registered: {m}</Note>)}
           {plans.notes.map((m) => <Note key={m} color="blue">{m}</Note>)}
-          <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} /></Section>
-          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} /></Section>)}
+          <Section title="Changes on this machine"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} scope="global" /></Section>
+          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} scope="project" /></Section>)}
         </>
       )}
       <Cli>{`benchkeeper profile export benchkeeper-profile.json --agents ${agents.join(',') || '<a,b>'}\nbenchkeeper profile import benchkeeper-profile.json`}</Cli>

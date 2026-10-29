@@ -154,7 +154,7 @@ function Installs({ project, others, onDone, onSetup }) {
     <Stack gap="lg">
       <Group><Button leftSection={icon(IconAdjustments)} variant="default" onClick={onSetup}>Change setup</Button></Group>
       {applied ? (
-        <Section title={`Changes in ${project.path}`}>
+        <Section title="Changes">
           <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={projectHref(project.path, 'history', { run: applied.id })}>Open in History</Anchor></Group>
           <RunPanel id={applied.id} output={applied.output} order={3} onChanged={onDone} />
         </Section>
@@ -180,11 +180,11 @@ function Installs({ project, others, onDone, onSetup }) {
               </Section>
             )}
             <GlobalBlock g={p.global} />
-            <Section title={`Changes in ${project.path}`}>
+            <Section title="Changes">
               <Loading state={plan} label="project plan">{(fresh) => (
                 <>
                   {fresh.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                  <Plan key={fresh.planId} plan={fresh} onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+                  <Plan key={fresh.planId} plan={fresh} scope="project" onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
                 </>
               )}</Loading>
             </Section>

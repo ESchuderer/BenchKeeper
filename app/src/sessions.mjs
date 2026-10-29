@@ -15,7 +15,7 @@ const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 // Also inside a quoted shell argument (devcontainer exec ... sh -lc 'npm test').
-const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
+const TEST = /(?:^|[\s;&|('"])((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];

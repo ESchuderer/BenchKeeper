@@ -172,6 +172,21 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
     await test(command)
     expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
   }
+  // Redirections, a runner before the command and one sh -c script are read as the command they run.
+  for (const command of ['npm test > test.log 2>&1', 'npm test &> test.log', 'npx vitest run', 'pnpm test', 'yarn jest', 'bunx vitest',
+    'npm run test:unit', 'python -m pytest', 'uv run pytest', "devcontainer exec --workspace-folder . sh -lc 'cd app && npm test'",
+    'sh -c "npm test 2>&1 > log"']) {
+    outcome = { isError: true, text: 'Exit code 1' }
+    await test('node --test')
+    outcome = { text: '12 passing' }
+    await test(command)
+    expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
+  }
+  for (const command of ["sh -lc 'npm test | tail'", "ls; sh -c 'npm test'", 'npm test 2>&1 | tail']) {
+    await test('node --test')
+    await test(command)
+    expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
+  }
   outcome = { text: '12 passing' }
   await test('node --test')
   outcome = { text: 'started', backgroundTaskId: 'b1' } as never
@@ -256,15 +271,15 @@ test('on: a lint or type check is read with the chain rules of a test run; a quo
   engine(on)
   const t = tools($, on)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  for (const command of ['ruff check .', 'cd app && npm run lint', 'npx tsc --noEmit', 'CI=1 eslint .', 'go vet ./...', 'cargo clippy']) {
+  for (const command of ['ruff check .', 'cd app && npm run lint', 'npx tsc --noEmit', 'CI=1 eslint .', 'go vet ./...', 'cargo clippy', 'npx eslint .', 'npx biome check']) {
     t.set({ isError: true, text: 'Exit code 1' })
     await t.bash('mypy')
     t.set({ text: 'ok' })
     await t.bash(command)
     expect(await ui.find({ type: 'Text', text: /lint\/types: passed/ })).toBeDefined()
   }
-  // A quoted name, a name that is no part's start (npx eslint, npm run lint:fix) or a compound command has no result.
-  for (const command of ['echo "eslint"', 'npx eslint .', 'npm run lint:fix', 'tsc || true']) {
+  // A quoted name, a name that is no part's start (npm run lint:fix) or a compound command has no result.
+  for (const command of ['echo "eslint"', 'npm run lint:fix', 'tsc || true']) {
     await t.bash('tsc')
     await t.bash(command)
     expect(await ui.find({ type: 'Text', text: /lint\/types: not run/ })).toBeDefined()

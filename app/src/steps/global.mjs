@@ -10,7 +10,7 @@ import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
-import { libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
+import { globalSkillPacks, libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
@@ -381,7 +381,7 @@ export function globalPlan(env) {
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
   const lib = libraryWith(ctx);
-  const globalPacks = lib.packs.filter((p) => !p.plugins && p.skills?.length && packScope(ctx, p) === 'global');
+  const globalPacks = globalSkillPacks(ctx, lib);
   const packSkills = globalPacks.flatMap((p) => p.skills);
   for (const [a, d] of Object.entries(skillDirs)) {
     if (!agents.includes(a)) continue;

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { registry } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 
 // Team file first, personal file last: the personal one wins per phase.
 export const FILES = { pins: ['.benchkeeper/pins.json', '.benchkeeper/pins.local.json'], preset: ['.benchkeeper/preset.json'], policy: ['docs/agents/orchestration.json'] };
@@ -142,7 +143,7 @@ export function paramChecks(ctx, dir, reg = registry) {
   }
   const { pins, errors } = resolvePins(dir);
   const local = FILES.pins[1];
-  if (exists(join(dir, local)) && ctx.run(['git', '-C', dir, 'check-ignore', '-q', local]).code === 1) out.push(issue('warning', 'pins', `${local} is not ignored by git`, `add ${local} to .gitignore or .git/info/exclude`));
+  if (exists(join(dir, local)) && ctx.run(['git', '-C', dir, 'check-ignore', '-q', local], { env: repoEnv() }).code === 1) out.push(issue('warning', 'pins', `${local} is not ignored by git`, `add ${local} to .gitignore or .git/info/exclude`));
   if (errors.length) return out;
   for (const id of new Set(pins.map((p) => p.agent).filter(Boolean))) {
     const a = reg.find((x) => x.id === id);

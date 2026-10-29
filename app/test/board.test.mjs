@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, projectActivity, projectRows, registeredPaths, toCsv } from '../src/board.mjs';
 import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
+import { repoEnv } from '../src/git.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
 import { scanSessions } from '../src/sessions.mjs';
@@ -198,6 +200,25 @@ test('a session keeps the repository found when it entered the cache, also after
   appendFileSync(join(home, '.claude/projects', b.replaceAll('/', '-'), 'w2.jsonl'), '\n');
   assert.equal((await repos()).w2, repo);
   assert.deepEqual(asked, []);
+});
+
+test('with GIT_DIR naming another repository (the app run from a hook), sessions and registered projects keep their own repository', async () => {
+  const home = mkdtempSync(join(TMP, 'bk-board-gitdir-'));
+  const shop = join(home, 'shop'), fix = join(home, 'wt/shop-fix'), other = join(home, 'other');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { env: repoEnv(), stdio: 'ignore' });
+  for (const d of [shop, other]) git('init', '-q', d);
+  git('-C', shop, 'commit', '-q', '--allow-empty', '-m', 'x');
+  git('-C', shop, 'worktree', 'add', '-q', fix);
+  writeTreeSessions(home, [fix]);
+  const ctx = context({ home });
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: shop }] }));
+  const saved = process.env.GIT_DIR;
+  process.env.GIT_DIR = join(other, '.git');
+  try {
+    assert.deepEqual(registeredPaths(ctx), [{ path: shop, worktrees: [fix] }]);
+    assert.equal((await scanSessions(ctx))[0].repo, shop);
+  } finally { if (saved === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = saved; }
 });
 
 // Days counted back from 2026-10-28: the current 7 days are 10-22 to 10-28, the previous 7 days 10-15 to 10-21.

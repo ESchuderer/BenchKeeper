@@ -32,5 +32,17 @@ const strings = ['src', 'ui'].filter((d) => existsSync(join(root, d))).flatMap((
   .flatMap((f) => nameAt(readFileSync(f, 'utf8')).map((line) => `${relative(root, f)}:${line}`));
 for (const at of strings) console.error(`error orca-name-outside-module: ${at}`);
 
+// A git command started outside src/git.mjs passes env (repoEnv, or childEnv, which applies it): the process environment of a
+// hook names another repository. shortcut: a text check up to the statement's semicolon, so an env of another call in the
+// same statement passes; upgrade to a parser if that misses a call.
+const src = join(root, 'src');
+const noEnv = existsSync(src) ? readdirSync(src, { recursive: true }).filter((f) => /\.(mjs|cjs|js)$/.test(f) && join(src, f) !== join(src, 'git.mjs'))
+  .flatMap((f) => {
+    const text = readFileSync(join(src, f), 'utf8');
+    return [...text.matchAll(/\[\s*['"]git['"]/g)].filter((m) => !/\benv\s*[:,}]/.test(text.slice(m.index).split(';')[0]))
+      .map((m) => `${relative(root, join(src, f))}:${text.slice(0, m.index).split('\n').length}`);
+  }) : [];
+for (const at of noEnv) console.error(`error git-without-repo-env: ${at}`);
+
 if (cruise.error) console.error(cruise.error);
-process.exit(cruise.error || cruise.status !== 0 || strings.length ? 1 : 0);
+process.exit(cruise.error || cruise.status !== 0 || strings.length || noEnv.length ? 1 : 0);

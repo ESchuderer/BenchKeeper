@@ -41,6 +41,7 @@ const AGENTS = {
   // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
   codex: { argv: (ctx, q, model) => ['codex', 'exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
+export const EVAL_AGENTS = Object.keys(AGENTS);
 export function triggered(output, name) {
   for (const line of output.split('\n')) {
     let e;

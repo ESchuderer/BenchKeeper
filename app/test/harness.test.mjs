@@ -135,6 +135,21 @@ test('evals plan lists the targets and starts no session, in CI too', async () =
   assert.equal(await main(['evals'], { out, ctx }), 2);
 });
 
+test('evals plan and run refuse an agent evals cannot run, before planning', async () => {
+  const calls = [];
+  const ctx = machine(stubAgent(calls));
+  for (const [args, named] of [[['evals', 'plan', '--agents', 'gemini'], 'gemini'], [['evals', 'run', '--agents', 'claud', '--yes'], 'claud'], [['evals', 'plan', '--agents', 'claude,'], '(empty)']]) {
+    let text = '';
+    const out = new Writable({ write(c, _, done) { text += c; done(); } });
+    assert.equal(await main(args, { out, ctx }), 2);
+    assert.equal(text, `evals runs claude and codex only, not ${named}\n`);
+    let json = '';
+    const code = await main([...args, '--json'], { out: new Writable({ write(c, _, done) { json += c; done(); } }), err: new Writable({ write(_c, _e, done) { done(); } }), ctx });
+    assert.deepEqual([code, JSON.parse(json).error], [2, text.trim()]);
+  }
+  assert.equal(calls.length, 0);
+});
+
 test('evals --json: the plan starts nothing, run needs --yes and prints the plan and its results, no case text leaks', async () => {
   const calls = [];
   const ctx = machine(stubAgent(calls));

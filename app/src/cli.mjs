@@ -15,7 +15,7 @@ import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './r
 import { addCase } from './cases.mjs';
 import { childEnv } from './childenv.mjs';
 import { doctor } from './doctor.mjs';
-import { evalPlan, runEval } from './eval.mjs';
+import { EVAL_AGENTS, evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
@@ -298,7 +298,7 @@ Usage: benchkeeper <command> [options]
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
                                     that would ask needs --yes: without it exit 2 and nothing changes
 
-Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude). Packs: see plugins/benchkeeper/library/README.md.
+Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude or codex, default claude). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
@@ -511,6 +511,11 @@ async function printRead(ctx, { cmd, o, positionals, out, err }) {
   return 0;
 }
 
+// --agents claude, gives an empty name; evals has a session command for its own agents only.
+const evalAgentsProblem = (list) => {
+  const unknown = list?.split(',').filter((a) => !EVAL_AGENTS.includes(a)) ?? [];
+  return unknown.length ? `evals runs ${EVAL_AGENTS.join(' and ')} only, not ${unknown.map((a) => a || '(empty)').join(', ')}` : null;
+};
 const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
@@ -896,6 +901,8 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'evals') {
     if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
     if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
+    const agentsProblem = evalAgentsProblem(o.agents);
+    if (agentsProblem) { out.write(`${agentsProblem}\n`); return 2; }
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
@@ -1286,6 +1293,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   }
   if (cmd === 'evals' && ['plan', 'run'].includes(arg)) {
     if (arg === 'run' && process.env.CI) return fail('evals run starts agent sessions on a subscription and does not run in CI');
+    const agentsProblem = evalAgentsProblem(o.agents);
+    if (agentsProblem) return fail(agentsProblem);
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     // Case ids only: a query or expected text can quote a transcript.
     const doc = { plan: plan.map((p) => ({ target: p.target, agent: p.agent, model: p.model ?? null, cases: p.cases.map((c) => c.id), ...(p.project ? { project: p.project } : {}) })) };

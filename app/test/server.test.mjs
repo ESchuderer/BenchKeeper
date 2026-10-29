@@ -955,6 +955,15 @@ test('a settings plan with two changes to one key: the second is compared with t
   assert.deepEqual(plan.changes.map((c) => c.keyState), ['changed', 'changed']);
 });
 
+test('a settings change that cannot be made has no key state', () => {
+  const { ctx, routes } = fixture();
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/settings.json'), JSON.stringify({ env: 'x' }));
+  const [change] = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { 'env.FOO': '1' } }).changes;
+  assert.match(change.error, /another shape/);
+  assert.equal('keyState' in change, false);
+});
+
 test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {
   const { ctx, routes } = fixture();
   const file = join(ctx.home, '.claude/settings.json');

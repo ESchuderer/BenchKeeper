@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
@@ -161,4 +162,17 @@ test('skills cli checks the signatures of the release a skill install runs and p
   } finally {
     if (forced !== undefined) process.env.BENCHKEEPER_SKILLS_CLI = forced;
   }
+});
+
+test('ui: a busy port ends with one line and exit 1, a bad --port with exit 2', async () => {
+  const busy = createServer();
+  await new Promise((ok) => busy.listen(0, '127.0.0.1', ok));
+  const { port } = busy.address();
+  const c = cli();
+  try {
+    assert.equal(await c.exec(['ui', '--no-open', '--port', String(port)]), 1);
+    assert.match(c.text(), new RegExp(`^port ${port} is in use: stop the other server or pick another port\n$`));
+  } finally { busy.close(); }
+  for (const bad of ['abc', '65536', '-1', '1.5']) assert.equal(await c.exec(['ui', '--no-open', `--port=${bad}`]), 2);
+  assert.match(c.text(), /--port must be a whole number from 0 to 65535\n$/);
 });

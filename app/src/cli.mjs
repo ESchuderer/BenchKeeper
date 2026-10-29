@@ -519,7 +519,14 @@ async function command(argv, { out, err, ask, ctx }) {
   if (o.json && changing(cmd, arg)) return changeJson(argv, { cmd, arg, out, err, ctx });
   if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
-    const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
+    if (o.port !== undefined && !(/^\d+$/.test(o.port) && Number(o.port) <= 65535)) { out.write('--port must be a whole number from 0 to 65535\n'); return 2; }
+    const port = Number(o.port ?? 0);
+    let started;
+    try { started = await startServer(ctx, { port }); } catch (e) {
+      out.write(e.code === 'EADDRINUSE' ? `port ${port} is in use: stop the other server or pick another port\n` : `port ${port}: ${e.code ?? e.message}\n`);
+      return 1;
+    }
+    const { server, url } = started;
     out.write(`BenchKeeper UI: ${url}\nThe link works once and for 10 minutes. Ctrl+C stops the server.\n`);
     // null: a snap or Flatpak browser, or no redirect file; the app never hands the token to a program in its arguments.
     if (!o['no-open'] && openBrowser(url) === null) out.write('No browser was opened (a snap or Flatpak browser cannot read the redirect file, or it could not be written): paste the link above into your browser.\n');

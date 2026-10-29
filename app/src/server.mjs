@@ -839,7 +839,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
   // network error (browsers retry only GETs). Headers must be allowed longer than that.
   server.keepAliveTimeout = 65e3;
   server.headersTimeout = 70e3;
-  return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
+  return new Promise((ok, fail) => server.once('error', fail).listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }
 
 const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };

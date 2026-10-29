@@ -251,7 +251,7 @@ export function Accounts({ overview, refresh }) {
               )}
             {pending && (
               <Section title="Changes">
-                <Plan key={pending.planId} plan={pending} onDone={done} />
+                <Plan key={pending.planId} plan={pending} scope="global" onDone={done} />
                 <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
               </Section>
             )}

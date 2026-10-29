@@ -281,7 +281,7 @@ export function Agents({ overview, params, refresh }) {
           <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={() => { refresh(); inv.reload(); }} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} scope="global" onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>

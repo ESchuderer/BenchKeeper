@@ -1,4 +1,5 @@
 import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, Stack, Stepper, Table, Text, Title } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -24,25 +25,30 @@ const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
 export function DoctorTable({ found, onAction }) {
+  // Below sm each finding is one cell (level, finding, fix stacked), so the fix action needs no sideways scroll.
+  const phone = useMediaQuery('(max-width: 47.99em)');
   if (!found.length) return <Text>No findings.</Text>;
   return (
-    <Table.ScrollContainer minWidth={560}>
+    <Table.ScrollContainer minWidth={phone ? 0 : 560}>
       <Table aria-label="Doctor findings">
-        <Table.Thead><Table.Tr><Table.Th w={140}>Level</Table.Th><Table.Th>Finding</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr>{phone ? <Table.Th>Finding</Table.Th> : <><Table.Th w={140}>Level</Table.Th><Table.Th>Finding</Table.Th><Table.Th>Fix</Table.Th></>}</Table.Tr></Table.Thead>
         <Table.Tbody>
           {found.map((i, n) => {
             const action = fixAction(i), { text, source } = splitSource(i.fix);
+            const level = <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+            const finding = <>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</>;
+            const fix = (
+              <Stack gap={4} align="flex-start">
+                {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
+                {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
+                {i.start && <StartBlock start={i.start} />}
+              </Stack>
+            );
             return (
               <Table.Tr key={n}>
-                <Table.Td><Badge variant="default" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge></Table.Td>
-                <Table.Td>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</Table.Td>
-                <Table.Td>
-                  <Stack gap={4} align="flex-start">
-                    {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
-                    {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
-                    {i.start && <StartBlock start={i.start} />}
-                  </Stack>
-                </Table.Td>
+                {phone
+                  ? <Table.Td><Stack gap="xs" align="flex-start">{level}<div>{finding}</div>{fix}</Stack></Table.Td>
+                  : <><Table.Td>{level}</Table.Td><Table.Td>{finding}</Table.Td><Table.Td>{fix}</Table.Td></>}
               </Table.Tr>
             );
           })}

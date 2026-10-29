@@ -173,12 +173,12 @@ export function normalizeState(s) {
 }
 // Both versions equal this app's and its content's: a project is behind when either differs.
 export const upToDate = (s) => s?.appVersion === appVersion && s?.contentVersion === contentVersion;
-// Only a missing file means no saved setup: any other read error or a broken file throws with the file's path.
+// Only a missing file means no saved setup: a dangling link, any other read error or a broken file throws with the file's path.
 export function readState(dir) {
   const file = join(dir, STATE);
   try { return parseState(readFileSync(file, 'utf8')); } catch (e) {
-    if (e.code === 'ENOENT') return null;
-    throw new Error(`${file}: ${e.message}`);
+    if (e.code === 'ENOENT' && !isLink(file)) return null;
+    throw new Error(`${file}: ${e.code === 'ENOENT' ? 'a link to a missing file' : e.message}`);
   }
 }
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.

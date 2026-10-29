@@ -534,6 +534,13 @@ test('only a missing state file means no saved setup: an unreadable one throws w
   assert.equal(tryState(r.dir), null);
 });
 
+test('a dangling state link is unreadable, not a missing setup', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.benchkeeper'));
+  symlinkSync(join(r.dir, 'gone.json'), join(r.dir, STATE));
+  assert.throws(() => readState(r.dir), /state\.json: a link to a missing file/);
+});
+
 test('the project block carries every rule that left the global file; bare skill names without plugin agents', () => {
   const before = read(new URL('./fixtures/rules-before-190.md', import.meta.url).pathname).split('\n').filter((l) => l.startsWith('- '));
   const global = read(join(contentDir, 'rules/global.md')).split('\n');

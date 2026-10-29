@@ -2088,6 +2088,9 @@ test.describe('views', () => {
     // Guards keep the saved choice of a project set up before and are on for a new one, as in the wizard.
     await expect(uno).toContainText('guards on');
     await expect(uno).not.toContainText('guard hook removed');
+    await expect(duo).toContainText('guards on');
+    // A long card starts folded: open it to read the change titles.
+    await duo.getByRole('button', { name: 'Show Install' }).click();
     await expect(duo).toContainText('Claude Code deny rules (--no-verify');
     // An edit of the answers builds that project's plan again.
     const checked = () => duo.getByText(/\d+ of \d+ changes checked/).textContent();

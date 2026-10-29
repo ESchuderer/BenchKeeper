@@ -6,6 +6,8 @@ export const exists = (p) => existsSync(p) || isLink(p);
 export const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };
 export const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 export const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
+// A folder's entries; none when it cannot be read (missing, a dangling link, an unmounted drive).
+export const listDir = (d) => { try { return readdirSync(d); } catch { return []; } };
 
 // Hash of a file, or of a folder's relative paths and file contents; null when missing.
 export function hashPath(p) {

@@ -1,0 +1,67 @@
+{
+  "id": "00000000-0000-4000-8000-000000000007",
+  "ok": true,
+  "result": {
+    "runId": "run_000000000001",
+    "legacyReadOnly": false,
+    "tasks": [
+      {
+        "id": "task_000000000001",
+        "run_id": "run_000000000001",
+        "parent_id": null,
+        "created_by_terminal_handle": "term_00000000-0000-4000-8000-000000000001",
+        "created_by_pane_key": "00000000-0000-4000-8000-000000000003:00000000-0000-4000-8000-000000000004",
+        "created_by_process_incarnation": "00000000-0000-4000-8000-000000000005::/workspace@@00000000:00000000-0000-4000-8000-000000000006",
+        "created_by_run_generation": 1,
+        "task_title": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "display_name": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "spec": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "status": "completed",
+        "deps": "[]",
+        "result": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "created_at": "2026-10-28 10:20:09",
+        "completed_at": "2026-10-28T10:29:29.711Z"
+      },
+      {
+        "id": "task_000000000002",
+        "run_id": "run_000000000001",
+        "parent_id": null,
+        "created_by_terminal_handle": "term_00000000-0000-4000-8000-000000000001",
+        "created_by_pane_key": "00000000-0000-4000-8000-000000000003:00000000-0000-4000-8000-000000000004",
+        "created_by_process_incarnation": "00000000-0000-4000-8000-000000000005::/workspace@@00000000:00000000-0000-4000-8000-000000000006",
+        "created_by_run_generation": 2,
+        "task_title": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "display_name": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "spec": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "status": "dispatched",
+        "deps": "[]",
+        "result": null,
+        "created_at": "2026-10-28 13:06:26",
+        "completed_at": null,
+        "assignee_handle": "term_00000000-0000-4000-8000-000000000002",
+        "dispatch_id": "ctx_000000000001"
+      },
+      {
+        "id": "task_000000000003",
+        "run_id": "run_000000000001",
+        "parent_id": null,
+        "created_by_terminal_handle": "term_00000000-0000-4000-8000-000000000001",
+        "created_by_pane_key": "00000000-0000-4000-8000-000000000003:00000000-0000-4000-8000-000000000004",
+        "created_by_process_incarnation": "00000000-0000-4000-8000-000000000005::/workspace@@00000000:00000000-0000-4000-8000-000000000006",
+        "created_by_run_generation": 1,
+        "task_title": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "display_name": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "spec": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "status": "ready",
+        "deps": "[]",
+        "result": null,
+        "created_at": "2026-10-28 12:36:23",
+        "completed_at": null
+      }
+    ],
+    "count": 3
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

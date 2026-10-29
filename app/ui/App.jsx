@@ -1,23 +1,27 @@
 import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Loader, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconBulb, IconFileText, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
+import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconCalendarTime, IconChartBar, IconBulb, IconCode, IconFileText, IconFolders, IconHistory, IconListTree, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
 import { PRIMARY, SHAPE, varsOf } from '../src/tokens.mjs';
 import { api } from './api.js';
 import { EvalJob, RunProgress } from './parts.jsx';
-import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
+import { Dot, MOD, go, href, icon, projectHref, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { FixEverything } from './fix.jsx';
 import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
 import { AgentSettings } from './agentsettings.jsx';
+import { Runs } from './runs.jsx';
 import { Accounts } from './accounts.jsx';
+import { Automations } from './automations.jsx';
 import { Extensions } from './extensions.jsx';
 import { Insights } from './insights.jsx';
 import { Rules } from './rules.jsx';
-import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Settings } from './views.jsx';
+import { Editors } from './editors.jsx';
+import { Agents, Catalog, Dashboard, Evals, History, Sessions, Settings } from './views.jsx';
+import { Projects } from './project.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
@@ -45,11 +49,19 @@ const theme = createTheme({
 const resolver = () => Object.fromEntries(['light', 'dark'].map((s) => [s, {
   ...varsOf(s, 'bk-', true), '--mantine-color-text': 'var(--bk-ink)', '--mantine-color-dimmed': 'var(--bk-ink-2)', '--mantine-color-body': 'var(--bk-surface)',
 }]).concat([['variables', {}]]));
-// Dashboard and Projects first: the views used most.
-const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
-  ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['settings', 'Settings', Settings, IconSettings]];
+// The sidebar's groups; Ctrl+1 to Ctrl+9 open the first nine views in this order.
+const GROUPS = [
+  ['Overview', [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['history', 'History', History, IconHistory]]],
+  ['Projects', [['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks]]],
+  ['Analysis', [['sessions', 'Sessions', Sessions, IconActivity], ['runs', 'Runs', Runs, IconListTree], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar]]],
+  ['Agent configuration', [['agents', 'Global setup', Agents, IconRobot], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers]]],
+  ['Machine', [['automations', 'Automations', Automations, IconCalendarTime], ['settings', 'Preferences', Settings, IconSettings]]],
+];
+const VIEWS = GROUPS.flatMap(([, views]) => views);
+// The "Advanced" group: only while its setting is on, else the route does not exist.
+const ADVANCED = [['editors', 'Presets, pins and policy', Editors, IconCode]];
 
-// The "/" key opens the palette unless turned off in Settings (WCAG 2.1.4: a character-key shortcut must be switchable).
+// The "/" key opens the palette unless turned off in Preferences (WCAG 2.1.4: a character-key shortcut must be switchable).
 const SLASH = 'bk-slash';
 function useSlash() {
   const [on, set] = useState(() => { try { return localStorage.getItem(SLASH) !== 'off'; } catch { return true; } });
@@ -124,7 +136,7 @@ function Splash({ error, retry }) {
 }
 
 function Shell() {
-  const { view, params } = useRoute();
+  const { view, rest, params } = useRoute();
   const [nav, { toggle, close }] = useDisclosure();
   const [oneRun, setOneRun] = useState(null);
   const overview = useApi('/api/overview');
@@ -141,15 +153,16 @@ function Shell() {
   const toggleTheme = () => setColorScheme(scheme === 'dark' ? 'light' : 'dark');
   // Spotlight binds mod+K itself.
   useHotkeys([...VIEWS.slice(0, 9).map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
-  useEffect(close, [view, params.toString()]);
+  useEffect(close, [view, rest.join('/'), params.toString()]);
   // A refresh that fails clears the overview: the shell stays up on the last one, only the first load shows the splash.
   const seen = useRef(null);
   useEffect(() => { if (overview.data) seen.current = overview.data; }, [overview.data]);
   const o = overview.data ?? seen.current;
+  const views = o?.editors ? [...VIEWS, ...ADVANCED] : VIEWS;
   const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => !p.current).length, history: history.data?.length };
   const actions = [
-    { group: 'Views', actions: VIEWS.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
-    { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => go('projects', { path: p.path }) })) },
+    { group: 'Views', actions: views.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
+    { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => { window.location.hash = projectHref(p.path); } })) },
     { group: 'Skills', actions: (catalog.data?.skills ?? []).map((s) => ({ id: `skill-${s.name}`, label: s.name, description: s.pickWhen, onClick: () => go('catalog', { skill: s.name }) })) },
     { group: 'Runs', actions: (history.data ?? []).slice(0, 20).map((r) => ({ id: `run-${r.id}`, label: `${r.kind} ${r.scope}`, description: r.id, onClick: () => go('history', { run: r.id }) })) },
     { group: 'Actions', actions: [
@@ -161,7 +174,7 @@ function Shell() {
       { id: 'theme', label: 'Toggle theme', onClick: toggleTheme },
     ] },
   ];
-  const [, label, View] = VIEWS.find(([id]) => id === view) ?? VIEWS[0];
+  const [, label, View] = views.find(([id]) => id === view) ?? VIEWS[0];
   // The title names the view, and a view change moves focus to its heading so a screen reader announces it; not on the
   // first load, and not while a dialog holds the focus.
   const first = useRef(true);
@@ -202,10 +215,15 @@ function Shell() {
             </Group>
           </Group>
         </AppShell.Header>
-        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
-          {VIEWS.map(([id, label, , Icon]) => (
-            <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
-              rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
+        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" style={{ overflowY: 'auto' }} inert={phone && !nav ? true : undefined}>
+          {[...GROUPS, ...(o.editors ? [['Advanced', ADVANCED]] : [])].map(([group, items], g) => (
+            <div key={group} role="group" aria-labelledby={`nav-${g}`}>
+              <Text id={`nav-${g}`} size="xs" fw={600} px="sm" pt={g ? 'sm' : 0} pb={4}>{group}</Text>
+              {items.map(([id, label, , Icon]) => (
+                <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
+                  rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
+              ))}
+            </div>
           ))}
           {/* The header has no room for the doctor count below md, nor for theme and Stop below sm: they live here. */}
           <Stack gap="xs" mt="auto" p="xs">
@@ -213,11 +231,11 @@ function Shell() {
             <Button hiddenFrom="sm" variant="default" leftSection={icon(scheme === 'dark' ? IconSun : IconMoon)} onClick={toggleTheme}>{scheme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
             <Button hiddenFrom="sm" variant="default" leftSection={icon(IconPower)} onClick={stopModal.open}>Stop BenchKeeper</Button>
           </Stack>
-          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+{Math.min(VIEWS.length, 9)}: views</Text>
+          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+9: the first nine views</Text>
         </AppShell.Navbar>
         <AppShell.Main>
           <Title order={2} size="h3" id="view-title" tabIndex={-1} mb="md" style={{ outline: 'none' }}>{label}</Title>
-          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash }} />
+          <View key={view} rest={rest} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash, views: VIEWS.slice(0, 9).map(([, l]) => l) }} />
         </AppShell.Main>
         <Spotlight actions={actions} shortcut={slash ? ['mod + K', '/'] : 'mod + K'} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />

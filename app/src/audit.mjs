@@ -336,9 +336,9 @@ function windows({ hashes }, n) {
   let p1 = 1, p2 = 1, h1 = 0, h2 = 0;
   for (let i = 0; i < n - 1; i++) { p1 = Math.imul(p1, B1); p2 = Math.imul(p2, B2); }
   for (let i = 0; i < hashes.length; i++) {
-    if (i >= n) { h1 = (h1 - Math.imul(hashes[i - n], p1)) | 0; h2 = (h2 - Math.imul(hashes[i - n], p2)) | 0; }
-    h1 = (Math.imul(h1, B1) + hashes[i]) | 0; h2 = (Math.imul(h2, B2) + hashes[i]) | 0;
-    if (i >= n - 1) keys.push((h1 >>> 0) * 2097152 + ((h2 >>> 0) & 0x1fffff));
+    if (i >= n) { h1 = (h1 - Math.imul(hashes[i - n], p1)) >>> 0; h2 = (h2 - Math.imul(hashes[i - n], p2)) >>> 0; }
+    h1 = (Math.imul(h1, B1) + hashes[i]) >>> 0; h2 = (Math.imul(h2, B2) + hashes[i]) >>> 0;
+    if (i >= n - 1) keys.push(h1 * 2097152 + (h2 & 0x1fffff));
   }
   return keys;
 }

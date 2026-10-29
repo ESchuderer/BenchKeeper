@@ -1,6 +1,6 @@
 // Import rules of the app's modules (decoupled-modules note). A module is a set of paths under src/; moving a file into a folder
 // changes only its pattern here. engine is every file of src/ that no other module claims.
-const CORE = 'fsx|git|merge|redact|childenv|cooldown|states|tokens|ledger|diff|roots|runner';
+const CORE = 'fsx|git|merge|redact|childenv|cooldown|states|tokens|ledger|diff|roots|runner|units';
 const MODULES = {
   core: `^src/(${CORE})\\.mjs$`,
   agents: '^src/agents\\.mjs$',

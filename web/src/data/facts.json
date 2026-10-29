@@ -1,31 +1,41 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills at pinned versions per repository. Its app shows every change before it applies it and records each run so you can undo it.",
+  "description": "BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "levels": [
     {
       "name": "Lite",
-      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects` and `operating-benchkeeper` skills",
+      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.25.0 apply --level lite"
+      "command": "npx benchkeeper@6.25.0 apply --level lite",
+      "evidence": "app/test/level.test.mjs"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `projects apply` in",
-      "command": "npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply"
+      "command": "npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply",
+      "evidence": [
+        "app/test/level.test.mjs",
+        "docs/setup.md#per-repo"
+      ]
     },
     {
       "name": "Full",
-      "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
+      "contains": "standard plus the global rules, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.25.0 apply --level full"
+      "command": "npx benchkeeper@6.25.0 apply --level full",
+      "evidence": [
+        "app/test/level.test.mjs",
+        "docs/setup.md#setup-details"
+      ]
     }
   ],
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
-    "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)"
+    "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
+    "evidence": "plugins/benchkeeper/skills/workflow/software.md#matt-pococks-skills-when-installed"
   },
   "quickstart": {
     "needs": "Node.js 22 and at least one agent, Claude Code or Codex.",
@@ -36,7 +46,11 @@
         "steps": [
           {
             "command": "npx benchkeeper@6.25.0",
-            "text": "Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before."
+            "text": "Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.",
+            "evidence": [
+              "app/README.md#web-ui",
+              "app/test/server.test.mjs"
+            ]
           }
         ]
       },
@@ -45,11 +59,13 @@
         "steps": [
           {
             "command": "npx benchkeeper@6.25.0 plan",
-            "text": "Lists each change and writes nothing."
+            "text": "Lists each change and writes nothing.",
+            "evidence": "app/test/cli.test.mjs"
           },
           {
             "command": "npx benchkeeper@6.25.0 apply",
-            "text": "Asks per change. `--yes` applies the default selection without questions."
+            "text": "Asks per change. `--yes` applies the default selection without questions.",
+            "evidence": "app/test/cli.test.mjs"
           }
         ]
       }
@@ -58,44 +74,64 @@
     "changes": "`npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.",
     "links": [
       { "label": "Lite level, the plugin alone", "anchor": "levels" },
-      { "label": "Full setup description", "anchor": "setup-details" }
+      { "label": "Full setup description", "anchor": "setup-details" },
+      { "label": "What the app writes and what it never does", "anchor": "what-the-app-writes-and-what-it-never-does" }
     ]
   },
   "prerequisites": [
     {
       "name": "Claude Code",
       "url": "https://code.claude.com/docs/en/setup",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
+      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only",
+      "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
       "name": "Codex CLI",
       "url": "https://developers.openai.com/codex/cli",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
+      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only",
+      "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
       "name": "Git",
       "url": "https://git-scm.com/downloads",
-      "for": "clone, branches, commits"
+      "for": "clone, branches, commits",
+      "evidence": [
+        "https://git-scm.com/downloads",
+        "plugins/benchkeeper/skills/workflow/software.md#steps"
+      ]
     },
     {
       "name": "GitHub CLI",
       "url": "https://cli.github.com/",
-      "for": "issues and pull requests (optional, local branches without it)"
+      "for": "issues and pull requests (optional, local branches without it)",
+      "evidence": [
+        "https://cli.github.com/",
+        "plugins/benchkeeper/skills/workflow/software.md#steps"
+      ]
     },
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`"
+      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`",
+      "evidence": [
+        "app/package.json",
+        "docs/setup.md#setup-details"
+      ]
     },
     {
       "name": "Docker Engine",
       "url": "https://docs.docker.com/engine/install/",
-      "for": "dev containers (`container` and `host-agent` modes; Podman works too)"
+      "for": "dev containers (`container` and `host-agent` modes; Podman works too)",
+      "evidence": "docs/setup.md#per-repo"
     },
     {
       "name": "VS Code",
       "url": "https://code.visualstudio.com/download",
-      "for": "optional, attach to the devcontainer"
+      "for": "optional, attach to the devcontainer",
+      "evidence": [
+        "https://code.visualstudio.com/download",
+        "docs/setup.md#per-repo"
+      ]
     }
   ],
   "parallelTools": [
@@ -109,7 +145,11 @@
         "terminal splits, SSH remote worktrees, mobile app",
         "the app offers its `orca-cli` and `orchestration` skills"
       ],
-      "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access"
+      "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access",
+      "evidence": [
+        "https://github.com/stablyai/orca",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     },
     {
       "name": "Nimbalyst",
@@ -121,7 +161,11 @@
         "every agent edit arrives as a diff you approve or reject",
         "visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app"
       ],
-      "when": "you review changes visually and work on docs, mockups and tasks next to the agents"
+      "when": "you review changes visually and work on docs, mockups and tasks next to the agents",
+      "evidence": [
+        "https://github.com/Nimbalyst/nimbalyst",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     },
     {
       "name": "cmux",
@@ -133,7 +177,11 @@
         "notifications when an agent needs input and a sidebar with branch, PR status and ports",
         "browser pane inside the terminal"
       ],
-      "when": "you are on macOS and want a terminal without a separate app"
+      "when": "you are on macOS and want a terminal without a separate app",
+      "evidence": [
+        "https://github.com/manaflow-ai/cmux",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     }
   ],
   "openhands": {
@@ -146,6 +194,114 @@
       "Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.",
       "Without a sandbox, the local agent has full access to your filesystem.",
       "Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which are installed on the host."
+    ],
+    "evidence": [
+      "https://github.com/OpenHands/OpenHands",
+      "docs/setup.md#per-repo"
+    ]
+  },
+  "overview": {
+    "title": "What BenchKeeper is",
+    "audience": "For developers who run Claude Code or Codex in more than one repository and want the same rules, skills and dev container setup in each.",
+    "parts": [
+      {
+        "id": "app",
+        "title": "The app",
+        "text": "`npx benchkeeper@6.25.0` opens a local web app on 127.0.0.1 behind a one-time link. It sets up the machine and each repository, reports drift on the Dashboard and fixes it in one plan. Every change appears as a diff or a command line before Apply, and each run is recorded, so History can undo a run or a single step.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions board",
+        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost and pull request state. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
+        "evidence": "app/README.md#commands"
+      },
+      {
+        "id": "analysis",
+        "title": "Analysis of sessions",
+        "text": "Insights turns the sessions scan and the doctor into findings, each with its evidence and a fix: installed skills no session of the last 90 days used, with the tokens their descriptions cost per turn; projects where sessions ended on a failed test run without a pull request; setup drift; skills a project could add, turn off or update. A finding the setup can fix opens its plan with a diff and undo. The Runs view lists orchestrated runs and their tasks with sessions, cost and tokens. Both read the transcripts when the view opens or on Refresh; nothing watches a running session.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "installs",
+        "title": "Installs",
+        "text": "One `apply` installs the global setup for the agents it finds: the rules, the BenchKeeper plugin, the chosen packs, agent settings and the Dev Containers CLI, at three levels from the plugin alone to the full setup. A skills CLI install runs first in a scratch folder inside an OS sandbox (not on Windows), so the plan lists the files it would write. Settings files are merged by key, and other keys and hooks stay.",
+        "evidence": "docs/setup.md#setup-details"
+      },
+      {
+        "id": "skills",
+        "title": "Skill management",
+        "text": "Each skill of a project has a state (current, outdated, modified, removed or disabled) and the commit it was installed at. Check for updates asks each source for its newest commit; Update, Reset, Remove, Adopt and the on and off switch each open a plan with a diff and undo. Packs group library skills by topic, and the pack builder warns when two skill descriptions overlap, so an agent may pick the wrong one.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "setup",
+        "title": "Project setup",
+        "text": "`projects apply` writes the repository rules block, the packs' skills and `.benchkeeper/state.json`, whose answers later runs reuse. The `setting-up-projects` skill adds stack skills, the commands in `AGENTS.md` and the dev container as a recorded session that undo can reverse. `projects update` brings every registered project to the current setup.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "id": "configuration",
+        "title": "Configuration",
+        "text": "Agent settings lists the keys of Claude Code `settings.json` and Codex `config.toml` per layer, with the default, the value in effect, the file it comes from and notes where one setting turns off another. Rules shows the instruction files each agent loads, in load order, with a switch per file and the context budget they take. Extensions lists MCP servers, hooks, subagents and commands and marks the ones that run code; it only shows.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "cli",
+        "title": "The CLI",
+        "text": "The app's actions run on the command line too: `plan` and `apply` for the machine, then `projects`, `skills`, `packs`, `accounts`, `automations`, `history` and `undo`. `apply` asks per change and `--yes` applies the default selection; many commands print one JSON document with `--json`. The `operating-benchkeeper` skill lets an agent manage its own setup through these commands.",
+        "evidence": "app/README.md#commands"
+      },
+      {
+        "id": "automations",
+        "title": "Automations",
+        "text": "An automation template describes one scheduled agent run in a single Markdown file: schedule, precheck, prompt and what it may change. The app installs a template on Orca, shows when the template or the runner's copy changed, and updates or removes it as a plan with undo. Templates include a pull request watcher, issue pickup, issue triage, CI health, dependency triage and worktree cleanup.",
+        "evidence": "docs/automations.md"
+      },
+      {
+        "id": "accounts",
+        "title": "Accounts",
+        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick (Claude Code) and handover rotation (Claude Code and Codex) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
+        "evidence": "docs/setup.md#accounts"
+      }
+    ],
+    "defaults": [
+      {
+        "title": "The agent runs in the dev container",
+        "text": "Project setup starts the agent inside the repository's dev container, unless the project's `AGENTS.md` says it runs on the host.",
+        "reason": "The container mounts only the project: no host home folder, engine socket or credential forwarding beyond the sign-in variable. It shares the host kernel and is not a security boundary.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "The project setup stays local",
+        "text": "The rules block, skills and state go into files listed in `.git/info/exclude`; `--share` commits them instead.",
+        "reason": "The repository does not change for anyone else until you choose to share the setup.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "Guards are on",
+        "text": "Claude Code projects get deny rules for `--no-verify`, force pushes, `sudo` and infrastructure apply commands, plus a hook for the forms a rule cannot match.",
+        "reason": "The repository rules ask the agent to fix the cause of a failed check; the guards block the commands that would skip one.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "Removals stay unchecked",
+        "text": "Rules files, skills, plugins and servers you installed yourself appear in the plan as removals that are off until you select them.",
+        "reason": "Nothing of yours goes unless you choose it. Only files the app identifies as its own by content are removed by default.",
+        "evidence": "docs/setup.md#what-the-app-writes-and-what-it-never-does"
+      },
+      {
+        "title": "Automations start disabled, in report mode",
+        "text": "An installed automation does nothing until you enable it in the runner, and it only reports until you reinstall it with `mode=act`.",
+        "reason": "You run it once and read its report before it may change anything.",
+        "evidence": "docs/automations.md#install-and-keep-current"
+      },
+      {
+        "title": "Auto-pick is off",
+        "text": "Auto-pick of accounts is opt-in, for Claude Code only, and acts only when a run starts.",
+        "reason": "The provider's consumer terms prohibit bypassing protective measures and do not say whether picking another account at a limit counts, so the choice stays with you.",
+        "evidence": "docs/setup.md#accounts"
+      }
     ]
   },
   "sdlc": {
@@ -179,7 +335,11 @@
         "sub": "request, issue, on-ramps",
         "human": "approve issue",
         "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, plan mode, then a GitHub issue you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/software.md#steps"
+        ]
       },
       {
         "name": "Specify",
@@ -187,21 +347,32 @@
         "sub": "plan, spec, tickets",
         "human": "approve the plan",
         "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec in the issue, terms and decisions recorded. Several sessions: one ticket per testable slice.",
-        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them."
+        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/full-tier.md"
+        ]
       },
       {
         "name": "Build",
         "phase": "build",
         "sub": "branch, tests first",
         "tip": "Every tier: a branch off the default branch. Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
-        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. Ponytail `full` for the smallest complete change. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts."
+        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#steps",
+          "docs/stack.md#components"
+        ]
       },
       {
         "name": "Verify",
         "phase": "build",
         "sub": "tests, browser, spec review",
         "tip": "Every tier: build, types, lint and tests where AGENTS.md says, each with its command and result. UI changes also in a browser. Full: the branch reviewed against the spec.",
-        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills)."
+        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills).",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#verify"
+        ]
       },
       {
         "name": "Ship",
@@ -209,48 +380,78 @@
         "sub": "pr, /code-review, checks",
         "human": "you merge",
         "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
-        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end."
+        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#steps"
+        ]
       },
       {
         "name": "Maintain",
         "phase": "maintain",
         "sub": "retro, architecture, audit",
         "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, cleanup, architecture, test audit, debt, dependencies, pins, docs drift, unused skills). benchkeeper doctor for setup drift. Findings become new requests.",
-        "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, cleanup tools (unused code, duplicates), architecture checks (cycles, forwarding modules), a test audit by mutation testing, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests."
+        "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, cleanup tools (unused code, duplicates), architecture checks (cycles, forwarding modules), a test audit by mutation testing, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests.",
+        "evidence": [
+          "plugins/benchkeeper/skills/maintaining-repos/SKILL.md"
+        ]
       }
     ]
   },
-  "frameworks": {
-    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.",
-    "items": [
+  "stack": {
+    "reasons": [
       {
-        "name": "Superpowers",
-        "url": "https://github.com/obra/superpowers",
-        "role": "workflow owner",
-        "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
-        "evaluation": "evaluations/workflow-frameworks/superpowers.md"
+        "name": "Checks by tier",
+        "text": "every change runs the checks and reviews its tier names: the tests of the touched code after each edit, a review before pushing for standard and full work.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/software.md"
+        ]
       },
       {
-        "name": "Matt Pocock's skills",
-        "url": "https://github.com/mattpocock/skills",
-        "role": "parts",
-        "installs": "the `matt-pocock` pack; its plugin installs for the user, outside the project",
-        "evaluation": "evaluations/skill-libraries/mattpocock-skills.md"
+        "name": "Long checks last",
+        "text": "the full suite, end-to-end tests and builds run once after the last edit, in a subagent that returns only failures and key lines.",
+        "evidence": "plugins/benchkeeper/skills/workflow/SKILL.md"
       },
       {
-        "name": "ECC",
-        "url": "https://github.com/affaan-m/ECC",
-        "role": "parts",
-        "installs": "three single skills from the default branch, no plugin and no hooks",
-        "evaluation": "EVALUATIONS.md"
+        "name": "Simplicity",
+        "text": "the optional Ponytail pack adds a plugin that steers the agent to the smallest complete change.",
+        "evidence": "docs/stack.md#components"
       },
       {
-        "name": "agency-agents",
-        "url": "https://github.com/msitarzewski/agency-agents",
-        "role": "parts",
-        "installs": "a pick of agent files fetched at a pinned commit",
-        "evaluation": "EVALUATIONS.md"
+        "name": "Skills by level",
+        "text": "the full flow runs only for full-tier work. Small changes load one targeted skill.",
+        "evidence": "plugins/benchkeeper/skills/workflow/SKILL.md"
+      },
+      {
+        "name": "One install",
+        "text": "one machine setup covers every repository. Each repository adds only its tracker, docs and stack.",
+        "evidence": [
+          "docs/setup.md#setup-details",
+          "docs/setup.md#per-repo"
+        ]
       }
     ]
+  },
+  "evidence": {
+    "description": [
+      "docs/setup.md#setup-details",
+      "docs/setup.md#per-repo"
+    ],
+    "tagline": [
+      "docs/setup.md#setup-details",
+      "docs/setup.md#per-repo"
+    ],
+    "overview.audience": [
+      "docs/setup.md#per-repo",
+      "docs/setup.md#update"
+    ],
+    "sdlc.requirements": "docs/automations.md#catalogue",
+    "quickstart.needs": "app/package.json",
+    "quickstart.choose": [
+      "app/README.md#web-ui",
+      "app/README.md#commands"
+    ],
+    "quickstart.next": "docs/setup.md#update",
+    "quickstart.changes": "docs/setup.md#setup-details"
   }
 }

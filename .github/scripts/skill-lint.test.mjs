@@ -42,3 +42,12 @@ test('issue text handed to a worker needs the author filter', () => {
 });
 test('a skill that reads an issue without a worker needs no filter', () => assert.deepEqual(lintSkill(skill('a', { body: 'Read the issue with all its comments.' })), []));
 test('own skills pass', () => assert.deepEqual(ownSkills().flatMap(lintSkill), []));
+test('a Tier line naming the Default tier line ahead of the workflow skill fails', () => {
+  assert.match(lintSkill(skill('a', { body: '```text\nTier: <issue tier, else the Default tier line of AGENTS.md, else the workflow skill decides>\n```' })).join(), /Default tier line ahead/);
+  assert.deepEqual(lintSkill(skill('a', { body: 'Tier: <issue tier, else leave this line out: the workflow skill decides>' })), []);
+});
+test('a skill naming a skills CLI version fails, inside a code block too', () => {
+  for (const body of ['Run `npx -y skills@npm:skills@1.7.2 find x`.', '```sh\nnpx skills@1.8.0 add a/b\n```'])
+    assert.match(lintSkill(skill('a', { body })).join(), /names a skills CLI version/);
+  assert.deepEqual(lintSkill(skill('a', { body: 'Run `<skills> find x` with the line `npx benchkeeper@6 skills cli` prints.' })), []);
+});

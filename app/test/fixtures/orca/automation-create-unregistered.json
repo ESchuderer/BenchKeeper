@@ -1,0 +1,11 @@
+{
+  "id": "00000000-0000-4000-8000-000000000014",
+  "ok": false,
+  "error": {
+    "code": "selector_not_found",
+    "message": "selector_not_found"
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

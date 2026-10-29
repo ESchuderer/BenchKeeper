@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
-import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
+import { CLAUDE_TOKEN, CODEX_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
+import { NeedsConfirm, accountChecks, accountStatus, findAccount, handover, listAccounts, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
-import { HOOK_SOURCE, assess, limitsFor, parseState, trackedSettings, usageFindings } from '../src/usage.mjs';
+import { HOOK_SOURCE, assess, codexReading, limitsFor, parseState, rotation, trackedSettings, usageFindings } from '../src/usage.mjs';
 import { FAILURES, LEGACY_MATCHER, failureLine, run as hook, usageRecord } from '../src/usage-hook.mjs';
 
 function cli(m, answers = []) {
@@ -17,7 +17,7 @@ function cli(m, answers = []) {
   const input = Readable.from(answers);
   input.isTTY = false;
   const exec = (args) => main(args, { out: sink, err: sink, ctx: m.ctx, input });
-  return { exec, text: () => text, json: () => JSON.parse(text) };
+  return { exec, input, text: () => text, json: () => JSON.parse(text) };
 }
 const skip = win ? { skip: 'the fake agents are shell scripts' } : {};
 const T0 = Date.parse('2026-10-26T12:00:00Z');
@@ -194,6 +194,17 @@ test('track: a plan with a diff and an undo; the installed script writes what st
   assert.match(again.text(), /nothing to change/);
 });
 
+test('track: an account folder outside the home folder is written and undone', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work', 'claude', '--dir', join(m.root, 'elsewhere', 'work'));
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
+  assert.ok(existsSync(join(a.dir, 'settings.json')));
+  const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
+  const u = cli(m);
+  assert.equal(await u.exec(['undo', run.id]), 0, u.text());
+  assert.equal(existsSync(join(a.dir, 'settings.json')), false);
+});
+
 test('track: a status line of the user\'s own is an error in the plan and nothing is written; Codex has no usage source', skip, async () => {
   const m = machine();
   const a = await add(m, 'work');
@@ -205,7 +216,7 @@ test('track: a status line of the user\'s own is an error in the plan and nothin
   const x = await add(m, 'dev', 'codex');
   const t = cli(m);
   assert.equal(await t.exec(['accounts', 'track', 'dev', '--yes']), 1);
-  assert.match(t.text(), /Codex has no documented source/);
+  assert.match(t.text(), /Codex has no status line to track/);
   const st = cli(m);
   assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
   assert.equal(st.json().accounts[0].usage, null);
@@ -218,7 +229,7 @@ test('limits: defaults, per-account values, the pool, and the refusals', skip, a
   await add(m, 'home');
   const show = cli(m);
   assert.equal(await show.exec(['accounts', 'limits']), 0);
-  assert.match(show.text(), /defaults: minimum headroom 5-hour 8% \(notice below 16%\), 7-day 3% \(notice below 6%\)\nauto-pick off; when no pool member has headroom: stop; below the minimum run asks\n$/);
+  assert.match(show.text(), /defaults: minimum headroom 5-hour 8% \(notice below 16%\), 7-day 3% \(notice below 6%\)\nauto-pick off; when no pool member has headroom: stop; below the minimum run asks\nrotation: claude off, codex off\n$/);
   assert.equal(await cli(m).exec(['accounts', 'limits', '--five-hour', '10', '--warn-seven-day', '9', '--auto-pick', 'on', '--when-none', 'wait', '--yes']), 0);
   assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--seven-day', '5', '--pool', 'me', '--yes']), 0);
   assert.equal(await cli(m).exec(['accounts', 'limits', 'home', '--pool', 'me', '--yes']), 0);
@@ -268,11 +279,13 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(await go(m, ok), 0);
   assert.equal(launches(m).length, 1);
   assert.doesNotMatch(ok.text(), /minimum/);
-  // A notice level is not a stop.
+  // A notice level is not a stop: the account and the window are named, and the launch goes on.
   reading(a, 88, 50);
   const warn = cli(m);
   assert.equal(await go(m, warn), 0);
   assert.equal(launches(m).length, 2);
+  assert.match(warn.text(), /notice: account work: 5-hour window has 12% left \(notice below 16%, resets .+ UTC\) \(a long task may not finish before the reset: --account <name> starts under another account\)/);
+  assert.doesNotMatch(ok.text(), /notice:/);
   // Below the minimum: the account, the window, what is left and the reset are shown, then the question. No answer is no.
   reading(a, 95, 50);
   const no = cli(m);
@@ -496,7 +509,7 @@ test('a dev container account of an agent without a usage source is refused befo
   const before = m.calls().length;
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
-  assert.match(c.text(), /Codex has no documented source/);
+  assert.match(c.text(), /Codex has no status line to track/);
   assert.equal(m.calls().length, before);
 });
 
@@ -512,4 +525,239 @@ test('a container settings.json diff is masked like a host one before it is show
   assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, c.text());
   assert.doesNotMatch(c.text(), /dummy-key-value|dummy-gh-value/);
   assert.match(readFileSync(join(m.bin, 'vol/data/boxed/settings.json'), 'utf8'), /dummy-key-value-0123456789/, 'the file keeps what it had');
+});
+
+// The answer of account/rateLimits/read, as the fake app-server gives it.
+const codexLimits = (m, primary, secondary = null) => m.mode('limits', JSON.stringify({ limitId: 'codex', primary, secondary, planType: 'plus' }));
+const codexWindow = (used, mins, now = Date.now()) => ({ usedPercent: used, windowDurationMins: mins, resetsAt: epoch(now + 3 * HOUR) });
+
+test('Codex app-server answers: windows by their length, used capped at 100, nothing else kept; an error or no answer is a reason', () => {
+  const answer = (rateLimits) => JSON.stringify({ id: 2, result: { accountId: 'acct-1', rateLimits } });
+  const both = codexReading(answer({ primary: codexWindow(95, 300, T0), secondary: codexWindow(120, 10080, T0), planType: 'pro' }), T0);
+  assert.deepEqual(both.usage, { checkedAt: new Date(T0).toISOString(), fiveHour: { used: 95, resetsAt: epoch(T0 + 3 * HOUR) }, sevenDay: { used: 100, resetsAt: epoch(T0 + 3 * HOUR) } });
+  // A plan without the 5-hour window sends the weekly one as primary; an unknown length is dropped.
+  const weekly = codexReading(answer({ primary: codexWindow(40, 10080, T0), secondary: codexWindow(10, 60, T0) }), T0);
+  assert.equal(weekly.usage.fiveHour, null);
+  assert.equal(weekly.usage.sevenDay.used, 40);
+  assert.equal(assess({ usage: weekly.usage, failures: [] }, limitsFor(undefined), T0).fiveHour.state, 'unknown');
+  assert.deepEqual(codexReading(JSON.stringify({ id: 2, error: { code: -32600, message: 'codex account authentication required to read rate limits' } }), T0), { usage: null, reason: 'codex account authentication required to read rate limits' });
+  assert.deepEqual(codexReading('', T0), { usage: null, reason: 'codex app-server gave no answer' });
+  assert.equal(codexReading(answer({ primary: { usedPercent: 'x', windowDurationMins: 300, resetsAt: 1 } }), T0).usage.fiveHour, null);
+});
+
+test('Codex: status, list and run read the app-server of the account\'s CODEX_HOME; a notice at a limit names the account and never switches it', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'dev', 'codex'), b = await add(m, 'spare', 'codex');
+  codexLimits(m, codexWindow(90, 300), codexWindow(20, 10080));
+  const st = cli(m);
+  assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
+  const doc = st.json().accounts[0];
+  assert.equal(doc.loggedIn, true);
+  assert.equal(doc.usage.fiveHour.state, 'warn');
+  assert.equal(doc.usage.sevenDay.state, 'ok');
+  assert.doesNotMatch(JSON.stringify(doc), /acct-secret-id|plus/);
+  assert.match(doc.findings.map((f) => f.message).join('\n'), /account dev: 5-hour window has 10% left \(notice below 16%/);
+  const servers = m.calls().filter((x) => x.me === 'codex' && x.args[0] === 'app-server');
+  assert.ok(servers.length);
+  assert.ok(servers.every((x) => x.env.CODEX_HOME === a.dir));
+  // A notice starts the launch under the chosen account and says so.
+  const near = cli(m);
+  assert.equal(await near.exec(['run', '--', 'codex', '--go']), 0);
+  assert.match(near.text(), /notice: account dev: 5-hour window has 10% left/);
+  // Below the minimum with auto-pick on and a pool: Codex is never switched, the user is asked.
+  for (const n of ['dev', 'spare']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
+  codexLimits(m, codexWindow(97, 300), codexWindow(20, 10080));
+  const low = cli(m);
+  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 1);
+  assert.match(low.text(), /Start anyway\?/);
+  assert.doesNotMatch(low.text(), /auto-pick/);
+  assert.ok(m.calls().filter((x) => x.me === 'codex' && x.args[0] === '--go').every((x) => x.env.CODEX_HOME === a.dir));
+  // Not signed in: no app-server is started, the list and status say so.
+  rmSync(join(b.dir, 'auth.json'));
+  const before = m.calls().length;
+  const list = cli(m);
+  assert.equal(await list.exec(['accounts', 'list']), 0);
+  assert.match(list.text(), /^dev .+ signed in$/m);
+  assert.match(list.text(), /^spare .+ not signed in$/m);
+  assert.ok(m.calls().slice(before).every((x) => x.args[0] !== 'app-server'), 'list reads the sign-in only');
+  const lj = cli(m);
+  assert.equal(await lj.exec(['accounts', 'list', '--json']), 0);
+  assert.deepEqual(lj.json().accounts.map((x) => [x.name, x.loggedIn]), [['dev', true], ['spare', false]]);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'spare')).notAvailable, 'not read: not signed in');
+  // The server refuses: the reason is shown, no usage.
+  m.mode('limits', '');
+  assert.match(accountStatus(m.ctx, a).notAvailable, /^not read: codex account authentication required/);
+  // No token in any argument, and the app-server gets the account's filtered environment.
+  assert.ok(m.calls().every((x) => ![CLAUDE_TOKEN, CODEX_TOKEN].some((t) => JSON.stringify(x.args).includes(t))));
+  for (const x of m.calls().filter((c) => c.args[0] === 'app-server')) for (const k of ['GH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) assert.equal(x.env[k], undefined, k);
+});
+
+test('rotation: none, notice or rotate from the assessment, the pool, the setting and the clock', () => {
+  const l = limitsFor(undefined);
+  // An assessment with r5 and r7 percent left, read at T0, assessed at now.
+  const u = (r5, r7, now = T0) => assess({ usage: { checkedAt: new Date(T0).toISOString(), fiveHour: r5 === null ? null : { used: 100 - r5, resetsAt: epoch(T0 + 3 * HOUR) }, sevenDay: { used: 100 - r7, resetsAt: epoch(T0 + 48 * HOUR) } }, failures: [] }, l, now);
+  const member = (name, r5, r7) => ({ account: { name }, usage: u(r5, r7) });
+  const pool = [member('half', 50, 50), member('most', 90, 90), member('low', 5, 50)];
+  const none = { action: 'none' }, notice = { action: 'notice' };
+  assert.deepEqual(rotation(u(5, 50), pool, 'off', T0), none, 'off');
+  assert.deepEqual(rotation(u(50, 50), pool, 'handover', T0), none, 'above the notice level');
+  assert.deepEqual(rotation(u(12, 50), pool, 'handover', T0), notice, 'between the notice level and the minimum');
+  assert.deepEqual(rotation(u(5, 50), pool, 'handover', T0), { action: 'rotate', target: { name: 'most' } }, 'below the minimum: the member with the most headroom');
+  assert.deepEqual(rotation(u(50, 2), pool, 'handover', T0).action, 'rotate', 'the 7-day window too');
+  assert.deepEqual(rotation(u(5, 50), [], 'handover', T0), notice, 'no other pool member');
+  assert.deepEqual(rotation(u(5, 50), [pool[2], { account: { name: 'untracked' }, usage: null }], 'handover', T0), notice, 'no member at or above its minimum');
+  assert.deepEqual(rotation(assess(null, l, T0), pool, 'handover', T0), none, 'not tracked');
+  assert.deepEqual(rotation(u(null, 2), pool, 'handover', T0), notice, 'a window unknown never rotates');
+  assert.deepEqual(rotation(null, pool, 'handover', T0), none, 'no usage source');
+  // The clock: the low 5-hour window has reset since the assessment, and so has every member's.
+  assert.deepEqual(rotation(u(5, 50), pool, 'handover', T0 + 4 * HOUR), none, 'the reset time passed');
+  assert.deepEqual(rotation(u(50, 2, T0 + 4 * HOUR), pool, 'handover', T0 + 4 * HOUR), notice, 'a member read before its reset is no target');
+});
+
+// A worktree with a commit, an uncommitted change, a new file and a worker's handoff block that names a token.
+function worktree(m) {
+  const dir = join(m.root, 'work-tree');
+  mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
+  const g = (...args) => assert.equal(runCommand(['git', '-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...args], { env: m.env }).code, 0, args.join(' '));
+  g('init', '-q', '-b', 'feat/thing');
+  writeFileSync(join(dir, 'a.txt'), 'one\n');
+  writeFileSync(join(dir, '.gitignore'), '.benchkeeper/\n');
+  g('add', '.');
+  g('commit', '-q', '-m', 'feat: first part');
+  writeFileSync(join(dir, 'a.txt'), 'two\n');
+  writeFileSync(join(dir, 'new.txt'), 'x\n');
+  writeFileSync(join(dir, '.benchkeeper', 'handoff.md'), `Outcome: DONE\nWhat changed: commit 1, a.txt\nChecks and results: npm test passed\nOpen risks: the second part\n  is not started, token ${CLAUDE_TOKEN}\nNext step: write the second part\n`);
+  return dir;
+}
+const pooled = async (m, agent, ...names) => {
+  const out = [];
+  for (const n of names) { out.push(await add(m, n, agent)); assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0); }
+  return out;
+};
+const SIX = ['## Task and goal', '## Done', '## Open', '## Worktree and branch', '## Uncommitted changes', '## Next step'];
+
+test('handover with rotation off (the default): nothing is read, written or started, whatever the usage', skip, async () => {
+  const m = machine();
+  const [work, spare] = await pooled(m, 'claude', 'work', 'spare');
+  reading(work, 99, 10);
+  reading(spare, 10, 10);
+  const dir = worktree(m);
+  const before = m.calls().length;
+  const c = cli(m, ['y\n']);
+  assert.equal(await c.exec(['accounts', 'handover', 'work', '--project', dir, '--yes']), 0);
+  assert.match(c.text(), /rotation is off for claude: accounts limits --rotate-claude handover turns it on/);
+  assert.equal(m.calls().length, before, 'no status read, no agent started');
+  assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
+  // run: after the session nothing follows.
+  const r = cli(m);
+  assert.equal(await r.exec(['run', '--project', dir, '--yes', '--', 'claude', '--go']), 0);
+  assert.equal(m.calls().filter((x) => x.me === 'claude' && x.args[0] !== 'auth').length, 1);
+  assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
+  // The setting is per agent, validated, and for all accounts only.
+  const file = join(m.ctx.config, 'accounts.json'), doc = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...doc, settings: { rotate: { toString: 'handover' } } }));
+  const broken = cli(m);
+  assert.equal(await broken.exec(['accounts', 'limits']), 2);
+  assert.match(broken.text(), /settings that are not valid/);
+  writeFileSync(file, JSON.stringify(doc));
+  for (const [args, re] of [[['--rotate-claude', 'on'], /--rotate-claude is off or handover/], [['work', '--rotate-codex', 'handover'], /settings for all accounts/]]) {
+    const bad = cli(m);
+    assert.equal(await bad.exec(['accounts', 'limits', ...args, '--yes']), 1);
+    assert.match(bad.text(), re);
+  }
+});
+
+test('handover (Claude Code): shows both accounts and the text, declining starts nothing, yes starts the target with it', skip, async () => {
+  const m = machine();
+  const [work, spare, most] = await pooled(m, 'claude', 'work', 'spare', 'most');
+  await add(m, 'outside');
+  const on = cli(m);
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-claude', 'handover', '--yes']), 0);
+  assert.match(on.text(), /^warning: rotating accounts .*https:\/\/code\.claude\.com\/docs\/en\/legal-and-compliance\).*consumer-terms, section 3\)\. The risk is yours; this is not legal advice\.$/m);
+  const shown = cli(m);
+  await shown.exec(['accounts', 'limits']);
+  assert.match(shown.text(), /rotation: claude handover, codex off/);
+  reading(work, 97, 10);
+  reading(spare, 50, 10);
+  reading(most, 20, 10);
+  reading(findAccount(m.ctx, 'outside'), 0, 0);
+  // A transcript in the account's folder is never read into the handover.
+  mkdirSync(join(work.dir, 'projects', 'x'), { recursive: true });
+  writeFileSync(join(work.dir, 'projects', 'x', 's.jsonl'), '{"message":"TRANSCRIPT-LINE"}\n');
+  const dir = worktree(m);
+  const starts = () => m.calls().filter((x) => x.me === 'claude' && x.args[0] !== 'auth');
+  const no = cli(m, ['n\n']);
+  assert.equal(await no.exec(['accounts', 'handover', 'work', '--project', dir]), 1);
+  assert.match(no.text(), /current account: work\ntarget account: {2}most \(pool me\)\n\n# Handover from account work to most/);
+  for (const h of SIX) assert.ok(no.text().includes(h), h);
+  assert.match(no.text(), /section 3\)\. The risk is yours; this is not legal advice\.\nwarning: ANTHROPIC_API_KEY is set in this environment; .*\nwarning: CLAUDE_CODE_OAUTH_TOKEN is set .*\nWrite .*start claude as most with it as the first prompt\? \[y\/N\] not started/);
+  assert.doesNotMatch(no.text(), /dummy-api-key|inherited-oauth-token/);
+  assert.equal(starts().length, 0);
+  assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
+  const yes = cli(m, ['y\n']);
+  assert.equal(await yes.exec(['accounts', 'handover', 'work', '--project', dir]), 0, yes.text());
+  const text = readFileSync(join(dir, '.benchkeeper', 'handover.md'), 'utf8');
+  assert.equal(starts().length, 1);
+  assert.deepEqual(starts()[0].args, [text], 'the handover is the first prompt');
+  assert.equal(starts()[0].env.CLAUDE_CONFIG_DIR, most.dir);
+  for (const h of SIX) assert.ok(text.includes(h), h);
+  assert.match(text, /## Worktree and branch\n\n.*work-tree, branch feat\/thing/);
+  assert.match(text, /## Uncommitted changes\n\n- a.txt\n- new.txt\n\n/);
+  assert.match(text, /## Done\n\ncommit 1, a.txt/);
+  assert.match(text, /## Open\n\nthe second part is not started, token \*\*\*/);
+  assert.match(text, /## Next step\n\nwrite the second part/);
+  assert.doesNotMatch(text, /TRANSCRIPT-LINE|sk-ant-/);
+  assert.deepEqual(grep(dir, CLAUDE_TOKEN), [join(dir, '.benchkeeper', 'handoff.md')], 'only the file the worker wrote');
+  // In a worktree that does not ignore .benchkeeper/, an earlier handover is not listed as work.
+  rmSync(join(dir, '.gitignore'));
+  const again = handover(m.ctx, dir, { from: work, to: most }).text;
+  assert.match(again, /## Uncommitted changes\n\n- \.gitignore\n- a\.txt\n- \.benchkeeper\/handoff\.md\n- new\.txt\n\n/);
+});
+
+test('run: after the session the handover is offered in a terminal only, for the account that ran', skip, async () => {
+  const m = machine();
+  const [work, spare] = await pooled(m, 'claude', 'work', 'spare');
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--rotate-claude', 'handover', '--yes']), 0);
+  reading(work, 97, 10);
+  reading(spare, 10, 10);
+  const dir = worktree(m);
+  const piped = cli(m, ['y\n']);
+  assert.equal(await piped.exec(['run', '--project', dir, '--yes', '--', 'claude', '--go']), 0);
+  assert.match(piped.text(), /account work is below its minimum: benchkeeper accounts handover work hands the work to spare/);
+  assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
+  const tty = cli(m, ['y\n']);
+  tty.input.isTTY = true;
+  assert.equal(await tty.exec(['run', '--project', dir, '--yes', '--', 'claude', '--go']), 0, tty.text());
+  const after = m.calls().filter((x) => x.me === 'claude' && x.args[0] !== 'auth').at(-1);
+  assert.equal(after.env.CLAUDE_CONFIG_DIR, spare.dir);
+  assert.match(after.args[0], /^# Handover from account work to spare/);
+});
+
+test('handover (Codex): the fake app-server per account, the same decision and launcher', skip, async () => {
+  const m = machine();
+  const [dev, spare] = await pooled(m, 'codex', 'dev', 'spare');
+  const on = cli(m);
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 0);
+  assert.match(on.text(), /^warning: OpenAI's Terms of Use .*terms-of-use\/\).*sign-in-with-chatgpt-terms\/\)\. The risk is yours; this is not legal advice\.$/m);
+  m.env.OPENAI_API_KEY = 'dummy-openai-key';
+  const limits = (a, used) => writeFileSync(join(a.dir, 'limits.json'), JSON.stringify({ primary: codexWindow(used, 300), secondary: codexWindow(10, 10080) }));
+  limits(dev, 97);
+  limits(spare, 20);
+  const dir = worktree(m);
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'handover', 'dev', '--project', dir, '--yes']), 0, c.text());
+  const start = m.calls().filter((x) => x.me === 'codex' && !['login', 'app-server'].includes(x.args[0]));
+  assert.equal(start.length, 1);
+  assert.equal(start[0].env.CODEX_HOME, spare.dir);
+  assert.match(start[0].args[0], /^# Handover from account dev to spare/);
+  assert.match(c.text(), /^warning: OpenAI's Terms of Use/m);
+  assert.match(c.text(), /^warning: OPENAI_API_KEY is set in this environment/m);
+  assert.equal(start[0].env.OPENAI_API_KEY, undefined);
+  // Between the notice level and the minimum: a notice, nothing started.
+  limits(dev, 88);
+  const near = cli(m);
+  assert.equal(await near.exec(['accounts', 'handover', 'dev', '--project', dir, '--yes']), 0);
+  assert.match(near.text(), /^notice: account dev is below a threshold/m);
+  assert.equal(m.calls().filter((x) => x.me === 'codex' && !['login', 'app-server'].includes(x.args[0])).length, 1);
 });

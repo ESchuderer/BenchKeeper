@@ -4,9 +4,10 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from '
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { library } from './content.mjs';
-import { move, writeAtomic } from './fsx.mjs';
+import { move, readText, writeAtomic } from './fsx.mjs';
+import { mergeJson } from './merge.mjs';
 
-export const PACK_SCHEMA = 1;
+const PACK_SCHEMA = 1;
 const dir = (ctx) => join(ctx.config, 'packs');
 
 // A file that is not a pack with a plain id named like its file is left out of the packs (the id becomes a file name) and
@@ -33,16 +34,43 @@ export function libraryWith(ctx) {
   return { ...lib, packs: [...lib.packs, ...ownPacks(ctx)] };
 }
 
+// Install scope per pack: global (installed once on the machine, for every project) or projects (in each project whose setup
+// selects the pack). Only a scope the user chose is stored; a pack without one keeps the scope its installs have: plugin packs
+// global, skill packs per project. ctx.packScopes (pack id to scope) stands in for the file in the preview of a scope change.
+export const PACK_SCOPES = ['global', 'projects'];
+export const scopeFile = (ctx) => join(ctx.config, 'pack-scopes.json');
+export function packScope(ctx, pack) {
+  let stored = ctx.packScopes?.[pack.id];
+  if (!stored) try { stored = JSON.parse(readText(scopeFile(ctx)) ?? '{}').scopes?.[pack.id]; } catch { /* a damaged file reads as the defaults */ }
+  return PACK_SCOPES.includes(stored) ? stored : pack.plugins ? 'global' : 'projects';
+}
+export const scopeText = (scope) => (scope === 'global' ? 'all projects' : 'selected projects');
+// The plan change that records a scope: a write, so undo puts the previous file back.
+export const scopeWrite = (ctx, id, scope) => ({ kind: 'write', path: scopeFile(ctx), edit: (t) => mergeJson(t, [{ path: ['schemaVersion'], value: 1 }, { path: ['scopes', id], value: scope }]) });
+
+// The scopes an agent offers a pack: { scopes, fixed } where fixed names why only one is offered; null when the pack has nothing
+// for the agent. A skill pack is skill folders, global or in the project, for Claude Code and Codex (Codex: repository and user;
+// its admin scope is not offered, developers.openai.com/codex/skills); the global copies are made for those two only. Claude Code installs plugins at user, project or local scope
+// (code.claude.com/docs/en/discover-plugins): global is user, selected projects is local (this machine only). Codex plugins:
+// `codex plugin add` has no scope option and the docs state none (developers.openai.com/codex/plugins), so user only, unverified.
+export function packScopes(pack, a) {
+  if (!pack.plugins) return ['claude', 'codex'].includes(a) ? { scopes: PACK_SCOPES, fixed: null } : { scopes: ['projects'], fixed: 'BenchKeeper copies skills into the global folders of Claude Code and Codex only' };
+  if (!pack.plugins[a]) return null;
+  if (a === 'codex') return { scopes: ['global'], fixed: 'Codex installs plugins for the user only (codex plugin add has no scope option; other scopes unverified)' };
+  return { scopes: PACK_SCOPES, fixed: null };
+}
+
 function validate(pack, lib) {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(pack.id ?? '')) throw new Error('pack id: lowercase letters, digits and dashes');
   if (lib.packs.some((p) => p.id === pack.id)) throw new Error(`${pack.id} is a library pack`);
+  if (typeof pack.title !== 'string' || !pack.title.trim() || pack.title.length > 80 || /[\r\n]/.test(pack.title)) throw new Error('pack title: one line of at most 80 characters');
   if (!Array.isArray(pack.skills) || !pack.skills.length) throw new Error('a pack needs skills');
   const unknown = pack.skills.filter((s) => !lib.skills.some((x) => x.name === s));
   if (unknown.length) throw new Error(`not in the library: ${unknown.join(', ')}`);
 }
 
-export function savePack(ctx, { id, title = id, skills }) {
-  const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title, skills: [...new Set(skills)] };
+export function savePack(ctx, { id, title, skills }) {
+  const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title: title || id, skills: [...new Set(skills)] };
   validate(pack, library());
   const file = join(dir(ctx), `${id}.json`);
   // A pack saved or imported over an own pack of the same id keeps the old file in the backup.

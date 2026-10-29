@@ -65,7 +65,7 @@ function machine({ failCodexInstall = false } = {}) {
   writeFileSync(join(home, '.codex/config.toml'), '[analytics]\nenabled = false\n');
   writeFileSync(join(home, '.codex/AGENTS.md'), 'my codex rules\n');
   const ctx = context({ home, run, appVersion: '6.0.0' });
-  return { home, ctx, s, plan: (packs = ['matt-pocock']) => preview(globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } })) };
+  return { home, ctx, s, plan: (packs = ['matt-pocock', 'ponytail']) => preview(globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } })) };
 }
 const all = (plan) => plan.map((c) => c.id);
 const settings = (home) => JSON.parse(readFileSync(join(home, '.claude/settings.json'), 'utf8'));
@@ -121,6 +121,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.deepEqual(st.hooks.PostToolUse, []);
   assert.equal(st.model, 'opusplan');
   assert.deepEqual(st.attribution, { commit: '', pr: '', sessionUrl: false });
+  assert.equal(st.remoteControlAtStartup, undefined, 'Remote Control is opt-in');
   assert.ok(st.cleanupPeriodDays === 14 && st.autoUpdatesChannel === 'stable' && st.env.DISABLE_FEEDBACK_COMMAND === '1' && st.env.CLAUDE_CODE_SUBAGENT_MODEL === 'sonnet');
   assert.equal(st.autoCompactWindow, 400000);
   assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);
@@ -143,6 +144,16 @@ test('Matt Pocock pack is optional', () => {
   const m = machine();
   assert.ok(!m.plan([]).some((c) => c.title.includes('mattpocock')));
   assert.ok(m.plan(['matt-pocock']).some((c) => c.title.includes('mattpocock')));
+});
+
+test('Ponytail pack is optional: off, no install and no level write; on, both under its plugin step, the level once', () => {
+  const m = machine();
+  assert.ok(!m.plan([]).some((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)));
+  const on = m.plan(['ponytail']);
+  assert.deepEqual(on.filter((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)).map((c) => [c.step, c.title]), [
+    ['plugin:claude:ponytail@ponytail', 'Ponytail level full'], ['plugin:claude:ponytail@ponytail', 'Claude Code plugin ponytail@ponytail (optional pack, all projects)'],
+    ['plugin:codex:ponytail@ponytail', 'Codex plugin ponytail@ponytail (optional pack, all projects)'],
+  ]);
 });
 
 test('agents without plugins get the rules as a block and skill copies with bare names', () => {
@@ -202,7 +213,7 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { repo: 'DietrichGebert/ponytail' } }, benchkeeper: { source: { ref: 'stable' } } }));
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'benchkeeper@benchkeeper': true, 'mattpocock-skills@claude-plugins-official': true } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
-  const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
+  const steps = (id, packs) => globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } }).filter((c) => c.step === id);
   const argv = (id) => steps(id).map((c) => c.argv.join(' '));
   // 5.4.0 against an app at 6.0.0: the agent's own update decides, so no refresh, update or removal step.
   assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), []);
@@ -211,12 +222,33 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   // An installed pack plugin is left to the agent's own update, with or without its pack chosen.
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
-  // No registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
+  // A pack for all projects (the default of a plugin pack) is not tied to a project selecting it: no removal offered.
   const mp = (packsInUse, packs) => globalPlan({ ctx, agents: ['claude'], options: { packs, packsInUse } }).filter((c) => c.step === 'plugin:claude:mattpocock-skills@claude-plugins-official');
+  assert.deepEqual(mp([]), []);
+  // For selected projects, and no registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { 'matt-pocock': 'projects', ponytail: 'projects' } }));
   const [rm] = mp(['frontend']);
   assert.ok(rm.destructive && rm.argv.join(' ') === 'claude plugin uninstall mattpocock-skills@claude-plugins-official' && rm.undoArgv.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official');
   assert.equal(preview([rm])[0].selected, false);
   assert.deepEqual([mp(['matt-pocock']), mp(['frontend'], ['matt-pocock']), mp(null)], [[], [], []]);
+  // Not installed by BenchKeeper (no ledger entry): the user's own, kept by default, in its own group, with what removing deletes.
+  assert.ok(rm.foreign && rm.pack === 'matt-pocock');
+  assert.equal(rm.title, 'matt-pocock (Claude Code plugin mattpocock-skills@claude-plugins-official) is installed on this machine, but BenchKeeper did not set it up and no project in your list selects it. Keep it (default) or remove it.');
+  assert.equal(rm.impact, 'removing runs claude plugin uninstall mattpocock-skills@claude-plugins-official, which deletes the plugin and its data from Claude Code; claude plugin install mattpocock-skills@claude-plugins-official brings it back');
+  // Codex installs plugins for the user only: its plugin keeps the global scope, so no removal.
+  assert.deepEqual(globalPlan({ ctx, agents: ['codex'], options: { packsInUse: [] } }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail'), []);
+  // BenchKeeper installed it: the plain removal, outside that group; a later removal by BenchKeeper makes a reinstall the user's again.
+  const entry = (verb, n) => ({ id: `e${n}`, step: 'plugin:claude:mattpocock-skills@claude-plugins-official', kind: 'command', status: 'done', argv: ['claude', 'plugin', verb, 'mattpocock-skills@claude-plugins-official'] });
+  ctx.ledger.save({ schema: 1, id: '20260101T000000Z-aaaaaa', entries: [entry('install', 1)] });
+  const [own] = mp([]);
+  assert.ok(!own.foreign && own.title === 'remove Claude Code plugin mattpocock-skills@claude-plugins-official: no registered project uses the matt-pocock pack');
+  ctx.ledger.save({ schema: 1, id: '20260102T000000Z-aaaaaa', entries: [entry('uninstall', 2)] });
+  assert.ok(mp([])[0].foreign);
+  rmSync(join(ctx.config, 'ledger'), { recursive: true });
+  rmSync(join(ctx.config, 'pack-scopes.json'));
+  // The doctor plans without the projects' packs: no finding for the user's own pack plugin.
+  assert.ok(!globalDrift(ctx, ['claude', 'codex']).some((i) => /mattpocock-skills|ponytail@ponytail/.test(i.message)));
   const inv = inventory(ctx, ['claude', 'codex']);
   assert.equal(inv.find((i) => i.step === 'plugin:claude:benchkeeper@benchkeeper').state, 'current');
   // A version that is not x.y.z (a commit) cannot be compared and counts as current.
@@ -231,10 +263,10 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
   // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
-  const [on] = steps('plugin:claude:ponytail@ponytail');
+  const [on] = steps('plugin:claude:ponytail@ponytail', ['ponytail']).filter((c) => c.title.endsWith('turn on'));
   assert.ok(on.kind === 'write' && on.title.endsWith('turn on') && JSON.parse(on.edit('{}')).enabledPlugins['ponytail@ponytail'] === true);
   writeFileSync(join(home, '.codex/config.toml'), '[plugins."ponytail@ponytail"]\nenabled = false\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
-  assert.match(steps('plugin:codex:ponytail@ponytail')[0].error, /turned off/);
+  assert.match(steps('plugin:codex:ponytail@ponytail', ['ponytail']).find((c) => c.error).error, /turned off/);
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   rmSync(join(home, '.codex/plugins/cache/benchkeeper'), { recursive: true });
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
@@ -352,11 +384,8 @@ test('an account on another marketplace ref or sharing the default plugins folde
   assert.match(away[0].error, /account outside lies outside/);
   assert.equal(away[0].selected, false);
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
-  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => x.name), ['tagged']);
-  const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
-  assert.equal(plan.length, 1);
-  assert.match(plan[0].error, /of account tagged is at v6\.0\.0, not stable/);
-  assert.equal(plan[0].selected, false);
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => [x.name, x.ref]), [['tagged', 'v6.0.0']]);
+  assert.deepEqual(preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } })), []);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {
@@ -372,12 +401,21 @@ test('globalSkills: the global skill folder plus turned-on plugins, turned-off o
   assert.equal(globalSkills(ctx, 'claude'), 3);
 });
 
+test('a global skill folder that links to a missing target counts as empty', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-gdangling-'));
+  const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  symlinkSync(join(home, 'unmounted/skills'), join(home, '.claude/skills'));
+  assert.equal(globalSkills(ctx, 'claude'), 0);
+  assert.equal(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }).some((c) => c.step === 'other:claude:skill'), false);
+});
+
 test('third-party plugins are not pinned: the marketplace is added as the agent adds it, an installed one is left to the agent', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-unpinned-'));
   const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
-  const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv[3] === 'add')?.argv[4];
-  assert.equal(add('claude', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
-  assert.equal(add('codex', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
+  const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv?.[3] === 'add')?.argv[4];
+  assert.equal(add('claude', 'ponytail@ponytail', { packs: ['ponytail'] }), 'DietrichGebert/ponytail');
+  assert.equal(add('codex', 'ponytail@ponytail', { packs: ['ponytail'] }), 'DietrichGebert/ponytail');
   assert.equal(add('codex', 'mattpocock-skills@mattpocock', { packs: ['matt-pocock'] }), 'mattpocock/skills');
   assert.equal(add('claude', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper#stable');
   assert.equal(add('codex', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper@stable');
@@ -409,13 +447,13 @@ test('Orca worker spec and setup samples: offered only with Orca installed, off 
   undo(run.id, m.ctx);
   assert.equal(existsSync(join(dir, 'worker-spec.md')), false);
   assert.equal(offered().length, 3);
-  const bare = context({ home: mkdtempSync(join(tmpdir(), 'bk-noorca-')), run: (argv) => ({ code: argv[0] === 'orca' ? 127 : 0, stdout: '', stderr: '' }) });
+  const bare = context({ home: mkdtempSync(join(tmpdir(), 'bk-noorca-')), run: (argv) => ({ code: /orca/.test(argv[0]) ? 127 : 0, stdout: '', stderr: '' }) });
   assert.deepEqual(globalPlan({ ctx: bare, agents: ['claude'] }).filter((c) => c.step === 'orca:templates'), []);
 });
 
 test('names from agent files that start with a dash or hold a path are skipped', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-names-'));
-  const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || argv[0] === 'orca' ? 1 : 0, stdout: '', stderr: '' }) });
+  const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || /orca/.test(argv[0]) ? 1 : 0, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
     'ok@x': [{ scope: 'user', version: '1.0.0' }], '--force@x': [{ scope: 'user', version: '1.0.0' }], '../up@x': [{ scope: 'user', version: '1.0.0' }] } }));
@@ -424,6 +462,24 @@ test('names from agent files that start with a dash or hold a path are skipped',
   writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { good: {}, '-bad': {} } }));
   const argvs = globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.destructive && c.kind === 'command').map((c) => c.argv.join(' '));
   assert.deepEqual(argvs.sort(), ['claude mcp remove --scope user good', 'claude plugin marketplace remove fine', 'claude plugin uninstall ok@x']);
+});
+
+test('install units: each install step of the global plan maps to one unit, and npm-fetched steps pass the source gate', () => {
+  const plan = machine().plan();
+  const map = Object.fromEntries(plan.filter((c) => c.installUnit).map((c) => [c.step, `${c.installUnit.id} ${c.installUnit.kind} ${c.installUnit.source.type}`]));
+  assert.deepEqual(map, {
+    'rules:claude': 'rules:claude rules library', 'rules:codex': 'rules:codex rules library',
+    'plugin:claude:benchkeeper@benchkeeper': 'plugin:benchkeeper@benchkeeper plugin marketplace', 'plugin:codex:benchkeeper@benchkeeper': 'plugin:benchkeeper@benchkeeper plugin marketplace',
+    'plugin:claude:mattpocock-skills@claude-plugins-official': 'pack:matt-pocock pack marketplace', 'plugin:codex:mattpocock-skills@mattpocock': 'pack:matt-pocock pack marketplace',
+    'plugin:claude:ponytail@ponytail': 'pack:ponytail pack marketplace', 'plugin:codex:ponytail@ponytail': 'pack:ponytail pack marketplace',
+    ...Object.fromEntries(plan.filter((c) => c.step.startsWith('tools:skill:')).map((c) => [c.step, `skill:${c.step.slice('tools:skill:'.length)} skill git`])),
+  });
+  assert.ok(map['tools:skill:find-skills']);
+  // The title names the repository as the inventory does, not the clone URL.
+  assert.equal(plan.find((c) => c.step === 'tools:skill:find-skills').title, 'global skill find-skills from vercel-labs/skills');
+  const fetched = plan.filter((c) => c.argv?.[0] === 'npx' || (c.argv?.[0] === 'npm' && c.argv[1] === 'i'));
+  assert.ok(fetched.length >= 2);
+  for (const c of fetched) assert.ok(c.verify && c.env.npm_config_before, c.title);
 });
 
 test('signature check: the host tool and the skills CLI run only after npm audit signatures passed, once per run', () => {

@@ -13,8 +13,8 @@ import { mask } from './redact.mjs';
 import { RULE_AGENTS, writtenPaths } from './rules.mjs';
 import { readSettings } from './settings.mjs';
 
-export const EXTENSION_AGENTS = RULE_AGENTS;
-export const KINDS = ['mcp', 'hook', 'subagent', 'command', 'style'];
+const EXTENSION_AGENTS = RULE_AGENTS;
+const KINDS = ['mcp', 'hook', 'subagent', 'command', 'style'];
 const SHOWN = 240;
 const SCOPES = ['managed', 'local', 'project', 'user', 'plugin'];
 const clip = (s) => (s.length > SHOWN ? `${s.slice(0, SHOWN)}...` : s);

@@ -204,7 +204,7 @@ test('a profile import registers no home folder and gives it no plan', () => {
 test('undo takes the scope of a run from a folder that could be a project only', () => {
   const h = home();
   const c = context({ home: h });
-  assert.equal(scopeCtx(c, 'global'), c);
+  assert.deepEqual(scopeCtx(c, 'global').roots, c.roots);
   assert.throws(() => scopeCtx(c, h), /home folder/);
   assert.throws(() => scopeCtx(c, '/'), /root of a drive/);
   assert.throws(() => scopeCtx(c, join(h, 'gone')), /not a folder here/);
@@ -354,6 +354,29 @@ test('a dead lock is taken over under a guard; a reused pid is not the dead run;
     c.ledger.lock()();
     assert.equal(existsSync(lock), false);
   }
+});
+
+test('without a start time, a live pid that runs another command line is not the run; the busy message names the lock file', () => {
+  const c = context({ home: home() });
+  // The real probe reads this process's command line, and none for a pid that is gone.
+  if (process.platform !== 'win32') {
+    assert.match(c.ledger.proc.commandOf(process.pid), /bounds\.test\.mjs/);
+    assert.equal(c.ledger.proc.commandOf(spawnSync(process.execPath, ['-e', '']).pid), undefined);
+  }
+  mkdirSync(c.config, { recursive: true });
+  const lock = join(c.config, 'lock');
+  const commands = { [process.pid]: 'node benchkeeper apply', 4242: 'node benchkeeper apply' };
+  c.ledger.proc = { alive: (pid) => pid === 4242, startOf: () => undefined, commandOf: (pid) => commands[pid] };
+  writeFileSync(lock, JSON.stringify({ pid: 4242, cmd: 'node benchkeeper apply' }));
+  assert.throws(() => c.ledger.lock(), (e) => e.message.includes(`(check with ${process.platform === 'win32' ? 'tasklist /fi "pid eq 4242"' : 'ps -p 4242'}), remove ${lock}`));
+  // The pid now belongs to another program: the lock is a dead run's and is taken over, recording this run's command line.
+  commands[4242] = '/usr/sbin/cupsd -l';
+  const release = c.ledger.lock();
+  assert.deepEqual(JSON.parse(readFileSync(lock, 'utf8')), { pid: process.pid, cmd: 'node benchkeeper apply' });
+  release();
+  // A lock from before the command line was recorded keeps its pid while that runs.
+  writeFileSync(lock, JSON.stringify({ pid: 4242 }));
+  assert.throws(() => c.ledger.lock(), /another BenchKeeper run is in progress \(process 4242\)/);
 });
 
 test('a ledger file that does not parse is named, not thrown as a parser error', () => {

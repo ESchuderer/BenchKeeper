@@ -41,6 +41,11 @@ test('pack files name library skills only and keep their schema', () => {
   assert.throws(() => importPack(ctx, pack({ id: 'frontend' })), /library pack/);
   assert.throws(() => importPack(ctx, pack({ id: '../x' })), /pack id/);
   assert.throws(() => importPack(ctx, pack({ schemaVersion: 2 })), /schemaVersion 2/);
+  assert.throws(() => importPack(ctx, pack({ title: { a: 1 } })), /pack title/);
+  assert.throws(() => importPack(ctx, pack({ title: 'x'.repeat(10_000) })), /pack title/);
+  assert.throws(() => importPack(ctx, pack({ title: 'a\nb' })), /pack title/);
+  assert.equal(importPack(ctx, pack({ title: '' }), 'q').title, 'q');
+  removePack(ctx, 'q');
   assert.throws(() => importPack(ctx, '{"id":"p"}'), /not a BenchKeeper pack/);
   assert.throws(() => importPack(ctx, 'nope'), /pack file/);
   assert.throws(() => exportPack(ctx, 'matt-pocock'), /plugin/);

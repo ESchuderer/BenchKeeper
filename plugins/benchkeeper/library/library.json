@@ -22,11 +22,6 @@
       "note": "The skills read `.agents/product-marketing.md` when it exists, which `product-marketing` writes."
     },
     {
-      "id": "ecc",
-      "title": "ECC",
-      "note": "Three skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project."
-    },
-    {
       "id": "security",
       "title": "Security",
       "note": "CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project."
@@ -429,36 +424,37 @@
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository holds user interviews, surveys or feedback to evaluate"
-    },
-    {
-      "name": "verification-loop",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "Work needs a pass of build, types, lint and a diff review before a pull request"
-    },
-    {
-      "name": "error-handling",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "The code needs one consistent way to raise, handle and report errors"
-    },
-    {
-      "name": "architecture-decision-records",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "A design choice needs a record of its context, options and outcome"
     }
   ],
   "packs": [
     {
+      "id": "ponytail",
+      "title": "Ponytail",
+      "pickWhen": "The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full",
+      "plugins": {
+        "claude": {
+          "id": "ponytail@ponytail",
+          "marketplace": "DietrichGebert/ponytail"
+        },
+        "codex": {
+          "id": "ponytail@ponytail",
+          "marketplace": "DietrichGebert/ponytail"
+        }
+      },
+      "settings": [
+        {
+          "title": "Ponytail level full",
+          "path": ".config/ponytail/config.json",
+          "set": {
+            "defaultMode": "full"
+          }
+        }
+      ]
+    },
+    {
       "id": "matt-pocock",
       "title": "Matt Pocock's skills",
+      "role": "workflow owner",
       "pickWhen": "The project uses his grilling, spec, tickets, test-first and review skills",
       "plugins": {
         "claude": {
@@ -473,9 +469,145 @@
         {
           "claude": "/mattpocock-skills:setup-matt-pocock-skills",
           "codex": "$mattpocock-skills:setup-matt-pocock-skills",
-          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block"
+          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block",
+          "writes": "docs/agents",
+          "sections": [
+            "### Issue tracker",
+            "### Triage labels",
+            "### Domain docs"
+          ]
         }
-      ]
+      ],
+      "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, tests first, code review against the issue, pull request text.",
+      "pluginSkills": {
+        "version": "1.3.1",
+        "skills": [
+          {
+            "name": "ask-matt",
+            "user": true,
+            "does": "Routes you to the skill or flow that fits your situation."
+          },
+          {
+            "name": "diagnosing-bugs",
+            "does": "A diagnosis loop for hard bugs and performance regressions."
+          },
+          {
+            "name": "grill-with-docs",
+            "user": true,
+            "does": "Interviews you to sharpen a plan or design and writes ADRs and glossary entries as it goes."
+          },
+          {
+            "name": "triage",
+            "user": true,
+            "does": "Moves issues and external pull requests through triage roles and writes agent-ready briefs."
+          },
+          {
+            "name": "improve-codebase-architecture",
+            "user": true,
+            "does": "Scans for deepening opportunities, reports them as an HTML page, then grills through the one you pick."
+          },
+          {
+            "name": "setup-matt-pocock-skills",
+            "user": true,
+            "does": "Sets up the issue tracker, triage labels and domain doc layout in `docs/agents/`, once per repository."
+          },
+          {
+            "name": "tdd",
+            "does": "Test-driven development, red-green-refactor."
+          },
+          {
+            "name": "to-spec",
+            "user": true,
+            "does": "Turns the conversation into a spec on the issue tracker."
+          },
+          {
+            "name": "to-tickets",
+            "user": true,
+            "does": "Breaks a plan or spec into tracer-bullet tickets with their blocking edges."
+          },
+          {
+            "name": "wayfinder",
+            "user": true,
+            "does": "Plans work too big for one session as decision tickets and resolves them one by one."
+          },
+          {
+            "name": "implement",
+            "user": true,
+            "does": "Implements a piece of work from a spec or tickets."
+          },
+          {
+            "name": "implement-spec",
+            "user": true,
+            "does": "Implements the result of `to-spec` and `to-tickets`."
+          },
+          {
+            "name": "prototype",
+            "does": "Builds a throwaway prototype to answer a design question."
+          },
+          {
+            "name": "research",
+            "does": "Investigates a question against primary sources and writes the findings to a Markdown file."
+          },
+          {
+            "name": "domain-modeling",
+            "does": "Builds the domain model: `GLOSSARY.md` and ADRs."
+          },
+          {
+            "name": "codebase-design",
+            "does": "Shared vocabulary for designing deep modules and their seams."
+          },
+          {
+            "name": "code-review",
+            "does": "Reviews changes since a fixed point against the repository's standards and the issue or spec."
+          },
+          {
+            "name": "pr",
+            "does": "Writes a pull request body."
+          },
+          {
+            "name": "retro",
+            "user": true,
+            "does": "A retrospective on a coding session."
+          },
+          {
+            "name": "wizard",
+            "does": "Generates an interactive bash wizard for steps only a human can do."
+          },
+          {
+            "name": "grill-me",
+            "user": true,
+            "does": "Interviews you to sharpen a plan or design."
+          },
+          {
+            "name": "grilling",
+            "does": "Grills you about a plan, decision or idea."
+          },
+          {
+            "name": "handoff",
+            "user": true,
+            "does": "Compacts the conversation into a handoff document for another agent."
+          },
+          {
+            "name": "teach",
+            "user": true,
+            "does": "Teaches you a skill or concept within this workspace."
+          },
+          {
+            "name": "to-questionnaire",
+            "user": true,
+            "does": "Turns an open decision into a questionnaire for someone else to fill in."
+          },
+          {
+            "name": "wait-what",
+            "user": true,
+            "does": "Re-pitches the last message when it did not land."
+          },
+          {
+            "name": "writing-for-agents",
+            "does": "Writing skills, `AGENTS.md` and `CLAUDE.md` for agents."
+          }
+        ]
+      }
     },
     {
       "id": "frontend",
@@ -556,78 +688,16 @@
         "compliance-check",
         "gdpr-compliant"
       ]
-    },
-    {
-      "id": "ecc",
-      "title": "ECC (selected skills)",
-      "pickWhen": "The owner names ECC: its verification, error handling and decision record skills",
-      "skills": [
-        "verification-loop",
-        "error-handling",
-        "architecture-decision-records"
-      ]
     }
   ],
-  "frameworks": [
-    {
-      "id": "superpowers",
-      "title": "Superpowers",
-      "role": "owner",
-      "repo": "obra/superpowers",
-      "license": "MIT",
-      "pin": "the official Claude Code marketplace's pin (7.0.0 on 2026-10-25; the repository is at 7.0.1)",
-      "evaluation": "evaluations/workflow-frameworks/superpowers.md",
-      "verdict": "Not in by default: cost higher in every with/without test but one, pass rate not significantly different.",
-      "hooks": "One SessionStart hook.",
-      "gives": "BenchKeeper's workflow skill and the issue-tracker specs give way in this project.",
-      "install": {
-        "kind": "plugin",
-        "plugin": "superpowers@claude-plugins-official",
-        "agents": [
-          "claude"
-        ]
-      },
-      "limits": "Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project."
-    },
-    {
-      "id": "matt-pocock",
-      "title": "Matt Pocock's skills",
-      "role": "parts",
-      "repo": "mattpocock/skills",
-      "license": "MIT",
-      "pin": "v1.3.1",
-      "evaluation": "evaluations/skill-libraries/mattpocock-skills.md",
-      "verdict": "Optional pack: no controlled evidence, no hooks.",
-      "hooks": "None.",
-      "install": {
-        "kind": "pack",
-        "pack": "matt-pocock"
-      },
-      "limits": "The plugin installs for the user (the pack's plugin step), the project gets its docs from the setup skill."
-    },
-    {
-      "id": "ecc",
-      "title": "ECC",
-      "role": "parts",
-      "repo": "affaan-m/ECC",
-      "license": "MIT",
-      "pin": "v2.2.3 (c05b2d6614f6)",
-      "evaluation": "EVALUATIONS.md",
-      "verdict": "Not in as a plugin: no outcome measurement, hook overhead. Offered as three single skills.",
-      "hooks": "None (skills only).",
-      "install": {
-        "kind": "pack",
-        "pack": "ecc"
-      }
-    },
+  "sources": [
     {
       "id": "agency-agents",
       "title": "agency-agents",
-      "role": "parts",
       "repo": "msitarzewski/agency-agents",
       "license": "MIT",
       "pin": "b37b5bb33b78 (no release)",
-      "evaluation": "evaluations/workflow-frameworks/agency-agents.md",
+      "evaluation": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md",
       "verdict": "No outcome measurement. Offered as a pick of agent files, never the whole roster.",
       "hooks": "None (agent files only).",
       "install": {

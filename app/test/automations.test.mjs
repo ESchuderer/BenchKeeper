@@ -51,6 +51,11 @@ test('every template shipped in this repository lints clean', () => {
   assert.deepEqual(check(machine(), { tiers: [['generic', genericDir]], privateNames: [] }), []);
 });
 
+test('the catalogue in docs/automations.md names each generic template in a row', () => {
+  const doc = readFileSync(new URL('../../docs/automations.md', import.meta.url), 'utf8');
+  for (const t of load(machine(), [['generic', genericDir]]).templates) assert.match(doc, new RegExp(`^\\|.*\`${t.id}\``, 'm'), `${t.id} has no catalogue row`);
+});
+
 test('lint rule precheck: missing fails, present passes', () => {
   assert.deepEqual(problems(tier(template({ precheck: '""', helpers: '[]' }), null)), ['precheck', 'session']);
   assert.deepEqual(problems(tier()), []);
@@ -147,6 +152,15 @@ test('filling: unknown and missing parameters are rejected, defaults and mode ar
   assert.throws(() => fill(t, { repository: 'o/r', mode: 'run' }), /mode/);
 });
 
+test('allow: a default outside the prefixes fails the check, a value outside them fails filling', () => {
+  const allow = (d) => template().replace('description = "The repository."', `description = "The repository."\ndefault = "${d}"\nallow = ["o/", "p/"]`);
+  assert.deepEqual(problems(tier(allow('o/a,p/b'))), []);
+  assert.deepEqual(problems(tier(allow('o/a,x/b'))), ['format']);
+  const t = parse(allow('o/a'));
+  assert.equal(fill(t, { repository: 'p/c' }).values.repository, 'p/c');
+  for (const v of ['x/c', 'o/a,x/c', 'o/../x', '']) assert.throws(() => fill(t, { repository: v }), /does not start with o\/, p\//, v);
+});
+
 test('filling: a value with shell characters is rejected', () => {
   const t = parse(template());
   for (const v of ['a; rm -rf ~', '$(id)', '`id`', 'a b', 'a|b', "a'b", 'a\nb', '{{mode}}']) assert.throws(() => fill(t, { repository: v }), /only letters/, JSON.stringify(v));
@@ -179,6 +193,10 @@ test('parse: each malformed field is rejected with its name', () => {
   assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = { a = 1 }'), /default must be/);
   assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = "two words"'), /default may hold only/);
   assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = ["a", "b;c"]'), /default may hold only/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\nallow = []'), /allow must be a list of prefixes/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\nallow = ["a,b"]'), /allow must be a list of prefixes/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = ["o/a", "x/b"]\nallow = ["o/"]'), /default x\/b does not start/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = "o/../x"\nallow = ["o/"]'), /does not start/);
   assert.equal(parse(template({ missed_run_grace_minutes: '15', reuse_session: 'true', workspace: '"new-worktree"', mode: '"act"' })).mode, 'act');
 });
 
@@ -197,7 +215,8 @@ test('load: both tiers, an id that differs from the file name, a duplicate id an
   assert.match(errors.find((e) => e.file.endsWith('alpha.md')).message, /already used by the generic template/);
   assert.match(errors.find((e) => e.file.endsWith('beta.md')).message, /differs from the file name/);
   assert.equal(load(ctx).errors.length, 2, 'default tiers: the user folder of the context');
-  assert.deepEqual(load(machine()), { templates: [], errors: [] }, 'no folder, no templates');
+  const empty = machine();
+  assert.deepEqual(load(empty, [['user', userDir(empty)]]), { templates: [], errors: [] }, 'no folder, no templates');
   const file = join(user, 'notes.txt');
   assert.match(load(ctx, [['user', file]]).errors[0].message, /cannot read the folder: ENOTDIR/, 'a tier path that is a file');
   assert.deepEqual(check(ctx, { tiers: [['generic', generic], ['user', user]] }).map((p) => p.rule), ['format', 'format', 'format']);

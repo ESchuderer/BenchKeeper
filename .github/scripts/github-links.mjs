@@ -11,7 +11,11 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 // First path segments that are GitHub pages, not owners.
 const RESERVED = new Set(['orgs', 'marketplace', 'sponsors', 'topics', 'features', 'apps', 'settings', 'enterprise', 'collections', 'login']);
 
-const appVersion = () => JSON.parse(readFileSync(`${ROOT}app/package.json`, 'utf8')).version;
+// The tags the merge of the release pull request creates: app-v<x.y.z> and setup-v<x.y.z> (release-please's form of the content tag).
+const releaseTags = () => {
+  const m = JSON.parse(readFileSync(`${ROOT}.release-please-manifest.json`, 'utf8'));
+  return [`app-v${m.app}`, `setup-v${m['plugins/benchkeeper']}`];
+};
 
 // Returns { local: path } for this repository's main branch, { api: path } or { graphql: {...} } otherwise, { unsupported: true } for link kinds without a mapping.
 export function target(url) {
@@ -43,8 +47,8 @@ export function target(url) {
   if (kind === 'commit') return { api: `${base}/commits/${rest[0]}` };
   if (kind === 'compare' && rest.join('/').includes('...')) {
     const [from, head] = rest.join('/').split('...');
-    // The changelog of a release pull request links to the tag that the merge creates: only this repository's tag for the version in app/package.json is skipped, its base is still checked.
-    if (`${owner}/${repo}`.toLowerCase() === SELF && head === `setup-v${appVersion()}`) return { api: `${base}/commits/${encodeURIComponent(from)}` };
+    // The changelogs of a release pull request link to the tags that the merge creates: only those tags of this repository are skipped, their base is still checked.
+    if (`${owner}/${repo}`.toLowerCase() === SELF && releaseTags().includes(head)) return { api: `${base}/commits/${encodeURIComponent(from)}` };
     return { api: `${base}/compare/${encodeURIComponent(from)}...${encodeURIComponent(head)}` };
   }
   // Unmapped kinds (wiki, actions, release assets) fail loudly instead of passing on the repository alone.

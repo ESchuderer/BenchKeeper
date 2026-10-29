@@ -1,0 +1,36 @@
+{
+  "id": "00000000-0000-4000-8000-000000000011",
+  "ok": true,
+  "result": {
+    "automation": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "name": "DERIVED-TEXT",
+      "prompt": "DERIVED-TEXT",
+      "precheck": {
+        "command": "DERIVED-TEXT",
+        "timeoutSeconds": 60
+      },
+      "agentId": "claude",
+      "projectId": "00000000-0000-4000-8000-0000000000b1",
+      "executionTargetType": "local",
+      "executionTargetId": "local",
+      "schedulerOwner": "local_host_service",
+      "workspaceMode": "existing",
+      "workspaceId": "00000000-0000-4000-8000-0000000000c1",
+      "baseBranch": null,
+      "reuseSession": false,
+      "timezone": "Europe/Berlin",
+      "rrule": "FREQ=HOURLY;BYMINUTE=0",
+      "dtstart": 1793174400000,
+      "enabled": false,
+      "nextRunAt": 1793178000000,
+      "missedRunPolicy": "run_once_within_grace",
+      "missedRunGraceMinutes": 720,
+      "createdAt": 1793174400000,
+      "updatedAt": 1793174400000
+    }
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

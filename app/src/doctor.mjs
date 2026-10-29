@@ -2,15 +2,16 @@
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { accountChecks } from './accounts.mjs';
+import { automationChecks } from './automations.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
-import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
-import { frameworkChecks } from './frameworks.mjs';
+import { appVersion, contentDir, contentRefusal, contentVersion, library } from './content.mjs';
 import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
+import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
 import { paramChecks } from './params.mjs';
 import { bandChecks } from './ponytail.mjs';
@@ -19,10 +20,10 @@ import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { skillFiles } from './skills.mjs';
-import { globalPlan, installedRefusal, pluginState } from './steps/global.mjs';
-import { readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { globalPlan, installedRefusal } from './steps/global.mjs';
+import { promptAgent, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
 
-export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
+const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
 const SUMMARY = /^#{1,6}\s*(overview|summary|about( this)?( project| repository)?|project (structure|layout|overview)|(repository|directory|folder|code) (structure|layout|map)|layout|structure|architecture)\s*$/im;
 
@@ -73,6 +74,20 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
 
 const description = (text) => skillDescription(text).text;
 
+// A pack whose own setup skill writes files and AGENTS.md sections: BenchKeeper does not run it, so what is still missing is named.
+// The files are checked, not a recorded flag: Doctor is quiet once they exist, however they were written.
+function packSetupChecks(dir, state, lib = library()) {
+  const text = ['AGENTS.md', 'CLAUDE.md'].map((f) => readText(join(dir, f)) ?? '').join('\n');
+  const agent = promptAgent(state?.agents ?? []);
+  return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).flatMap((x) => {
+    const prompt = agent === 'codex' ? x.codex : x.claude;
+    const fix = `run ${prompt} once in this project: it ${x.why}`;
+    // The Doctor view shows the line to paste in a terminal next to the fix.
+    if (x.writes && !exists(join(dir, x.writes))) return [{ ...issue('warning', 'packs', `pack ${id} is on, but ${x.writes}/ does not exist`, fix), ...(agent ? { start: { agent, dir, prompt, command: recordCommand(dir, agent, prompt) } } : {}) }];
+    return x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)) ? [issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, fix)] : [];
+  }));
+}
+
 export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
@@ -91,10 +106,10 @@ export function projectChecks(ctx, dir, agents) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && !upToDate(state)) out.push(issue('warning', 'project', `project setup: app ${state.appVersion}, content ${state.contentVersion}; this app ${appVersion}, content ${contentVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
-  let userPlugins = [];
-  try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }
-  out.push(...frameworkChecks({ dir, state, userPlugins }), ...guardChecks(dir, state));
+  out.push(...packSetupChecks(dir, state), ...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }), ...paramChecks(ctx, dir));
+  // The global files are reported once, by the global checks; imports that point nowhere by instructionChecks.
+  out.push(...rulesChecks(ctx, { agents, dir }).filter((f) => f.scope !== 'global' && f.kind !== 'import'));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));
   out.push(...skillOverlap(ctx, dir, [...scoped('project', true, skillFiles(dir)), ...scoped('global', false, skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], true));
@@ -109,9 +124,12 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   const out = [...(tooNew ? [issue('error', 'content', tooNew, 'run the newer benchkeeper command named, or update the plugin to the version this app sets up')] : []), ...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
   out.push(...accountChecks(ctx, { dir, now }));
+  const ide = orca.unobserved(ctx);
+  if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
+  out.push(...automationChecks(ctx));
   if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
-    out.push(...rulesChecks(ctx, agents));
+    out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);

@@ -1,10 +1,9 @@
 // Skills as a project has them: the state of each against the library, what no setup installed, and the plan that
 // changes one skill (update, reset, remove, adopt, enable, disable). Reads only; the changes go through the project plan and its runner.
-import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
-import { exists, isDir, readText } from './fsx.mjs';
+import { exists, isDir, listDir, readText } from './fsx.mjs';
 import { libraryWith } from './packs.mjs';
 import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
@@ -14,13 +13,13 @@ import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/proje
 // The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
 // Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
 export function skillFiles(dir) {
-  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)
-    .flatMap((d) => readdirSync(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
+  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x))
+    .flatMap((d) => listDir(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
     .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
 }
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
-const subfolders = (dir) => { try { return readdirSync(dir).filter((n) => NAME.test(n) && isDir(join(dir, n))); } catch { return []; } };
+const subfolders = (dir) => listDir(dir).filter((n) => NAME.test(n) && isDir(join(dir, n)));
 
 // current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone), disabled.
 function ownState(ctx, dir, skill, a) {
@@ -75,19 +74,22 @@ export function globalUntracked(ctx, agents) {
   return [...found].map(([name, folders]) => ({ name, folders }));
 }
 
-// The skill answers of one action. remove: a single pick goes, a skill a pack brings stays with the pack.
-export function skillAction(rows, action, names) {
+// The skill answers of one action. remove: a single pick goes, a skill a pack brings stays with the pack. add: a library skill
+// the project does not have becomes a single pick.
+export function skillAction(rows, action, names, lib) {
   const row = (n) => rows.skills.find((s) => s.name === n);
   for (const n of names) {
     if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw new Error(`${n} is not an untracked library skill of this project`);
-    if (action !== 'adopt' && !row(n)) throw new Error(`${n} is not a skill of this project`);
+    if (action === 'add' && (row(n) || rows.untracked.some((u) => u.name === n))) throw new Error(`${n} is already in this project${row(n)?.state === 'disabled' ? `: benchkeeper skills enable ${n}` : ''}`);
+    if (action === 'add' && !lib.skills.some((s) => s.name === n)) throw new Error(`${n} is not a library skill`);
+    if (!['adopt', 'add'].includes(action) && !row(n)) throw new Error(`${n} is not a skill of this project`);
     if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper skills disable ${n})`);
   }
   if (action === 'update' && !names.length) {
     const outdated = rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name);
     return { names: outdated, answers: { update: outdated } };
   }
-  return { names, answers: { enable: action === 'enable' ? names : [], disable: action === 'disable' ? names : [], update: action === 'update' ? names : [], reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
+  return { names, answers: { enable: action === 'enable' ? names : [], disable: action === 'disable' ? names : [], update: action === 'update' ? names : [], reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: ['adopt', 'add'].includes(action) ? names : [] } };
 }
 
 // Only the changes of the skills named, with the state file, the git exclude list and the rules block (it points to own skills).

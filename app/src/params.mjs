@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { registry } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 
 // Team file first, personal file last: the personal one wins per phase.
 export const FILES = { pins: ['.benchkeeper/pins.json', '.benchkeeper/pins.local.json'], preset: ['.benchkeeper/preset.json'], policy: ['docs/agents/orchestration.json'] };
@@ -86,6 +87,25 @@ export function load(family, text) {
 // The one way a document is written back: two-space indent, key order as read.
 export const format = (doc) => `${JSON.stringify(doc, null, 2)}\n`;
 
+// The editor view: every file of every family with its text (null: absent) and errors.
+export const paramsView = (dir) => Object.entries(FILES).flatMap(([family, files]) => files.map((file) => {
+  const text = readText(join(dir, file));
+  return { family, file, text, errors: load(family, text).errors };
+}));
+// The loader's errors for a text typed into the editor.
+export function checkText(file, text) {
+  const family = Object.keys(FILES).find((f) => FILES[f].includes(file));
+  if (!family) throw new Error(`file must be one of ${Object.values(FILES).flat().join(', ')}`);
+  if (typeof text !== 'string') throw new Error('text must be a string');
+  return load(family, text).errors;
+}
+// A plan that writes the text as typed, so unknown and "//" keys stay; refused while the loader finds an error.
+export function paramsChange(dir, file, text) {
+  const errors = checkText(file, text);
+  if (errors.length) throw new Error(`${file}: ${errors.map((e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`).join('; ')}`);
+  return [{ id: `params:${file}`, step: 'params', title: `write ${file}`, kind: 'write', path: join(dir, file), edit: () => text }];
+}
+
 // Every existing file of a family in a project, with its errors tagged by file.
 export function loadFiles(dir, family) {
   return FILES[family].flatMap((file) => {
@@ -123,7 +143,7 @@ export function paramChecks(ctx, dir, reg = registry) {
   }
   const { pins, errors } = resolvePins(dir);
   const local = FILES.pins[1];
-  if (exists(join(dir, local)) && ctx.run(['git', '-C', dir, 'check-ignore', '-q', local]).code === 1) out.push(issue('warning', 'pins', `${local} is not ignored by git`, `add ${local} to .gitignore or .git/info/exclude`));
+  if (exists(join(dir, local)) && ctx.run(['git', '-C', dir, 'check-ignore', '-q', local], { env: repoEnv() }).code === 1) out.push(issue('warning', 'pins', `${local} is not ignored by git`, `add ${local} to .gitignore or .git/info/exclude`));
   if (errors.length) return out;
   for (const id of new Set(pins.map((p) => p.agent).filter(Boolean))) {
     const a = reg.find((x) => x.id === id);

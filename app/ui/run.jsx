@@ -20,7 +20,7 @@ export const StatusIcon = ({ status }) => {
 };
 
 // Split or unified, kept per browser; without storage it lasts the page.
-export function useDiffMode() {
+function useDiffMode() {
   const [mode, set] = useState(() => { try { return localStorage.getItem('bk-diff') === 'split' ? 'split' : 'unified'; } catch { return 'unified'; } });
   return [mode, (m) => { set(m); try { localStorage.setItem('bk-diff', m); } catch { /* not kept */ } }];
 }
@@ -100,7 +100,7 @@ function EntryBody({ e, mode, out }) {
 
 // One run as a report: what it did to each file and command, with undo per step and for the run.
 // output: what the commands printed, by change id, while the apply's job is known; the ledger does not keep it.
-export function RunReport({ run: r, onUndo, busy, order = 3, output }) {
+function RunReport({ run: r, onUndo, busy, order = 3, output }) {
   const [mode, setMode] = useDiffMode();
   const diffs = r.entries.flatMap((e) => [e.diff, ...(e.files ?? []).map((f) => f.diff)]).filter(Boolean);
   const lines = useMemo(() => diffs.map(parseDiff).reduce((s, d) => ({ added: s.added + d.added, removed: s.removed + d.removed }), { added: 0, removed: 0 }), [r]);

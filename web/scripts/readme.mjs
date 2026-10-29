@@ -6,8 +6,8 @@ const root = new URL('../../', import.meta.url);
 const facts = JSON.parse(readFileSync(new URL('web/src/data/facts.json', root), 'utf8'));
 const agents = JSON.parse(readFileSync(new URL('app/src/agents.json', root), 'utf8')).agents;
 
-// `|` would end a table cell.
-const cell = (s) => s.replace(/\|/g, '\\|');
+// `|` would end a table cell, and a backslash in the text would escape the one added before it.
+const cell = (s) => s.replace(/[\\|]/g, '\\$&');
 const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
 // Install paths as headed blocks (GitHub Markdown has no tabs). `setup` is the link to docs/setup.md from the file that holds the block.
@@ -30,7 +30,7 @@ const quickstart = (setup) => {
 const blocks = {
   support: supportTables(agents),
   quickstart: quickstart('docs/setup.md'),
-  description: [facts.description],
+  description: [facts.description, '', `[${facts.overview.title}](https://eschuderer.github.io/BenchKeeper/overview/): the workflow, what each part brings and the defaults it sets.`],
   core: [`**Optional: [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
   levels: [
     '| Level | Contains | Writes | Command |',
@@ -47,13 +47,7 @@ const blocks = {
     '|---|---|---|---|',
     ...facts.parallelTools.map((t) => `| ${link(t.name, t.url)} | ${cell(t.platforms)} | ${cell(t.points.join('; '))} | ${cell(t.when)} |`),
   ],
-  frameworks: [
-    facts.frameworks.rule,
-    '',
-    '| Framework | Role | Installs | Evaluation |',
-    '|---|---|---|---|',
-    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evaluation.split('/').pop())}](../${f.evaluation}) |`),
-  ],
+  reasons: facts.stack.reasons.map((r) => `- ${r.name}: ${r.text}`),
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,
     '',
@@ -65,8 +59,8 @@ const blocks = {
 const pick = (names) => Object.fromEntries(names.map((n) => [n, blocks[n]]));
 const targets = [
   ['README.md', pick(['description', 'quickstart'])],
-  ['docs/setup.md', pick(['prerequisites', 'levels', 'support', 'frameworks'])],
-  ['docs/stack.md', pick(['core', 'tools', 'openhands'])],
+  ['docs/setup.md', pick(['prerequisites', 'levels', 'support'])],
+  ['docs/stack.md', pick(['core', 'reasons', 'tools', 'openhands'])],
   ['app/README.md', { quickstart: quickstart('../docs/setup.md') }],
 ];
 let stale = false;

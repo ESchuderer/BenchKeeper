@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { appVersion } from '../src/content.mjs';
+import { fileURLToPath } from 'node:url';
+import { appVersion, contentRefusal } from '../src/content.mjs';
 import { newer, updateNotice } from '../src/update.mjs';
 
 const json = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 
-test('the app version is the plugin version; runtime dependencies are exact', () => {
-  assert.equal(appVersion, json('../../plugins/benchkeeper/.claude-plugin/plugin.json').version);
-  assert.equal(appVersion, json('../../plugins/benchkeeper/.codex-plugin/plugin.json').version);
+test('runtime dependencies are exact', () => {
   const pkg = json('../package.json');
   for (const [name, v] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })) assert.match(v, /^\d+\.\d+\.\d+$/, name);
 });
@@ -35,9 +34,12 @@ test('update check: shown when newer, silent when off, offline or older', async 
 test('content.json: content version is the plugin version, minApp is not above the app, skill text names the major', () => {
   const c = json('../../plugins/benchkeeper/content.json');
   assert.equal(c.schemaVersion, 1);
-  assert.equal(c.contentVersion, json('../../plugins/benchkeeper/.claude-plugin/plugin.json').version);
-  assert.equal(newer(c.minApp, appVersion), false);
+  for (const agent of ['claude', 'codex']) assert.equal(c.contentVersion, json(`../../plugins/benchkeeper/.${agent}-plugin/plugin.json`).version);
   const root = new URL('../../plugins/benchkeeper/', import.meta.url);
+  // App and content release separately: an app patch release leaves the content version behind and still fits.
+  const [major, minor, patch] = appVersion.split('.').map(Number);
+  assert.match(c.minApp, /^\d+\.\d+\.\d+$/);
+  for (const v of [appVersion, `${major}.${minor}.${patch + 1}`]) assert.equal(contentRefusal(fileURLToPath(root), v), null, v);
   for (const dir of ['skills', 'library']) {
     for (const f of readdirSync(new URL(`${dir}/`, root), { recursive: true }).filter((x) => x.endsWith('.md'))) {
       for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, appVersion.split('.')[0], `${dir}/${f}`);

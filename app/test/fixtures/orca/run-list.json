@@ -1,0 +1,30 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "ok": true,
+  "result": {
+    "runs": [
+      {
+        "id": "run_000000000001",
+        "objective": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "coordinator_handle": "term_00000000-0000-4000-8000-000000000001",
+        "consumer_generation": 2,
+        "legacy": 0,
+        "created_at": "2026-10-28T10:16:15Z",
+        "updated_at": "2026-10-28T13:05:17Z"
+      },
+      {
+        "id": "run_000000000002",
+        "objective": "RECORDED-TEXT-NOT-FOR-VIEWS",
+        "coordinator_handle": "term_00000000-0000-4000-8000-000000000002",
+        "consumer_generation": 2,
+        "legacy": 0,
+        "created_at": "2026-10-28T10:15:47Z",
+        "updated_at": "2026-10-28T13:04:41Z"
+      }
+    ],
+    "nextCursor": "cursor-placeholder"
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

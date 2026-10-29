@@ -1,8 +1,10 @@
 // Plans, applies and undoes changes. A change is one of:
 //   { kind: 'write', path, after | edit | from }   after null deletes, edit maps the current text, from copies a file or
-//                                           folder; existing content goes to the backup first
+//                                           folder; existing content goes to the backup first; mode sets the file mode
 //   { kind: 'remove', path }                moves a file or folder to the backup
-//   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
+//   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists;
+//                                           outcome(result) gives { result, undoArgv } when they come from its output
+//   { kind: 'clone', argv, cwd, path }       a git clone into a folder that does not exist yet; undone only while the clone is untouched
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
@@ -10,33 +12,36 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
-import { blob, fileMode, hasTree } from './git.mjs';
+import { blob, fileMode, git, hasTree } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 import { mask } from './redact.mjs';
+import { unitsOf } from './units.mjs';
 
 // New files that agents fill with tokens later are created for their user alone.
 const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
 // A Windows system tool by its full path, so the PATH search does not decide which program runs.
 export const windowsTool = (...parts) => join(process.env.SystemRoot ?? 'C:\\Windows', ...parts);
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
-const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
+// A --json command that fails prints its error as a JSON object on stdout: its message, not the object's last lines.
+const jsonError = (s) => { try { const m = JSON.parse(s)?.error?.message; return typeof m === 'string' ? m : undefined; } catch { return undefined; } };
+const failure = (r, lines = 3) => mask((r.stderr || jsonError(r.stdout) || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
 
 // The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file
 // that names anything else is not run (the ledger is a file the user's other processes can write).
 const NAME = /^[A-Za-z0-9][\w.@:-]*$/;
-const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove']];
-// Claude Code's plugin install and uninstall also take a scope that stays inside the project (a framework install): never user.
-const PROJECT_SCOPES = ['project', 'local'];
+// Claude Code's plugin commands also at the user and local scope a pack's scope moves between.
+const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove'],
+  ...['install', 'uninstall'].flatMap((v) => ['user', 'local'].map((s) => ['claude', 'plugin', v, '--scope', s]))];
 const named = (argv, f) => f.every((x, i) => argv[i] === x) && NAME.test(argv[f.length]);
-export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => (argv.length === f.length + 1 && named(argv, f))
-  || (f.length === 3 && f[0] === 'claude' && argv.length === 6 && argv[4] === '--scope' && PROJECT_SCOPES.includes(argv[5]) && named(argv, f)));
+export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => argv.length === f.length + 1 && named(argv, f));
 
 // A path a run may change: inside a root, and not inside ctx.deny unless that root itself lies in the denied folder
 // (a project's .git is denied, its info/exclude list is a root of its own).
 export const allowed = (path, ctx, follow = true) => ctx.roots.some((r) => inside(path, [r], follow) && !(ctx.deny ?? []).some((d) => inside(path, [d], follow) && !inside(r, [d])));
 
-export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse } = {}) {
-  return { ...(refuse ? { refuse } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
+// undoable: a check for undo commands of other forms than these (a scheduler's own), so this file names no such tool.
+export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse, undoable: more } = {}) {
+  return { ...(refuse ? { refuse } : {}), ...(more ? { undoable: more } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
@@ -130,20 +135,36 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     const unit = c.unit && changes.filter((x) => x.unit === c.unit);
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
   }
+  // The units the run installs, as the plan described them; each entry names its unit.
+  const units = unitsOf(changes.filter(picked));
+  if (units.length) run.units = units;
   yield { run };
   const failedSteps = new Set(), startedUnits = new Set(), verified = new Set();
   for (const c of changes) {
     if (!picked(c)) continue;
-    const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
+    const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind, ...(c.installUnit ? { installUnit: c.installUnit.id } : {}) };
     run.entries.push(entry);
     // A cancel finishes the unit it lands in: half a unit is worse than all of it.
     if (stop?.() && !startedUnits.has(c.unit)) { entry.status = 'skipped'; entry.reason = 'cancelled'; continue; }
     if (c.unit) startedUnits.add(c.unit);
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }
     try {
-      if (c.kind === 'command') {
+      if (c.kind === 'clone') {
+        const path = resolve(c.path);
+        if (!allowed(path, ctx, false)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
+        if (exists(path)) throw new Error(`${path} exists already`);
+        // Journaled before it starts: a clone cut off by a crash shows in history.
+        Object.assign(entry, { path, existed: false, argv: c.argv, cwd: c.cwd, status: 'running', touched: true });
+        ctx.ledger.save(run);
+        const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: childEnv(c.env) }, entry };
+        entry.exit = r.code;
+        if (!exists(path)) delete entry.touched;
+        if (r.code !== 0) throw new Error(failure(r));
+        // The refs as the clone left them: undo removes the folder only while they are these.
+        entry.refs = (yield { argv: ['git', '-c', 'core.fsmonitor=false', '-C', path, 'for-each-ref', '--format=%(refname) %(objectname)'], opts: { cwd: path, env: childEnv() }, entry }).stdout.trim();
+      } else if (c.kind === 'command') {
         // Journaled before it starts: a command cut off by a crash shows in history and can be undone.
-        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, status: 'running', touched: true });
+        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, ...(c.undoNote ? { undoNote: c.undoNote } : {}), status: 'running', touched: true });
         // Paths the command changes (skill folders, a lockfile) are copied first; undo puts these copies back.
         if (c.snapshot) {
           entry.snapshot = c.snapshot.map((p, i) => {
@@ -152,7 +173,9 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
             return { path, existed: exists(path), hashBefore: hashPath(path), backup: exists(path) ? ctx.ledger.backupPath(run.id, `${run.entries.length}-${i}`, path) : null };
           });
           ctx.ledger.save(run);
-          for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
+          try {
+            for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
+          } catch (e) { delete entry.touched; throw e; }
         }
         ctx.ledger.save(run);
         // c.verify: a command that checks the code this one fetches (signatures); once per run for the same check.
@@ -170,6 +193,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         if (r.code === 0 || !entry.snapshot) delete entry.touched;
         for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
         if (r.code !== 0) throw new Error(failure(r));
+        // The id a command created is in its output: a later change of the run reads entry.result, undo the argv.
+        if (c.outcome) Object.assign(entry, c.outcome(r));
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
         if (!allowed(path, ctx, c.kind !== 'remove')) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
@@ -187,14 +212,17 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           // A failed backup stops the step before any write.
           if (c.kind === 'remove') move(path, entry.backup);
           else {
-            copy(path, entry.backup);
-            if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
+            // Nothing was written yet: undo has nothing to put back.
+            try {
+              copy(path, entry.backup);
+              if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
+            } catch (e) { delete entry.touched; throw e; }
           }
         }
         if (c.kind === 'write') {
           if (entry.existed && (c.from || isDir(path) || after == null)) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
-          else if (after != null) writeAtomic(path, after, !entry.existed && PRIVATE_NEW.test(path) ? 0o600 : undefined);
+          else if (after != null) writeAtomic(path, after, c.mode ?? (!entry.existed && PRIVATE_NEW.test(path) ? 0o600 : undefined));
         }
         entry.hashAfter = hashPath(path);
         const expected = c.from ? hashPath(c.from) : hashText(after);
@@ -267,14 +295,14 @@ function restoreFromTree(ctx, root, tree, rel, path) {
 
 const doneOrTouched = (e) => e.status === 'done' || ((e.status === 'failed' || e.status === 'running') && e.touched);
 
-// Undoes a run, or one step of it, newest change first. Undo is a run of its own, so it can be undone too.
+// Undoes a run, or one step or one unit of it, newest change first. Undo is a run of its own, so it can be undone too.
 // Each entry is checked before it changes anything, journaled before the first change, and saved when it ends.
 export function undo(id, ctx, opts) {
   const release = ctx.ledger.lock();
   try { return undoRun(id, ctx, opts); } finally { release(); }
 }
 
-function undoRun(id, ctx, { step } = {}) {
+function undoRun(id, ctx, { step, unit } = {}) {
   const source = ctx.ledger.get(id);
   // Update all on a branch worked in a worktree that is gone; its result is a branch and a pull request. A local run
   // changed the checkout and undoes like any other.
@@ -298,8 +326,8 @@ function undoRun(id, ctx, { step } = {}) {
     if (copyOnly) { copy(path, rec.backup); if (hashPath(rec.backup) !== rec.hashBackup) throw new Error(`backup of ${path} differs from the original`); } else move(path, rec.backup);
   };
   for (const e of [...source.entries].reverse()) {
-    if (!doneOrTouched(e) || e.undone || (step && e.step !== step)) continue;
-    const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
+    if (!doneOrTouched(e) || e.undone || (step && e.step !== step) || (unit && e.installUnit !== unit)) continue;
+    const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind, ...(e.installUnit ? { installUnit: e.installUnit } : {}) };
     run.entries.push(entry);
     try {
       if (e.kind === 'session') {
@@ -346,6 +374,23 @@ function undoRun(id, ctx, { step } = {}) {
           if (f.backup) copy(f.backup, f.path);
           entry.files[i].hashAfter = hashPath(f.path);
         });
+      } else if (e.kind === 'clone') {
+        // A clone nobody touched goes (to the backup, so undoing the undo brings it back): no change in the working tree,
+        // ignored and untracked files included, and no new branch, tag, stash or commit. A setup run that wrote into the
+        // folder is undone first.
+        within(e.path, false);
+        if (exists(e.path)) {
+          const state = git(ctx, e.path, ['status', '--porcelain', '--ignored=matching', '--untracked-files=all']);
+          if (state.code !== 0) throw new Error(`${e.path} cannot be checked (${failure(state)}): remove it by hand if it is not needed`);
+          if (state.stdout.trim()) throw new Error(`${e.path} holds changes: undo the setup runs of the project first, then move or commit what is yours`);
+          const refs = git(ctx, e.path, ['for-each-ref', '--format=%(refname) %(objectname)']).stdout.trim();
+          if (refs !== (e.refs ?? '')) throw new Error(`${e.path} has branches, tags or commits that are not the clone's`);
+          const [backup] = backups([e.path], run.entries.length);
+          Object.assign(entry, { kind: 'restore', files: [{ path: e.path, backup }] });
+          begin(entry);
+          aside(entry.files[0], e.path);
+          entry.files[0].hashAfter = hashPath(e.path);
+        }
       } else if (e.kind === 'command' && e.snapshot) {
         // The paths come back from the copies taken before the command, while they are as it left them.
         for (const x of e.snapshot) {
@@ -364,8 +409,8 @@ function undoRun(id, ctx, { step } = {}) {
           entry.files[i].hashAfter = hashPath(x.path);
         });
       } else if (e.kind === 'command') {
-        if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
-        if (!undoable(e.undoArgv)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
+        if (!e.undoArgv) { entry.status = 'manual'; entry.reason = e.undoNote ?? `no undo command for ${e.argv.join(' ')}`; continue; }
+        if (!undoable(e.undoArgv) && !ctx.undoable?.(e.undoArgv, ctx)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
         if (e.cwd != null && !inside(e.cwd, [ctx.home, ...ctx.roots])) throw new Error(`the undo command's folder ${e.cwd} is outside ${ctx.home}`);
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);

@@ -1,53 +1,112 @@
-// The Projects view's tools: search, sort and filter, bulk actions, name and notes, relocate, and the two removals.
-import { Badge, Button, Checkbox, Code, Group, List, Loader, Modal, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
-import { IconFolderSearch, IconPencil, IconRoute, IconSearch, IconTrash } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+// The Projects view's tools: cards, totals, search, sort and filter chips, bulk actions, name and notes, relocate, and the two removals.
+import { Anchor, Badge, Button, Checkbox, Chip, Code, Group, List, Loader, Modal, Paper, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { IconFolderSearch, IconPencil, IconRefresh, IconRoute, IconSearch, IconTrash } from '@tabler/icons-react';
+import { useEffect, useId, useState } from 'react';
 import { api } from './api.js';
+import { CHIPS, HEALTH, SORT_OPTIONS, costText, health, label, lags, plural, sparkText, totals } from './cards.js';
+import { Swatch } from './dashboard.jsx';
 import { UpdateResults } from './fix.jsx';
-import { Note, icon } from './shell.jsx';
+import { Note, go, icon, projectHref } from './shell.jsx';
 
-export const label = (p) => p.name || p.path.split('/').pop();
-export const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-const FILTERS = {
-  all: ['All projects', () => true],
-  'not-set-up': ['Not set up', (p) => !p.missing && !p.setupVersion],
-  behind: ['Behind', (p) => !!p.setupVersion && !p.current],
-  local: ['Local setup', (p) => !!p.setupVersion && !p.share],
-  shared: ['Shared setup', (p) => p.share === true],
-  missing: ['Folder not found', (p) => p.missing === true],
-  changes: ['Has changes', (p) => !!p.changes?.length],
-};
-export const FILTER_OPTIONS = Object.entries(FILTERS).map(([value, [text]]) => ({ value, label: text }));
-// Missing first, then not set up, behind, current: what needs attention comes first.
-const setupRank = (p) => { if (p.missing) return 0; if (!p.setupVersion) return 1; return p.current ? 3 : 2; };
-const SORTS = {
-  added: ['Order added', () => 0],
-  name: ['Name', (a, b) => label(a).localeCompare(label(b))],
-  setup: ['Setup state', (a, b) => setupRank(a) - setupRank(b)],
-  last: ['Last change', (a, b) => (b.last ?? '').localeCompare(a.last ?? '')],
-};
-export const SORT_OPTIONS = Object.entries(SORTS).map(([value, [text]]) => ({ value, label: text }));
-
-// The rows to show: search over name, folder and notes, then the filter, then the sort (a stable one, so ties and the
-// default keep the order the projects were added in).
-export function visibleProjects(list, { query = '', sort = 'added', filter = 'all', pack = '', agent = '' } = {}) {
-  const q = query.trim().toLowerCase();
-  const match = FILTERS[filter]?.[1] ?? FILTERS.all[1];
-  const rows = list.filter((p) => match(p) && (!pack || p.packs?.includes(pack)) && (!agent || p.agents?.includes(agent)) && (!q || [label(p), p.path, p.notes ?? ''].some((t) => t.toLowerCase().includes(q))));
-  const by = SORTS[sort]?.[1] ?? SORTS.added[1];
-  return rows.map((p, i) => ({ p, i })).sort((a, b) => by(a.p, b.p) || a.i - b.i).map(({ p }) => p);
-}
-
-export function ProjectFilters({ query, onQuery, sort, onSort, filter, onFilter, pack, onPack, packs = [], agent, onAgent, agents = [] }) {
+// The filter row: search, chips (needs attention, no setup, missing folder, each pack and agent in use) and the sort.
+export function ProjectFilters({ query, onQuery, sort, onSort, chips, onChips, packs = [], agents = [] }) {
+  const chip = (value, text) => <Chip key={value} value={value} size="sm" variant="outline">{text}</Chip>;
   return (
     <Group align="flex-end" gap="sm">
       <TextInput label="Search projects" placeholder="Name, folder or notes" leftSection={icon(IconSearch)} value={query} onChange={(e) => onQuery(e.currentTarget.value)} w={{ base: '100%', sm: 220 }} />
-      <Select label="Show" data={FILTER_OPTIONS} value={filter} onChange={(v) => onFilter(v ?? 'all')} allowDeselect={false} w={170} />
-      <Select label="Pack" placeholder="Any pack" clearable data={packs} value={pack || null} onChange={(v) => onPack(v ?? '')} w={150} />
-      <Select label="Agent" placeholder="Any agent" clearable data={agents} value={agent || null} onChange={(v) => onAgent(v ?? '')} w={150} />
       <Select label="Sort by" data={SORT_OPTIONS} value={sort} onChange={(v) => onSort(v ?? 'added')} allowDeselect={false} w={170} />
+      <Chip.Group multiple value={chips} onChange={onChips}>
+        <Group gap={6} role="group" aria-label="Filters">
+          {Object.entries(CHIPS).map(([v, text]) => chip(v, text))}
+          {packs.map((p) => chip(`pack:${p}`, `Pack ${p}`))}
+          {agents.map((a) => chip(`agent:${a.value}`, a.label))}
+        </Group>
+      </Chip.Group>
     </Group>
+  );
+}
+
+// The header strip: the counts of the cards shown and one bar of their health.
+export function ProjectTotals({ list, cards }) {
+  const t = totals(list, cards);
+  const shown = Object.keys(HEALTH).filter((h) => t.by[h]);
+  const fact = (n, text) => <Stack gap={0} key={text}><Text className="bk-num" fz="xl" fw={650}>{n}</Text><Text size="sm">{text}</Text></Stack>;
+  return (
+    <Paper withBorder p="md" component="section" aria-label="Totals">
+      <Stack gap="sm">
+        <Group gap="xl">{[fact(t.projects, 'projects'), fact(t.sync, 'in sync'), fact(t.attention, 'need attention'), fact(t.week, 'sessions this week')]}</Group>
+        {!!t.projects && <div className="bk-stack" role="img" aria-label={`Projects by health: ${shown.map((h) => `${t.by[h]} ${HEALTH[h].text.toLowerCase()}`).join(', ')}`}>
+          {shown.map((h) => <span key={h} title={`${t.by[h]} ${HEALTH[h].text.toLowerCase()}`} style={{ width: `${(t.by[h] / t.projects) * 100}%`, backgroundColor: `var(--bk-h-${HEALTH[h].token})` }} />)}
+        </div>}
+      </Stack>
+    </Paper>
+  );
+}
+
+// Sessions per day as bars; the label is the text alternative, the numbers beside it repeat the totals.
+function Sparkline({ a }) {
+  const top = Math.max(1, ...a.perDay);
+  return (
+    <svg role="img" aria-label={sparkText(a)} viewBox={`0 0 ${a.perDay.length * 4} 24`} preserveAspectRatio="none" width="100%" height={28} style={{ display: 'block' }}>
+      {a.perDay.map((n, i) => <rect key={i} x={i * 4} y={24 - Math.max(n ? 3 : 1, (n / top) * 24)} width={3} height={Math.max(n ? 3 : 1, (n / top) * 24)} fill={n ? 'var(--bk-s1)' : 'var(--bk-line)'} />)}
+    </svg>
+  );
+}
+
+// The setup in one line, the packs and the last 30 days: on the card and on the project's Overview.
+export function ProjectFacts({ p, card, names }) {
+  const a = card?.activity;
+  const setup = p.setupVersion ? [p.agents.map((x) => names[x] ?? x).join(', '), p.tier && `tier ${p.tier}`, ...(card?.owner ?? [])].filter(Boolean).join(', ') : null;
+  return (
+    <>
+      {setup ? <Text size="sm">{setup}</Text> : null}
+      {!!p.packs?.length && <Group gap={4}>{p.packs.map((x) => <Badge key={x} variant="light" size="sm">{x}</Badge>)}</Group>}
+      {a ? (
+        <Stack gap={4}>
+          <Sparkline a={a} />
+          <Text size="sm"><span className="bk-num">{a.sessions}</span> sessions in 30 days{a.change ? ` (${a.change})` : ''}, <span className="bk-num">{costText(a)}</span></Text>
+          {a.last && <Text size="sm">Last session {a.last.time.slice(0, 16).replace('T', ' ')}{a.last.tier ? `, tier ${a.last.tier}` : ''}</Text>}
+        </Stack>
+      ) : card === undefined ? <Text size="sm">Reading sessions</Text> : null}
+    </>
+  );
+}
+
+// The health dot with the doctor finding count.
+export const HealthBadge = ({ p, card }) => {
+  const h = health(p, card);
+  return <Badge variant="default" miw="max-content" leftSection={<Swatch state={HEALTH[h].token} />}>{HEALTH[h].text}{card?.findings ? `, ${plural(card.findings, 'finding')}` : ''}</Badge>;
+};
+
+// One project: name and folder, the health dot, the facts and the actions. The name opens the project's own page.
+export function ProjectCard({ p, card, names, checked, onCheck, onApply, onUpdate, onRemoveSetup }) {
+  const id = useId();
+  return (
+    <Paper component="article" withBorder p="md" aria-labelledby={id}>
+      <Stack gap="sm">
+        <Group gap="xs" justify="space-between" wrap="nowrap" align="flex-start">
+          <Group gap="xs" wrap="nowrap" align="flex-start" miw={0}>
+            <SelectCheckbox p={p} checked={checked} onChange={onCheck} />
+            <Stack gap={0} miw={0}>
+              <Anchor id={id} href={projectHref(p.path)} fw={650} style={{ overflowWrap: 'anywhere' }}>{label(p)}</Anchor>
+              {/* Cut at the start, the end names the folder; bdi keeps the slashes in order inside the right-to-left cut. */}
+              <Text size="xs" truncate="start" title={p.path}><bdi>{p.path}</bdi></Text>
+            </Stack>
+          </Group>
+          <HealthBadge p={p} card={card} />
+        </Group>
+        <ProjectFacts p={p} card={card} names={names} />
+        <Group gap="xs">
+          <Button size="compact-sm" variant="default" component="a" href={projectHref(p.path)} aria-label={`Details of ${label(p)}`}>Details</Button>
+          <Button size="compact-sm" variant="default" onClick={() => go('sessions')}>Open board</Button>
+          {p.missing ? null : !p.setupVersion
+            ? <Button size="compact-sm" variant="default" aria-label={`Set up ${label(p)}`} onClick={onApply}>Set up</Button>
+            : <Button size="compact-sm" variant="default" aria-label={`Apply ${label(p)}`} disabled={!p.changes?.length} onClick={onApply}>Apply</Button>}
+          {!p.missing && p.setupVersion && <Button size="compact-sm" variant="default" leftSection={icon(IconRefresh, 14)} aria-label={`Update ${label(p)}`} disabled={p.current && !lags(p)} onClick={onUpdate}>Update</Button>}
+          {!p.missing && p.checkout && <Button size="compact-sm" variant="subtle" leftSection={icon(IconTrash, 14)} aria-label={`Remove setup of ${label(p)}`} onClick={onRemoveSetup}>Remove setup</Button>}
+        </Group>
+      </Stack>
+    </Paper>
   );
 }
 

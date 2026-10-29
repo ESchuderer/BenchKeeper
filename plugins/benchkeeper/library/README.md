@@ -4,7 +4,7 @@ Skills that the app (`npx benchkeeper@6 projects apply --pack <id> --skill <name
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). Codex ignores the `paths` key.
-- Community skill: `DO_NOT_TRACK=1 npx -y skills@npm:skills@1.7.2 add https://github.com/<source> -s <skill> <agent-flags> --copy -y`, from the source's default branch (the `npm: alias runs the registry package, never a `skills` in the project's `node_modules`). The project's state file records the commit the install got, and `skills-lock.json` its content hash.
+- Community skill: `<skills> add https://github.com/<source> -s <skill> <agent-flags> --copy -y`, from the source's default branch, where `<skills>` is the line `npx benchkeeper@6 skills cli` prints after it checks the release's registry signatures (its `npm:` alias runs the registry package, never a `skills` in the project's `node_modules`). The project's state file records the commit the install got, and `skills-lock.json` its content hash.
 
 <!-- generated:catalog -->
 ## Own
@@ -66,16 +66,6 @@ The skills read `.agents/product-marketing.md` when it exists, which `product-ma
 | Optional: `directory-submissions` | `coreyhaines31/marketingskills` (MIT) | both | The product gets listed in startup, SaaS or AI directories |
 | Optional: `analytics` | `coreyhaines31/marketingskills` (MIT) | both | Event tracking: GA4, tag manager, UTM parameters |
 
-## ECC
-
-Three skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project.
-
-| Skills | Source (license) | Agents | Pick when |
-| --- | --- | --- | --- |
-| `verification-loop` | `affaan-m/ECC` (MIT) | both | Work needs a pass of build, types, lint and a diff review before a pull request |
-| `error-handling` | `affaan-m/ECC` (MIT) | both | The code needs one consistent way to raise, handle and report errors |
-| `architecture-decision-records` | `affaan-m/ECC` (MIT) | both | A design choice needs a record of its context, options and outcome |
-
 ## Security
 
 CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
@@ -115,7 +105,8 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
-| `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
+| `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full |
+| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
@@ -124,16 +115,12 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | `data` | `validate-data`, `exploratory-data-analysis`, `statistical-analysis` | The repository imports, analyzes or publishes datasets |
 | `marketing` | `product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `launch` | A product site, landing pages or a public launch |
 | `operations` | `incident-response`, `compliance-check`, `gdpr-compliant` | A deployed service or regulated product |
-| `ecc` | `verification-loop`, `error-handling`, `architecture-decision-records` | The owner names ECC: its verification, error handling and decision record skills |
 
-## Frameworks
+## Sources
 
-The frameworks project setup offers (`--framework <id>`). A workflow owner is a singleton: at most one per project, and BenchKeeper's own workflow skill gives way in it. A pack framework switches that pack; the others install as shown. Evidence per framework: its evaluation file.
+Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.
 
-| Framework | Role | Installs | Evaluation |
-| --- | --- | --- | --- |
-| `superpowers` | owner | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](../../../evaluations/workflow-frameworks/superpowers.md) |
-| `matt-pocock` | parts | pack `matt-pocock`. The plugin installs for the user (the pack's plugin step), the project gets its docs from the setup skill. | [mattpocock-skills.md](../../../evaluations/skill-libraries/mattpocock-skills.md) |
-| `ecc` | parts | pack `ecc` | [EVALUATIONS.md](../../../EVALUATIONS.md) |
-| `agency-agents` | parts | agent files of `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](../../../evaluations/workflow-frameworks/agency-agents.md) |
+| Source | Agent files | Evaluation |
+| --- | --- | --- |
+| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

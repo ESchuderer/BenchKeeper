@@ -7,6 +7,7 @@ import { isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
+import { dismissedNotes } from './preferences.mjs';
 import { onPath } from './sandbox.mjs';
 import { CLAUDE_KEYS } from './steps/global.mjs';
 
@@ -20,7 +21,7 @@ export const agentSettings = (id) => CATALOG[id] ?? (() => { throw new Error(`no
 
 // Whole words of the name (split at case changes and separators), so includeCoAuthoredBy and MAX_THINKING_TOKENS stay visible.
 const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
-export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
+const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 // A masked value must never come back as an edit: the placeholder would replace the stored secret.
 const hasMask = (v) => (typeof v === 'string' ? v === MASK || v.includes(`"${MASK}"`) || v.includes(`:${MASK}@`) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
@@ -45,7 +46,7 @@ export const redact = (text) => (text == null ? text : redactAt(text.replace(URL
 export const isSettingsFile = (path) => /(^|[\\/])(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 
 // Which layers exist for an agent and where their files are. dir is a project folder; without it only user and managed.
-export function layerFiles(ctx, agentId, dir) {
+function layerFiles(ctx, agentId, dir) {
   const a = agentSettings(agentId);
   const files = [];
   for (const p of a.managed) files.push({ layer: 'managed', path: `${ctx.managedRoot ?? ''}${p}`, readOnly: true });
@@ -71,7 +72,7 @@ export function readSettings(ctx, agentId, { dir } = {}) {
   });
 }
 
-export const pathOf = (key) => key.split('.');
+const pathOf = (key) => key.split('.');
 const dig = (data, path) => path.reduce((o, k) => (o != null && typeof o === 'object' ? o[k] : undefined), data);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -113,7 +114,7 @@ function schemaNode(agentId, path) {
   let node = schema;
   for (const seg of path) {
     node = resolve(schema, node);
-    const next = node?.properties?.[seg] ?? (node?.additionalProperties && typeof node.additionalProperties === 'object' ? node.additionalProperties : null);
+    const next = (node?.properties && Object.hasOwn(node.properties, seg) ? node.properties[seg] : null) ?? (node?.additionalProperties && typeof node.additionalProperties === 'object' ? node.additionalProperties : null);
     if (!next) return null;
     node = next;
   }
@@ -135,7 +136,8 @@ export function describeKey(agentId, key) {
   const types = [...c.types];
   const plain = types.length === 1 ? types[0] : null;
   const type = c.values && !types.some((t) => t !== 'string') ? 'enum' : plain === 'boolean' ? 'bool' : plain === 'integer' ? 'int' : plain === 'number' ? 'number' : plain === 'string' ? 'string' : types.length ? 'json' : 'any';
-  return { key, type, values: c.values ?? undefined, types, sentence: row?.description ?? c.description ?? '', scope: row?.scope, group: row?.topic ?? 'Other', advanced: true, schema: !!node };
+  const d = node ? resolve(SCHEMAS[agentId], node)?.default : undefined;
+  return { key, type, values: c.values ?? undefined, types, sentence: row?.description ?? c.description ?? '', default: d === undefined ? null : typeof d === 'string' ? d : JSON.stringify(d), scope: row?.scope, group: row?.topic ?? 'Other', advanced: true, schema: !!node };
 }
 
 // ---- values: parse, validate ----
@@ -155,7 +157,7 @@ export function parseInput(def, text) {
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
 // null when the value fits the key, else the reason. value undefined or null means removing the key.
-export function validate(agentId, def, value, layer) {
+function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
   switch (def.type) {
@@ -228,8 +230,16 @@ function lookup(state, agentId, key, layers) {
 const isExecutable = (p) => {
   try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
+// The user file's top-level effortLevel against the one level saved under modelSettings: { top, saved, models } when they
+// differ, else null. Different saved levels per model are on purpose: null.
+function effortGap(state, agentId) {
+  const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
+  const levels = Object.entries(saved ?? {}).filter(([, m]) => m?.effortLevel !== undefined);
+  const distinct = new Set(levels.map(([, m]) => m.effortLevel));
+  if (top === undefined || distinct.size !== 1 || distinct.has(top)) return null;
+  return { top, saved: levels[0][1].effortLevel, models: levels.map(([model]) => model).join(', ') };
+}
 function holds(c, state, agentId) {
-  if (c.keys) return c.keys.some((key) => holds({ ...c, keys: undefined, key }, state, agentId));
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
   if (c.not) return !holds(c.not, state, agentId);
@@ -254,10 +264,7 @@ function holds(c, state, agentId) {
   }
   // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
   if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
-  if (c.op === 'effortDiffers') {
-    const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
-    return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
-  }
+  if (c.op === 'effortDiffers') return effortGap(state, agentId) !== null;
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
   // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
   const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);
@@ -266,7 +273,6 @@ function holds(c, state, agentId) {
     if (c.set) return true;
     if ('eq' in c) return v === c.eq;
     if (c.in) return c.in.includes(v);
-    if (c.match) return [v].flat().some((x) => typeof x === 'string' && new RegExp(c.match).test(x));
     if ('lt' in c) return typeof v === 'number' && v < c.lt;
     if (c.falsy) return v === '0' || v === 0 || v === false || /^false$/i.test(String(v));
     // A switch that counts any value as set, versus a plain boolean that 0 and false turn off.
@@ -275,7 +281,7 @@ function holds(c, state, agentId) {
   });
 }
 
-// Findings for the rules of one agent over the given layers: [{ id, level, message, fix, source, keys, key? }].
+// Findings for the rules of one agent over the given layers: [{ id, rule, level, kind, message, fix, default, risk, fixChanges, source, keys, static }].
 // facts: { platform, has(bin) }, as for sandbox.pick; a rule with platforms applies on those only (WSL2 reports linux).
 export function notes(agentId, layers, { env, onlyDoctor = false, partial = false, facts: { platform = process.platform, has = onPath } = {} } = {}) {
   const state = { layers, env, has, platform };
@@ -283,12 +289,12 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll) && (!x.platforms || x.platforms.includes(platform)))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : r.forEach === 'deprecated' ? DEPRECATED.map((d) => d.key) : [null];
     for (const key of expand) {
-      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s);
+      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)));
       const when = key ? JSON.parse(JSON.stringify(r.when).replaceAll('{key}', key)) : r.when;
       if (when && !holds(when, state, agentId)) continue;
       // A value the setup itself writes is on purpose: no finding while every such key still has the setup's value.
       if (r.unlessSetup && r.keys.filter((k) => setupValue(k) !== undefined).every((k) => same(lookup(state, agentId, k)[0], setupValue(k)))) continue;
-      out.push({ id: key ? `${r.id}:${key}` : r.id, rule: r.id, level: r.level, message: fill(r.message), fix: r.fix && fill(r.fix), source: r.source, keys: key ? [key] : r.keys, static: !r.when });
+      out.push({ id: key ? `${r.id}:${key}` : r.id, rule: r.id, level: r.level, kind: r.kind, message: fill(r.message), fix: r.fix && fill(r.fix), default: fill(r.default), risk: fill(r.risk), fixChanges: fill(r.fixChanges), source: r.source, keys: key ? [key] : r.keys, static: !r.when });
     }
   }
   return out;
@@ -333,19 +339,41 @@ function unknownKeys(agentId, layers, known) {
   return out;
 }
 
+const DOCS = { claude: 'https://code.claude.com/docs/en/settings-reference', codex: 'https://learn.chatgpt.com/docs/config-file/config-reference' };
+
+// The facts every view shows for a key: summary, eli5 and impact from the catalog (null outside it: not explained yet), the
+// default, and the value in effect with where it comes from: a layer, the process environment for an env.* key no file sets
+// (a file's env value wins over the shell's), or the default.
+function facts(agentId, def, vals, env) {
+  const name = def.key.startsWith('env.') ? def.key.slice(4) : null;
+  // Only the catalog's switches are read from the environment: a key named in a request never reaches another variable.
+  const fromEnv = !vals.length && def.type === 'switch' && name && env?.[name] !== undefined;
+  const docs = def.source ?? (agentId === 'claude' && referenceRow(def.key) ? `${DOCS.claude}#${def.key.toLowerCase().replaceAll('.', '-')}` : DOCS[agentId]);
+  return { summary: def.summary ?? null, eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
+    value: vals.length ? maskSecrets(vals[0].value, def.key) : fromEnv ? maskSecrets(env[name], name) : undefined, from: vals[0]?.layer ?? (fromEnv ? 'environment' : 'default') };
+}
+
+// The facts of the named keys, for the views that name a setting: the doctor, Insights and the plans.
+export function settingFacts(ctx, agentId, keys, { dir, env } = {}) {
+  const layers = readSettings(ctx, agentId, { dir });
+  return keys.map((key) => ({ key, ...facts(agentId, describeKey(agentId, key) ?? { key }, valuesOf(layers, agentId, key), env) }));
+}
+
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
-  const found = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
+  const all = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
+  // A note the user dismissed is listed apart, so it can be shown again.
+  const off = dismissedNotes(ctx), found = all.filter((n) => !off.has(n.id));
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
     const dflt = setupValue(def.key);
-    return { ...def, basic: def.basic !== false, values: def.values, value: eff ? maskSecrets(eff.value, def.key) : undefined, layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, message, source, static: s }) => ({ id, level, message, source, static: s })) };
+    return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
+      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
-  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), settings, bundles: a.bundles, notes: found.filter((n) => !n.static) };
+  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
   if (agentId === 'codex') result.trust = trustList(layers);
   if (!advanced) return result;
   // Advanced: every key of the pinned schemas and the reference, the app's own rows first.
@@ -358,7 +386,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: sets[0]?.value, layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);
@@ -371,7 +399,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
 }
 
 // Codex [projects."<path>"] entries with whether the folder still exists, from the user layer only.
-export function trustList(layers) {
+function trustList(layers) {
   const user = layers.find((l) => l.layer === 'user');
   return Object.entries(user?.data?.projects ?? {}).map(([path, v]) => ({ path, trust: v?.trust_level ?? null, exists: exists(path) }));
 }
@@ -383,7 +411,8 @@ const strictJson = (text, file) => {
 };
 
 // The editor's write for one key: JSON with comments kept and ancestors created, or a TOML line edit that keeps comments
-// and key order. The result is parsed again before it is returned, so an invalid file never reaches the runner.
+// and key order. The result is parsed again before it is returned, so an invalid file never reaches the runner. For JSON,
+// value may be a function of the value in the file at write time.
 export function editFor(agentId, key, value, file = 'the file') {
   if (agentId === 'codex') {
     return (text) => {
@@ -403,13 +432,14 @@ export function editFor(agentId, key, value, file = 'the file') {
   }
   return (text) => {
     const current = dig(strictJson(text, file), pathOf(key));
-    if (value == null ? current === undefined : same(current, value)) return text;
+    const v = typeof value === 'function' ? value(current) : value;
+    if (v == null ? current === undefined : same(current, v)) return text;
     const path = pathOf(key);
-    const edits = value == null ? [{ path, remove: true }, ...path.slice(0, -1).map((_, i, all) => ({ path: all.slice(0, all.length - i), prune: true }))] : [{ path, value }];
+    const edits = v == null ? [{ path, remove: true }, ...path.slice(0, -1).map((_, i, all) => ({ path: all.slice(0, all.length - i), prune: true }))] : [{ path, value: v }];
     let out;
     try { out = mergeJson(text, edits, file); } catch (e) { if (e instanceof MergeError) throw e; throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`); }
     const back = dig(strictJson(out, file), path);
-    if (value != null ? !same(back, value) : back !== undefined) throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`);
+    if (v != null ? !same(back, v) : back !== undefined) throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`);
     return out;
   };
 }
@@ -444,7 +474,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     }
     const secret = isSecretName(key) || path.some(isSecretName);
     const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(maskSecrets(stored, key))}`;
-    changes.push({ id: `settings:${agentId}:${layer}:${key}`, step: `settings:${agentId}`, title: `${a.name} ${layer} settings: ${key} ${shown}`, kind: 'write', path: target.path, edit: editFor(agentId, key, stored, target.path) });
+    changes.push({ id: `settings:${agentId}:${layer}:${key}`, step: `settings:${agentId}`, title: `${a.name} ${layer} settings: ${key} ${shown}`, kind: 'write', path: target.path, edit: editFor(agentId, key, stored, target.path), settings: { agent: agentId, keys: [key], ...(dir ? { dir } : {}) } });
   }
   const written = Object.keys(edits).filter((k) => edits[k] != null);
   for (const n of notes(agentId, [{ ...target, data: after }]).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
@@ -464,8 +494,8 @@ export function bundleEdits(agentId, id) {
 const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
-// folders that are gone. With dir, only what the project and local layers add to the global findings. Names and places,
-// never values.
+// folders that are gone; a note the user dismissed in Agent settings is left out. With dir, only what the project and
+// local layers add to the global findings. Names and places, never values.
 export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) {
   const out = [];
   for (const id of agents.filter((a) => settingsAgents.includes(a))) {
@@ -477,8 +507,9 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const readable = all.filter((l) => !l.error);
     // A file that cannot be read may hold what a rule about a missing setting looks for.
     const partial = readable.length < all.length;
+    const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

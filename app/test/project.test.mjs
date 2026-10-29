@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, win32 } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
-import { appVersion, contentDir } from '../src/content.mjs';
-import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
+import { appVersion, contentDir, library } from '../src/content.mjs';
+import { projectChecks } from '../src/doctor.mjs';
+import { harnessTest } from '../src/harness.mjs';
+import { SKILLS_SPEC } from '../src/steps/global.mjs';
+import { ENVS, STATE, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -31,6 +34,9 @@ const plan = (r, answers, plugins = { claude: [], codex: [] }) => projectPlan({ 
 test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community skills, state file', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
+  // No registry answer: the skills CLI is the app's minimum, whatever the live registry has published.
+  const real = r.ctx.run;
+  r.ctx.run = (argv, o) => (argv[0] === 'npm' && argv[1] === 'view' ? { code: 1, stdout: '', stderr: 'offline' } : real(argv, o));
   const { changes, prompts } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true });
   const run = apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) });
   assert.equal(run.status, 'done');
@@ -41,7 +47,7 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community ski
   for (const d of ['.claude/skills', '.agents/skills']) assert.ok(existsSync(join(r.dir, d, 'designing-technical-uis/SKILL.md')), d);
   const cmd = changes.find((c) => c.title.startsWith('skill frontend-design'));
   // An alias spec: npx never takes a skills package from the project's node_modules.
-  assert.deepEqual(cmd.argv.slice(0, 3), ['npx', '-y', 'skills@npm:skills@1.7.2']);
+  assert.deepEqual(cmd.argv.slice(0, 3), ['npx', '-y', SKILLS_SPEC]);
   assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills', '-s', 'frontend-design', '-a', 'claude-code']);
   assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && Math.abs(Date.parse(cmd.env.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3 && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);
@@ -75,6 +81,96 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
   assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
+});
+
+test('exclude lines use forward slashes for Windows paths: a backslash escapes the next character in Git', () => {
+  assert.equal(slashRel('C:\\work\\shop', 'C:\\work\\shop\\.claude\\skills\\foo', win32), '.claude/skills/foo');
+});
+test('the dev container wrapper and the worktree files: offered by what the project has, named once written, undone', () => {
+  const r = repo();
+  const opts = { agents: ['claude'], env: 'host-agent' };
+  const steps = (answers) => plan(r, answers).changes.map((c) => c.step);
+  assert.ok(!steps(opts).includes('dc') && !steps(opts).includes('worktrees'));
+  mkdirSync(join(r.dir, '.devcontainer'));
+  writeFileSync(join(r.dir, 'package-lock.json'), '{}\n');
+  // A dispatched worker session the board scan cached for this repository.
+  mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
+  writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+  const { changes } = plan(r, opts);
+  const shown = preview(changes);
+  const dc = shown.find((c) => c.step === 'dc'), files = shown.filter((c) => c.step === 'worktrees');
+  assert.ok(dc.selected && dc.title.startsWith('scripts/dc:'));
+  assert.deepEqual(files.map((c) => [basename(c.path), c.selected]), [['orca.yaml', false], ['.worktreeinclude', false]]);
+  assert.match(files[0].after, /\n {4}scripts\/dc up && scripts\/dc npm ci\n/);
+  assert.match(files[0].title, /setup hook: npm ci \(package-lock\.json\), through scripts\/dc/);
+  for (const p of ['CLAUDE.local.md', '.benchkeeper', 'scripts/dc', 'orca.yaml']) assert.ok(files[1].after.split('\n').includes(p), p);
+  assert.match(shown.find((c) => c.step === 'local-claude').diff, /scripts\/dc <command>/);
+
+  const run = apply(shown, r.ctx, { scope: r.dir, select: shown.map((c) => c.id) });
+  assert.equal(run.status, 'done');
+  assert.ok(statSync(join(r.dir, 'scripts/dc')).mode & 0o100);
+  assert.match(read(join(r.dir, 'CLAUDE.local.md')), /`scripts\/dc <command>`/);
+  for (const p of ['/scripts/dc', '/orca.yaml', '/.worktreeinclude']) assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes(p), p);
+  assert.equal(r.git('status', '--porcelain').toString(), '?? package-lock.json\n');
+  assert.equal(undo(run.id, r.ctx).status, 'done');
+  for (const p of ['scripts/dc', 'orca.yaml', '.worktreeinclude']) assert.ok(!existsSync(join(r.dir, p)), p);
+
+  // Not chosen: the block and the exclude list leave it out.
+  const again = preview(plan(r, opts).changes);
+  apply(again, r.ctx, { scope: r.dir, select: again.filter((c) => c.step !== 'dc').map((c) => c.id) });
+  assert.ok(!existsSync(join(r.dir, 'scripts/dc')));
+  assert.ok(!read(join(r.dir, 'CLAUDE.local.md')).includes('scripts/dc') && !read(join(r.dir, '.git/info/exclude')).includes('scripts/dc'));
+});
+
+test('the worktree setup hook: the install command of the one lockfile at the root, else a line to fill in', () => {
+  const cases = [
+    [['package-lock.json'], 'npm ci'], [['pnpm-lock.yaml'], 'pnpm install --frozen-lockfile'], [['uv.lock'], 'uv sync --locked'],
+    [['yarn.lock'], 'yarn install --frozen-lockfile'], [['yarn.lock', '.yarnrc.yml'], 'yarn install --immutable'],
+    [[], null], [['package-lock.json', 'yarn.lock'], null], [['app/package-lock.json'], null],
+  ];
+  for (const [files, command] of cases) {
+    const r = repo();
+    mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
+    writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+    for (const f of files) { mkdirSync(dirname(join(r.dir, f)), { recursive: true }); writeFileSync(join(r.dir, f), ''); }
+    const yaml = plan(r, { agents: ['claude'], env: 'host-agent' }).changes.find((c) => basename(c.path ?? '') === 'orca.yaml');
+    if (command) {
+      assert.ok(yaml.after.includes(`\n    ${command}\n`), files.join());
+      assert.ok(yaml.title.endsWith(`setup hook: ${command} (${files[0]})`), yaml.title);
+    } else {
+      assert.match(yaml.after, /# the install command from AGENTS\.md/, files.join());
+      assert.ok(yaml.title.endsWith('setup hook: none found, fill in the comment line'), yaml.title);
+    }
+  }
+});
+
+test('scripts/dc runs the command in the dev container of its checkout with each argument as given', { skip: process.platform === 'win32' }, () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.devcontainer'));
+  const shown = preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes);
+  apply(shown, r.ctx, { scope: r.dir, select: shown.filter((c) => c.step === 'dc').map((c) => c.id) });
+  // A devcontainer stub that prints the compose project name, then each argument on a line of its own.
+  const bin = mkdtempSync(join(TMP, 'bk-bin-'));
+  writeFileSync(join(bin, 'devcontainer'), '#!/bin/sh\nprintf \'%s\\n\' "$COMPOSE_PROJECT_NAME"; for a in "$@"; do printf \'%s\\n\' "$a"; done\n');
+  chmodSync(join(bin, 'devcontainer'), 0o755);
+  mkdirSync(join(r.dir, 'web'));
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+  delete env.COMPOSE_PROJECT_NAME;
+  const dc = (args, e = env) => execFileSync(join(r.dir, 'scripts/dc'), args, { cwd: join(r.dir, 'web'), env: e }).toString().split('\n');
+  const [name, ...out] = dc(['sh', '-lc', "cd web && echo 'a  b' *"]);
+  assert.deepEqual(out, ['exec', '--workspace-folder', r.dir, 'sh', '-lc', "cd web && echo 'a  b' *", '']);
+  // Named after the folder and its path: a clone at another path with the same folder name gets another name.
+  assert.match(name, new RegExp(`^\\d+-${basename(r.dir).toLowerCase().replace(/[^a-z0-9_-]/g, '')}$`));
+  const twin = join(mkdtempSync(join(TMP, 'bk-twin-')), basename(r.dir), 'scripts');
+  mkdirSync(twin, { recursive: true });
+  writeFileSync(join(twin, 'dc'), read(join(r.dir, 'scripts/dc')), { mode: 0o755 });
+  const twinName = execFileSync(join(twin, 'dc'), ['true'], { env }).toString().split('\n')[0];
+  assert.ok(twinName !== name && twinName.endsWith(name.replace(/^\d+/, '')), twinName);
+  assert.deepEqual(dc(['up', '--log-level', 'info']), [name, 'up', '--workspace-folder', r.dir, '--log-level', 'info', '']);
+  // A name the user set is kept.
+  assert.equal(dc(['true'], { ...env, COMPOSE_PROJECT_NAME: 'mine' })[0], 'mine');
+  writeFileSync(join(r.dir, '.devcontainer/.env'), 'COMPOSE_PROJECT_NAME=fromenv\n');
+  assert.equal(dc(['true'])[0], '');
 });
 
 test('local: two projects in one repository keep their own exclude blocks; a dropped agent loses its local file; a committed setup is refused', () => {
@@ -157,6 +253,24 @@ test('a community skill is added again from the default branch only when an upda
   assert.deepEqual(titles({ update: ['frontend-design'] }), ['skill frontend-design from anthropics/skills'], 'a ref that is not a commit id is not shown');
 });
 
+test('a community skill without a recorded commit or behind its source is no drift for doctor or verify', () => {
+  const r = repo();
+  const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
+  apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
+  const f = join(r.dir, STATE);
+  const state = JSON.parse(read(f));
+  const community = state.skills.filter((s) => s.source !== 'own');
+  assert.ok(community.length >= 2);
+  community[0].ref = 'a'.repeat(40);
+  delete community[1].ref;
+  writeFileSync(f, JSON.stringify(state));
+  writeFileSync(join(r.dir, 'skills-lock.json'), JSON.stringify({ skills: Object.fromEntries(community.map((s) => [s.name, { source: s.source }])) }));
+  const ctx = { ...r.ctx, run: () => ({ code: 0, stdout: `${'b'.repeat(40)}\tHEAD\n`, stderr: '' }) };
+  const names = community.map((s) => s.name);
+  assert.deepEqual(projectChecks(ctx, r.dir, ['claude']).filter((i) => names.some((n) => i.message.includes(n))), []);
+  assert.deepEqual(harnessTest(ctx, { agents: ['claude'], dir: r.dir }).at(-1).problems, []);
+});
+
 test('the state file records a community skill\'s commit only when its install ran', () => {
   const r = repo();
   const changes = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
@@ -213,44 +327,34 @@ test('packs with plugins install them and list their prompts', () => {
   assert.throws(() => plan(r, { agents: ['claude'], env: 'vm' }), /env must be/);
 });
 
-test("Matt Pocock's Agent skills block moves to AGENTS.md when Codex is selected", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n');
-  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host' });
-  apply(preview(changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
-  assert.match(read(join(r.dir, 'AGENTS.md')), /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
+// The block of a pack's own setup in CLAUDE.md is not moved: that setup runs outside BenchKeeper's plan and undo.
+test('a pack is named in the project text only when it is on: off, no mention; on, its pointer line', () => {
+  const texts = (r) => ['AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.override.md'].map((f) => (existsSync(join(r.dir, f)) ? read(join(r.dir, f)) : '')).join('\n');
+  for (const share of [false, true]) {
+    const off = repo();
+    writeFileSync(join(off.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n');
+    apply(preview(plan(off, { agents: ['claude', 'codex'], env: 'host', share }).changes), off.ctx, { scope: off.dir });
+    assert.equal(read(join(off.dir, 'CLAUDE.md')).includes('## Agent skills'), true, 'CLAUDE.md keeps its block');
+    assert.doesNotMatch(texts(off).replace(/## Agent skills\n\n### Issue tracker\n\nGitHub\.\n/, ''), /pocock/i);
+    const on = repo();
+    apply(preview(plan(on, { agents: ['claude', 'codex'], env: 'host', share, packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'], codex: ['mattpocock-skills@mattpocock'] }).changes), on.ctx, { scope: on.dir });
+    assert.match(texts(on), /- Matt Pocock's skills \(`mattpocock-skills:<name>`\) are installed/);
+  }
 });
 
-test("Matt Pocock's Agent skills block ends at the next heading and leaves the rest of CLAUDE.md", () => {
+test("doctor: a pack whose own setup writes docs/agents/ and AGENTS.md sections is named while they are missing", () => {
+  assert.equal(library().packs.find((p) => p.id === 'matt-pocock').prompts[0].writes, 'docs/agents');
+  const off = repo();
+  apply(preview(plan(off, { agents: ['claude'], env: 'host' }).changes), off.ctx, { scope: off.dir });
+  assert.deepEqual(projectChecks(off.ctx, off.dir, ['claude']).filter((i) => i.check === 'packs'), []);
   const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n## Notes\n\nMine.\n');
-  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host' });
-  apply(preview(changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n\n## Notes\n\nMine.\n');
-  const agents = read(join(r.dir, 'AGENTS.md'));
-  assert.match(agents, /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
-  assert.doesNotMatch(agents, /Mine\./);
-});
-
-test("Matt Pocock's Agent skills block is found with CRLF line endings", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\r\n\r\n## Agent skills\r\n\r\n### Issue tracker\r\n\r\nGitHub.\r\n\r\n## Notes\r\n\r\nMine.\r\n');
-  apply(preview(plan(r, { agents: ['claude', 'codex'], env: 'host' }).changes), r.ctx, { scope: r.dir });
-  const claude = read(join(r.dir, 'CLAUDE.md'));
-  assert.doesNotMatch(claude, /Agent skills|Issue tracker/);
-  assert.match(claude, /## Notes\r\n\r\nMine\./);
-  const agents = read(join(r.dir, 'AGENTS.md'));
-  assert.match(agents, /## Agent skills\r\n\r\n### Issue tracker/);
-  assert.doesNotMatch(agents, /Mine\./);
-});
-
-test("An empty Agent skills block does not take the heading right after it", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n## Notes\n\nMine.\n');
-  apply(preview(plan(r, { agents: ['claude', 'codex'], env: 'host' }).changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n\n## Notes\n\nMine.\n');
-  assert.doesNotMatch(read(join(r.dir, 'AGENTS.md')), /Mine\./);
+  apply(preview(plan(r, { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] }).changes), r.ctx, { scope: r.dir });
+  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs').map((i) => [i.level, i.message, i.fix.split(' ').slice(0, 2).join(' ')]);
+  assert.deepEqual(found(), [['warning', 'pack matt-pocock is on, but docs/agents/ does not exist', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
+  mkdirSync(join(r.dir, 'docs/agents'), { recursive: true });
+  assert.deepEqual(found().map((i) => i[0]), ['info']);
+  writeFileSync(join(r.dir, 'AGENTS.md'), '## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n### Triage labels\n\nDefault.\n\n### Domain docs\n\nNone.\n');
+  assert.deepEqual(found(), []);
 });
 
 test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and podman', () => {

@@ -8,41 +8,44 @@ import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { AGENTS as ACCOUNT_AGENTS, accountDoc, accountStatusAsync, accountsProblem, addBySignIn, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, trackChanges, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
+import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
-import { agent, detect, unavailable } from './agents.mjs';
-import { userEvals } from './cases.mjs';
+import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, projectRows, registeredPaths, writeBoard } from './board.mjs';
+import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
-import { contentDir, appVersion } from './content.mjs';
+import { boardFile as ponytailBoard } from './ponytail.mjs';
+import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
 import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
-import { diffLines } from './diff.mjs';
-import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
-import { blob } from './git.mjs';
+import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
-import { frameworkRows } from './frameworks.mjs';
+import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
-import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
+import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
+import { checkText, paramsChange, paramsView } from './params.mjs';
+import { dismissNote, readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
-import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import { catalog, evalResults, overview, runReport } from './reads.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
-import { detectLevel, levelFor } from './level.mjs';
-import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, upToDate } from './steps/project.mjs';
+import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
+import { levelFor } from './level.mjs';
+import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
-export const HEADER = 'x-benchkeeper';
+const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
 const cookieName = (port) => `bk_session_${port}`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
@@ -84,23 +87,6 @@ export function pickFolder(ctx, platform = process.platform, env = process.env) 
   return { path: null, unavailable: true };
 }
 
-// A file of a recorded session between its snapshots; null for binary or large files and a lost snapshot.
-function sessionDiff(ctx, e, f) {
-  const side = (tree, absent) => (absent ? '' : blob(ctx, e.cwd, tree, f.path));
-  try {
-    const [a, b] = [side(e.before, f.status === 'A'), side(e.after, f.status === 'D')];
-    if (a.length + b.length > 1e6 || a.includes(0) || b.includes(0)) return null;
-    return diffLines(f.status === 'A' ? null : a.toString('utf8'), f.status === 'D' ? null : b.toString('utf8'), f.path);
-  } catch { return null; }
-}
-
-// An Update all change as its commit holds it: the run's worktree is gone. null for a folder or an older run.
-function committed(ctx, run, e) {
-  const { updateAll, commit } = run.note ?? {};
-  if (!updateAll || !commit || !inside(e.path, [run.scope])) return null;
-  try { return blob(ctx, updateAll, commit, relative(realish(run.scope), realish(e.path)).split(sep).join('/')).toString('utf8'); } catch { return null; }
-}
-
 // Changes without their edit functions, with the item state the Dashboard groups by.
 function serialize(changes, ctx) {
   return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
@@ -114,8 +100,7 @@ function setupAnswers(src) {
   const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
   const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
   return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'),
-    // Frameworks are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
-    frameworks: named(src, 'framework', 'frameworks') ? list(src instanceof URLSearchParams ? 'framework' : 'frameworks') : undefined,
+    // Agent files are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
     agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
     // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
@@ -126,6 +111,7 @@ function setupAnswers(src) {
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
+const TIER_BAND = 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand';
 const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
@@ -174,6 +160,21 @@ export function api(ctx) {
     for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
     return id;
   };
+  // A guided sign-in as a job that polls like an apply: run gets the io and signal of login() and the job's state.
+  const signInJob = (title, run) => start(1, async (job) => {
+    const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null, account: null };
+    const io = {
+      say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
+      step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
+      // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
+      code: () => new Promise((ok) => {
+        state.awaitingCode = true;
+        job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
+        job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
+      }),
+    };
+    try { await run({ io, signal: job.ctl.signal }, state); } finally { state.awaitingCode = false; }
+  }, { kind: 'login', title });
   // Machine reads that start agent commands (versions, doctor, inventory) are kept 15 s and dropped by every change.
   const memo = new Map();
   const cached = (key, f) => {
@@ -194,8 +195,35 @@ export function api(ctx) {
     return { shown, key, ...narrativePrompt(narrativeInput(found, shown), key) };
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
+  const editorsOn = () => readPreferences(ctx).editors === true;
+  // While off, the editor routes answer like routes that do not exist.
+  const editorsDir = (raw) => {
+    if (!editorsOn()) throw Object.assign(new Error('no such endpoint'), { status: 404 });
+    const dir = resolve(String(raw ?? ''));
+    if (!registered(dir)) throw bad('register the project first');
+    return dir;
+  };
+  // The newest ledger run per project folder (the ledger lists newest first); an Update all run counts for its folder.
+  const newestRuns = () => {
+    const last = new Map();
+    for (const r of ctx.ledger.list()) { const key = r.note?.updateAll ?? r.scope; if (!last.has(key)) last.set(key, r); }
+    return last;
+  };
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }) }),
+    'GET /api/overview': async () => ({ ...(await overview(ctx, agentsNow(), cached)), editors: editorsOn() }),
+    'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
+    // Dismiss an Agent settings note by id ({ id, dismissed: false } shows it again): hidden there and in Doctor.
+    'POST /api/settings-dismiss': (b) => ({ dismissed: input(() => dismissNote(ctx, b.id, b.dismissed !== false)).dismissed }),
+    // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
+    // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
+    'GET /api/params': (q) => paramsView(editorsDir(q.get('dir'))),
+    'POST /api/params-check': (b) => (editorsDir(b.dir), { errors: input(() => checkText(b.file, b.text)) }),
+    'POST /api/params-plan': (b) => {
+      const dir = editorsDir(b.dir);
+      const pctx = projectCtx(ctx, dir);
+      const changes = preview(input(() => paramsChange(dir, b.file, b.text)));
+      return { planId: keep(changes, pctx, dir), changes: serialize(changes, pctx) };
+    },
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);
@@ -301,13 +329,11 @@ export function api(ctx) {
     // seen: the skills each chosen agent loads there, its global ones included.
     'GET /api/projects': async () => {
       await originsOfProjects();
-      // The newest run per project folder (the ledger lists newest first): the last change, for sorting.
-      const last = new Map();
-      for (const r of ctx.ledger.list()) { const key = r.note?.updateAll ?? r.scope; if (!last.has(key)) last.set(key, r.time); }
+      const last = newestRuns();
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path) ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
       });
     },
     // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
@@ -344,23 +370,33 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
-      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
-      // Skill toggles name skills of this project only.
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
+      // Skill toggles name skills of this project only. A toggle of a skill whose pack is switched off in the same plan is
+      // dropped, so skill and pack switches work in any order; a name outside the library is still an error.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
-      const disable = q.getAll('disable'), enable = q.getAll('enable');
-      const unknown = [...disable, ...enable, ...switches.reset].filter((n) => !own.includes(n));
+      const listed = (n) => own.includes(n) || libraryWith(ctx).skills.some((x) => x.name === n);
+      const unlisted = [...q.getAll('disable'), ...q.getAll('enable')].filter((n) => !listed(n));
+      if (unlisted.length) throw bad(`not in the library: ${unlisted.join(', ')}`);
+      const disable = q.getAll('disable').filter((n) => own.includes(n)), enable = q.getAll('enable').filter((n) => own.includes(n));
+      const unknown = switches.reset.filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
       const notInLibrary = switches.pick.filter((n) => !libraryWith(ctx).skills.some((x) => x.name === n));
       if (notInLibrary.length) throw bad(`not in the library: ${notInLibrary.join(', ')}`);
       const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, ...switches, disable, enable } }));
+      // The packs the repository's files point to, as the setup suggests them.
+      const hints = suggest(dir).packs;
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
       // focus: one skill's action shows only that skill's changes and the records of them.
       const focus = q.getAll('focus');
       const all = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
       const changes = focus.length ? focusOn(all, focus) : all;
+      // The Installs tab's rows: scope hint, fixed scopes, state on disk, agent files and the global block.
+      const rows = projectInstalls(ctx, dir, p.answers);
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
-        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })),
-        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name), pickWhen: libraryWith(ctx).skills.find((s) => s.name === name)?.pickWhen ?? null, ...rows.skills[name] })),
+        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, pickWhen: x.pickWhen ?? null, own: !!x.own, skills: x.skills?.length ?? null, plugin: !!x.plugins, enabled: p.answers.packs.includes(x.id),
+          suggested: hints.find((h) => h.id === x.id)?.reason ?? null, ...rows.packs[x.id] })),
+        files: rows.files, global: rows.global };
     },
     // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
     // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
@@ -376,7 +412,7 @@ export function api(ctx) {
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
-        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), frameworks: frameworkRows() };
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), sources: sourceRows() };
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a
@@ -405,7 +441,14 @@ export function api(ctx) {
       for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
       const ticket = randomBytes(24).toString('base64url');
       t.set(ticket, now);
-      return { ticket };
+      return { ticket, ponytail: isFile(ponytailBoard(ctx)) };
+    },
+    // Opens Ponytail's own board with the opener the CLI uses for the sessions board; the path never comes from the request.
+    'POST /api/ponytail-board': () => {
+      const file = ponytailBoard(ctx);
+      if (!isFile(file)) throw bad("Ponytail's board was not found");
+      (ctx.open ?? launch)(pathToFileURL(file).href);
+      return { opened: file };
     },
     // The page's Stop button: refused while an apply or eval runs; scans, suggestions and rehearsals stop with the server.
     'POST /api/shutdown': () => {
@@ -436,6 +479,46 @@ export function api(ctx) {
       scans.delete(ctx);
       return sessionCache(ctx);
     },
+    // The terminal tier strip: the plugin option the Settings switch plans through /api/settings-plan.
+    'GET /api/tier-band': () => ({ key: TIER_BAND, on: valuesOf(readSettings(ctx, 'claude'), 'claude', TIER_BAND)[0]?.value === true }),
+    // The runs view, read only when it is opened or refreshed: the orchestrated runs of the sessions scan in the registered
+    // projects and their worktrees (git), each project's last setup change from the ledger, and the IDE's runs when it is
+    // installed (not joined: a run line names the coordinator's fan-out, not the IDE's run). Fields are picked: a row's
+    // title can hold prompt text.
+    'GET /api/runs': async () => {
+      if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
+      const { rows, at } = scans.get(ctx);
+      const inside = (dir, p) => p === dir || p?.startsWith(`${dir}/`) || p?.startsWith(`${dir}\\`);
+      const registered = registeredPaths(ctx);
+      const dirs = registered.flatMap(({ path, worktrees }) => [path, ...worktrees]);
+      // A session counts in the deepest worktree holding its folder: a worktree can sit inside its project.
+      const home = (r) => dirs.filter((d) => inside(d, r.project)).sort((a, b) => b.length - a.length)[0];
+      const kept = rows.filter(home);
+      const where = new Map(kept.map((r) => [`${r.run}\n${r.task}`, { worktree: home(r), branch: r.branch ?? null }]));
+      const pick = ({ sessions, costUSD, tokens }) => ({ sessions, costUSD, tokens });
+      const last = newestRuns();
+      return {
+        scanned: new Date(at).toISOString(),
+        runs: byRun(kept).map((x) => ({ run: x.run, ...pick(x), tasks: x.tasks.map((t) => ({ task: t.task, ...pick(t), ...where.get(`${x.run}\n${t.task}`) })) })),
+        setup: registered.map(({ path }) => { const r = last.get(path); return { project: path, lastChange: r ? { kind: r.kind, time: r.time, status: r.status } : null }; }),
+        ide: { name: orca.NAME, runs: orca.installed(ctx) ? await orca.runs(ctx) : null },
+      };
+    },
+    // The Projects view's cards, read after the list: per registered project its sessions of the last 30 days, the count of
+    // its doctor findings, its items by state (modified comes from there) and the workflow owner packs it picked.
+    'GET /api/project-cards': async () => {
+      if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
+      const { rows, at } = scans.get(ctx);
+      const activity = projectActivity(rows, registeredPaths(ctx), new Date(at).toISOString());
+      const dash = new Map(cached('dashboard', () => dashboard(ctx, installed(), inventoryNow())).projects.map((p) => [p.path, p]));
+      const owners = libraryWith(ctx).packs.filter((p) => p.role === 'workflow owner');
+      return listProjects(ctx).map(({ path }) => {
+        let findings = null;
+        if (exists(path)) try { findings = cached(`findings:${path}`, () => projectChecks(ctx, path)).length; } catch { /* the detail's doctor shows the error */ }
+        const d = dash.get(path);
+        return { path, findings, states: d?.states ?? null, owner: owners.filter((p) => d?.packs.includes(p.id)).map((p) => p.title ?? p.id), activity: activity[path] };
+      });
+    },
     'POST /api/update-all': (b) => {
       idle();
       const paths = (b.paths ?? []).filter(registered);
@@ -445,34 +528,13 @@ export function api(ctx) {
       return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
-    // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
-    // which is the backup a later change of the run took, or the file while nothing changed it since.
-    // A session's files diff between its git snapshots.
-    'GET /api/run': (q) => {
-      const run = ctx.ledger.get(q.get('id') ?? '');
-      return { ...run, entries: run.entries.map((e, i) => {
-        // shortcut: git runs twice per file and blocks the server, so only the first 50 files get a diff; stream them when sessions get larger.
-        if (e.kind === 'session' && e.files) return { ...e, files: e.files.map((f, n) => ({ ...f, diff: n < 50 ? sessionDiff(ctx, e, f) : null })) };
-        if (!e.path || e.kind !== 'write' || e.status !== 'done') return e;
-        // Deleted, for example the undo of a file the run created: the backup against nothing.
-        if (e.hashAfter === null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
-        if (isDir(e.path)) return { ...e, folder: true };
-        const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
-        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
-        const d = now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path);
-        return { ...e, diff: isSettingsFile(e.path) ? redact(d) : d };
-      }) };
-    },
+    'GET /api/run': (q) => runReport(ctx, q.get('id') ?? ''),
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
-      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
+      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined, unit: b.unit || undefined });
     },
-    'GET /api/catalog': () => {
-      const lib = libraryWith(ctx), users = usersByPack(ctx);
-      const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-      return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
-    },
+    'GET /api/catalog': () => catalog(ctx),
     'GET /api/skill': (q) => {
       const name = q.get('name');
       if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
@@ -518,10 +580,7 @@ export function api(ctx) {
       (ctx.open ?? openFolder)(dir);
       return { opened: dir };
     },
-    // Eval results without the per-case details; lines that do not parse are left out.
-    'GET /api/evals': () => (readText(join(userEvals(ctx), 'results.jsonl')) ?? '').split('\n').filter(Boolean).flatMap((l) => {
-      try { const { details, ...r } = JSON.parse(l); return [r]; } catch { return []; }
-    }),
+    'GET /api/evals': () => evalResults(ctx),
     'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
     'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
     'POST /api/packs': (b) => input(() => {
@@ -552,6 +611,8 @@ export function api(ctx) {
       if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
       const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
       if (dir && !registered(dir)) throw bad('register the project first');
+      // keys=a,b: only the facts of those keys, for the views that name a setting (the doctor, Insights, the plans).
+      if (q.get('keys')) return input(() => settingFacts(ctx, agentId, q.get('keys').split(','), { dir, env: process.env }));
       return input(() => listSettings(ctx, agentId, { dir, advanced: q.get('advanced') === '1', env: process.env }));
     },
     // A plan for edits { key: value | null } (null removes the key) or a bundle in one layer; applied through /api/apply.
@@ -596,6 +657,21 @@ export function api(ctx) {
       const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
       return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
     },
+    // The size and findings of a rule file with the text being edited; nothing is written.
+    'POST /api/rule-check': (b) => {
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const agents = installed().filter((a) => RULE_AGENTS.includes(a));
+      return input(() => ruleDraft(ctx, { agents: agents.length ? agents : RULE_AGENTS, agent: b.agent, file: b.file, dir, text: b.text }));
+    },
+    // A plan that writes the edited text of one listed file of the user's; applied through /api/apply, undone in History.
+    'POST /api/rule-edit-plan': (b) => {
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const rctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => ruleEdit(ctx, { agent: b.agent, file: b.file, dir, text: b.text })));
+      return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
+    },
     // Accounts: the registry as `accounts list` shows it, the status of one account (reads only), plans for add, use and
     // remove (applied through /api/apply, undone in History), and the guided sign-in as a job that polls like an apply.
     // The page never sees a credential: the registry holds none, a pasted code goes to the agent and into no record.
@@ -613,11 +689,18 @@ export function api(ctx) {
     },
     'POST /api/accounts-plan': (b) => {
       const text = (v) => (typeof v === 'string' && v ? v : undefined);
+      // Usage tracking writes into a host account's folder, which may lie outside the home folder (as `accounts track` does).
+      if (b.op === 'track') {
+        const a = input(() => findAccount(ctx, String(b.name ?? '')));
+        if (a.mode !== 'host') throw bad(`a container account is tracked in a terminal: benchkeeper accounts track ${a.name} --project <dir>`);
+        const changes = preview(input(() => trackChanges(a)));
+        return { planId: keep(changes, { ...ctx, roots: [...ctx.roots, a.dir] }, 'global'), changes: serialize(changes, ctx) };
+      }
       const change = input(() => {
         if (b.op === 'add') return addChange(ctx, newAccount(ctx, { name: text(b.name), agent: text(b.agent), container: b.container === true, label: text(b.label), dir: text(b.dir), mount: text(b.mount) }));
         const a = findAccount(ctx, String(b.name ?? ''));
         if (b.op === 'use') return useChange(ctx, a.name);
-        if (b.op !== 'remove') throw new Error('op must be add, use or remove');
+        if (b.op !== 'remove') throw new Error('op must be add, use, track or remove');
         // A stored token is deleted by the command, which the page does not offer.
         if (a.token) throw new Error(`account ${a.name} keeps a token: remove it in a terminal with benchkeeper accounts remove ${a.name}, which also deletes the token`);
         return removeChange(ctx, a.name);
@@ -633,26 +716,37 @@ export function api(ctx) {
       if (dir && !registered(dir)) throw bad('register the project first');
       if (a.mode === 'container' && !dir) throw bad('a container account signs in inside the dev container of a project: choose the project');
       const email = typeof b.email === 'string' && b.email ? b.email : undefined;
-      return start(1, async (job) => {
-        const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null };
-        const io = {
-          say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
-          step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
-          // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
-          code: () => new Promise((ok) => {
-            state.awaitingCode = true;
-            job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
-            job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
-          }),
-        };
-        try { await login(ctx, a, { io, dir: dir ?? process.cwd(), email, signal: job.ctl.signal }); } finally { state.awaitingCode = false; }
-      }, { kind: 'login', title: `sign in ${a.name}` });
+      return signInJob(`sign in ${a.name}`, (opts) => login(ctx, a, { ...opts, dir: dir ?? process.cwd(), email }));
+    },
+    // Add by sign-in: one click per agent, no question up front. The account is registered only once it is signed in, under
+    // a name from its identity, in the default folder (accounts.mjs addBySignIn); the job's login.account names it.
+    'POST /api/accounts-add': (b) => {
+      idle();
+      if (!ACCOUNT_AGENTS.includes(b.agent)) throw bad(`agent must be one of ${ACCOUNT_AGENTS.join(', ')}`);
+      return signInJob(`add a ${b.agent} account`, async (opts, state) => { state.account = await addBySignIn(ctx, b.agent, { ...opts, dir: process.cwd() }); });
     },
     'POST /api/accounts-code': (b) => {
       const job = jobs.get(b.job ?? '');
       if (!job?.login?.awaitingCode || !job.sendCode) throw bad('no sign-in waits for a code');
       job.sendCode(String(b.code ?? '').slice(0, 4096));
       return { sent: true };
+    },
+    // Automations: the templates and the installed ones with their state and runs, read from the runner (cached like the
+    // other reads that start commands); install, update and remove are plans applied through /api/apply, undone in History.
+    'GET /api/automations': () => cached('automations', () => automationsView(ctx)),
+    'POST /api/automations-plan': (b) => {
+      const id = String(b.id ?? '');
+      const changes = preview(input(() => {
+        if (b.op === 'update') return automationUpdate(ctx, id);
+        if (b.op === 'remove') return automationRemove(ctx, id);
+        if (b.op !== 'install') throw new Error('op must be install, update or remove');
+        const values = b.values ?? {};
+        if (typeof values !== 'object' || Array.isArray(values) || !Object.values(values).every((v) => typeof v === 'string')) throw new Error('values must be an object of parameter name and text');
+        const dir = resolve(String(b.dir ?? ''));
+        if (!registered(dir)) throw new Error('register the project first');
+        return automationInstall(ctx, id, { values, dir });
+      }));
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
     },
     'GET /api/inventory': inventoryNow,
     // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.
@@ -715,7 +809,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
-        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        // project: a project's page shows only its sessions; any other folder is refused.
+        const only = url.searchParams.get('project'), registered = registeredPaths(ctx);
+        if (only != null && !registered.some((x) => x.path === only)) return send(404, { error: 'not a registered project' });
+        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).
@@ -742,7 +839,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
   // network error (browsers retry only GETs). Headers must be allowed longer than that.
   server.keepAliveTimeout = 65e3;
   server.headersTimeout = 70e3;
-  return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
+  return new Promise((ok, fail) => server.once('error', fail).listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }
 
 const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };
@@ -757,7 +854,7 @@ export function launch(target) {
 
 // A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there; handing it the URL would put
 // the token into the arguments, which other local users read with ps. It is not launched: the CLI prints the URL to paste.
-export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
+function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
   if (process.platform !== 'linux') return false;
   const app = run(['xdg-settings', 'get', 'default-web-browser'], { timeout: 5e3 }).stdout.trim();
   return !!app && !app.includes('/') && ['/var/lib/snapd/desktop/applications', '/var/lib/flatpak/exports/share/applications', join(home, '.local/share/flatpak/exports/share/applications')]
@@ -786,7 +883,7 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
   }
 }
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
-export function openFolder(dir) {
+function openFolder(dir) {
   if (process.platform !== 'win32') return launch(dir);
   try { spawn(windowsTool('explorer.exe'), [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
 }

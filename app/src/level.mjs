@@ -11,7 +11,7 @@ import { tryState } from './steps/project.mjs';
 const ID = 'benchkeeper@benchkeeper';
 const GLOBAL_RULES_MARK = 'Keep secrets out of output';
 
-export const ADDS = {
+const ADDS = {
   lite: 'standard adds the local project block (benchkeeper projects apply in each repository); full adds the global rules, settings, packs and the app setup (benchkeeper apply --level full)',
   standard: 'full adds the global rules, settings, packs and the app setup (benchkeeper apply --level full)',
 };

@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { Section } from './parts.jsx';
 import { Loading, Note, useApi } from './shell.jsx';
 
-// Settings: how long the sessions cache keeps a summary after the agent deletes its transcript, and Clear.
+// Preferences: how long the sessions cache keeps a summary after the agent deletes its transcript, and Clear.
 export function SessionsHistory() {
   const cache = useApi('/api/sessions-cache');
   const [days, setDays] = useState(30);

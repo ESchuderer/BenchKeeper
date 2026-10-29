@@ -1,10 +1,11 @@
 // Agent sessions on this machine, read from the Claude Code and Codex transcripts: tier, setup, skills, tests, cost
 // and pull requests per session, for the board. Reads only the transcripts, the ledger and gh; writes only its caches.
-import { createReadStream, readdirSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
 
@@ -19,7 +20,7 @@ const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
-const PARSE = 2;
+const PARSE = 3;
 const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
@@ -34,7 +35,7 @@ const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.
 
 // One Claude Code transcript (or a subagent's, of which only the skills count).
 async function claudeFile(file) {
-  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null };
+  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null, task: null };
   const pending = new Map();
   await lines(file, (line) => {
     const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
@@ -67,7 +68,7 @@ async function claudeFile(file) {
       // A typed prompt, or the approved plan that starts a session after plan mode.
       if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) {
         // Only the first typed prompt: a later one, or tool output, can quote the text.
-        if (!d.turns) for (const t of texts(content)) { d.run ??= orca.runOf(t); d.orca ||= !!d.run || orca.isWorkerPrompt(t); }
+        if (!d.turns) for (const t of texts(content)) { d.run ??= orca.runOf(t); d.task ??= orca.taskOf(t); d.orca ||= !!d.run || orca.isWorkerPrompt(t); }
         d.turns++;
       }
       for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) { d.skills.add(m[1]); if (LOOP_COMMANDS.includes(bare(m[1]))) d.loop = true; }
@@ -154,6 +155,8 @@ export const sessionCache = (ctx) => {
   const codex = new Set(all.filter((x) => x.kind === 'codex').map((x) => x.d?.id));
   return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && x.d?.start && !(x.d?.parent && codex.has(x.d.parent))).length };
 };
+// The repositories (main worktrees) dispatched workers ran in, by the summaries the last scan cached.
+export const workerRepos = (ctx) => new Set(Object.values(readCache(ctx).files).filter((x) => x.d?.orca && typeof x.d.repo === 'string').map((x) => x.d.repo));
 // days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
 export function keepSessionsFor(ctx, days) {
   if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= MAX_DAYS)) throw new Error(`days must be a whole number from 1 to ${MAX_DAYS}, or none`);
@@ -183,20 +186,44 @@ async function parsed(ctx, onFile) {
     const key = `${st.size}:${st.mtimeMs}:${PARSE}`;
     if (cache[file]?.key === key) { next[file] = cache[file]; continue; }
     // A file removed or unreadable since the walk is left out; the others still count and are cached.
-    try { next[file] = { key, kind, d: plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)) }; } catch { /* skipped */ }
+    // A transcript read again keeps the repository found before: its worktree may be gone by now.
+    try { next[file] = { key, kind, d: { ...plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)), repo: cache[file]?.d?.repo } }; } catch { /* skipped */ }
   }
   // The retention is read again here: a change made during the scan stays.
   const { keepDays } = readCache(ctx);
   const kept = expire(Object.fromEntries(Object.entries(cache).filter(([f]) => !(f in next))), keepDays);
-  writeCache(ctx, { ...kept, ...next }, keepDays);
-  return { ...kept, ...next };
+  const all = { ...kept, ...next };
+  await withRepos(ctx, Object.values(all));
+  writeCache(ctx, all, keepDays);
+  return all;
 }
 
-// Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up and the library packs whose skills are all there.
+// The repository a session's folder is a worktree of (its main worktree), found once per folder and kept in the cache,
+// as a worktree removed later cannot be asked. null: not in a repository, or the folder was gone at the first scan.
+// undefined only on a summary cached before this was read.
+async function withRepos(ctx, entries) {
+  const run = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
+  const found = new Map();
+  const repoOf = async (dir) => {
+    if (!existsSync(dir)) return null;
+    const r = await run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { env: repoEnv(), timeout: 15e3 });
+    const main = r.code === 0 ? r.stdout.split('\n').find((l) => l.startsWith('worktree '))?.slice(9) : null;
+    return main ? resolve(main) : null;
+  };
+  for (const x of entries) {
+    if (x.kind === 'sub' || x.d?.repo !== undefined || typeof x.d?.cwd !== 'string') continue;
+    if (!found.has(x.d.cwd)) found.set(x.d.cwd, repoOf(x.d.cwd));
+    x.d.repo = await found.get(x.d.cwd);
+  }
+}
+
+// Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up, and the library packs
+// whose skills are all there or whose plugin is (its skills carry the plugin's name).
 function setupLabels(names = []) {
   const has = new Set(names.map(bare));
-  const labels = [['benchkeeper:', 'BenchKeeper'], ['mattpocock-skills:', 'Matt Pocock'], ['ponytail:', 'Ponytail']].filter(([p]) => names.some((n) => n.startsWith(p))).map(([, l]) => l);
-  for (const p of library().packs) if (p.skills?.length && p.skills.every((s) => has.has(s))) labels.push(p.id);
+  const labels = [['benchkeeper:', 'BenchKeeper']].filter(([p]) => names.some((n) => n.startsWith(p))).map(([, l]) => l);
+  const viaPlugin = (p) => Object.values(p.plugins ?? {}).some((x) => names.some((n) => n.startsWith(`${x.id.split('@')[0]}:`)));
+  for (const p of library().packs) if ((p.skills?.length && p.skills.every((s) => has.has(s))) || viaPlugin(p)) labels.push(p.id);
   return labels;
 }
 
@@ -260,8 +287,8 @@ function withLedger(ctx, rows, since, onNote) {
     if (since && start < since) continue;
     rows.push({
       agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
-      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null,
-      setupVersion: null, prs: [], source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
+      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null, task: null,
+      setupVersion: null, prs: [], repo: null, source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
     });
   }
   return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
@@ -305,12 +332,29 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       agentVersion: d.agentVersion ?? null, title: d.title ?? null, start: d.start, end: d.end, turns: d.turns, models,
       costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
-      pattern: patternOf(d, subagents), subagents, run: d.run ?? null,
-      setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs,
+      pattern: patternOf(d, subagents), subagents, run: d.run ?? null, task: d.task ?? null,
+      setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs, repo: d.repo ?? null,
     });
   }
   const states = await prStates(ctx, rows.flatMap((r) => r.prs));
   for (const r of rows) r.prs = r.prs.map((url) => ({ url, state: states[url] }));
   rows.sort((a, b) => (a.start < b.start ? 1 : -1));
   return ledger ? withLedger(ctx, rows, since, onNote) : rows;
+}
+
+// Cost and tokens per orchestrated run and per task, matched by the ids the scan took from the worker's first prompt; a
+// worker without a run line counts under run null. A Codex row adds tokens only: cost stays null until a row has one.
+export function byRun(rows) {
+  const runs = new Map();
+  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; };
+  const blank = (k, v) => ({ [k]: v, sessions: 0, costUSD: null, tokens: 0 });
+  for (const r of rows) {
+    if (!r.run && !r.task) continue;
+    if (!runs.has(r.run)) runs.set(r.run, { ...blank('run', r.run), tasks: new Map() });
+    const x = runs.get(r.run);
+    if (!x.tasks.has(r.task)) x.tasks.set(r.task, blank('task', r.task));
+    add(x, r);
+    add(x.tasks.get(r.task), r);
+  }
+  return [...runs.values()].map((x) => ({ ...x, tasks: [...x.tasks.values()] }));
 }

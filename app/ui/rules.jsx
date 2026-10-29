@@ -1,6 +1,6 @@
-import { Badge, Button, Code, Drawer, Group, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
-import { IconEye } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Switch, Table, Text, Textarea, Title } from '@mantine/core';
+import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
@@ -10,23 +10,117 @@ const KINDS = { rules: 'Rule files', imports: 'Imports', skills: 'Skill descript
 const LOAD = { always: ['teal', 'loads'], 'path-scoped': ['blue', 'loads for matching files'], off: ['gray', 'off'], shadowed: ['yellow', 'not read'] };
 const number = (n) => n.toLocaleString('en-US');
 
+// A value against its limit, with who sets the limit.
+const Limit = ({ label, value, max, unit, by }) => (
+  <Progress size="sm" value={Math.min(100, (value / max) * 100)} color={value > max ? 'red' : 'teal'} aria-label={`${label}: ${number(value)} of ${number(max)} ${unit}, limit set by ${by}`} />
+);
+
+// A switch request: the plan comes back through onPlan, a refusal shows as an error.
+function useSwitch(dir, onPlan) {
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+  const toggle = async (agent, row, on) => {
+    setBusy(row.path); setError(null);
+    try { onPlan({ row, dir, plan: await api('/api/rules-plan', { agent, file: row.path, dir, on }) }); } catch (e) { setError(e.message); }
+    setBusy(null);
+  };
+  return { busy, error, toggle };
+}
+
+// Findings of the checks: severity, file and line in the message, the fix, and a switch-off plan where that is safe.
+function Findings({ findings, dir, onPlan }) {
+  const { busy, error, toggle } = useSwitch(dir, onPlan);
+  if (!findings.length) return <Text>No rule file is over a limit or broken.</Text>;
+  return (
+    <Stack gap="sm">
+      {error && <Note color="red" title="Not planned">{error}</Note>}
+      <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Rule findings, scrollable' } }}>
+        <Table aria-label="Rule findings" verticalSpacing="xs">
+          <Table.Thead><Table.Tr><Table.Th w={110}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {findings.map((f) => (
+              <Table.Tr key={f.message}>
+                <Table.Td><Badge variant="default" miw="max-content" leftSection={<Dot color={f.level === 'error' ? 'red' : 'yellow'} />}>{f.level}</Badge></Table.Td>
+                <Table.Td style={{ overflowWrap: 'anywhere' }}>{f.message}</Table.Td>
+                <Table.Td>
+                  <Stack gap={4} align="flex-start">
+                    <Text size="sm">{f.fix}</Text>
+                    {f.action && <Button size="compact-xs" variant="default" leftSection={icon(IconPlayerStop)} disabled={busy === f.action.file} onClick={() => toggle(f.action.agent, { path: f.action.file, shown: f.file }, false)}>Turn off {f.file}</Button>}
+                  </Stack>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Stack>
+  );
+}
+
 const Loads = ({ row }) => {
   const [color, text] = LOAD[row.load];
   return <Badge variant="default" miw="max-content" leftSection={<Dot color={color} />}>{text}</Badge>;
 };
 
-// The text of one listed file, on this machine only.
-function Preview({ agent, file, dir, onClose }) {
-  const state = useApi(file ? `/api/rule-text?${new URLSearchParams({ agent, file, ...(dir ? { dir } : {}) })}` : null);
+// The text of a file being edited: size and findings from the server 300 ms after the last keystroke (an answer for an
+// older text is dropped), Save as a plan with the diff.
+function RuleEditor({ row, dir, start, onDone, onClose }) {
+  const [text, setText] = useState(start);
+  const [check, setCheck] = useState({ tokens: row.tokens, lines: row.lines, findings: null });
+  const [plan, setPlan] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const body = { agent: row.agent, file: row.path, ...(dir ? { dir } : {}) };
+  const latest = useRef(text);
+  useEffect(() => {
+    latest.current = text;
+    const timer = setTimeout(() => {
+      api('/api/rule-check', { ...body, text }).then((r) => { if (latest.current === text) setCheck(r); }, (e) => setFailed(e.message));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [text]);
+  const save = async () => {
+    setFailed(null);
+    try { setPlan(await api('/api/rule-edit-plan', { ...body, text })); } catch (e) { setFailed(e.message); }
+  };
   return (
-    <Drawer opened={!!file} onClose={onClose} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Rule file text' } }}>
+    <Stack gap="sm">
+      <Textarea label={`Text of ${row.shown}`} value={text} onChange={(e) => { setText(e.currentTarget.value); setPlan(null); }} autosize minRows={10} maxRows={30} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />
+      <Text size="sm" aria-live="polite">About {number(check.tokens)} tokens, {number(check.lines)} lines</Text>
+      {check.findings && (check.findings.length
+        ? <List size="sm" aria-label={`Findings in ${row.shown}`}>{check.findings.map((f) => <List.Item key={f.message}>{f.level}: {f.message}. Fix: {f.fix}.</List.Item>)}</List>
+        : <Text size="sm">The checks find nothing in this file.</Text>)}
+      {failed && <Note color="red" title="Not planned">{failed}</Note>}
+      {plan
+        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={onDone} /><Group><Button variant="default" onClick={onClose}>Close editor</Button></Group></Section>
+        : <Group><Button onClick={save} disabled={text === start}>Save</Button><Button variant="default" onClick={onClose}>Discard</Button></Group>}
+    </Stack>
+  );
+}
+
+// A row the editor may write: the user's own or the project's file, listed in the view it belongs to.
+const editable = (row, dir) => row.owner !== 'BenchKeeper' && row.exists !== false && !(dir && row.scope === 'global');
+
+// The text of one listed file, on this machine only; Edit turns it into the editor.
+function Preview({ row, dir, onClose, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const state = useApi(row ? `/api/rule-text?${new URLSearchParams({ agent: row.agent, file: row.path, ...(dir ? { dir } : {}) })}` : null);
+  const close = () => { setEditing(false); onClose(); };
+  return (
+    <Drawer opened={!!row} onClose={close} closeOnEscape={!editing} closeOnClickOutside={!editing} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Rule file text' } }}>
       <Stack gap="md">
-        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{file}</Title><Button variant="default" onClick={onClose}>Close</Button></Group>
+        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{row?.path}</Title><Button variant="default" onClick={close}>Close</Button></Group>
         <Loading state={state} label="the file">
           {(d) => (
             <>
               <Text size="sm">Shown here only: it is not written to History, logs or the exported profile.{d.truncated ? ' The first 200,000 characters.' : ''}</Text>
-              <Code block tabIndex={0} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{d.text}</Code>
+              {editing
+                ? <RuleEditor row={row} dir={dir} start={d.text} onDone={() => { state.reload(); onSaved(); }} onClose={() => setEditing(false)} />
+                : (
+                  <>
+                    {editable(row, dir) && !d.truncated && <Group><Button leftSection={icon(IconPencil)} onClick={() => setEditing(true)}>Edit</Button></Group>}
+                    <Code block tabIndex={0} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{d.text}</Code>
+                  </>
+                )}
             </>
           )}
         </Loading>
@@ -42,6 +136,12 @@ function Budget({ budget }) {
       {budget.over && <Note color="yellow">More than {number(budget.threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
       {budget.onDemand > 0 && <Text size="sm">About {number(budget.onDemand)} more tokens of path-scoped rules load only when matching files are used.</Text>}
       {budget.notes.map((n) => <Note key={n} color="yellow">{n}</Note>)}
+      {budget.limits.map((l) => (
+        <Stack key={l.label} gap={2}>
+          <Text size="sm">{l.label}: {number(l.value)} of {number(l.max)} {l.unit} (limit set by {l.by})</Text>
+          <Limit {...l} />
+        </Stack>
+      ))}
       <Table.ScrollContainer minWidth={480} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Context budget, scrollable' } }}>
         <Table aria-label="Context budget" verticalSpacing="xs">
           <Table.Thead><Table.Tr><Table.Th>Source</Table.Th><Table.Th>Counts as</Table.Th><Table.Th ta="right">Tokens</Table.Th></Table.Tr></Table.Thead>
@@ -54,14 +154,8 @@ function Budget({ budget }) {
   );
 }
 
-function Files({ agent, dir, onPlan, onPreview }) {
-  const [busy, setBusy] = useState(null);
-  const [error, setError] = useState(null);
-  const toggle = async (row, on) => {
-    setBusy(row.path); setError(null);
-    try { onPlan({ row, dir, plan: await api('/api/rules-plan', { agent: agent.id, file: row.path, dir, on }) }); } catch (e) { setError(e.message); }
-    setBusy(null);
-  };
+function Files({ agent, dir, limit, onPlan, onPreview }) {
+  const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
   return (
     <Stack gap="sm">
@@ -75,14 +169,14 @@ function Files({ agent, dir, onPlan, onPreview }) {
                 <Table.Td>{r.order ?? '-'}</Table.Td>
                 <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code><Text size="sm">{r.scope}</Text></Stack></Table.Td>
                 <Table.Td><Badge variant="default" miw="max-content">{r.owner}</Badge></Table.Td>
-                <Table.Td ta="right">{number(r.tokens)} tokens<Text size="sm">{number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text></Table.Td>
+                <Table.Td ta="right">{number(r.tokens)} tokens<Text size="sm">{number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Table.Td>
                 <Table.Td><Stack gap={2}><Loads row={r} />{r.by && <Text size="sm">{r.by}</Text>}</Stack></Table.Td>
                 <Table.Td miw={220}>
                   <Group gap="xs" wrap="nowrap" align="flex-start">
                     {r.switch.by
-                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={r.load === 'off' ? 'Turn on' : 'On'} checked={r.load !== 'off'} disabled={busy === r.path} onChange={(e) => toggle(r, e.currentTarget.checked)} />
+                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={r.load === 'off' ? 'Turn on' : 'On'} checked={r.load !== 'off'} disabled={busy === r.path} onChange={(e) => toggle(agent.id, r, e.currentTarget.checked)} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
-                    <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r.path)}>Text</Button>
+                    <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -95,9 +189,10 @@ function Files({ agent, dir, onPlan, onPreview }) {
 }
 
 // The instruction files each agent loads, globally or for a registered project, with the context they cost.
-export function Rules({ overview, params, refresh }) {
+// project: a registered folder; the view then shows only its files, without the choice.
+export function Rules({ overview, params, refresh, project }) {
   const projects = overview.data?.projects ?? [];
-  const [dir, setDir] = useState(params.get('path') ?? GLOBAL);
+  const [dir, setDir] = useState(project ?? params.get('path') ?? GLOBAL);
   const [pending, setPending] = useState(null);
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
@@ -106,19 +201,21 @@ export function Rules({ overview, params, refresh }) {
   shown.current = chosen;
   const state = useApi(`/api/rules${chosen ? `?${new URLSearchParams({ dir: chosen })}` : ''}`);
   const choose = (v) => { setDir(v ?? GLOBAL); setPending(null); };
+  const onPlan = (p) => { if (p.dir === shown.current) setPending(p); };
   return (
     <Stack gap="lg">
-      <Note>The instruction files the agents load, who wrote them and what they cost in context. A file that is not BenchKeeper's is yours: Doctor does not report it, and nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
-      <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />
+      <Note>The instruction files the agents load, who wrote them, what they cost in context and what the checks found. A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
+      {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
       <Loading state={state} label="instruction files">
         {(data) => (
           <Stack gap="xl">
+            <Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} /></Section>
             {data.agents.map((a) => (
               <Stack key={a.id} gap="md">
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} onPlan={(p) => { if (p.dir === shown.current) setPending(p); }} onPreview={(file) => setPreview({ agent: a.id, file })} />
+                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} />
                 </Section>
               </Stack>
             ))}
@@ -131,8 +228,8 @@ export function Rules({ overview, params, refresh }) {
           <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
         </Section>
       )}
-      <Preview agent={preview?.agent} file={preview?.file} dir={chosen} onClose={() => setPreview(null)} />
-      <Cli>{'benchkeeper rules list [--agent claude|codex] [--project <dir>]\nbenchkeeper rules disable <file> [--project <dir>]\nbenchkeeper rules enable <file> [--project <dir>]'}</Cli>
+      <Preview key={preview?.path} row={preview} dir={chosen} onClose={() => setPreview(null)} onSaved={() => { state.reload(); refresh(); }} />
+      <Cli>{'benchkeeper rules list [--agent claude|codex] [--project <dir>]\nbenchkeeper rules check [--project <dir>] [--limit <tokens>]\nbenchkeeper rules disable <file> [--project <dir>]\nbenchkeeper rules enable <file> [--project <dir>]'}</Cli>
     </Stack>
   );
 }

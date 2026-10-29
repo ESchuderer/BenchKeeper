@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
+import SiteFooter from './SiteFooter';
 import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
@@ -21,10 +22,9 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
-const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
+export const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
@@ -54,9 +54,11 @@ function Part({ icon, title, href, scope, children }: { icon: ReactNode; title: 
 }
 
 const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
-const half = Math.ceil(facts.sdlc.steps.length / 2);
+export const half = Math.ceil(facts.sdlc.steps.length / 2);
 
-function StepList({ from, className }: { from: number; className?: string }) {
+export const SDLC_INTRO = 'The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.';
+
+export function StepList({ from, className }: { from: number; className?: string }) {
   return (
     <Timeline active={facts.sdlc.steps.length} bulletSize={30} lineWidth={2} className={className}>
       {facts.sdlc.steps.slice(from, from + half).map((st, i) => (
@@ -90,15 +92,7 @@ function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
   );
 }
 
-const reasons: [string, string][] = [
-  ['Quality', 'in BenchKeeper\'s mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock\'s skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).'],
-  ['Time', 'it depends on the version: setup-v4.0 with Matt Pocock\'s skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.'],
-  ['Cost', 'Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3); external results range from 10% less to 55% more.'],
-  ['Skills by level', 'the full flow runs only for full-tier work. Small changes load one targeted skill.'],
-  ['One install', 'one machine setup covers every repository. Each repository adds only its tracker, docs and stack.'],
-];
-
-const host = ['Rules and the plugins: BenchKeeper, Ponytail, optionally Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
+const host = ['Rules and the plugins: BenchKeeper, optionally Ponytail and Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
 const container = ['The agent (default), started with devcontainer exec', 'Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
 function Side({ label, color, items }: { label: string; color: string; items: string[] }) {
@@ -124,12 +118,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Badge variant="light" size="lg">Setup for Claude Code and Codex</Badge>
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02}><span className="grad">BenchKeeper</span></Title>
                 <Text size="xl" maw={560}>
-                  Short rules, a workflow skill that sizes each change, and Ponytail for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
+                  Short rules and a workflow skill that sizes each change for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
                   Each repository adds its dev container, AGENTS.md and stack skills.
                 </Text>
                 <Group mt="sm">
                   <Button component="a" href="#start" size="md">Set up your machine</Button>
                   <Button component="a" href="#sdlc" size="md" variant="default">See the workflow</Button>
+                  <Button component="a" href={`${base}/overview/`} size="md" variant="default">What it brings</Button>
                 </Group>
               </Stack>
               <Box ta="center">
@@ -139,7 +134,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.">
+        <Section id="sdlc" title="One loop, sized to the change" intro={SDLC_INTRO}>
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -158,10 +153,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
               The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.
             </Part>
-            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, his plugin, global in both agents">
+            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, workflow owner, his plugin, global in both agents">
               Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
             </Part>
-            <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, level full">
+            <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Optional pack, global, level full">
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
@@ -173,6 +168,17 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
+        <Section id="features" title="Features">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" verticalSpacing="lg">
+            {facts.overview.parts.map((p) => (
+              <Stack key={p.id} gap={4}>
+                <Anchor href={`${base}/overview/#${p.id}`} fw={700}>{p.title}</Anchor>
+                <Text size="sm" c="dimmed">{md(`${p.text.split('. ')[0]}.`)}</Text>
+              </Stack>
+            ))}
+          </SimpleGrid>
+        </Section>
+
         <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             {facts.levels.map((l) => (
@@ -181,17 +187,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Text size="sm" mt="xs">{md(l.contains)}</Text>
                 <Text size="sm" c="dimmed" mt="xs">Writes: {md(l.writes)}.</Text>
                 <Code block mt="sm" className="cmd">{l.command}</Code>
-              </Paper>
-            ))}
-          </SimpleGrid>
-        </Section>
-
-        <Section id="frameworks" title="Frameworks you already use" intro={facts.frameworks.rule}>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            {facts.frameworks.items.map((f) => (
-              <Paper key={f.name} withBorder p="lg" radius="lg">
-                <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evaluation}`}>Evaluation</Anchor></Text>
               </Paper>
             ))}
           </SimpleGrid>
@@ -238,9 +233,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="selected" title="Why this stack">
           <List spacing="sm" maw={760}>
-            {reasons.map(([k, v]) => <List.Item key={k}><Text span fw={700}>{k}:</Text> {v}</List.Item>)}
+            {facts.stack.reasons.map((r) => <List.Item key={r.name}><Text span fw={700}>{r.name}:</Text> {r.text}</List.Item>)}
           </List>
-          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${RESEARCH}#recorded-results`}>benchmark results</Anchor>.</Text>
         </Section>
 
         <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">
@@ -259,17 +253,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
       </main>
 
-      <Box component="footer" className="band" py="xl">
-        <Container size="lg">
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed">
-              BenchKeeper, MIT License
-              {updated && commit && <>, updated {updated} (<Anchor href={`${REPO}/commit/${commit}`} size="sm">{commit.slice(0, 7)}</Anchor>)</>}
-            </Text>
-            <Anchor href={REPO} size="sm">github.com/ESchuderer/BenchKeeper</Anchor>
-          </Group>
-        </Container>
-      </Box>
+      <SiteFooter updated={updated} commit={commit} />
     </MantineProvider>
   );
 }

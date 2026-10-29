@@ -2,9 +2,11 @@
 // An account is a folder of its own (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a named volume in a dev container.
 // The registry holds names, folders and dates, never a credential. A token (opt-in, for unattended containers) lives in the
 // OS credential store, goes to one launch only and never into a file, the ledger, a log or devcontainer.json.
-// Switching accounts is the user's choice at a launch. The only exception is the opt-in auto-pick (usage.mjs, settings in
-// accounts.json): a new launch under the default account may start under another account of the same pool, never a running session.
-import { chmodSync, mkdirSync, statSync } from 'node:fs';
+// Switching accounts is the user's choice at a launch. The exceptions are opt-in (usage.mjs, settings in accounts.json): auto-pick
+// (a new launch under the default account may start under another account of the same pool) and the confirmed handover to a new
+// session of a pool member; never a running session.
+import { randomUUID } from 'node:crypto';
+import { chmodSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { openPrivate, signInUrl } from './browser.mjs';
@@ -12,10 +14,11 @@ import { childEnv } from './childenv.mjs';
 import { StoreError, credentialStore } from './credstore.mjs';
 import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
-import { exists, inside, readText } from './fsx.mjs';
+import { exists, inside, isDir, readText } from './fsx.mjs';
+import { git } from './git.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
-import { HOOK_SOURCE, STATE_DIR, assess, headroom, lowWindows, limitsFor, parseState, qualifies, readyAt, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
+import { CODEX_READER, HOOK_SOURCE, STATE_DIR, assess, codexReading, headroom, lowWindows, limitsFor, nearNotices, parseState, qualifies, readyAt, rotation, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
 
 export const AGENTS = registry.filter((a) => a.features.accounts).map((a) => a.id);
 const VAR = { claude: 'CLAUDE_CONFIG_DIR', codex: 'CODEX_HOME' };
@@ -34,11 +37,11 @@ const ESC = String.fromCharCode(27), BEL = String.fromCharCode(7);
 const ANSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]|${ESC}\\][^${BEL}]*${BEL}`, 'g');
 const clean = (t) => String(t).replace(ANSI, '').replace(/[^\P{Cc}\t\n]/gu, '');
 // shortcut: a token of an unknown shape that sits in a run shorter than 32 characters is not recognised; a longer run is hidden.
-export const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
+const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
 
 // ---- registry: accounts.json in the config folder
 
-export const registryFile = (ctx) => join(ctx.config, 'accounts.json');
+const registryFile = (ctx) => join(ctx.config, 'accounts.json');
 const where = (ctx) => (ctx.env ?? process.env);
 const home = (ctx) => ctx.home ?? homedir();
 
@@ -79,7 +82,7 @@ export function pickAccount(ctx, { name, agent }) {
 
 // The registry as a change of the usual kind: a diff in the plan, a ledger entry, undo. f maps the list to the new list
 // and throws on a refusal, which the preview shows as the change's error; g does the same for the settings. The registry holds no credential.
-export function registryChange(title, ctx, f, g = (s) => s) {
+function registryChange(title, ctx, f, g = (s) => s) {
   return { id: 'accounts', step: 'accounts', title, kind: 'write', path: registryFile(ctx), edit: (text) => {
     const doc = parseDoc(text), settings = g(doc.settings);
     const out = `${JSON.stringify({ schemaVersion: 1, ...(settings && Object.keys(settings).length ? { settings } : {}), accounts: f(doc.accounts) }, null, 2)}\n`;
@@ -89,6 +92,7 @@ export function registryChange(title, ctx, f, g = (s) => s) {
 }
 export const commit = (ctx, change, select) => apply(preview([change]), ctx, { scope: 'global', select });
 
+const dataDir = (ctx, name) => join(home(ctx), '.local/share/benchkeeper/accounts', name);
 // The entry `accounts add` plans; opts: { name, agent, container, label, dir, mount (container accounts) }.
 export function newAccount(ctx, o) {
   if (!NAME.test(o.name ?? '')) throw new Error('the name is 1 to 32 characters: lower case letters, digits, - and _, starting with a letter or digit');
@@ -101,8 +105,10 @@ export function newAccount(ctx, o) {
     return { ...base, mode: 'container', volume: `benchkeeper-${o.agent}-${o.name}`, mount };
   }
   // Outside the config folder: the agent's own login file sits there, and the config folder is what the ledger and backups hold.
-  const dir = resolve(o.dir ?? join(home(ctx), '.local/share/benchkeeper/accounts', o.name));
+  const dir = resolve(o.dir ?? dataDir(ctx, o.name));
   if (inside(dir, [ctx.config])) throw new Error('the account folder must lie outside the BenchKeeper config folder');
+  // Sign-in makes the folder this user's alone and tracking writes settings.json into it: never a folder that holds something.
+  if (o.dir !== undefined && isDir(dir) && readdirSync(dir).length) throw new Error(`${dir} is not empty: an account gets a new or empty folder`);
   return { ...base, mode: 'host', dir };
 }
 export const addChange = (ctx, entry) => registryChange(`add ${entry.agent} account ${entry.name} (${entry.mode === 'host' ? 'host' : 'dev container'})`, ctx, (list) => {
@@ -128,7 +134,7 @@ export const tokenChange = (ctx, name, created) => registryChange(`${created ? '
 export const accountDoc = (a, settings) => ({ name: a.name, agent: a.agent, mode: a.mode, label: a.label ?? null, default: !!a.default, pool: a.pool ?? null, limits: limitsFor(settings, a), ...(a.mode === 'host' ? { dir: a.dir } : { volume: a.volume, mount: a.mount }), token: { kept: !!a.token, created: a.token?.created ?? null } });
 
 // Thresholds and pool: o is { minimum, warn, pool (null clears), reset (drops the account's thresholds) } for one account, or
-// { minimum, warn, autoPick, whenNone, continueBelow } for the settings. A value left out stays as it is.
+// { minimum, warn, autoPick, whenNone, continueBelow, rotate } for the settings. A value left out stays as it is.
 const mergeLimits = (old, o) => {
   const out = {};
   for (const k of ['minimum', 'warn']) { const v = { ...old?.[k], ...o[k] }; if (Object.keys(v).length) out[k] = v; }
@@ -144,8 +150,8 @@ export const limitsChange = (ctx, name, o) => registryChange(`${o.reset ? 'reset
   });
 });
 export const settingsChange = (ctx, o) => registryChange('set the usage settings of BenchKeeper', ctx, (list) => list, (old) => {
-  const { autoPick, whenNone, continueBelow } = o;
-  return { ...old, ...mergeLimits(old, o), ...(autoPick === undefined ? {} : { autoPick }), ...(whenNone === undefined ? {} : { whenNone }), ...(continueBelow === undefined ? {} : { continueBelow }) };
+  const { autoPick, whenNone, continueBelow, rotate } = o;
+  return { ...old, ...mergeLimits(old, o), ...(autoPick === undefined ? {} : { autoPick }), ...(whenNone === undefined ? {} : { whenNone }), ...(continueBelow === undefined ? {} : { continueBelow }), ...(rotate === undefined ? {} : { rotate: { ...old?.rotate, ...rotate } }) };
 });
 
 export const store = (ctx) => ctx.credentials ?? credentialStore(ctx.run, { env: where(ctx) });
@@ -171,12 +177,18 @@ const asyncRun = (ctx) => ctx.runAsync ?? ctx.run;
 function* engineSteps(ctx) {
   for (const e of ['podman', 'docker']) if ((yield [[e, '--version'], { env: where(ctx) }]).code === 0) return e;
 }
-export const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
+const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
 const mounts = (ctx) => listAccounts(ctx).filter((a) => a.mode === 'container').flatMap((a) => ['--mount', `type=volume,source=${a.volume},target=${a.mount}`]);
-// devcontainer exec runs cmd in the project's container; the account's folder variable (and the token, on request) are
-// --remote-env values. shortcut: a value on a command line is visible to this user's other processes while it runs.
-const execArgv = (engine, dir, a, cmd, { token } = {}) => ['devcontainer', 'exec', '--docker-path', engine, '--workspace-folder', dir, '--remote-env', `${VAR[a.agent]}=${a.mount}`,
-  ...(token && a.agent === 'claude' ? ['--remote-env', `${TOKEN_VAR}=${token}`] : []), ...cmd];
+// devcontainer exec runs cmd in the project's container; the account's folder variable is a --remote-env value.
+const execArgv = (engine, dir, a, cmd) => ['devcontainer', 'exec', '--docker-path', engine, '--workspace-folder', dir, '--remote-env', `${VAR[a.agent]}=${a.mount}`, ...cmd];
+// A token never goes on a command line (other processes of the user see it there), and not on the launch's stdin (devcontainer
+// exec gives the agent a terminal only when its stdin is one): a file of mode 0600 in the account's volume, written through
+// stdin, that the launch reads and removes before it starts the agent.
+// The two scripts are the app's only shell, run inside the container, and take data only as "$1" and "$@" (security.test.mjs).
+// One file name per launch, so two launches of one account do not remove each other's file.
+const tokenFile = (a) => `${a.mount}/.benchkeeper-token-${randomUUID()}`;
+const writeToken = ['sh', '-c', 'umask 077 && rm -f "$1" && cat > "$1"', 'sh'];
+const withToken = ['sh', '-c', 'CLAUDE_CODE_OAUTH_TOKEN=$(cat "$1") && rm -f "$1" && export CLAUDE_CODE_OAUTH_TOKEN && shift && exec "$@"', 'sh'];
 const hasDevcontainer = (dir) => exists(join(dir, '.devcontainer')) || exists(join(dir, '.devcontainer.json'));
 
 // Starts the project's container with every container account's volume (a mount applies when the container is created) and
@@ -194,8 +206,8 @@ function* containerSteps(ctx, a, dir) {
   if ((yield inContainer(['grep', '-qF', ` ${a.mount} `, '/proc/self/mountinfo'])).code !== 0 || (yield inContainer(['test', '-w', a.mount])).code !== 0) throw new Error(`the volume ${a.volume} is not mounted at ${a.mount} in this container, or not writable for its user. A mount applies when a container is created: recreate it with\n  ${[...up, '--remove-existing-container'].join(' ')}`);
   return engine;
 }
-export const ensureContainer = (ctx, a, dir) => drive(containerSteps(ctx, a, dir), ctx.run);
-export const ensureContainerAsync = (ctx, a, dir) => driveAsync(containerSteps(ctx, a, dir), asyncRun(ctx));
+const ensureContainer = (ctx, a, dir) => drive(containerSteps(ctx, a, dir), ctx.run);
+const ensureContainerAsync = (ctx, a, dir) => driveAsync(containerSteps(ctx, a, dir), asyncRun(ctx));
 
 // ---- status and preflight
 
@@ -221,9 +233,9 @@ function* usageNowSteps(ctx, a, { dir, now }) {
 }
 
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
-// dir: the project whose dev container a container account is checked in.
-function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
-  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, usage: object | null, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, usage: null, findings: [] });
+// dir: the project whose dev container a container account is checked in. usage false: the sign-in only (accounts list).
+function* statusSteps(ctx, a, { dir, now = Date.now(), token, usage = true } = {}) {
+  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, email: string | null, plan: string | null, tokenAgeDays?: number, usage: object | null, tracking?: boolean, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, email: null, plan: null, usage: null, findings: [] });
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r, gone = false, engine = null;
@@ -242,7 +254,9 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
     // Claude Code prints JSON (exit 1 when not logged in); Codex prints a line and uses the exit code.
     let doc = null;
     try { doc = JSON.parse(r.stdout); } catch { /* not JSON */ }
-    if (a.agent === 'claude' && typeof doc?.loggedIn === 'boolean') { out.loggedIn = doc.loggedIn; out.method = typeof doc.authMethod === 'string' ? clean(doc.authMethod).slice(0, 40) : null; }
+    const field = (v, n) => (typeof v === 'string' && v ? clean(v).slice(0, n) : null);
+    // email and subscriptionType are unverified: the CLI reference documents loggedIn, authMethod and configDirectory only.
+    if (a.agent === 'claude' && typeof doc?.loggedIn === 'boolean') Object.assign(out, { loggedIn: doc.loggedIn, method: field(doc.authMethod, 40), email: field(doc.email, 200), plan: field(doc.subscriptionType, 40) });
     else if (a.agent === 'codex' && (r.code === 0 || (r.code === 1 && /not logged in/i.test(`${r.stdout}\n${r.stderr}`)))) out.loggedIn = r.code === 0;
     if (out.loggedIn === false) out.findings.push(finding('warning', a.name, 'not signed in, or the login expired', relogin));
     else if (out.loggedIn === null) out.findings.push(finding('info', a.name, `login state not read: ${tail(r)}`, 'run the agent in this account once to see why'));
@@ -252,9 +266,18 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
     if (age >= EXPIRED_DAYS) out.findings.push(finding('error', a.name, `the stored token is ${age} days old and has run out`, `${relogin} --token`));
     else if (age >= WARN_DAYS) out.findings.push(finding('warning', a.name, `the stored token is ${age} days old (a token lasts a year)`, `${relogin} --token`));
   }
-  // Usage: Claude Code only (no documented source for Codex), and a container account only where its container was reached.
-  out.usage = supports(a.agent, 'usage') && (a.mode === 'host' || engine) ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
-  if (!supports(a.agent, 'usage')) out.notAvailable = notAvailable('usage', a.agent);
+  if (!usage) return out;
+  // Usage: the status line files of a Claude Code account, where its container was reached. Codex has no feed: its app-server
+  // is asked once, for a signed-in host account.
+  if (supports(a.agent, 'usage')) out.usage = a.mode === 'host' || engine ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
+  else if (a.agent === 'codex' && !(a.mode === 'host' && out.loggedIn)) out.notAvailable = a.mode === 'host' ? 'not read: not signed in' : 'not read: Codex usage is read for host accounts only';
+  else if (a.agent === 'codex') {
+    const c = codexReading((yield [[process.execPath, '-e', CODEX_READER], { env: accountEnv(ctx, a), timeout: 30e3 }]).stdout, now);
+    if (c.usage) out.usage = assess({ usage: c.usage, failures: [] }, limitsFor(registrySettings(ctx), a), now);
+    else out.notAvailable = `not read: ${hide(c.reason)}`;
+  } else out.notAvailable = notAvailable('usage', a.agent);
+  // Tracking set up but no reading yet (no session since): the page says so instead of offering to track again.
+  if (supports(a.agent, 'usage') && a.mode === 'host') out.tracking = exists(scriptOf(a));
   if (out.usage) out.findings.push(...usageFindings(a.name, out.usage, relogin));
   return out;
 }
@@ -275,16 +298,17 @@ export class NeedsConfirm extends Error {
   constructor() { super('below the minimum headroom of the account (--yes starts anyway, --account <name> chooses another)'); }
 }
 const sleep = (ctx, ms) => (ctx.sleep ?? ((n) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, n)))(ms);
-export const accountUsage = (ctx, a, o) => drive(usageNowSteps(ctx, a, o), ctx.run);
+const accountUsage = (ctx, a, o) => drive(usageNowSteps(ctx, a, o), ctx.run);
 
 // The usage check of a launch, for an account with a window below its minimum. Returns null (go on: confirmed, or the settings
 // say go on; the findings printed before show the windows), { account, confirmed? } (start under that account instead; confirmed after a wait), or throws NeedsConfirm or a stop.
 // Auto-pick (settings, off by default) acts here and nowhere else: only for a new launch under the default account, only among
-// the accounts of the chosen one's pool (accounts of one person), only to an account known to be at or above its minimum.
+// the accounts of the chosen one's pool (accounts of one person), only to an account known to be at or above its minimum,
+// and only for an agent with a usage feed (Claude Code): a Codex account is never switched for the user.
 function launchGate(ctx, a, u, { dir, now, pick, confirmed, say }) {
   if (!lowWindows(u).length) return null;
   const settings = settingsOf(registrySettings(ctx));
-  if (!(settings.autoPick && pick && a.pool)) {
+  if (!(settings.autoPick && pick && a.pool && supports(a.agent, 'usage'))) {
     if (!confirmed && !settings.continueBelow) throw new NeedsConfirm();
     return null;
   }
@@ -305,7 +329,8 @@ function launchGate(ctx, a, u, { dir, now, pick, confirmed, say }) {
 
 // Runs an agent as the account in the foreground, after the preflight. Returns the exit code; a refusal throws.
 // pick: the account was not named, so auto-pick may replace it. confirmed: the user said go on below the minimum.
-export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now() } = {}) {
+// used: called with the account the agent starts under.
+export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now(), used = () => {} } = {}) {
   if (args[0] !== a.agent) throw new Error(`account ${a.name} is a ${a.agent} account: the command is ${a.agent}`);
   let token;
   if (useToken) {
@@ -318,14 +343,81 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   // A failed check that is only "could not read" does not stop a launch; a login that is gone does.
   if (s.loggedIn === false && !useToken) throw new Error(`account ${a.name} is not signed in, or the login expired: benchkeeper accounts login ${a.name}`);
   for (const f of s.findings.filter((x) => x.level !== 'info')) say(`${f.level}: ${f.message} (${f.fix})`);
+  for (const f of s.usage ? nearNotices(a.name, s.usage) : []) say(`notice: ${f.message} (${f.fix})`);
   const gate = s.usage ? launchGate(ctx, a, s.usage, { dir, now, pick, confirmed, say }) : null;
-  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed });
+  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed, used });
+  used(a);
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
-  const r = a.mode === 'host'
-    ? ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' })
-    : ctx.run(execArgv(engineOf(ctx), dir, a, args, { token }), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' });
-  return r.code;
+  if (a.mode === 'host') return ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' }).code;
+  const engine = engineOf(ctx), opts = { cwd: dir, env: baseEnv(ctx), timeout: 60e3 };
+  if (!token) return ctx.run(execArgv(engine, dir, a, args), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
+  const file = tokenFile(a);
+  const w = ctx.run(execArgv(engine, dir, a, [...writeToken, file]), { ...opts, input: token });
+  if (w.code !== 0) throw new Error(`could not hand the token to the container: ${tail(w, token)}`);
+  try {
+    return ctx.run(execArgv(engine, dir, a, [...withToken, file, ...args]), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
+  } finally {
+    // The launch removes the file as it reads it; this covers a launch that never got that far.
+    ctx.run(execArgv(engine, dir, a, ['rm', '-f', file]), opts);
+  }
+}
+
+// ---- rotation by handover (opt-in per agent, settings.rotate): a fresh session on another account of the pool continues the work
+
+// The decision for account a (usage.mjs rotation), with the setting. Off reads nothing.
+export function rotationFor(ctx, a, { dir, now = Date.now() } = {}) {
+  const setting = settingsOf(registrySettings(ctx)).rotate[a.agent];
+  if (setting === 'off') return { action: 'none', setting };
+  const usage = (x) => accountStatus(ctx, x, { dir, now }).usage;
+  const pool = a.pool ? listAccounts(ctx).filter((x) => x.agent === a.agent && x.name !== a.name && x.pool === a.pool).map((x) => ({ account: x, usage: usage(x) })) : [];
+  return { ...rotation(usage(a), pool, setting, now), setting };
+}
+
+// Shown when rotation is turned on and before each handover. The sources are the providers' own pages; this is not legal advice.
+export const ROTATE_WARNING = {
+  claude: 'warning: rotating accounts to extend usage may go against Anthropic\'s terms: the usage limits of Pro and Max assume ordinary, individual usage (https://code.claude.com/docs/en/legal-and-compliance), and the consumer terms prohibit bypassing its protective measures (https://www.anthropic.com/legal/consumer-terms, section 3). The risk is yours; this is not legal advice.',
+  codex: 'warning: OpenAI\'s Terms of Use forbid circumventing rate limits (https://openai.com/policies/terms-of-use/), and its Sign in with ChatGPT Terms forbid rotating accounts to bypass usage limits (https://openai.com/policies/sign-in-with-chatgpt-terms/). The risk is yours; this is not legal advice.',
+};
+// A login variable in the environment takes precedence over the account's folder in the agent. childEnv drops these names,
+// so one reaches a session only when BENCHKEEPER_PASS_ENV names it.
+const LOGIN_VARS = { claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'], codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'] };
+export const loginVars = (ctx, agent) => LOGIN_VARS[agent].filter((k) => where(ctx)[k]);
+
+const HANDOFF = '.benchkeeper/handoff.md';
+const HANDOVER = '.benchkeeper/handover.md';
+const FIELDS = ['Outcome', 'What changed', 'Checks and results', 'Open risks', 'Next step'];
+// The fields of the handoff block a dispatched worker writes (its worker spec), each up to the next field.
+function handoffFields(text) {
+  const out = {};
+  let key = null;
+  for (const line of String(text ?? '').split('\n')) {
+    const f = FIELDS.find((k) => line.trim().startsWith(`${k}:`));
+    if (f) { key = f; out[f] = line.trim().slice(f.length + 1).trim(); } else if (key && line.trim()) out[key] += ` ${line.trim()}`;
+  }
+  return out;
+}
+// The handover for the session on the next account: built from the worktree's git state and the last handoff block, never from
+// a transcript. File names only for uncommitted changes; token shapes are masked.
+export function handover(ctx, dir, { from, to }) {
+  const g = (args) => { const r = git(ctx, dir, args, { env: where(ctx), timeout: 15e3 }); return r.code === 0 ? r.stdout : ''; };
+  const root = g(['rev-parse', '--show-toplevel']).trim() || dir, branch = g(['rev-parse', '--abbrev-ref', 'HEAD']).trim() || 'unknown';
+  const changed = g(['status', '--porcelain', '--untracked-files=all']).split('\n').filter(Boolean).map((l) => l.slice(3)).filter((f) => f !== HANDOVER);
+  const h = handoffFields(readText(join(root, HANDOFF)));
+  const commits = g(['log', '-5', '--format=%s']).split('\n').filter(Boolean);
+  const text = [`# Handover from account ${from.name} to ${to.name}`, '',
+    'The usage of the previous account reached its minimum headroom. Continue the work below in this worktree; do not start over.', '',
+    `## Task and goal\n\n${h.Outcome ? `Last reported outcome: ${h.Outcome}. ` : ''}Continue the work on branch ${branch}: the sections below say what is done and what is open.`, '',
+    `## Done\n\n${h['What changed'] ?? (commits.length ? commits.map((c) => `- ${c}`).join('\n') : 'nothing committed yet')}`, '',
+    `## Open\n\n${h['Open risks'] ?? 'not recorded'}`, '',
+    `## Worktree and branch\n\n${root}, branch ${branch}`, '',
+    `## Uncommitted changes\n\n${changed.length ? changed.map((f) => `- ${f}`).join('\n') : 'none'}`, '',
+    `## Next step\n\n${h['Next step'] ?? 'Read git status and the last commits, then continue with the open part of the task.'}`, ''].join('\n');
+  return { path: join(root, HANDOVER), text: hide(text) };
+}
+export function writeHandover(h) {
+  mkdirSync(join(h.path, '..'), { recursive: true });
+  writeFileSync(h.path, h.text);
 }
 
 // ---- usage tracking: the status line script and the StopFailure hook in the account's folder (Claude Code)
@@ -334,7 +426,7 @@ const scriptOf = (a) => stateFile(a, 'usage.mjs');
 const settingsFile = (a) => (a.mode === 'host' ? join(a.dir, 'settings.json') : `${a.mount}/settings.json`);
 // A host account's change as a plan of the usual kind (diff, ledger run, undo; the folder may lie outside the home folder, so it
 // is added to the roots by the caller). One unit: when the settings cannot take the status line, the script is not written either.
-const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no documented source`); };
+const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no status line to track (accounts status reads Codex usage from its app-server)`); };
 export const trackChanges = (a, { remove = false } = {}) => {
   requireUsage(a);
   return [
@@ -456,7 +548,30 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
   const s = await accountStatusAsync(ctx, a, { dir });
   if (s.loggedIn === false) throw new Error(`the sign-in ended but ${a.name} is still not signed in: ${s.findings[0]?.fix ?? 'try again'}`);
   io.step('done', { loggedIn: s.loggedIn, method: s.method });
-  return { stored: false };
+  return { stored: false, status: s };
+}
+
+// The first of base, base-2, base-3 ... that taken does not hold.
+const free = (base, taken) => { let n = 1; while (taken(n === 1 ? base : `${base}-${n}`)) n++; return n === 1 ? base : `${base}-${n}`; };
+// The local part of an address as a name: 29 characters at most, so a number on a clash still fits. The end is trimmed
+// in a loop: /[-_]+$/ takes quadratic time on a long run of dashes.
+const slug = (email) => {
+  let s = String(email ?? '').split('@')[0].toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 29).replace(/^[-_]+/, '');
+  while (/[-_]$/.test(s)) s = s.slice(0, -1);
+  return s;
+};
+// Add by sign-in: the agent signs in first, in a new folder below the data folder, and only a signed-in account is registered,
+// under a name from its identity (Claude Code's address; Codex prints none, so its name is the agent's with a number).
+// The folder keeps its first name: the agent may tie its stored login to the folder path. opts: those of login.
+export async function addBySignIn(ctx, agentId, opts) {
+  const names = new Set(listAccounts(ctx).map((x) => x.name));
+  const a = newAccount(ctx, { name: free(agentId, (n) => names.has(n) || exists(dataDir(ctx, n))), agent: agentId });
+  const { status } = await login(ctx, a, opts);
+  const taken = new Set(listAccounts(ctx).map((x) => x.name));
+  const name = free(slug(status.email) || agentId, (n) => taken.has(n));
+  const run = commit(ctx, addChange(ctx, { ...a, name }));
+  if (run.status !== 'done') throw new Error(`signed in, but the account was not added: ${run.entries.find((e) => e.error)?.error ?? run.status}. Add it by hand: benchkeeper accounts add ${name} --agent ${agentId} --dir ${a.dir}`);
+  return name;
 }
 
 // Codex has no token command: the access token comes from stdin (a pipe, never an argument) and goes to codex login
@@ -473,5 +588,3 @@ function loginCodexToken(ctx, a, { io, dir }) {
   io.step('done', { stored: false });
   return { stored: false };
 }
-
-export { StoreError };

@@ -15,7 +15,7 @@ import { lockedSkills } from './steps/project.mjs';
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 // Item states in the order the bar draws them; untracked is a skill folder BenchKeeper did not install.
-export const STATES = [...RANK, 'untracked'];
+const STATES = [...RANK, 'untracked'];
 const count = (items) => Object.fromEntries(STATES.map((s) => [s, items.filter((i) => i.state === s).length]));
 
 // A project's items: the plan's, plus each community skill that is in place and needs no change (the plan holds no step for it).
@@ -47,7 +47,7 @@ function untracked(path, state) {
   return found.size;
 }
 
-// The packs enabled as plugins, per agent (Matt Pocock's skills are one: the pack has no skill list).
+// The packs enabled as plugins, per agent (a pack that installs a plugin has no skill list).
 const globalPacks = (ctx, agents) => Object.fromEntries(agents.map((a) => {
   const on = pluginState(ctx, a).listed.filter((p) => p.enabled).map((p) => p.id);
   return [a, (PLUGINS[a] ?? []).filter((p) => p.pack && on.includes(p.id)).map((p) => p.pack)];

@@ -9,7 +9,7 @@ import { doctor } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
-import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -44,9 +44,20 @@ test('pins: every catalog key is in a pinned schema or the reference, every coup
     assert.ok(page, `${r.id}: no pinned page for ${r.source}`);
     for (const q of [r.quote].flat()) assert.ok(page.includes(norm(q)), `${r.id}: the pinned page no longer holds: ${q}`);
     assert.ok(/^https:\/\//.test(r.source), r.id);
+    // The kind picks the title; the plain words say what the default is, what it risks and what the fix changes.
+    assert.ok(['conflict', 'hardening', 'ignored', 'note'].includes(r.kind), `${r.id}: kind must be conflict, hardening, ignored or note`);
+    for (const f of ['default', 'risk', 'fixChanges']) assert.ok(typeof r[f] === 'string' && /^\S.*\.$/.test(r[f]), `${r.id}: ${f} must be one sentence`);
   }
   // Every catalog entry has a sentence, a default and a source.
   for (const id of settingsAgents) for (const s of agentSettings(id).settings) assert.ok(s.sentence && s.default && /^https:\/\//.test(s.source), s.key);
+});
+
+test('describeKey: names of built-in object members are not schema keys', () => {
+  const nested = { claude: 'permissions', codex: 'sandbox_workspace_write' };
+  for (const id of settingsAgents) for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(describeKey(id, name), null, `${id} ${name}`);
+    assert.equal(describeKey(id, `${nested[id]}.${name}`), null, `${id} ${nested[id]}.${name}`);
+  }
 });
 
 test('pinned schemas: advanced mode lists every schema leaf, none is left undescribed', () => {
@@ -55,6 +66,63 @@ test('pinned schemas: advanced mode lists every schema leaf, none is left undesc
   const list = listSettings(ctx, 'codex', { advanced: true });
   assert.ok(list.advanced.some((a) => a.key === 'sandbox_workspace_write.network_access'));
   assert.ok(listSettings(ctx, 'claude', { advanced: true }).advanced.some((a) => a.key === 'modelSettings'), 'a reference key the schema lacks');
+});
+
+// Sentences end at a period, question or exclamation mark before a space or the end, so v2.1.281 and Opus 5.5 stay one.
+const sentences = (s) => s.trim().split(/(?<=[.!?])\s+/).filter(Boolean).length;
+test('explainer: every catalog entry has a one-line summary, an eli5 of up to two sentences and an impact of up to three', () => {
+  for (const id of settingsAgents) {
+    for (const s of agentSettings(id).settings) {
+      for (const f of ['summary', 'eli5', 'impact']) assert.ok(typeof s[f] === 'string' && s[f].trim(), `${id} ${s.key}: ${f} is missing or empty`);
+      assert.ok(!s.summary.includes('\n') && sentences(s.summary) === 1, `${id} ${s.key}: the summary is one line`);
+      assert.ok(sentences(s.eli5) <= 2, `${id} ${s.key}: the eli5 is at most two sentences`);
+      assert.ok(sentences(s.impact) <= 3, `${id} ${s.key}: the impact is at most three sentences`);
+    }
+  }
+});
+
+test('facts: the current value names its source: user, project, local or managed file, the environment, or the default', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(claudeUser(ctx), JSON.stringify({ model: 'user', env: { DISABLE_ERROR_REPORTING: '1' } }));
+  write(join(dir, '.claude/settings.json'), '{ "cleanupPeriodDays": 9 }');
+  write(join(dir, '.claude/settings.local.json'), '{ "outputStyle": "Explanatory" }');
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{ "theme": "light" }');
+  // A file's env value wins over the shell's; a variable no file sets comes from the environment.
+  const env = { DISABLE_ERROR_REPORTING: 'shell', DISABLE_TELEMETRY: '1' };
+  const keys = ['model', 'cleanupPeriodDays', 'outputStyle', 'theme', 'env.DISABLE_ERROR_REPORTING', 'env.DISABLE_TELEMETRY', 'autoMemoryEnabled'];
+  const facts = Object.fromEntries(settingFacts(ctx, 'claude', keys, { dir, env }).map((f) => [f.key, f]));
+  assert.deepEqual(keys.map((k) => [facts[k].value, facts[k].from]), [['user', 'user'], [9, 'project'], ['Explanatory', 'local'], ['light', 'managed'], ['1', 'user'], ['1', 'environment'], [undefined, 'default']]);
+  const memory = agentSettings('claude').settings.find((s) => s.key === 'autoMemoryEnabled');
+  assert.deepEqual(facts.autoMemoryEnabled, { key: 'autoMemoryEnabled', summary: memory.summary, eli5: memory.eli5, impact: memory.impact, default: 'true', docs: memory.source, value: undefined, from: 'default' });
+  // The editor's rows carry the same facts.
+  const row = listSettings(ctx, 'claude', { dir, env }).settings.find((s) => s.key === 'env.DISABLE_TELEMETRY');
+  assert.deepEqual([row.value, row.from, row.summary], ['1', 'environment', facts['env.DISABLE_TELEMETRY'].summary]);
+});
+
+test('facts outside the catalog: no explanation, the schema default, the value, its source and the docs link', () => {
+  const ctx = machine();
+  write(claudeUser(ctx), '{ "agent": "reviewer" }');
+  write(codexUser(ctx), 'file_opener = "cursor"\n');
+  const [agent] = settingFacts(ctx, 'claude', ['agent']);
+  assert.deepEqual(agent, { key: 'agent', summary: null, eli5: null, impact: null, default: null, docs: 'https://code.claude.com/docs/en/settings-reference#agent', value: 'reviewer', from: 'user' });
+  // An env.* key outside the catalog's switches never reads the process environment.
+  assert.deepEqual(settingFacts(ctx, 'claude', ['env.HOME_SECRET'], { env: { HOME_SECRET: 'x' } }).map((f) => [f.value, f.from]), [[undefined, 'default']]);
+  const [opener] = settingFacts(ctx, 'codex', ['file_opener']);
+  assert.deepEqual([opener.summary, opener.value, opener.from, opener.docs], [null, 'cursor', 'user', 'https://learn.chatgpt.com/docs/config-file/config-reference']);
+  const advanced = listSettings(ctx, 'claude', { advanced: true }).advanced.find((r) => r.key === 'agent');
+  assert.deepEqual([advanced.summary, advanced.from, advanced.docs], [null, 'user', agent.docs]);
+});
+
+test('facts are named where a setting is: a settings plan, a doctor finding and the route', async () => {
+  const ctx = machine();
+  const [planned] = settingsChanges(ctx, 'claude', { edits: { theme: 'light' } });
+  assert.deepEqual(planned.settings, { agent: 'claude', keys: ['theme'] });
+  write(claudeUser(ctx), JSON.stringify({ advisorModel: 'opus', env: { DISABLE_TELEMETRY: '1' } }));
+  const found = doctor(ctx, { agents: ['claude'], env: {} }).find((i) => /advisor stays off/.test(i.message));
+  assert.deepEqual(found.settings, { agent: 'claude', keys: COUPLINGS.rules.find((r) => r.id === 'advisor-needs-flags').keys });
+  const facts = await api(ctx)['GET /api/settings'](new URLSearchParams({ agent: 'claude', keys: 'advisorModel,theme' }));
+  assert.deepEqual(facts.map((f) => [f.key, f.value, f.from]), [['advisorModel', 'opus', 'user'], ['theme', undefined, 'default']]);
 });
 
 test('Claude Code: set and remove keep other keys and their order; unknown keys survive; secrets stay out of the list', () => {
@@ -186,7 +254,9 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5', model: 'claude-sonnet-5-5' }), []);
   assert.deepEqual(messages({ advisorModel: 'sonnet', model: 'claude-opus-5-5' }), [], 'an alias resolves to the current default: not checked');
-  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } })[0], /likely a no-op/);
+  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } })[0], /effortLevel \(high\) in the user file differs from the level medium saved under modelSettings for claude-opus-5-5:/);
+  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' }, 'claude-fable-5-1': { effortLevel: 'medium' }, 'claude-sonnet-5-5': { maxEffortLevel: 'xhigh' } } })[0], /for claude-opus-5-5, claude-fable-5-1:/, 'names every model that differs');
+  assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' }, 'claude-fable-5-1': { effortLevel: 'xhigh' } } }), [], 'different levels per model are on purpose');
   assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'high' } } }), [], 'the same level on both is what the setup writes');
   assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { maxEffortLevel: 'xhigh' } } }), []);
   assert.deepEqual(messages({ effortLevel: 'high' }), []);
@@ -243,15 +313,17 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   const keys = (list) => list.map((i) => i.message.match(/sandbox\.\w+(\.\w+)?|bubblewrap|socat/)?.[0] ?? 'unsupported').sort();
   const on = { sandbox: { enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false, network: { allowedDomains: ['registry.npmjs.org'] } } };
   for (const platform of ['linux', 'darwin']) {
-    // Nothing set: the sandbox is off, and the retry key is not false. The off rule and the retry rule are warnings; no more.
+    // Nothing set: the sandbox is off, a warning; the retry key matters only while the sandbox is on, so no more.
     const none = found({}, platform);
-    assert.deepEqual(keys(none), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], platform);
+    assert.deepEqual(keys(none), ['sandbox.enabled'], platform);
     assert.ok(none.every((i) => i.level === 'warning' && /benchkeeper settings set sandbox\./.test(i.fix) && /code\.claude\.com\/docs\/en\/sandboxing/.test(i.fix)));
     assert.deepEqual(found(on, platform), [], `${platform}: everything set`);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, enabled: false } }, platform)), ['sandbox.enabled'], 'explicitly off');
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: undefined } }, platform)), ['sandbox.failIfUnavailable']);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: false } }, platform)), ['sandbox.failIfUnavailable']);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, allowUnsandboxedCommands: true } }, platform)), ['sandbox.allowUnsandboxedCommands']);
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, allowUnsandboxedCommands: undefined } }, platform)), ['sandbox.allowUnsandboxedCommands'], 'unset is true while the sandbox is on');
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, enabled: false, allowUnsandboxedCommands: true } }, platform)), ['sandbox.enabled'], 'the retry is no note while the sandbox is off');
     // The empty allowlist is advice (info) while the sandbox is on, and never a warning.
     const empty = found({ sandbox: { ...on.sandbox, network: { allowedDomains: [] } } }, platform);
     assert.deepEqual(keys(empty), ['sandbox.network.allowedDomains']);
@@ -289,7 +361,7 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   assert.deepEqual(found(on, 'darwin', have()).map((i) => i.level), ['warning'], 'macOS left out');
   assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), []);
   write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
-  assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], 'a missing program matters only while the sandbox is on');
+  assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.enabled'], 'a missing program matters only while the sandbox is on');
   assert.deepEqual(found(on, 'darwin', have()), [], 'macOS needs neither');
   // Native Windows: unsupported, information, never a warning, whatever the settings say.
   for (const settings of [{}, on]) {
@@ -413,38 +485,12 @@ test('Doctor: a bypass default mode in project or local settings is flagged, in 
   assert.equal(found().length, 0, 'the user file takes the mode: the user\'s own choice');
 });
 
-test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or the sonnet alias on Foundry is warned about', () => {
+test('Doctor: the advisor rank sees a [1m] model id', () => {
   const ctx = machine();
   const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message); };
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5[1m]', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.match(messages({ advisorModel: 'claude-opus-4-6[1m]', model: 'claude-opus-5-5[1m]' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
-  // The retiring id, in every place a model is named; other ids and platform forms are not touched.
-  const OLD = 'claude-sonnet-4-5-20250929';
-  for (const settings of [{ model: OLD }, { model: `${OLD}[1m]` }, { env: { ANTHROPIC_DEFAULT_MODEL: OLD } }, { advisorModel: OLD }, { fallbackModel: [OLD] }, { env: { ANTHROPIC_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_SONNET_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: OLD } }, { env: { CLAUDE_CODE_SUBAGENT_MODEL: OLD } }]) {
-    assert.match(messages(settings).join(), /retires on 2026-11-30/, JSON.stringify(settings));
-  }
-  assert.match(messages({}, { ANTHROPIC_DEFAULT_MODEL: OLD }).join(), /retires on 2026-11-30/, 'the default for new sessions, from the process environment');
-  assert.deepEqual(messages({}), []);
-  assert.deepEqual(messages({ model: 'claude-sonnet-5-5' }), []);
-  assert.deepEqual(messages({ model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0' }), [], 'Bedrock keeps its own schedule');
-  // The sonnet alias on Foundry resolves to Sonnet 4.5; the setup's own subagent alias counts too.
-  const FOUNDRY = { CLAUDE_CODE_USE_FOUNDRY: '1' };
-  assert.match(messages({ env: { ...FOUNDRY, CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/);
-  assert.match(messages({ model: 'opusplan', env: FOUNDRY }).join(), /Microsoft Foundry/);
-  assert.match(messages({ model: 'sonnet' }, FOUNDRY).join(), /Microsoft Foundry/, 'Foundry set in the process environment');
-  assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/, 'the default for new sessions');
-  assert.match(messages({}, { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'opusplan' }).join(), /Microsoft Foundry/, 'the default for new sessions, from the process environment');
-  assert.deepEqual(messages({ model: 'sonnet', env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the alias is pinned by the user');
-  assert.match(messages({ env: FOUNDRY }).join(), /Microsoft Foundry/, 'no model selector: the Foundry default is Sonnet 4.5');
-  assert.match(messages({ model: 'default', env: FOUNDRY }).join(), /Microsoft Foundry/);
-  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the default is pinned by the user');
-  assert.deepEqual(messages({ model: 'claude-opus-4-6', env: FOUNDRY }), [], 'a named model replaces the default');
-  for (const v of ['inherit', 'haiku', 'default']) assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: v } }).join(), /Microsoft Foundry/, `ANTHROPIC_DEFAULT_MODEL=${v} is ignored by Claude Code`);
-  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'claude-opus-4-6' } }), [], 'a named default model replaces it');
-  assert.deepEqual(messages({}), [], 'no Foundry, no model selector');
-  assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
-  assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);
 });
 
 test('Doctor: the keys the settings reference marks deprecated or removed are flagged, derived from the pinned reference', () => {
@@ -583,6 +629,37 @@ test('routes: the list masks secrets, the plan is a plan the apply route takes, 
   assert.ok(!JSON.stringify(plan).includes(SECRET), 'the diff context is masked');
   assert.equal(plan.changes[0].selected, true);
   assert.deepEqual((await routes['POST /api/settings-plan']({ agent: 'claude', edits: { 'env.DISABLE_TELEMETRY': null } })).changes, [], 'nothing to change');
+});
+
+test('kinds and dismiss: only a real conflict is titled as one; a dismissed note leaves the list and Doctor, across restarts, until shown again', async () => {
+  const ctx = machine();
+  ctx.sandbox = { platform: 'linux', has: () => true };
+  const off = { effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } };
+  write(claudeUser(ctx), JSON.stringify(off));
+  const kinds = (c = ctx) => Object.fromEntries(listSettings(c, 'claude', { env: {} }).notes.map((n) => [n.id, n.kind]));
+  assert.deepEqual(kinds(), { 'effort-user-noop': 'conflict', 'env-scrub-off': 'hardening', 'read-deny-credentials': 'hardening', 'sandbox-off': 'hardening' });
+  assert.equal(listSettings(ctx, 'claude', { env: {} }).notes.find((n) => n.id === 'effort-user-noop').default, 'The top-level effortLevel is high; claude-opus-5-5 have medium saved under modelSettings and use that.');
+  write(claudeUser(ctx), JSON.stringify({ ...off, sandbox: { enabled: true, failIfUnavailable: true, network: { allowedDomains: ['registry.npmjs.org'] } } }));
+  assert.equal(kinds()['sandbox-unsandboxed-retry'], 'hardening', 'the retry is raised while the sandbox is on');
+  const note = listSettings(ctx, 'claude', { env: {} }).notes.find((n) => n.id === 'env-scrub-off');
+  assert.ok(note.default && note.risk && note.fixChanges, 'the plain words travel with the note');
+  // Dismiss through the route; a new context on the same home is a restart.
+  const routes = api(ctx);
+  const doctorIds = (c) => doctor(c, { agents: ['claude'], env: {} }).filter((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message));
+  assert.equal(doctorIds(ctx).length, 1);
+  assert.deepEqual((await routes['POST /api/settings-dismiss']({ id: 'env-scrub-off' })).dismissed, ['env-scrub-off']);
+  const again = Object.assign(context({ home: ctx.home, run }), { managedRoot: ctx.managedRoot, sandbox: ctx.sandbox });
+  const list = listSettings(again, 'claude', { env: {} });
+  assert.ok(!list.notes.some((n) => n.id === 'env-scrub-off'));
+  assert.deepEqual(list.dismissed.map((n) => n.id), ['env-scrub-off']);
+  assert.ok(!list.settings.find((s) => s.key === 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').notes.some((n) => n.id === 'env-scrub-off'), 'not on its row either');
+  assert.deepEqual(doctorIds(again), [], 'Doctor leaves it out');
+  assert.ok('read-deny-credentials' in kinds(again), 'other notes stay');
+  await routes['POST /api/settings-dismiss']({ id: 'env-scrub-off', dismissed: false });
+  assert.equal(kinds(again)['env-scrub-off'], 'hardening');
+  assert.deepEqual(listSettings(again, 'claude', { env: {} }).dismissed, []);
+  assert.equal(doctorIds(again).length, 1);
+  await assert.rejects(async () => routes['POST /api/settings-dismiss']({ id: 3 }), (e) => e.status === 400);
 });
 
 test('masking: whole words of the name, tokens inside values, no false hits', () => {

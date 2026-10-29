@@ -55,9 +55,15 @@ jobs:
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
+      # docs/skills.md tables are generated from the skills' front matter and library.json.
+      - name: Skills page
+        run: node --test .github/scripts/skills-doc.test.mjs && node .github/scripts/skills-doc.mjs --check
       # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
       - name: Version pins
         run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check
+      # Each claim in web/src/data/facts.json names its evidence: a repository file or heading, a test title, or a BenchKeeper-research result.
+      - name: Claims evidence
+        run: node --test .github/scripts/claims.test.mjs && node .github/scripts/claims.mjs
 
   # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
   app-ui-tests:
@@ -163,7 +169,7 @@ jobs:
           node-version: 22.23.3
       - name: App tests
         working-directory: app
-        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check:imports && npm run test:coverage && npm run smoke
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check:imports && npm run check:baselines && npm run test:coverage && npm run smoke
 
   # Windows is untested by the owner: start, plan, apply with a ledger run only.
   app-windows-smoke:

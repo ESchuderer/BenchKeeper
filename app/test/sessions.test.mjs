@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
-import { TITLE, writePatternSessions, writeSessions } from './fixtures/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
+import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
@@ -33,7 +33,7 @@ test('Claude Code sessions: cost, time and tokens from the last cost-state, tier
   // Skill calls (subagents too), slash commands and the skill a turn was attributed to.
   assert.deepEqual(s1.skills, ['designing-technical-uis', 'diagnosing-bugs', 'ponytail-review', 'tdd']);
   assert.equal(s1.tests, 'pass');
-  assert.deepEqual(s1.setup, ['BenchKeeper', 'Matt Pocock', 'Ponytail', 'frontend']);
+  assert.deepEqual(s1.setup, ['BenchKeeper', 'ponytail', 'matt-pocock', 'frontend']);
   assert.equal(s1.setupVersion, '6.0.0');
   assert.deepEqual(s1.prs, [{ url: 'https://github.com/acme/shop/pull/7', state: 'unknown' }]);
   // No cost-state yet: no cost, tokens from each message once.
@@ -48,7 +48,7 @@ test('Codex sessions: tokens and skills of subagent rollouts go to the parent; c
   const { c1 } = byId(rows);
   assert.deepEqual(
     [c1.agent, c1.project, c1.branch, c1.agentVersion, c1.models, c1.turns, c1.costUSD, c1.busyMs, c1.tokens, c1.tests, c1.setup, c1.setupVersion],
-    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1300, 'pass', ['Ponytail'], '6.1.0'],
+    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1300, 'pass', ['ponytail'], '6.1.0'],
   );
   assert.deepEqual(c1.tier, { first: 'quick', last: 'quick', changeType: null, movedUp: false });
   assert.deepEqual(c1.skills, ['diagnosing-bugs', 'grilling', 'tdd']);
@@ -70,6 +70,22 @@ test('pattern: single, loop, group and Orca worker; one value when several apply
   assert.deepEqual(got('p5'), ['single', 0, null], 'quoted text, in a later prompt or a tool result, marks no worker');
   assert.deepEqual(got('p7'), ['single', 0, null], 'one quoted line of the dispatch text in the first prompt marks no worker');
   assert.ok(rows.p2.skills.includes('goal'));
+  assert.deepEqual(['p3', 'p4', 'p5', 's2'].map((id) => rows[id].task), ['task_1', 'task_1', null, null], 'the task id only from a worker\'s first prompt');
+});
+
+test('byRun: cost and tokens per run and per task from the run fixture; Codex adds tokens only; no worker text in a row or on the board', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  const { home, ctx } = fixture();
+  writeRunSessions(home, '/work/app', MARK);
+  const rows = await scanSessions(ctx);
+  const codex = { agent: 'codex', run: 'r-9', task: 'task_c', costUSD: null, tokens: 500 };
+  const [run, ...rest] = byRun([...rows, codex]);
+  assert.deepEqual(rest, [], 'sessions without a run or task id are no run');
+  assert.deepEqual([run.run, run.sessions, run.costUSD, run.tokens], ['r-9', 4, 2.25, 3 * 115 + 500]);
+  assert.deepEqual(run.tasks.map((t) => [t.task, t.sessions, t.costUSD, t.tokens]), [['task_b', 1, 0.25, 115], ['task_a', 2, 2, 230], ['task_c', 1, null, 500]]);
+  assert.ok(!JSON.stringify(rows).includes(MARK));
+  assert.ok(!boardHtml(rows).includes(MARK));
+  assert.match(boardHtml(rows), /"runs":\[\{"run":"r-9"/);
 });
 
 test('pattern: a cached summary from before it was read is parsed again; one whose transcript is gone stays and reads not recorded', async () => {

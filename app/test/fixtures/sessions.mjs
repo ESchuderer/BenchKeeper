@@ -86,6 +86,17 @@ const LINE = 'You are working inside Orca, a multi-agent IDE. You are a dispatch
 const PREAMBLE = `${LINE}\nYour coordinator's terminal handle is: term_1\nYour task ID is: task_1`;
 const wakeup = (t, id) => assistant(t, id, [{ type: 'tool_use', id: `w${id}`, name: 'ScheduleWakeup', input: { delaySeconds: 1200, prompt: 'check', reason: 'wait' } }]);
 // Sessions of each pattern in the project `app`, kept apart from writeSessions so the counts of the other tests stay.
+// One short Claude Code session in each folder.
+export function writeTreeSessions(home, dirs) {
+  for (const [i, cwd] of dirs.entries()) {
+    const at = (l) => ({ ...l, cwd, sessionId: `w${i}` });
+    jsonl(join(home, '.claude/projects', cwd.replaceAll('/', '-'), `w${i}.jsonl`), [
+      at(human(`2026-10-22T0${i}:00:00.000Z`, 'rename a variable')),
+      at(assistant(`2026-10-22T0${i}:00:05.000Z`, `w${i}`, [{ type: 'text', text: 'Renamed.' }])),
+    ]);
+  }
+}
+
 export function writePatternSessions(home, { root = '/work' } = {}) {
   work = root;
   const dir = join(home, '.claude/projects', `${root}/app`.replaceAll('/', '-'));
@@ -106,4 +117,19 @@ export function writePatternSessions(home, { root = '/work' } = {}) {
   // Two subagents and a loop: the loop wins over the group; the count stays.
   at('p6', [human('2026-10-22T14:00:00.000Z', '<command-name>/loop</command-name>', { isMeta: true }), human('2026-10-22T14:00:01.000Z', 'x')]);
   for (const n of [1, 2]) jsonl(join(dir, `p6/subagents/agent-${n}.jsonl`), [assistant('2026-10-22T14:00:30.000Z', `a${n}`, [{ type: 'text', text: 'x' }])]);
+}
+
+// Three dispatched workers of run r-9 in `dir`: tasks task_a (two sessions) and task_b, each with a cost. `mark` stands in
+// for worker text: it is in each prompt, an answer and a tool result, and must reach no view.
+export function writeRunSessions(home, dir, mark, { title } = {}) {
+  const at = (id, lines) => jsonl(join(home, '.claude/projects', dir.replaceAll(/[\\/]/g, '-'), `${id}.jsonl`), lines.map((l) => ({ ...l, cwd: dir, sessionId: id })));
+  for (const [id, task, usd, t] of [['r1', 'task_a', 1.5, '09'], ['r2', 'task_a', 0.5, '10'], ['r3', 'task_b', 0.25, '11']]) {
+    at(id, [
+      human(`2026-10-23T${t}:00:00.000Z`, `${PREAMBLE.replace('task_1', task)}\n\n=== TASK ===\n${mark}\nOrca run: r-9\n`),
+      assistant(`2026-10-23T${t}:00:01.000Z`, `m${id}`, [{ type: 'text', text: `Working on ${mark}` }]),
+      result(`2026-10-23T${t}:00:02.000Z`, `q${id}`, mark, false),
+      { type: 'cost-state', totalCostUSD: usd, totalAPIDuration: 1000, totalToolDuration: 0, modelUsage: {} },
+      ...(title ? [{ type: 'ai-title', aiTitle: title }] : []),
+    ]);
+  }
 }

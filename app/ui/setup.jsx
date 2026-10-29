@@ -2,21 +2,24 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Mod
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { FrameworkChoice } from './frameworks.jsx';
-import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
+import { AgentFileChoice } from './frameworks.jsx';
+import { CancelJob, ChangeList, StartBlock, useJob, usePrerun } from './parts.jsx';
 import { RunPanel } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 export const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 export const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
 
+// The Doctor findings a user-started pack setup clears once it wrote its files.
+const left = (found) => found.filter((i) => i.check === 'packs');
+
 // The query of a project plan for these first-setup answers.
 export const planQuery = (dir, a) => {
   const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', guards: a.guards ? '1' : '0', share: a.share ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
-  // Named whenever the answers have them (an empty choice takes the frameworks of a saved setup out); the one-run form has none.
-  if (a.frameworks) { q.set('framework', a.frameworks.join(',')); q.set('agent-file', (a.agentFiles ?? []).join(',')); }
+  // Named whenever the answers have them (an empty choice takes the agent files of a saved setup out); the one-run form has none.
+  if (a.agentFiles) q.set('agent-file', a.agentFiles.join(','));
   q.set('tier', a.tier);
   return q;
 };
@@ -119,8 +122,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (!setup.data || a) return;
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
-    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], frameworks: st.frameworks ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
-      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], frameworks: [], agentFiles: [], tier: '', share: false });
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], agentFiles: [], tier: '', share: false });
   }, [setup.data]);
   // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
   const envTouched = useRef(false);
@@ -140,7 +143,10 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (JSON.stringify(a) === start.current) applyAdvice(prefill.result, prefill.name, true);
     else setWaiting(prefill);
   }, [prefill, a]);
-  const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
+  // Kept through the result step, which lists the same prompts.
+  const review = useApi(step >= 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
+  // What the started steps left to write, read again on Check again.
+  const checked = useApi(result && result.status !== 'stopped' && !a.share ? `/api/doctor?dir=${encodeURIComponent(dir)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
     setBusy(true); setError(null);
@@ -198,7 +204,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             )}
             <Checkbox.Group label="Packs" value={a.packs} onChange={set('packs')}>
               <Stack gap="xs" mt="xs">
-                {s.packs.filter((p) => !s.frameworks.some((f) => f.pack === p.id)).map((p) => {
+                {s.packs.map((p) => {
                   const hint = s.suggested.packs.find((x) => x.id === p.id);
                   return (
                     <Paper key={p.id} withBorder p="xs">
@@ -211,7 +217,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             </Checkbox.Group>
             <MultiSelect mt="md" label="Single skills besides the packs" searchable value={a.skills} onChange={set('skills')}
               data={s.skills.filter((x) => !s.packs.filter((p) => a.packs.includes(p.id)).some((p) => p.skills.includes(x.name))).map((x) => ({ value: x.name, label: x.name }))} />
-            <FrameworkChoice rows={s.frameworks} a={a} set={set} />
+            <AgentFileChoice rows={s.sources} a={a} set={set} />
           </Stepper.Step>
           <Stepper.Step label="Tier">
             <Radio.Group label="Default tier in AGENTS.md" value={a.tier} onChange={set('tier')}>
@@ -224,8 +230,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
                 { label: 'Agents', step: 0, value: a.agents.map((id) => { const x = s.agents.find((y) => y.id === id); return x ? x.name : `${id} (not installed here)`; }).join(', ') || 'None' },
                 { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
                 { label: 'Environment', step: 1, value: `${(ENV_TITLE[a.env] ?? a.env).replace(/ \(recommended\)$/, '')}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
-                { label: 'Packs and skills', step: 2, value: [...a.packs.filter((id) => !s.frameworks.some((f) => f.pack === id)).map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
-                { label: 'Frameworks', step: 2, value: [...s.frameworks.filter((f) => (f.kind === 'pack' ? a.packs.includes(f.pack) : a.frameworks.includes(f.id))).map((f) => f.title), ...(a.agentFiles.length ? [`${a.agentFiles.length} agent files`] : [])].join(', ') || 'None' },
+                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
+                { label: 'Agent files', step: 2, value: a.agentFiles.length ? `${a.agentFiles.length} agent files` : 'None' },
                 { label: 'Default tier', step: 3, value: TIER_TEXT[a.tier] ?? a.tier },
               ]} />
               <Loading state={review} label="changes">{(p) => (
@@ -236,7 +242,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
                   {!!p.prompts.length && (
                     <Stack gap={4}>
                       <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
-                      {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                      {p.prompts.map((x) => <StartBlock key={x.prompt} start={x} why={x.why} />)}
                     </Stack>
                   )}
                 </Stack>
@@ -250,6 +256,18 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               </Note>
             )}
             {result?.run && <RunPanel id={result.run} order={3} />}
+            {result && result.status !== 'stopped' && !!review.data?.prompts.length && (
+              <Stack gap={4} mt="md">
+                <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Start in the project'}</Text>
+                {review.data.prompts.map((x) => <StartBlock key={x.prompt} start={x} why={x.why} />)}
+                {/* The prompts after the first are the packs' own setups, which write the Agent skills block. */}
+                {review.data.prompts.length > 1 && <Text size="sm">Then apply the setup again: it moves the block these commands write into <Code>AGENTS.md</Code>, where Codex reads it.</Text>}
+                <Text size="sm">The recorded session shows in History with its exit code and changed files.</Text>
+                {!a.share && <Group gap="xs"><Button size="xs" variant="default" onClick={checked.reload} loading={checked.loading}>Check again</Button></Group>}
+                {checked.data && (left(checked.data).length ? left(checked.data).map((i) => <Note key={i.message} color="yellow">{i.message}</Note>)
+                  : <Text size="sm" role="status">Doctor finds no pack setup step left to run.</Text>)}
+              </Stack>
+            )}
             {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>
               : <Text>Writes the setup in this checkout and adds its files to <Code>.git/info/exclude</Code>.</Text>)}
           </Stepper.Completed>

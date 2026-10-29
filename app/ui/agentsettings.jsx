@@ -1,8 +1,8 @@
-import { Anchor, Badge, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
+import { Anchor, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, Section, SettingFacts } from './parts.jsx';
 import { Loading, Note, href, icon, useApi } from './shell.jsx';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
@@ -11,6 +11,14 @@ const UNSET = '(unset)';
 // A color fade between schemes would be caught half way by the contrast check, and is not worth a transition here.
 const NOFADE = { label: { transition: 'none' } };
 const text = (v) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+const KIND = { conflict: 'Conflicting settings', hardening: 'Hardening', ignored: 'Ignored setting', note: 'Note' };
+
+// A note on the settings: what it found, the default, the risk and what the fix changes, then a button.
+const SettingNote = ({ n, children }) => (
+  <Note color={n.level === 'warning' ? 'yellow' : 'blue'}>
+    <Text span fw={600}>{KIND[n.kind]}. </Text>{n.message} {n.default} {n.risk} {n.fixChanges} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor> {children}
+  </Note>
+);
 
 // One control for one key; edit is undefined (untouched), null (remove the key) or the new value.
 function ValueControl({ row, own, edit, setEdit }) {
@@ -56,8 +64,6 @@ function ValueControl({ row, own, edit, setEdit }) {
   }
 }
 
-const layerBadge = (r) => (r.layer ? <Badge variant="default">{r.layer === 'managed' ? 'managed (read-only)' : r.layer}</Badge> : <Text size="sm">default: {r.default ?? 'built-in'}</Text>);
-
 function Row({ row, layer, edits, setEdit }) {
   const own = row.sets?.find((x) => x.layer === layer)?.value;
   const edit = edits[row.key];
@@ -67,7 +73,7 @@ function Row({ row, layer, edits, setEdit }) {
       <Table.Td>
         <Stack gap={2}>
           <Code>{row.key}</Code>
-          <Text size="sm">{row.sentence}</Text>
+          <SettingFacts f={row} />
           {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
           {suggest && (own === undefined && edit === undefined) && (
             <Group gap="xs">
@@ -84,7 +90,6 @@ function Row({ row, layer, edits, setEdit }) {
         </Stack>
       </Table.Td>
       <Table.Td miw={200}>{row.editable === false ? <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text> : <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} />}</Table.Td>
-      <Table.Td>{row.layer ? <Stack gap={2}><Badge variant="default" miw="max-content">{row.layer === 'managed' ? 'managed (read-only)' : `from ${row.layer}`}</Badge><Text size="sm">{text(row.value)}</Text></Stack> : layerBadge(row)}</Table.Td>
     </Table.Tr>
   );
 }
@@ -94,7 +99,7 @@ function Rows({ rows, layer, edits, setEdit, label }) {
   return (
     <Table.ScrollContainer minWidth={720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
-        <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th><Table.Th>In effect</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} />)}</Table.Tbody>
       </Table>
     </Table.ScrollContainer>
@@ -107,9 +112,10 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showDismissed, setShowDismissed] = useState(false);
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
-  const match = (r) => (!q || `${r.key} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
+  const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
   const basic = data.settings.filter(match);
   const groups = [...new Set(basic.map((r) => r.group))];
   const adv = (data.advanced ?? []).filter(match);
@@ -118,6 +124,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
     try { setPlan(await api('/api/settings-plan', { agent, layer, dir, ...body })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
+  const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(onApplied, (e) => setError(e.message)); };
+  const dismissed = data.dismissed ?? [];
   return (
     <Stack gap="lg">
       <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Settings files, scrollable' } }}>
@@ -135,9 +143,11 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
         </Table>
       </Table.ScrollContainer>
       {data.layers.filter((l) => l.error && !l.readOnly).map((l) => <Note key={l.path} color="red"><Text span fw={600}>This file is not edited. </Text>{l.path} cannot be read ({l.error}). {agent === 'claude' ? 'Claude Code reads strict JSON and skips the whole file on one error.' : ''} Fix it by hand first.</Note>)}
-      {data.notes.length > 0 && (
-        <Stack gap="xs" role="region" aria-label="Notes on conflicting settings">
-          {data.notes.map((n) => <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'}><Text span fw={600}>Conflicting settings. </Text>{n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor></Note>)}
+      {(data.notes.length > 0 || dismissed.length > 0) && (
+        <Stack gap="xs" role="region" aria-label="Notes on the settings">
+          {data.notes.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Dismiss, I accept this: ${n.id}`} onClick={() => dismiss(n.id, true)}>Dismiss, I accept this</Button></SettingNote>)}
+          {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={showDismissed} onClick={() => setShowDismissed(!showDismissed)}>Dismissed ({dismissed.length})</Button></Group>}
+          {showDismissed && dismissed.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Show again: ${n.id}`} onClick={() => dismiss(n.id, false)}>Show again</Button></SettingNote>)}
         </Stack>
       )}
       <Group align="flex-end">
@@ -202,11 +212,12 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
   );
 }
 
-// The agents' own settings files. Distinct from Settings, which holds the app's preferences.
-export function AgentSettings({ overview, params, refresh }) {
+// The agents' own settings files. Distinct from Preferences, the app's own.
+// project: a registered folder; the view then writes only its project and local files.
+export function AgentSettings({ overview, params, refresh, project }) {
   const [agent, setAgent] = useState(params.get('agent') === 'codex' ? 'codex' : 'claude');
-  const [layer, setLayer] = useState(params.get('layer') === 'project' ? 'project' : 'user');
-  const [dir, setDir] = useState(params.get('path'));
+  const [layer, setLayer] = useState(project || params.get('layer') === 'project' ? 'project' : 'user');
+  const [dir, setDir] = useState(project ?? params.get('path'));
   const [advanced, setAdvanced] = useState(false);
   const [edits, setEdits] = useState({});
   const projects = overview.data?.projects ?? [];
@@ -215,14 +226,14 @@ export function AgentSettings({ overview, params, refresh }) {
   const state = useApi(layer === 'user' || chosen ? `/api/settings?${query}` : null);
   const setEdit = (key, v) => setEdits((e) => { const n = { ...e }; if (v === undefined) delete n[key]; else n[key] = v; return n; });
   const reset = (f) => (v) => { f(v); setEdits({}); };
-  const layers = agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project'];
+  const layers = (agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project']).filter((l) => !project || l !== 'user');
   return (
     <Stack gap="lg">
-      <Note>These are the agents' own settings files. The app's own preferences (shortcuts, profile) are in <Anchor c="inherit" underline="always" href={href('settings')}>Settings</Anchor>. Every change is a plan with a diff, and History undoes it.</Note>
+      <Note>Every change is a plan with a diff, and History undoes it.</Note>
       <Group align="flex-end">
-        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer('user'); })} />
-        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? 'user'))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
-        {layer !== 'user' && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
+        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer(project ? 'project' : 'user'); })} />
+        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? layer))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
+        {layer !== 'user' && !project && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
         <Switch label="Advanced: every key" checked={advanced} onChange={(e) => setAdvanced(e.currentTarget.checked)} />
       </Group>
       {layer !== 'user' && !chosen && <Note color="yellow">The project and local files belong to a registered project: add one under Projects.</Note>}

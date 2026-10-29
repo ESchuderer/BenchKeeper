@@ -3,15 +3,17 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { fake, missing, RECORDED, replies } from './fakes/orca.mjs';
 import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
-import { writeSessions } from './fixtures/sessions.mjs';
+import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
-import { projectPlan } from '../src/steps/project.mjs';
+import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -77,6 +79,9 @@ test('the sessions board: the session cookie and a one-time ticket asked for wit
   assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [200, 'text/html; charset=utf-8', `${BOARD_CSP}; frame-ancestors 'self'`]);
   assert.match(r.body, /<title>Sessions board<\/title>/);
   assert.equal((await req('GET', `/board?ticket=${ticket}`, { cookie })).status, 403, 'a ticket works once');
+  // A project's board names a registered folder; any other is refused.
+  const other = JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body).ticket;
+  assert.equal((await req('GET', `/board?ticket=${other}&project=${encodeURIComponent('/not/registered')}`, { cookie })).status, 404);
 });
 
 test('a session scan is reused for a minute: the board renders from it and is saved as board.html; force scans again', async () => {
@@ -392,6 +397,20 @@ test('reveal opens registered projects only', () => {
   assert.deepEqual(opened, [dir]);
 });
 
+test("Ponytail's board: offered and opened only when its file exists, only that path", () => {
+  const { ctx, routes } = fixture();
+  const opened = [];
+  ctx.open = (p) => opened.push(p);
+  const file = join(ctx.home, '.config/ponytail/band/board.html');
+  assert.equal(routes['POST /api/board-ticket']().ponytail, false);
+  assert.equal(status(() => routes['POST /api/ponytail-board']({ path: '/etc/passwd' })), 400);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, '<!doctype html>');
+  assert.equal(routes['POST /api/board-ticket']().ponytail, true);
+  routes['POST /api/ponytail-board']({ path: '/etc/passwd' });
+  assert.deepEqual(opened, [pathToFileURL(file).href]);
+});
+
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {
   const calls = [];
   const answer = (byTool) => fixture((argv) => { calls.push(argv[0]); return byTool[argv[0]] ?? null; }).ctx;
@@ -425,6 +444,18 @@ test('scan needs an absolute root and leaves out registered folders; doctor and 
   assert.equal(status(() => routes['GET /api/project-plan'](q({ dir: join(root, 'b') }))), 400);
 });
 
+test('a damaged registry is never written: adding a project refuses and leaves the file as it was', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(TMP, 'bk-damaged-'));
+  const file = join(ctx.config, 'projects.json');
+  mkdirSync(ctx.config, { recursive: true });
+  for (const text of ['{"projects": [{"path": "/x"},', '{}']) {
+    writeFileSync(file, text);
+    assert.throws(() => routes['POST /api/projects']({ action: 'add', path: dir }), (e) => e.status === 409 && /registered projects file (is not valid JSON|has no projects list)/.test(e.message));
+    assert.equal(readFileSync(file, 'utf8'), text);
+  }
+});
+
 test('project-plan: disable and enable only name skills the project has', () => {
   const { ctx, routes } = fixture();
   const dir = mkdtempSync(join(TMP, 'bk-pp-'));
@@ -439,6 +470,26 @@ test('project-plan: disable and enable only name skills the project has', () => 
   assert.equal(status(() => routes['GET /api/project-plan'](q([['enable', '../../etc']]))), 400);
   const off = routes['GET /api/project-plan'](q([['disable', skill]]));
   assert.ok(off.chosen.find((s) => s.name === skill).disabled);
+});
+
+test('a user-started step: project-plan names the record command, doctor repeats it until the files exist', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(TMP, "bk-start-it's "));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, plugins: { claude: ['mattpocock-skills@claude-plugins-official'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  const q = new URLSearchParams({ dir });
+  // Unregistered: no plan, no doctor, so no command to show.
+  assert.equal(status(() => routes['GET /api/project-plan'](q)), 400);
+  assert.equal(status(() => routes['GET /api/doctor'](q)), 400);
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  const pack = routes['GET /api/project-plan'](q).prompts[1];
+  assert.equal(pack.command, `benchkeeper sessions record --project '${dir.replaceAll("'", "'\\''")}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
+  assert.equal(pack.command, recordCommand(dir, 'claude', pack.prompt));
+  const packs = () => routes['GET /api/doctor'](q).filter((i) => i.check === 'packs');
+  assert.deepEqual(packs().map((i) => [i.level, i.start]), [['warning', { agent: 'claude', dir, prompt: pack.prompt, command: pack.command }]]);
+  // Check again after the session wrote the folder: the warning is gone.
+  mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+  assert.ok(!packs().some((i) => i.level === 'warning'));
 });
 
 test('dashboard: the numbers equal the inventory and the project status; one read per load; coverage and catalog by pack', () => {
@@ -764,4 +815,80 @@ test('apply-all: a cancel stops after the running change; later changes are skip
   assert.ok(first > 0 && statuses.slice(0, first).every((x) => x === 'done') && statuses.slice(first).every((x) => x === 'skipped'), statuses.join());
   assert.equal(s.sections[1].run, null);
   assert.ok(!existsSync(join(dirs[0], 'CLAUDE.local.md')));
+});
+
+test('runs: a run with its tasks, worktree, branch and cost, the last setup change, the IDE runs as ids, states and counts; no worker or task text', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  // The IDE is the fake CLI with a run of the recorded shape whose text fields hold the mark.
+  const run = { ...RECORDED.runList.result.runs[0], id: 'run_a', objective: MARK, created_at: '2026-10-23T08:00:00Z', updated_at: '2026-10-23T12:00:00Z' };
+  const task = RECORDED.taskList.result.tasks[0];
+  const tasks = [{ ...task, id: 'task_a', status: 'completed', spec: MARK, display_name: MARK, task_title: MARK, result: JSON.stringify({ subject: MARK, body: MARK }) }, { ...task, id: 'task_b', status: 'dispatched', spec: MARK }];
+  const ide = fake({ replies: replies({ runs: [run], tasks: { run_a: tasks } }) });
+  const { ctx, routes } = fixture((argv, o) => (argv[0] === 'orca' ? ide.ctx.run(argv, o) : realGit(argv, {})));
+  const dir = repo('runs');
+  routes['POST /api/projects']({ path: dir });
+  // A session title can hold prompt text: it is planted too, and the view never takes it.
+  writeRunSessions(ctx.home, join(dir, 'app'), MARK, { title: MARK });
+  // A worker outside the registered projects is left out.
+  writeRunSessions(ctx.home, join(TMP, 'elsewhere'), MARK);
+  apply([{ id: '1', step: 's', title: 'create', kind: 'write', path: join(ctx.home, 'x.txt'), after: 'x\n' }], ctx, { scope: dir });
+  const logged = [];
+  const log = console.log, error = console.error;
+  console.log = (...a) => logged.push(a.join(' ')); console.error = (...a) => logged.push(a.join(' '));
+  let r;
+  try { r = await routes['GET /api/runs'](); } finally { console.log = log; console.error = error; }
+  const at = { worktree: dir, branch: 'feat/cart' };
+  assert.deepEqual(r.runs, [{ run: 'r-9', sessions: 3, costUSD: 2.25, tokens: 345, tasks: [{ task: 'task_b', sessions: 1, costUSD: 0.25, tokens: 115, ...at }, { task: 'task_a', sessions: 2, costUSD: 2, tokens: 230, ...at }] }]);
+  assert.deepEqual(r.setup.map((p) => [p.project, p.lastChange?.kind, p.lastChange?.status]), [[dir, 'apply', 'done']]);
+  assert.deepEqual(r.ide, { name: 'Orca', runs: [{ id: 'run_a', created: '2026-10-23T08:00:00Z', updated: '2026-10-23T12:00:00Z', tasks: 2, states: { completed: 1, dispatched: 1 } }] });
+  for (const text of [JSON.stringify(r), ...logged]) assert.ok(!text.includes(MARK));
+});
+
+test('project cards: per registered project its 30 days of sessions, the doctor finding count and items by state; a missing folder has no count', async () => {
+  const { ctx, routes } = fixture((argv) => realGit(argv, {}));
+  const dir = repo('cards');
+  const gone = join(mkdtempSync(join(TMP, 'bk-cards-')), 'gone');
+  mkdirSync(gone);
+  routes['POST /api/projects']({ paths: [dir, gone] });
+  rmSync(gone, { recursive: true });
+  writeRunSessions(ctx.home, join(dir, 'app'), 'mark');
+  const [live, missing] = await routes['GET /api/project-cards']();
+  assert.equal(live.path, dir);
+  assert.equal(typeof live.findings, 'number');
+  assert.deepEqual(live.owner, []);
+  assert.equal(live.activity.perDay.length, 30);
+  assert.equal(live.activity.perDay.reduce((n, x) => n + x, 0), live.activity.sessions);
+  assert.deepEqual([missing.path, missing.findings, missing.states, missing.activity.sessions], [gone, null, null, 0]);
+});
+
+test('runs: without the IDE its runs are null and it is asked nothing more; the Settings page routes run no command', async () => {
+  const asked = [];
+  const gone = missing();
+  const { routes } = fixture((argv, o) => { asked.push(argv.join(' ')); return /orca/.test(argv[0]) ? gone.ctx.run(argv, o) : null; });
+  routes['GET /api/tier-band']();
+  routes['GET /api/sessions-cache']();
+  assert.deepEqual(asked, []);
+  const r = await routes['GET /api/runs']();
+  assert.deepEqual([r.runs, r.setup, r.ide.runs], [[], [], null]);
+  assert.deepEqual(asked.filter((c) => /orca/.test(c)).map((c) => c.replace(/^\/\S*\//, '')), ['orca --version', 'orca-ide --version', 'orca --version']);
+});
+
+test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {
+  const { ctx, routes } = fixture();
+  const file = join(ctx.home, '.claude/settings.json');
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  writeFileSync(file, JSON.stringify({ pluginConfigs: { 'other@x': { options: { a: 1 } } } }));
+  const band = () => routes['GET /api/tier-band']();
+  assert.deepEqual(band(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand', on: false });
+  const set = async (on) => {
+    const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: on } });
+    return (await finished(routes, routes['POST /api/apply']({ planId: plan.planId }).job)).run;
+  };
+  await set(true);
+  assert.equal(band().on, true);
+  const off = await set(false);
+  assert.equal(band().on, false);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs, { 'other@x': { options: { a: 1 } }, 'benchkeeper@benchkeeper': { options: { tierBand: false } } });
+  routes['POST /api/undo']({ run: off.id });
+  assert.equal(band().on, true);
 });

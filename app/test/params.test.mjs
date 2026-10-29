@@ -10,7 +10,9 @@ import { main } from '../src/cli.mjs';
 import { contentDir } from '../src/content.mjs';
 import { doctor } from '../src/doctor.mjs';
 import { FILES, RULES, SCHEMA_VERSION, format, load, loadFiles, paramChecks, resolvePins } from '../src/params.mjs';
+import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
+import { api } from '../src/server.mjs';
 
 const fixtures = fileURLToPath(new URL('./fixtures/params/', import.meta.url));
 const text = (...p) => readFileSync(join(fixtures, ...p), 'utf8');
@@ -168,4 +170,41 @@ test('pins list rejects a folder that does not exist', async () => {
   let out = '';
   assert.equal(await main(['pins', 'list', join(tmp(), 'missing')], { out: new Writable({ write(c, _, d) { out += c; d(); } }), ctx: stub([]) }), 2);
   assert.match(out, /is not a folder/);
+});
+
+test('editor routes: absent while the preference editors is off; on, the files with their errors, a live check, a plan applied and undone', async () => {
+  const ctx = stub([]);
+  const team = '{\n  "schemaVersion": 1,\n  "// note": "kept",\n  "phases": { "review": { "agent": "codex" } },\n  "later": true\n}\n';
+  const broken = team.replace('"codex"', '"nobody"');
+  const dir = project({ '.benchkeeper/pins.json': team });
+  addProject(ctx, dir);
+  const routes = api(ctx);
+  const status = (f) => { try { f(); } catch (e) { return e.status; } return 200; };
+  const q = new URLSearchParams({ dir });
+  assert.equal((await routes['GET /api/overview']()).editors, false);
+  for (const f of [() => routes['GET /api/params'](q), () => routes['POST /api/params-check']({ dir, file: FILES.pins[0], text: '{}' }), () => routes['POST /api/params-plan']({ dir, file: FILES.pins[0], text: '{}' })]) assert.equal(status(f), 404);
+  assert.throws(() => routes['POST /api/preferences']({ editors: 'yes' }), /true or false/);
+  routes['POST /api/preferences']({ editors: true });
+  assert.deepEqual(JSON.parse(readFileSync(join(ctx.config, 'preferences.json'), 'utf8')), { editors: true, dismissed: [], schemaVersion: 1 });
+  const files = routes['GET /api/params'](q);
+  assert.deepEqual(files.map((f) => f.file), Object.values(FILES).flat());
+  assert.equal(files[0].text, team);
+  assert.deepEqual(files[0].errors, []);
+  assert.equal(files[1].text, null);
+  assert.throws(() => routes['GET /api/params'](new URLSearchParams({ dir: tmp() })), /register the project first/);
+  assert.deepEqual(routes['POST /api/params-check']({ dir, file: FILES.pins[0], text: '{' }).errors.map((e) => e.rule), ['bad-json']);
+  assert.equal(status(() => routes['POST /api/params-check']({ dir, file: 'package.json', text: '{}' })), 400);
+  // Refused while the loader finds an error; a valid text is written as typed, its comment and unknown keys included.
+  assert.throws(() => routes['POST /api/params-plan']({ dir, file: FILES.pins[0], text: broken }), /unknown-agent at phases\.review\.agent/);
+  const next = team.replace('"codex"', '"claude"');
+  const plan = routes['POST /api/params-plan']({ dir, file: FILES.pins[0], text: next });
+  assert.deepEqual(plan.changes.map((c) => c.title), ['write .benchkeeper/pins.json']);
+  const job = routes['POST /api/apply']({ planId: plan.planId });
+  let s;
+  for (let i = 0; i < 100 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job.job }))).done; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(readFileSync(join(dir, FILES.pins[0]), 'utf8'), next);
+  routes['POST /api/undo']({ run: s.run.id });
+  assert.equal(readFileSync(join(dir, FILES.pins[0]), 'utf8'), team);
+  routes['POST /api/preferences']({ editors: false });
+  assert.equal(status(() => routes['GET /api/params'](q)), 404);
 });

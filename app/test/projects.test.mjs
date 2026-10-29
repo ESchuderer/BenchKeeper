@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -50,6 +50,35 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   removeProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx), []);
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
+});
+
+test('registry: a change waits for the run lock another process holds and keeps that process\'s entries', () => {
+  const ctx = context({ home: home() });
+  const root = mkdtempSync(join(TMP, 'bk-reg-'));
+  for (const d of ['a', 'b', 'c']) mkdirSync(join(root, d));
+  addProject(ctx, join(root, 'a'));
+  // Another process (the parent is alive) holds the lock and adds c meanwhile.
+  writeFileSync(join(ctx.config, 'lock'), JSON.stringify({ pid: process.ppid }));
+  const theirs = [...listProjects(ctx), { path: canon(join(root, 'c')), added: new Date().toISOString() }];
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: theirs }));
+  assert.throws(() => addProject(ctx, join(root, 'b')), /another BenchKeeper run is in progress/);
+  assert.throws(() => removeProject(ctx, join(root, 'a')), /another BenchKeeper run is in progress/);
+  rmSync(join(ctx.config, 'lock'));
+  addProject(ctx, join(root, 'b'));
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), ['a', 'c', 'b'].map((d) => canon(join(root, d))));
+  // Re-entrant: a caller inside a run of this process goes on.
+  const release = ctx.ledger.lock();
+  try { removeProject(ctx, join(root, 'c')); } finally { release(); }
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), ['a', 'b'].map((d) => canon(join(root, d))));
+});
+
+test('registry: a parsed file without a projects list is empty', () => {
+  const ctx = context({ home: home() });
+  mkdirSync(ctx.config, { recursive: true });
+  for (const text of ['{}', '{"projects":{}}']) {
+    writeFileSync(join(ctx.config, 'projects.json'), text);
+    assert.deepEqual(listProjects(ctx), []);
+  }
 });
 
 test('registry: one folder is one project, also through a symlink, in the registry and in the scan', async () => {
@@ -511,4 +540,77 @@ test('unshare keeps the answers first; after a failed push, the next run pushes 
   assert.equal(second.status, 'pull request', second.reason);
   assert.equal(second.pr, 'https://github.com/o/r/pull/2');
   assert.deepEqual(calls, ['gh']);
+});
+
+test('projects update --unattended skips and lists a project whose own hooks or git config are not confirmed', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const quiet = new Writable({ write(_c, _e, done) { done(); } });
+  const row = async (...args) => {
+    let text = '';
+    await main(['projects', 'update', '--dry-run', '--unattended', ...args, '--json'], { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: quiet, ctx });
+    return JSON.parse(text).projects[0];
+  };
+  addProject(ctx, p.dir);
+  const hook = join(p.dir, '.git/hooks/pre-commit');
+  writeFileSync(hook, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  p.git('config', 'credential.helper', '!echo marker-value');
+  const skipped = await row();
+  assert.equal(skipped.ready, false);
+  assert.match(skipped.reason, /not confirmed \(credential\.helper, hook pre-commit, remote\.origin\.url\): benchkeeper projects confirm-git .*skipped/);
+  let shown = '';
+  const confirm = (answer, isTTY, flags = []) => main(['projects', 'confirm-git', p.dir, ...flags], { out: new Writable({ write(c, _, done) { shown += c; done(); } }), ctx, input: Object.assign(Readable.from([answer]), { isTTY }) });
+  assert.equal(await confirm('y\n', true, ['--yes']), 2, '--yes confirms nothing');
+  assert.match(shown, /--yes does not belong to projects confirm-git/);
+  assert.equal(await confirm('y\n', false), 2, 'a piped yes confirms nothing');
+  assert.match(shown, /asks in a terminal/);
+  assert.equal(await confirm('n\n', true), 1, 'a no stores nothing');
+  assert.equal((await row()).ready, false);
+  assert.equal(await confirm('y\n', true), 0);
+  assert.match(shown, /hook pre-commit\n/);
+  assert.doesNotMatch(JSON.stringify(listProjects(ctx)), /marker-value/, 'the registry keeps a hash, not the value');
+  assert.equal((await row()).ready, true);
+  writeFileSync(hook, '#!/bin/sh\necho changed\n');
+  assert.match((await row()).reason, /not confirmed \(hook pre-commit\)/);
+  let plain = '';
+  await main(['projects', 'update', '--dry-run'], { out: new Writable({ write(c, _, done) { plain += c; done(); } }), ctx });
+  assert.match(plain, /1 projects would be updated/, 'without --unattended nothing is skipped');
+});
+
+test('a hook that links to a removed script is skipped; the other hooks are still listed', () => {
+  const h = home();
+  const p = project(h);
+  writeFileSync(join(p.dir, '.git/hooks/pre-commit'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  symlinkSync(join(h, 'removed.sh'), join(p.dir, '.git/hooks/pre-push'));
+  assert.deepEqual(gitCodeConfig(context({ home: h }), p.dir).filter((x) => x.key.startsWith('hook ')).map((x) => x.key), ['hook pre-commit']);
+});
+
+test('projects update --json: --dry-run lists the pending changes per project, --yes prints the result document, without it exit 2', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const quiet = new Writable({ write(_c, _e, done) { done(); } });
+  const json = async (args) => {
+    let text = '';
+    const code = await main([...args, '--json'], { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: quiet, ctx, input: Readable.from(['']) });
+    return { code, doc: JSON.parse(text) };
+  };
+  assert.equal(await main(['projects', 'add', p.dir], { out: quiet, ctx }), 0);
+  const dry = await json(['projects', 'update', '--dry-run']);
+  assert.deepEqual([dry.code, dry.doc.command, Object.keys(dry.doc).slice(2)], [0, 'projects update', ['runs', 'projects']]);
+  const [row] = dry.doc.projects;
+  assert.deepEqual([row.path, row.setupVersion, row.ready], [p.dir, '5.0.0', true]);
+  assert.match(row.reason, /\d+ changes/);
+  assert.ok(row.changes.length > 0 && row.changes.every((c) => c.title && !('diff' in c)));
+  const asked = await json(['projects', 'update', '--no-push']);
+  assert.deepEqual([asked.code, Object.keys(asked.doc).slice(2)], [2, ['error']]);
+  assert.match(asked.doc.error, /add --yes/);
+  assert.equal(p.git('branch', '--list', 'chore/*').trim(), '', 'the dry run and the refusal change nothing');
+  const done = await json(['projects', 'update', '--yes', '--no-push']);
+  assert.deepEqual([done.code, Object.keys(done.doc).slice(2)], [0, ['runs', 'projects']]);
+  const [result] = done.doc.projects;
+  assert.deepEqual([result.path, result.status], [p.dir, 'committed']);
+  assert.deepEqual(done.doc.runs.map((r) => r.id), [result.run]);
+  assert.ok(done.doc.runs[0].entries.every((e) => e.title && e.status && !('diff' in e)));
 });

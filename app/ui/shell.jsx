@@ -5,15 +5,19 @@ import { api } from './api.js';
 
 export { RANK } from '../src/states.mjs';
 
-// The view and its parameters live in the hash (#/projects?path=...), so reloads and the palette can deep-link.
+// The view, its sub path and its parameters live in the hash (#/projects/<folder>/sessions?run=...), so reloads and the
+// palette can deep-link.
 const parse = () => {
-  const [view, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
-  return { view: view || 'dashboard', params: new URLSearchParams(query) };
+  const [path, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
+  const [view, ...rest] = path.split('/');
+  return { view: view || 'dashboard', rest, params: new URLSearchParams(query) };
 };
 export const href = (view, params = {}) => {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
   return `#/${view}${q ? `?${q}` : ''}`;
 };
+// A project's own page: its folder, encoded into one segment, then the tab.
+export const projectHref = (path, tab, params) => href(`projects/${encodeURIComponent(path)}${tab ? `/${tab}` : ''}`, params);
 export const MOD = /Mac/.test(navigator.platform) ? 'Cmd' : 'Ctrl';
 export const go = (view, params) => { window.location.hash = href(view, params); };
 
@@ -28,7 +32,7 @@ export function useRoute() {
 }
 
 // Status colors always come with a text label; the dot only repeats it.
-export const STATE_COLOR = { current: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
+export const STATE_COLOR = { current: 'teal', installed: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
 export const Dot = ({ color }) => <Box component="span" aria-hidden className="bk-dot" w={8} h={8} display="inline-block" style={{ borderRadius: 4, background: `var(--mantine-color-${color}-filled)`, color: `var(--mantine-color-${color}-filled)` }} />;
 
 // Object.groupBy needs browsers from 2024 on.
@@ -54,7 +58,7 @@ export function useApi(path) {
 export function Loading({ state, label, children }) {
   if (state.error) return <Note color="red" title={`${label} failed`}><Group gap="sm">{state.error}{state.reload && <Button size="xs" variant="default" onClick={state.reload}>Try again</Button>}</Group></Note>;
   // No data yet also covers the first render after the path changes, before the effect marks it loading.
-  if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
+  if (state.data == null) return <Group gap="xs" role="status"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
   return children(state.data);
 }
 
@@ -89,5 +93,6 @@ export function download(name, text) {
 // Decorative: the text next to an icon names the action, so screen readers skip the icon.
 export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hidden="true" />;
 const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
-// An Alert with the icon of its color.
-export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} {...props} />;
+// An Alert with the icon of its color. A teal title has 4.32:1 on the light teal background, so it takes the text color.
+const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };
+export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} styles={TITLE[color]} {...props} />;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { extract, target } from './github-links.mjs';
 
 test('maps GitHub links to API paths or local files', () => {
-  assert.deepEqual(target('https://github.com/obra/superpowers'), { api: '/repos/obra/superpowers' });
+  assert.deepEqual(target('https://github.com/mattpocock/skills'), { api: '/repos/mattpocock/skills' });
   assert.deepEqual(target('https://github.com/a/b.git'), { api: '/repos/a/b' });
   assert.deepEqual(target('https://github.com/a/b/blob/main/docs/x.md'), { api: '/repos/a/b/contents/docs/x.md?ref=main' });
   assert.deepEqual(target('https://github.com/a/b/issues/12'), { api: '/repos/a/b/issues/12' });
@@ -25,10 +25,11 @@ test('extracts URLs without markdown syntax around them', () => {
 });
 
 test('compare links: checked through the API, except the tag of the release being prepared (its base is still checked)', () => {
-  const { version } = JSON.parse(readFileSync(new URL('../../app/package.json', import.meta.url), 'utf8'));
+  const m = JSON.parse(readFileSync(new URL('../../.release-please-manifest.json', import.meta.url), 'utf8'));
   assert.deepEqual(target('https://github.com/a/b/compare/v1...v2'), { api: '/repos/a/b/compare/v1...v2' });
   assert.deepEqual(target('https://github.com/ESchuderer/BenchKeeper/compare/setup-v6.0.0...setup-v6.0.1'), { api: '/repos/ESchuderer/BenchKeeper/compare/setup-v6.0.0...setup-v6.0.1' });
-  assert.deepEqual(target(`https://github.com/ESchuderer/BenchKeeper/compare/setup-v1.0.0...setup-v${version}`), { api: '/repos/ESchuderer/BenchKeeper/commits/setup-v1.0.0' });
+  assert.deepEqual(target(`https://github.com/ESchuderer/BenchKeeper/compare/setup-v1.0.0...setup-v${m['plugins/benchkeeper']}`), { api: '/repos/ESchuderer/BenchKeeper/commits/setup-v1.0.0' });
+  assert.deepEqual(target(`https://github.com/ESchuderer/BenchKeeper/compare/app-v1.0.0...app-v${m.app}`), { api: '/repos/ESchuderer/BenchKeeper/commits/app-v1.0.0' });
   assert.deepEqual(target('https://github.com/a/b/compare/ci/release-please-weekly...main'), { api: '/repos/a/b/compare/ci%2Frelease-please-weekly...main' });
   assert.deepEqual(target('https://github.com/a/b/compare/main'), { unsupported: true });
 });

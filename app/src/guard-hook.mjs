@@ -43,9 +43,9 @@ function split(text) {
       end();
       for (const delim of heredocs.splice(0)) {
         const lines = [];
-        for (i++; i < text.length; i++) {
-          const nl = text.indexOf('\n', i), line = text.slice(i, nl < 0 ? text.length : nl);
-          i = nl < 0 ? text.length : nl;
+        while (i + 1 < text.length) {
+          const nl = text.indexOf('\n', i + 1), line = text.slice(i + 1, nl < 0 ? text.length : nl);
+          i += line.length + 1;
           if (line.trim() === delim) break;
           lines.push(line);
         }
@@ -107,7 +107,7 @@ function check(cmd, args, bodies, depth) {
   if (cmd === 'helm') return args.includes('upgrade') ? 'helm upgrade' : null;
   if (cmd === 'eval') return denyReason(args.join(' '), depth + 1);
   if (SHELLS.has(cmd)) {
-    const c = args.findIndex((a) => /^-[a-z]*c[a-z]*$/.test(a));
+    const c = args.findIndex((a) => /^-[a-z]+$/.test(a) && a.includes('c'));
     return c >= 0 && args[c + 1] != null ? denyReason(args[c + 1], depth + 1) : bodies.map((b) => denyReason(b, depth + 1)).find(Boolean) ?? null;
   }
   return null;

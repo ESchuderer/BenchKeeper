@@ -1,16 +1,19 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, Select, Stack, Switch, Table, Text, TextInput, Title, useComputedColorScheme } from '@mantine/core';
-import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPencil, IconPlus, IconRefresh, IconRoute, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section, useJob } from './parts.jsx';
+import { Cli, Folded, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
-import { DoctorTable, UpdateResults } from './fix.jsx';
+import { UpdateResults } from './fix.jsx';
+import { ATTENTION } from './dashboard.jsx';
 import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
-import { PackSwitches, SkillStates } from './skillstates.jsx';
+import { SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
-import { AddNotices, BulkBar, EditProject, MissingBadge, FILTER_OPTIONS, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
-import { Dot, Loading, MOD, Note, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
+import { Surfaces } from './runs.jsx';
+import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
+import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
+import { Dot, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
@@ -194,13 +197,41 @@ function SkillDetail({ skill, results }) {
       <Text>{skill.pickWhen}</Text>
       <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
-      {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
+      {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
       {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
     </Stack>
   );
 }
 
+// The global parts by the inventory's step prefix, each with the view that edits it.
+const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'Extensions'], [['skills'], 'Skills'], [['rules'], 'Rules', 'rules', 'Rules'],
+  [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
+
+// What the global setup installs, by part, with its state on disk; a part's items open on a button.
+function GlobalItems({ items }) {
+  const parts = GLOBAL_PARTS.map(([steps, title, view, viewName]) => ({ title, view, viewName, rows: items.filter((i) => steps.includes(i.step.split(':')[0])) })).filter((p) => p.rows.length);
+  if (!parts.length) return <Text size="sm">Nothing is installed globally yet: plan the setup below.</Text>;
+  return parts.map((p) => {
+    const attention = p.rows.filter((i) => ATTENTION.includes(i.state)).length;
+    return (
+      <Stack key={p.title} gap={4} component="section" aria-label={p.title}>
+        <Group gap="xs" justify="space-between">
+          <Text fw={600}>{p.title} ({p.rows.length}{attention ? `, ${attention} need attention` : ''})</Text>
+          {p.view && <Anchor href={href(p.view)} size="sm">Open {p.viewName}</Anchor>}
+        </Group>
+        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`}>
+          <List size="sm" listStyleType="none" spacing={4}>
+            {p.rows.map((i) => <List.Item key={`${i.step}|${i.title}`}><Group gap="xs" wrap="nowrap"><StateBadge state={i.state} /><Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text></Group></List.Item>)}
+          </List>
+        </Folded>
+      </Stack>
+    );
+  });
+}
+
+// Only global things: per-project setup lives on each project's page.
 export function Agents({ overview, params, refresh }) {
+  const inv = useApi('/api/inventory');
   const [select, setSelect] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -219,6 +250,7 @@ export function Agents({ overview, params, refresh }) {
       const chosen = select ?? installed;
       return (
         <Stack gap="lg">
+          <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <Table.ScrollContainer minWidth={640}>
           <Table aria-label="Agents">
             <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
@@ -236,9 +268,11 @@ export function Agents({ overview, params, refresh }) {
             </Table.Tbody>
           </Table>
           </Table.ScrollContainer>
+          <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
+          <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={refresh} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>
@@ -247,106 +281,26 @@ export function Agents({ overview, params, refresh }) {
   );
 }
 
-const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [] };
-function ProjectDetail({ project, others, onChange }) {
-  const [toggles, setToggles] = useState(NO_TOGGLES);
-  // The plan reloads with a new id after an apply, so the result lives here.
-  const [applied, setApplied] = useState(null);
-  const [form, setForm] = useState(project.missing ? 'relocate' : null);
-  const q = new URLSearchParams({ dir: project.path });
-  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off']]) for (const n of toggles[k]) q.append(name, n);
-  const live = !project.missing;
-  const plan = useApi(live && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
-  const found = useApi(live ? `/api/doctor?dir=${encodeURIComponent(project.path)}` : null);
-  const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
-    ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
-    : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
-  const closed = () => { setForm(null); onChange.done(); };
-  return (
-    <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={3} size="h3" style={{ overflowWrap: 'anywhere' }}>{label(project)}</Title>
-          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{project.path}</Text>
-          {project.notes && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{project.notes}</Text>}
-        </Stack>
-        <Group gap="xs">
-          {live && <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>}
-          {live && project.setupVersion && !lags(project) && <Button leftSection={icon(IconAdjustments)} variant="default" onClick={onChange.setup}>Change setup</Button>}
-          <Button leftSection={icon(IconPencil)} variant="default" onClick={() => setForm('edit')}>Edit name and notes</Button>
-          <Button leftSection={icon(IconRoute)} variant="default" onClick={() => setForm('relocate')}>Relocate</Button>
-          <Button leftSection={icon(IconTrash)} variant="subtle" onClick={onChange.remove}>Remove from list</Button>
-          {live && project.checkout && <Button leftSection={icon(IconTrash)} variant="subtle" onClick={onChange.removeSetup}>Remove BenchKeeper setup</Button>}
-        </Group>
-      </Group>
-      {form === 'edit' && <EditProject project={project} onDone={closed} onClose={() => setForm(null)} />}
-      {form === 'relocate' && <Relocate project={project} onDone={() => { go('projects'); onChange.done(); }} onClose={() => setForm(null)} />}
-      {project.missing ? (
-        <Note color="red" title="Folder not found">{project.path} does not exist. Relocate the project when the folder moved or was renamed, or remove it from the list.</Note>
-      ) : null}
-      {project.missing ? null : !project.setupVersion ? (
-        <Stack gap="xs" align="flex-start">
-          <Text>Not set up yet: no <Code>.benchkeeper/state.json</Code>.</Text>
-          <Button leftSection={icon(IconListNumbers)} onClick={onChange.setup}>Set up this project</Button>
-        </Stack>
-      ) : lags(project) ? (
-        <Text>Setup {project.setupVersion} is on <Code>{project.origin}</Code>; this checkout has {project.checkout ? `setup ${project.checkout}` : 'no state file'}. Pull <Code>{project.origin}</Code> to see or change the setup here.</Text>
-      ) : applied ? (
-        <Section title={`Changes in ${project.path}`}>
-          <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={href('history', { run: applied.id })}>Open in History</Anchor></Group>
-          <RunPanel id={applied.id} output={applied.output} order={3} onChanged={onChange.done} />
-        </Section>
-      ) : (
-        <Loading state={plan} label="project plan">{(p) => (
-          <>
-            <PackSwitches packs={p.packs} project={project} others={others} toggles={toggles} setToggles={setToggles} />
-            {!!p.chosen.length && (
-              <Section title="Skills">
-                {p.chosen.map((s) => <Switch key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} />)}
-                <Text size="sm">A skill turned off moves to <Code>.benchkeeper/disabled/</Code> when the plan is applied.</Text>
-              </Section>
-            )}
-            <Section title={`Changes in ${project.path}`}>
-              {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onChange.done(); }} />
-            </Section>
-          </>
-        )}</Loading>
-      )}
-      {live && <Section title="Project doctor"><Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: project.path }))} />}</Loading></Section>}
-    </Stack>
-  );
-}
+// One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
+// all opens the pull request that removes it.
+const SetupBadge = ({ p }) => {
+  if (p.missing) return <MissingBadge />;
+  const where = p.share ? 'shared' : p.committed ? 'local, still committed' : 'local';
+  const text = !p.setupVersion ? 'not set up' : lags(p) ? `set up on ${p.origin} only` : p.current ? `current, ${where}` : `behind (${p.setupVersion}), ${where}`;
+  return <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.current && !lags(p) ? 'teal' : 'yellow'} />}>{text}</Badge>;
+};
 
-// Origin's setup counts when the checkout's is older or missing: the checkout needs a pull.
-const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
-// committed: the repository still carries a setup kept local; Update all opens the pull request that removes it.
-const SetupBadge = ({ p, version }) => (p.missing ? <MissingBadge /> : (
-  <Group gap={4} wrap="nowrap">
-    <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.current ? 'teal' : 'yellow'} />}>
-      {p.setupVersion ? `${p.setupVersion} ${p.current ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
-    </Badge>
-    {p.setupVersion && <Badge variant="default" miw="max-content">{p.share ? 'shared' : p.committed ? 'local, still committed' : 'local'}</Badge>}
-  </Group>
-));
-
-// Skills per chosen agent: in this project, and in all, its global and plugin skills included. Every one costs
-// its description in each session, and similar descriptions make the agent pick the wrong one.
+// Skills each session of a chosen agent loads here: the project's own plus its global and plugin skills. Every one
+// costs its description in each session, and similar descriptions make the agent pick the wrong one.
 function SkillCount({ p, names }) {
   const agents = Object.keys(p.seen ?? {});
   if (!agents.length) return '-';
   return (
     <Stack gap={0}>
-      {agents.map((a) => <Text key={a} size="sm" style={{ whiteSpace: 'nowrap' }}>{agents.length > 1 ? `${names[a] ?? a}: ` : ''}{p.skills[a]} here, {p.seen[a]} in all</Text>)}
+      {agents.map((a) => <Text key={a} size="sm" style={{ whiteSpace: 'nowrap' }} title={`${p.skills[a]} from this project`}>{agents.length > 1 ? `${names[a] ?? a}: ` : ''}{p.seen[a]} loaded</Text>)}
     </Stack>
   );
 }
-
-// What the row says about the setup's defaults: the agents, packs and tier (local or shared is a badge of its own).
-const Defaults = ({ p, names }) => {
-  const parts = [p.agents?.map((a) => names[a] ?? a).join(', '), p.packs?.length ? `packs ${p.packs.join(', ')}` : null, p.tier ? `tier ${p.tier}` : null].filter(Boolean);
-  return parts.length ? <Text size="xs">{parts.join('; ')}</Text> : null;
-};
 
 function ChangesCell({ p }) {
   if (p.missing) return <Text size="sm" c="red" style={{ whiteSpace: 'nowrap' }}>Folder not found</Text>;
@@ -354,26 +308,39 @@ function ChangesCell({ p }) {
   return p.changes ? <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{p.changes.length} pending</Text> : '-';
 }
 
-function ProjectRow({ p, open, version, names, checked, onCheck }) {
-  const here = p.path === open;
-  const facts = [p.path, p.branch, p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'].filter(Boolean).join(', ');
+function ProjectRow({ p, names, checked, onCheck }) {
+  const tree = p.missing ? null : p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository';
   return (
     <Table.Tr>
       <Table.Td><SelectCheckbox p={p} checked={checked} onChange={onCheck} /></Table.Td>
       <Table.Td>
-        <Anchor href={href('projects', { path: p.path })} aria-current={here ? 'true' : undefined} fw={here ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{label(p)}</Anchor>
-        <Text size="xs" style={{ overflowWrap: 'anywhere' }}>{p.missing ? p.path : facts}</Text>
+        <Group gap="xs" wrap="nowrap">
+          <Anchor href={projectHref(p.path)} style={{ whiteSpace: 'nowrap' }}>{label(p)}</Anchor>
+          {tree && <Text size="xs">{tree}</Text>}
+        </Group>
+        {/* Cut at the start, the end names the folder; bdi keeps the slashes in order inside the right-to-left cut. */}
+        <Text size="xs" truncate="start" maw={240} title={p.path}><bdi>{[p.path, p.branch].filter(Boolean).join(', ')}</bdi></Text>
       </Table.Td>
-      <Table.Td><Stack gap={2} align="flex-start"><SetupBadge p={p} version={version} /><Defaults p={p} names={names} /></Stack></Table.Td>
+      <Table.Td><SetupBadge p={p} /></Table.Td>
       <Table.Td><SkillCount p={p} names={names} /></Table.Td>
       <Table.Td><ChangesCell p={p} /></Table.Td>
     </Table.Tr>
   );
 }
 
-export function Projects({ params, overview, refresh }) {
+// Cards or table, remembered in this browser.
+const LAYOUT = 'bk-projects-layout';
+function useLayout() {
+  const [layout, set] = useState(() => { try { return localStorage.getItem(LAYOUT) === 'table' ? 'table' : 'cards'; } catch { return 'cards'; } });
+  return [layout, (v) => { set(v); try { localStorage.setItem(LAYOUT, v); } catch { /* lasts for this page */ } }];
+}
+
+export function ProjectList({ params, overview, refresh }) {
   const projects = useApi('/api/projects');
-  const open = params.get('path');
+  // Sessions, doctor counts and item states: a scan can take a while, so the cards show first and fill in.
+  const extra = useApi('/api/project-cards');
+  const cards = extra.data ? Object.fromEntries(extra.data.map((c) => [c.path, c])) : {};
+  const [layout, setLayout] = useLayout();
   const [path, setPath] = useState('');
   const [found, setFound] = useState(null);
   const [pick, setPick] = useState([]);
@@ -382,16 +349,15 @@ export function Projects({ params, overview, refresh }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const [setupPaths, setSetupPaths] = useState(null);
-  const [view, setView] = useState({ query: '', sort: 'added', filter: FILTER_OPTIONS.some((f) => f.value === params.get('show')) ? params.get('show') : 'all', pack: params.get('pack') ?? '', agent: params.get('agent') ?? '' });
+  const [view, setView] = useState({ query: '', sort: 'added', chips: chipsOf(params) });
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
-  const version = overview.data?.version;
   const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const all = projects.data ?? [];
   const live = all.filter((p) => !p.missing);
   const fresh = live.filter((p) => !p.setupVersion && !p.error).map((p) => p.path);
-  const reload = () => { projects.reload(); refresh(); };
+  const reload = () => { projects.reload(); extra.reload(); refresh(); };
   const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
   // The OS dialog; when there is none or it is cancelled, the typed path stays.
   const choose = async () => {
@@ -431,12 +397,11 @@ export function Projects({ params, overview, refresh }) {
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
-  const rows = visibleProjects(all, view);
+  const rows = visibleProjects(all, view, cards);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
   const setUp = (list) => list.filter((p) => !p.missing && p.setupVersion).map((p) => p.path);
-  const closeDialog = (removed) => { setDialog(null); if (removed) setSelected((s) => s.filter((x) => !dialog.paths.includes(x))); if (removed && dialog.paths.includes(open)) go('projects'); reload(); };
-  const withOpen = (kind) => () => setDialog({ kind, paths: [open] });
+  const closeDialog = (removed) => { setDialog(null); if (removed) setSelected((s) => s.filter((x) => !dialog.paths.includes(x))); reload(); };
   const toggle = (paths, on) => setSelected((s) => (on ? [...new Set([...s, ...paths])] : s.filter((x) => !paths.includes(x))));
   const shown = rows.map((p) => p.path);
   const allShown = !!shown.length && shown.every((x) => selected.includes(x));
@@ -465,29 +430,39 @@ export function Projects({ params, overview, refresh }) {
         </Section>
       )}
       <Loading state={projects} label="projects">{(list) => (list.length ? (
-        <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
-          <Stack gap="sm">
-            <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onFilter={(filter) => setView({ ...view, filter })}
-              pack={view.pack} onPack={(pack) => setView({ ...view, pack })} packs={[...new Set(all.flatMap((p) => p.packs ?? []))]}
-              agent={view.agent} onAgent={(agent) => setView({ ...view, agent })} agents={Object.entries(names).map(([value, text]) => ({ value, label: text }))} />
-            {!!chosen.length && <BulkBar rows={chosen} onClear={() => setSelected([])} onUpdate={() => startUpdate(setUp(chosen))} onSetup={() => setSetupPaths({ paths: chosen.filter((p) => !p.missing && !p.setupVersion).map((p) => p.path) })}
-              onRemoveList={() => setDialog({ kind: 'list', paths: chosen.map((p) => p.path) })} onRemoveSetup={() => setDialog({ kind: 'setup', paths: setUp(chosen) })} />}
-            {rows.length ? (
-              <Table.ScrollContainer minWidth={420}>
-                <Table aria-label="Projects" horizontalSpacing="xs">
-                  <Table.Thead><Table.Tr>
-                    <Table.Th w={32}><Checkbox aria-label="Select all shown projects" checked={allShown} indeterminate={!allShown && shown.some((x) => selected.includes(x))} onChange={(e) => toggle(shown, e.currentTarget.checked)} /></Table.Th>
-                    <Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th>
-                  </Table.Tr></Table.Thead>
-                  <Table.Tbody>{rows.map((p) => <ProjectRow key={p.path} p={p} open={open} version={version} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)} />)}</Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
-            ) : <Text size="sm" role="status">No project matches the search and filter.</Text>}
-          </Stack>
-        } detail={open && list.some((p) => p.path === open) ? (
-          <ProjectDetail key={open} project={list.find((p) => p.path === open)} others={list} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
-        ) : null} />
-      ) : <Text>No projects. Add a folder set up with benchkeeper projects apply, or scan a parent folder.</Text>)}</Loading>
+        <Stack gap="sm">
+          <ProjectTotals list={rows} cards={cards} />
+          <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onChips={(chips) => setView({ ...view, chips })}
+            packs={[...new Set(all.flatMap((p) => p.packs ?? []))]} agents={Object.entries(names).map(([value, text]) => ({ value, label: text }))} />
+          <Group justify="space-between">
+            <Checkbox label="Select all shown projects" checked={allShown} indeterminate={!allShown && shown.some((x) => selected.includes(x))} onChange={(e) => toggle(shown, e.currentTarget.checked)} disabled={!shown.length} />
+            <SegmentedControl size="xs" aria-label="Show projects as" data={[{ value: 'cards', label: 'Cards' }, { value: 'table', label: 'Table' }]} value={layout} onChange={setLayout} />
+          </Group>
+          {extra.error && <Note color="yellow" title="Sessions and doctor counts not read">{extra.error}</Note>}
+          {!!chosen.length && <BulkBar rows={chosen} onClear={() => setSelected([])} onUpdate={() => startUpdate(setUp(chosen))} onSetup={() => setSetupPaths({ paths: chosen.filter((p) => !p.missing && !p.setupVersion).map((p) => p.path) })}
+            onRemoveList={() => setDialog({ kind: 'list', paths: chosen.map((p) => p.path) })} onRemoveSetup={() => setDialog({ kind: 'setup', paths: setUp(chosen) })} />}
+          {!rows.length ? <Text size="sm" role="status">No project matches the search and filters.</Text> : layout === 'cards' ? (
+            <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" role="list" aria-label="Projects">
+              {rows.map((p) => (
+                <div role="listitem" key={p.path}>
+                  <ProjectCard p={p} card={extra.data ? cards[p.path] ?? null : extra.error ? null : undefined} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)}
+                    onApply={() => (p.setupVersion ? (window.location.hash = projectHref(p.path, 'installs')) : setSetupPaths({ paths: [p.path] }))} onUpdate={() => startUpdate([p.path])} onRemoveSetup={() => setDialog({ kind: 'setup', paths: [p.path] })} />
+                </div>
+              ))}
+            </SimpleGrid>
+          ) : (
+            <Table.ScrollContainer minWidth={420}>
+              <Table aria-label="Projects" horizontalSpacing="xs">
+                <Table.Thead><Table.Tr>
+                  <Table.Th w={32}><VisuallyHidden>Select</VisuallyHidden></Table.Th>
+                  <Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th>
+                </Table.Tr></Table.Thead>
+                <Table.Tbody>{rows.map((p) => <ProjectRow key={p.path} p={p} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)} />)}</Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
+        </Stack>
+      ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
         <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
@@ -510,7 +485,7 @@ export function Projects({ params, overview, refresh }) {
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
       {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper projects plan ${open ?? '<dir>'}\nbenchkeeper packs enable|disable <id> --project ${open ?? '<dir>'}\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
@@ -518,12 +493,14 @@ export function Projects({ params, overview, refresh }) {
 // The list shows the newest runs: a ledger of years holds thousands, and each is a link.
 const RUNS_SHOWN = 100;
 
-export function History({ history, params, refresh }) {
+// only: keeps the runs of one project; link: where a run opens, so a project's History stays on its page.
+export function History({ history, params, refresh, only, link = (run) => href('history', { run }) }) {
   const open = params.get('run');
   const [more, setMore] = useState(false);
   return (
     <Stack gap="lg">
-      <Loading state={history} label="history">{(runs) => {
+      <Loading state={history} label="history">{(all) => {
+        const runs = only ? all.filter(only) : all;
         // A run opened by its link stays in the list, however old.
         const linked = runs.findIndex((r) => r.id === open);
         const listed = more || runs.length <= RUNS_SHOWN ? runs : linked >= RUNS_SHOWN ? [...runs.slice(0, RUNS_SHOWN), runs[linked]] : runs.slice(0, RUNS_SHOWN);
@@ -535,7 +512,7 @@ export function History({ history, params, refresh }) {
                 <Stack key={d} gap={2}>
                   <Title order={3} size="h6" tt="uppercase" px="xs">{d}</Title>
                   {rs.map((r) => (
-                    <NavLink key={r.id} href={href('history', { run: r.id })} active={r.id === open} aria-current={r.id === open ? 'true' : undefined} variant="light" color="gray"
+                    <NavLink key={r.id} href={link(r.id)} active={r.id === open} aria-current={r.id === open ? 'true' : undefined} variant="light" color="gray"
                       leftSection={<StatusIcon status={r.status ?? 'running'} />} label={runTitle(r)} styles={{ label: { color: 'var(--mantine-color-text)' }, description: { color: 'var(--mantine-color-text)' } }}
                       description={`${r.status ?? 'interrupted'}, ${r.changes} change${r.changes === 1 ? '' : 's'}, ${new Date(r.time).toLocaleTimeString()}${note(r) ? `, ${note(r)}` : ''}`} />
                   ))}
@@ -551,7 +528,8 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+9`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+// The view keys come from the sidebar: the first nine views in its order.
+const shortcuts = (views) => [[`${MOD}+K, /`, 'command palette'], ...views.map((v, i) => [`${MOD}+${i + 1}`, v]), [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
@@ -590,6 +568,18 @@ function Profile({ overview, refresh }) {
   );
 }
 
+// The preference editors: the "Advanced" view exists only while it is on.
+function EditorSetting({ overview, refresh }) {
+  const [error, setError] = useState(null);
+  const set = (editors) => { setError(null); api('/api/preferences', { editors }).then(refresh, (e) => setError(e.message)); };
+  return (
+    <Section title="Advanced">
+      <Switch label="Editors" description="Presets, pins and policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
+      {error && <Note color="red" title="Not saved">{error}</Note>}
+    </Section>
+  );
+}
+
 export function Settings({ overview, refresh, keys }) {
   return (
     <Stack gap="xl">
@@ -597,16 +587,19 @@ export function Settings({ overview, refresh, keys }) {
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{SHORTCUTS.map(([k, a]) => <Table.Tr key={k}><Table.Td><Code>{k}</Code></Table.Td><Table.Td>{a}</Table.Td></Table.Tr>)}</Table.Tbody>
+          <Table.Tbody>{shortcuts(keys.views).map(([k, a]) => <Table.Tr key={k}><Table.Td><Code>{k}</Code></Table.Td><Table.Td>{a}</Table.Td></Table.Tr>)}</Table.Tbody>
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
+      <Surfaces />
       <SessionsHistory />
+      <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
+          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors)</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
           <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>
@@ -621,13 +614,16 @@ export function Settings({ overview, refresh, keys }) {
 // The sessions board in a frame: a scan job fills the session cache first (the first one reads every transcript), then
 // the board renders from the server's last scan; a reload within a minute shows it without scanning. The frame follows the
 // app's theme without reloading, and takes the height of the board, so the page scrolls and the frame does not.
-export function Sessions() {
+// project: a registered folder; the board then shows only its sessions.
+export function Sessions({ project }) {
   const scheme = useComputedColorScheme('light');
   const [job, setJob] = useState(null);
   const [shown, setShown] = useState(0);
   const [error, setError] = useState(null);
   const [src, setSrc] = useState(null);
   const [height, setHeight] = useState(480);
+  const [ponytail, setPonytail] = useState(false);
+  const [notes, setNotes] = useState([]);
   const frame = useRef(null);
   const theme = useRef(scheme);
   useEffect(() => {
@@ -643,22 +639,22 @@ export function Sessions() {
   }, []);
   // Each frame load takes a one-time ticket (the frame cannot send the API key).
   const show = async () => {
-    try { const { ticket } = await api('/api/board-ticket', {}); setSrc(`/board?theme=${theme.current}&ticket=${ticket}`); setShown((n) => n + 1); } catch (e) { setError(e.message); }
+    try { const { ticket, ponytail: pt } = await api('/api/board-ticket', {}); setPonytail(!!pt); setSrc(`/board?${new URLSearchParams({ theme: theme.current, ticket, ...(project ? { project } : {}) })}`); setShown((n) => n + 1); } catch (e) { setError(e.message); }
   };
   const scan = async (force) => {
     setError(null);
     try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) await show(); else setJob(r.job); } catch (e) { setError(e.message); }
   };
   useEffect(() => { scan().catch(console.error); }, []);
-  const state = useJob(job, (s) => { if (s.error) setError(s.error); else show().catch(console.error); setJob(null); });
+  // notes: Ponytail ledger files and rows the scan skipped.
+  const state = useJob(job, (s) => { setNotes(s.results?.notes ?? []); if (s.error) setError(s.error); else show().catch(console.error); setJob(null); });
   const p = state?.progress;
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. History older than the agent's cleanup period comes from the app's cache of summaries (never the messages) and starts when the app first scanned; Settings has its retention and Clear. Nothing leaves this machine except the pull request lookups through gh.</Text>
-        <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
-      </Group>
+      <Group><Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
+        {ponytail && <Button variant="default" onClick={() => api('/api/ponytail-board', {}).catch((e) => setError(e.message))}>Open Ponytail's board</Button>}</Group>
       {error && <Note color="red">{error}</Note>}
+      {notes.map((n) => <Note key={n} color="yellow">{n}</Note>)}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
       {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}
       <Cli>benchkeeper sessions board</Cli>

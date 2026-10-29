@@ -4,12 +4,15 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentVersion } from './content.mjs';
+import { PACK_SCOPES, libraryWith, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
-import { skillFiles } from './skills.mjs';
-import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { agentFileRows } from './frameworks.mjs';
+import { projectSkills, skillFiles } from './skills.mjs';
+import { PLUGINS, globalPlan, globalSkills, localPlugins, pluginScope, pluginState } from './steps/global.mjs';
+import { STATE, chosenSkills, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -21,6 +24,7 @@ export const canon = (p) => { try { return realish(p); } catch { return resolve(
 export function listProjects(ctx) {
   let list;
   try { list = JSON.parse(readFileSync(file(ctx), 'utf8')).projects; } catch { return []; }
+  if (!Array.isArray(list)) return [];
   const merged = new Map();
   for (const p of list) {
     const path = canon(p.path), prev = merged.get(path);
@@ -50,8 +54,106 @@ export function usersByPack(ctx) {
   for (const p of listProjects(ctx)) for (const id of projectState(ctx, p.path)?.packs ?? []) users.set(id, [...(users.get(id) ?? []), p.path]);
   return users;
 }
+// A pack moved to the other scope (PACK_SCOPES) as one plan: its installs come out of one place and go into the other, and the
+// scope file records the choice; undo takes all of it back. Agents that offer one scope only keep their install (fixed).
+// The projects' state files are left for their next projects apply, which records the skill list.
+// A change inside a project names it (project), so it can run under that project's own bounds.
+export function scopePlan(ctx, id, scope, agents) {
+  const pack = libraryWith(ctx).packs.find((p) => p.id === id);
+  if (!pack) throw new Error(`unknown pack ${id}`);
+  if (!PACK_SCOPES.includes(scope)) throw new Error(`scope must be one of ${PACK_SCOPES.join(', ')}`);
+  const was = packScope(ctx, pack);
+  if (was === scope) return [];
+  const next = { ...ctx, packScopes: { ...ctx.packScopes, [id]: scope } };
+  const users = projectsUsing(ctx, id).filter((p) => isDir(p));
+  const changes = [];
+  // The other part's steps for this pack, with ids and units per project so two projects do not share one.
+  const take = (list, keep, where = '', extra = {}) => changes.push(...list.filter(keep).map((c) => ({ ...c, id: `${where}${c.id}`, ...(c.unit ? { unit: `${where}${c.unit}` } : {}), ...extra })));
+  // Preselected, except a change the project plan holds back (a skill edited there) or treats as the user's own.
+  const projectSide = (keep) => { for (const path of users) take((projectItemPlan(next, path) ?? []).map((c) => ({ ...c, selected: c.held || c.foreign ? c.selected : true })), keep, `${path}:`, { project: path }); };
+  // The global plan without a registry lookup for the host tools, whose steps are left out anyway.
+  const global = (packs = []) => globalPlan({ ctx: next, agents, devcontainerCli: '0.0.0', options: { packs, level: 'full' } });
+  if (pack.plugins) {
+    for (const a of agents.filter((x) => pack.plugins[x] && !packScopes(pack, x).fixed)) {
+      const pid = pack.plugins[a].id, flags = (s) => ['--scope', s];
+      if (scope === 'projects') {
+        const argv = [a, 'plugin', 'uninstall', ...flags('user'), pid], undoArgv = [a, 'plugin', 'install', ...flags('user'), pid];
+        if (pluginState(ctx, a).listed.some((x) => x.id === pid)) changes.push({ id: `scope:${id}:${a}:user`, step: `scope:${id}`, title: `uninstall ${pid} for the user (now ${scopeText(scope)})`, kind: 'command', argv, undoArgv, selected: true, destructive: true,
+          impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from ${agent(a).name}; ${undoArgv.join(' ')} brings it back` });
+        // A marketplace the agent knows stays: undoing its add would remove it.
+        const known = pluginState(ctx, a).markets;
+        projectSide((c) => c.step === `pack:${id}:${a}` && !(c.argv[3] === 'add' && known.includes(pack.plugins[a].id.split('@')[1])));
+      } else {
+        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, project: path, selected: true });
+        take(global([id]), (c) => c.step === `plugin:${a}:${pid}`);
+      }
+    }
+  } else {
+    const named = (c, prefix) => pack.skills.some((n) => c.step === `${prefix}:${n}`);
+    if (scope === 'global') {
+      take(global(), (c) => c.step === `pack:${id}`);
+      projectSide((c) => named(c, 'remove'));
+    } else {
+      // A folder of that name the app did not install is the user's: offered, not preselected.
+      for (const c of global().filter((x) => /^other:\w+:skill$/.test(x.step) && pack.skills.includes(basename(x.path)))) changes.push({ ...c, selected: installedSkill(ctx, c.path) });
+      projectSide((c) => named(c, 'skill'));
+    }
+  }
+  changes.push({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(scope)} (was ${scopeText(was)})`, ...scopeWrite(ctx, id, scope) });
+  return changes;
+}
+// The Installs tab of a project, from its resolved answers (a). Per pack and skill: the scope hint ("also global" when it is
+// installed for the user, by the pack's scope or because an agent offers only that scope), the scopes agents fix and why, and
+// the state on disk. Then the agent files, and what the global setup makes active here that the project does not select.
+const WORSE = ['installed', 'off', 'outdated', 'modified', 'not installed'];
+const CELL = { current: 'installed', removed: 'not installed', absent: 'not installed', disabled: 'off' };
+export function projectInstalls(ctx, dir, a) {
+  const lib = libraryWith(ctx);
+  const plugged = a.agents.filter((x) => PLUGINS[x]);
+  const enabled = Object.fromEntries(plugged.map((x) => [x, pluginState(ctx, x).listed.filter((p) => p.enabled).map((p) => p.id)]));
+  const local = plugged.includes('claude') ? localPlugins(ctx, dir) : [];
+  const inGlobal = (n) => (plugged.some((x) => exists(join(ctx.home, agent(x).global.skills, n, 'SKILL.md'))) ? 'installed' : 'not installed');
+  const onDisk = new Map((projectSkills(ctx, dir)?.skills ?? []).map((s) => [s.name, CELL[s.state] ?? s.state]));
+  const worst = (list) => list.reduce((w, s) => (WORSE.indexOf(s) > WORSE.indexOf(w) ? s : w), 'installed');
+  const packs = Object.fromEntries(lib.packs.map((p) => {
+    const scope = packScope(ctx, p);
+    const fixed = a.agents.flatMap((x) => { const o = packScopes(p, x); return o?.fixed ? [{ agent: agent(x).name, scope: o.scopes[0], reason: o.fixed }] : []; });
+    const state = p.plugins
+      ? (plugged.some((x) => p.plugins[x] && (pluginScope(ctx, { pack: p.id }, x) === 'global' ? enabled[x] : local).includes(p.plugins[x].id)) ? 'installed' : 'not installed')
+      : worst((p.skills ?? []).map((n) => (scope === 'global' ? inGlobal(n) : onDisk.get(n) ?? 'not installed')));
+    return [p.id, { scope, fixed, state, owner: p.role === 'workflow owner', hint: scope === 'global' || fixed.some((f) => f.scope === 'global') ? 'also global' : 'only this project' }];
+  }));
+  const viaGlobal = (n) => a.packs.some((id) => packs[id]?.scope === 'global' && lib.packs.find((p) => p.id === id).skills?.includes(n));
+  const skills = Object.fromEntries(chosenSkills(a, lib).map(({ name: n }) => [n, viaGlobal(n)
+    ? { state: a.disabled.includes(n) ? 'off' : inGlobal(n), hint: 'also global' }
+    : { state: onDisk.get(n) ?? 'not installed', hint: 'only this project' }]));
+  return { packs, skills, files: agentFileRows(a, dir, tryState(dir), lib),
+    global: {
+      plugin: plugged.filter((x) => enabled[x].includes('benchkeeper@benchkeeper')).map((x) => agent(x).name),
+      packs: lib.packs.filter((p) => !a.packs.includes(p.id) && packs[p.id].scope === 'global' && packs[p.id].state === 'installed').map((p) => ({ id: p.id, title: p.title ?? p.id })),
+      skills: plugged.map((x) => ({ agent: agent(x).name, count: globalSkills(ctx, x) })),
+    } };
+}
+// BenchKeeper installed the global skill folder: the newest done, not undone ledger entry on it is a pack's install.
+function installedSkill(ctx, dir) {
+  const on = (p) => p === dir || !!p?.startsWith(`${dir}${sep}`);
+  for (const run of ctx.ledger.list()) {
+    const e = [...run.entries].reverse().find((x) => x.status === 'done' && !x.undone && (on(x.path) || x.snapshot?.some((y) => on(y.path))));
+    if (e) return e.step.startsWith('pack:');
+  }
+  return false;
+}
+// A registry that exists but cannot be read is listed as empty, so writing then would drop every project.
 function save(ctx, projects) {
+  const problem = registryProblem(ctx);
+  if (problem) throw Object.assign(new Error(problem), { status: 409 });
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
+}
+// Every change of the registry: read and write under the run lock, so the UI server and a CLI command do not drop each
+// other's entries. Re-entrant: a caller inside a run goes on.
+function updateRegistry(ctx, change) {
+  const release = ctx.ledger.lock();
+  try { save(ctx, change(listProjects(ctx))); } finally { release(); }
 }
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
@@ -67,9 +169,10 @@ const kept = (ctx, path) => { try { return keptStrict(ctx, path); } catch { retu
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, dir, state) {
   const path = canon(dir);
-  const list = listProjects(ctx);
-  if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
-  save(ctx, list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p))));
+  updateRegistry(ctx, (list) => {
+    if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
+    return list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p)));
+  });
 }
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
@@ -112,13 +215,13 @@ export function checkAdd(ctx, path) {
 export function addProject(ctx, path, { worktree = false } = {}) {
   const found = checkAdd(ctx, path);
   if (found.worktree && !worktree) throw new Error(`${found.path} is the same repository as ${found.worktree} (another worktree): not added as a second project`);
-  if (!found.same) save(ctx, [...listProjects(ctx), { path: found.path, added: new Date().toISOString() }]);
+  if (!found.same) updateRegistry(ctx, (list) => (list.some((x) => x.path === found.path) ? list : [...list, { path: found.path, added: new Date().toISOString() }]));
   return found.path;
 }
 // path or a list of them; the files in the folders stay.
 export function removeProject(ctx, path) {
   const gone = new Set([path].flat().map(canon));
-  save(ctx, listProjects(ctx).filter((x) => !gone.has(x.path)));
+  updateRegistry(ctx, (list) => list.filter((x) => !gone.has(x.path)));
 }
 const registeredEntry = (ctx, path) => {
   const p = canon(path), entry = listProjects(ctx).find((x) => x.path === p);
@@ -137,12 +240,16 @@ const field = (v, what, max, multiline) => {
 // Display name and notes live in projects.json only. A missing key stays as it is; an empty one clears it.
 export function renameProject(ctx, path, { name, notes } = {}) {
   const entry = registeredEntry(ctx, path);
-  const next = { ...entry };
-  for (const [key, v] of [['name', name === undefined ? undefined : field(name, 'the name', 80, false)], ['notes', notes === undefined ? undefined : field(notes, 'the notes', 2000, true)]]) {
-    if (v === undefined) continue;
-    if (v == null) delete next[key]; else next[key] = v;
-  }
-  save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? next : x)));
+  const set = [['name', name === undefined ? undefined : field(name, 'the name', 80, false)], ['notes', notes === undefined ? undefined : field(notes, 'the notes', 2000, true)]];
+  updateRegistry(ctx, (list) => list.map((x) => {
+    if (x.path !== entry.path) return x;
+    const next = { ...x };
+    for (const [key, v] of set) {
+      if (v === undefined) continue;
+      if (v == null) delete next[key]; else next[key] = v;
+    }
+    return next;
+  }));
 }
 // A moved or renamed folder: the entry (name, notes, kept answers) takes the new path, and so does every run of the
 // project in the history, so undo and the drift checks find its files there. The state file moved with the folder.
@@ -155,7 +262,7 @@ export function relocateProject(ctx, path, to) {
   const release = ctx.ledger.lock();
   try {
     ctx.ledger.relocate(entry.path, dest);
-    try { save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
+    try { updateRegistry(ctx, (list) => list.map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
   } finally { release(); }
   return dest;
 }
@@ -178,8 +285,9 @@ export function scan(ctx, root, depth = 3) {
   return found;
 }
 
-// The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
-const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
+// The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them, and
+// projects apply in the checkout the ones at local scope (a run in a worktree would record them for the worktree's folder).
+const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || (c.cwd && !c.machine));
 
 // Commands run synchronously, so each has a time limit: a push that waits for a passphrase or a commit that waits for a
 // signing prompt would freeze a server for good (Stop cannot reach it). Local steps and network steps get their own limit.
@@ -289,6 +397,44 @@ export function status(ctx, path) {
   const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
+}
+
+// Repository git config that runs code or sends git elsewhere during Update all (local and worktree scope, include files
+// followed), and the executable hooks of the common hooks folder. An unattended Update all runs a project only while this
+// list equals the one its owner confirmed.
+const CODE_KEYS = /^(core\.(hookspath|fsmonitor|sshcommand|askpass|gitproxy|worktree)|credential\.(.+\.)?helper|url\..+\.(pushinsteadof|insteadof)|remote\..+\.(url|pushurl|vcs|uploadpack|receivepack)|protocol\.(.+\.)?allow|filter\..+\.(clean|smudge|process)|commit\.gpgsign|gpg\.(.+\.)?program|include\.path|includeif\..+\.path|fetch\.recursesubmodules|submodule\.recurse)$/;
+export function gitCodeConfig(ctx, path) {
+  if (!isRepo(ctx, path)) return [];
+  const parts = git(ctx, path, ['config', '--list', '--show-scope', '--includes', '-z']).stdout.split('\0');
+  const out = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const [key, value = ''] = parts[i + 1].split(/\n([\s\S]*)/);
+    if (['local', 'worktree'].includes(parts[i]) && CODE_KEYS.test(key)) out.push({ key, value });
+  }
+  const common = git(ctx, path, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();
+  const hooks = common && join(common, 'hooks');
+  for (const name of isDir(hooks) ? readdirSync(hooks).sort() : []) {
+    const file = join(hooks, name);
+    // A hook that links to a removed script runs nothing.
+    let st; try { st = statSync(file); } catch { continue; }
+    if (!name.endsWith('.sample') && st.isFile() && (st.mode & 0o111)) out.push({ key: `hook ${name}`, value: readFileSync(file, 'utf8') });
+  }
+  return out;
+}
+// Key and a hash of the value: a credential helper's value can hold a token, and the registry holds none.
+const fingerprint = (items) => items.map((i) => `${i.key}=${hashText(i.value).slice(0, 16)}`).sort();
+// The keys whose presence or value differs from the confirmed list; empty when they match.
+export function unconfirmedGit(ctx, path) {
+  const confirmed = new Set(listProjects(ctx).find((p) => p.path === canon(path))?.gitConfirmed ?? []);
+  const now = new Set(fingerprint(gitCodeConfig(ctx, path)));
+  const key = (f) => f.replace(/=[^=]*$/, '');
+  return [...new Set([...now].filter((f) => !confirmed.has(f)).concat([...confirmed].filter((f) => !now.has(f))).map(key))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+// Records the project's current list as confirmed by its owner.
+export function confirmGit(ctx, path) {
+  const entry = registeredEntry(ctx, path), gitConfirmed = fingerprint(gitCodeConfig(ctx, entry.path));
+  updateRegistry(ctx, (list) => list.map((x) => (x.path === entry.path ? { ...x, gitConfirmed } : x)));
+  return gitConfirmed;
 }
 
 // One run pushes to at most this many repositories (max raises it): a registry that grew by an import or a scan does not

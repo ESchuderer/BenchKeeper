@@ -29,9 +29,15 @@ await new Promise((ok, fail) => {
   server.on('exit', (c) => fail(new Error(`the demo server exited with ${c}`)));
 });
 
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
+const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
+  // The Dashboard as the app opens: the setup flow and the one-run buttons.
+  ['start', async () => {}],
+  ['onerun', async (page) => {
+    await page.getByRole('group', { name: 'One-run setup' }).getByRole('button', { name: 'Set up everything' }).click();
+    await expect(page.getByRole('dialog', { name: 'One-run setup' })).toBeVisible();
+  }],
   // Scrolled to Health: the flow boxes above it are four numbers, the health, coverage and catalog figures are the view.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
   // A taller window: the table is longer than 900 pixels and the sticky header would cover its title.
@@ -42,12 +48,14 @@ const VIEWS = [
   }],
   ['projects', async (page) => {
     await nav(page, 'Projects').click();
-    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'shop', exact: true }).click();
+    await page.getByRole('list', { name: 'Projects' }).getByRole('link', { name: 'shop', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await expect(page.getByRole('region', { name: /^Changes in / })).toBeVisible();
   }],
   ['setup', async (page) => {
     await nav(page, 'Projects').click();
-    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'blog', exact: true }).click();
+    await page.getByRole('list', { name: 'Projects' }).getByRole('link', { name: 'blog', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
@@ -60,6 +68,22 @@ const VIEWS = [
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Fix the cart total');
+    await board.getByRole('button', { name: /^All projects/ }).click();
+  }],
+  // Scrolled to Skill states: the library list above it is the same on every machine.
+  ['skills', async (page) => {
+    await nav(page, 'Catalog').click();
+    await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
+  }],
+  ['rules', async (page) => {
+    await nav(page, 'Rules').click();
+    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
+  }],
+  ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
+  ['accounts', async (page) => {
+    await nav(page, 'Accounts').click();
+    await expect(page.getByRole('article', { name: 'work' })).toContainText('72% left');
+    await expect(page.getByRole('article', { name: 'personal' })).toContainText('Usage not tracked');
   }],
   ['history', async (page) => {
     await nav(page, 'History').click();

@@ -3,7 +3,9 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills at pinned versions per repository. Its app shows every change before it applies it and records each run so you can undo it.
+BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.
+
+[What BenchKeeper is](https://eschuderer.github.io/BenchKeeper/overview/): the workflow, what each part brings and the defaults it sets.
 <!-- /generated:description -->
 
 For developers who run Claude Code or Codex in more than one repository and want the same rules, skills and dev container setup in each.
@@ -19,7 +21,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](docs/setup.
 npx benchkeeper@6.25.0
 ```
 
-Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
+Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
 
 ### CLI
 
@@ -37,7 +39,7 @@ Asks per change. `--yes` applies the default selection without questions.
 
 After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.
 
-[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details).
+[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details). [What the app writes and what it never does](docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
 
 If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.md#setup-details). Linux and macOS are tested. Windows runs only a CI smoke test.
@@ -55,11 +57,12 @@ Fix everything shows each file change as a diff and each command as its command 
 
 - [Project site](https://eschuderer.github.io/BenchKeeper/): the workflow, the install levels and the app
 - [Setup guide](docs/setup.md): prerequisites, levels, what a full `apply` writes, per-repository setup, updates, undo
+- [Upgrading to 7.0](docs/upgrading-to-7.md): clean uninstall of 6.x and clean install of 7, what undo leaves, renamed commands
 - [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
-- [Automation templates](docs/automations.md): the file format, parameters and lint rules for scheduled agent runs
-- [Benchmarks](https://github.com/ESchuderer/BenchKeeper-research#recorded-results): scenarios, reports and per-trial results of the shared brownfield task (BenchKeeper-research)
+- [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
+- [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
 - [Changelog](CHANGELOG.md) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
 

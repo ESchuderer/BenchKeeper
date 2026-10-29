@@ -82,7 +82,12 @@ test('refusals: bad names and agents, duplicates, a folder inside the config fol
     [['accounts', 'frob'], /accounts needs list/],
     [['accounts', 'list', 'a', 'b'], /unexpected argument b/],
   ];
+  // A folder that holds something is not taken over; an empty one is.
+  const full = join(m.root, 'Documents'), empty = join(m.root, 'empty');
+  mkdirSync(full); writeFileSync(join(full, 'notes.txt'), 'x'); mkdirSync(empty);
+  cases.push([['accounts', 'add', 'x', '--agent', 'claude', '--dir', full, '--yes'], /Documents is not empty: an account gets a new or empty folder/]);
   for (const [args, re] of cases) { const x = cli(m); assert.notEqual(await x.exec(args), 0, args.join(' ')); assert.match(x.text(), re); }
+  assert.equal(await cli(m).exec(['accounts', 'add', 'blank', '--agent', 'claude', '--dir', empty, '--yes']), 0);
   assert.equal(await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']), 0);
   const dup = cli(m);
   assert.equal(await dup.exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']), 1);
@@ -109,8 +114,9 @@ test('list and status --json: the documented keys, an error document for a broke
   assert.equal(doc.schemaVersion, 1);
   assert.equal(doc.command, 'accounts list');
   assert.deepEqual(doc.accounts.map((a) => Object.keys(a).sort()), [
-    ['agent', 'default', 'dir', 'label', 'limits', 'mode', 'name', 'pool', 'token'],
-    ['agent', 'default', 'label', 'limits', 'mode', 'mount', 'name', 'pool', 'token', 'volume']]);
+    ['agent', 'default', 'dir', 'label', 'limits', 'loggedIn', 'mode', 'name', 'pool', 'token'],
+    ['agent', 'default', 'label', 'limits', 'loggedIn', 'mode', 'mount', 'name', 'pool', 'token', 'volume']]);
+  assert.deepEqual(doc.accounts.map((a) => a.loggedIn), [false, null]);
   assert.deepEqual(doc.accounts[0].token, { kept: false, created: null });
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'work', '--json']), 0);
@@ -234,6 +240,20 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   assert.equal(await r.exec(['accounts', 'login', 'work', '--token']), 1);
   assert.match(r.text(), /no secret service/);
   assert.equal(m.calls().length, n);
+  // A delete that fails stops the remove before the registry changes and says how to delete the token by hand.
+  const deleteToken = m.ctx.credentials.delete;
+  m.ctx.credentials = { ...m.ctx.credentials, delete: () => { throw new Error('the keyring is locked'); } };
+  const locked = cli(m);
+  assert.equal(await locked.exec(['accounts', 'remove', 'work', '--yes']), 1);
+  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service benchkeeper, account work\)/);
+  assert.ok(findAccount(m.ctx, 'work').token);
+  assert.equal(m.kept.get('work'), CLAUDE_TOKEN);
+  m.ctx.credentials = { ...m.ctx.credentials, delete: deleteToken };
+  const removed = cli(m);
+  assert.equal(await removed.exec(['accounts', 'remove', 'work', '--yes']), 0);
+  assert.match(removed.text(), /deleted the stored token/);
+  assert.equal(m.kept.has('work'), false);
+  assert.deepEqual(listAccounts(m.ctx).map((a) => a.name), []);
 });
 
 test('token (Codex): the access token comes from a pipe, goes to codex login on its stdin and is kept nowhere else', skip, async () => {
@@ -314,13 +334,13 @@ test('run --token: the stored token is the one extra variable, for Claude Code o
   assert.equal(await cli(m).exec(['run', '--account', 'dev', '--token', '--', 'codex']), 1);
 });
 
-test('the usage feed of a Codex account is reported as not available, in the CLI and in the status document', skip, async () => {
+test('the usage of a Codex account that is not signed in is reported as not read, in the CLI and in the status document', skip, async () => {
   const m = machine();
   await cli(m).exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'dev']), 0);
-  assert.match(s.text(), /usage +the usage feed is not available for Codex/);
-  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'dev')).notAvailable, 'the usage feed is not available for Codex');
+  assert.match(s.text(), /usage +not read: not signed in/);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'dev')).notAvailable, 'not read: not signed in');
   await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
   assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'work')).notAvailable, undefined);
 });
@@ -423,7 +443,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   assert.match(ne.text(), /no container engine/);
 });
 
-test('dev container run: the preflight runs in the container, a kept token is a --remote-env of that one launch only', skip, async () => {
+test('dev container run: the preflight runs in the container, a kept token reaches that one launch through a file, never an argument', skip, async () => {
   const m = machine({ flow: 'callback' });
   const project = join(m.root, 'project');
   mkdirSync(join(project, '.devcontainer'), { recursive: true });
@@ -440,12 +460,28 @@ test('dev container run: the preflight runs in the container, a kept token is a 
   // The token: kept in the store by a sign-in in the container, given to the next launch only.
   m.kept.set('boxed', CLAUDE_TOKEN);
   writeFileSync(join(m.ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: listAccounts(m.ctx).map((x) => ({ ...x, token: { created: new Date().toISOString() } })) }));
+  const run = m.ctx.run, seen = [];
+  m.ctx.run = (argv, o) => { seen.push({ argv, o }); return run(argv, o); };
   assert.equal(await cli(m).exec(['run', '--account', 'boxed', '--project', project, '--token', '--', 'claude', '-p', 'x']), 0);
-  const withToken = m.calls().filter((x) => x.me === 'devcontainer' && x.args.includes('-p')).at(-1);
-  assert.ok(withToken.args.includes(`CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_TOKEN}`));
-  // Only the launch carries it: the preflight command line of that run does not.
-  assert.equal(m.calls().filter((x) => x.me === 'devcontainer' && x.args.join(' ').includes(CLAUDE_TOKEN)).length, 1);
-  assert.equal(withToken.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  m.ctx.run = run;
+  // The agent in the container gets the variable; no argument of any started process holds the token.
+  const agent = m.calls().filter((x) => x.me === 'in-container').at(-1);
+  assert.deepEqual(agent.args, ['claude', '-p', 'x']);
+  assert.equal(agent.env.CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_TOKEN);
+  assert.deepEqual(m.calls().filter((x) => x.args.some((a) => a.includes(CLAUDE_TOKEN))), []);
+  assert.ok(m.calls().every((x) => x.env.CLAUDE_CODE_OAUTH_TOKEN !== CLAUDE_TOKEN || x.me === 'in-container'));
+  // It went in on the stdin of a separate exec; the launch keeps the terminal (inherited stdio, no input) and the file is gone.
+  assert.deepEqual(seen.filter((x) => x.o.input !== undefined).map((x) => x.o.input), [CLAUDE_TOKEN]);
+  const launch = seen.find((x) => x.argv.includes('-p'));
+  assert.equal(launch.o.stdio, 'inherit');
+  assert.equal(launch.o.input, undefined);
+  assert.deepEqual(grep(join(m.bin, 'vol'), CLAUDE_TOKEN), []);
+  // A file name per launch: two launches of one account do not remove each other's file.
+  m.ctx.run = (argv, o) => { seen.push({ argv, o }); return run(argv, o); };
+  assert.equal(await cli(m).exec(['run', '--account', 'boxed', '--project', project, '--token', '--', 'claude', '-p', 'y']), 0);
+  m.ctx.run = run;
+  const names = seen.filter((x) => x.o.input !== undefined).map((x) => x.argv.at(-1));
+  assert.equal(new Set(names).size, 2);
   assert.deepEqual(grep(m.ctx.config, CLAUDE_TOKEN), []);
   assert.deepEqual(grep(project, CLAUDE_TOKEN), []);
   // Codex in a container: the token goes through stdin to codex login in that container, into the mount.

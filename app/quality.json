@@ -1,0 +1,94 @@
+{
+  "coverage": {
+    "core": {
+      "lines": 98,
+      "branches": 93,
+      "functions": 96
+    },
+    "agents": {
+      "lines": 95,
+      "branches": 90,
+      "functions": 99
+    },
+    "content": {
+      "lines": 99,
+      "branches": 91,
+      "functions": 99
+    },
+    "orca": {
+      "lines": 99,
+      "branches": 99,
+      "functions": 99
+    },
+    "engine": {
+      "lines": 98,
+      "branches": 92,
+      "functions": 96
+    },
+    "server": {
+      "lines": 96,
+      "branches": 86,
+      "functions": 91
+    },
+    "cli": {
+      "lines": 97,
+      "branches": 87,
+      "functions": 91
+    },
+    "ui": {
+      "lines": 99,
+      "branches": 89,
+      "functions": 99
+    }
+  },
+  "baselines": {
+    "knip": [],
+    "duplicatedLines": 33
+  },
+  "mutation": {
+    "allow": {
+      "floor": 69.58
+    },
+    "doctor": {
+      "floor": null
+    },
+    "fsx": {
+      "floor": 59.94
+    },
+    "ledger": {
+      "floor": 35.36
+    },
+    "merge": {
+      "floor": 63.19
+    },
+    "packs": {
+      "floor": 73.21
+    },
+    "projects": {
+      "floor": null
+    },
+    "redact": {
+      "floor": 68.49
+    },
+    "roots": {
+      "tests": [
+        "profile.test.mjs",
+        "projects.test.mjs",
+        "projects-manage.test.mjs"
+      ],
+      "floor": 29.03
+    },
+    "rules": {
+      "floor": 69.28
+    },
+    "runner": {
+      "floor": null
+    },
+    "settings": {
+      "floor": 62.17
+    },
+    "skills": {
+      "floor": 62.41
+    }
+  }
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { machineContext } from '../src/cli.mjs';
@@ -285,11 +285,18 @@ test('a remove, a command snapshot and an undo outside the roots are refused, al
   assert.equal(readFileSync(join(out, 'victim'), 'utf8'), 'keep');
 });
 
-test('no code of the app runs a shell: every command is an argv', () => {
+test('no code of the app runs a shell on the host: every command is an argv; the only scripts are the two token constants run inside the container', () => {
   const dir = fileURLToPath(new URL('../src/', import.meta.url));
   const files = [...readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => join(dir, f)), ...readdirSync(join(dir, 'steps')).map((f) => join(dir, 'steps', f))];
+  // The kept-token hand-over of a dev container launch (accounts.mjs): fixed text, data only as "$1" and "$@".
+  const scripts = [`'sh', '-c', 'umask 077 && rm -f "$1" && cat > "$1"', 'sh'`,
+    `'sh', '-c', 'CLAUDE_CODE_OAUTH_TOKEN=$(cat "$1") && rm -f "$1" && export CLAUDE_CODE_OAUTH_TOKEN && shift && exec "$@"', 'sh'`];
   for (const f of files) {
-    const text = readFileSync(f, 'utf8');
+    let text = readFileSync(f, 'utf8');
+    for (const k of scripts) {
+      assert.equal(text.split(k).length - 1, f.endsWith(`${sep}accounts.mjs`) ? 1 : 0, `${f}: ${k}`);
+      text = text.replace(k, '');
+    }
     assert.doesNotMatch(text, /shell:\s*true|\bexecSync\b|\bexec\(|\bexecFileSync\b[^;]*shell|['"]sh['"],\s*['"]-c['"]|['"]bash['"],\s*['"]-c['"]/, f);
   }
 });

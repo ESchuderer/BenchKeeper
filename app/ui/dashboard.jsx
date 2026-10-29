@@ -4,20 +4,19 @@ import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
 import { DoctorTable, FixEverythingButton } from './fix.jsx';
 import { OneRunButtons } from './onerun.jsx';
-import { label, plural } from './projects.jsx';
+import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
-import { Loading, RANK, STATE_COLOR, href, useApi } from './shell.jsx';
+import { Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
 
-const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
+export const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 
-// The health bar never relies on the hue: each segment is named with its number in the legend, and the table repeats
-// every figure. Its colors (--bk-h-*) are board tokens.
-const STYLE = `.bk-stack{display:flex;gap:2px;height:16px;border-radius:8px;overflow:hidden;background:var(--mantine-color-default-border)}.bk-stack>span{min-width:3px;background-image:linear-gradient(180deg,rgb(255 255 255/.18),transparent 60%)}
-.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
+// The health bar (.bk-stack in theme.css) never relies on the hue: each segment is named with its number in the legend,
+// and the table repeats every figure. Its colors (--bk-h-*) are board tokens.
+const STYLE = `.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
 .bk-bar{display:block;height:10px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--bk-s1) 75%,var(--bk-accent)),var(--bk-s1))}`;
-const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
+export const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
 
 // Where a figure leads: the scopes it counts. Items that are not current are changes the plans would make.
 function target(state, projects) {
@@ -38,8 +37,8 @@ function Installed({ data, names }) {
           <Table.Tr><Table.Th scope="row">Global</Table.Th><Table.Td>{skills(data.global.skills, (id) => href('agents', { agent: id }))}</Table.Td><Table.Td>{packs(globalPacks)}</Table.Td></Table.Tr>
           {data.projects.map((p) => (
             <Table.Tr key={p.path}>
-              <Table.Th scope="row"><Anchor href={href('projects', { path: p.path })}>{label(p)}</Anchor>{p.error && <Text size="xs" fw={400}>{p.error}</Text>}</Table.Th>
-              <Table.Td>{p.setup ? skills(p.skills, () => href('projects', { path: p.path })) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
+              <Table.Th scope="row"><Anchor href={projectHref(p.path)}>{label(p)}</Anchor>{p.error && <Text size="xs" fw={400}>{p.error}</Text>}</Table.Th>
+              <Table.Td>{p.setup ? skills(p.skills, () => projectHref(p.path, 'installs')) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
               <Table.Td>{p.setup ? packs(p.packs) : 'none'}</Table.Td>
             </Table.Tr>
           ))}
@@ -51,7 +50,7 @@ function Installed({ data, names }) {
 
 function Health({ data }) {
   const rows = [{ key: 'global', label: 'Global', states: data.global.states, to: href('agents', { plan: '1' }) },
-    ...data.projects.filter((p) => p.states).map((p) => ({ key: p.path, label: label(p), states: { ...p.states, untracked: p.untracked }, to: href('projects', { path: p.path }) }))];
+    ...data.projects.filter((p) => p.states).map((p) => ({ key: p.path, label: label(p), states: { ...p.states, untracked: p.untracked }, to: projectHref(p.path, 'installs') }))];
   // The inventory's untracked is zero by definition; a project's comes from its folders.
   const total = (s, from = rows) => from.reduce((n, r) => n + (r.states[s] ?? 0), 0);
   const shown = HEALTH.filter((s) => total(s) > 0);
@@ -89,28 +88,34 @@ function Health({ data }) {
   );
 }
 
+// Packs no project chose are one line under the table, not rows of zeros.
 function PackCoverage({ data, names }) {
-  const { agents, packs } = data.coverage;
+  const { agents } = data.coverage;
+  const used = (p) => agents.some((a) => p.cells[a.id]);
+  const packs = data.coverage.packs.filter(used), unused = data.coverage.packs.filter((p) => !used(p));
   return (
-    <Table.ScrollContainer minWidth={420}>
-      <Table aria-label="Pack coverage" withTableBorder>
-        <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th>{agents.map((a) => <Table.Th key={a.id}>{a.name}</Table.Th>)}</Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {packs.map((p) => (
-            <Table.Tr key={p.id}>
-              <Table.Th scope="row">
-                <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
-                {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
-                {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
-              </Table.Th>
-              {agents.map((a) => (
-                <Table.Td key={a.id}>{p.cells[a.id] ? <Anchor href={href('projects', { pack: p.id, agent: a.id })} aria-label={`${p.title} for ${a.name}: ${plural(p.cells[a.id], 'project')}`}>{p.cells[a.id]}</Anchor> : 0}</Table.Td>
-              ))}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
+    <Stack gap="xs">
+      {!!packs.length && <Table.ScrollContainer minWidth={420}>
+        <Table aria-label="Pack coverage" withTableBorder>
+          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th>{agents.map((a) => <Table.Th key={a.id}>{a.name}</Table.Th>)}</Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {packs.map((p) => (
+              <Table.Tr key={p.id}>
+                <Table.Th scope="row">
+                  <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
+                  {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
+                  {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
+                </Table.Th>
+                {agents.map((a) => (
+                  <Table.Td key={a.id}>{p.cells[a.id] ? <Anchor href={href('projects', { pack: p.id, agent: a.id })} aria-label={`${p.title} for ${a.name}: ${plural(p.cells[a.id], 'project')}`}>{p.cells[a.id]}</Anchor> : 0}</Table.Td>
+                ))}
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>}
+      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
+    </Stack>
   );
 }
 
@@ -238,7 +243,7 @@ export function Dashboard({ overview, doctor, history, params }) {
             <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
           ))}
           {agents.flatMap((a) => (a.plugin?.accounts ?? []).map((x) => (
-            <Text key={`${a.id}:${x.name}`} size="sm">{a.name} account {x.name}: {x.installed ? `installed ${x.installed}` : 'not installed'}{x.behind ? `, behind ${a.plugin.available}: benchkeeper apply updates it` : ''}</Text>
+            <Text key={`${a.id}:${x.name}`} size="sm">{a.name} account {x.name}: {x.installed ? `installed ${x.installed}` : 'not installed'}{x.ref ? `, on ${x.ref}, left to its own update` : x.behind ? `, behind ${a.plugin.available}: benchkeeper apply updates it` : ''}</Text>
           )))}
         </Section>
       )}

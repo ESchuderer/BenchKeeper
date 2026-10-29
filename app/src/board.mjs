@@ -2,14 +2,88 @@
 // every transcript value through textContent, and builds the charts as plain SVG and CSS bars. Its hash is the page's script-src.
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { writeAtomic } from './fsx.mjs';
+import { readText, writeAtomic } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
-import { listProjects } from './projects.mjs';
-import { cssVars } from './tokens.mjs';
+import { canon, listProjects } from './projects.mjs';
+import { byRun } from './sessions.mjs';
+import { TOKENS, cssVars } from './tokens.mjs';
+
+// The pure parts of the page script: their source goes into it as draw()'s argument, so the unit tests run the same code.
+// The quick facts of one period: span is its days (ISO dates, oldest first), list its sessions.
+export function periodFacts(list, span) {
+  const day = (r) => r.start.slice(0, 10);
+  const sum = (f) => list.reduce((n, r) => n + (f(r) ?? 0), 0);
+  const ranked = (rs, f) => { const m = new Map(); for (const r of rs) m.set(f(r), (m.get(f(r)) ?? 0) + 1); return [...m].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)); };
+  const seen = new Set(list.map(day));
+  let run = 0, streak = 0;
+  for (const d of span) { run = seen.has(d) ? run + 1 : 0; streak = Math.max(streak, run); }
+  const costed = list.filter((r) => r.costUSD != null);
+  return {
+    sessions: list.length, time: sum((r) => r.busyMs), cost: costed.length ? sum((r) => r.costUSD) : null, tokens: sum((r) => r.tokens),
+    uncosted: ranked(list.filter((r) => r.costUSD == null), (r) => r.agent), agent: ranked(list, (r) => r.agent)[0] ?? null,
+    busiest: ranked(list, day)[0] ?? null, active: span.filter((d) => seen.has(d)).length, streak,
+  };
+}
+
+// The change line of a card: none for All time, an unknown value or an empty previous period (prev null), else the
+// difference in percent (or points), or from zero the new value itself.
+export function changeText(cur, prev, len, { fmt = String, points = false } = {}) {
+  if (!len || cur == null || prev == null) return null;
+  const tail = ` vs previous ${len} days`;
+  const d = points ? Math.round(cur - prev) : prev ? Math.round(((cur - prev) / prev) * 100) : null;
+  if (cur === prev || d === 0) return `no change${tail}`;
+  if (d == null) return `+${fmt(cur)}${tail}`;
+  return `${d > 0 ? '+' : '-'}${Math.abs(d)}${points ? ' points' : '%'}${tail}`;
+}
+
+// RFC 4180; a cell a spreadsheet would run as a formula starts with a quote.
+export function toCsv(head, body) {
+  const cell = (v) => { const s = String(v ?? '').replace(/^[=+@\t\r]/, "'$&"); return /[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; };
+  return `${[head, ...body].map((r) => r.map(cell).join(',')).join('\r\n')}\r\n`;
+}
+
+// The export card, 1200 x 630 SVG source in the colors of one scheme. A project series is "Project A", "Project B" and so
+// on unless names is on; nothing else of a session (path, account, prompt) is an input.
+export function cardSvg({ title, sub, facts, series, stacks, heat, names, colors: C }) {
+  const x = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  let n = 0;
+  const label = series.map((s) => (s.project && !names ? `Project ${String.fromCharCode(65 + n++)}` : s.name));
+  const text = (px, py, size, fill, s, more = '') => `<text x="${px}" y="${py}" font-size="${size}" fill="${fill}"${more}>${x(s)}</text>`;
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">`,
+    `<rect width="1200" height="630" fill="${C.page}"/>`, text(48, 62, 30, C.ink, title, ' font-weight="600"'), text(1152, 62, 16, C['ink-2'], sub, ' text-anchor="end"')];
+  facts.forEach(([l, v], i) => {
+    const bx = 48 + (i % 4) * 280, by = 88 + Math.floor(i / 4) * 104;
+    out.push(`<rect x="${bx}" y="${by}" width="264" height="92" rx="14" fill="${C.surface}" stroke="${C.line}"/>`, text(bx + 18, by + 30, 15, C['ink-2'], l), text(bx + 18, by + 72, 30, C.ink, v, ' font-weight="600"'));
+  });
+  out.push(`<rect x="48" y="304" width="728" height="294" rx="14" fill="${C.surface}" stroke="${C.line}"/>`, text(68, 334, 16, C['ink-2'], 'Per day'),
+    `<rect x="800" y="304" width="352" height="294" rx="14" fill="${C.surface}" stroke="${C.line}"/>`, text(820, 334, 16, C['ink-2'], 'Last 12 weeks'));
+  const peak = Math.max(...stacks.map((s) => s.parts.reduce((a, b) => a + b, 0)), 1e-9), step = 688 / Math.max(stacks.length, 1), bw = Math.max(1, Math.min(18, step - 2));
+  stacks.forEach((s, i) => {
+    let base = 0;
+    s.parts.forEach((v, k) => {
+      if (!v) return;
+      const h = (v / peak) * 170;
+      out.push(`<rect x="${(68 + i * step + (step - bw) / 2).toFixed(1)}" y="${(526 - base - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" fill="${C[series[k].color]}"/>`);
+      base += h;
+    });
+  });
+  out.push(`<line x1="68" x2="756" y1="526" y2="526" stroke="${C.grid}"/>`);
+  // The legend wraps to a second line; text width is estimated at 8px a character.
+  let lx = 68, ly = 548;
+  series.forEach((s, k) => {
+    const w = 34 + label[k].length * 8;
+    if (lx > 68 && lx + w > 756) { lx = 68; ly += 24; }
+    out.push(`<rect x="${lx}" y="${ly}" width="12" height="12" rx="3" fill="${C[s.color]}"/>`, text(lx + 18, ly + 11, 14, C.ink, label[k]));
+    lx += w;
+  });
+  heat.forEach((v, i) => { if (v != null) out.push(`<rect x="${820 + Math.floor(i / 7) * 26}" y="${352 + (i % 7) * 26}" width="22" height="22" rx="5" fill="${v ? C.accent : C.grid}" fill-opacity="${[1, 0.3, 0.5, 0.75, 1][v]}"/>`); });
+  return `${out.join('')}</svg>`;
+}
 
 // Runs in the browser only: toString() of this function is the page script. The UI tests cover it, not the unit coverage.
 /* node:coverage disable */
-function draw() {
+function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   const D = JSON.parse(document.getElementById('data').textContent);
   const rows = D.rows, now = Date.parse(D.now), MIN = D.minSamples;
   const NS = 'http://www.w3.org/2000/svg';
@@ -23,9 +97,27 @@ function draw() {
   const $ = (id) => document.getElementById(id);
   const patternKey = (r) => r.pattern ?? 'not recorded';
   const setupKey = (r) => (!r.setup ? 'not recorded' : r.setup.length ? r.setup.join(' + ') : 'none');
-  const projectKey = (r) => r.project ?? 'unknown';
+  // A session counts as the repository the app resolved for its folder (boardHtml), else under Other.
+  const keys = new Map(D.keys);
+  const under = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
+  const owners = new Map();
+  const owner = (p) => {
+    if (!owners.has(p)) owners.set(p, (p && D.registered.find((x) => [x.path, ...x.worktrees].some((d) => under(d, p)))?.path) || null);
+    return owners.get(p);
+  };
+  const projectKey = (r) => keys.get(r.project) ?? 'Other';
+  const listed = (r) => owner(projectKey(r)) != null;
   const short = (p) => p.split(/[\\/]/).slice(-2).join('/');
+  // A project by its folder name; two of the same name each add their parent folder.
+  const folder = (p) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+  const names = new Map();
+  for (const k of new Set(rows.map(projectKey))) names.set(folder(k), (names.get(folder(k)) ?? 0) + 1);
+  const name = (k) => (k === 'Other' ? k : names.get(folder(k)) > 1 ? short(k) : folder(k));
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  // Its sessions and the worktrees (folders other than the repository's own) they ran in.
+  const counts = (k, rs) => { const w = new Set(rs.map((r) => r.project).filter((p) => p && p !== k)).size; return `${plural(rs.length, 'session')}${w ? `, ${plural(w, k === 'Other' ? 'folder' : 'worktree')}` : ''}`; };
   const day = (iso) => iso.slice(0, 10);
+  const oldest = rows.reduce((a, r) => (!a || day(r.start) < a ? day(r.start) : a), '');
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
   const pct = (part, all) => (all ? `${Math.round((part / all) * 100)}%` : '-');
   const usd = (x) => (x == null ? 'not recorded' : `$${x < 10 ? x.toFixed(2) : Math.round(x).toLocaleString('en')}`);
@@ -70,30 +162,54 @@ function draw() {
     ['pattern', 'Pattern', patternKey],
     ['setup', 'Setup', setupKey],
   ];
-  // Projects registered in the app and their worktrees; a leading space keeps the option apart from any path.
-  const REGISTERED = ' registered';
-  const listed = (r) => !!r.project && D.registered.some((p) => r.project === p || r.project.startsWith(`${p}/`) || r.project.startsWith(`${p}\\`));
-  const FIRST = rows.some(listed) ? REGISTERED : '';
-  const state = { period: '30', q: '', project: FIRST, hidden: new Set() };
-  const matches = (key, f, r) => (key === 'project' && state.project === REGISTERED ? listed(r) : f(r) === state[key]);
-  const bar = $('filters');
-  for (const [key, label, f] of FILTERS) {
+  // reg: Registered only, remembered like the theme; it leaves out every session outside a registered project.
+  let reg = false;
+  try { reg = localStorage.getItem('bk-board-registered') === 'true'; } catch { /* storage blocked */ }
+  const state = { period: '30', q: '', project: '', folder: '', rq: '', open: new Set(), older: false, reg: reg && D.registered.length > 0, hidden: new Set(), stack: 'project' };
+  const pool = () => (state.reg ? rows.filter(listed) : rows);
+  // The last project chosen, remembered like the theme; one no longer in the data falls back to All.
+  try {
+    const [p, f] = JSON.parse(localStorage.getItem('bk-board-project')) ?? [];
+    if (pool().some((r) => projectKey(r) === p && (!f || r.project === f))) { Object.assign(state, { project: p, folder: f ?? '' }); if (f) state.open.add(p); }
+  } catch { /* storage blocked */ }
+  const options = (f) => {
     const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED, selected: state.project === REGISTERED }, 'Registered projects')] : [];
-    const s = el('select', { id: `f-${key}` }, own, el('option', { value: '', selected: !state[key] }, 'All'), values.map((v) => el('option', { value: v }, v)));
+    return [el('option', { value: '' }, 'All'), ...values.map((v) => el('option', { value: v }, v))];
+  };
+  const bar = $('filters');
+  // The project is chosen on the rail, the only list of projects.
+  for (const [key, label, f] of FILTERS.slice(1)) {
+    const s = el('select', { id: `f-${key}` }, options(f));
+    s.value = state[key] ?? '';
     s.addEventListener('change', () => { state[key] = s.value; render(); });
     bar.append(el('span', { class: 'f' }, el('label', { for: `f-${key}` }, label), s));
   }
   const period = el('select', { id: 'f-period' }, [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['all', 'All time']].map(([v, t]) => el('option', { value: v, selected: v === state.period }, t)));
   period.addEventListener('change', () => { state.period = period.value; render(); });
   bar.append(el('span', { class: 'f' }, el('label', { for: 'f-period' }, 'Period'), period));
+  const none = !D.registered.length;
+  const regBox = el('input', { type: 'checkbox', id: 'f-reg', checked: state.reg, disabled: none, 'aria-describedby': none ? 'f-reg-hint' : null });
+  regBox.addEventListener('change', () => {
+    state.reg = regBox.checked;
+    try { localStorage.setItem('bk-board-registered', String(state.reg)); } catch { /* storage blocked */ }
+    if (state.reg && state.project && owner(state.project) == null) state.project = state.folder = '';
+    render();
+  });
+  bar.append(el('span', { class: 'f' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
   const metric = $('metric');
   metric.addEventListener('change', () => render());
   $('search').addEventListener('input', (e) => { state.q = e.target.value.toLowerCase(); renderTable(current); });
 
   const table = (caption, head, body) => el('table', {}, el('caption', {}, caption), el('thead', {}, el('tr', {}, head.map((h) => el('th', { scope: 'col' }, h)))),
     el('tbody', {}, body.map((cells) => el('tr', {}, cells.map((c, i) => (i === 0 ? el('th', { scope: 'row' }, c) : el('td', {}, c)))))));
-  const details = (...kids) => el('details', {}, el('summary', {}, 'Table of values'), ...kids);
+  // A file the page makes itself, saved through a blob link: nothing leaves the machine.
+  const save = (file, blob) => { const a = el('a', { href: URL.createObjectURL(blob), download: file }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+  // A chart's text alternative: its table for screen readers, and the same rows as a CSV file.
+  const alt = (file, caption, head, body) => {
+    const b = el('button', { type: 'button', class: 'csv', 'aria-label': `Download data (CSV): ${caption}` }, 'Download data (CSV)');
+    b.addEventListener('click', () => save(`${file}.csv`, new Blob([toCsv(head, body)], { type: 'text/csv' })));
+    return [el('div', { class: 'sr' }, table(caption, head, body)), b];
+  };
   const DAY = 864e5;
   const dayStart = (t) => Date.parse(day(new Date(t).toISOString()));
   const iso = (t) => new Date(t).toISOString().slice(0, 10);
@@ -107,16 +223,18 @@ function draw() {
   // Rank over every session once: a project keeps its slot and color while the filters change; the rest fold into Other.
   const ranked = new Map();
   for (const r of rows) ranked.set(projectKey(r), (ranked.get(projectKey(r)) ?? 0) + 1);
+  ranked.delete('Other');
   const TOP = [...ranked].sort((a, b) => b[1] - a[1]).slice(0, SERIES).map(([k]) => k);
-  // A filtered list of at most SERIES projects names them all; a project outside the top ones takes a color no shown top one uses.
+  // The filtered list names its SERIES busiest projects; a named project outside the top ones takes a color no named top one uses.
   let named = TOP, extra = new Map();
   const slot = (r) => (named.includes(projectKey(r)) ? projectKey(r) : 'Other');
   const color = (k) => (k === 'Other' || (!TOP.includes(k) && !extra.has(k)) ? 'var(--other)' : `var(--s${(TOP.includes(k) ? TOP.indexOf(k) : extra.get(k)) + 1})`);
-  const name = (k) => (k === 'Other' ? k : short(k));
   const assign = (list) => {
-    const distinct = [...new Set(list.map(projectKey))];
-    named = distinct.length <= SERIES ? distinct : TOP;
-    const free = [...Array(SERIES).keys()].filter((i) => !distinct.includes(TOP[i]));
+    const n = new Map();
+    for (const r of list) if (projectKey(r) !== 'Other') n.set(projectKey(r), (n.get(projectKey(r)) ?? 0) + 1);
+    const distinct = [...n.keys()];
+    named = [...n].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, SERIES).map(([k]) => k);
+    const free = [...Array(SERIES).keys()].filter((i) => !named.includes(TOP[i]));
     extra = new Map(named.filter((k) => !TOP.includes(k)).map((k) => [k, free.shift()]));
     return distinct;
   };
@@ -134,57 +252,120 @@ function draw() {
       last && el('svg:circle', { cx: last[0], cy: last[1], r: 3.5, fill: 'var(--s1)', stroke: 'var(--surface)', 'stroke-width': 2 }));
   }
 
-  // The change against the previous period of the same length, in words as well as an arrow.
-  function change(cur, prev, unit) {
-    if (prev == null || cur == null) return null;
-    const len = state.period;
-    const base = ` vs previous ${len} days`;
-    const diff = unit === 'pts' ? Math.round(cur - prev) : prev ? Math.round(((cur - prev) / prev) * 100) : null;
-    if (diff === 0 || (!prev && !cur)) return el('div', { class: 'delta' }, `no change${base}`);
-    if (diff == null) return el('div', { class: 'delta' }, `none in the previous ${len} days`);
-    return el('div', { class: 'delta' }, el('span', { 'aria-hidden': 'true' }, diff > 0 ? '▲ ' : '▼ '), `${diff > 0 ? 'up' : 'down'} ${Math.abs(diff)}${unit === 'pts' ? ' points' : '%'}${base}`);
-  }
-
-  function tiles(list, prev, span) {
-    const recent = span.slice(-30), by = group(list, (r) => day(r.start));
-    const per = (f) => recent.map((d) => f(by.get(d) ?? []));
-    const stats = (l) => ({ sessions: l.length, time: sum(l.map((r) => r.busyMs)), cost: sum(l.map((r) => r.costUSD)), tokens: sum(l.map((r) => r.tokens)), pass: passRate(l).v, merged: mergedPrs(l).size });
-    const cur = stats(list), old = prev && stats(prev);
-    const codex = list.filter((r) => r.costUSD == null).length;
-    const merged = mergedPrs(list);
-    const items = [
-      ['Sessions', 'sessions', String(cur.sessions), per((rs) => rs.length), null],
-      ['Agent time', 'time', dur(cur.time), per((rs) => sum(rs.map((r) => r.busyMs))), 'API and tool time'],
-      ['Cost', 'cost', usd(cur.cost), per((rs) => sum(rs.map((r) => r.costUSD))), `API-equivalent, Claude Code only${codex ? `; ${codex} sessions not recorded` : ''}`],
-      ['Tokens', 'tokens', compact(cur.tokens), per((rs) => sum(rs.map((r) => r.tokens))), 'input, cache and output'],
-      ['Tests passed', 'pass', cur.pass == null ? '-' : `${Math.round(cur.pass)}%`, per((rs) => passRate(rs).v), `of ${list.filter((r) => r.tests).length} sessions with a test run`],
-      ['Merged pull requests', 'merged', String(cur.merged), recent.map((d) => [...merged.values()].filter((x) => x === d).length), 'by first session'],
+  const AGENTS = { claude: 'Claude Code', codex: 'Codex' };
+  const agentName = (a) => AGENTS[a] ?? a;
+  // The quick facts as [label, value, change line, note], for the page and the export card. prev is null for All time and
+  // when the filters leave the previous period empty: then no card has a change line.
+  let facts = [];
+  function tiles(list, prev, span, prevSpan) {
+    const len = state.period === 'all' ? null : Number(state.period);
+    const cur = periodFacts(list, span), old = prev?.length ? periodFacts(prev, prevSpan) : null;
+    const delta = (k, fmt) => changeText(cur[k], old?.[k] ?? null, len, { fmt });
+    const missing = cur.uncosted.map(([a, n]) => `${plural(n, `${agentName(a)} session`)} without a cost`).join(', ');
+    facts = [
+      ['Sessions', String(cur.sessions), delta('sessions')],
+      ['Agent time', dur(cur.time), delta('time', dur), 'API and tool time'],
+      ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${missing ? `; ${missing}` : ''}`],
+      ['Tokens', compact(cur.tokens), delta('tokens', compact), 'input, cache and output'],
+      ['Most used agent', cur.agent ? agentName(cur.agent[0]) : '-', cur.agent && `${cur.agent[1]} of ${plural(cur.sessions, 'session')}`],
+      ['Busiest day', cur.busiest?.[0] ?? '-', cur.busiest && plural(cur.busiest[1], 'session')],
+      ['Active days', String(cur.active), delta('active'), `of ${plural(span.length, 'day')}`],
+      ['Longest streak', plural(cur.streak, 'day'), delta('streak')],
     ];
-    $('tiles').replaceChildren(...items.map(([label, key, value, series, note]) => el('div', { class: 'tile' },
-      el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value), sparkline(series), old && change(cur[key], old[key], key === 'pass' ? 'pts' : null), note && el('div', { class: 'note' }, note))));
+    // Under the quick facts, smaller: test runs and merged pull requests, with the same change rule.
+    const stats = (l) => l && { pass: passRate(l).v, merged: mergedPrs(l).size };
+    const is = stats(list), was = stats(old && prev);
+    const more = [
+      ['Tests passed', is.pass == null ? '-' : `${Math.round(is.pass)}%`, changeText(is.pass, was?.pass ?? null, len, { points: true }), `of ${plural(list.filter((r) => r.tests).length, 'session')} with a test run`],
+      ['Merged pull requests', String(is.merged), changeText(is.merged, was?.merged ?? null, len), 'by first session'],
+    ];
+    const tile = ([label, value, line, note]) => el('div', { class: 'tile' }, el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value),
+      line && el('div', { class: 'delta num' }, line), note && el('div', { class: 'note' }, note));
+    $('tiles').replaceChildren(el('div', { class: 'facts' }, facts.map(tile)), el('div', { class: 'facts small' }, more.map(tile)));
   }
 
-  // The project rail: newest activity first; a click filters everything below, a second click clears it.
+  // The project rail: registered repositories, All, then the other repositories, each newest first. A repository with
+  // sessions in more than one folder expands to them; one without a session in 30 days sits under Show older. Other, the
+  // folders of no known repository, comes last.
+  // Framed or narrow, the rail is one button with the choice that opens the same list.
+  const narrow = () => getComputedStyle($('rail-toggle')).display !== 'none';
+  const setOpen = (open) => { $('rail').classList.toggle('open', open); $('rail-toggle').setAttribute('aria-expanded', String(open)); };
   function rail(list) {
-    const regOnly = state.project === REGISTERED || (state.project && listed({ project: state.project }));
-    const by = group(list.filter((r) => !regOnly || listed(r)), projectKey);
+    const by = group(list, projectKey);
     const span = [...Array(14).keys()].map((i) => iso(now - (13 - i) * DAY));
     const cards = [...by].map(([k, rs]) => ({ k, rs, newest: rs.reduce((a, r) => (r.start > a ? r.start : a), '') })).sort((a, b) => (a.newest < b.newest ? 1 : a.newest > b.newest ? -1 : b.rs.length - a.rs.length));
-    const choose = (v) => { state.project = state.project === v ? FIRST : v; $('f-project').value = state.project; render(); };
-    $('rail').replaceChildren(
-      el('button', { type: 'button', class: 'card all', 'aria-pressed': String(state.project === FIRST) }, FIRST ? 'Registered projects' : 'All projects'),
-      ...cards.map(({ k, rs }) => {
-        const days14 = group(rs, (r) => day(r.start));
-        const tier = rs.find((r) => r.tier)?.tier.last;
-        const b = el('button', { type: 'button', class: 'card', 'aria-pressed': String(state.project === k) },
-          el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
-          el('span', { class: 'psub num' }, `${rs.length} session${rs.length === 1 ? '' : 's'}${tier ? `, last tier ${tier}` : ''}`),
-          sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
-        b.addEventListener('click', () => choose(k));
-        return b;
+    const choose = (k, f = '') => {
+      const same = state.project === k && state.folder === f;
+      state.project = same ? '' : k; state.folder = same ? '' : f;
+      if (f) state.open.add(k);
+      render();
+      if (narrow()) { setOpen(false); $('rail-toggle').focus(); }
+    };
+    const recent = iso(now - 29 * DAY);
+    const entry = ({ k, rs }) => {
+      const days14 = group(rs, (r) => day(r.start));
+      const tier = rs.find((r) => r.tier)?.tier.last;
+      const b = el('button', { type: 'button', class: 'card', title: k, 'aria-pressed': String(state.project === k && !state.folder) },
+        el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
+        el('span', { class: 'psub num' }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`),
+        sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
+      b.addEventListener('click', () => choose(k));
+      const e = el('div', { class: 'entry', 'data-find': `${name(k)} ${k}`.toLowerCase(), 'data-k': k }, b);
+      const folders = [...group(rs, (r) => r.project)].sort((x, y) => (x[0] < y[0] ? -1 : 1));
+      if (folders.length < 2) return el('div', { class: 'item' }, e);
+      const id = `fl-${gid++}`, open = state.open.has(k);
+      const exp = el('button', { type: 'button', class: 'exp', 'aria-expanded': String(open), 'aria-controls': id, 'aria-label': `Folders of ${name(k)}` }, el('span', { 'aria-hidden': 'true' }, '▸'));
+      const ul = el('ul', { class: 'folders', id, hidden: !open }, folders.map(([p, ps]) => {
+        const f = el('button', { type: 'button', class: 'folder', title: p, 'aria-pressed': String(state.folder === p) }, folder(p), el('span', { class: 'psub num' }, ` ${ps.length}`));
+        f.addEventListener('click', () => choose(k, p));
+        return el('li', { 'data-find': `${folder(p)} ${p}`.toLowerCase() }, f);
       }));
-    $('rail').firstChild.addEventListener('click', () => { state.project = FIRST; $('f-project').value = FIRST; render(); });
+      exp.addEventListener('click', () => expand(e, exp.getAttribute('aria-expanded') !== 'true'));
+      e.append(exp);
+      return el('div', { class: 'item' }, e, ul);
+    };
+    const all = el('button', { type: 'button', class: 'card all', 'aria-pressed': String(!state.project) }, state.reg ? 'All registered projects' : 'All projects');
+    all.addEventListener('click', () => { state.project = state.folder = ''; render(); if (narrow()) { setOpen(false); $('rail-toggle').focus(); } });
+    const other = cards.filter((c) => c.k === 'Other');
+    const old = cards.filter((c) => c.k !== 'Other' && day(c.newest) < recent);
+    const older = el('details', { class: 'older', open: state.older || null }, el('summary', {}, `Show older (${old.length})`), old.map(entry));
+    older.addEventListener('toggle', () => { state.older = older.open; });
+    const fresh = cards.filter((c) => !old.includes(c) && !other.includes(c));
+    $('rail-list').replaceChildren(...fresh.filter((c) => owner(c.k) != null).map(entry), all, ...fresh.filter((c) => owner(c.k) == null).map(entry), ...(old.length ? [older] : []), ...other.map(entry));
+    $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length - other.length, 'project')}`;
+    find();
   }
+  const expand = (e, open) => {
+    if (open) state.open.add(e.dataset.k); else state.open.delete(e.dataset.k);
+    find();
+  };
+  // The search hides what does not match; a repository stays when one of its folders matches, and shows those folders.
+  function find() {
+    const q = state.rq;
+    for (const item of $('rail-list').querySelectorAll('.item')) {
+      const [e, ul] = item.children;
+      const own = !q || e.dataset.find.includes(q);
+      let hits = 0;
+      for (const li of ul?.children ?? []) { li.hidden = !!q && !li.dataset.find.includes(q); hits += !li.hidden; }
+      item.hidden = !own && !hits;
+      if (ul) { ul.hidden = !(q && hits && !own) && !state.open.has(e.dataset.k); e.querySelector('.exp').setAttribute('aria-expanded', String(!ul.hidden)); }
+    }
+    const older = $('rail-list').querySelector('.older');
+    if (older) { older.hidden = ![...older.querySelectorAll('.item')].some((x) => !x.hidden); if (q && !older.hidden) older.open = true; }
+  }
+  $('rail-q').addEventListener('input', (e) => { state.rq = e.target.value.toLowerCase(); find(); });
+  $('rail-toggle').addEventListener('click', () => { const open = !$('rail').classList.contains('open'); setOpen(open); if (open) $('rail-q').focus(); });
+  // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
+  $('rail').addEventListener('keydown', (ev) => {
+    const items = [...$('rail').querySelectorAll('input, button, summary')].filter((n) => n.getClientRects().length);
+    const i = items.indexOf(document.activeElement), e = ev.target.closest?.('.entry');
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') items[i + (ev.key === 'ArrowDown' ? 1 : -1)]?.focus();
+    else if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && e?.querySelector('.exp')) expand(e, ev.key === 'ArrowRight');
+    else if (ev.key === 'Escape' && state.rq) { $('rail-q').value = state.rq = ''; find(); }
+    else if (ev.key === 'Escape' && narrow() && $('rail').classList.contains('open')) { setOpen(false); $('rail-toggle').focus(); }
+    else return;
+    ev.preventDefault();
+  });
 
   // The drawn chart, for the keyboard and the readout.
   let drawn = null;
@@ -194,23 +375,35 @@ function draw() {
     tokens: { label: 'Tokens', value: (r) => r.tokens ?? 0, text: compact, axis: compact, floor: 1000 },
     sessions: { label: 'Sessions', value: () => 1, text: String, axis: compact, floor: 2 },
   };
+  // The drawn series and days, for the export card.
+  let card = { series: [], stacks: [] };
   function chart(list, span, keep = null) {
     drawn?.clear();
-    $('chart-table').parentElement.hidden = false;
     const M = METRICS[metric.value];
     const { value, text } = M;
     const distinct = assign(list);
-    const present = new Set(list.map(slot));
-    const keys = [...TOP, ...extra.keys(), 'Other'].filter((k) => present.has(k) && (k === 'Other' || distinct.includes(k)));
+    // Stacked by agent, each agent is a series in the order of its sessions; by project, the named ones and Other.
+    const agents = state.stack === 'agent' ? [...group(list, (r) => r.agent)].sort((a, b) => b[1].length - a[1].length).map(([k]) => k) : null;
+    const slotOf = agents ? (r) => r.agent : slot;
+    const colorOf = agents ? (k) => `var(--s${(agents.indexOf(k) % SERIES) + 1})` : color;
+    const nameOf = agents ? agentName : name;
+    const present = new Set(list.map(slotOf));
+    const keys = agents ?? [...TOP, ...extra.keys(), 'Other'].filter((k) => present.has(k) && (k === 'Other' || named.includes(k)));
     const shown = keys.filter((k) => !state.hidden.has(k));
+    // Other states what it holds: the projects past the named ones and the folders of no repository.
+    const folded = distinct.length - named.length, loose = list.some((r) => projectKey(r) === 'Other');
+    const otherName = `Other (${[folded && plural(folded, 'more project'), loose && 'folders of no repository'].filter(Boolean).join(' and ')})`;
+    const label = (k) => (k === 'Other' ? otherName : nameOf(k));
     // One pass over the sessions: per day and series.
     const byDay = new Map();
     for (const r of list) {
-      const d = day(r.start), m = byDay.get(d) ?? new Map(), k = slot(r);
+      const d = day(r.start), m = byDay.get(d) ?? new Map(), k = slotOf(r);
       m.set(k, (m.get(k) ?? 0) + value(r));
       byDay.set(d, m);
     }
     const stacks = span.map((d) => ({ d, parts: keys.map((k) => (state.hidden.has(k) ? 0 : byDay.get(d)?.get(k) ?? 0)) }));
+    card = { series: keys.map((k) => ({ name: label(k), project: !agents && k !== 'Other', color: colorOf(k).slice(6, -1) })), stacks };
+    const by = agents ? 'agent' : 'project';
     // A round top tick: 1, 2 or 5 times a power of ten.
     const peak = Math.max(...stacks.map((s) => sum(s.parts)), M.floor), mag = 10 ** Math.floor(Math.log10(peak));
     const max = [1, 2, 5, 10].map((m) => m * mag).find((m) => m >= peak);
@@ -218,7 +411,7 @@ function draw() {
     const W = Math.max(300, $('chart').clientWidth), H = 220, L = 48, B = 24, T = 8;
     const step = (W - L) / Math.max(stacks.length, 1), bw = Math.max(2, Math.min(24, step - 4));
     const y = (v) => H - B - (v / max) * (H - B - T);
-    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${M.label} per day by project; the table of values below has the numbers` });
+    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${M.label} per day by ${by}` });
     for (const t of [0, 0.5, 1]) svg.append(el('svg:line', { x1: L, x2: W, y1: y(max * t), y2: y(max * t), stroke: 'var(--grid)', 'stroke-width': 1 }),
       el('svg:text', { x: L - 6, y: y(max * t) + 4, 'text-anchor': 'end', class: 'tick' }, M.axis(max * t)));
     // The chosen day: a band behind the bars, and its values in the readout under the legend.
@@ -232,7 +425,7 @@ function draw() {
       const s = stacks[active], total = sum(s.parts);
       band.setAttribute('x', L + active * step);
       band.setAttribute('visibility', 'visible');
-      const items = byDay.has(s.d) ? [...keys.map((k, j) => s.parts[j] && el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), `${name(k)} ${text(s.parts[j])}`)).filter(Boolean), el('span', {}, `Total ${text(total)}`)] : ['no sessions'];
+      const items = byDay.has(s.d) ? [...keys.map((k, j) => s.parts[j] && el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${colorOf(k)}` }), `${nameOf(k)} ${text(s.parts[j])}`)).filter(Boolean), el('span', {}, `Total ${text(total)}`)] : ['no sessions'];
       tip.replaceChildren(el('strong', {}, `${s.d} `), ...items);
       if (announce) $('tip-live').textContent = tip.textContent;
     };
@@ -244,7 +437,7 @@ function draw() {
         const top = y(base + v), bottom = y(base);
         // A 2px surface gap between stacked segments.
         const h = Math.max(1, bottom - top - (base ? 2 : 0));
-        svg.append(el('svg:rect', { x, y: top, width: bw, height: h, rx: 2, fill: color(keys[k]), class: 'mark' }));
+        svg.append(el('svg:rect', { x, y: top, width: bw, height: h, rx: 2, fill: colorOf(keys[k]), class: 'mark' }));
         base += v;
       });
       if (i % Math.max(1, Math.ceil(stacks.length / Math.floor(W / 70))) === 0) svg.append(el('svg:text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, s.d.slice(5)));
@@ -257,17 +450,23 @@ function draw() {
     });
     drawn = { count: stacks.length, get active() { return active; }, choose, clear };
     const c = $('chart');
-    c.setAttribute('tabindex', '0'); c.setAttribute('role', 'group'); c.setAttribute('aria-label', 'Per day by project. The left and right arrow keys read each day, Escape closes the reading.');
+    c.setAttribute('tabindex', '0'); c.setAttribute('role', 'group'); c.setAttribute('aria-label', `Per day by ${by}. The left and right arrow keys read each day, Escape closes the reading.`);
     // A chip hides or shows its series; the chart is drawn again with the same scale rules.
     $('legend').replaceChildren(...keys.map((k) => {
-      const b = el('button', { type: 'button', class: 'key chip', 'aria-pressed': String(!state.hidden.has(k)) }, el('span', { class: 'swatch', style: `background:${color(k)}` }), name(k));
+      const b = el('button', { type: 'button', class: 'key chip', 'aria-pressed': String(!state.hidden.has(k)) }, el('span', { class: 'swatch', style: `background:${colorOf(k)}` }), label(k));
       b.addEventListener('click', () => { if (state.hidden.has(k)) state.hidden.delete(k); else state.hidden.add(k); chart(list, span, drawn?.active); $('legend').children[keys.indexOf(k)]?.focus(); });
       return b;
     }));
     $('chart').replaceChildren(svg);
     if (keep != null) choose(keep);
-    $('chart-table').replaceChildren(table('Per day, days without sessions left out', ['Day', ...shown.map(name), 'Total'], stacks.filter((s) => byDay.has(s.d)).map((s) => [s.d, ...keys.flatMap((k, j) => (state.hidden.has(k) ? [] : [text(s.parts[j])])), text(sum(s.parts))])));
+    $('chart-table').replaceChildren(...alt(`per-day-${metric.value}-by-${by}`, `${M.label} per day by ${by}, days without sessions left out`, ['Day', ...shown.map(nameOf), 'Total'],
+      stacks.filter((s) => byDay.has(s.d)).map((s) => [s.d, ...keys.flatMap((k, j) => (state.hidden.has(k) ? [] : [text(s.parts[j])])), text(sum(s.parts))])));
   }
+  for (const b of document.querySelectorAll('#stack button')) b.addEventListener('click', () => {
+    state.stack = b.value;
+    for (const x of document.querySelectorAll('#stack button')) x.setAttribute('aria-pressed', String(x === b));
+    render();
+  });
   // The keyboard reads the chart day by day; Escape closes the readout.
   $('chart').addEventListener('keydown', (e) => {
     if (!drawn || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -295,7 +494,7 @@ function draw() {
         : `Highest ${ok.at(-1).label} ${m.fmt(ok.at(-1).v)} (n=${ok.at(-1).n}), lowest ${ok[0].label} ${m.fmt(ok[0].v)} (n=${ok[0].n}).`;
       return el('div', { class: 'cmp' }, el('h3', {}, m.title),
         bars(items.map((i) => ({ label: i.label, n: i.n, frac: (i.v ?? 0) / max, text: i.v == null ? 'not recorded' : m.fmt(i.v), low: i.n < MIN }))), el('p', { class: 'note' }, line));
-    })), details(tableFor), ...(by.size > cap ? [el('p', { class: 'note' }, `The ${cap} groups with most sessions; the table has all ${by.size}.`)] : []));
+    })), ...alt(id, ...tableFor), ...(by.size > cap ? [el('p', { class: 'note' }, `The ${cap} groups with most sessions; the data has all ${by.size}.`)] : []));
   }
   const CMP = [
     { title: 'Median agent time per session', f: medianOf((r) => r.busyMs), fmt: dur },
@@ -303,14 +502,15 @@ function draw() {
     { title: 'Tests passed', f: passRate, fmt: (v) => `${Math.round(v)}%` },
   ];
 
+  // A table's caption, head and body, for a visible table or a chart's text alternative.
   function groups(list, key, caption, label) {
     const by = group(list, key);
-    return table(caption, [label, 'Sessions', 'Median cost', 'Median time', 'Tests passed', 'PRs merged', 'Moved up'],
+    return [caption, [label, 'Sessions', 'Median cost', 'Median time', 'Tests passed', 'PRs merged', 'Moved up'],
       [...by].sort((a, b) => b[1].length - a[1].length).map(([k, rs]) => {
         const tested = rs.filter((r) => r.tests), withPr = rs.filter((r) => r.prs.length), tiered = rs.filter((r) => r.tier);
         return [k, rs.length, money(median(rs.map((r) => r.costUSD))), dur(median(rs.map((r) => r.busyMs))), pct(tested.filter((r) => r.tests === 'pass').length, tested.length),
           pct(withPr.filter((r) => r.prs.some((p) => p.state === 'merged')).length, withPr.length), pct(tiered.filter((r) => r.tier.movedUp).length, tiered.length)];
-      }));
+      })];
   }
 
   // Weeks counted back from today, the oldest first; cost and merged pull requests over time.
@@ -323,7 +523,7 @@ function draw() {
     const prs = order.map((w) => { const rs = by.get(w), n = wk.get(w) ?? 0, c = sum(rs.map((r) => r.costUSD)); return { w, rs, n, v: n ? c / n : null }; });
     const max = Math.max(...prs.map((p) => p.v ?? 0), 1e-9);
     $('by-prpr').replaceChildren(bars(prs.map((p) => ({ label: weekLabel(p.w), n: p.rs.length, frac: (p.v ?? 0) / max, text: p.v == null ? 'no merged pull request' : `${money(p.v)} (${p.n} merged)`, low: p.rs.length < MIN }))),
-      details(table('Cost per merged pull request by week', ['Week', 'Sessions', 'Merged pull requests', 'Cost', 'Cost per merged pull request'], prs.map((p) => [weekLabel(p.w), p.rs.length, p.n, usd(sum(p.rs.map((r) => r.costUSD))), p.v == null ? '-' : money(p.v)]))));
+      ...alt('cost-per-merged-pr', 'Cost per merged pull request by week', ['Week', 'Sessions', 'Merged pull requests', 'Cost', 'Cost per merged pull request'], prs.map((p) => [weekLabel(p.w), p.rs.length, p.n, usd(sum(p.rs.map((r) => r.costUSD))), p.v == null ? '-' : money(p.v)])));
     // Model mix: the share of each week's sessions, a session with several models split evenly.
     const total = new Map();
     for (const r of list) for (const m of r.models.length ? r.models : ['unknown']) total.set(m, (total.get(m) ?? 0) + 1);
@@ -337,7 +537,7 @@ function draw() {
     const keys = [...top, ...(mix.some((x) => x.share.has('Other')) ? ['Other'] : [])];
     $('by-model').replaceChildren(el('div', { id: 'model-legend', class: 'legend' }, keys.map((m) => el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${col(m)}` }), m))),
       bars(mix.map((x) => ({ label: weekLabel(x.w), n: x.n, text: `${x.n} sessions`, low: x.n < MIN, segs: keys.map((m) => ({ w: (x.share.get(m) ?? 0) / x.n, color: col(m), title: `${m} ${Math.round(((x.share.get(m) ?? 0) / x.n) * 100)}%` })) }))),
-      details(table('Share of sessions by model and week', ['Week', ...keys], mix.map((x) => [weekLabel(x.w), ...keys.map((m) => pct(x.share.get(m) ?? 0, x.n))]))));
+      ...alt('model-mix', 'Share of sessions by model and week', ['Week', ...keys], mix.map((x) => [weekLabel(x.w), ...keys.map((m) => pct(x.share.get(m) ?? 0, x.n))])));
   }
 
   // Histograms: sessions per bin, the bin holding the median marked.
@@ -347,42 +547,48 @@ function draw() {
     const med = median(vals), mb = med == null ? -1 : bin(med), max = Math.max(...counts, 1);
     $(id).replaceChildren(el('h3', {}, title), el('p', { class: 'note num' }, `Median ${med == null ? 'not recorded' : fmt(med)} over ${vals.length} sessions`),
       bars(labels.map((l, i) => ({ label: i === mb ? `${l} (median)` : l, n: counts[i], frac: counts[i] / max, text: String(counts[i]), mark: i === mb }))),
-      details(table(title, ['Bin', 'Sessions'], labels.map((l, i) => [l, counts[i]]))));
+      ...alt(id, title, ['Bin', 'Sessions'], labels.map((l, i) => [l, counts[i]])));
   }
 
-  // Twelve weeks of agent time per day, weeks as columns from Monday.
+  // Twelve weeks of agent time per day, weeks as columns from Monday; heat keeps each day's level for the export card.
+  let heat = [];
   function calendar(list) {
     const today = dayStart(now), dow = (new Date(today).getUTCDay() + 6) % 7, first = today - dow * DAY - 11 * 7 * DAY;
     const by = group(list.filter((r) => Date.parse(day(r.start)) >= first), (r) => day(r.start));
     const busy = (d) => sum((by.get(d) ?? []).map((r) => r.busyMs));
     const nz = [...by.keys()].map(busy).filter((v) => v > 0).sort((a, b) => a - b);
     const level = (v) => (v <= 0 ? 0 : 1 + [0.25, 0.5, 0.75].filter((q) => v > nz[Math.floor(q * (nz.length - 1))]).length);
-    const C = 14, G = 3, L = 18, W = L + 12 * (C + G), H = 7 * (C + G) + 4;
-    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Agent time per day over the last 12 weeks; the table of values below has the numbers', class: 'cal' });
-    ['Mon', 'Wed', 'Fri'].forEach((t, i) => svg.append(el('svg:text', { x: 0, y: (i * 2) * (C + G) + C - 2, class: 'tick' }, t[0])));
+    const C = 14, G = 3, L = 30, T = 16, W = L + 12 * (C + G), H = T + 7 * (C + G) + 4;
+    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Agent time per day over the last 12 weeks', class: 'cal' });
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((t, r) => svg.append(el('svg:text', { x: 0, y: T + r * (C + G) + C - 3, class: 'tick' }, t)));
+    // A month's name over the first week that starts in it; the first column's only when the next month is two columns away.
+    const month = (c) => new Date(first + c * 7 * DAY).toLocaleString('en', { month: 'short', timeZone: 'UTC' });
+    for (let c = 0; c < 12; c++) if (c ? month(c) !== month(c - 1) : month(0) === month(2)) svg.append(el('svg:text', { x: L + c * (C + G), y: 11, class: 'tick' }, month(c)));
     let active = 0, streak = 0, longest = 0;
     const lines = [];
+    heat = [];
     for (let c = 0; c < 12; c++) for (let r = 0; r < 7; r++) {
       const t = first + (c * 7 + r) * DAY;
-      if (t > today) { streak = 0; continue; }
+      if (t > today) { streak = 0; heat.push(null); continue; }
       const d = iso(t), v = busy(d), has = by.has(d);
       streak = has ? streak + 1 : 0; longest = Math.max(longest, streak);
       if (has) { active++; lines.push([d, by.get(d).length, dur(v)]); }
-      svg.append(el('svg:rect', { x: L + c * (C + G), y: r * (C + G), width: C, height: C, rx: 4, fill: level(v) ? 'var(--accent)' : 'var(--grid)', 'fill-opacity': level(v) ? [0, 0.3, 0.5, 0.75, 1][level(v)] : 1, class: 'mark' }, el('svg:title', {}, `${d}: ${has ? dur(v) : 'no sessions'}`)));
+      heat.push(level(v));
+      svg.append(el('svg:rect', { x: L + c * (C + G), y: T + r * (C + G), width: C, height: C, rx: 4, fill: level(v) ? 'var(--accent)' : 'var(--grid)', 'fill-opacity': level(v) ? [0, 0.3, 0.5, 0.75, 1][level(v)] : 1, class: 'mark' }, el('svg:title', {}, `${d}: ${has ? dur(v) : 'no sessions'}`)));
     }
     $('calendar').replaceChildren(el('p', { class: 'note num' }, `${active} active days of 84, longest streak ${longest} day${longest === 1 ? '' : 's'}`), el('div', { class: 'scroll' }, svg),
-      details(table('Days with sessions in the last 12 weeks', ['Day', 'Sessions', 'Agent time'], lines.reverse())));
+      ...alt('activity', 'Days with sessions in the last 12 weeks', ['Day', 'Sessions', 'Agent time'], lines.reverse()));
   }
 
   // One project: its branches and the states of its pull requests (every period).
   function projectPage(list) {
     const s = $('project-page'), k = state.project;
-    s.hidden = !k || k === REGISTERED;
+    s.hidden = !k;
     if (s.hidden) return;
     const prs = new Map();
     for (const r of list) for (const p of r.prs) prs.set(p.url, p.state);
     const states = [...group([...prs].map(([url, st]) => ({ st })), (x) => x.st)].map(([st, xs]) => `${xs.length} ${st}`).join(', ');
-    $('project-title').textContent = `Project ${short(k)}`;
+    $('project-title').textContent = `Project ${name(k)}`;
     $('project-body').replaceChildren(el('p', { class: 'note num' }, `${list.length} sessions, ${prs.size} pull requests${states ? `: ${states}` : ''}`),
       list.length ? table('Branches, newest first', ['Branch', 'Sessions', 'Last session', 'Pull requests'], [...group(list, (r) => r.branch ?? '-')].map(([b, rs]) => {
         const ps = new Map(); for (const r of rs) for (const p of r.prs) ps.set(p.url, p.state);
@@ -433,20 +639,25 @@ function draw() {
 
   const CHARTS = ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar', 'by-change', 'skills'];
   function render() {
+    try { localStorage.setItem('bk-board-project', JSON.stringify([state.project, state.folder])); } catch { /* storage blocked */ }
     // Whole UTC days, the same ones the chart draws: today and the days before it.
     const len = state.period === 'all' ? null : Number(state.period);
     const since = len ? iso(now - (len - 1) * DAY) : '';
     const before = len ? iso(now - (2 * len - 1) * DAY) : '';
-    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || matches(key, f, r));
-    const base = rows.filter(others);
+    const all = pool();
+    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]) && (!state.folder || r.project === state.folder);
+    const base = all.filter(others);
     const list = base.filter((r) => r.start >= since);
     const prev = len ? base.filter((r) => day(r.start) >= before && day(r.start) < since) : null;
     assign(list);
     // The rail leaves the project filter out, so every project of the period stays a choice.
-    rail(rows.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => key === 'project' || !state[key] || matches(key, f, r))));
+    rail(all.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => key === 'project' || !state[key] || f(r) === state[key])));
     const span = days(list);
     current = list;
-    tiles(list, prev, span);
+    tiles(list, prev, span, len ? [...Array(len).keys()].map((i) => iso(now - (2 * len - 1 - i) * DAY)) : null);
+    // Not one session on the machine before this period: its history is cut, said once here instead of on every card.
+    $('history').hidden = !(len && oldest && oldest >= since);
+    $('history-start').textContent = oldest;
     projectPage(base);
     if (!list.length) {
       // One sentence per section instead of header-only tables and an empty axis.
@@ -454,7 +665,7 @@ function draw() {
       for (const a of ['tabindex', 'role', 'aria-label']) $('chart').removeAttribute(a);
       for (const id of CHARTS) $(id).replaceChildren(el('p', { class: 'muted' }, 'No sessions match these filters.'));
       for (const id of ['legend', 'chart-table', 'tip', 'tip-live']) $(id).replaceChildren();
-      $('chart-table').parentElement.hidden = true;
+      card = { series: [], stacks: [] }; heat = [];
       renderTable(list);
       return;
     }
@@ -467,25 +678,53 @@ function draw() {
     histogram('dist-time', list.map((r) => r.busyMs).filter((v) => v != null), [0, 60e3, 300e3, 900e3, 1800e3, 3600e3, 7200e3, 14400e3, Infinity], ['under 1m', '1 to 5m', '5 to 15m', '15 to 30m', '30 to 60m', '1 to 2h', '2 to 4h', '4h or more'], dur, 'Agent time per session');
     histogram('dist-turns', list.map((r) => r.turns), [0, 2, 3, 5, 9, 17, Infinity], ['1 or none', '2', '3 to 4', '5 to 8', '9 to 16', '17 or more'], (v) => String(v), 'Turns per session');
     calendar(base);
-    $('by-change').replaceChildren(groups(list, (r) => (r.tier ? `${r.tier.first}: ${r.tier.changeType ?? 'no change type'}` : null), 'Moved up per first tier and change type (report only)', 'Tier and change type'));
+    $('by-change').replaceChildren(table(...groups(list, (r) => (r.tier ? `${r.tier.first}: ${r.tier.changeType ?? 'no change type'}` : null), 'Moved up per first tier and change type (report only)', 'Tier and change type')));
     skills(list);
     renderTable(list);
   }
+  // The export card: built from the drawn page data in the page itself, previewed, then saved as PNG or SVG.
+  const exp = $('export');
+  const cardText = () => {
+    const dark = $('x-theme').value ? $('x-theme').value === 'dark' : document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    const period = $('f-period').selectedOptions[0].textContent;
+    return cardSvg({ title: `Sessions, ${period.toLowerCase()}`, sub: `${METRICS[metric.value].label} per day, read ${D.now.slice(0, 10)}`, facts: facts.map(([l, v]) => [l, v]), ...card, heat, names: $('x-names').checked, colors: D.colors[dark ? 'dark' : 'light'] });
+  };
+  const preview = () => $('x-preview').replaceChildren(document.importNode(new DOMParser().parseFromString(cardText(), 'image/svg+xml').documentElement, true));
+  $('export-open').addEventListener('click', () => { preview(); exp.showModal(); });
+  for (const id of ['x-names', 'x-theme']) $(id).addEventListener('change', preview);
+  $('x-close').addEventListener('click', () => exp.close());
+  $('x-svg').addEventListener('click', () => save('sessions-card.svg', new Blob([cardText()], { type: 'image/svg+xml' })));
+  $('x-png').addEventListener('click', () => {
+    const img = new Image(), url = URL.createObjectURL(new Blob([cardText()], { type: 'image/svg+xml' }));
+    img.onload = () => {
+      const c = el('canvas', { width: 1200, height: 630 });
+      c.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => save('sessions-card.png', b), 'image/png');
+    };
+    img.src = url;
+  });
   render();
+  // Runs over all periods and filters: cost and tokens per run, then per task.
+  const total = (x) => [String(x.sessions), money(x.costUSD), compact(x.tokens)];
+  $('by-run').replaceChildren(!D.runs.length ? el('p', { class: 'muted' }, 'No orchestrated sessions.') : table('Cost and tokens per run and task, all periods', ['Run', 'Task', 'Sessions', 'Cost', 'Tokens'],
+    D.runs.slice(0, 50).flatMap((x) => [[x.run ?? 'not recorded', 'all tasks', ...total(x)], ...x.tasks.map((t) => [x.run ?? 'not recorded', t.task ?? 'not recorded', ...total(t)])])));
+  scrollStops();
 }
 /* node:coverage enable */
 
-export const SCRIPT = `(${draw})();`;
+const SCRIPT = `(${draw})({ periodFacts: ${periodFacts}, changeText: ${changeText}, toCsv: ${toCsv}, cardSvg: ${cardSvg} });`;
 export const SCRIPT_HASH = `sha256-${createHash('sha256').update(SCRIPT).digest('base64')}`;
 // No requests at all; inline styles only; the script by its hash. The app adds frame-ancestors in its header.
-export const CSP = `default-src 'none'; script-src '${SCRIPT_HASH}'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`;
+// img-src blob: lets the export card draw its own SVG into a canvas for the PNG.
+export const CSP = `default-src 'none'; script-src '${SCRIPT_HASH}'; style-src 'unsafe-inline'; img-src blob:; base-uri 'none'; form-action 'none'`;
 
 // Tokens first: the colors per theme, then the shape, shadow and type every panel shares.
 const STYLE = `
 :root { color-scheme: light; ${cssVars('light')} }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; ${cssVars('dark')} } }
 :root[data-theme="dark"] { color-scheme: dark; ${cssVars('dark')} }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; } [hidden] { display: none !important; }
 body { margin: 0; padding: 16px; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; } h2 { font-size: 16px; margin: 0 0 10px; } h3 { font-size: 13px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
@@ -499,15 +738,26 @@ button:hover { border-color: var(--accent); }
 #filters label { color: var(--ink-2); } .f { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; }
 #filters select { max-width: min(240px, 100%); }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
-#rail { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
-.framed #rail { position: static; max-height: none; }
+#rail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
+#rail-list, .older { display: flex; flex-direction: column; gap: 8px; } #rail-q { width: 100%; margin-bottom: 8px; }
+#rail-toggle { display: none; width: 100%; text-align: left; font-weight: 600; }
+.entry { display: flex; gap: 4px; } .entry .card { flex: 1; min-width: 0; } .exp { padding: 0 8px; } .exp[aria-expanded="true"] span { display: inline-block; transform: rotate(90deg); }
+.folders { list-style: none; margin: 4px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.folder { width: 100%; text-align: left; border-color: transparent; padding: 2px 8px; overflow-wrap: anywhere; } .folder[aria-pressed="true"] { border-color: var(--accent); }
+.older summary { margin: 0; }
+/* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
+.framed .layout { grid-template-columns: minmax(0, 1fr); }
+.framed #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
+.framed #rail-toggle { display: block; } .framed #rail:not(.open) #rail-panel { display: none; }
+.framed #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
 .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card.all { display: block; font-weight: 600; } .card:hover { transform: translateY(-1px); }
 .card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
 .pname { font-weight: 600; overflow-wrap: anywhere; } .psub { grid-column: 2; font-size: 12px; color: var(--ink-2); } .card .spark { grid-column: 2; }
 .dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--glow); }
 section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin: 0 0 16px; overflow-x: auto; }
-#tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.facts.small { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px; } .small .tile .value { font-size: 18px; }
 .tile { position: relative; isolation: isolate; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; overflow: hidden; transition: transform var(--ease); }
 .tile::before { content: ''; position: absolute; inset: -30% -20% auto auto; width: 70%; height: 90%; background: radial-gradient(closest-side, var(--glow), transparent); z-index: -1; }
 .tile:hover { transform: translateY(-1px); }
@@ -538,21 +788,74 @@ thead th { font-weight: 600; } tbody th { font-weight: 400; }
 .framed #theme, .framed .lead { display: none; }
 .framed-only { display: none; } .framed .framed-only { display: inline; }
 details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
+.csv { font-size: 12px; padding: 2px 8px; margin-top: 8px; } a { color: var(--accent); }
+#stack { margin-top: 6px; } #stack button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+dialog { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); width: min(760px, calc(100vw - 32px)); padding: 16px; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.4); } dialog .f, #x-options { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
+#x-preview svg { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
-  #rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; position: static; max-height: none; padding-bottom: 8px; }
-  .card { width: auto; min-width: 150px; max-width: 230px; flex: none; } .card .spark { display: none; }
+  #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
+  #rail-toggle { display: block; } #rail:not(.open) #rail-panel { display: none; }
+  #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; } .card .spark { display: none; }
   .bars { grid-template-columns: minmax(0, 1fr); } .bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; } .bar-track { grid-column: 1 / -1; order: 3; }
 }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }
 `;
 
-// rows: scanSessions output; now: an ISO time (the periods count back from it); registered: folders the Project filter
-// offers as one choice, and preselects when a session ran in one.
-export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
+const parts = (p) => p.split(/[\\/]/).filter(Boolean);
+const inside = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
+// The repository each session folder counts under, the first that names one: the main worktree git gave for the folder
+// on any of its rows (kept after the folder is gone); the registered project whose folder or worktree holds it; the
+// deepest known repository it sits in; the one known repository named like its parent folder
+// (<worktrees root>/<repository>/<worktree>). A folder none of them names is left out: the board shows it under Other.
+function repoKeys(rows, registered) {
+  const found = new Map(rows.filter((r) => r.project && r.repo).map((r) => [r.project, r.repo]));
+  const known = [...new Set([...found.values(), ...registered.map((x) => x.path)])].sort((a, b) => b.length - a.length);
+  const named = new Map();
+  for (const k of known) named.set(parts(k).at(-1), named.has(parts(k).at(-1)) ? null : k);
+  const keys = new Map();
+  for (const p of new Set(rows.map((r) => r.project).filter(Boolean))) {
+    const k = found.get(p) ?? registered.find((x) => [x.path, ...x.worktrees].some((d) => inside(d, p)))?.path ?? known.find((d) => inside(d, p)) ?? named.get(parts(p).at(-2));
+    if (k) keys.set(p, k);
+  }
+  return keys;
+}
+
+// One registered project's sessions, worktrees counted under it as on the board: its page shows only these.
+export function projectRows(rows, registered, path, keys = repoKeys(rows, registered)) {
+  return rows.filter((r) => keys.get(r.project) === path);
+}
+
+// The Projects view's cards: per registered project, its sessions of the last `days` days up to now, all agents merged and
+// worktrees counted under their repository as on the board. perDay: sessions per day, oldest first; uncosted: sessions
+// without a cost; change: the sessions against the previous period, by the cards' rule.
+export function projectActivity(rows, registered, now, days = 30) {
+  const keys = repoKeys(rows, registered);
+  const today = Date.parse(now.slice(0, 10));
+  const span = (back) => Array.from({ length: days }, (_, i) => new Date(today - (back + days - 1 - i) * 864e5).toISOString().slice(0, 10));
+  const cur = span(0), prev = span(days);
+  const within = (list, s) => list.filter((r) => r.start.slice(0, 10) >= s[0] && r.start.slice(0, 10) <= s.at(-1));
+  return Object.fromEntries(registered.map(({ path }) => {
+    const mine = projectRows(rows, registered, path, keys).filter((r) => r.start);
+    const now30 = within(mine, cur), before = within(mine, prev);
+    const f = periodFacts(now30, cur);
+    const last = mine.reduce((a, r) => (!a || r.start > a.start ? r : a), null);
+    return [path, {
+      perDay: cur.map((d) => now30.filter((r) => r.start.startsWith(d)).length), from: cur[0], to: cur.at(-1),
+      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length,
+      change: changeText(f.sessions, before.length ? before.length : null, days),
+      last: last && { time: last.end ?? last.start, tier: last.tier?.last ?? null },
+    }];
+  }));
+}
+
+// rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
+// projects Registered only keeps, with their worktrees for rows cached without a repository.
+export function boardHtml(rows, now = new Date().toISOString(), registered = [], keepDays = 30) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -564,15 +867,17 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 </head>
 <body>
 <main aria-label="Sessions board">
-<div class="head"><h1>Sessions board</h1><span class="muted"><span class="lead">Claude Code and Codex sessions on this machine, read </span><span class="framed-only">Read </span>${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
-<p class="muted">Sessions older than the agent's transcript cleanup period come from the app's cache of summaries, which starts when the app first scanned.</p>
+<div class="head"><h1>Sessions board</h1><span class="muted"><span class="lead">Claude Code and Codex sessions on this machine, read </span><span class="framed-only">Read </span>${now.slice(0, 16).replace('T', ' ')} UTC</span><span class="f"><button id="export-open" type="button">Export card</button><button id="theme" type="button">Light or dark</button></span></div>
+<p id="history" class="note" hidden>History starts <span id="history-start"></span>: older sessions are no longer on this machine (Claude Code keeps transcripts for ${keepDays} days, <a href="https://code.claude.com/docs/en/settings-reference#cleanupperioddays" target="_blank" rel="noopener">cleanupPeriodDays</a>).</p>
 <div id="filters" role="group" aria-label="Filters"></div>
 <div class="layout">
-<nav id="rail" aria-label="Projects"></nav>
+<nav id="rail" aria-label="Projects"><button id="rail-toggle" type="button" aria-expanded="false" aria-controls="rail-panel"><span></span><span aria-hidden="true"> \u25be</span></button><div id="rail-panel"><input id="rail-q" type="search" aria-label="Find a project" placeholder="Find a project"><div id="rail-list"></div></div></nav>
 <div class="content">
 <div id="tiles"></div>
+<section aria-labelledby="h-cal"><h2 id="h-cal">Activity, last 12 weeks</h2><div id="calendar"></div></section>
 <section aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by project</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option><option value="tokens">Tokens</option><option value="sessions">Sessions</option></select></label></div>
-<div id="legend"></div><div id="chart" tabindex="0" role="group" aria-label="Per day by project. The left and right arrow keys read each day, Escape closes the reading."></div><div id="tip"></div><span id="tip-live" class="sr" role="status"></span><details><summary>Table of values</summary><div id="chart-table"></div></details></section>
+<div id="stack" class="f" role="group" aria-labelledby="stack-label"><span id="stack-label" class="muted">Stack by</span><button type="button" value="project" aria-pressed="true">Project</button><button type="button" value="agent" aria-pressed="false">Agent</button></div>
+<div id="legend"></div><div id="chart" tabindex="0" role="group" aria-label="Per day by project. The left and right arrow keys read each day, Escape closes the reading."></div><div id="tip"></div><span id="tip-live" class="sr" role="status"></span><div id="chart-table"></div></section>
 <section id="project-page" aria-labelledby="project-title" hidden><h2 id="project-title"></h2><div id="project-body"></div></section>
 <section aria-labelledby="h-tier"><h2 id="h-tier">Tier against outcome</h2><p class="note">n is the sessions a bar rests on. A bar under ${MIN_SAMPLES} is hatched and left out of the highest and lowest line.</p><div id="by-tier"></div></section>
 <section aria-labelledby="h-pattern"><h2 id="h-pattern">By pattern</h2><div id="by-pattern"></div></section>
@@ -580,13 +885,18 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <section aria-labelledby="h-prpr"><h2 id="h-prpr">Cost per merged pull request</h2><p class="note">Cost of the week's sessions divided by the pull requests merged that week (by first session); n is the week's sessions.</p><div id="by-prpr"></div></section>
 <section aria-labelledby="h-model"><h2 id="h-model">Model mix</h2><div id="by-model"></div></section>
 <section aria-labelledby="h-dist"><h2 id="h-dist">Distribution</h2><div class="cmps"><div id="dist-time"></div><div id="dist-turns"></div></div></section>
-<section aria-labelledby="h-cal"><h2 id="h-cal">Activity, last 12 weeks</h2><div id="calendar"></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
+<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex records tokens, not cost.</p><div id="by-run"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
 <section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </div>
 </div>
 </main>
+<dialog id="export" aria-labelledby="export-title"><h2 id="export-title">Export card</h2>
+<p class="note">Made on this machine from the page data, nothing is uploaded. Projects show as Project A, Project B and so on unless names are on.</p>
+<div id="x-options"><span class="f"><input type="checkbox" id="x-names"><label for="x-names">Show project names</label></span><span class="f"><label for="x-theme">Theme</label><select id="x-theme"><option value="">As the page</option><option value="light">Light</option><option value="dark">Dark</option></select></span></div>
+<div id="x-preview" role="img" aria-label="Preview of the card"></div>
+<div class="f"><button id="x-png" type="button">Save PNG</button><button id="x-svg" type="button">Save SVG</button><button id="x-close" type="button">Close</button></div></dialog>
 <script type="application/json" id="data">${data}</script>
 <script>${SCRIPT}</script>
 </body>
@@ -597,14 +907,21 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 // The board as a file the user opens without the app (the tier band's Board button): rewritten by every scan.
 export function writeBoard(ctx, rows, now) {
   const file = join(ctx.config, 'board.html');
-  writeAtomic(file, boardHtml(rows, now, registeredPaths(ctx)), 0o600);
+  writeAtomic(file, boardHtml(rows, now, registeredPaths(ctx), keepDays(ctx)), 0o600);
   return file;
 }
 
-// The app's registered projects with their Git worktrees, where sessions on a branch often run.
+// The days Claude Code keeps transcripts (cleanupPeriodDays in the user settings, default 30): the board's history.
+export function keepDays(ctx) {
+  let v;
+  try { v = JSON.parse(readText(join(ctx.home, '.claude/settings.json')) ?? '{}')?.cleanupPeriodDays; } catch { /* unreadable settings: the default */ }
+  return Number.isInteger(v) && v > 0 ? v : 30;
+}
+
+// The app's registered projects, each with its other Git worktrees, where sessions on a branch often run.
 export function registeredPaths(ctx) {
-  return [...new Set(listProjects(ctx).flatMap(({ path }) => {
-    const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain']);
-    return [path, ...(r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)) : [])];
-  }))];
+  return listProjects(ctx).map(({ path }) => {
+    const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain'], { env: repoEnv() });
+    return { path, worktrees: r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)).filter((w) => canon(w) !== canon(path)) : [] };
+  });
 }

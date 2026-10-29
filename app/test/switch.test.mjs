@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
+import { collectInsights } from '../src/insights.mjs';
 import { hashPath } from '../src/fsx.mjs';
 import { removePack, savePack } from '../src/packs.mjs';
 import { addProject, projectsUsing, updateAll } from '../src/projects.mjs';
@@ -308,14 +309,20 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   routes['POST /api/projects']({ action: 'add', path: r.dir });
   const q = (extra) => new URLSearchParams([['dir', r.dir], ...extra]);
   const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
+  mkdirSync(join(r.dir, 'docs'));
   let p = routes['GET /api/project-plan'](q([]));
   assert.deepEqual(p.packs.filter((x) => x.enabled).map((x) => x.id), ['ui-a']);
+  // Each pack says when to pick it, and the ones the repository's files point to say why.
+  assert.deepEqual(p.packs.filter((x) => x.suggested).map((x) => [x.id, x.suggested]), [['docs', 'a docs folder']]);
+  assert.ok(p.packs.find((x) => x.id === 'docs').pickWhen);
   p = routes['GET /api/project-plan'](q([['pack-on', 'ui-b'], ['pack-off', 'ui-a']]));
   assert.deepEqual(p.packs.filter((x) => x.enabled).map((x) => x.id), ['ui-b']);
   assert.deepEqual(p.skills.removed, [], 'the skill is in the other pack');
   assert.equal(status(() => routes['GET /api/project-plan'](q([['pack-on', 'nope']]))), 400);
   assert.equal(status(() => routes['GET /api/project-plan'](q([['pick', 'not-in-the-library']]))), 400);
   assert.equal(status(() => routes['GET /api/project-plan'](q([['reset', 'not-a-skill']]))), 400);
+  // A skill toggle followed by switching its pack off still gives a plan, without that skill.
+  for (const toggle of ['disable', 'enable']) assert.ok(!routes['GET /api/project-plan'](q([[toggle, SKILL], ['pack-off', 'ui-a']])).chosen.some((s) => s.name === SKILL));
   // One skill's reset: its changes only, with the records of them.
   writeFileSync(r.skill, 'edited\n');
   const reset = routes['GET /api/project-plan'](q([['reset', SKILL], ['focus', SKILL]]));
@@ -355,4 +362,43 @@ test('a focused plan keeps the rules block that points to an own skill; adopting
   run(other, { agents: ['claude'], env: 'host', packs: [], pick: [SKILL] });
   assert.equal(readFileSync(other.skill, 'utf8'), 'not ours\n');
   assert.deepEqual([write({}).selected, write({ reset: [SKILL] }).selected], [false, true]);
+});
+
+// Proposals from the project's own sessions (#480): the fix each one names runs through the skills command's plan, and undo
+// puts every file back. Commands (the skills CLI of a community skill) are stubbed: no network.
+test('skill proposals: the remove and add fixes from Insights apply through the plan, and undo restores the project byte for byte', async () => {
+  const r = repo();
+  r.ctx.run = () => ({ code: 0, stdout: '', stderr: '' });
+  run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
+  addProject(r.ctx, r.dir);
+  const folder = join(r.home, '.claude/projects/p');
+  mkdirSync(folder, { recursive: true });
+  const line = (t, extra) => JSON.stringify({ cwd: r.dir, sessionId: 'x', timestamp: t, ...extra });
+  for (let i = 0; i < 20; i++) {
+    const t = `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z`;
+    writeFileSync(join(folder, `s${i}.jsonl`), `${line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: 'hi' } })}\n${line(t, { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'text', text: 'ok' }] } })}\n`);
+  }
+  const proposal = async (id) => (await collectInsights(r.ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z') })).findings.find((f) => f.id.startsWith(`${id}:`));
+  const applyFix = async (f) => { const o = await cli(r, [...f.fix.split(' ').slice(1), '--yes']); assert.equal(o.code, 0, o.text); return o.text.match(/undo with benchkeeper undo (\S+)/)[1]; };
+  let before = tree(r.dir);
+  const remove = await proposal('skill-disable');
+  assert.equal(remove.fix, `benchkeeper skills disable ${SKILL} --project ${r.dir}`);
+  let id = await applyFix(remove);
+  assert.equal(existsSync(r.skill), false);
+  assert.deepEqual(readState(r.dir).disabled, [SKILL]);
+  assert.ok(before['CLAUDE.local.md'].includes(SKILL) && !readFileSync(join(r.dir, 'CLAUDE.local.md'), 'utf8').includes(SKILL), 'the setup block no longer points to it');
+  assert.equal((await cli(r, ['undo', id])).code, 0);
+  assert.deepEqual(tree(r.dir), before);
+  // A docs folder matches the library pack docs, whose skills the project lacks once ui-a is off.
+  run(r, { packOff: ['ui-a'] });
+  mkdirSync(join(r.dir, 'docs'));
+  writeFileSync(join(r.dir, 'docs/index.md'), '# Docs\n');
+  before = tree(r.dir);
+  const add = await proposal('skill-add');
+  assert.deepEqual([add.evidence.packs, add.evidence.skills.map((s) => s.name)], [['docs'], [SKILL, 'mermaid-diagrams']]);
+  id = await applyFix(add);
+  assert.ok(existsSync(r.skill));
+  assert.deepEqual(readState(r.dir).singles, [SKILL, 'mermaid-diagrams']);
+  assert.equal((await cli(r, ['undo', id])).code, 0);
+  assert.deepEqual(tree(r.dir), before);
 });

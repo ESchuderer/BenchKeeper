@@ -32,6 +32,6 @@ export function ledgerIssues(ctx) {
   return out;
 }
 
-export const packIssues = (ctx) => invalidPacks(ctx).map(({ file, reason }) => ({ message: `pack file ${file} is not used: ${reason}`, fix: `benchkeeper packs remove ${file} moves it to the backup` }));
+const packIssues = (ctx) => invalidPacks(ctx).map(({ file, reason }) => ({ message: `pack file ${file} is not used: ${reason}`, fix: `benchkeeper packs remove ${file} moves it to the backup` }));
 
 export const integrity = (ctx) => [...ledgerIssues(ctx), ...packIssues(ctx)];

@@ -1,4 +1,4 @@
-# Sample for the repository root of a project whose workers run in new Orca worktrees. BenchKeeper does not add it.
+# Sample for the repository root of a project whose workers run in new Orca worktrees. Project setup offers it, off by default, when workers ran there.
 # A new worktree is a clean checkout: commit this file, or list it in .worktreeinclude when Git ignores it.
 # Orca runs the setup script in each new worktree when its setup run policy (Settings, or --setup run|skip|inherit)
 # allows it. ORCA_ROOT_PATH is the primary checkout, ORCA_WORKTREE_PATH the new worktree.

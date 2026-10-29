@@ -1,0 +1,9 @@
+[
+  [
+    {"number": 3, "state": "open", "rule": {"id": "js/path-injection", "severity": "error"}, "tool": {"name": "CodeQL"}, "most_recent_instance": {"ref": "refs/heads/main", "location": {"path": "src/server.mjs", "start_line": 40}}},
+    {"number": 2, "state": "open", "rule": {"id": "js/path-injection", "severity": "error"}, "tool": {"name": "CodeQL"}, "most_recent_instance": {"ref": "refs/heads/main", "location": {"path": "src/server.mjs", "start_line": 12}}}
+  ],
+  [
+    {"number": 1, "state": "open", "rule": {"id": "js/unused-local-variable", "severity": "note"}, "tool": {"name": "CodeQL"}, "most_recent_instance": {"ref": "refs/heads/main", "location": {"path": "src/cli.mjs", "start_line": 7}}}
+  ]
+]

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
+import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
-import { writeSessions } from './fixtures/sessions.mjs';
+import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 function cli(answers = '') {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
@@ -39,6 +41,37 @@ test('apply --yes, history, undo', async () => {
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
 });
 
+test('a pack plugin BenchKeeper did not install: shown with its impact, never removed by --yes or --all, only by its own answer', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }] } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: {} }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true } }));
+  const calls = [];
+  const ctx = context({ home, run: (argv) => { calls.push(argv.join(' ')); return argv[0] === 'npm' ? { code: 1, stdout: '' } : { code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0' }; } });
+  // A registered project with a setup that uses no pack.
+  const dir = join(home, 'p');
+  mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ packs: [] }));
+  addProject(ctx, dir);
+  // Installed for selected projects; at the default scope (all projects) no removal is offered.
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { ponytail: 'projects' } }));
+  let text = '';
+  const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+  const exec = (args, answers = '') => main(args, { out, ctx, input: Readable.from([answers]) });
+  assert.equal(await exec(['plan', '--agents', 'claude', '--level', 'full']), 0);
+  assert.match(text, /\nponytail \(Claude Code plugin ponytail@ponytail\) is installed on this machine, but BenchKeeper did not set it up/);
+  assert.match(text, /add ponytail to a project: benchkeeper projects apply <dir> --pack ponytail\n  removing runs claude plugin uninstall ponytail@ponytail, which deletes the plugin and its data from Claude Code; claude plugin install ponytail@ponytail brings it back/);
+  await exec(['apply', '--agents', 'claude', '--level', 'full', '--yes', '--all']);
+  await exec(['apply', '--agents', 'claude', '--level', 'full', '--all'], 'y\n');
+  assert.ok(calls.includes('claude plugin install benchkeeper@benchkeeper') && !calls.includes('claude plugin uninstall ponytail@ponytail'));
+  await exec(['apply', '--agents', 'claude', '--level', 'full'], 'n\n'.repeat(80));
+  assert.match(text, /remove it\? \[y\/N\]/);
+  // packs disable --global is the user's own request: it removes the plugin.
+  await exec(['packs', 'disable', 'ponytail', '--global', '--agents', 'claude', '--yes']);
+  assert.ok(calls.includes('claude plugin uninstall ponytail@ponytail'));
+});
+
 test('help and unknown commands', async () => {
   const c = cli();
   assert.equal(await c.exec(['--help']), 0);
@@ -54,6 +87,24 @@ test('board writes the sessions page for this user only', async () => {
   assert.match(c.text(), /3 sessions: .*board\.html/);
   assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /"id":"c1"/);
+});
+
+test('sessions list: cost and tokens per run, with --run per task; no worker text or title', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  const c = cli();
+  writeRunSessions(c.home, '/work/app', MARK, { title: MARK });
+  assert.equal(await c.exec(['sessions', 'list']), 0);
+  assert.equal(await c.exec(['sessions', 'list', '--run', 'r-9']), 0);
+  assert.equal(c.text(), [
+    'run r-9: 3 sessions, $2.25, 345 tokens',
+    'run r-9: 3 sessions, $2.25, 345 tokens',
+    '  task task_b: 1 session, $0.25, 115 tokens',
+    '  task task_a: 2 sessions, $2.00, 230 tokens',
+    '',
+  ].join('\n'));
+  assert.equal(await c.exec(['sessions', 'list', '--run', 'nope']), 1);
+  assert.match(c.text(), /no sessions of run nope/);
+  assert.ok(!c.text().includes(MARK));
 });
 
 test('the old command names are unknown and the removed skill flags are refused', async () => {
@@ -85,5 +136,43 @@ test('sessions record runs the command after -- and records its files; sessions 
   o = await exec(['sessions', 'record', '--project', dir]);
   assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
   o = await exec(['sessions']);
-  assert.deepEqual([o.code, /sessions needs board or record/.test(o.text)], [2, true]);
+  assert.deepEqual([o.code, /sessions needs board, list, cache or record/.test(o.text)], [2, true]);
+});
+
+test('skills cli checks the signatures of the release a skill install runs and prints its command prefix', async () => {
+  const old = new Date(Date.now() - 30 * 864e5).toISOString();
+  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
+  delete process.env.BENCHKEEPER_SKILLS_CLI;
+  try {
+    for (const verified of [0, 1]) {
+      const calls = [];
+      const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-cli-')), run: (argv, opts) => {
+        calls.push({ argv, opts });
+        if (argv[0] === 'npm') return { code: 0, stdout: JSON.stringify({ time: { '9.1.0': old }, versions: ['9.1.0'] }) };
+        return { code: verified, stdout: '', stderr: verified ? 'invalid signature\n' : '' };
+      } });
+      let text = '';
+      const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+      assert.equal(await main(['skills', 'cli'], { out, ctx, input: Readable.from(['']) }), verified);
+      const check = calls.find((c) => c.argv.at(-1) === 'skills@9.1.0');
+      assert.ok(check && check.opts.env.npm_config_before && check.opts.env.npm_config_ignore_scripts === 'true');
+      if (verified) assert.match(text, /invalid signature\nskills@npm:skills@9\.1\.0 failed the signature check/);
+      else assert.equal(text, `DO_NOT_TRACK=1 npm_config_registry=https://registry.npmjs.org/ npm_config_ignore_scripts=true npm_config_before=${check.opts.env.npm_config_before} npx -y skills@npm:skills@9.1.0\n`);
+    }
+  } finally {
+    if (forced !== undefined) process.env.BENCHKEEPER_SKILLS_CLI = forced;
+  }
+});
+
+test('ui: a busy port ends with one line and exit 1, a bad --port with exit 2', async () => {
+  const busy = createServer();
+  await new Promise((ok) => busy.listen(0, '127.0.0.1', ok));
+  const { port } = busy.address();
+  const c = cli();
+  try {
+    assert.equal(await c.exec(['ui', '--no-open', '--port', String(port)]), 1);
+    assert.match(c.text(), new RegExp(`^port ${port} is in use: stop the other server or pick another port\n$`));
+  } finally { busy.close(); }
+  for (const bad of ['abc', '65536', '-1', '1.5']) assert.equal(await c.exec(['ui', '--no-open', `--port=${bad}`]), 2);
+  assert.match(c.text(), /--port must be a whole number from 0 to 65535\n$/);
 });

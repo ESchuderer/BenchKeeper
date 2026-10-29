@@ -22,6 +22,7 @@ const postBuild = {
 
 export default defineConfig({
   site: 'https://eschuderer.github.io',
-  base: '/BenchKeeper',
+  // SITE_EDITION=next builds main for /next/ (pages.yml); the root shows the latest release.
+  base: process.env.SITE_EDITION === 'next' ? '/BenchKeeper/next' : '/BenchKeeper',
   integrations: [react(), postBuild],
 });

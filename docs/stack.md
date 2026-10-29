@@ -9,7 +9,7 @@ The components BenchKeeper sets up, where each file lives and why these were cho
 | Component | Scope | Purpose |
 |---|---|---|
 | [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | the agent runs inside the container by default; `--env` also offers the agent on the host with project commands in the container, a Docker Sandboxes microVM (untested), or no container |
-| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity |
+| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full`, optional | the `ponytail` pack: global plugin in both agents, its level written when the pack is chosen | implementation simplicity |
 | [Matt Pocock's skills](https://github.com/mattpocock/skills), his install, optional | global plugin in both agents: Claude Code from the official marketplace (it pins a commit of his repository), Codex from his marketplace | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
 | [workflow](../plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task kind (software change, docs pass, research) and tier (quick, standard, full), issue and pull request flow, pre-push correctness review, security review for risky changes; uses Matt Pocock's skills when installed |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
@@ -17,12 +17,12 @@ The components BenchKeeper sets up, where each file lives and why these were cho
 
 Per repo, committed: `.devcontainer/`, `AGENTS.md` (your own text), `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`. Local by default, listed in `.git/info/exclude` (committed with `--share`): `CLAUDE.local.md` (shared: `CLAUDE.md`), `AGENTS.override.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `.benchkeeper/`.
 
-Global (per machine): the rules, the plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), find-skills, settings.
+Global (per machine): the rules, the BenchKeeper plugin, the plugins of the packs chosen (Ponytail, Matt Pocock's skills), find-skills, settings.
 
-Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
+With the `ponytail` pack, another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
 <!-- generated:core -->
-**Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
+**Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
 ## Contents
@@ -36,27 +36,24 @@ Another Ponytail level for the current session: `/ponytail lite` or `/ponytail u
 | [plugins/benchkeeper/skills/setting-up-projects](../plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/workflow](../plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes, docs passes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
 | [plugins/benchkeeper/skills/tier](../plugins/benchkeeper/skills/tier/SKILL.md) | sets the tier for the rest of the session (`quick`, `standard`, `full`, `research`, or `auto` to let the workflow pick) | plugin skill `/benchkeeper:tier`, user-invoked |
-| [plugins/benchkeeper/hooks/tier](../plugins/benchkeeper/hooks/tier/register.tsx) | the optional status band in the Claude Code terminal and desktop app: project, branch, last test run and Ponytail's level, the tier of the last answer, buttons for `/benchkeeper:tier`, the sessions board and the doctor, the override kept through compaction and resume ([setup](setup.md#the-status-band)) | Claude Code plugin option `tierBand`, off by default |
+| [plugins/benchkeeper/hooks/tier](../plugins/benchkeeper/hooks/tier/register.tsx) | the optional status band in the Claude Code terminal and desktop app: project, branch and Ponytail's level, the last test run and lint or type check with the edits since and a verdict for the tier, the tier of the last answer, buttons for `/benchkeeper:tier`, the sessions board and the doctor, the override kept through compaction and resume ([setup](setup.md#the-status-band)) | Claude Code plugin option `tierBand`, off by default |
 | [plugins/benchkeeper/skills/maintaining-repos](../plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code and duplicates, dependency cycles, test audit by mutation, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
 | [plugins/benchkeeper/skills/orchestrating-projects](../plugins/benchkeeper/skills/orchestrating-projects/SKILL.md) | the coordinator on request: one worker per project on labeled issues, projects in parallel, outcomes verified, merge and cleanup by each repository's written policy | plugin skill `benchkeeper:orchestrating-projects` |
 | [plugins/benchkeeper/skills/operating-benchkeeper](../plugins/benchkeeper/skills/operating-benchkeeper/SKILL.md) | how an agent manages its own setup through the CLI: plan, review, apply with `--yes`, read the JSON, undo, doctor, update one project | plugin skill `benchkeeper:operating-benchkeeper`, model-invoked |
+| [plugins/benchkeeper/skills/reviewing-rules](../plugins/benchkeeper/skills/reviewing-rules/SKILL.md) | reviews one rule file on request for contradictions, vague lines, lines a tool could enforce and lines that restate the code; changes nothing | plugin skill `/benchkeeper:reviewing-rules`, user-invoked |
 | [plugins/benchkeeper/library](../plugins/benchkeeper/library/README.md) | skills installed per project, grouped into packs (frontend, testing, security, science, docs, data, marketing, operations, Matt Pocock's) | installed into a project by `benchkeeper projects apply` or `setting-up-projects` |
-| [CHANGELOG.md](../CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
+| [CHANGELOG.md](../CHANGELOG.md) | setup versions up to 6.25; then `app/CHANGELOG.md` (tags `app-v*`) and `plugins/benchkeeper/CHANGELOG.md` (tags `setup-v*`), see [Releasing](releasing.md) | not linked |
 | [web](../web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
 ## How this stack was selected
 
-- Quality: in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3, [report](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md)).
-- Time: it depends on the version. setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
-- Cost: Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3, same report); external results range from 10% less to 55% more ([evaluation](../evaluations/behavior-modes/ponytail.md)).
-- Skills by level: small composable skills. The full flow runs only for full-tier work, small tiers load targeted skills.
-- Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
-
-For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark results](https://github.com/ESchuderer/BenchKeeper-research#recorded-results).
-
-## Benchmarks
-
-Each setup runs as its own arm on the same brownfield brief. Scores, time per task and app reviews per arm are in the reports: [BenchKeeper-research `bench/results`](https://github.com/ESchuderer/BenchKeeper-research/tree/main/bench/results). Method: [bench/PROTOCOL.md](../bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
+<!-- generated:reasons -->
+- Checks by tier: every change runs the checks and reviews its tier names: the tests of the touched code after each edit, a review before pushing for standard and full work.
+- Long checks last: the full suite, end-to-end tests and builds run once after the last edit, in a subagent that returns only failures and key lines.
+- Simplicity: the optional Ponytail pack adds a plugin that steers the agent to the smallest complete change.
+- Skills by level: the full flow runs only for full-tier work. Small changes load one targeted skill.
+- One install: one machine setup covers every repository. Each repository adds only its tracker, docs and stack.
+<!-- /generated:reasons -->
 
 ## Recommended tools (optional)
 

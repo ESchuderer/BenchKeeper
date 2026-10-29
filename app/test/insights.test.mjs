@@ -6,6 +6,7 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { MIN_SAMPLES, collectInsights, insights } from '../src/insights.mjs';
+import { narrativeInput } from '../src/narrative.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeSessions } from './fixtures/sessions.mjs';
@@ -47,7 +48,9 @@ test('friction: a project from the sample threshold, with the failed sessions wi
   assert.equal(f.signal, 'friction');
   assert.deepEqual(f.evidence, { project: 'shop', sessions: 20, failed: 3, rate: 15, sessionIds: ['p0', 'p1', 'p2'] });
   assert.match(f.message, /^3 of 20 sessions in shop \(15%\)/);
-  assert.equal(insights({ sessions: project(MIN_SAMPLES, failing, 'C:\\work\\shop') }).findings[0].id, f.id, 'the folder name decides, not the path');
+  const other = insights({ sessions: project(MIN_SAMPLES, failing, '/clients/acme/shop') }).findings[0];
+  assert.equal(other.evidence.project, 'shop');
+  assert.notEqual(other.id, f.id, 'the path decides, not the folder name');
   assert.ok(!JSON.stringify(r).includes(SECRET));
   assert.ok(!JSON.stringify(r).includes('/work'));
 });
@@ -62,21 +65,50 @@ test('friction: nothing below the threshold, without a failed last run, for Orca
   assert.equal(insights({ sessions: [...mixed, ...project(1, failing)] }).findings[0].evidence.sessions, 20);
   const two = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, failing, '/work/blog'), { id: 'x', project: null, tests: 'fail', prs: [] }] });
   assert.deepEqual(two.findings.map((f) => f.evidence.project).sort(), ['blog', 'shop']);
+  // Two projects with the same folder name are two findings, each with its own sessions.
+  const same = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, () => ({}), '/clients/acme/shop').map((s, i) => ({ ...s, id: `q${i}`, tests: i ? 'pass' : 'fail' }))] }).findings;
+  assert.deepEqual(same.map((f) => [f.evidence.project, f.evidence.failed]).sort(), [['shop', 1], ['shop', 20]]);
+  assert.notEqual(same[0].id, same[1].id);
+});
+
+test('skill proposals: turn off what the project sessions did not use, add what a matched pack brings, update what is behind', () => {
+  const dir = '/work/my shop';
+  const p = { dir, skills: [{ name: 'used', state: 'current' }, { name: 'idle', state: 'current' }, { name: 'named', state: 'current' }, { name: 'off', state: 'disabled' }, { name: 'gone', state: 'removed' }, { name: 'old', state: 'outdated' }], keep: ['named'], add: ['a11y', 'ui'], packs: ['frontend'] };
+  const inProject = sessions(MIN_SAMPLES, ['used', 'old']).map((s) => ({ ...s, dir: `${dir}/app` }));
+  const r = insights({ sessions: inProject, projects: [p] });
+  const by = Object.fromEntries(r.findings.map((f) => [f.id.split(':')[0], f]));
+  assert.deepEqual(Object.keys(by).sort(), ['skill-add', 'skill-disable', 'skill-update']);
+  assert.ok(r.findings.every((f) => f.signal === 'skills' && f.severity === 'info' && f.evidence.dir === dir));
+  assert.deepEqual(by['skill-disable'].evidence.skills, [{ name: 'idle', scope: 'my shop' }]);
+  assert.equal(by['skill-disable'].fix, 'benchkeeper skills disable idle --project "/work/my shop"');
+  assert.match(by['skill-disable'].message, /^1 skill of my shop not used in any of its last 20 sessions: idle$/);
+  assert.equal(by['skill-add'].fix, 'benchkeeper skills add a11y ui --project "/work/my shop"');
+  assert.deepEqual([by['skill-add'].evidence.action, by['skill-add'].evidence.packs], ['pick', ['frontend']]);
+  assert.equal(by['skill-update'].fix, 'benchkeeper skills update old --project "/work/my shop"');
+  // The narrative gets the folder name, never the path the fix needs.
+  assert.ok(!JSON.stringify(narrativeInput(r, r.findings)).includes('/work'));
+});
+
+test('skill proposals: no remove below the threshold of the project sessions, sessions of another project do not count', () => {
+  const p = { dir: '/work/shop', skills: [{ name: 'idle', state: 'current' }], keep: [], add: [], packs: [] };
+  const elsewhere = sessions(MIN_SAMPLES).map((s) => ({ ...s, dir: '/work/shopping' }));
+  assert.deepEqual(ids(insights({ sessions: elsewhere, projects: [p] })), []);
+  assert.deepEqual(ids(insights({ sessions: elsewhere.slice(1).map((s) => ({ ...s, dir: '/work/shop' })), projects: [p] })), []);
 });
 
 test('hygiene and freshness: the doctor findings are split, each fact appears once', () => {
   const doctorFindings = [
     { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in the environment', fix: 'unset it' },
     { level: 'error', check: 'instructions', message: 'x imports gone.md', fix: 'fix the import', file: 'CLAUDE.md', line: 2 },
-    { level: 'warning', check: 'pins', message: 'skills CLI 1.8.0 is out for 7 days, the app pins 1.7.2', fix: 'a newer app release updates the pin' },
+    { level: 'warning', check: 'pins', message: '.benchkeeper/pins.local.json is not ignored by git', fix: 'add it to .gitignore' },
     { level: 'warning', check: 'plugin', tag: 'outdated', message: 'plugin x 1 -> 2', fix: 'benchkeeper apply' },
   ];
   const r = insights({ doctorFindings });
   assert.equal(r.findings[0].severity, 'error');
-  assert.deepEqual(r.findings.map((f) => `${f.signal} ${f.fix}`).sort(), ['freshness a newer app release updates the pin', 'freshness benchkeeper apply', 'hygiene fix the import', 'hygiene unset it']);
+  assert.deepEqual(r.findings.map((f) => `${f.signal} ${f.fix}`).sort(), ['freshness benchkeeper apply', 'hygiene add it to .gitignore', 'hygiene fix the import', 'hygiene unset it']);
   assert.deepEqual(r.summary, { error: 1, warning: 3, info: 0 });
   assert.deepEqual(r.findings.find((f) => f.severity === 'error').evidence, { check: 'instructions', message: 'x imports gone.md', file: 'CLAUDE.md', line: 2 });
-  assert.equal(r.findings.filter((f) => f.signal === 'freshness').length, 2);
+  assert.equal(r.findings.filter((f) => f.signal === 'freshness').length, 1, 'a phase pin finding is hygiene');
   assert.equal(new Set(ids(r)).size, 4);
   assert.deepEqual(ids(insights({ doctorFindings })), ids(r), 'the same input gives the same ids');
   assert.deepEqual(insights({ doctorFindings: [] }).findings, []);

@@ -11,7 +11,7 @@ import { doctor } from '../src/doctor.mjs';
 import { hashPath } from '../src/fsx.mjs';
 import { exportProfile } from '../src/profile.mjs';
 import { addProject } from '../src/projects.mjs';
-import { BUDGET_TOKENS, globRegex, ruleChanges, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
+import { BUDGET_TOKENS, globRegex, ruleChanges, ruleDraft, ruleEdit, rulesChecks, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
@@ -107,6 +107,22 @@ test('a switch for one project changes that project only: two projects, one glob
   assert.equal(readFileSync(team, 'utf8'), 'shared by every project\n');
   decide(ctx, { agent: 'claude', file: team, dir: a, on: true }, projectCtx(ctx, a));
   assert.equal(row(ctx, 'claude', team, a).load, 'always');
+});
+
+test('a switch changes only its own pattern in claudeMdExcludes as the file holds it at apply time', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'x\n');
+  const settings = join(ctx.home, '.claude/settings.json');
+  const excludes = () => JSON.parse(readFileSync(settings, 'utf8')).claudeMdExcludes;
+  const off = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: false }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/added-later.md'] }));
+  assert.equal(apply(off, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/added-later.md', team]);
+  const on = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: true }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/other.md', team, '**/added-later.md'] }));
+  assert.equal(apply(on, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/other.md', '**/added-later.md']);
 });
 
 test('a file left out by a layer this view cannot write, or by another pattern, is not switched on here', () => {
@@ -298,4 +314,178 @@ test('rules list, disable and enable on the command line', async () => {
   assert.equal((await cli('rules', 'disable', join(ctx.home, 'notes.txt'), '--yes')).code, 1);
   assert.equal((await cli('rules', 'disable')).code, 2);
   assert.equal((await cli('rules', 'frob')).code, 2);
+});
+
+// One project with one case per check, after the global setup of both agents.
+function broken() {
+  const ctx = machine();
+  apply(preview(globalPlan({ ctx, agents: ['claude', 'codex'], devcontainerCli: '1.0.0' })), ctx);
+  const dir = project();
+  const repeated = `- ${SECRET} belongs in one file only, not two`;
+  write(join(ctx.home, '.claude/rules/20-team.md'), `${repeated}\n`);
+  write(join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'true' } }));
+  write(join(dir, 'CLAUDE.md'), `# Project\n\n@docs/gone.md\nSee [the guide](docs/missing.md).\nRun \`npm run deploy\` before a release, then \`npm run build\`.\n${repeated}\n`);
+  write(join(dir, '.claude/rules/big.md'), `${'Keep it short. '.repeat(300)}\n`);
+  write(join(dir, '.claude/rules/api.md'), '---\npaths:\n  - "api/**/*.ts"\n---\n\nAPI rules\n');
+  write(join(dir, '.claude/rules/empty.md'), '');
+  mkdirSync(join(dir, '.claude/rules/folder.md'));
+  write(join(dir, '.claude/rules/notes.txt'), 'not loaded\n');
+  write(join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), `${Array.from({ length: 300 }, (_, i) => `- note ${i}`).join('\n')}\n`);
+  return { ctx, dir };
+}
+
+test('the checks: one case per check yields exactly its finding with file and line, a clean project none', () => {
+  const { ctx, dir } = broken();
+  const found = rulesChecks(ctx, { agents: ['claude', 'codex'], dir, limit: 1000 });
+  assert.deepEqual(found.map((f) => f.kind).sort(), ['command', 'duplicate', 'empty', 'glob', 'import', 'link', 'memory', 'size', 'unloaded', 'unreadable']);
+  const by = Object.fromEntries(found.map((f) => [f.kind, f]));
+  assert.deepEqual([by.import.file, by.import.line, by.import.level], ['CLAUDE.md', 3, 'error']);
+  assert.deepEqual([by.link.line, by.link.level], [4, 'error']);
+  assert.match(by.command.message, /^CLAUDE\.md:5 runs npm run deploy, which no package\.json/);
+  assert.match(by.duplicate.message, /^CLAUDE\.md:6 repeats ~\/\.claude\/rules\/20-team\.md:1: both load in the same Claude Code session/);
+  assert.match(by.size.message, /\.claude\/rules\/big\.md has about 1126 tokens, over the limit of 1000 per file/);
+  assert.deepEqual(by.size.action, { agent: 'claude', file: join(dir, '.claude/rules/big.md') }, 'a file with a switch can be turned off');
+  assert.deepEqual([by.glob.file, by.glob.line], ['.claude/rules/api.md', 2]);
+  assert.match(by.empty.message, /empty\.md is empty/);
+  assert.match(by.unreadable.message, /folder\.md cannot be read/);
+  assert.match(by.unloaded.message, /notes\.txt is not a \.md file: Claude Code does not load it/);
+  assert.deepEqual([by.memory.line, by.memory.scope], [201, 'project']);
+  assert.ok(found.every((f) => ['error', 'warning'].includes(f.level) && f.message && f.fix));
+  // The default limit is the budget; a file over it is the only change.
+  assert.ok(!rulesChecks(ctx, { agents: ['claude'], dir }).some((f) => f.kind === 'size'));
+  const clean = project();
+  write(join(clean, 'CLAUDE.md'), '@AGENTS.md\n\nRun `npm run build` before a pull request.\n');
+  write(join(clean, 'AGENTS.md'), '# Rules\n\nSee [the readme](README.md).\n');
+  write(join(clean, 'README.md'), '# Clean\n');
+  write(join(clean, 'package.json'), JSON.stringify({ scripts: { build: 'true' } }));
+  write(join(clean, '.claude/rules/web.md'), '---\npaths: "web/**/*.ts"\n---\n\nWeb rules\n');
+  write(join(clean, 'web/src/a.ts'), '');
+  assert.deepEqual(rulesChecks(ctx, { agents: ['claude', 'codex'], dir: clean }).filter((f) => f.scope !== 'global'), []);
+  const fresh = machine();
+  apply(preview(globalPlan({ ctx: fresh, agents: ['claude', 'codex'], devcontainerCli: '1.0.0' })), fresh);
+  assert.deepEqual(rulesChecks(fresh, { agents: ['claude', 'codex'] }), [], 'the global setup alone is clean');
+});
+
+test('the limits show as bars: the session budget by BenchKeeper, the Codex size and auto memory by the agent', () => {
+  const { ctx, dir } = broken();
+  const view = rulesView(ctx, { dir, limit: 1000 });
+  assert.equal(view.limit, 1000);
+  const claude = view.agents.find((a) => a.id === 'claude').budget.limits;
+  assert.deepEqual(claude.map((l) => [l.label, l.by, l.unit]), [['At the start of a session', 'BenchKeeper', 'tokens'], ['MEMORY.md', 'Claude Code', 'lines']]);
+  assert.deepEqual([claude[1].value, claude[1].max], [300, 200]);
+  assert.deepEqual(view.agents.find((a) => a.id === 'codex').budget.limits[1], { label: 'AGENTS.md files together', value: view.agents.find((a) => a.id === 'codex').budget.items.filter((i) => i.kind === 'rules').reduce((n, i) => n + i.bytes, 0), max: 32 * 1024, unit: 'bytes', by: 'Codex' });
+});
+
+test('rules check exits 1 on an error finding and prints --json; Doctor lists the findings once; no rule text in any of them', async () => {
+  const { ctx, dir } = broken();
+  addProject(ctx, dir);
+  const cli = async (...args) => { const o = output(); const code = await main(args, { out: o.stream, err: o.stream, ctx }); return { code, text: o.text }; };
+  const text = await cli('rules', 'check', '--project', dir, '--agents', 'claude,codex');
+  assert.equal(text.code, 1, text.text);
+  assert.match(text.text, /^error +CLAUDE\.md:4 links docs\/missing\.md, which does not exist\n {8}fix: /m);
+  assert.match(text.text, /\d+ errors, \d+ warnings\n$/);
+  const json = await cli('rules', 'check', '--project', dir, '--json');
+  assert.equal(json.code, 1);
+  const doc = JSON.parse(json.text);
+  assert.equal(doc.command, 'rules check');
+  assert.ok(doc.summary.error >= 3 && doc.findings.every((f) => f.check === 'rules' && f.message));
+  assert.equal((await cli('rules', 'check', '--limit', 'x')).code, 2);
+  const clean = machine();
+  const cleanRun = async (...args) => { const o = output(); return main(args, { out: o.stream, err: o.stream, ctx: clean }); };
+  assert.equal(await cleanRun('rules', 'check'), 0);
+  const found = doctor(ctx, { agents: ['claude', 'codex'], dir, env: {}, devcontainerCli: '1.0.0' });
+  const rules = found.filter((f) => f.check === 'rules');
+  assert.deepEqual(rules.map((f) => f.kind).sort(), ['command', 'duplicate', 'empty', 'glob', 'link', 'memory', 'unloaded', 'unreadable']);
+  assert.equal(found.filter((f) => /imports docs\/gone\.md/.test(f.message)).length, 1, 'a missing import is reported once');
+  for (const out of [text.text, json.text, JSON.stringify(found), JSON.stringify(rulesView(ctx, { dir })), JSON.stringify(ctx.ledger.list()), exportProfile(ctx, { agents: ['claude', 'codex'], packs: [] })]) assert.ok(!out.includes(SECRET));
+});
+
+test('a draft re-runs the checks of its file and counts its tokens and lines; nothing is written', () => {
+  const { ctx, dir } = broken();
+  const file = join(dir, 'CLAUDE.md');
+  const before = readFileSync(file, 'utf8');
+  const draft = (text) => ruleDraft(ctx, { agent: 'claude', file, dir, text });
+  const now = draft(before);
+  assert.deepEqual(now.findings.map((f) => f.kind).sort(), ['command', 'duplicate', 'import', 'link']);
+  const added = draft(`${before}@docs/also-gone.md\n`);
+  assert.deepEqual(added.findings.filter((f) => f.kind === 'import').map((f) => f.line), [3, 7]);
+  assert.equal(added.lines, now.lines + 1);
+  const clean = draft('# Project\n\nRun `npm run build` first.\n');
+  assert.deepEqual([clean.findings, clean.tokens, clean.lines], [[], tokensOf(Buffer.byteLength('# Project\n\nRun `npm run build` first.\n')), 3]);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.throws(() => draft(undefined), /text must be a string/);
+});
+
+test('an edit is a plan with the diff: the run backs the file up, undo restores it, the file stays yours', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, `# Team\n${SECRET}\n`);
+  const plan = preview(ruleEdit(ctx, { agent: 'claude', file: team, text: '# Team\nshorter\n' }));
+  assert.deepEqual(plan.map((c) => c.title), [`edit ${SHOWN} for Claude Code`]);
+  assert.match(plan[0].diff, /\+shorter/);
+  const run = apply(plan, ctx, { scope: 'global' });
+  assert.equal(run.status, 'done');
+  assert.equal(readFileSync(team, 'utf8'), '# Team\nshorter\n');
+  assert.equal(readFileSync(run.entries[0].backup, 'utf8'), `# Team\n${SECRET}\n`);
+  assert.deepEqual([row(ctx, 'claude', team).owner, row(ctx, 'claude', team).switch.by], ['yours', 'settings'], 'an edit of yours is not BenchKeeper writing the file');
+  assert.equal(undo(run.id, ctx).status, 'done');
+  assert.equal(readFileSync(team, 'utf8'), `# Team\n${SECRET}\n`);
+});
+
+test('an edit is refused for a file not listed, of BenchKeeper, global in a project view, or changed since the plan', () => {
+  const ctx = machine();
+  apply(preview(globalPlan({ ctx, agents: ['codex'], devcontainerCli: '1.0.0' })), ctx);
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'team\n');
+  write(join(ctx.home, 'notes.txt'), 'not a rule file\n');
+  const dir = project();
+  const edit = (file, opts = {}) => ruleEdit(ctx, { agent: 'claude', file, text: 'x\n', ...opts });
+  assert.throws(() => edit(join(ctx.home, 'notes.txt')), /is not an instruction file/);
+  assert.throws(() => edit('/etc/passwd'), /is not an instruction file/);
+  assert.throws(() => edit(join(ctx.home, '.codex/AGENTS.md'), { agent: 'codex' }), /BenchKeeper wrote it/);
+  assert.throws(() => edit(team, { dir }), /is a global file: edit it in the global view/);
+  const plan = preview(edit(team));
+  write(team, 'changed meanwhile\n');
+  assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'failed');
+  assert.equal(readFileSync(team, 'utf8'), 'changed meanwhile\n');
+});
+
+test('an edit keeps CRLF line endings, and a file that is not UTF-8 or a folder is refused', () => {
+  const ctx = machine();
+  const crlf = join(ctx.home, '.claude/rules/30-crlf.md');
+  write(crlf, '# Team\r\nold\r\n');
+  const plan = preview(ruleEdit(ctx, { agent: 'claude', file: crlf, text: '# Team\nnew\n' }));
+  assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'done');
+  assert.equal(readFileSync(crlf, 'utf8'), '# Team\r\nnew\r\n');
+  const latin = join(ctx.home, '.claude/rules/40-latin.md');
+  writeFileSync(latin, Buffer.from([0x23, 0x20, 0xe4, 0x0a]));
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text: edit it in an editor/);
+  assert.throws(() => ruleDraft(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text/);
+  const folder = join(ctx.home, '.claude/rules/50-folder.md');
+  mkdirSync(folder, { recursive: true });
+  assert.ok(row(ctx, 'claude', folder), 'the folder is listed');
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: folder, text: 'x\n' }), /is a folder, not a file: edit it in an editor/);
+});
+
+test('the edit routes: a check and a plan write nothing, /api/apply writes, and no rule text reaches History or the profile', async () => {
+  const ctx = machine();
+  const dir = project();
+  addProject(ctx, dir);
+  const local = join(dir, 'CLAUDE.local.md');
+  write(local, `${SECRET} old\n`);
+  const routes = api(ctx);
+  const q = (o) => new URLSearchParams(o);
+  assert.deepEqual(routes['POST /api/rule-check']({ agent: 'claude', file: local, dir, text: `${SECRET} new\n` }).findings, []);
+  assert.throws(() => routes['POST /api/rule-edit-plan']({ agent: 'claude', file: join(dir, 'README.md'), dir, text: 'x' }), (e) => e.status === 400);
+  const plan = routes['POST /api/rule-edit-plan']({ agent: 'claude', file: local, dir, text: `${SECRET} new\n` });
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`, 'a plan writes nothing');
+  assert.ok(!plan.changes.some((c) => c.title.includes(SECRET)));
+  const job = routes['POST /api/apply']({ planId: plan.planId });
+  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} new\n`);
+  const [last] = ctx.ledger.list();
+  assert.equal(undo(last.id, projectCtx(ctx, dir)).status, 'done');
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`);
+  const records = JSON.stringify([ctx.ledger.list(), routes['GET /api/history'](), routes['GET /api/run'](q({ id: last.id })), routes['GET /api/job'](q({ id: job.job })), exportProfile(ctx, { agents: ['claude'], packs: [] })]);
+  assert.ok(!records.includes(SECRET));
 });

@@ -2,7 +2,7 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton } from './fix.jsx';
+import { DoctorTable, FixEverythingButton, levelCounts } from './fix.jsx';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
@@ -269,13 +269,13 @@ export function Dashboard({ overview, doctor, history, params }) {
   const agents = o?.agents.filter((a) => a.installed) ?? [];
   const names = Object.fromEntries((o?.agents ?? []).map((a) => [a.id, a.name]));
   const attention = items.filter((i) => ATTENTION.includes(i.state));
-  const errors = doctor.data?.filter((i) => i.level === 'error').length ?? 0, warnings = (doctor.data?.length ?? 0) - errors;
+  const levels = levelCounts(doctor.data ?? []);
   const behind = o?.projects.filter((p) => !p.current).length ?? 0;
   const nodes = [
     { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
     { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
     { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
-    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: doctor.error || errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
+    { label: 'Doctor', value: doctor.data ? levels.text || 'no findings' : doctor.error ? 'check failed' : 'checking', status: doctor.error || levels.error ? 'problem' : levels.warning ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
   ];
   return (
     <Stack gap="xl" className="bk-dash">
@@ -293,7 +293,7 @@ export function Dashboard({ overview, doctor, history, params }) {
           <Loading state={doctor} label="doctor">{(found) => (
             <>
               <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the table`} />
-              <Text size="sm">{errors} errors, {warnings} warnings</Text>
+              <Text size="sm">{levels.text || 'No findings'}</Text>
             </>
           )}</Loading>
         </Card>

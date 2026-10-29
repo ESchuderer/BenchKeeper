@@ -29,8 +29,9 @@ const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 // The commands of a chain joined by && only, else none: with ||, ;, | or & the exit code can come from another command, and a
 // quoted name (echo "npm test") runs no test.
 const chain = (command: string) => (/[;|&\n`]|\$\(/.test(command.replaceAll('&&', ' ')) ? [] : command.split('&&').map((part) => part.trim()))
-// Without its redirections (> log, 2>&1, &> log), which leave the exit code alone.
-const plain = (command: string) => command.replace(/\s*(?:&>>?|\d*>>?)\s*(?:&\d+|[^\s;&|'"]+)/g, '')
+// Without its redirections (> log, 2>&1, &> log), which leave the exit code alone. The lookbehinds start a match only at the
+// first space or digit of a run, so a long run without a redirection is read once (linear time).
+export const plain = (command: string) => command.replace(/(?<!\s)\s*(?:&|(?<!\d)\d+)?>>?\s*(?:&\d+|[^\s;&|'"]+)/g, '')
 // The script of one sh -c '<script>', alone or after a container exec (devcontainer exec ... sh -lc 'cd app && npm test'),
 // else the command: in echo sh -c 'npm test' the shell is an argument.
 function script(command: string) {
@@ -97,7 +98,7 @@ async function refresh($: EngineInterface) {
   const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${home}/.claude`
   const level = (await $.fs.read(`${dir}/.ponytail-active`).catch(() => '')).trim()
   const branch = git?.exitCode === 0 ? git.stdout.trim() : ''
-  await update($, where, () => ({ project: cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || cwd, branch: branch || null, ponytail: /^[a-z-]{1,12}$/.test(level) ? level : null }))
+  await update($, where, () => ({ project: cwd.split(/[\\/]/).filter(Boolean).pop() || cwd, branch: branch || null, ponytail: /^[a-z-]{1,12}$/.test(level) ? level : null }))
 }
 
 // The board the app writes on each scan of its Sessions view, and on benchkeeper sessions board; the band only opens it.

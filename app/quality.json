@@ -47,13 +47,13 @@
   },
   "mutation": {
     "allow": {
-      "floor": 69.58
+      "floor": 94.4
     },
     "doctor": {
       "floor": null
     },
     "fsx": {
-      "floor": 59.94
+      "floor": 87.94
     },
     "ledger": {
       "floor": 35.36
@@ -68,15 +68,16 @@
       "floor": null
     },
     "redact": {
-      "floor": 68.49
+      "floor": 95.47
     },
     "roots": {
       "tests": [
+        "roots.test.mjs",
         "profile.test.mjs",
         "projects.test.mjs",
         "projects-manage.test.mjs"
       ],
-      "floor": 29.03
+      "floor": 98
     },
     "rules": {
       "floor": 69.28

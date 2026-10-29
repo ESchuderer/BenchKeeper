@@ -2,7 +2,7 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
-import nodePath, { dirname, isAbsolute, join, resolve } from 'node:path';
+import nodePath, { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
@@ -100,7 +100,7 @@ function installedFiles(dir, state, add, skip = () => false) {
 // (its own AGENTS.md text, own skills, docs/agents/, the dev container) stays.
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
-  const state = tryState(dir);
+  const state = readState(dir);
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
   const agentsMd = readText(at('AGENTS.md'));
@@ -130,7 +130,7 @@ export function committedSetup(dir) {
 // shares the exclude list, so its block stays for it.
 export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const at = (p) => join(dir, p);
-  const state = tryState(dir);
+  const state = readState(dir);
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
   const claude = readText(at(LOCAL_CLAUDE));

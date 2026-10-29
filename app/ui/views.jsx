@@ -535,6 +535,7 @@ function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
   const [plans, setPlans] = useState(null);
   const [error, setError] = useState(null);
+  const [skipped, setSkipped] = useState([]);
   const [busy, setBusy] = useState(false);
   const agents = overview.data?.agents.filter((a) => a.installed).map((a) => a.id) ?? [];
   const run = (f) => async (...a) => { setError(null); setBusy(true); try { await f(...a); } catch (e) { setError(e.message); } setBusy(false); };
@@ -542,8 +543,9 @@ function Profile({ overview, refresh }) {
     <Section title="Profile">
       <Text size="sm">Agents, packs, own packs and registered projects with their answers as one file. It holds no file contents, environment values or tokens.</Text>
       {error && <Note color="red" title="Failed">{error}</Note>}
+      {skipped.map((m) => <Note key={m} color="yellow">{m}</Note>)}
       <Group>
-        <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => download('benchkeeper-profile.json', (await api(`/api/profile-export?agents=${agents.join(',')}`)).text))}>Export profile</Button>
+        <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => { const r = await api(`/api/profile-export?agents=${agents.join(',')}`); download('benchkeeper-profile.json', r.text); setSkipped(r.skipped); })}>Export profile</Button>
         <FileButton key={file?.name ?? 'none'} accept="application/json,.json"
           onChange={run(async (f) => { setPlans(null); setFile(null); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import profile</Button>}
@@ -559,6 +561,7 @@ function Profile({ overview, refresh }) {
       {plans && (
         <>
           <Text size="sm">Registered projects: {plans.projects.join(', ') || 'none'}. Own packs: {plans.packs.join(', ') || 'none'}.{plans.missing.length ? ` Skipped: ${plans.missing.join(', ')}.` : ''}</Text>
+          {plans.skipped.map((m) => <Note key={m} color="yellow">Skipped {m}</Note>)}
           <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} /></Section>
           {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} /></Section>)}
         </>

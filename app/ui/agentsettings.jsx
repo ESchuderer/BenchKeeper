@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Folded, Plan, Section, SettingFacts } from './parts.jsx';
 import { Dot, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
+import { differs, fixOf, matches, ownOf } from './suggest.js';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
 const SHOWN = 150;
@@ -13,11 +14,6 @@ const NOFADE = { label: { transition: 'none' } };
 const text = (v) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
 const KIND = { conflict: 'Conflicting settings', hardening: 'Hardening', ignored: 'Ignored setting', note: 'Note' };
 const FROM = { user: 'the user file', project: 'the project file', local: 'the local file', managed: 'managed settings', environment: 'the environment' };
-const ownOf = (row, layer) => row.sets?.find((x) => x.layer === layer)?.value;
-// What a suggestion compares with: an environment switch is set or not, "leave unset" is no value.
-const norm = (row, v) => (row.type === 'switch' ? v != null && v !== false : v ?? null);
-const matches = (row, v) => JSON.stringify(norm(row, v)) === JSON.stringify(norm(row, row.suggest.value));
-const differs = (row, layer) => !!row.suggest && !matches(row, ownOf(row, layer));
 
 // A note on the settings: what it found, then the default, the risk and what the fix changes on lines of their own, then the buttons.
 const SettingNote = ({ n, children }) => (
@@ -167,9 +163,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   // Go to the setting: a filter may hide its row, so focus waits for the render without filters.
   useEffect(() => { if (target) { document.getElementById(`setting-${target}`)?.focus(); setTarget(null); } }, [target]);
   const rowsOf = (n) => (n.keys ?? []).map((k) => data.settings.find((r) => r.key === k)).filter(Boolean);
-  const fixOf = (n) => Object.fromEntries(rowsOf(n).filter((r) => r.editable !== false && differs(r, layer)).map((r) => [r.key, r.suggest.value]));
   const noteButtons = (n) => {
-    const fix = fixOf(n);
+    const fix = fixOf(n, rowsOf(n), layer);
     const first = rowsOf(n)[0];
     return (
       <>

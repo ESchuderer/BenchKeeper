@@ -96,7 +96,7 @@ export function Surfaces() {
         <Switch label="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." checked={b.on} onChange={(e) => ask(e.currentTarget.checked)} />
       )}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      {plan && <Plan key={plan.planId} plan={plan} onDone={band.reload} />}
+      {plan && <Plan key={plan.planId} plan={plan} scope="global" onDone={band.reload} />}
     </Section>
   );
 }

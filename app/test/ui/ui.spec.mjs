@@ -2107,6 +2107,23 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Rules: a path-scoped file costs its tokens only in the turns it loads for matching files', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const agents = body.agents.map((a) => ({ ...a, rows: a.rows.map((row) => (/20-team\.md$/.test(row.path) ? { ...row, load: 'path-scoped' } : row)) }));
+      await route.fulfill({ response: r, json: { ...body, agents } });
+    });
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await page.unroute(view);
+  });
+
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
     const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Presets, pins and policy' });
     await expect(entry).toHaveCount(0);
@@ -2391,6 +2408,8 @@ test.describe('views', () => {
     await expect(uno.getByRole('group', { name: /^Diff of / })).toHaveCount(0);
     await uno.getByRole('button', { name: /^Show file diff of / }).first().click();
     await expect(uno.getByRole('group', { name: /^Diff of .*CLAUDE\.local\.md$/ })).toBeVisible();
+    // A change without an install unit names the section's scope.
+    await expect(uno).toContainText('Affects: This project only.');
     // Guards keep the saved choice of a project set up before and are on for a new one, as in the wizard.
     await expect(uno).toContainText('guards on');
     await expect(uno).not.toContainText('guard hook removed');

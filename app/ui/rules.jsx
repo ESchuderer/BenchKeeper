@@ -24,7 +24,7 @@ function useSwitch(dir, onPlan) {
     setBusy(row.path); setError(null);
     try {
       const plan = await api('/api/rules-plan', { agent, file: row.path, dir, on });
-      const what = name && row.tokens != null && `${name} ${on ? 'loads this file again' : 'stops loading this file'}: about ${number(row.tokens)} tokens ${on ? 'more' : 'less'} in every turn`;
+      const what = name && row.tokens != null && `${name} ${on ? 'loads this file again' : 'stops loading this file'}: about ${number(row.tokens)} tokens ${on ? 'more' : 'less'} ${row.load === 'path-scoped' ? 'in each turn it loads for matching files' : 'in every turn'}`;
       onPlan({ row, dir, on, plan: what ? { ...plan, changes: plan.changes.map((c) => ({ impact: what, ...c })) } : plan });
     } catch (e) { setError(e.message); }
     setBusy(null);
@@ -96,7 +96,7 @@ function RuleEditor({ row, dir, start, onDone, onClose }) {
         : <Text size="sm">The checks find nothing in this file.</Text>)}
       {failed && <Note color="red" title="Not planned">{failed}</Note>}
       {plan
-        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={onDone} /><Group><Button variant="default" onClick={onClose}>Close editor</Button></Group></Section>
+        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} scope={dir ? 'project' : 'global'} onDone={onDone} /><Group><Button variant="default" onClick={onClose}>Close editor</Button></Group></Section>
         : <Group><Button onClick={save} disabled={text === start}>Save</Button><Button variant="default" onClick={onClose}>Discard</Button></Group>}
     </Stack>
   );

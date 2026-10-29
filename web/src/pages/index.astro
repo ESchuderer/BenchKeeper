@@ -26,6 +26,7 @@ import '../styles/global.css';
 import Page from '../components/Page';
 import facts from '../data/facts.json';
 import { themeKey } from '../lib/edition';
+import ThemeScript from '../components/ThemeScript.astro';
 
 import { execSync } from 'node:child_process';
 
@@ -69,15 +70,9 @@ try {
 </head>
 <body>
   <Page base={base} updated={updated} commit={commit} />
-  <script is:inline define:vars={{ themeKey }}>
+  <ThemeScript />
+  <script is:inline>
     (function () {
-      var root = document.documentElement, key = themeKey, mq = matchMedia('(prefers-color-scheme: dark)');
-      function stored() { try { return localStorage.getItem(key); } catch (e) { return null; } }
-      document.querySelector('[data-theme-toggle]').addEventListener('click', function () {
-        var next = root.getAttribute('data-mantine-color-scheme') === 'dark' ? 'light' : 'dark';
-        root.setAttribute('data-mantine-color-scheme', next);
-        try { localStorage.setItem(key, next); } catch (e) {}
-      });
       var status = document.querySelector('[data-copy-status]'), copyTimer;
       document.querySelectorAll('[data-copy]').forEach(function (b) {
         b.addEventListener('click', function () {
@@ -126,10 +121,6 @@ try {
         el.addEventListener('focus', function () { var b = el.getBoundingClientRect(); show(b.right, b.top); });
         el.addEventListener('blur', function () { tip.hidden = true; });
         el.addEventListener('click', function () { tip.hidden = true; });
-      });
-      mq.addEventListener('change', function () {
-        var v = stored();
-        if (v !== 'light' && v !== 'dark') root.setAttribute('data-mantine-color-scheme', mq.matches ? 'dark' : 'light');
       });
     })();
   </script>

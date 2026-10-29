@@ -1,7 +1,7 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import nodePath, { dirname, join, sep } from 'node:path';
 import { readText, real, writeAtomic } from './fsx.mjs';
 
 export const SCHEMA = 1;
@@ -18,6 +18,15 @@ export function runId(now = new Date()) {
   return `${stamp}-${randomBytes(3).toString('hex')}`;
 }
 
+// A file's place below <run>/<change number>: its path below HOME, else below _root with a drive letter or UNC prefix as a
+// plain folder name (Windows refuses a colon in a folder name). Windows paths compare case-insensitively.
+export function backupRel(home, file, path = nodePath) {
+  const p = path.resolve(file);
+  const fold = (s) => (path.sep === '\\' ? s.toLowerCase() : s);
+  if (fold(p).startsWith(fold(home + path.sep))) return path.relative(home, p);
+  return path.join('_root', p.replace(/^\\\\/, 'UNC\\').replace(/^([A-Za-z]):/, '$1'));
+}
+
 export class Ledger {
   constructor(config, home) {
     this.dir = join(config, 'ledger');
@@ -27,9 +36,7 @@ export class Ledger {
 
   // <backup>/<run>/<change number>/<path below HOME>: one file changed twice in a run keeps both earlier states.
   backupPath(id, n, path) {
-    const p = resolve(path);
-    const rel = p.startsWith(this.home + sep) ? relative(this.home, p) : join('_root', p);
-    const out = join(this.backups, id, String(n), rel);
+    const out = join(this.backups, id, String(n), backupRel(this.home, path));
     // Backups hold copies of settings files with tokens: the folders are the user's alone.
     mkdirSync(dirname(out), { recursive: true, mode: 0o700 });
     return out;

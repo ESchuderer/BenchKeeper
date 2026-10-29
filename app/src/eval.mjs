@@ -3,7 +3,7 @@
 import { appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { noTrace } from './advise.mjs';
+import { codexMcpOff, noTrace } from './advise.mjs';
 import { agentEnv, childEnv } from './childenv.mjs';
 import { contentDir } from './content.mjs';
 import { mask } from './redact.mjs';
@@ -34,12 +34,13 @@ function lastResults(ctx) {
 
 // Agent command per case; tool output is read for the skill's SKILL.md or a Skill tool call.
 // No session is saved (the transcript would land in the user's own history and on the sessions board; the stream is read from stdout)
-// and Claude loads no MCP server, for rule cases too (a skill's trigger rate does not depend on one, and it would run as the user).
+// and no MCP server loads, for rule cases too (a skill's trigger rate does not depend on one, and it would run as the user):
+// Claude takes none from its config, Codex gets each server of its config turned off (mcpOff).
 // The scratch repository takes no template from the user's git config (a template can bring hooks).
 const AGENTS = {
   claude: { argv: (ctx, q, model) => ['claude', '-p', q, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config', ...noTrace(ctx, 'claude'), ...(model ? ['--model', model] : [])], skills: '.claude/skills' },
   // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
-  codex: { argv: (ctx, q, model) => ['codex', 'exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
+  codex: { argv: (ctx, q, model, mcpOff) => ['codex', 'exec', ...mcpOff, '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
 export const EVAL_AGENTS = Object.keys(AGENTS);
 export function triggered(output, name) {
@@ -74,6 +75,8 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
 export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {}, onResult = () => {}, signal } = {}) {
   // The query is the agent's last argument: one that starts with - would be read as an option. Nothing starts before every case is checked.
   for (const p of plan) for (const c of p.cases) if (typeof c.query !== 'string' || !c.query || c.query.startsWith('-')) throw new Error(`case ${c.id} of ${p.target}: the query is empty or starts with a dash (an agent CLI would read it as an option)`);
+  // A scratch repository has no project config, so the user config's servers are the list.
+  const mcpOff = plan.some((p) => p.agent === 'codex') ? codexMcpOff(ctx, tmpdir()) : [];
   const out = [];
   const session = ctx.runAsync ?? ctx.run;
   const total = plan.reduce((n, p) => n + p.cases.length, 0);
@@ -100,7 +103,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
           if (kind === 'skill' && source?.copy) cpSync(source.dir, join(dir, a.skills, name), { recursive: true });
           onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
           // The whole stream: the skill call comes early in a long session.
-          const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
+          const r = await session(a.argv(ctx, c.query, p.model, mcpOff), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
           if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
           // A session that failed to start (a CLI that rejects a flag, a managed MCP setup) is no miss: nothing of this target is stored.
           if (r.code !== 0) throw new Error(`${p.agent} exited with ${r.code} on case ${c.id} of ${p.target}: ${mask((r.stderr || r.stdout || '').trim()).slice(-200)}`);

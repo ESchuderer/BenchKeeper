@@ -32,21 +32,27 @@ function codexHome() {
   return null;
 }
 
-// Codex: a permission profile that reads only the project, the system's minimal paths and Codex itself, writes
-// nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
-function codexArgv(ctx, dir, q, out, { usage = false } = {}) {
-  // Without the list no server can be turned off, so the session does not start.
+// The flags that turn off every MCP server the Codex config in dir names (project and user).
+// Without the list no server can be turned off, so the caller starts no session.
+export function codexMcpOff(ctx, dir) {
   const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv('codex') });
   let servers;
   try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${(list.stderr || list.stdout).trim().slice(-200)}`); }
   const odd = servers.findIndex((n) => typeof n !== 'string' || !/^[\w-]+$/.test(n));
   if (odd >= 0) throw new Error(`the MCP server name ${JSON.stringify(servers[odd] ?? null)} cannot be turned off for this session`);
+  return servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]);
+}
+
+// Codex: a permission profile that reads only the project, the system's minimal paths and Codex itself, writes
+// nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
+function codexArgv(ctx, dir, q, out, { usage = false } = {}) {
+  const off = codexMcpOff(ctx, dir);
   const home = codexHome();
   const read = [':minimal', ':workspace_roots', ...(home ? [home] : [])].map((p) => `${JSON.stringify(p)}="read"`).join(', ');
   // sandbox_mode read-only too: a Codex that ignores the profile still writes nothing. Codex 0.163 lets the profile win
   // over any sandbox_mode, also one from the user's config.
   return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="benchkeeper-advice"', '-c', `permissions.benchkeeper-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
-    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(usage ? ['--json'] : []), '-o', out, q];
+    ...off, '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(usage ? ['--json'] : []), '-o', out, q];
 }
 
 const ARGV = {

@@ -40,6 +40,7 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
+import { mask } from './redact.mjs';
 import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
@@ -243,10 +244,10 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
-      // Output is kept per change, its last 8 kB.
+      // Raw output is kept per change, its last 64 kB; GET /api/job masks it whole and then cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
-        if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
+        if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-65536);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
     },
     // One-run setup: several plans (the global one, projects) applied as one job, one section per plan, in order. Each
@@ -316,7 +317,7 @@ export function api(ctx) {
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: Object.fromEntries(Object.entries(job.output).map(([id, t]) => [id, mask(t).slice(-8192)])), run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
       sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.

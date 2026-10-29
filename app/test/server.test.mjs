@@ -261,6 +261,28 @@ test('prerun: with no sandbox the route answers "unavailable" and runs nothing; 
   assert.equal(installs, 1, 'the unconfined result is kept for the next click');
 });
 
+test('apply: the live output of a command is masked before it is cut, a token split across chunks included', async () => {
+  const { ctx, routes } = fixture();
+  let release, print;
+  ctx.runAsync = (argv, o) => { if (argv[1]?.endsWith('verify.mjs')) return Promise.resolve(ctx.run(argv, o)); print = o.onOutput; return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command');
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await waitFor(() => print, `command of job ${job}`);
+  const token = `ghp_${'a'.repeat(30)}`;
+  print('login password=pw9 ok\nusing ');
+  print(token.slice(0, 12));
+  print(`${token.slice(12)}\n`);
+  const out = () => routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id];
+  assert.equal(out(), 'login password=*** ok\nusing ***\n');
+  // The raw tail of 8 kB would start inside the token; the masked one starts after it.
+  print('x'.repeat(8192 - token.length / 2));
+  assert.equal(out().length, 8192);
+  assert.doesNotMatch(out(), /a{4}|pw9/);
+  release();
+  await jobDone(routes, job);
+});
+
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {
   const { ctx, routes } = fixture();
   let release;

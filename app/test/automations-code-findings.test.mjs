@@ -98,3 +98,22 @@ test('code-findings check step: a fix that adds a suppression comment or changes
   const c = check('fix-config.diff');
   assert.deepEqual([c.status, c.stdout.trim()], [1, 'config: eslint.config.mjs']);
 });
+
+test('code-findings check step: the quality configs and coverage markers of the BenchKeeper templates, a renamed config', sh, () => {
+  const lines = (diff) => {
+    const r = check(diff);
+    assert.equal(r.status, 1, diff);
+    return r.stdout.trim().split('\n');
+  };
+  assert.deepEqual(lines('fix-toml.diff'), [
+    'config: pyproject.toml: +ignore = ["E501"]',
+    'config: pyproject.toml: -"src/**" = []',
+    'config: pyproject.toml: +"src/**" = ["C901"]',
+    'config: setup.cfg: -strict = True',
+    'config: setup.cfg: +strict = False',
+    'config: tox.ini: +omit = src/hard.py',
+  ], 'tool sections only, a hunk without its section header counts as one; dependencies pass');
+  assert.deepEqual(lines('fix-quality-config.diff'), ['knip.json', 'tsconfig.json', 'biome-quality.jsonc', '.basedpyright/baseline.json', 'scripts/tsc-baseline.sh'].map((f) => `config: ${f}`));
+  assert.deepEqual(lines('fix-markers.diff'), ['suppression: src/a.js: /* v8 ignore next */', 'suppression: src/a.js: // stryker-disable-next-line all', 'suppression: pkg/mod.py:     return 1  # pragma: no cover']);
+  assert.deepEqual(lines('fix-rename.diff'), ['config: eslint.config.mjs']);
+});

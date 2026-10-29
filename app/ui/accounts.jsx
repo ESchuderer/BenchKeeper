@@ -168,6 +168,8 @@ function AccountCard({ a, c, onUse, onTrack, onSignIn, onRemove }) {
   );
 }
 
+const ACCOUNT_WHY = { add: 'You added this account in Accounts.', remove: 'You removed this account in Accounts.' };
+
 // Several accounts per agent: one card each with its sign-in and usage, add by sign-in, a check before a launch. The registry holds no credential.
 export function Accounts({ overview, refresh }) {
   const state = useApi('/api/accounts');
@@ -181,7 +183,7 @@ export function Accounts({ overview, refresh }) {
   const done = () => { state.reload(); refresh(); };
   const plan = async (body) => {
     setError(null);
-    try { setPending(await api('/api/accounts-plan', body)); } catch (e) { setError(e.message); }
+    try { setPending({ plan: await api('/api/accounts-plan', body), why: ACCOUNT_WHY[body.op] }); } catch (e) { setError(e.message); }
   };
   // One click: the plan is applied without a review step; History has its run and undo.
   const now = async (body) => {
@@ -251,7 +253,7 @@ export function Accounts({ overview, refresh }) {
               )}
             {pending && (
               <Section title="Changes">
-                <Plan key={pending.planId} plan={pending} scope="global" onDone={done} />
+                <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onDone={done} />
                 <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
               </Section>
             )}
@@ -260,7 +262,7 @@ export function Accounts({ overview, refresh }) {
               <summary>Advanced: choose the name, a folder of your own or a dev container</summary>
               <Stack gap="sm" mt="sm">
                 <ContainerRisk />
-                <AddForm onPlan={setPending} />
+                <AddForm onPlan={(p) => setPending({ plan: p, why: ACCOUNT_WHY.add })} />
               </Stack>
             </details>
             <Section title="Usage limits">

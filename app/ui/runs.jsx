@@ -82,7 +82,7 @@ export function Surfaces() {
   const [error, setError] = useState(null);
   const ask = async (on) => {
     setError(null); setPlan(null);
-    try { setPlan(await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } })); } catch (e) { setError(e.message); }
+    try { setPlan({ on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } }) }); } catch (e) { setError(e.message); }
   };
   return (
     <Section title="Views and their cost">
@@ -96,7 +96,7 @@ export function Surfaces() {
         <Switch label="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." checked={b.on} onChange={(e) => ask(e.currentTarget.checked)} />
       )}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      {plan && <Plan key={plan.planId} plan={plan} scope="global" onDone={band.reload} />}
+      {plan && <Plan key={plan.plan.planId} plan={plan.plan} why={`You turned the tier strip ${plan.on ? 'on' : 'off'} in Preferences.`} scope="global" onDone={band.reload} />}
     </Section>
   );
 }

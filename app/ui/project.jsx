@@ -184,7 +184,7 @@ function Installs({ project, others, onDone, onSetup }) {
               <Loading state={plan} label="project plan">{(fresh) => (
                 <>
                   {fresh.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                  <Plan key={fresh.planId} plan={fresh} scope="project" onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+                  <Plan key={fresh.planId} plan={fresh} why={Object.values(toggles).some((x) => x.length) ? 'You flipped the switches above in Projects.' : undefined} scope="project" onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
                 </>
               )}</Loading>
             </Section>

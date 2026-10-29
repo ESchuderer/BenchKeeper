@@ -78,7 +78,7 @@ export function PackSwitches({ packs, project, others, toggles, setToggles, busy
 }
 
 // The plan of one skill action in a project, in a dialog: the same plan, diff, apply and undo as the project view.
-export function ActionPlan({ act, onClose, onDone }) {
+export function ActionPlan({ act, why, onClose, onDone }) {
   const plan = useApi(act ? `/api/project-plan?${new URLSearchParams([['dir', act.dir], ...act.params])}` : null);
   return (
     <Modal opened={!!act} onClose={onClose} size="xl" withCloseButton={false} attributes={{ content: { 'aria-label': act?.title ?? 'Skill action' } }}>
@@ -88,7 +88,7 @@ export function ActionPlan({ act, onClose, onDone }) {
         <Loading state={plan} label="skill plan">{(p) => (
           <>
             {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-            <Plan key={p.planId} plan={p} scope="project" onDone={onDone} />
+            <Plan key={p.planId} plan={p} why={why} scope="project" onDone={onDone} />
           </>
         )}</Loading>
         <Group justify="flex-end"><Button variant="default" onClick={onClose}>Close</Button></Group>
@@ -181,7 +181,7 @@ export function SkillStates({ refresh }) {
           </>
         );
       }}</Loading>
-      <ActionPlan act={act} onClose={close} onDone={() => data.reload()} />
+      <ActionPlan act={act} why={act && `You asked for it in Catalog: ${act.title}.`} onClose={close} onDone={() => data.reload()} />
     </Section>
   );
 }

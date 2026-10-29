@@ -2164,6 +2164,7 @@ test.describe('views', () => {
       await page.keyboard.press('Enter');
       const changes = page.getByRole('region', { name: 'Changes' });
       await expect(changes).toContainText('automation Pull request watch, disabled');
+      await expect(changes).toContainText('Why: You installed this automation in Automations.');
       await noAxe(page);
       await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
       await page.keyboard.press('Enter');
@@ -2209,6 +2210,7 @@ test.describe('views', () => {
       await page.getByLabel('Name', { exact: true }).fill(name);
       await page.getByRole('button', { name: 'Plan the new account' }).click();
       await expect(changes).toContainText(`Add claude account ${name}`);
+      await expect(changes).toContainText('Why: You added this account in Accounts.');
       await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();
@@ -2242,6 +2244,13 @@ test.describe('views', () => {
       await changes.getByRole('button', { name: 'Close' }).click();
     }
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
+  });
+
+  test('Preferences: the tier strip plan says the user asked for it', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    await views.getByRole('switch', { name: 'Terminal tier strip' }).click({ force: true });
+    await expect(views).toContainText('Why: You turned the tier strip on in Preferences.');
   });
 
   test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {

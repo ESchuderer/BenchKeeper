@@ -1461,9 +1461,9 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Fix everything: the Apply step tells a project written in its checkout from one that gets a branch, and a pull request only with a GitHub origin', async ({ page }) => {
+  test('Fix everything: the Apply step tells a project written in its checkout from one that gets a branch, and a pull request only for a project the list marks willPush', async ({ page }) => {
     const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
-    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local-a'), project('local-b'), project('shared', { share: true, github: true }), project('no-github', { share: true })] }));
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local-a'), project('local-b'), project('shared', { share: true, github: true, willPush: true }), project('shared-local', { share: true, github: true }), project('no-github', { share: true })] }));
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
     const summary = fix.getByRole('list', { name: 'What Apply does' });
@@ -1478,7 +1478,7 @@ test.describe('views', () => {
     await fix.getByRole('button', { name: 'Select all' }).click();
     await fix.getByRole('button', { name: 'Next' }).click();
     await fix.getByRole('button', { name: 'Next' }).click();
-    await expect(summary).toContainText('Projects: 2 written in their checkout, 1 as a branch, 1 as a branch and pull request');
+    await expect(summary).toContainText('Projects: 2 written in their checkout, 2 as a branch, 1 as a branch and pull request');
     await page.keyboard.press('Escape');
   });
 

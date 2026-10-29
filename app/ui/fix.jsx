@@ -95,7 +95,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
   const branched = list.filter((p) => picked.includes(p.path) && (p.share || p.committed));
-  const viaPr = branched.filter((p) => p.github).length, onBranch = branched.length - viaPr, inPlace = picked.length - branched.length;
+  const viaPr = branched.filter((p) => p.willPush).length, onBranch = branched.length - viaPr, inPlace = picked.length - branched.length;
   return (
     <Stack gap="md">
       <Stepper active={running ? 4 : step} onStepClick={running ? undefined : setStep} size="sm">

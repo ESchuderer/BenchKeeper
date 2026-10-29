@@ -138,10 +138,19 @@ test('evals plan lists the targets and starts no session, in CI too', async () =
   assert.equal(await main(['evals'], { out, ctx }), 2);
 });
 
+test('evals plan trims the agent names', async () => {
+  const ctx = machine(stubAgent([]));
+  let text = '';
+  const out = new Writable({ write(c, _, done) { text += c; done(); } });
+  assert.equal(await main(['evals', 'plan', '--target', 'skill:workflow', '--agents', 'claude, codex'], { out, ctx }), 0);
+  assert.match(text, /skill:workflow\s+claude\s+\d+ cases/);
+  assert.match(text, /skill:workflow\s+codex\s+\d+ cases/);
+});
+
 test('evals plan and run refuse an agent evals cannot run, before planning', async () => {
   const calls = [];
   const ctx = machine(stubAgent(calls));
-  for (const [args, named] of [[['evals', 'plan', '--agents', 'gemini'], 'gemini'], [['evals', 'run', '--agents', 'claud', '--yes'], 'claud'], [['evals', 'plan', '--agents', 'claude,'], '(empty)']]) {
+  for (const [args, named] of [[['evals', 'plan', '--agents', 'gemini'], 'gemini'], [['evals', 'run', '--agents', 'claud', '--yes'], 'claud'], [['evals', 'plan', '--agents', 'claude,'], '(empty)'], [['evals', 'plan', '--agents', 'claude, '], '(empty)']]) {
     let text = '';
     const out = new Writable({ write(c, _, done) { text += c; done(); } });
     assert.equal(await main(args, { out, ctx }), 2);

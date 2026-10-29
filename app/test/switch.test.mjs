@@ -321,6 +321,8 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   assert.equal(status(() => routes['GET /api/project-plan'](q([['pack-on', 'nope']]))), 400);
   assert.equal(status(() => routes['GET /api/project-plan'](q([['pick', 'not-in-the-library']]))), 400);
   assert.equal(status(() => routes['GET /api/project-plan'](q([['reset', 'not-a-skill']]))), 400);
+  // A skill toggle followed by switching its pack off still gives a plan, without that skill.
+  for (const toggle of ['disable', 'enable']) assert.ok(!routes['GET /api/project-plan'](q([[toggle, SKILL], ['pack-off', 'ui-a']])).chosen.some((s) => s.name === SKILL));
   // One skill's reset: its changes only, with the records of them.
   writeFileSync(r.skill, 'edited\n');
   const reset = routes['GET /api/project-plan'](q([['reset', SKILL], ['focus', SKILL]]));

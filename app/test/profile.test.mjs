@@ -101,3 +101,21 @@ test('a state file this app cannot read: export names the project, import skips 
     assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
   }
 });
+
+test('an own pack this library cannot take is skipped with its reason; the other packs, the projects and the plans go on', async () => {
+  const proj = tmp('bk-prof-proj-');
+  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] },
+    packs: [{ id: 'ui', skills: ['accessibility'] }, { id: 'newer', skills: ['accessibility', 'not-a-skill'] }],
+    projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], tier: 'quick' } }] });
+  const b = machine();
+  const file = join(tmp('bk-prof-file-'), 'profile.json');
+  writeFileSync(file, text);
+  let out = '';
+  const w = new Writable({ write(c, _, done) { out += c; done(); } });
+  assert.equal(await main(['profile', 'import', file, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
+  assert.match(out, /skipped pack newer: not in the library: not-a-skill/);
+  assert.deepEqual(ownPacks(b).map((x) => x.id), ['ui']);
+  assert.deepEqual(listProjects(b).map((x) => x.path), [proj]);
+  assert.equal(readState(proj).tier, 'quick');
+  assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
+});

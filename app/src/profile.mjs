@@ -70,10 +70,12 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
 
 // Own packs and the project registry; the plans apply through the step engine like any other run.
 export function importChoices(ctx, p) {
-  const packs = (p.packs ?? []).map((x) => savePack(ctx, x).id);
-  const projects = [], refused = [];
+  const packs = [], skippedPacks = [], projects = [], refused = [];
+  for (const x of p.packs ?? []) {
+    try { packs.push(savePack(ctx, x).id); } catch (e) { skippedPacks.push(`pack ${x.id}: ${e.message}`); }
+  }
   for (const x of (p.projects ?? []).filter((y) => existsSync(y.path))) {
     try { projects.push(addProject(ctx, x.path, { worktree: true })); } catch (e) { refused.push(e.message); }
   }
-  return { packs, projects, refused };
+  return { packs, skippedPacks, projects, refused };
 }

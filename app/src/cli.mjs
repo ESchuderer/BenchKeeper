@@ -833,6 +833,7 @@ async function command(argv, { out, err, ask, ctx }) {
     // Own packs next: the project plans can name them.
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
+    for (const m of done.skippedPacks) out.write(`skipped ${m}\n`);
     for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);

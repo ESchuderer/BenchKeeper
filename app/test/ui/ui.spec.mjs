@@ -2135,7 +2135,7 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
-  test('Rules: a plan answer that arrives while an apply runs does not replace the running plan', async ({ page }) => {
+  test('Rules: a plan answer that arrives while an apply runs does not replace the running plan and says so', async ({ page }) => {
     const view = /\/api\/rules$/;
     await page.route(view, async (route) => {
       const r = await route.fetch();
@@ -2161,6 +2161,7 @@ test.describe('views', () => {
     const late = page.waitForResponse(/\/api\/rules-plan$/);
     answerPlan();
     await late;
+    await expect(changes.getByRole('status').filter({ hasText: 'Finish the running change first, then try again.' })).toBeVisible();
     answerJob();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await page.unroute(view);

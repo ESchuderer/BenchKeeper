@@ -376,12 +376,17 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
 
 // The apply state of a view's open plan: running for its controls, idle() for a plan that arrives later (asked for
 // before the apply started), which must not replace a running plan: that drops the run's view and its reload.
+// dropped: the last plan that arrived was dropped, until one is taken.
 export function usePlanRunning() {
   const [running, setRunning] = useState(false);
+  const [dropped, setDropped] = useState(false);
   const now = useRef(false);
   const onRunning = (on) => { now.current = on; setRunning(on); };
-  return [running, onRunning, () => !now.current];
+  const idle = () => { setDropped(now.current); return !now.current; };
+  return [running, onRunning, idle, dropped];
 }
+
+export const PlanDropped = ({ dropped }) => dropped && <Text size="sm" role="status">Finish the running change first, then try again.</Text>;
 
 // Close under a plan: while it applies, closing would drop the run's view and its reload, so the button ignores clicks
 // but keeps the keyboard focus.

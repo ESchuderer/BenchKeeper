@@ -2,7 +2,7 @@ import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Tabl
 import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, PlanClose, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
@@ -203,7 +203,7 @@ export function Rules({ overview, params, refresh, project }) {
   const projects = overview.data?.projects ?? [];
   const [dir, setDir] = useState(project ?? params.get('path') ?? GLOBAL);
   const [pending, setPending] = useState(null);
-  const [running, setRunning, idle] = usePlanRunning();
+  const [running, setRunning, idle, dropped] = usePlanRunning();
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
   // A plan asked for under another selection is dropped when it arrives.
@@ -238,6 +238,7 @@ export function Rules({ overview, params, refresh, project }) {
           <Plan key={pending.plan.planId} plan={pending.plan} why={`You turned the switch ${pending.on ? 'on' : 'off'} in Rules.`} scope={chosen ? 'project' : 'global'} onRunning={setRunning}
             onCancel={(done) => setPending((p) => ({ ...p, done }))} onDone={() => { setPending((p) => ({ ...p, done: true })); state.reload(); refresh(); }} />
           {/* Closing during an apply would drop the run's view and its reload. */}
+          <PlanDropped dropped={dropped} />
           <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
         </Section>
       )}

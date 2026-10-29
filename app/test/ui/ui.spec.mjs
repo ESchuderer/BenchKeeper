@@ -897,6 +897,34 @@ test.describe('views', () => {
     await expect(file).not.toBeChecked();
   });
 
+  test('Global setup: only global items, the pointer to Projects and the Accounts link; each per-project control is in the Installs tab; a part opens by keyboard; 390 px', async ({ page }) => {
+    // The per-project controls, each a region of switches in a project's Installs tab and none on the global page.
+    const MOVED = ['Packs', 'Workflow owner', 'Skills', 'Agent files'];
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/#/agents');
+    const main = page.getByRole('main');
+    await expect(main).toContainText('Per-project setup lives in each project');
+    await expect(main.getByRole('link', { name: 'Projects', exact: true })).toHaveAttribute('href', '#/projects');
+    await expect(main.getByRole('link', { name: 'Accounts', exact: true })).toHaveAttribute('href', '#/accounts');
+    const global = main.getByRole('region', { name: 'Installed globally' });
+    const show = global.getByRole('button', { name: /^Show items of / }).first();
+    const part = (await show.getAttribute('aria-label')).replace(/^Show /, '');
+    await show.focus();
+    await page.keyboard.press('Enter');
+    await expect(global.getByRole('button', { name: `Hide ${part}` })).toHaveAttribute('aria-expanded', 'true');
+    await expect(global.getByRole('listitem').first()).toBeVisible();
+    await expect(main.getByRole('switch')).toHaveCount(0);
+    await expect(main.locator('a[href^="#/projects/"]')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^(Set up this project|Change setup)$/ })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+    await page.goto('/#/projects');
+    await page.getByText('Cards', { exact: true }).click();
+    await page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ }).getByRole('link', { name: /^bk-ui-proj/ }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
+    for (const name of MOVED) await expect(page.getByRole('region', { name }).getByRole('switch').first()).toBeVisible();
+  });
+
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
     const dir = folder('mv-gone');
     await nav(page, 'Projects').click();

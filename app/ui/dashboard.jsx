@@ -8,7 +8,7 @@ import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
 import { Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
 
-const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
+export const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 

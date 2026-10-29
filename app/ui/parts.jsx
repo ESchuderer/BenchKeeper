@@ -117,8 +117,8 @@ export function SettingFactsOf({ settings: s }) {
   return <Loading state={state} label="setting facts">{(list) => <Stack gap="xs">{list.map((f) => <SettingFacts key={f.key} f={f} />)}</Stack>}</Loading>;
 }
 
-// A change's diff behind a button: a long review page stays short until one is opened.
-function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
+// A change's diff (or another detail) behind a button: a long page stays short until one is opened.
+export function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
   const [open, setOpen] = useState(false);
   return (
     <Stack gap={4}>

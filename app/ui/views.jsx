@@ -2,9 +2,10 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List,
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section, useJob } from './parts.jsx';
+import { Cli, Folded, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { UpdateResults } from './fix.jsx';
+import { ATTENTION } from './dashboard.jsx';
 import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
 import { SkillStates } from './skillstates.jsx';
@@ -202,7 +203,35 @@ function SkillDetail({ skill, results }) {
   );
 }
 
+// The global parts by the inventory's step prefix, each with the view that edits it.
+const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'Extensions'], [['skills'], 'Skills'], [['rules'], 'Rules', 'rules', 'Rules'],
+  [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
+
+// What the global setup installs, by part, with its state on disk; a part's items open on a button.
+function GlobalItems({ items }) {
+  const parts = GLOBAL_PARTS.map(([steps, title, view, viewName]) => ({ title, view, viewName, rows: items.filter((i) => steps.includes(i.step.split(':')[0])) })).filter((p) => p.rows.length);
+  if (!parts.length) return <Text size="sm">Nothing is installed globally yet: plan the setup below.</Text>;
+  return parts.map((p) => {
+    const attention = p.rows.filter((i) => ATTENTION.includes(i.state)).length;
+    return (
+      <Stack key={p.title} gap={4} component="section" aria-label={p.title}>
+        <Group gap="xs" justify="space-between">
+          <Text fw={600}>{p.title} ({p.rows.length}{attention ? `, ${attention} need attention` : ''})</Text>
+          {p.view && <Anchor href={href(p.view)} size="sm">Open {p.viewName}</Anchor>}
+        </Group>
+        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`}>
+          <List size="sm" listStyleType="none" spacing={4}>
+            {p.rows.map((i) => <List.Item key={`${i.step}|${i.title}`}><Group gap="xs" wrap="nowrap"><StateBadge state={i.state} /><Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text></Group></List.Item>)}
+          </List>
+        </Folded>
+      </Stack>
+    );
+  });
+}
+
+// Only global things: per-project setup lives on each project's page.
 export function Agents({ overview, params, refresh }) {
+  const inv = useApi('/api/inventory');
   const [select, setSelect] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -221,6 +250,7 @@ export function Agents({ overview, params, refresh }) {
       const chosen = select ?? installed;
       return (
         <Stack gap="lg">
+          <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <Table.ScrollContainer minWidth={640}>
           <Table aria-label="Agents">
             <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
@@ -238,9 +268,11 @@ export function Agents({ overview, params, refresh }) {
             </Table.Tbody>
           </Table>
           </Table.ScrollContainer>
+          <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
+          <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={refresh} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>

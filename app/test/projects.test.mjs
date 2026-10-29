@@ -52,6 +52,15 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
 });
 
+test('registry: a parsed file without a projects list is empty', () => {
+  const ctx = context({ home: home() });
+  mkdirSync(ctx.config, { recursive: true });
+  for (const text of ['{}', '{"projects":{}}']) {
+    writeFileSync(join(ctx.config, 'projects.json'), text);
+    assert.deepEqual(listProjects(ctx), []);
+  }
+});
+
 test('registry: one folder is one project, also through a symlink, in the registry and in the scan', async () => {
   const h = home();
   const ctx = context({ home: h });

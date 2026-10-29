@@ -444,6 +444,18 @@ test('scan needs an absolute root and leaves out registered folders; doctor and 
   assert.equal(status(() => routes['GET /api/project-plan'](q({ dir: join(root, 'b') }))), 400);
 });
 
+test('a damaged registry is never written: adding a project refuses and leaves the file as it was', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(TMP, 'bk-damaged-'));
+  const file = join(ctx.config, 'projects.json');
+  mkdirSync(ctx.config, { recursive: true });
+  for (const text of ['{"projects": [{"path": "/x"},', '{}']) {
+    writeFileSync(file, text);
+    assert.throws(() => routes['POST /api/projects']({ action: 'add', path: dir }), (e) => e.status === 409 && /registered projects file (is not valid JSON|has no projects list)/.test(e.message));
+    assert.equal(readFileSync(file, 'utf8'), text);
+  }
+});
+
 test('project-plan: disable and enable only name skills the project has', () => {
   const { ctx, routes } = fixture();
   const dir = mkdtempSync(join(TMP, 'bk-pp-'));

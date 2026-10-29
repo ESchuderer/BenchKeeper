@@ -341,15 +341,15 @@ function unknownKeys(agentId, layers, known) {
 
 const DOCS = { claude: 'https://code.claude.com/docs/en/settings-reference', codex: 'https://learn.chatgpt.com/docs/config-file/config-reference' };
 
-// The facts every view shows for a key: summary, eli5 and impact from the catalog (null outside it: not explained yet), the
-// default, and the value in effect with where it comes from: a layer, the process environment for an env.* key no file sets
-// (a file's env value wins over the shell's), or the default.
+// The facts every view shows for a key: summary, eli5 and impact from the catalog (outside it the summary is the reference or
+// schema description, null without one: not explained yet), the default, and the value in effect with where it comes from:
+// a layer, the process environment for an env.* key no file sets (a file's env value wins over the shell's), or the default.
 function facts(agentId, def, vals, env) {
   const name = def.key.startsWith('env.') ? def.key.slice(4) : null;
   // Only the catalog's switches are read from the environment: a key named in a request never reaches another variable.
   const fromEnv = !vals.length && def.type === 'switch' && name && env?.[name] !== undefined;
   const docs = def.source ?? (agentId === 'claude' && referenceRow(def.key) ? `${DOCS.claude}#${def.key.toLowerCase().replaceAll('.', '-')}` : DOCS[agentId]);
-  return { summary: def.summary ?? null, eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
+  return { summary: def.summary ?? (def.sentence || null), eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
     value: vals.length ? maskSecrets(vals[0].value, def.key) : fromEnv ? maskSecrets(env[name], name) : undefined, from: vals[0]?.layer ?? (fromEnv ? 'environment' : 'default') };
 }
 

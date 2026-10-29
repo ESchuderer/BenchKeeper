@@ -5,7 +5,7 @@ agent = "claude"
 schedule = "0 9 * * 1"
 workspace = "project"
 reuse_session = false
-precheck = "! pgrep -f \"automation-[u]pdate-all\" >/dev/null && npx -y benchkeeper@6 projects update --dry-run --json $(echo {{projects}} | tr , ' ') | grep -q '\"ready\": true'"
+precheck = "! pgrep -f \"automation-[u]pdate-all\" >/dev/null && npx -y benchkeeper@6 projects update --dry-run --unattended --json $(echo {{projects}} | tr , ' ') | grep -q '\"ready\": true'"
 missed_run_grace_minutes = 720
 mode = "report"
 

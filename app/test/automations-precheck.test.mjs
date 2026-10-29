@@ -160,6 +160,28 @@ test('pr watcher: a head commit that changed before the merge is not merge-ready
   assert.deepEqual(await watch({ nodes: [] }, { pr: '1', head: HEAD }), { work: [], skipped: ['skip #1 is not an open pull request'] });
 });
 
+test('pr watcher: a pull request with a connection longer than the page read is skipped, never merged or fixed', async () => {
+  const more = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, totalCount: v.nodes.length + 1 }]));
+  const ci = { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' };
+  const contexts = { head: { nodes: [{ commit: { statusCheckRollup: { contexts: { totalCount: 101, nodes: [ci] } } } }] } };
+  const failing = checks({ __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'FAILURE' });
+  const nodes = [
+    pr(1, more({ commits: pr(1).commits })),
+    pr(2, more({ labels: { nodes: [] } })),
+    pr(3, more({ reviewThreads: { nodes: [{ id: 'T1', isResolved: true }] } })),
+    pr(4, contexts),
+    pr(5, { ...failing, ...more({ comments: { nodes: [] } }) }),
+    pr(6, { commits: { totalCount: 1, nodes: pr(6).commits.nodes } }),
+  ];
+  const r = await watch({ nodes });
+  assert.deepEqual(r.work, [`merge #6 ${HEAD} closes #5`], 'a total equal to the nodes read is complete');
+  assert.deepEqual(r.skipped, [
+    'skip #1 more than 1 commits, not read', 'skip #2 more than 0 labels, not read', 'skip #3 more than 1 review threads, not read',
+    'skip #4 more than 1 check contexts, not read', 'skip #5 more than 0 comments, not read',
+  ]);
+  assert.deepEqual(await watch({ nodes: [pr(4, contexts)] }, { pr: '4', head: HEAD }), { work: [], skipped: ['skip #4 more than 1 check contexts, not read'] });
+});
+
 test('automations precheck: exit 0 with work, 1 without, 2 on a refusal or usage', async () => {
   const lines = [];
   const cli = (o, argv) => main(argv, { out: { write: (s) => { lines.push(s); } }, err: { write: () => {} }, ctx: world(o).ctx });

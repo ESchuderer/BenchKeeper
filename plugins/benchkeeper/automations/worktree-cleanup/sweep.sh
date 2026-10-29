@@ -1,11 +1,12 @@
 #!/bin/sh
-# Usage: sweep.sh <report|act> <tmp limit percent>
+# Usage: sweep.sh <report|act> <tmp limit percent> [rebuildable folders, comma-separated]
 # In the Git checkout of the working folder, prints the use of the temporary folder ("tmp <used> <limit> <folder>") and
-# per linked worktree and local branch whether it is removable: its pull request is merged, the worktree is clean, the
-# head commit is the merged pull request's head, no process works in it and no container of it runs. Containers and
-# volumes count only with the devcontainer label of a removable worktree. Mode act removes the removable items
-# ("removed ..."). Exit 0 when there is work: a removable item or the temporary space above the limit.
-mode=$1 limit=$2
+# per linked worktree and local branch whether it is removable: its pull request is merged, the worktree is clean and
+# holds no ignored file that cannot be rebuilt, the head commit is the merged pull request's head, no process works in
+# it and no container of it runs. Containers and volumes count only with the devcontainer label of a removable worktree.
+# Mode act removes the removable items ("removed ..."). Exit 0 when there is work: a removable item or the temporary
+# space above the limit.
+mode=$1 limit=$2 rebuildable=${3-node_modules,dist,build,.cache}
 case "$mode" in report|act) ;; *) echo "mode must be report or act" >&2; exit 2 ;; esac
 case "$limit" in ''|*[!0-9]*) echo "the limit must be a whole number of percent" >&2; exit 2 ;; esac
 top=$(git rev-parse --show-toplevel) || exit 2
@@ -33,6 +34,16 @@ busy() {
   fi
   command -v lsof >/dev/null || return 0
   lsof -a -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | awk -v p="$1/" 'index($0 "/", p) == 1 { f = 1 } END { exit !f }'
+}
+
+# Prints the ignored paths of worktree $1 that cannot be rebuilt: outside every folder named in $rebuildable and not a
+# .worktreeinclude entry of the checkout that still equals the checkout's copy. git worktree remove deletes them.
+ignored() {
+  git -C "$1" status --porcelain --ignored=matching | sed -n 's|^!! \(.*[^/]\)/*$|\1|p' |
+    awk -F/ -v r=",$rebuildable," '{ for (i = 1; i <= NF; i++) if (index(r, "," $i ",")) next; print }' |
+    while IFS= read -r p; do
+      grep -qxF -- "$p" "$top/.worktreeinclude" 2>/dev/null && diff -rq -- "$top/$p" "$1/$p" >/dev/null 2>&1 || echo "$p"
+    done
 }
 
 # Prints the reason to keep branch $1 at commit $2, or nothing when its merged pull request has this head commit.
@@ -68,6 +79,7 @@ while IFS=$tab read -r head flag branch path; do
   elif [ "$flag" != ok ]; then reason=$flag
   elif busy "$path"; then reason=busy
   elif [ -n "$(git -C "$path" status --porcelain 2>&1)" ]; then reason=dirty
+  elif [ -n "$(ignored "$path")" ]; then reason=ignored-files
   elif [ -n "$(containers -q --filter "$(label "$path")")" ]; then reason=container-running
   else reason=$(unmerged "$branch" "$head")
   fi

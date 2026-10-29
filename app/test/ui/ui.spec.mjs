@@ -1732,7 +1732,9 @@ test.describe('views', () => {
     // The note's list follows the stubbed dismissal, so the fixture home keeps its notes for the other tests.
     const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
     let off = false;
-    await page.route(/\/api\/settings\?/, async (route) => {
+    // Only the view's own read: the setting facts the Dashboard reads for settings findings share the path and return a list.
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
       const r = await route.fetch();
       await route.fulfill({ response: r, json: { ...(await r.json()), notes: off ? [] : [note], dismissed: off ? [note] : [] } });
     });
@@ -1751,7 +1753,7 @@ test.describe('views', () => {
     await expect(notes.getByRole('button', { name: /^Dismissed/ })).toHaveCount(0);
     await expect(notes).toBeFocused();
     await expect(status).toHaveText('Shown again: stub-note');
-    await page.unroute(/\/api\/settings\?/);
+    await page.unroute(view);
     await page.unroute(/\/api\/settings-dismiss$/);
   });
 

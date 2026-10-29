@@ -92,13 +92,16 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   // The library skill is copied into the scratch repository for its own cases only.
   assert.equal(calls.filter((c) => c.lib).length, 12);
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
-  // A line that does not parse is skipped, not a SyntaxError.
-  appendFileSync(join(ctx.config, 'evals/results.jsonl'), '{"target":"skill:wo\n');
+  // A cut-off line that does not parse is skipped, not a SyntaxError.
+  appendFileSync(join(ctx.config, 'evals/results.jsonl'), '{"target":"skill:wo');
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
   assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 3);
   assert.equal(evalPlan(ctx, { model: 'opus' }).length, 3);
   addCase(ctx, { target: 'skill:workflow', expected: 'loads', query: 'Rename the CLI flag --out to --output.' });
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }).map((p) => p.target), ['skill:workflow']);
+  // The result appended after the cut-off line is read back.
+  await runEval(ctx, evalPlan(ctx, { model: 'sonnet' }));
+  assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
   assert.equal(triggered('{"type":"x"}\nRead /h/.agents/skills/workflow/SKILL.md', 'workflow'), true);
 });
 

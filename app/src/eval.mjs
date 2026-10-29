@@ -120,7 +120,9 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const result = { time: now(), target: p.target, agent: p.agent, agentVersion: version, model: p.model ?? null, hash: p.hash, appVersion: ctx.appVersion,
       cases: details.length, ...(scope !== 'library' && { scope, ...(p.project && { project: p.project }) }), missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
     mkdirSync(userEvals(ctx), { recursive: true, mode: 0o700 });
-    appendFileSync(results(ctx), `${JSON.stringify(result)}\n`, { mode: 0o600 });
+    // A line cut off by an earlier write would swallow this result.
+    const cut = !(readText(results(ctx)) ?? '\n').endsWith('\n');
+    appendFileSync(results(ctx), `${cut ? '\n' : ''}${JSON.stringify(result)}\n`, { mode: 0o600 });
     // Files and folders of an earlier version, and the skill-only path that wrote no output, keep their modes otherwise.
     chmodSync(userEvals(ctx), 0o700);
     chmodSync(results(ctx), 0o600);

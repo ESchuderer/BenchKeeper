@@ -144,14 +144,18 @@ test('an async command keeps its last 64 kB and is stopped after its deadline', 
   ac.abort();
   assert.deepEqual([(await cancelled).code, /cancelled/.test((await cancelled).stderr)], [130, true]);
   // A cancel reaches the helpers a command started, not only the command.
-  const dir = home(), helper = join(dir, 'helper.js'), mark = join(dir, 'helper-ran');
-  writeFileSync(helper, "setTimeout(() => require('fs').writeFileSync(process.argv[2], 'x'), 800);");
+  const poll = async (check, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 20))) { const v = check(); if (v) return v; }
+    assert.fail('timed out');
+  };
+  const dir = home(), helper = join(dir, 'helper.js'), pidFile = join(dir, 'helper-pid');
+  writeFileSync(helper, "require('fs').writeFileSync(process.argv[2], String(process.pid)); setTimeout(() => {}, 5000);");
   const tree = new AbortController();
-  const parent = runCommandAsync(['node', '-e', "require('child_process').spawn('node', process.argv.slice(1), { stdio: 'ignore' }); setTimeout(() => {}, 5000)", helper, mark], { signal: tree.signal });
-  setTimeout(() => tree.abort(), 200);
+  const parent = runCommandAsync(['node', '-e', "require('child_process').spawn('node', process.argv.slice(1), { stdio: 'ignore' }); setTimeout(() => {}, 5000)", helper, pidFile], { signal: tree.signal });
+  const pid = await poll(() => existsSync(pidFile) && Number(readFileSync(pidFile, 'utf8')), 10000);
+  tree.abort();
   assert.equal((await parent).code, 130);
-  await new Promise((r) => setTimeout(r, 1200));
-  assert.equal(existsSync(mark), false);
+  await poll(() => { try { process.kill(pid, 0); return false; } catch { return true; } }, 2000);
   // A cancel during a timeout's grace period stays a timeout.
   const late = new AbortController();
   const timedOut = runCommandAsync(['node', '-e', 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 5000)'], { timeout: 100, grace: 300, signal: late.signal });

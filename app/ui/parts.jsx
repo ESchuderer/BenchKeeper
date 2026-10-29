@@ -168,7 +168,7 @@ const whatOf = (c) => {
   if (c.kind === 'remove') return `Deletes ${c.path}.`;
   if (c.kind === 'command') return removes(c) ? 'Removes it from the agent: whatever uses it stops working.' : 'Adds it to the agent.';
   if (c.destructive) return `Takes it out of ${c.path}: whatever relies on it stops working.`;
-  if (c.settings) return `${c.keyState === 'removed' ? 'Removes' : 'Sets'} ${c.settings.keys.join(', ')} ${c.keyState === 'removed' ? 'from' : 'in'} ${c.path}; other keys stay.`;
+  if (c.settings && !c.error) return `${c.keyState === 'removed' ? 'Removes' : 'Sets'} ${c.settings.keys.join(', ')} ${c.keyState === 'removed' ? 'from' : 'in'} ${c.path}; other keys stay.`;
   if (c.state === 'modified') return `Replaces your edits in ${c.path}.`;
   if (!c.state || c.state === 'absent' || c.state === 'removed') return `Creates ${c.path}.`;
   return `Changes ${c.path}.`;

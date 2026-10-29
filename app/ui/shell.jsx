@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Text } from '@mantine/core';
+import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Text, VisuallyHidden } from '@mantine/core';
 import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
@@ -53,6 +53,14 @@ export function useApi(path) {
   const reload = useCallback(() => setN((x) => x + 1), []);
   // Until the effect runs for a new path, the old path's data must not show under it.
   return { ...(state.path === path ? state : { data: null, error: null, loading: true }), reload };
+}
+
+// For an action that removes the row it sits in: announce(id, text) moves focus to the element with that id once the
+// render is done, and the status line says what happened.
+export function useAnnounce() {
+  const [said, setSaid] = useState(null);
+  useEffect(() => { if (said) document.getElementById(said.id)?.focus(); }, [said]);
+  return [<VisuallyHidden role="status">{said?.text}</VisuallyHidden>, useCallback((id, text) => setSaid({ id, text }), [])];
 }
 
 export function Loading({ state, label, children }) {

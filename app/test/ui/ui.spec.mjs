@@ -346,6 +346,7 @@ test.describe('views', () => {
   });
 
   test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
+    await page.getByText('More about the setup').click();
     const cell = page.getByRole('table', { name: 'Global setup by part' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
@@ -394,24 +395,55 @@ test.describe('views', () => {
     await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
-  test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
-    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 2 registered, 1 behind attention$/ })).toBeVisible();
+  test('Dashboard: the top row counts what needs attention and where, the health ring and the scopes; the flow folds away', async ({ page }) => {
+    // The fixture has items in the global setup and a project: no one view shows both, so only the parts link.
+    await expect(page.getByRole('link', { name: /items need attention/ })).toHaveCount(0);
+    await expect(page.getByText(/^items, in the global setup \d+, /).getByRole('link', { name: 'the global setup' })).toHaveAttribute('href', '#/agents?plan=1');
+    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the table$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
+    const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
+    await expect(where.getByRole('listitem').first()).toContainText(/^Global\d+ current/);
+    await expect(where.getByRole('link', { name: 'Global' })).toHaveAttribute('href', '#/agents?plan=1');
+    await expect(where.getByRole('listitem').filter({ hasText: 'not set up' })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Setup flow' })).toBeHidden();
+    // At 390 px the blocks stack and nothing scrolls sideways.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.getByText('More about the setup').click();
+    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 2 registered, 1 behind attention$/ })).toBeVisible();
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
   });
 
+  test('Dashboard: a project that cannot be read is named in the attention card, also when nothing else needs attention', async ({ page }) => {
+    let clean = false;
+    await page.route(/\/api\/dashboard(\?|$)/, async (route) => {
+      const d = await (await route.fetch()).json();
+      const zero = (states) => states && Object.fromEntries(Object.keys(states).map((s) => [s, 0]));
+      if (clean) d.global.states = zero(d.global.states);
+      d.projects = [...d.projects.map((p) => (clean ? { ...p, states: zero(p.states) } : p)),
+        { ...d.projects[0], path: '/gone', name: 'gone', setup: false, states: null, error: 'EACCES: permission denied' }];
+      return route.fulfill({ json: d });
+    });
+    for (const c of [false, true]) {
+      clean = c;
+      await page.reload();
+      await expect(page.getByText(/^Cannot be read: gone$/).getByRole('link', { name: 'gone' })).toHaveAttribute('href', '#/projects/%2Fgone');
+    }
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
+  });
+
   test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
+    await page.getByText('More about the setup').click();
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
     await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
     await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/catalog?pack=frontend');
-    // The legend counts what the bar draws; the table of values repeats every figure.
+    // The rows beside the ring count what it draws.
     const health = page.getByRole('region', { name: 'Health' });
     await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
-    await health.getByText('Table of values').click();
-    await expect(health.getByRole('link', { name: /^Global: 1 modified$/ })).toHaveAttribute('href', '#/agents?plan=1');
     // Coverage rows are the packs a project chose; the others are one line of links under the table.
     const coverage = page.getByRole('region', { name: 'Coverage' });
     const packRows = coverage.getByRole('table', { name: 'Pack coverage' }).locator('tbody tr');
@@ -425,6 +457,7 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects\?pack=frontend&agent=claude$/);
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row', { name: /bk-ui-proj/ })).toBeVisible();
     await nav(page, 'Dashboard').click();
+    await page.getByText('More about the setup').click();
     const bars = page.getByRole('list', { name: 'Skills per pack' }).getByRole('listitem');
     await expect(bars.first()).toBeVisible();
     const counts = await bars.evaluateAll((li) => li.map((x) => Number(x.lastElementChild.textContent)));
@@ -456,7 +489,7 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: /^Run / })).toBeVisible();
   });
 
-  test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+  test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
     const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
@@ -470,10 +503,21 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/agents\?plan=1$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
     await nav(page, 'Insights').click();
-    await market.getByRole('button', { name: 'Dismiss' }).click();
+    // The heading after the card in page order, or before it for the last card.
+    const nextHeading = (art) => art.evaluate((a) => { const all = [...document.querySelectorAll('article')], i = all.indexOf(a); return (all[i + 1] ?? all[i - 1]).getAttribute('aria-labelledby'); });
+    const status = page.getByRole('status').filter({ hasText: /^(Dismissed|Snoozed for 7 days|Shown again): / });
+    let next = await nextHeading(market);
+    await market.getByRole('button', { name: 'Dismiss' }).focus();
+    await page.keyboard.press('Enter');
     await expect(market).toHaveCount(0);
-    await scrub.getByRole('button', { name: 'Snooze 7 days' }).click();
+    await expect(page.locator(`[id="${next}"]`)).toBeFocused();
+    await expect(status).toHaveText(/^Dismissed: .*marketplace benchkeeper$/);
+    next = await nextHeading(scrub);
+    await scrub.getByRole('button', { name: 'Snooze 7 days' }).focus();
+    await page.keyboard.press('Enter');
     await expect(scrub).toHaveCount(0);
+    await expect(page.locator(`[id="${next}"]`)).toBeFocused();
+    await expect(status).toHaveText(/^Snoozed for 7 days: .*SUBPROCESS_ENV_SCRUB/);
     await page.reload();
     await expect(deny).toBeVisible();
     await expect(market).toHaveCount(0);
@@ -484,12 +528,39 @@ test.describe('views', () => {
     await expect(hidden).toContainText('Dismissed');
     await expect(hidden).toContainText(`Snoozed until ${week}`);
     await noAxe(page);
-    await hidden.getByRole('button', { name: 'Show again' }).first().click();
+    await hidden.getByRole('button', { name: 'Show again' }).first().focus();
+    await page.keyboard.press('Enter');
     await expect(market.or(scrub)).toHaveCount(1);
-    await hidden.getByRole('button', { name: 'Show again' }).click();
+    await expect(hidden).toBeFocused();
+    await expect(status).toHaveText(/^Shown again: /);
+    await hidden.getByRole('button', { name: 'Show again' }).focus();
+    await page.keyboard.press('Enter');
     await expect(hidden).toHaveCount(0);
+    await expect(page.getByRole('heading', { level: 2, name: 'Findings' })).toBeFocused();
     await expect(market).toBeVisible();
     await expect(scrub).toBeVisible();
+  });
+
+  test('Insights: while a dismissal is saved, triage waits across the list, so two quick dismissals leave focus on a remaining finding', async ({ page }) => {
+    await nav(page, 'Insights').click();
+    const cards = page.getByRole('article');
+    const [first, second] = [cards.nth(0), cards.nth(1)];
+    const name = await first.getAttribute('aria-labelledby');
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await page.route(/\/api\/insights-triage$/, async (route) => { await held; await route.continue(); });
+    await first.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(second.getByRole('button', { name: 'Dismiss' })).toBeDisabled();
+    await expect(second.getByRole('button', { name: 'Snooze 7 days' })).toBeDisabled();
+    release();
+    await expect(page.locator(`[id="${name}"]`)).toHaveCount(0);
+    const focused = await page.evaluate(() => document.activeElement.id);
+    expect(await page.locator('article').evaluateAll((all) => all.map((a) => a.getAttribute('aria-labelledby')))).toContain(focused);
+    await page.unroute(/\/api\/insights-triage$/);
+    const hidden = page.getByRole('region', { name: 'Hidden findings' });
+    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    await hidden.getByRole('button', { name: 'Show again' }).click();
+    await expect(hidden).toHaveCount(0);
   });
 
   test('Insights narrative: the input is on the page, the first run asks for consent, the text is marked as model text and a dismissal drops it; no axe violations', async ({ page }) => {
@@ -598,13 +669,18 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Catalog: the pack builder finds no overlapping descriptions in the library and saves an own pack; export downloads it', async ({ page }) => {
+  test('Catalog: the pack builder removes a skill with focus kept, finds no overlapping descriptions in the library and saves an own pack; export downloads it', async ({ page }) => {
     await nav(page, 'Catalog').click();
     const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
     for (let i = 0; i < 6; i++) await boxes.nth(i).check();
     await page.getByRole('button', { name: 'Build pack (6)' }).click();
     const drawer = page.getByRole('dialog', { name: 'Build a pack' });
     await expect(drawer.getByLabel(/^Pack id/)).toBeVisible();
+    // Remove takes its row: focus moves to the skills count and the status names the skill.
+    await drawer.getByRole('button', { name: /^Remove / }).first().focus();
+    await page.keyboard.press('Enter');
+    await expect(drawer.getByText('Skills (5)')).toBeFocused();
+    await expect(drawer.getByRole('status')).toHaveText(/^Removed: /);
     await expect(drawer.getByText(/overlapping descriptions/)).toHaveCount(0);
     await noAxe(page);
     await drawer.getByLabel(/^Pack id/).fill('my-pack');
@@ -634,7 +710,7 @@ test.describe('views', () => {
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
   });
 
-  test('Catalog: a pack file that is not a pack is listed with its reason and can be removed; no axe violations', async ({ page }) => {
+  test('Catalog: a pack file that is not a pack is listed with its reason and can be removed with focus kept; no axe violations', async ({ page }) => {
     await page.route(/\/api\/catalog(\?|$)/, async (route) => {
       const r = await route.fetch();
       await route.fulfill({ response: r, json: { ...(await r.json()), invalidPacks: [{ file: 'broken.json', reason: 'not valid JSON' }] } });
@@ -647,10 +723,14 @@ test.describe('views', () => {
     await expect(bad).toContainText('not valid JSON');
     await noAxe(page);
     const sent = page.waitForRequest((q) => q.url().endsWith('/api/packs') && q.method() === 'POST');
-    await bad.getByRole('button', { name: 'Remove broken.json' }).click();
+    await bad.getByRole('button', { name: 'Remove broken.json' }).focus();
+    await page.keyboard.press('Enter');
     expect((await sent).postDataJSON()).toEqual({ action: 'remove', id: 'broken.json' });
-    await page.unroute(/\/api\/catalog(\?|$)/);
-    await page.unroute(/\/api\/packs$/);
+    // Its last file takes the section with it: focus moves to the Packs heading.
+    await expect(page.getByRole('heading', { level: 3, name: 'Packs', exact: true })).toBeFocused();
+    await expect(page.getByRole('status').filter({ hasText: 'Removed: broken.json' })).toHaveCount(1);
+    // The removal reloads the catalog: wait for that stubbed answer.
+    await page.unrouteAll({ behavior: 'wait' });
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
@@ -1701,6 +1781,35 @@ test.describe('views', () => {
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+  test('Agent settings: Dismiss and Show again move a note between the lists, focus stays on the notes and the status says what happened', async ({ page }) => {
+    // The note's list follows the stubbed dismissal, so the fixture home keeps its notes for the other tests.
+    const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
+    let off = false;
+    // Only the view's own read: the setting facts the Dashboard reads for settings findings share the path and return a list.
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), notes: off ? [] : [note], dismissed: off ? [note] : [] } });
+    });
+    await page.route(/\/api\/settings-dismiss$/, (route) => { off = route.request().postDataJSON().dismissed; return route.fulfill({ json: { dismissed: [] } }); });
+    await nav(page, 'Agent settings').click();
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    const status = notes.getByRole('status');
+    await notes.getByRole('button', { name: 'Dismiss, I accept this: stub-note' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(notes.getByRole('button', { name: 'Dismissed (1)' })).toBeVisible();
+    await expect(notes).toBeFocused();
+    await expect(status).toHaveText('Dismissed: stub-note');
+    await notes.getByRole('button', { name: 'Dismissed (1)' }).click();
+    await notes.getByRole('button', { name: 'Show again: stub-note' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(notes.getByRole('button', { name: /^Dismissed/ })).toHaveCount(0);
+    await expect(notes).toBeFocused();
+    await expect(status).toHaveText('Shown again: stub-note');
+    await page.unroute(view);
+    await page.unroute(/\/api\/settings-dismiss$/);
   });
 
   test('Setting facts: Agent settings, the doctor, Insights and the Plan and Apply drawers show summary, plain words, impact, default and the current value with its source; no axe violations', async ({ page }) => {

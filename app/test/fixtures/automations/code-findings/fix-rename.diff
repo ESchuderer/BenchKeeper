@@ -1,0 +1,8 @@
+diff --git a/eslint.config.mjs b/eslint.config.old.txt
+similarity index 100%
+rename from eslint.config.mjs
+rename to eslint.config.old.txt
+diff --git a/pyproject.toml b/pyproject.toml.bak
+similarity index 100%
+rename from pyproject.toml
+rename to pyproject.toml.bak

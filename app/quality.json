@@ -21,14 +21,14 @@
       "functions": 99
     },
     "engine": {
-      "lines": 98,
-      "branches": 92,
-      "functions": 96
+      "lines": 99,
+      "branches": 93,
+      "functions": 97
     },
     "server": {
-      "lines": 96,
-      "branches": 86,
-      "functions": 91
+      "lines": 97,
+      "branches": 87,
+      "functions": 93
     },
     "cli": {
       "lines": 97,

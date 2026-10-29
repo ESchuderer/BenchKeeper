@@ -1,8 +1,9 @@
 // Optional tier band (userConfig tierBand, off by default): a row with the project, its branch and Ponytail's level (when that
 // plugin is on), a row with the last test run, the last lint or type check and whether the tier's checks passed since the
 // last edit, a row with the tier line of the last answer and buttons for /benchkeeper:tier, the sessions board and the
-// doctor, and the session's override kept in the system prompt, so it outlasts compaction and resume. It reads the working
-// folder, git and one flag file of Ponytail; it writes nothing and sends nothing.
+// doctor, and the session's override kept in the system prompt and the plugin's store, so it outlasts compaction and resume.
+// It reads the working folder, git, one flag file of Ponytail and the commands and edits of the main loop; it writes only
+// that override to the plugin's store and sends nothing.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -15,25 +16,33 @@ const override = atom({ plugin: 'benchkeeper', key: 'override' } as const, null)
 const where = atom({ plugin: 'benchkeeper', key: 'where' } as const, null)
 const tests = atom({ plugin: 'benchkeeper', key: 'tests' } as const, null)
 const lint = atom({ plugin: 'benchkeeper', key: 'lint' } as const, null)
-// A command list as found anywhere in a command, and as the start of one part of a chain.
+// A command list as found anywhere in a command, and as the start of one part of a chain, also after a runner (npx vitest).
 const commands = (list: string) => ({
   any: new RegExp(`(?:^|[\\s;&|('"])${list}(?=$|[\\s;&|):'"])`),
-  start: new RegExp(`^(?:\\w+=\\S+\\s+)*${list}(?=$|\\s)`),
+  start: new RegExp(`^(?:\\w+=\\S+\\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\\s+)?${list}(?=$|\\s)`),
 })
 // The test commands the sessions board counts too (app/src/sessions.mjs).
-const TEST = commands('(?:npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)')
-const LINT = commands('(?:eslint|npm run lint|npx tsc|tsc|ruff|mypy|pyright|go vet|cargo clippy|biome)')
+const TEST = commands('(?:(?:npm|pnpm|yarn|bun) (?:run )?test(?::\\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)')
+const LINT = commands('(?:eslint|npm run lint|tsc|ruff|mypy|pyright|go vet|cargo clippy|biome)')
 const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 
 // The commands of a chain joined by && only, else none: with ||, ;, | or & the exit code can come from another command, and a
 // quoted name (echo "npm test") runs no test.
 const chain = (command: string) => (/[;|&\n`]|\$\(/.test(command.replaceAll('&&', ' ')) ? [] : command.split('&&').map((part) => part.trim()))
+// Without its redirections (> log, 2>&1, &> log), which leave the exit code alone.
+const plain = (command: string) => command.replace(/\s*(?:&>>?|\d*>>?)\s*(?:&\d+|[^\s;&|'"]+)/g, '')
+// The script of one sh -c '<script>', alone or after a container exec (devcontainer exec ... sh -lc 'cd app && npm test'),
+// else the command: in echo sh -c 'npm test' the shell is an argument.
+function script(command: string) {
+  const c = plain(command)
+  return plain(c.match(/^(?:\w+=\S+\s+)*(?:(?:devcontainer|docker|podman)(?: compose)? exec\s(?:[^;&|`'"(]*\s)?)?(?:\/(?:usr\/)?bin\/)?(?:ba)?sh -[a-z]*c (['"])([^'"]*)\1$/)?.[2] ?? c)
+}
 
 // The result of a check run, as the board reads a test run: a failed exit code fails, any other result passes. A compound
 // command, a failed chain or a background run has no result of its own (null). undefined leaves the last result.
 function outcome(check: typeof TEST, command: string, ran: { isError?: boolean; text?: string; backgroundTaskId?: unknown }) {
-  if (!check.any.test(command)) return undefined
-  const parts = chain(command)
+  if (!check.any.test(plain(command))) return undefined
+  const parts = chain(script(command))
   // A chain passes when every part passed. It fails for the check only when the check is the whole command: in cd x && npm test
   // or false && npm test the failure may be another part's, and in npm test && false the test passed.
   if (!parts.some((part) => check.start.test(part)) || ran.backgroundTaskId) return null

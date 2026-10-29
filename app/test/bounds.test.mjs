@@ -543,6 +543,10 @@ test('the transcript of a recorded session is the one of that agent, started in 
   assert.equal(transcript(h, dir, 0, 'claude'), join(claude, 'c.jsonl'));
   writeFileSync(join(day, 'rollout-c.jsonl'), `${JSON.stringify({ type: 'session_meta', payload: { cwd: 7 } })}\n`);
   assert.equal(transcript(h, dir, 0, 'codex'), mine);
+  // A first line that is not JSON names no folder; the newest rollout is still the one started in dir.
+  writeFileSync(join(day, 'rollout-d.jsonl'), `not json ${dir}\n`);
+  utimesSync(join(day, 'rollout-d.jsonl'), new Date(Date.now() + 60e3), new Date(Date.now() + 60e3));
+  assert.equal(transcript(h, dir, 0, 'codex'), mine);
   assert.equal(transcript(h, dir, 0, 'gemini'), null);
   assert.equal(transcript(h, other, 0, 'claude'), null);
 });

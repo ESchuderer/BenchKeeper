@@ -57,7 +57,8 @@ function scoped(ctx, target, { scope, project }) {
 function readSet(path) {
   const text = readText(path);
   if (text == null) return null;
-  const set = JSON.parse(text);
+  let set;
+  try { set = JSON.parse(text); } catch (e) { throw new Error(`${path}: not JSON (${e.message})`); }
   if (set.kind !== 'benchkeeper-evals' || set.schemaVersion !== CASE_SCHEMA) throw new Error(`${path}: not a schemaVersion ${CASE_SCHEMA} eval set`);
   // Target and case ids become folder and file names in a run.
   const own = typeof set.target === 'string' && scopeOf(set.target) === 'project';

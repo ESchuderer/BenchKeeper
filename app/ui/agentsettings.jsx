@@ -3,7 +3,7 @@ import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section, SettingFacts } from './parts.jsx';
-import { Loading, Note, href, icon, useApi } from './shell.jsx';
+import { Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
 const SHOWN = 150;
@@ -128,7 +128,9 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
     try { const p = await api('/api/settings-plan', { agent, layer, dir, ...body }); if (asked === rev.current) setPlan(p); } catch (e) { if (asked === rev.current) setError(e.message); }
     setBusy(false);
   };
-  const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(onApplied, (e) => setError(e.message)); };
+  const [status, announce] = useAnnounce();
+  // The notes region stays after either click: a dismissed note is listed under Dismissed, a shown one among the notes.
+  const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`); }, (e) => setError(e.message)); };
   const dismissed = data.dismissed ?? [];
   return (
     <Stack gap="lg">
@@ -148,7 +150,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       </Table.ScrollContainer>
       {data.layers.filter((l) => l.error && !l.readOnly).map((l) => <Note key={l.path} color="red"><Text span fw={600}>This file is not edited. </Text>{l.path} cannot be read ({l.error}). {agent === 'claude' ? 'Claude Code reads strict JSON and skips the whole file on one error.' : ''} Fix it by hand first.</Note>)}
       {(data.notes.length > 0 || dismissed.length > 0) && (
-        <Stack gap="xs" role="region" aria-label="Notes on the settings">
+        <Stack gap="xs" role="region" aria-label="Notes on the settings" id="setting-notes" tabIndex={-1}>
+          {status}
           {data.notes.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Dismiss, I accept this: ${n.id}`} onClick={() => dismiss(n.id, true)}>Dismiss, I accept this</Button></SettingNote>)}
           {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={showDismissed} onClick={() => setShowDismissed(!showDismissed)}>Dismissed ({dismissed.length})</Button></Group>}
           {showDismissed && dismissed.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Show again: ${n.id}`} onClick={() => dismiss(n.id, false)}>Show again</Button></SettingNote>)}

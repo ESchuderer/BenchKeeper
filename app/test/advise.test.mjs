@@ -25,11 +25,18 @@ test('Codex answers through its output file; it reads only the project, without 
   // No server list, no session: none of them could be turned off.
   await assert.rejects(adviseSetup({ run: (a) => (a[1] === 'mcp' ? { code: 1, stdout: '', stderr: 'unknown command' } : assert.fail('session started')) }, { dir: '/p', agent: 'codex', lib }), /codex mcp list --json failed \(1\): unknown command/);
   await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: '', stderr: 'not logged in' }) }, { dir: '/p', agent: 'claude', lib }), /not logged in/);
+  // The session read the repository: a token it quotes is masked in the error.
+  const token = `ghp_${'a'.repeat(36)}`;
+  await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: `found ${token}`, stderr: '' }) }, { dir: '/p', agent: 'claude', lib }), (e) => !e.message.includes(token) && /found \*\*\*/.test(e.message));
+  await assert.rejects(adviseSetup({ run: (a) => (a[1] === 'mcp' ? { code: 1, stdout: '', stderr: `bad ${token}` } : assert.fail('session started')) }, { dir: '/p', agent: 'codex', lib }), (e) => !e.message.includes(token) && /bad \*\*\*/.test(e.message));
   await assert.rejects(adviseSetup(ctx, { dir: '/p', agent: 'gemini', lib }), /agent must be/);
 });
 
 test('advice: no JSON fails; reasons are one line of at most 200 characters', () => {
-  assert.throws(() => parseAdvice('no idea', lib), /no JSON/);
+  assert.throws(() => parseAdvice('no idea', lib), /no JSON answer; check its login or try again: no idea$/);
+  // A plain-text answer is the only hint of the cause: its start is shown, masked.
+  assert.throws(() => parseAdvice(`  Please run /login. ${'x'.repeat(300)} sk-ant-${'b'.repeat(20)}`, lib), (e) => e.message.endsWith(`Please run /login. ${'x'.repeat(181)}`));
+  assert.throws(() => parseAdvice(`token sk-ant-${'b'.repeat(20)}`, lib), (e) => e.message.endsWith('token ***'));
   const r = parseAdvice(JSON.stringify({ packs: [{ id: 'frontend', reason: `a\n${'x'.repeat(300)}` }] }), lib);
   assert.equal(r.packs[0].reason.length, 200);
   assert.ok(!r.packs[0].reason.includes('\n'));

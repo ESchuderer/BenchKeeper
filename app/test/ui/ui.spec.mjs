@@ -592,6 +592,23 @@ test.describe('views', () => {
     await hidden.getByRole('button', { name: 'Show again' }).click();
   });
 
+  test('Insights: a failed narrative read keeps the folded section with the error and Try again; no findings leaves no Findings heading', async ({ page }) => {
+    let fail = true;
+    await page.route(/\/api\/insights-narrative(\?|$)/, (route) => (fail ? route.fulfill({ status: 500, json: { error: 'stubbed failure' } }) : route.fallback()));
+    await nav(page, 'Insights').click();
+    await page.getByText('Adviser narrative', { exact: true }).click();
+    const alert = page.getByRole('alert').filter({ hasText: 'Adviser narrative not loaded' });
+    await expect(alert).toContainText('stubbed failure');
+    fail = false;
+    await alert.getByRole('button', { name: 'Try again' }).click();
+    await expect(alert).toHaveCount(0);
+    await page.unroute(/\/api\/insights-narrative(\?|$)/);
+    await page.route(/\/api\/insights(\?|$)/, async (route) => route.fulfill({ json: { ...(await (await route.fetch()).json()), findings: [] } }));
+    await page.reload();
+    await expect(page.getByText('No findings.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Findings' })).toHaveCount(0);
+  });
+
   test('Stop: the header button asks first; Cancel keeps the server running', async ({ page }) => {
     await page.getByRole('button', { name: 'Stop BenchKeeper' }).click();
     const dialog = page.getByRole('dialog', { name: 'Stop BenchKeeper?' });
@@ -1534,7 +1551,7 @@ test.describe('views', () => {
     await expect(fix).toContainText('skipped: uncommitted changes');
     await noAxe(page);
     await fix.getByRole('button', { name: 'Next' }).click();
-    await expect(fix.getByRole('table', { name: 'Doctor findings' }).or(fix.getByText('No problems found.'))).toBeVisible();
+    await expect(fix.getByRole('table', { name: 'Doctor findings' }).or(fix.getByText('No findings.'))).toBeVisible();
     await fix.getByRole('button', { name: 'Next' }).click();
     await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText(/Global setup: \d+ of \d+ changes/);
     await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText('Projects: none');

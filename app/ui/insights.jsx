@@ -2,7 +2,8 @@ import { Anchor, Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, 
 import { useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { splitSource } from './fixsource.js';
-import { LEVEL_COLOR, fixAction, levelCounts } from './fix.jsx';
+import { LEVEL_COLOR, fixAction } from './fix.jsx';
+import { levelCounts } from '../src/levels.mjs';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';
@@ -72,6 +73,8 @@ function Narrative({ rev }) {
   // A second click before the job exists would start a second request and show its 409 as an error.
   const starting = useRef(false);
   const d = state.data;
+  // A failed read keeps the section, so a narrative kept for these findings is one Try again away.
+  if (state.error) return <details><summary><Text component="span" fw={600}>Adviser narrative</Text></summary><Loading state={state} label="adviser narrative" /></details>;
   if (!d || !d.count) return null;
   const agent = picked ?? d.advisers[0]?.id ?? null;
   const name = d.advisers.find((x) => x.id === agent)?.name ?? agent;
@@ -195,7 +198,7 @@ export function Insights() {
                 {samples.sessions < samples.minSamples && ` The session signals need ${samples.minSamples}: unused skills over all sessions, friction in one project.`}
               </Text>
               <Narrative rev={rev} />
-              <Title order={2} size="h4" id="findings-title" tabIndex={-1}>Findings</Title>
+              {(groups.length > 0 || hidden.length > 0) && <Title order={2} size="h4" id="findings-title" tabIndex={-1}>Findings</Title>}
               {status}
               {groups.map(([sev, label, areas]) => (
                 <details key={sev} open={sev !== 'info'}>

@@ -1,4 +1,5 @@
 import { Anchor, Badge, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -91,41 +92,44 @@ function ValueControl({ row, own, edit, setEdit, readOnly }) {
   }
 }
 
-function Row({ row, layer, edits, setEdit, stage, running }) {
+function Row({ row, layer, edits, setEdit, stage, running, phone }) {
   const own = ownOf(row, layer);
   const edit = edits[row.key];
   const editable = editableIn(row, layer);
+  const setting = (
+    <Stack gap={2}>
+      <Group gap="xs"><Code id={`setting-${row.key}`} tabIndex={-1}>{row.key}</Code>{differs(row, layer) && <Badge variant="default" miw="max-content" leftSection={<Dot color="yellow" />}>Differs from suggested</Badge>}</Group>
+      <SettingFacts f={row} />
+      {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
+      {row.notes?.map((n) => (
+        <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'} p="xs">
+          {n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor>
+        </Note>
+      ))}
+    </Stack>
+  );
+  const value = (
+    <Stack gap={6}>
+      {editable ? <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} readOnly={running} /> : <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text>}
+      <Compare row={row} layer={layer} own={own} edit={edit} use={editable ? () => stage({ [row.key]: row.suggest.value }) : undefined} />
+    </Stack>
+  );
   return (
     <Table.Tr>
-      <Table.Td>
-        <Stack gap={2}>
-          <Group gap="xs"><Code id={`setting-${row.key}`} tabIndex={-1}>{row.key}</Code>{differs(row, layer) && <Badge variant="default" miw="max-content" leftSection={<Dot color="yellow" />}>Differs from suggested</Badge>}</Group>
-          <SettingFacts f={row} />
-          {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
-          {row.notes?.map((n) => (
-            <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'} p="xs">
-              {n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor>
-            </Note>
-          ))}
-        </Stack>
-      </Table.Td>
-      <Table.Td miw={200}>
-        <Stack gap={6}>
-          {editable ? <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} readOnly={running} /> : <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text>}
-          <Compare row={row} layer={layer} own={own} edit={edit} use={editable ? () => stage({ [row.key]: row.suggest.value }) : undefined} />
-        </Stack>
-      </Table.Td>
+      {phone ? <Table.Td><Stack gap="sm">{setting}{value}</Stack></Table.Td> : <><Table.Td>{setting}</Table.Td><Table.Td miw={200}>{value}</Table.Td></>}
     </Table.Tr>
   );
 }
 
 function Rows({ rows, layer, edits, setEdit, stage, label, running }) {
+  // Below sm each setting is one cell (key and description above the value), so the value control needs no sideways scroll.
+  const phone = useMediaQuery('(max-width: 47.99em)');
   if (!rows.length) return <Text size="sm">No setting matches.</Text>;
   return (
-    <Table.ScrollContainer minWidth={720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+    <Table.ScrollContainer minWidth={phone ? 0 : 720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
-        <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} running={running} />)}</Table.Tbody>
+        <Table.Thead><Table.Tr>{phone ? <Table.Th>Setting, {LAYERS[layer]}</Table.Th> : <><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></>}</Table.Tr></Table.Thead>
+        <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} running={running} phone={phone} />)}</Table.Tbody>
       </Table>
     </Table.ScrollContainer>
   );

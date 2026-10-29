@@ -197,16 +197,17 @@ test.describe('views', () => {
   });
 
   test('a hidden tab does not poll the running jobs', async ({ page }) => {
+    // Hidden from the start and a fake clock that runs past three 2 s poll intervals: no request at all.
+    await page.addInitScript(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); });
+    await page.clock.install();
+    await page.reload();
     let jobs = 0;
     page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/jobs') jobs++; });
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
-    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); });
-    await page.waitForTimeout(2200);
-    const hidden = jobs;
-    await page.waitForTimeout(4400);
-    expect(jobs).toBe(hidden);
+    await page.clock.runFor(6600);
+    expect(jobs).toBe(0);
     await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
-    await expect.poll(() => jobs).toBeGreaterThan(hidden);
+    await expect.poll(() => jobs).toBeGreaterThan(0);
   });
 
   test('History: the newest 100 runs, the older ones on request, a linked old run stays listed', async ({ page }) => {
@@ -374,8 +375,9 @@ test.describe('views', () => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
     await nav(page, 'Preferences').click();
     await expect(page.getByRole('heading', { level: 2, name: 'Preferences' })).toBeVisible();
-    let hits = 0;
-    await page.route(/\/api\/overview(\?|$)/, (r) => { hits++; return r.abort('connectionreset'); });
+    let failed = 0;
+    await page.route(/\/api\/overview(\?|$)/, (r) => r.abort('connectionreset'));
+    page.on('requestfailed', (q) => { if (new URL(q.url()).pathname === '/api/overview') failed++; });
     // Closing the one-run drawer calls refresh().
     await page.keyboard.press('ControlOrMeta+K');
     await page.getByRole('dialog', { name: 'Command palette' }).getByLabel('Search').fill('Set up projects in one run');
@@ -385,14 +387,15 @@ test.describe('views', () => {
     await page.keyboard.press('Escape');
     await expect(drawer).toBeHidden();
     // The read is asked twice (a lost connection is retried once), then the overview clears.
-    await expect.poll(() => hits).toBeGreaterThanOrEqual(2);
-    await page.waitForTimeout(300);
+    await expect.poll(() => failed).toBeGreaterThanOrEqual(2);
+    // The failure clears the overview in the next render: wait for a frame after it.
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     await expect(page.getByRole('heading', { level: 2, name: 'Preferences' })).toBeVisible();
     await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
-    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
+    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 2 registered, 1 behind attention$/ })).toBeVisible();
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
@@ -676,7 +679,7 @@ test.describe('views', () => {
     await expect(page.getByRole('progressbar', { name: /^Update all:/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
     await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
-    await expect(page.getByRole('progressbar', { name: 'Update all: 1 of 1 projects' })).toBeVisible();
+    await expect(page.getByRole('progressbar', { name: 'Update all: 2 of 2 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
   });
 
@@ -687,10 +690,12 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Scan for projects' }).click();
     const found = page.getByRole('region', { name: 'Found projects' });
     await expect(found.getByRole('checkbox')).toHaveCount(1);
-    await expect(found.getByRole('checkbox', { name: /\/other$/ })).toBeChecked();
+    await expect(found.getByRole('checkbox', { name: /\/found$/ })).toBeChecked();
     await found.getByRole('button', { name: 'Add selected (1)' }).click();
-    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(3);
-    await expect(page.getByRole('table', { name: 'Projects' })).toContainText('not set up');
+    const table = page.getByRole('table', { name: 'Projects' });
+    await expect(table.getByRole('row')).toHaveCount(4);
+    await expect(table.getByRole('row', { name: /found/ })).toContainText('not set up');
+    await unregister(page, ['found']);
   });
 
   test('Projects: one line for name and tree state, one for path and branch; one status per column; no mid-word break at phone width', async ({ page }) => {
@@ -772,9 +777,9 @@ test.describe('views', () => {
     await page.goto('/#/projects');
     await page.getByText('Cards', { exact: true }).click();
     const cards = page.getByRole('list', { name: 'Projects' });
-    const n = await cards.getByRole('listitem').count();
-    expect(n).toBeGreaterThan(0);
-    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(new RegExp(`^${n}projects`));
+    // bk-ui-proj and other, both registered by serve.mjs.
+    await expect(cards.getByRole('listitem')).toHaveCount(2);
+    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(/^2projects/);
     const card = cards.getByRole('article', { name: /^bk-ui-proj/ });
     await expect(card).toContainText(/In sync|Outdated|Modified/);
     await expect(card).toContainText('Claude Code');
@@ -784,10 +789,10 @@ test.describe('views', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // The chips narrow the cards and the table shows the same projects.
     await chip(page, 'No setup').click();
-    const fresh = await cards.getByRole('listitem').count();
-    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(new RegExp(`^${fresh}projects`));
+    await expect(cards.getByRole('listitem')).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(/^1projects/);
     await page.getByText('Table', { exact: true }).click();
-    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(fresh + 1);
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(2);
     await page.getByText('Cards', { exact: true }).click();
     await chip(page, 'No setup').click();
     await expect(bar(page)).toHaveCount(0);
@@ -1919,7 +1924,7 @@ test.describe('views', () => {
     writeFileSync(GATE, '');
     try {
       await page.getByRole('button', { name: 'Set up everything', exact: true }).click();
-      // Everything preselects every project the run can set up; the earlier tests registered three more.
+      // Everything preselects every project the run can set up; serve.mjs registered other, the earlier tests broken and alpha.
       for (const name of ['uno', 'duo', 'broken', 'alpha', 'other']) await expect(drawer.getByRole('checkbox', { name, exact: true })).toBeChecked();
       for (const name of ['alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
       await drawer.getByRole('button', { name: 'Start', exact: true }).click();

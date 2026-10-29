@@ -29,11 +29,14 @@ const DEMO = process.env.BK_DEMO_ROOT;
 const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(tmpdir(), 'bk-ui-'));
 if (DEMO && resolve(process.env.HOME ?? '') !== resolve(home)) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
 mkdirSync(home, { recursive: true });
-// The folder dialog answers with a parent of the registered project and of one more folder with an agent setup.
+// The folder dialog answers with a parent of the registered projects (one of them, other, is not set up) and, for the
+// scan, of one more unregistered folder with an agent setup.
 const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
 const other = DEMO ? 'blog' : 'other';
-mkdirSync(join(parent, other), { recursive: true });
-writeFileSync(join(parent, `${other}/AGENTS.md`), '# Other\n');
+for (const name of DEMO ? [other] : [other, 'found']) {
+  mkdirSync(join(parent, name), { recursive: true });
+  writeFileSync(join(parent, `${name}/AGENTS.md`), `# ${name}\n`);
+}
 // A repository without a state file, for the step-by-step first setup.
 for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
 // Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
@@ -138,7 +141,7 @@ writeFileSync(join(dir, '.claude/settings.local.json'), JSON.stringify({ hooks: 
   apply(preview(projectPlan({ ctx: uctx, dir: uno, answers: { agents: ['claude'], env: 'host', tier: 'quick' } }).changes).filter((c) => c.kind !== 'command'), uctx, { scope: uno });
   rmSync(join(uno, 'CLAUDE.local.md'));
 }
-if (DEMO) addProject(ctx, join(parent, other));
+addProject(ctx, join(parent, other));
 // Two eval runs of one skill for the Evals chart.
 mkdirSync(join(ctx.config, 'evals'), { recursive: true });
 // Two agents, three targets; a rule target has no rates, and Codex's workflow run had no should-not cases.

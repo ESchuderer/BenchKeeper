@@ -261,6 +261,52 @@ test('prerun: with no sandbox the route answers "unavailable" and runs nothing; 
   assert.equal(installs, 1, 'the unconfined result is kept for the next click');
 });
 
+test('apply: the live output of a command is masked before it is cut, a token split across chunks included', async () => {
+  const { ctx, routes } = fixture();
+  let release, print;
+  ctx.runAsync = (argv, o) => { if (argv[1]?.endsWith('verify.mjs')) return Promise.resolve(ctx.run(argv, o)); print = o.onOutput; return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command');
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await waitFor(() => print, `command of job ${job}`);
+  const token = `ghp_${'a'.repeat(30)}`;
+  print('login password=pw9 ok\nusing ');
+  print(token.slice(0, 12));
+  print(`${token.slice(12)}\n`);
+  const out = () => routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id];
+  assert.equal(out(), 'login password=*** ok\nusing ***\n');
+  // The raw tail of 8 kB would start inside the token; the masked one starts after it.
+  print('x'.repeat(8192 - token.length / 2));
+  assert.equal(out().length, 8192);
+  assert.doesNotMatch(out(), /a{4}|pw9/);
+  release();
+  await jobDone(routes, job);
+});
+
+test('apply: the live output masks a key block whose END line has not come yet, and a block longer than the kept tail', async () => {
+  const { ctx, routes } = fixture();
+  let release, print;
+  ctx.runAsync = (argv, o) => { if (argv[1]?.endsWith('verify.mjs')) return Promise.resolve(ctx.run(argv, o)); print = o.onOutput; return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command');
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await waitFor(() => print, `command of job ${job}`);
+  const out = () => routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id];
+  const [begin, end] = ['BEGIN', 'END'].map((w) => `-----${w} OPENSSH PRIVATE KEY-----`);
+  print(`${begin}\nb3BlbnNzaC1rZXk`);
+  assert.equal(out(), `${begin}\n***`);
+  print('tdjEAAAA\nQUFBQUFB\n');
+  assert.equal(out(), `${begin}\n***\n***\n`);
+  // 70 kB of body: the kept 64 kB tail no longer holds the BEGIN line.
+  for (let i = 0; i < 1000; i++) print(`${'Q'.repeat(69)}\n`);
+  assert.doesNotMatch(out(), /Q|b3Bl/);
+  print(`${end}\ndone token=abc123\n`);
+  assert.ok(out().endsWith(`***\n${end}\ndone token=***\n`));
+  assert.doesNotMatch(out(), /Q/);
+  release();
+  await jobDone(routes, job);
+});
+
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {
   const { ctx, routes } = fixture();
   let release;
@@ -686,7 +732,7 @@ test('run report: a failed session undo (no files recorded) still opens', () => 
 test('the browser opens a file only this user can read, which forwards to the URL; the URL stays out of the arguments', () => {
   let opened;
   const file = openBrowser('http://127.0.0.1:1/?token=a&b', { wait: 0, open: (f) => { opened = f; }, confined: () => false });
-  assert.equal(opened, file);
+  assert.equal(opened, pathToFileURL(file).href);
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /content="0;url=http:\/\/127\.0\.0\.1:1\/\?token=a&#38;b"/);
 });

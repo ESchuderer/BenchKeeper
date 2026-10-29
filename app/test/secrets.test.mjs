@@ -35,15 +35,43 @@ test('mask: values of secret keys and token shapes, nothing else', () => {
   const pem = `${begin}\nb3BlbnNzaC1rZXk=\nAAAAkey=\n${end}`;
   for (const keys of [true, false]) {
     assert.equal(mask(`id ${jwt} end`, { keys }), 'id *** end');
-    assert.equal(mask(`a\n${pem}\nb`, { keys }), `a\n${begin}\n***\n${end}\nb`);
+    assert.equal(mask(`a\n${pem}\nb`, { keys }), `a\n${begin}\n***\n***\n${end}\nb`);
   }
   // BEGIN lines without an END: each candidate stops at the next BEGIN, so a long run of them takes linear time.
   const started = Date.now();
-  assert.equal(mask(`${begin}\n`.repeat(200_000) + pem).endsWith(`${begin}\n***\n${end}`), true);
+  assert.equal(mask(`${begin}\n`.repeat(200_000) + pem).endsWith(`${begin}\n***\n***\n${end}`), true);
   assert.ok(Date.now() - started < 2000);
   // Free text: only shapes. A rule that says "Keep secrets: read them from the environment" stays readable.
   assert.equal(mask('Keep secrets: read them from files', { keys: false }), 'Keep secrets: read them from files');
   assert.equal(mask(`paste ${TOKEN} here`, { keys: false }), 'paste *** here');
+});
+
+test('mask: a PGP key block and a key in a JSON string keep their lines, the body is gone', () => {
+  // Built from parts so the fixtures do not read as real keys to secret scanners.
+  const [begin, end] = ['BEGIN', 'END'].map((w) => `-----${w} PGP PRIVATE KEY BLOCK-----`);
+  for (const keys of [true, false]) assert.equal(mask(`${begin}\n\nlQOYBGabc=\n=Xyz1\n${end}\n`, { keys }), `${begin}\n\n***\n***\n${end}\n`);
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} PRIVATE KEY-----`);
+  const line = `  "pk": "${b}\\nMIIEvQIBADAN\\nBgkqhkiG9w0=\\n${e}\\n",`;
+  assert.equal(mask(line, { keys: false }), `  "pk": "${b}***${e}\\n",`);
+  const d = diffLines('{\n  "a": 1\n}\n', `{\n  "a": 1,\n${line}\n}\n`, '/h/.claude/settings.json');
+  assert.doesNotMatch(d, /MIIEvQ|BgkqhkiG/);
+  assert.ok(d.split('\n').every((l) => /^(---|\+\+\+|@@|[ +-])/.test(l)));
+});
+
+test('a diff masks the body lines of a key that spans lines of the file, and keeps its hunk ranges', () => {
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} OPENSSH PRIVATE KEY-----`);
+  const key = `k = """\n${b}\nb3BlbnNzaC1rZXk=\nAAAAkeybody=\n${e}\n"""\n`;
+  const added = diffLines('a = 1\n', `a = 1\n${key}`, 'config.toml');
+  assert.doesNotMatch(added, /b3BlbnNzaC1rZXk|AAAAkeybody/);
+  assert.match(added, /^@@ -1,2 \+1,8 @@$/m);
+  assert.equal(added.split('\n').filter((l) => l === '+***').length, 2);
+  // The key as context next to a change.
+  const ctx = diffLines(`a = 1\n${key}`, `a = 2\n${key}`, 'config.toml');
+  assert.doesNotMatch(ctx, /b3BlbnNzaC1rZXk|AAAAkeybody/);
+  assert.match(ctx, /^@@ -1,4 \+1,4 @@$/m);
+  // A line that is a key body on one side only shows masked.
+  const wrapped = diffLines('x\nb3BlbnNzaC1rZXk=\ny\n', `x\n${b}\nb3BlbnNzaC1rZXk=\n${e}\ny\n`, 'config.toml');
+  assert.doesNotMatch(wrapped, /b3BlbnNzaC1rZXk/);
 });
 
 test('a diff of a settings file masks a token in its context lines', () => {

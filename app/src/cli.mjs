@@ -15,6 +15,7 @@ import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './r
 import { addCase } from './cases.mjs';
 import { childEnv } from './childenv.mjs';
 import { doctor } from './doctor.mjs';
+import { levelCounts } from './levels.mjs';
 import { EVAL_AGENTS, evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
@@ -853,7 +854,7 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`level    ${level ?? 'none'}${adds ? `: ${adds}` : ''}\n`);
     const found = doctor(ctx, { agents, dir, baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
     for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
-    out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
+    out.write(`${levelCounts(found).text || 'no findings'}\n`);
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
@@ -1423,7 +1424,7 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
     if (opts.error) { out.write(`${opts.error}\n`); return 2; }
     const found = rulesChecks(ctx, opts);
     for (const i of found) out.write(`${i.level.padEnd(8)} ${i.message}\n        fix: ${i.fix}\n`);
-    out.write(found.length ? `${count(found, 'error')} errors, ${count(found, 'warning')} warnings\n` : 'no problems found\n');
+    out.write(`${levelCounts(found).text || 'no findings'}\n`);
     return count(found, 'error') ? 1 : 0;
   }
   if (sub === 'list') {

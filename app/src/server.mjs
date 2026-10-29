@@ -40,6 +40,7 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
+import { maskStream, shown } from './redact.mjs';
 import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
@@ -243,10 +244,10 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
-      // Output is kept per change, its last 8 kB.
+      // Output is masked as it arrives and kept per change, its last 64 kB; GET /api/job cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
-        if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
+        if (e.output) maskStream(job.output[e.entry.id] ??= { text: '', rest: '', end: null }, e.output);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
     },
     // One-run setup: several plans (the global one, projects) applied as one job, one section per plan, in order. Each
@@ -316,7 +317,7 @@ export function api(ctx) {
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: Object.fromEntries(Object.entries(job.output).map(([id, t]) => [id, shown(t).slice(-8192)])), run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
       sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
@@ -853,7 +854,8 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
 const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };
 
 // Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
-// so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
+// so cmd gets the arguments as written. On Windows every caller passes a file URL (pathToFileURL encodes % and leaves
+// no quote; openFolder uses explorer there), so a temporary folder name cannot reach cmd as syntax.
 export function launch(target) {
   const win = process.platform === 'win32';
   const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
@@ -883,7 +885,7 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
     const clean = () => rmSync(dir, { recursive: true, force: true });
     process.once('exit', clean);
     setTimeout(() => { clean(); process.off('exit', clean); }, wait).unref();
-    open(file);
+    open(pathToFileURL(file).href);
     return file;
   } catch {
     if (dir) rmSync(dir, { recursive: true, force: true });

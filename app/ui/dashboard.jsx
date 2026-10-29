@@ -2,7 +2,8 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton, levelCounts } from './fix.jsx';
+import { DoctorTable, FixEverythingButton } from './fix.jsx';
+import { levelCounts } from '../src/levels.mjs';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';

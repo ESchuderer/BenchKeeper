@@ -90,9 +90,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'settings', title: 'Agent settings', shot: 'settings',
-    alt: 'The Agent settings view for Claude Code: the settings file of each layer and whether it exists, warnings for settings that weaken the setup with their sources, and the settings search.',
+    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and the first settings with a Differs from suggested marker and a Use suggested button.',
     text: [
-      'The agents\' own settings, per agent and layer, with the file of each layer and whether it exists. Warnings name settings that conflict with the setup, each with its source.',
+      'The agents\' own settings, per agent and layer. Each setting shows the value in your file, the value in effect when another source wins, and BenchKeeper\'s suggestion with its reason; Use suggested opens the change plan.',
+      'Conflicting settings are shown in full with the default, the risk and what the fix changes; hardening advice folds into one line.',
       'Every change is a plan with a diff, and History undoes it.',
     ],
     cli: [`${V} settings list --agent claude`, `${V} settings set <key> <value>`],

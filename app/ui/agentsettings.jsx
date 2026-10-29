@@ -202,7 +202,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
           {showDismissed && dismissed.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Show again: ${n.id}`} onClick={() => dismiss(n.id, false)}>Show again</Button></SettingNote>)}
         </Stack>
       )}
-      <Text>{suggested.filter((r) => differs(r, layer)).length} of {suggested.length} settings with a suggestion differ from it in the {LAYERS[layer].toLowerCase()}.</Text>
+      {suggested.length > 0 && <Text>{suggested.filter((r) => differs(r, layer)).length} of {suggested.length} settings with a suggestion differ from it in the {LAYERS[layer].toLowerCase()}.</Text>}
       <Group align="flex-end">
         <TextInput label="Search settings" placeholder="key or words" value={search} onChange={(e) => setSearch(e.currentTarget.value)} />
         <Switch label="Changed from default" checked={changed} onChange={(e) => setChanged(e.currentTarget.checked)} />

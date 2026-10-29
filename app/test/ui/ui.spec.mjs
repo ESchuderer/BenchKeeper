@@ -1662,6 +1662,25 @@ test.describe('views', () => {
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
+  test('Agent settings: an edit after Review drops the shown plan; Review again and Apply writes both edits', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    await expect(changes).toBeHidden();
+    await page.getByRole('button', { name: 'Review 2 changes' }).click();
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await expect(changes).toContainText('"DISABLE_TELEMETRY": "1"');
+    await changes.getByRole('button', { name: /^Apply 2 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'cleanupPeriodDays value' })).toHaveValue('21');
+    await expect(page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' })).toBeChecked();
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();

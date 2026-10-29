@@ -469,6 +469,8 @@ test('autoMode is taken from the user file only; a project or local file is refu
   const ctx = machine();
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
   for (const layer of ['project', 'local']) assert.throws(() => settingsChanges(ctx, 'claude', { layer, dir, edits: { autoMode: { allow: ['$defaults'] } } }), /user file only|does not read autoMode/);
+  // The basic row names the same layers, so the editor and its suggested fix are not offered there.
+  assert.deepEqual(listSettings(ctx, 'claude').settings.find((s) => s.key === 'autoMode').refusedIn, ['project', 'local']);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { allow: 'x' } } }), /object with allow/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { other: [] } } }), /object with allow/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { classifyAllShell: 'yes' } } }), /object with allow/);

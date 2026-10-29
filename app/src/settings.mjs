@@ -158,14 +158,22 @@ export function parseInput(def, text) {
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
+// null when the layer's file is read for the key, else the reason, from the reference's scope.
+function scopeRefusal(def, layer) {
+  if (def.scope && SCOPE_NOTE[def.scope]) return SCOPE_NOTE[def.scope];
+  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return 'this key is taken from the user file only';
+  if (def.scope === 'User, local, or managed' && layer === 'project') return 'this key is not taken from the project file';
+  if (def.type === 'autoMode' && layer && layer !== 'user') return 'the classifier reads it from the user file only (or managed settings)';
+  return null;
+}
+
 // null when the value fits the key, else the reason. value undefined or null means removing the key.
 function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
   // The reference's scope holds for every type: a key the target file is not read for is refused.
-  if (def.scope && SCOPE_NOTE[def.scope]) return bad(SCOPE_NOTE[def.scope]);
-  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return bad('this key is taken from the user file only');
-  if (def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
+  const scope = scopeRefusal(def, layer);
+  if (scope) return bad(scope);
   switch (def.type) {
     case 'switch':
       if (value !== true) return bad('an environment switch is set or removed, never 0 or false: use "set" or remove it');
@@ -185,7 +193,6 @@ function validate(agentId, def, value, layer) {
       return null;
     }
     case 'autoMode': {
-      if (layer && layer !== 'user') return bad('the classifier reads it from the user file only (or managed settings)');
       const { classifyAllShell, ...lists } = kind(value) === 'object' ? value : { classifyAllShell: 0 };
       if (typeof (classifyAllShell ?? false) !== 'boolean' || Object.entries(lists).some(([k, v]) => !['allow', 'soft_deny', 'environment', 'hard_deny'].includes(k) || !Array.isArray(v) || v.some((x) => typeof x !== 'string'))) return bad('an object with allow, soft_deny, environment and hard_deny (lists of texts) and classifyAllShell (true or false)');
       return null;
@@ -373,7 +380,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const eff = vals[0];
     const dflt = setupValue(def.key);
     return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
+      changed: vals.length > 0, setByApp: !!def.setup, refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
   const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), precedence: a.precedence, settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
@@ -389,7 +396,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);

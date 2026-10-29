@@ -64,7 +64,7 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
 - [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
-- [Changelog](CHANGELOG.md) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
+- [Changelogs](docs/releasing.md#components) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
 
 ## License
 

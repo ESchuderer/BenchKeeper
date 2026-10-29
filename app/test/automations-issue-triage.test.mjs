@@ -51,7 +51,7 @@ test('issue-triage: the approving label is never named as a label to set, no clo
   const helpers = ['precheck.sh', 'list.sh'].map((f) => readFileSync(join(genericDir, 'issue-triage', f), 'utf8'));
   assert.ok(!t.parameters.labels.default.includes(APPROVE));
   const named = t.prompt.split('\n').filter((l) => l.includes(APPROVE));
-  assert.deepEqual(named, [`Never set the label that approves agent work (\`${APPROVE}\`), even when the list above holds it. Set no other label outside that list.`], 'named only in the prohibition');
+  assert.deepEqual(named, [`A labels list that holds the label that approves agent work (\`${APPROVE}\`) stops the precheck, so no run starts: remove it from the list. Never set that label, and set no other label outside that list.`], 'named only in the prohibition');
   const [report, act] = t.prompt.split(/^5\. Mode act:/m);
   assert.ok(act, 'act mode follows report mode');
   assert.match(report, /Write nothing to GitHub\./);

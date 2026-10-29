@@ -2135,6 +2135,72 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
+  test('Agent settings: while an apply runs, edits, Use suggested, Discard changes and the choices ignore input; after it the run shows and the edits are cleared', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Agent settings').click();
+    const days = page.getByRole('textbox', { name: 'cleanupPeriodDays value' });
+    await days.fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    await days.focus();
+    await page.keyboard.type('9');
+    await expect(days).toHaveValue('21');
+    await expect(days).toBeFocused();
+    await page.getByRole('button', { name: 'Use suggested for sandbox.enabled' }).click();
+    const discard = page.getByRole('button', { name: 'Discard changes' });
+    await discard.focus();
+    await page.keyboard.press('Enter');
+    await expect(discard).toBeFocused();
+    await expect(page.getByRole('radiogroup', { name: 'Agent' })).toHaveAttribute('aria-disabled', 'true');
+    await page.getByText('Codex', { exact: true }).click({ force: true });
+    await expect(page.getByRole('radio', { name: 'Claude Code' })).toBeChecked();
+    await expect(page.getByRole('combobox', { name: 'Write to' })).toHaveAttribute('aria-disabled', 'true');
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    answer();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Review 0 changes' })).toBeDisabled();
+    await expect(days).toHaveValue('21');
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+  test('Rules: while the rule editor plan applies, Close editor and the drawer Close ignore clicks; after it the run shows and the text reloads', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('button', { name: /Show text of/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'Rule file text' });
+    await drawer.getByRole('button', { name: 'Edit' }).click();
+    const text = drawer.getByRole('textbox', { name: /^Text of / });
+    await text.fill('Keep answers very short.');
+    await drawer.getByRole('button', { name: 'Save' }).click();
+    const changes = drawer.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    for (const name of ['Close editor', 'Close']) {
+      const close = drawer.getByRole('button', { name, exact: true });
+      await expect(close).toHaveAttribute('aria-disabled', 'true');
+      await close.click({ force: true });
+    }
+    await expect(drawer).toBeVisible();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    const reloaded = page.waitForRequest(/\/api\/rule-text\?/);
+    answer();
+    await reloaded;
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await drawer.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await expect(drawer).toContainText('Keep answers short.');
+  });
+
   test('Rules: a plan answer that arrives while an apply runs does not replace the running plan and says so', async ({ page }) => {
     const view = /\/api\/rules$/;
     await page.route(view, async (route) => {

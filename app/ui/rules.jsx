@@ -71,7 +71,7 @@ const Loads = ({ row }) => {
 
 // The text of a file being edited: size and findings from the server 300 ms after the last keystroke (an answer for an
 // older text is dropped), Save as a plan with the diff.
-function RuleEditor({ row, dir, start, onDone, onClose }) {
+function RuleEditor({ row, dir, start, onDone, onClose, running, onRunning }) {
   const [text, setText] = useState(start);
   const [check, setCheck] = useState({ tokens: row.tokens, lines: row.lines, findings: null });
   const [plan, setPlan] = useState(null);
@@ -91,14 +91,14 @@ function RuleEditor({ row, dir, start, onDone, onClose }) {
   };
   return (
     <Stack gap="sm">
-      <Textarea label={`Text of ${row.shown}`} value={text} onChange={(e) => { setText(e.currentTarget.value); setPlan(null); }} autosize minRows={10} maxRows={30} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />
+      <Textarea label={`Text of ${row.shown}`} value={text} readOnly={running} onChange={(e) => { setText(e.currentTarget.value); setPlan(null); }} autosize minRows={10} maxRows={30} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />
       <Text size="sm" aria-live="polite">About {number(check.tokens)} tokens, {number(check.lines)} lines</Text>
       {check.findings && (check.findings.length
         ? <List size="sm" aria-label={`Findings in ${row.shown}`}>{check.findings.map((f) => <List.Item key={f.message}>{f.level}: {f.message}. Fix: {f.fix}.</List.Item>)}</List>
         : <Text size="sm">The checks find nothing in this file.</Text>)}
       {failed && <Note color="red" title="Not planned">{failed}</Note>}
       {plan
-        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} scope={dir ? 'project' : 'global'} onDone={onDone} /><Group><Button variant="default" onClick={onClose}>Close editor</Button></Group></Section>
+        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} scope={dir ? 'project' : 'global'} onRunning={onRunning} onDone={onDone} /><Group><Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && onClose()}>Close editor</Button></Group></Section>
         : <Group><Button onClick={save} disabled={text === start}>Save</Button><Button variant="default" onClick={onClose}>Discard</Button></Group>}
     </Stack>
   );
@@ -110,18 +110,20 @@ const editable = (row, dir) => row.owner !== 'BenchKeeper' && row.exists !== fal
 // The text of one listed file, on this machine only; Edit turns it into the editor.
 function Preview({ row, dir, onClose, onSaved }) {
   const [editing, setEditing] = useState(false);
+  // Closing while the editor's plan applies would drop the run's view and its reload.
+  const [running, setRunning] = useState(false);
   const state = useApi(row ? `/api/rule-text?${new URLSearchParams({ agent: row.agent, file: row.path, ...(dir ? { dir } : {}) })}` : null);
-  const close = () => { setEditing(false); onClose(); };
+  const close = () => { if (running) return; setEditing(false); onClose(); };
   return (
     <Drawer opened={!!row} onClose={close} closeOnEscape={!editing} closeOnClickOutside={!editing} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Rule file text' } }}>
       <Stack gap="md">
-        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{row?.path}</Title><Button variant="default" onClick={close}>Close</Button></Group>
+        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{row?.path}</Title><PlanClose running={running} onClose={close} /></Group>
         <Loading state={state} label="the file">
           {(d) => (
             <>
               <Text size="sm">Shown here only: it is not written to History, logs or the exported profile.{d.truncated ? ' The first 200,000 characters.' : ''}</Text>
               {editing
-                ? <RuleEditor row={row} dir={dir} start={d.text} onDone={() => { state.reload(); onSaved(); }} onClose={() => setEditing(false)} />
+                ? <RuleEditor row={row} dir={dir} start={d.text} onDone={() => { state.reload(); onSaved(); }} onClose={() => setEditing(false)} running={running} onRunning={setRunning} />
                 : (
                   <>
                     {editable(row, dir) && !d.truncated && <Group><Button leftSection={icon(IconPencil)} onClick={() => setEditing(true)}>Edit</Button></Group>}

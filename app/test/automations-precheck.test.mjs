@@ -93,12 +93,12 @@ test('issue pickup: other author, dependency, open pull request, worktree and bl
 test('issue pickup: the worker limits and free memory, and a blocked worker that settled', async () => {
   const issues = [issue(1)];
   const here = await pickup({ issues, workers: [worker('/w2')], trees: { '/w2': 'feat/2-a' } });
-  assert.deepEqual([here.work, here.skipped], [[], ['limit workersPerProject 1 reached']]);
+  assert.deepEqual([here.work, here.skipped], [[], ['skip limit workersPerProject 1 reached']]);
   const host = world({ issues, workers: [worker('/elsewhere/a'), worker('/elsewhere/b')] });
   const h = await precheck(host.ctx, 'issue-pickup', { min_free_mb: '0' }, '/p');
-  assert.deepEqual(h.skipped, ['limit hostWorkerLimit 2 reached']);
+  assert.deepEqual(h.skipped, ['skip limit hostWorkerLimit 2 reached']);
   assert.ok(!host.calls.some((c) => c.startsWith('gh api --paginate')), 'a reached limit reads no issues');
-  assert.match((await pickup({ issues }, { min_free_mb: '99999999' })).skipped[0], /^limit free memory \d+ MB below 99999999 MB$/);
+  assert.match((await pickup({ issues }, { min_free_mb: '99999999' })).skipped[0], /^skip limit free memory \d+ MB below 99999999 MB$/);
   // A worker that reported BLOCKED settled: it holds no slot, is work for the session, and its issue is not picked again.
   const blocked = await pickup({ issues: [issue(1), issue(2)], workers: [worker('/w2', 'failed')], trees: { '/w2': 'feat/2-a' } });
   assert.deepEqual(blocked.work, ['settled feat/2-a /w2', 'pick #1']);
@@ -141,10 +141,10 @@ test('pr watcher: merges only green own pull requests, and never release, fork, 
 test('pr watcher: one fix worker per failing head and per set of unresolved threads', async () => {
   const failing = checks({ __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'FAILURE' });
   const threads = { reviewThreads: { nodes: [{ id: 'T2', isResolved: false }, { id: 'T1', isResolved: false }, { id: 'T0', isResolved: true }] } };
-  const r = await watch({ nodes: [pr(1, failing), pr(2, threads), pr(3, { ...failing, author: { login: 'helper' }, commits: { nodes: [] } })] });
+  const r = await watch({ nodes: [pr(1, failing), pr(2, threads), pr(3, { ...failing, author: { login: 'helper' }, commits: { nodes: [] } }), pr(5, { ...failing, isDraft: true }), pr(6, { ...threads, isDraft: true })] });
   assert.equal(r.work[0], `fix-checks #1 ${HEAD}`);
   const [, key] = r.work[1].match(/^fix-threads #2 ([0-9a-f]{12})$/);
-  assert.deepEqual(r.skipped, ['skip #3 external, by helper'], 'a trusted author is not this account');
+  assert.deepEqual(r.skipped, ['skip #3 external, by helper', 'skip #5 draft', 'skip #6 draft'], 'a trusted author is not this account; a draft gets no fix worker');
   const said = (body, login = 'me') => ({ comments: { nodes: [{ author: { login }, body }] } });
   const again = await watch({ nodes: [pr(1, { ...failing, ...said(`started\npr-watcher fix checks ${HEAD}`) }), pr(2, { ...threads, ...said(`pr-watcher fix threads ${key}`) }), pr(4, { ...threads, ...said(`pr-watcher fix threads ${key}`, 'stranger') })] });
   assert.deepEqual(again.work, [`fix-threads #4 ${key}`], 'only a comment of this account counts');

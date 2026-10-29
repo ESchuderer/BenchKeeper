@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { differs, fixOf, matches } from '../ui/suggest.js';
+import { differs, editableIn, fixOf, matches } from '../ui/suggest.js';
 
 const CLAUDE = ['managed', 'local', 'project', 'user'];
 
@@ -34,6 +34,14 @@ test('a note fixes only when it prescribes a fix, and only editable settings tha
   assert.deepEqual(fixOf({ fix: 'set it' }, rows, 'user', CLAUDE), { 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB': true, 'env.DISABLE_TELEMETRY': null });
   // A note that says nothing needs to change offers no fix, even where its settings differ from their suggestions.
   assert.deepEqual(fixOf({ fixChanges: 'Nothing needs to change.' }, rows, 'user', CLAUDE), {});
+});
+
+test('a key its scope refuses for a layer is neither editable nor fixed there', () => {
+  const user = { ...scrub, refusedIn: ['project', 'local'], sets: [] };
+  assert.deepEqual(['user', 'project', 'local'].map((l) => editableIn(user, l)), [true, false, false]);
+  assert.equal(editableIn({ ...scrub, editable: false }, 'user'), false);
+  assert.deepEqual(fixOf({ fix: 'set it' }, [user], 'project', CLAUDE), {});
+  assert.deepEqual(fixOf({ fix: 'set it' }, [user], 'user', CLAUDE), { 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB': true });
 });
 
 test('a fix skips a setting that a layer with higher precedence sets, and writes one that a lower layer sets', () => {

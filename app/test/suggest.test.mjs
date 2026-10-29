@@ -45,3 +45,12 @@ test('a fix skips a setting that a layer with higher precedence sets, and writes
   assert.deepEqual(fixOf({ fix: 'set it' }, user, 'project', CLAUDE), { 'sandbox.failIfUnavailable': true }, 'the project file wins over the user file');
   assert.deepEqual(fixOf({ fix: 'set it' }, [{ ...fail, sets: [] }], 'user', CLAUDE), { 'sandbox.failIfUnavailable': true });
 });
+
+test('a removal fix is offered only when the value below it matches the suggestion', () => {
+  const days = { key: 'cleanupPeriodDays', type: 'int', suggest: { value: null } };
+  const both = [{ ...days, sets: [{ layer: 'project', value: 7 }, { layer: 'user', value: 7 }] }];
+  assert.deepEqual(fixOf({ fix: 'remove it' }, both, 'project', CLAUDE), {}, 'the user value still applies after the removal');
+  assert.deepEqual(fixOf({ fix: 'remove it' }, both, 'user', CLAUDE), {}, 'the project value wins over the user file');
+  assert.deepEqual(fixOf({ fix: 'remove it' }, [{ ...days, sets: [{ layer: 'project', value: 7 }] }], 'project', CLAUDE), { cleanupPeriodDays: null });
+  assert.deepEqual(fixOf({ fix: 'remove it' }, [{ ...days, sets: [{ layer: 'project', value: 7 }, { layer: 'user', value: null }] }], 'project', CLAUDE), { cleanupPeriodDays: null });
+});

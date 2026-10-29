@@ -8,6 +8,13 @@ export const differs = (row, layer) => !!row.suggest && !matches(row, ownOf(row,
 // A layer listed before this one in precedence sets the key, so a value written here would not take effect.
 const overridden = (row, layer, precedence) => (row.sets ?? []).some((x) => precedence.indexOf(x.layer) < precedence.indexOf(layer));
 
+// A removal hands the key to the next layer below that sets it (sets lists the highest precedence first), so the fix changes
+// nothing when that value differs from the suggestion too.
+const stays = (row, layer, precedence) => {
+  const below = row.suggest.value == null && (row.sets ?? []).find((x) => precedence.indexOf(x.layer) > precedence.indexOf(layer));
+  return !!below && !matches(row, below.value);
+};
+
 // The values a note's fix sets: the suggestions of its editable settings that differ and that the layer decides, and none when
 // the note prescribes no fix.
-export const fixOf = (note, rows, layer, precedence) => (note.fix ? Object.fromEntries(rows.filter((r) => r.editable !== false && differs(r, layer) && !overridden(r, layer, precedence)).map((r) => [r.key, r.suggest.value])) : {});
+export const fixOf = (note, rows, layer, precedence) => (note.fix ? Object.fromEntries(rows.filter((r) => r.editable !== false && differs(r, layer) && !overridden(r, layer, precedence) && !stays(r, layer, precedence)).map((r) => [r.key, r.suggest.value])) : {});

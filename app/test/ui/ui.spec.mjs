@@ -1906,6 +1906,46 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
   });
 
+  test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {
+    await page.route(/\/api\/accounts(\?|$)/, async (route) => {
+      const json = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...json, accounts: [{ name: 'boxed', agent: 'claude', mode: 'container', label: null, default: false, pool: null, limits: json.settings, volume: 'v', mount: '/m', token: { kept: false, created: null } }] } });
+    });
+    // The first project's answer waits until the second project's answer has arrived.
+    let second;
+    const answered = new Promise((r) => { second = r; });
+    let first = null;
+    await page.route(/\/api\/accounts-status\?/, async (route) => {
+      const project = new URL(route.request().url()).searchParams.get('project');
+      first ??= project;
+      if (project === first) {
+        await answered;
+        return route.fulfill({ json: { loggedIn: true, findings: [] } });
+      }
+      await route.fulfill({ json: { loggedIn: false, findings: [] } });
+      second();
+    });
+    await nav(page, 'Accounts').click();
+    const boxed = page.getByRole('article', { name: 'boxed' });
+    await expect(boxed).toContainText('not checked');
+    const select = page.getByRole('combobox', { name: 'Project of the dev container' });
+    await select.click();
+    await page.getByRole('option').nth(0).click();
+    await expect(boxed).toContainText('checking');
+    const late = page.waitForResponse((r) => new URL(r.url()).searchParams.get('project') === first);
+    await select.click();
+    await page.getByRole('option').nth(1).click();
+    await expect(boxed.getByText('not signed in', { exact: true })).toBeVisible();
+    // Let the late answer land, then check it did not replace the second project's result.
+    await late;
+    await expect(boxed.getByText('not signed in', { exact: true })).toBeVisible();
+    await expect(boxed.getByText('signed in', { exact: true })).toHaveCount(0);
+    // Choosing the selected option again clears the project.
+    await select.click();
+    await page.getByRole('option').nth(1).click();
+    await expect(boxed).toContainText('not checked');
+  });
+
   // The one-run setup, last: it applies project setups and registers four more projects.
   const addProjects = async (page, names) => {
     await nav(page, 'Projects').click();

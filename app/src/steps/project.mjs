@@ -69,7 +69,7 @@ export const TIERS = ['quick', 'standard', 'full', 'research'];
 export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 // Per call: the cooldown date moves with the clock, and a server runs for days.
-const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
+export const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
 
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
 // Whether edit changes the settings text (a file that does not parse is left alone).

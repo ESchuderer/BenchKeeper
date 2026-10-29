@@ -137,3 +137,28 @@ test('sessions record runs the command after -- and records its files; sessions 
   o = await exec(['sessions']);
   assert.deepEqual([o.code, /sessions needs board, list, cache or record/.test(o.text)], [2, true]);
 });
+
+test('skills cli checks the signatures of the release a skill install runs and prints its command prefix', async () => {
+  const old = new Date(Date.now() - 30 * 864e5).toISOString();
+  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
+  delete process.env.BENCHKEEPER_SKILLS_CLI;
+  try {
+    for (const verified of [0, 1]) {
+      const calls = [];
+      const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-cli-')), run: (argv, opts) => {
+        calls.push({ argv, opts });
+        if (argv[0] === 'npm') return { code: 0, stdout: JSON.stringify({ time: { '9.1.0': old }, versions: ['9.1.0'] }) };
+        return { code: verified, stdout: '', stderr: verified ? 'invalid signature\n' : '' };
+      } });
+      let text = '';
+      const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+      assert.equal(await main(['skills', 'cli'], { out, ctx, input: Readable.from(['']) }), verified);
+      const check = calls.find((c) => c.argv.at(-1) === 'skills@9.1.0');
+      assert.ok(check && check.opts.env.npm_config_before && check.opts.env.npm_config_ignore_scripts === 'true');
+      if (verified) assert.match(text, /invalid signature\nskills@npm:skills@9\.1\.0 failed the signature check/);
+      else assert.equal(text, `DO_NOT_TRACK=1 npm_config_registry=https://registry.npmjs.org/ npm_config_ignore_scripts=true npm_config_before=${check.opts.env.npm_config_before} npx -y skills@npm:skills@9.1.0\n`);
+    }
+  } finally {
+    if (forced !== undefined) process.env.BENCHKEEPER_SKILLS_CLI = forced;
+  }
+});

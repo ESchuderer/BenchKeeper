@@ -13,6 +13,7 @@ import { PROFILES, baselineIssues } from './baseline.mjs';
 import { GROUPS, audit, auditMarkdown } from './audit.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
+import { childEnv } from './childenv.mjs';
 import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
@@ -40,8 +41,8 @@ import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrat
 import { writeBoard } from './board.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { resolvePins } from './params.mjs';
-import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal } from './steps/global.mjs';
-import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
+import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
+import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
@@ -148,6 +149,8 @@ Usage: benchkeeper <command> [options]
   skills list --library             the library's skills with the number of registered projects that have each
   skills show <name>                the SKILL.md of a library skill BenchKeeper ships; any other names its source
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
+  skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
+                                    prints the environment and npx command to start every skills CLI command with
   projects status [dir]             app version, install level, agents with the BenchKeeper plugin, and the setup state of
                                     each registered project (dir: that folder only): setup version, origin, checkout,
                                     branch, clean, the pending changes; nothing is written
@@ -548,6 +551,14 @@ async function command(argv, { out, err, ask, ctx }) {
     return 0;
   }
   if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
+  if (cmd === 'skills' && arg === 'cli') {
+    // The same release, environment and signature check as a skill install of the app.
+    const env = npxEnv();
+    const r = ctx.run(skillsVerify(ctx), { cwd: ctx.home, env: childEnv(env) });
+    if (r.code !== 0) { out.write(`${r.stderr ?? ''}${skillsSpec(ctx)} failed the signature check\n`); return 1; }
+    out.write(`${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ')} npx -y ${skillsSpec(ctx)}\n`);
+    return 0;
+  }
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);

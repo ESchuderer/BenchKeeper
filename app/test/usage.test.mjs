@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { CLAUDE_TOKEN, CODEX_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
-import { NeedsConfirm, accountChecks, accountStatus, findAccount, handover, listAccounts, runAs } from '../src/accounts.mjs';
+import { NeedsConfirm, accountChecks, accountStatus, findAccount, handover, listAccounts, rotationFor, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
 import { HOOK_SOURCE, assess, codexReading, limitsFor, parseState, rotation, trackedSettings, usageFindings } from '../src/usage.mjs';
@@ -734,30 +734,29 @@ test('run: after the session the handover is offered in a terminal only, for the
   assert.match(after.args[0], /^# Handover from account work to spare/);
 });
 
-test('handover (Codex): the fake app-server per account, the same decision and launcher', skip, async () => {
+test('handover (Codex): rotation is not available, through the flag or a stored setting; nothing is read or started', skip, async () => {
   const m = machine();
   const [dev, spare] = await pooled(m, 'codex', 'dev', 'spare');
   const on = cli(m);
-  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 0);
-  assert.match(on.text(), /^warning: OpenAI's Terms of Use .*terms-of-use\/\).*sign-in-with-chatgpt-terms\/\)\. The risk is yours; this is not legal advice\.$/m);
-  m.env.OPENAI_API_KEY = 'dummy-openai-key';
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 1);
+  assert.match(on.text(), /--rotate-codex handover is not available: rotation is for claude only/);
+  assert.doesNotMatch(on.text(), /OpenAI's Terms of Use/);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--rotate-codex', 'off', '--yes']), 0);
+  // A codex handover stored before the switch counts as off.
+  const file = join(m.ctx.config, 'accounts.json'), doc = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...doc, settings: { ...doc.settings, rotate: { codex: 'handover' } } }));
+  const shown = cli(m);
+  assert.equal(await shown.exec(['accounts', 'limits']), 0);
+  assert.match(shown.text(), /rotation: claude off, codex off/);
+  assert.deepEqual(rotationFor(m.ctx, dev), { action: 'none', setting: 'off' });
   const limits = (a, used) => writeFileSync(join(a.dir, 'limits.json'), JSON.stringify({ primary: codexWindow(used, 300), secondary: codexWindow(10, 10080) }));
   limits(dev, 97);
   limits(spare, 20);
   const dir = worktree(m);
+  const before = m.calls().length;
   const c = cli(m);
-  assert.equal(await c.exec(['accounts', 'handover', 'dev', '--project', dir, '--yes']), 0, c.text());
-  const start = m.calls().filter((x) => x.me === 'codex' && !['login', 'app-server'].includes(x.args[0]));
-  assert.equal(start.length, 1);
-  assert.equal(start[0].env.CODEX_HOME, spare.dir);
-  assert.match(start[0].args[0], /^# Handover from account dev to spare/);
-  assert.match(c.text(), /^warning: OpenAI's Terms of Use/m);
-  assert.match(c.text(), /^warning: OPENAI_API_KEY is set in this environment/m);
-  assert.equal(start[0].env.OPENAI_API_KEY, undefined);
-  // Between the notice level and the minimum: a notice, nothing started.
-  limits(dev, 88);
-  const near = cli(m);
-  assert.equal(await near.exec(['accounts', 'handover', 'dev', '--project', dir, '--yes']), 0);
-  assert.match(near.text(), /^notice: account dev is below a threshold/m);
-  assert.equal(m.calls().filter((x) => x.me === 'codex' && !['login', 'app-server'].includes(x.args[0])).length, 1);
+  assert.equal(await c.exec(['accounts', 'handover', 'dev', '--project', dir, '--yes']), 0);
+  assert.match(c.text(), /rotation is not available for codex/);
+  assert.equal(m.calls().length, before, 'no app-server read, no agent started');
+  assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
 });

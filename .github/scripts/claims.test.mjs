@@ -20,6 +20,13 @@ test('evidence kinds that pass', () => {
   assert.deepEqual(check({ tagline: 'Does a thing.', evidence: { tagline: 'docs/setup.md' } }), []);
   assert.deepEqual(check({ quickstart: { paths: [{ steps: [{ text: 'Runs.', evidence: 'app/test/cli.test.mjs' }] }] } }), []);
 });
+test('headings are anchored as GitHub does', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'claims-'));
+  writeFileSync(join(dir, 'doc.md'), '## Notes\n\nFirst.\n\n## Notes\n\nSecond.\n\n## Parent\n\n### Child\n\nText.\n');
+  for (const e of ['doc.md#notes', 'doc.md#notes-1', 'doc.md#parent', 'doc.md#child']) assert.deepEqual(check(part(e), dir), [], e);
+  assert.match(check(part('doc.md#notes-2'), dir)[0], /no heading for #notes-2/);
+  rmSync(dir, { recursive: true });
+});
 test('failing fixture: each kind of bad evidence is reported', () => {
   const cases = [
     [undefined, /"Demo": no evidence/],
@@ -40,6 +47,9 @@ test('failing fixture: each kind of bad evidence is reported', () => {
   const dir = mkdtempSync(join(tmpdir(), 'claims-'));
   writeFileSync(join(dir, 'doc.md'), '## Levels\n\n<!-- generated:levels -->\n| Level |\n<!-- /generated:levels -->\n');
   assert.match(check(part('doc.md#levels'), dir)[0], /#levels in doc\.md holds only generated text/);
+  writeFileSync(join(dir, 'fence.md'), '## Setup\n\nRun it.\n\n```sh\n# install it\n```\n\n~~~\n# also not\n~~~\n');
+  assert.match(check(part('fence.md#install-it'), dir)[0], /no heading for #install-it/);
+  assert.match(check(part('fence.md#also-not'), dir)[0], /no heading for #also-not/);
   rmSync(dir, { recursive: true });
   assert.match(check(tool('https://example.org/tool'))[0], /"Tool": what BenchKeeper says needs a repository file/);
   assert.match(check({ tagline: 'Does a thing.' })[0], /facts\.tagline: no evidence/);

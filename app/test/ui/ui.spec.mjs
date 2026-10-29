@@ -489,7 +489,7 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: /^Run / })).toBeVisible();
   });
 
-  test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
     const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
@@ -498,6 +498,14 @@ test.describe('views', () => {
     await expect(scrub).toBeVisible();
     await expect(deny.getByRole('link', { name: 'Apply' })).toHaveAttribute('href', /^#\/agent-settings/);
     await expect(deny).toContainText('permissions.deny');
+    await expect(page.getByText(/^\d+ findings: \d+ (error|warning).*\. Do first: /)).toBeVisible();
+    await expect(page.getByText(/^Checked at \d\d:\d\d: the doctor's checks/)).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Setup' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Agent settings' })).toBeVisible();
+    // Do first names the first card and moves focus to it.
+    const first = page.getByRole('article').first().getByRole('heading');
+    await page.getByRole('button', { name: await first.textContent(), exact: true }).click();
+    await expect(first).toBeFocused();
     await noAxe(page);
     await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/#\/agents\?plan=1$/);
@@ -522,8 +530,8 @@ test.describe('views', () => {
     await expect(deny).toBeVisible();
     await expect(market).toHaveCount(0);
     await expect(scrub).toHaveCount(0);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: 'Hidden (2)' }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: 'Dismissed and snoozed (2)' }).click();
     const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     await expect(hidden).toContainText('Dismissed');
     await expect(hidden).toContainText(`Snoozed until ${week}`);
@@ -557,8 +565,8 @@ test.describe('views', () => {
     const focused = await page.evaluate(() => document.activeElement.id);
     expect(await page.locator('article').evaluateAll((all) => all.map((a) => a.getAttribute('aria-labelledby')))).toContain(focused);
     await page.unroute(/\/api\/insights-triage$/);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: /^Dismissed and snoozed/ }).click();
     await hidden.getByRole('button', { name: 'Show again' }).click();
     await expect(hidden).toHaveCount(0);
   });
@@ -566,6 +574,9 @@ test.describe('views', () => {
   test('Insights narrative: the input is on the page, the first run asks for consent, the text is marked as model text and a dismissal drops it; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const narrative = page.getByRole('region', { name: 'Adviser narrative' });
+    // Opt-in: folded until a narrative exists.
+    await expect(narrative).toBeHidden();
+    await page.getByText('Adviser narrative', { exact: true }).click();
     await expect(narrative).toBeVisible();
     await narrative.getByRole('button', { name: /^Input sent to the agent \(\d/ }).click();
     await expect(narrative.locator('#narrative-input')).toContainText('"findings"');
@@ -583,8 +594,8 @@ test.describe('views', () => {
     await expect(narrative.getByRole('button', { name: 'Write again with Claude Code' })).toBeVisible();
     await page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('button', { name: 'Dismiss' }).click();
     await expect(narrative.getByText('Model text')).toHaveCount(0);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: /^Dismissed and snoozed/ }).click();
     await hidden.getByRole('button', { name: 'Show again' }).click();
   });
 

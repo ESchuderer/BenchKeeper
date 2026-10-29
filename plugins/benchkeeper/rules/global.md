@@ -2,7 +2,8 @@
 - Keep secrets out of output, logs and commits: read them from files or the environment and refer to them by name.
 - Confirm first before anything hard to reverse or visible to others (delete, overwrite, force push, publish, send, spend), unless the user already authorized that action for this task.
 
-## Questions to the user (the question tool or plain chat)
+## Questions to the user
+- Always ask with the agent's question tool (Claude Code: AskUserQuestion); never leave a question waiting in chat text. Use plain chat only when the session has no question tool.
 - Decide yourself when research, the code, the project docs or a safe default can settle it. Say in one line what you chose and why; prefer the choice that is easy to undo.
 - Ask when the choice is the user's (taste, priorities, scope, money, risk), when the options lead to results the user would notice, when the action is hard to reverse or visible to others, or when the request is ambiguous in a way that changes the outcome. Unsure whether to ask: ask once.
 - Research the recommended option before asking (code, docs, an official source, a cheap trial). Never recommend from memory alone.

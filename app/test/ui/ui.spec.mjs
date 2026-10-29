@@ -445,6 +445,21 @@ test.describe('views', () => {
     await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
   });
 
+  test('Dashboard: a failed dashboard request shows one alert with one Try again, and the panels it feeds say Not loaded', async ({ page }) => {
+    let fail = true;
+    await page.route(/\/api\/dashboard(\?|$)/, (route) => (fail ? route.fulfill({ status: 500, json: { error: 'stubbed failure' } }) : route.fallback()));
+    await page.reload();
+    const alert = page.getByRole('alert').filter({ hasText: 'Dashboard data not loaded' });
+    await expect(alert).toHaveCount(1);
+    await expect(alert).toContainText('stubbed failure');
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Health' })).toContainText('Not loaded.');
+    fail = false;
+    await alert.getByRole('button', { name: 'Try again' }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(page.getByRole('img', { name: /^Items by state: / })).toBeVisible();
+  });
+
   test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
     await page.getByText('More about the setup').click();
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
@@ -1911,6 +1926,26 @@ test.describe('views', () => {
     await expect(notes.getByRole('button', { name: /^Dismissed/ })).toHaveCount(0);
     await expect(notes).toBeFocused();
     await expect(status).toHaveText('Shown again: stub-note');
+    await page.unroute(view);
+    await page.unroute(/\/api\/settings-dismiss$/);
+  });
+
+  test('Agent settings: a failed Dismiss says Not saved inside the notes, and focus stays on the note', async ({ page }) => {
+    const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), notes: [note], dismissed: [] } });
+    });
+    await page.route(/\/api\/settings-dismiss$/, (route) => route.fulfill({ status: 500, json: { error: 'stubbed failure' } }));
+    await nav(page, 'Agent settings').click();
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    const button = notes.getByRole('button', { name: 'Dismiss, I accept this: stub-note' });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(notes.getByRole('alert').filter({ hasText: 'Not saved' })).toContainText('stubbed failure');
+    await expect(page.getByRole('alert').filter({ hasText: 'Not planned' })).toHaveCount(0);
+    await expect(button).toBeFocused();
     await page.unroute(view);
     await page.unroute(/\/api\/settings-dismiss$/);
   });

@@ -139,6 +139,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [changed, setChanged] = useState(false);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
+  const [dismissError, setDismissError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const [only, setOnly] = useState(false);
@@ -160,7 +161,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
     setBusy(false);
   };
   // Use suggested and a note's fix: the values join the pending edits, and the plan of all of them opens at once.
-  const stage = (fix) => { for (const [k, v] of Object.entries(fix)) setEdit(k, v); review({ edits: { ...edits, ...fix } }); };
+  const stage = (fix) => { for (const [k, v] of Object.entries(fix)) setEdit(k, v); void review({ edits: { ...edits, ...fix } }); };
   useEffect(() => { if (plan) document.getElementById('settings-changes-title')?.focus(); }, [plan]);
   const clearFilters = () => { setSearch(''); setChanged(false); setOnly(false); };
   // Go to the setting: a filter may hide its row, so focus waits for the render without filters.
@@ -182,7 +183,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const suggested = data.settings.filter((r) => r.suggest);
   const [status, announce] = useAnnounce();
   // The notes region stays after either click: a dismissed note is listed under Dismissed, a shown one among the notes.
-  const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`); }, (e) => setError(e.message)); };
+  const dismiss = (id, dismissed) => { setDismissError(null); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`); }, (e) => setDismissError(e.message)); };
   const dismissed = data.dismissed ?? [];
   return (
     <Stack gap="lg">
@@ -190,6 +191,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       {(data.notes.length > 0 || dismissed.length > 0) && (
         <Stack gap="xs" role="region" aria-label="Notes on the settings" id="setting-notes" tabIndex={-1}>
           {status}
+          {dismissError && <Note color="red" title="Not saved">{dismissError}</Note>}
           {data.notes.filter((n) => n.kind !== 'hardening').map((n) => <SettingNote key={n.id} n={n}>{noteButtons(n)}</SettingNote>)}
           {hardening.length > 0 && (
             <Group gap="xs">

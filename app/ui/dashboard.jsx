@@ -277,16 +277,19 @@ export function Dashboard({ overview, doctor, history, params }) {
     { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
     { label: 'Doctor', value: doctor.data ? levels.text || 'no findings' : doctor.error ? 'check failed' : 'checking', status: doctor.error || levels.error ? 'problem' : levels.warning ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
   ];
+  // One request feeds six panels: its error shows once, above them, and each panel says only that it is not loaded.
+  const fromDash = (render) => (dash.error ? <Text size="sm">Not loaded.</Text> : <Loading state={dash} label="dashboard data">{render}</Loading>);
   return (
     <Stack gap="xl" className="bk-dash">
       <style>{STYLE}</style>
+      {dash.error && <Loading state={dash} label="dashboard data" />}
       <Stack gap="xs">
         <Text size="sm" maw={560}>One-run setup prepares the global setup and the projects you pick without questions in between, then shows every change on one page to check before it applies them.</Text>
         <OneRunButtons />
       </Stack>
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <Card title="Need attention">
-          <Loading state={dash} label="dashboard">{(d) => <Attention data={d} />}</Loading>
+          {fromDash((d) => <Attention data={d} />)}
           <FixEverythingButton />
         </Card>
         <Card title="Doctor findings">
@@ -300,10 +303,10 @@ export function Dashboard({ overview, doctor, history, params }) {
       </SimpleGrid>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 5 }}>
-          <Section title="Health"><Loading state={dash} label="dashboard">{(d) => <Health data={d} />}</Loading></Section>
+          <Section title="Health">{fromDash((d) => <Health data={d} />)}</Section>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 7 }}>
-          <Section title="Where"><Loading state={dash} label="dashboard">{(d) => <Where data={d} />}</Loading></Section>
+          <Section title="Where">{fromDash((d) => <Where data={d} />)}</Section>
         </Grid.Col>
       </Grid>
       <Grid gutter="xl">
@@ -343,13 +346,13 @@ export function Dashboard({ overview, doctor, history, params }) {
               )))}
             </Section>
           )}
-          <Section title="Installed"><Loading state={dash} label="dashboard">{(d) => <Installed data={d} names={names} />}</Loading></Section>
+          <Section title="Installed">{fromDash((d) => <Installed data={d} names={names} />)}</Section>
           <Grid gutter="xl">
             <Grid.Col span={{ base: 12, md: 7 }}>
-              <Section title="Coverage"><Loading state={dash} label="dashboard">{(d) => <PackCoverage data={d} names={names} />}</Loading></Section>
+              <Section title="Coverage">{fromDash((d) => <PackCoverage data={d} names={names} />)}</Section>
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 5 }}>
-              <Section title="Catalog by pack"><Loading state={dash} label="dashboard">{(d) => <CatalogByPack data={d} />}</Loading></Section>
+              <Section title="Catalog by pack">{fromDash((d) => <CatalogByPack data={d} />)}</Section>
             </Grid.Col>
           </Grid>
           <Section title="Global setup by part"><Loading state={inv} label="inventory">{() => <Parts items={items} agents={agents} />}</Loading></Section>

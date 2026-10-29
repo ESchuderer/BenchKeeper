@@ -19,6 +19,34 @@ export function mask(text, { keys = true } = {}) {
   return SHAPED(keys ? t.replace(FLAG, '$1***').replace(ASSIGN, '$1***') : t);
 }
 
+// Output that arrives in chunks is masked line by line as it comes, so the kept tail is masked before it is cut and a
+// key block whose END line has not come yet is masked too. s holds { text, rest, end }: the masked lines, the unfinished
+// last line (raw) and the END line an open key block waits for. shown(s) is the text with the unfinished line masked.
+const BEGIN = /-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY( BLOCK)?-----/g;
+const stars = (t) => t.replace(/[^\r\n]+/g, '***');
+function maskLine(s, line) {
+  if (s.end) {
+    const i = line.indexOf(s.end);
+    if (i < 0) return stars(line);
+    const end = s.end;
+    s.end = null;
+    return stars(line.slice(0, i)) + end + maskLine(s, line.slice(i + end.length));
+  }
+  const open = [...line.matchAll(BEGIN)].at(-1);
+  const end = open && `-----END ${open[1]}PRIVATE KEY${open[2] ?? ''}-----`;
+  if (!open || line.includes(end, open.index)) return mask(line);
+  s.end = end;
+  const cut = open.index + open[0].length;
+  return mask(line.slice(0, cut)) + stars(line.slice(cut));
+}
+export function maskStream(s, chunk, max = 65536) {
+  const lines = (s.rest + chunk).split(/(?<=\n)/);
+  s.rest = lines.at(-1).endsWith('\n') ? '' : lines.pop().slice(-max);
+  s.text = (s.text + lines.map((l) => maskLine(s, l)).join('')).slice(-max);
+  return s;
+}
+export const shown = (s) => s.text + maskLine({ end: s.end }, s.rest);
+
 // Files whose lines are key = value: their diff context may sit next to a secret.
 export const keyed = (path) => /\.(json|jsonc|toml|ya?ml|env|ini)$|(^|[\\/])(\.npmrc|config|\.env(\.[\w-]+)?)$/i.test(path ?? '');
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { keyed, mask, redactArgv } from '../src/redact.mjs';
+import { keyed, mask, maskStream, redactArgv, shown } from '../src/redact.mjs';
 
 test('mask: token shapes, Bearer values with any spacing, and no text', () => {
   assert.equal(mask('xoxb-abcdefgh12 xoxz-abcdefgh12', { keys: false }), '*** xoxz-abcdefgh12');
@@ -22,4 +22,13 @@ test('keyed: whole extensions and file names only', () => {
 test('redactArgv: a secret flag in any case masks the next value; as the last argument there is none', () => {
   assert.deepEqual(redactArgv(['--API-KEY', 'abc', '--name', 'x']), ['--API-KEY', '***', '--name', 'x']);
   assert.deepEqual(redactArgv(['run', '--token']), ['run', '--token']);
+});
+
+test('maskStream: a block on one line, an END of another type, a BEGIN split across chunks, a PGP block', () => {
+  const feed = (...chunks) => shown(chunks.reduce((s, c) => maskStream(s, c), { text: '', rest: '', end: null }));
+  const [rsaB, rsaE, ecB, ecE, pgpB, pgpE] = ['RSA PRIVATE KEY', 'EC PRIVATE KEY', 'PGP PRIVATE KEY BLOCK'].flatMap((t) => ['BEGIN', 'END'].map((w) => `-----${w} ${t}-----`));
+  assert.equal(feed(`k ${rsaB}abc${rsaE} ${ecB}def\n`, 'ghi\n'), `k ${rsaB}***${rsaE} ${ecB}***\n***\n`);
+  assert.equal(feed(`${ecB}\nabc\n${rsaE}\n`), `${ecB}\n***\n***\n`);
+  assert.equal(feed(ecB.slice(0, 18), `${ecB.slice(18)}\nab`, `c\n${ecE} x\nok`), `${ecB}\n***\n${ecE} x\nok`);
+  assert.equal(feed(`${pgpB}\nabc\n${pgpE}\n`), `${pgpB}\n***\n${pgpE}\n`);
 });

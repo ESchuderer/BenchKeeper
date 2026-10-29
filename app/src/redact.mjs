@@ -5,7 +5,8 @@ const NAME = '[\\w.-]{0,64}(?:token|secret|passw(?:or)?d|credential|authorizatio
 const SHAPES = /\b(?:sk-ant-|sk-|ghp_|gho_|ghs_|ghu_|ghr_|github_pat_|npm_|glpat-|xox[abprs]-|AKIA|AIza)[\w-]{8,}/g;
 const ASSIGN = new RegExp(`(\\b${NAME}["']?\\s*[=:]\\s*)(?:(?:Bearer|Basic|token)\\s+)?("(?:[^"\\\\]|\\\\.)*"|'[^']*'|[^\\s,;"']+)`, 'gi');
 const FLAG = new RegExp(`(--?${NAME}[ =])("(?:[^"\\\\]|\\\\.)*"|'[^']*'|\\S+)`, 'gi');
-const PEM = /(-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----)[\s\S]*?(-----END \2PRIVATE KEY-----)/g;
+// A body stops at the next BEGIN line: a BEGIN without END scans only to the next block, so the match stays linear.
+const PEM = /(-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----)(?:(?!-----BEGIN )[\s\S])*?(-----END \2PRIVATE KEY-----)/g;
 const SHAPED = (t) => t.replace(/\bBearer\s+\S+/gi, 'Bearer ***').replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '***').replace(/(:\/\/)[^\s/:@]+:[^\s/@]+@/g, '$1***@').replace(SHAPES, '***');
 
 // keys false: free text (rules, skills), where only token shapes are masked; true: settings, configuration and commands.

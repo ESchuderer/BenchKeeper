@@ -107,7 +107,7 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
 test('triggered counts a skill call or a read of its SKILL.md, not a listed path', () => {
   const stream = (...events) => events.map((e) => JSON.stringify(e)).join('\n');
   const use = (name, input) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name, input }] } });
-  const cmd = (command, output = '') => ({ type: 'item.completed', item: { type: 'command_execution', command, aggregated_output: output, exit_code: 0 } });
+  const cmd = (command, output = '', code = 0) => ({ type: 'item.completed', item: { type: 'command_execution', command, aggregated_output: output, exit_code: code } });
   // Claude: a Glob whose result lists the path is no load.
   const listed = stream(use('Glob', { pattern: '**/*.md' }), { type: 'user', message: { content: [{ type: 'tool_result', content: 'README.md\n.claude/skills/workflow/SKILL.md' }] } });
   assert.equal(triggered(listed, 'workflow'), false);
@@ -117,6 +117,10 @@ test('triggered counts a skill call or a read of its SKILL.md, not a listed path
   // Codex: the command reads the file; a listing that prints the path in its output does not.
   assert.equal(triggered(stream(cmd(['bash', '-lc', 'cat .agents/skills/workflow/SKILL.md'])), 'workflow'), true);
   assert.equal(triggered(stream(cmd('bash -lc "ls -R .agents/skills"', '.agents/skills/workflow/SKILL.md')), 'workflow'), false);
+  assert.equal(triggered(stream(cmd(['bash', '-lc', "sed -n '1,200p' .agents/skills/workflow/SKILL.md"])), 'workflow'), true);
+  // Naming the path is no read: a listing of the file, or a read that failed.
+  assert.equal(triggered(stream(cmd(['bash', '-lc', 'ls -l .agents/skills/workflow/SKILL.md'])), 'workflow'), false);
+  assert.equal(triggered(stream(cmd(['bash', '-lc', 'cat .agents/skills/workflow/SKILL.md'], 'No such file or directory', 1)), 'workflow'), false);
   assert.equal(triggered('Read /h/.agents/skills/workflow/SKILL.md', 'workflow'), false);
 });
 

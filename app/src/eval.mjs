@@ -43,16 +43,18 @@ const AGENTS = {
   codex: { argv: (ctx, q, model, mcpOff) => ['codex', 'exec', ...mcpOff, '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
 export const EVAL_AGENTS = Object.keys(AGENTS);
-// A load is a Skill call, a Read of the SKILL.md or a Codex command naming it; the path in tool output (a Glob or ls of the scratch repository) is none.
+// A load is a Skill call, a Read of the SKILL.md or a Codex command reading it; the path in tool output (a Glob or ls of the scratch repository) is none.
 export function triggered(output, name) {
   const path = new RegExp(`skills[\\\\/]${name}[\\\\/]SKILL\\.md`);
+  // A Codex command that printed the file: a reader names it and exited 0 (ls or a failed cat is no load).
+  const read = new RegExp(`(?:^|[\\s;&|'"(])(?:cat|head|tail|sed|nl|less|more|bat|awk)\\s[^;&|]*${path.source}`);
   for (const line of output.split('\n')) {
     let e;
     try { e = JSON.parse(line); } catch { continue; }
     const uses = e.message?.content?.filter?.((c) => c.type === 'tool_use') ?? [];
     if (uses.some((u) => u.name === 'Skill' && [name, `benchkeeper:${name}`].includes(u.input?.skill ?? u.input?.command))) return true;
     if (uses.some((u) => u.name === 'Read' && new RegExp(`${path.source}$`).test(u.input?.file_path ?? ''))) return true;
-    if (e.item?.type === 'command_execution' && path.test([e.item.command ?? []].flat().join(' '))) return true;
+    if (e.item?.type === 'command_execution' && e.item.exit_code === 0 && read.test([e.item.command ?? []].flat().join(' '))) return true;
   }
   return false;
 }

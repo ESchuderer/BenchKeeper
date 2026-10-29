@@ -121,16 +121,21 @@ function Where({ data }) {
 
 // A card of the top row: its title, one big number that links to what it counts, a line of detail.
 const Card = ({ title, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text>{children}</Stack></Paper>;
-const Big = ({ n, to, name }) => <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor>;
+// No link (to null): a count that no one view shows, so the line under it links each part.
+const Big = ({ n, to, name }) => (to ? <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={40} fw={650} lh={1.1}>{n}</Text>);
 
+// A project that cannot be read has no states: it is listed here, not counted as clean.
 function Attention({ data }) {
   const where = scopes(data).filter((r) => needs(r.states));
   const n = where.reduce((t, r) => t + needs(r.states), 0);
-  if (!n) return <Text size="sm">Nothing needs attention.</Text>;
+  const unread = data.projects.filter((p) => p.error && !p.states);
+  const projects = where.some((r) => r.key !== 'global');
   return (
     <>
-      <Big n={n} to={target('attention', where.some((r) => r.key !== 'global'))} name={`${n} items need attention, open what it counts`} />
-      <Text size="sm">items, in {where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.key === 'global' ? 'the global setup' : r.label}</Anchor> {needs(r.states)}</span>)}</Text>
+      {!n && !unread.length && <Text size="sm">Nothing needs attention.</Text>}
+      {!!n && <Big n={n} to={projects && where.some((r) => r.key === 'global') ? null : target('attention', projects)} name={`${n} items need attention, open what it counts`} />}
+      {!!n && <Text size="sm">items, in {where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.key === 'global' ? 'the global setup' : r.label}</Anchor> {needs(r.states)}</span>)}</Text>}
+      {!!unread.length && <Text size="sm">Cannot be read: {unread.map((p, i) => <span key={p.path}>{i ? ', ' : ''}<Anchor href={projectHref(p.path)}>{label(p)}</Anchor></span>)}</Text>}
     </>
   );
 }

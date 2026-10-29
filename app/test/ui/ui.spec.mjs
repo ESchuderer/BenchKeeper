@@ -396,7 +396,9 @@ test.describe('views', () => {
   });
 
   test('Dashboard: the top row counts what needs attention and where, the health ring and the scopes; the flow folds away', async ({ page }) => {
-    await expect(page.getByRole('link', { name: /^\d+ items need attention, open what it counts$/ })).toHaveAttribute('href', '#/projects?show=changes');
+    // The fixture has items in the global setup and a project: no one view shows both, so only the parts link.
+    await expect(page.getByRole('link', { name: /items need attention/ })).toHaveCount(0);
+    await expect(page.getByText(/^items, in the global setup \d+, /).getByRole('link', { name: 'the global setup' })).toHaveAttribute('href', '#/agents?plan=1');
     await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the table$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
@@ -414,6 +416,24 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
+  });
+
+  test('Dashboard: a project that cannot be read is named in the attention card, also when nothing else needs attention', async ({ page }) => {
+    let clean = false;
+    await page.route(/\/api\/dashboard(\?|$)/, async (route) => {
+      const d = await (await route.fetch()).json();
+      const zero = (states) => states && Object.fromEntries(Object.keys(states).map((s) => [s, 0]));
+      if (clean) d.global.states = zero(d.global.states);
+      d.projects = [...d.projects.map((p) => (clean ? { ...p, states: zero(p.states) } : p)),
+        { ...d.projects[0], path: '/gone', name: 'gone', setup: false, states: null, error: 'EACCES: permission denied' }];
+      return route.fulfill({ json: d });
+    });
+    for (const c of [false, true]) {
+      clean = c;
+      await page.reload();
+      await expect(page.getByText(/^Cannot be read: gone$/).getByRole('link', { name: 'gone' })).toHaveAttribute('href', '#/projects/%2Fgone');
+    }
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
   });
 
   test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {

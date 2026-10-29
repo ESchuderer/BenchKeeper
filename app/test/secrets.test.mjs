@@ -37,6 +37,10 @@ test('mask: values of secret keys and token shapes, nothing else', () => {
     assert.equal(mask(`id ${jwt} end`, { keys }), 'id *** end');
     assert.equal(mask(`a\n${pem}\nb`, { keys }), `a\n${begin}\n***\n${end}\nb`);
   }
+  // BEGIN lines without an END: each candidate stops at the next BEGIN, so a long run of them takes linear time.
+  const started = Date.now();
+  assert.equal(mask(`${begin}\n`.repeat(200_000) + pem).endsWith(`${begin}\n***\n${end}`), true);
+  assert.ok(Date.now() - started < 2000);
   // Free text: only shapes. A rule that says "Keep secrets: read them from the environment" stays readable.
   assert.equal(mask('Keep secrets: read them from files', { keys: false }), 'Keep secrets: read them from files');
   assert.equal(mask(`paste ${TOKEN} here`, { keys: false }), 'paste *** here');

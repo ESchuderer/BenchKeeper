@@ -42,3 +42,7 @@ test('issue text handed to a worker needs the author filter', () => {
 });
 test('a skill that reads an issue without a worker needs no filter', () => assert.deepEqual(lintSkill(skill('a', { body: 'Read the issue with all its comments.' })), []));
 test('own skills pass', () => assert.deepEqual(ownSkills().flatMap(lintSkill), []));
+test('a Tier line naming the Default tier line ahead of the workflow skill fails', () => {
+  assert.match(lintSkill(skill('a', { body: '```text\nTier: <issue tier, else the Default tier line of AGENTS.md, else the workflow skill decides>\n```' })).join(), /Default tier line ahead/);
+  assert.deepEqual(lintSkill(skill('a', { body: 'Tier: <issue tier, else leave this line out: the workflow skill decides>' })), []);
+});

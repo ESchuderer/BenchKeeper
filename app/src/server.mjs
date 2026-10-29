@@ -371,10 +371,14 @@ export function api(ctx) {
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
       const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
-      // Skill toggles name skills of this project only.
+      // Skill toggles name skills of this project only. A toggle of a skill whose pack is switched off in the same plan is
+      // dropped, so skill and pack switches work in any order; a name outside the library is still an error.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
-      const disable = q.getAll('disable'), enable = q.getAll('enable');
-      const unknown = [...disable, ...enable, ...switches.reset].filter((n) => !own.includes(n));
+      const listed = (n) => own.includes(n) || libraryWith(ctx).skills.some((x) => x.name === n);
+      const unlisted = [...q.getAll('disable'), ...q.getAll('enable')].filter((n) => !listed(n));
+      if (unlisted.length) throw bad(`not in the library: ${unlisted.join(', ')}`);
+      const disable = q.getAll('disable').filter((n) => own.includes(n)), enable = q.getAll('enable').filter((n) => own.includes(n));
+      const unknown = switches.reset.filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
       const notInLibrary = switches.pick.filter((n) => !libraryWith(ctx).skills.some((x) => x.name === n));
       if (notInLibrary.length) throw bad(`not in the library: ${notInLibrary.join(', ')}`);

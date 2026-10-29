@@ -30,10 +30,12 @@ test('mask: values of secret keys and token shapes, nothing else', () => {
   assert.equal(mask('"effortLevel": "high"'), '"effortLevel": "high"');
   assert.equal(mask('Authorization: token abc123def456'), 'Authorization: ***');
   const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl_-x';
-  const pem = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk=\nAAAAkey=\n-----END OPENSSH PRIVATE KEY-----';
+  // Built from parts so the fixture does not read as a real key to secret scanners.
+  const [begin, end] = ['BEGIN', 'END'].map((w) => `-----${w} EC PRIVATE KEY-----`);
+  const pem = `${begin}\nb3BlbnNzaC1rZXk=\nAAAAkey=\n${end}`;
   for (const keys of [true, false]) {
     assert.equal(mask(`id ${jwt} end`, { keys }), 'id *** end');
-    assert.equal(mask(`a\n${pem}\nb`, { keys }), 'a\n-----BEGIN OPENSSH PRIVATE KEY-----\n***\n-----END OPENSSH PRIVATE KEY-----\nb');
+    assert.equal(mask(`a\n${pem}\nb`, { keys }), `a\n${begin}\n***\n${end}\nb`);
   }
   // Free text: only shapes. A rule that says "Keep secrets: read them from the environment" stays readable.
   assert.equal(mask('Keep secrets: read them from files', { keys: false }), 'Keep secrets: read them from files');

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -554,6 +554,14 @@ test('projects update --unattended skips and lists a project whose own hooks or 
   let plain = '';
   await main(['projects', 'update', '--dry-run'], { out: new Writable({ write(c, _, done) { plain += c; done(); } }), ctx });
   assert.match(plain, /1 projects would be updated/, 'without --unattended nothing is skipped');
+});
+
+test('a hook that links to a removed script is skipped; the other hooks are still listed', () => {
+  const h = home();
+  const p = project(h);
+  writeFileSync(join(p.dir, '.git/hooks/pre-commit'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  symlinkSync(join(h, 'removed.sh'), join(p.dir, '.git/hooks/pre-push'));
+  assert.deepEqual(gitCodeConfig(context({ home: h }), p.dir).filter((x) => x.key.startsWith('hook ')).map((x) => x.key), ['hook pre-commit']);
 });
 
 test('projects update --json: --dry-run lists the pending changes per project, --yes prints the result document, without it exit 2', async () => {

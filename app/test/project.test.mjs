@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, win32 } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
@@ -11,7 +11,7 @@ import { appVersion, contentDir, library } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
-import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -83,6 +83,9 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
 });
 
+test('exclude lines use forward slashes for Windows paths: a backslash escapes the next character in Git', () => {
+  assert.equal(slashRel('C:\\work\\shop', 'C:\\work\\shop\\.claude\\skills\\foo', win32), '.claude/skills/foo');
+});
 test('the dev container wrapper and the worktree files: offered by what the project has, named once written, undone', () => {
   const r = repo();
   const opts = { agents: ['claude'], env: 'host-agent' };

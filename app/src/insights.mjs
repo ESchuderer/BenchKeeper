@@ -60,20 +60,22 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], proj
   }
   // Friction (#322): one proxy, a session whose last test run failed and that opened no pull request. Per project, among its
   // sessions without dispatched workers and research tier; Claude Code and Codex both count. Nothing below minSamples of them.
-  const byFolder = new Map();
+  // Grouped by the canonical path (two projects can share a folder name); the finding carries only the folder name and a hash of the path.
+  const byPath = new Map();
   for (const s of sessions) {
     if (!s.project || s.pattern === orca.WORKER_PATTERN || s.tier?.last === 'research') continue;
-    const folder = folderOf(s.project);
-    if (!folder) continue;
-    if (!byFolder.has(folder)) byFolder.set(folder, []);
-    byFolder.get(folder).push(s);
+    const path = s.dir ?? canon(s.project);
+    if (!folderOf(path)) continue;
+    if (!byPath.has(path)) byPath.set(path, []);
+    byPath.get(path).push(s);
   }
-  for (const [folder, list] of byFolder) {
+  for (const [path, list] of byPath) {
     const failed = list.filter((s) => s.tests === 'fail' && !s.prs?.length);
     if (list.length < minSamples || !failed.length) continue;
     const rate = Math.round((failed.length / list.length) * 100);
+    const folder = folderOf(path);
     found.push({
-      id: `friction:${hash(folder)}`, signal: 'friction', severity: 'info',
+      id: `friction:${hash(path)}`, signal: 'friction', severity: 'info',
       message: `${failed.length} of ${list.length} sessions in ${folder} (${rate}%) ended on a failed test run and opened no pull request`,
       evidence: { project: folder, sessions: list.length, failed: failed.length, rate, sessionIds: failed.map((s) => s.id).sort() },
       fix: 'open the listed sessions in the sessions board and look at why the tests failed: a missing check in the project, a rule the agent skipped or a task too large for one session',

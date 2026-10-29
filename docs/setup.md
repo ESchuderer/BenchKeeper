@@ -36,7 +36,7 @@ Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional. The app
 
 ## Agent and OS support
 
-Claude Code and Codex are supported in full. Gemini CLI and GitHub Copilot CLI are supported to what each documents: rules, skills, the settings catalog, doctor and project setup. A feature an agent has no documented surface for shows "not available for <agent>" in the app (Agents view, Accounts) and in the CLI (`plan`, `apply`, `accounts`), and is never skipped silently. Gemini CLI individual plans stopped on 2026-06-18, so its support holds for the plans that still allow it.
+Claude Code and Codex are supported in full. Gemini CLI and GitHub Copilot CLI are supported to what each documents: rules, skills, the settings catalog, doctor and project setup. A feature an agent has no documented surface for shows "not available for <agent>" in the app (Global setup, Accounts) and in the CLI (`plan`, `apply`, `accounts`), and is never skipped silently. Gemini CLI individual plans stopped on 2026-06-18, so its support holds for the plans that still allow it.
 
 The tables come from `app/src/agents.json`; `node web/scripts/readme.mjs` writes them.
 

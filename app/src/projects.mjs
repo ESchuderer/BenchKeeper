@@ -9,9 +9,10 @@ import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.m
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
-import { skillFiles } from './skills.mjs';
-import { globalPlan, localPlugins, pluginState } from './steps/global.mjs';
-import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { agentFileRows } from './frameworks.mjs';
+import { projectSkills, skillFiles } from './skills.mjs';
+import { PLUGINS, globalPlan, globalSkills, localPlugins, pluginScope, pluginState } from './steps/global.mjs';
+import { STATE, chosenSkills, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -99,6 +100,38 @@ export function scopePlan(ctx, id, scope, agents) {
   }
   changes.push({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(scope)} (was ${scopeText(was)})`, ...scopeWrite(ctx, id, scope) });
   return changes;
+}
+// The Installs tab of a project, from its resolved answers (a). Per pack and skill: the scope hint ("also global" when it is
+// installed for the user, by the pack's scope or because an agent offers only that scope), the scopes agents fix and why, and
+// the state on disk. Then the agent files, and what the global setup makes active here that the project does not select.
+const WORSE = ['installed', 'off', 'outdated', 'modified', 'not installed'];
+const CELL = { current: 'installed', removed: 'not installed', absent: 'not installed', disabled: 'off' };
+export function projectInstalls(ctx, dir, a) {
+  const lib = libraryWith(ctx);
+  const plugged = a.agents.filter((x) => PLUGINS[x]);
+  const enabled = Object.fromEntries(plugged.map((x) => [x, pluginState(ctx, x).listed.filter((p) => p.enabled).map((p) => p.id)]));
+  const local = plugged.includes('claude') ? localPlugins(ctx, dir) : [];
+  const inGlobal = (n) => (plugged.some((x) => exists(join(ctx.home, agent(x).global.skills, n, 'SKILL.md'))) ? 'installed' : 'not installed');
+  const onDisk = new Map((projectSkills(ctx, dir)?.skills ?? []).map((s) => [s.name, CELL[s.state] ?? s.state]));
+  const worst = (list) => list.reduce((w, s) => (WORSE.indexOf(s) > WORSE.indexOf(w) ? s : w), 'installed');
+  const packs = Object.fromEntries(lib.packs.map((p) => {
+    const scope = packScope(ctx, p);
+    const fixed = a.agents.flatMap((x) => { const o = packScopes(p, x); return o?.fixed ? [{ agent: agent(x).name, scope: o.scopes[0], reason: o.fixed }] : []; });
+    const state = p.plugins
+      ? (plugged.some((x) => p.plugins[x] && (pluginScope(ctx, { pack: p.id }, x) === 'global' ? enabled[x] : local).includes(p.plugins[x].id)) ? 'installed' : 'not installed')
+      : worst((p.skills ?? []).map((n) => (scope === 'global' ? inGlobal(n) : onDisk.get(n) ?? 'not installed')));
+    return [p.id, { scope, fixed, state, owner: p.role === 'workflow owner', hint: scope === 'global' || fixed.some((f) => f.scope === 'global') ? 'also global' : 'only this project' }];
+  }));
+  const viaGlobal = (n) => a.packs.some((id) => packs[id]?.scope === 'global' && lib.packs.find((p) => p.id === id).skills?.includes(n));
+  const skills = Object.fromEntries(chosenSkills(a, lib).map(({ name: n }) => [n, viaGlobal(n)
+    ? { state: a.disabled.includes(n) ? 'off' : inGlobal(n), hint: 'also global' }
+    : { state: onDisk.get(n) ?? 'not installed', hint: 'only this project' }]));
+  return { packs, skills, files: agentFileRows(a, dir, tryState(dir), lib),
+    global: {
+      plugin: plugged.filter((x) => enabled[x].includes('benchkeeper@benchkeeper')).map((x) => agent(x).name),
+      packs: lib.packs.filter((p) => !a.packs.includes(p.id) && packs[p.id].scope === 'global' && packs[p.id].state === 'installed').map((p) => ({ id: p.id, title: p.title ?? p.id })),
+      skills: plugged.map((x) => ({ agent: agent(x).name, count: globalSkills(ctx, x) })),
+    } };
 }
 // BenchKeeper installed the global skill folder: the newest done, not undone ledger entry on it is a pack's install.
 function installedSkill(ctx, dir) {

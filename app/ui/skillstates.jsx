@@ -8,8 +8,39 @@ import { IconPlus, IconRefresh, IconRestore, IconTrash } from '@tabler/icons-rea
 const STATES = ['current', 'outdated', 'modified', 'removed', 'disabled'];
 const short = (ref) => ref?.slice(0, 12);
 
-// One switch per pack of a project, and "Copy packs from project". The switches only change the plan below them;
-// nothing is written before that plan is applied.
+// One row of a project's Installs tab: a switch, the scope hint, the state on disk, the scopes an agent fixes with the reason,
+// and the five facts of the explainer (summary, plain words, impact, default, current).
+export function InstallRow({ label, checked, onChange, disabled, hint, state, fixed = [], facts, why }) {
+  return (
+    <Paper withBorder p="xs">
+      <Stack gap={4}>
+        <Group justify="space-between" align="flex-start" gap="xs">
+          <Switch checked={checked} onChange={onChange} disabled={disabled} label={label} />
+          <Group gap={4}><Badge variant="default" size="sm">{hint}</Badge><StateBadge state={state} /></Group>
+        </Group>
+        {why && <Text size="xs">Fixed: {why}.</Text>}
+        {fixed.map((f) => <Text key={f.agent} size="xs">{f.agent}: {f.scope === 'global' ? 'also global' : 'only this project'}, fixed: {f.reason}.</Text>)}
+        <Stack gap={0} style={{ overflowWrap: 'anywhere' }}>
+          <Text size="xs">{facts.summary}</Text>
+          <Text size="xs">In plain words: {facts.eli5}</Text>
+          <Text size="xs">Impact: {facts.impact}</Text>
+          <Text size="xs">Default: {facts.default}. Current: {facts.current}.</Text>
+        </Stack>
+      </Stack>
+    </Paper>
+  );
+}
+
+const packImpact = (p) => (p.plugin
+  ? p.scope === 'global' ? 'the global setup installs the plugin once for the user; this project records the choice' : 'installs the plugin for Claude Code in this project only (local scope)'
+  : p.scope === 'global' ? `its ${p.skills} skills sit in the global skill folders of Claude Code and Codex; this project records the choice` : `copies ${p.skills} skills into this project; off removes the ones no other pack or single skill needs`);
+const packFacts = (p, eli5) => ({ summary: p.pickWhen ?? p.title, impact: packImpact(p), default: p.suggested ? `on, suggested: ${p.suggested}` : 'off', current: p.enabled ? 'on' : 'off',
+  eli5: eli5 ?? (p.plugin ? 'a plugin adds skills and commands to the agent from a folder of its own' : 'a set of skills, instruction files the agent reads when a task fits them') });
+
+const OWNER = 'these skills run the steps of larger tasks: questions first, a spec and tickets, tests first, a review';
+
+// One switch per pack of a project, the workflow owner in a section of its own, and "Copy packs from project". The switches
+// only change the plan below them; nothing is written before that plan is applied.
 export function PackSwitches({ packs, project, others, toggles, setToggles }) {
   const flip = (p) => setToggles((t) => (p.enabled
     ? { ...t, packOff: [...t.packOff, p.id], packOn: t.packOn.filter((x) => x !== p.id) }
@@ -22,26 +53,26 @@ export function PackSwitches({ packs, project, others, toggles, setToggles }) {
   const sources = others.filter((o) => o.path !== project.path && o.setupVersion && !o.missing);
   // Grouped by the saved setup and the repository's hints, not by the switch, so a switch never moves on a click.
   const near = (p) => (project.packs ?? []).includes(p.id) || p.suggested;
-  const groups = [['In use or suggested', packs.filter(near)], ['More packs', packs.filter((p) => !near(p))]].filter(([, list]) => list.length);
+  const rest = packs.filter((p) => !p.owner), owners = packs.filter((p) => p.owner);
+  const groups = [['In use or suggested', rest.filter(near)], ['More packs', rest.filter((p) => !near(p))]].filter(([, list]) => list.length);
+  const row = (p, eli5) => (
+    <InstallRow key={p.id} checked={p.enabled} onChange={() => flip(p)} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
+      label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested</Badge>}</Group>} />
+  );
   return (
-    <Section title="Packs">
-      {groups.map(([group, list], g) => (
-        <div key={group} role="group" aria-labelledby={`packs-${g}`}>
-          <Text id={`packs-${g}`} size="sm" fw={600} mb="xs">{group}</Text>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
-            {list.map((p) => (
-              <Paper key={p.id} withBorder p="xs">
-                <Switch checked={p.enabled} onChange={() => flip(p)}
-                  label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested: {p.suggested}</Badge>}</Group>}
-                  description={[p.pickWhen, p.skills == null ? 'a plugin' : `${p.skills} skills${p.own ? ', own' : ''}`].filter(Boolean).join('. ')} />
-              </Paper>
-            ))}
-          </SimpleGrid>
-        </div>
-      ))}
-      {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
-      <Text size="sm">Turning a pack off removes the skills no other pack or single skill needs; nothing is written before the plan below is applied.</Text>
-    </Section>
+    <>
+      <Section title="Packs">
+        {groups.map(([group, list], g) => (
+          <div key={group} role="group" aria-labelledby={`packs-${g}`}>
+            <Text id={`packs-${g}`} size="sm" fw={600} mb="xs">{group}</Text>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{list.map((p) => row(p))}</SimpleGrid>
+          </div>
+        ))}
+        {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
+        <Text size="sm">Nothing is written before the plan below is applied.</Text>
+      </Section>
+      {!!owners.length && <Section title="Workflow owner"><SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{owners.map((p) => row(p, OWNER))}</SimpleGrid></Section>}
+    </>
   );
 }
 

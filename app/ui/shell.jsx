@@ -32,7 +32,7 @@ export function useRoute() {
 }
 
 // Status colors always come with a text label; the dot only repeats it.
-export const STATE_COLOR = { current: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
+export const STATE_COLOR = { current: 'teal', installed: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
 export const Dot = ({ color }) => <Box component="span" aria-hidden className="bk-dot" w={8} h={8} display="inline-block" style={{ borderRadius: 4, background: `var(--mantine-color-${color}-filled)`, color: `var(--mantine-color-${color}-filled)` }} />;
 
 // Object.groupBy needs browsers from 2024 on.

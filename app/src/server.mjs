@@ -29,7 +29,7 @@ import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
@@ -370,7 +370,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
-      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
@@ -386,10 +386,13 @@ export function api(ctx) {
       const focus = q.getAll('focus');
       const all = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
       const changes = focus.length ? focusOn(all, focus) : all;
+      // The Installs tab's rows: scope hint, fixed scopes, state on disk, agent files and the global block.
+      const rows = projectInstalls(ctx, dir, p.answers);
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
-        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })),
-        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, pickWhen: x.pickWhen ?? null, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id),
-          suggested: hints.find((h) => h.id === x.id)?.reason ?? null })) };
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name), pickWhen: libraryWith(ctx).skills.find((s) => s.name === name)?.pickWhen ?? null, ...rows.skills[name] })),
+        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, pickWhen: x.pickWhen ?? null, own: !!x.own, skills: x.skills?.length ?? null, plugin: !!x.plugins, enabled: p.answers.packs.includes(x.id),
+          suggested: hints.find((h) => h.id === x.id)?.reason ?? null, ...rows.packs[x.id] })),
+        files: rows.files, global: rows.global };
     },
     // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
     // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.

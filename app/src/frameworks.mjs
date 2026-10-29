@@ -106,6 +106,17 @@ export const sourceRows = (lib = library()) => sources(lib).map((f) => ({
   files: f.install.files.map(({ path, pickWhen }) => ({ path, name: stemOf(path), pickWhen, url: blobUrl(f, path) })),
 }));
 
+// Each agent file of the catalog in a project: picked or not, its state on disk, and why it cannot be picked when the
+// project has none of the agents its source installs for.
+export function agentFileRows(a, dir, prev, lib = library()) {
+  return sources(lib).flatMap((f) => f.install.files.map(({ path, pickWhen }) => {
+    const target = targetOf(dir, f, path), ids = f.install.agents;
+    const state = !exists(target) ? 'not installed' : editedHere(prev, target, path) ? 'modified' : refetch(prev, f, path) ? 'outdated' : 'installed';
+    return { path, name: stemOf(path), source: f.title, pickWhen, on: a.agentFiles.includes(path), state,
+      fixed: ids && !a.agents.some((x) => ids.includes(x)) ? `${f.title} installs for ${ids.map((x) => agent(x).name).join(', ')} only` : null };
+  }));
+}
+
 // Plan notices: the evidence of each agent-file source newly picked, and each picked file edited here that a refetch replaces.
 export function frameworkNotices({ a, dir, prev, lib = library() }) {
   const was = { agentFiles: prev?.agentFiles ?? [] };

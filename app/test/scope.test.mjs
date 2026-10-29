@@ -10,6 +10,7 @@ import { globalDrift } from '../src/doctor.mjs';
 import { libraryWith, packScope, packScopes, scopeFile } from '../src/packs.mjs';
 import { addProject, scopePlan } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
+import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
 
@@ -163,6 +164,50 @@ test('a scope move preselects no removal of what the user owns and keeps held pr
   assert.ok(removals.every((c) => c.selected === false));
   const held = plan.filter((c) => c.held);
   assert.ok(held.length && held.every((c) => c.step === 'skill:designing-technical-uis' && c.selected === false && c.project === dir));
+});
+
+test('the Installs tab: scope hint, fixed scope and state per row; global items only in the global block; a toggle plans this project only and undo restores it', () => {
+  const { ctx, home, dir } = machine();
+  const skills = pack(ctx, 'frontend').skills;
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['claude', 'codex'], env: 'host', packs: ['ponytail', 'frontend'], skills: skills.map((name) => ({ name })) }));
+  // Claude Code has Ponytail, Matt Pocock's skills (global, not selected here) and BenchKeeper's own plugin for the user.
+  const ids = ['ponytail@ponytail', 'mattpocock-skills@claude-plugins-official', 'benchkeeper@benchkeeper'];
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: Object.fromEntries(ids.map((id) => [id, [{ scope: 'user', version: '1.0.0' }]])) }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: Object.fromEntries(ids.map((id) => [id, true])) }));
+  const routes = api(ctx);
+  const plan = (extra = []) => routes['GET /api/project-plan'](new URLSearchParams([['dir', dir], ...extra]));
+  const p = plan();
+  const row = (id) => p.packs.find((x) => x.id === id);
+  assert.deepEqual(['ponytail', 'frontend', 'matt-pocock'].map((id) => [row(id).enabled, row(id).hint, row(id).state, row(id).owner]),
+    [[true, 'also global', 'installed', false], [true, 'only this project', 'installed', false], [false, 'also global', 'installed', true]]);
+  // Codex offers plugins for the user only: the row names it with the reason; a skill pack has no fixed scope for these agents.
+  assert.deepEqual(row('ponytail').fixed.map((f) => [f.agent, f.scope]), [['Codex', 'global']]);
+  assert.match(row('ponytail').fixed[0].reason, /user only/);
+  assert.deepEqual(row('frontend').fixed, []);
+  assert.deepEqual(p.chosen.map((s) => [s.name, s.hint, s.state]).sort(), skills.map((n) => [n, 'only this project', 'installed']).sort());
+  assert.ok(p.files.length && p.files.every((f) => !f.on && f.state === 'not installed' && f.fixed === null));
+  // The global block: what the project does not select, once, and the BenchKeeper plugin.
+  assert.deepEqual(p.global.packs.map((x) => x.id), ['matt-pocock']);
+  assert.deepEqual(p.global.plugin, ['Claude Code']);
+  assert.ok(!p.packs.some((x) => x.enabled && p.global.packs.some((g) => g.id === x.id)));
+
+  // A pack switched off: the plan changes only this project; applied, then undone, the project is as before.
+  const off = plan([['pack-off', 'frontend']]);
+  assert.ok(off.changes.length);
+  assert.ok(off.changes.every((c) => [c.path, c.cwd].some((x) => x === dir || x?.startsWith(`${dir}/`))), off.changes.map((c) => c.path ?? c.cwd).join());
+  const before = readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8');
+  const run = apply(preview(projectPlan({ ctx, dir, answers: { packOff: ['frontend'] } }).changes), ctx);
+  assert.equal(run.status, 'done');
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8')).packs, ['ponytail']);
+  undo(run.id, ctx);
+  assert.equal(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8'), before);
+
+  // An agent file switched on and off; one whose source needs an agent the project lacks says so.
+  const [file] = p.files;
+  assert.deepEqual(plan([['file-on', file.path]]).files.find((f) => f.path === file.path).on, true);
+  assert.deepEqual(plan([['file-on', file.path], ['file-off', file.path]]).files.find((f) => f.path === file.path).on, false);
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['codex'], env: 'host', packs: [] }));
+  assert.match(plan().files[0].fixed, /installs for Claude Code only/);
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {

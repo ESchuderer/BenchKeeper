@@ -865,6 +865,38 @@ test.describe('views', () => {
     await page.unroute(/\/api\/history(\?|$)/);
   });
 
+  test('Project Installs tab: packs, workflow owner, skills and agent files each with a switch, scope hint and state; the global block once with its link; a switch by keyboard changes the plan; 390 px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/#/projects');
+    await page.getByText('Cards', { exact: true }).click();
+    await page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ }).getByRole('link', { name: /^bk-ui-proj/ }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
+    const packs = page.getByRole('region', { name: 'Packs' });
+    await expect(packs.getByRole('switch', { name: 'Frontend' })).toBeChecked();
+    await expect(packs).toContainText('only this project');
+    await expect(packs).toContainText('Impact: copies');
+    const owner = page.getByRole('region', { name: 'Workflow owner' });
+    await expect(owner.getByRole('switch', { name: /Matt Pocock/ })).toBeVisible();
+    await expect(owner).toContainText('also global');
+    await expect(page.getByRole('switch', { name: /Matt Pocock/ })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Skills' })).toContainText(/only this project/);
+    const global = page.getByRole('region', { name: 'Active here from your global setup' });
+    await expect(global).toContainText('BenchKeeper plugin');
+    await expect(global.getByRole('switch')).toHaveCount(0);
+    await expect(global.getByRole('link', { name: 'Change them in Global setup' })).toHaveAttribute('href', '#/agents');
+    // An agent file switched on by keyboard: the plan fetches it; switched off again, nothing is written.
+    const file = page.getByRole('region', { name: 'Agent files' }).getByRole('switch').first();
+    const changes = page.getByRole('region', { name: /^Changes in / });
+    await file.focus();
+    await page.keyboard.press('Space');
+    await expect(file).toBeChecked();
+    await expect(changes).toContainText('Agent engineering-frontend-developer');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+    await page.keyboard.press('Space');
+    await expect(file).not.toBeChecked();
+  });
+
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
     const dir = folder('mv-gone');
     await nav(page, 'Projects').click();

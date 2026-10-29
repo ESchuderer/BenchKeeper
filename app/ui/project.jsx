@@ -1,7 +1,7 @@
 // A project's own page (#/projects/<folder>/<tab>): the header with name, health and folder, and one tab per part.
-import { Anchor, Button, Code, Group, List, Stack, Switch, Tabs, Text, Title } from '@mantine/core';
+import { Anchor, Button, Code, Group, List, SimpleGrid, Stack, Tabs, Text, Title } from '@mantine/core';
 import { IconAdjustments, IconFolderOpen, IconListCheck, IconListNumbers, IconPencil, IconRoute, IconTrash } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { label, lags } from './cards.js';
 import { DoctorTable } from './fix.jsx';
@@ -9,7 +9,7 @@ import { Plan, Section } from './parts.jsx';
 import { EditProject, HealthBadge, ProjectFacts, Relocate, RemoveFromList, RemoveSetup } from './projects.jsx';
 import { RunPanel } from './run.jsx';
 import { ProjectSetup } from './setup.jsx';
-import { PackSwitches } from './skillstates.jsx';
+import { InstallRow, PackSwitches } from './skillstates.jsx';
 import { AgentSettings } from './agentsettings.jsx';
 import { Rules } from './rules.jsx';
 import { History, ProjectList, Sessions } from './views.jsx';
@@ -116,18 +116,26 @@ function Overview({ p, card, names }) {
   );
 }
 
-// The per-project install controls: pack and skill switches, the plan and its result.
-const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [] };
+// The per-project install controls: packs, workflow owner, skills and agent files, one switch each with its scope hint; what
+// the global setup makes active here; the plan and its result.
+const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [], fileOn: [], fileOff: [] };
 function Installs({ project, others, onDone, onSetup }) {
   const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
   const [applied, setApplied] = useState(null);
   const q = new URLSearchParams({ dir: project.path });
-  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off']]) for (const n of toggles[k]) q.append(name, n);
+  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off'], ['fileOn', 'file-on'], ['fileOff', 'file-off']]) for (const n of toggles[k]) q.append(name, n);
   const plan = useApi(!project.missing && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
+  // The rows stay while the next plan loads, so a switch keeps the keyboard focus; only the plan itself waits for it.
+  const shown = useRef(null);
+  if (plan.data) shown.current = { path: project.path, data: plan.data };
+  const rows = { ...plan, data: plan.data ?? (shown.current?.path === project.path ? shown.current.data : null) };
   const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
     ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
     : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
+  const flipFile = (f) => setToggles(({ fileOn, fileOff, ...rest }) => (f.on
+    ? { ...rest, fileOn: fileOn.filter((x) => x !== f.path), fileOff: [...fileOff, f.path] }
+    : { ...rest, fileOn: [...fileOn, f.path], fileOff: fileOff.filter((x) => x !== f.path) }));
   if (project.missing) return <Text>The folder is not found: relocate the project first.</Text>;
   if (!project.setupVersion) return (
     <Stack gap="xs" align="flex-start">
@@ -145,22 +153,52 @@ function Installs({ project, others, onDone, onSetup }) {
           <RunPanel id={applied.id} output={applied.output} order={3} onChanged={onDone} />
         </Section>
       ) : (
-        <Loading state={plan} label="project plan">{(p) => (
+        <Loading state={rows} label="project plan">{(p) => (
           <>
-            <PackSwitches packs={p.packs} project={project} others={others} toggles={toggles} setToggles={setToggles} />
+            {/* A global pack this project does not choose shows once, in the global block. */}
+            <PackSwitches packs={p.packs.filter((x) => !p.global.packs.some((g) => g.id === x.id))} project={project} others={others} toggles={toggles} setToggles={setToggles} />
             {!!p.chosen.length && (
               <Section title="Skills">
-                {p.chosen.map((s) => <Switch key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} />)}
-                <Text size="sm">A skill turned off moves to <Code>.benchkeeper/disabled/</Code> when the plan is applied.</Text>
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
+                  {p.chosen.map((s) => <InstallRow key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} hint={s.hint} state={s.state}
+                    facts={{ summary: s.pickWhen ?? s.name, eli5: 'one instruction file the agent loads when a task fits it', impact: 'off moves it to .benchkeeper/disabled/ when the plan is applied', default: 'on, with its pack or as a single pick', current: s.disabled ? 'off' : 'on' }} />)}
+                </SimpleGrid>
               </Section>
             )}
+            {!!p.files.length && (
+              <Section title="Agent files">
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
+                  {p.files.map((f) => <InstallRow key={f.path} label={f.name} checked={f.on} onChange={() => flipFile(f)} disabled={!!f.fixed && !f.on} why={f.fixed} hint="only this project" state={f.state}
+                    facts={{ summary: f.pickWhen, eli5: 'a description of a helper agent your agent can hand work to', impact: `fetches ${f.name}.md from ${f.source} at a pinned commit into the project's agent folder`, default: 'off', current: f.on ? 'on' : 'off' }} />)}
+                </SimpleGrid>
+              </Section>
+            )}
+            <GlobalBlock g={p.global} />
             <Section title={`Changes in ${project.path}`}>
-              {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+              <Loading state={plan} label="project plan">{(fresh) => (
+                <>
+                  {fresh.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
+                  <Plan key={fresh.planId} plan={fresh} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+                </>
+              )}</Loading>
             </Section>
           </>
         )}</Loading>
       )}
     </Stack>
+  );
+}
+
+// What the global setup makes active in this project and the project does not choose itself: read only, changed on the global page.
+function GlobalBlock({ g }) {
+  return (
+    <Section title="Active here from your global setup">
+      <List size="sm">
+        <List.Item>BenchKeeper plugin: {g.plugin.length ? `on for ${g.plugin.join(', ')}` : "not installed for this project's agents"}</List.Item>
+        {g.packs.map((x) => <List.Item key={x.id}>{x.title}: pack for all projects</List.Item>)}
+        {g.skills.map((x) => <List.Item key={x.agent}>{x.agent}: <span className="bk-num">{x.count}</span> global skills</List.Item>)}
+      </List>
+      <Anchor href={href('agents')} size="sm">Change them in Global setup</Anchor>
+    </Section>
   );
 }

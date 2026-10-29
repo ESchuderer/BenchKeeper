@@ -39,7 +39,7 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
                 )}
               </span>
             </a>
-            <ActionIcon data-theme-toggle variant="default" size={36} aria-label="Toggle light and dark theme">
+            <ActionIcon data-theme-toggle variant="default" size={36} aria-label="Dark theme">
               <IconMoon size={16} className="icon-moon" />
               <IconSun size={16} className="icon-sun" />
             </ActionIcon>

@@ -12,6 +12,22 @@ for (const path of ['./', './overview/', './app/', './404.html']) {
     await page.goto(path);
     await expect(page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]')).toHaveCount(0);
   });
+
+  test(`${path} theme button shows its state and follows the system scheme`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto(path);
+    const button = page.locator('[data-theme-toggle]').first();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
+    // A stored choice wins over a later system change.
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
+  });
 }
 
 test('the sitemap lists the three pages', async ({ request }) => {

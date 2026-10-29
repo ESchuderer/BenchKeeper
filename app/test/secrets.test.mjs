@@ -28,6 +28,13 @@ test('mask: values of secret keys and token shapes, nothing else', () => {
   assert.equal(mask(`curl -H "Authorization: Bearer ${TOKEN}"`), 'curl -H "Authorization: ***"');
   assert.equal(mask('git clone https://user:pw@github.com/o/r'), 'git clone https://***@github.com/o/r');
   assert.equal(mask('"effortLevel": "high"'), '"effortLevel": "high"');
+  assert.equal(mask('Authorization: token abc123def456'), 'Authorization: ***');
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl_-x';
+  const pem = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk=\nAAAAkey=\n-----END OPENSSH PRIVATE KEY-----';
+  for (const keys of [true, false]) {
+    assert.equal(mask(`id ${jwt} end`, { keys }), 'id *** end');
+    assert.equal(mask(`a\n${pem}\nb`, { keys }), 'a\n-----BEGIN OPENSSH PRIVATE KEY-----\n***\n-----END OPENSSH PRIVATE KEY-----\nb');
+  }
   // Free text: only shapes. A rule that says "Keep secrets: read them from the environment" stays readable.
   assert.equal(mask('Keep secrets: read them from files', { keys: false }), 'Keep secrets: read them from files');
   assert.equal(mask(`paste ${TOKEN} here`, { keys: false }), 'paste *** here');

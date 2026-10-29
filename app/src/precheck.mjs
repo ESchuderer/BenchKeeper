@@ -93,11 +93,11 @@ async function issuePickup(ctx, dir, v) {
 }
 
 const QUERY = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, first: 100) { nodes {
-  number isDraft isCrossRepository headRefName headRefOid body mergeable reviewDecision author { login } labels(first: 50) { nodes { name } }
-  commits(first: 100) { nodes { commit { author { user { login } } } } }
-  reviewThreads(first: 100) { nodes { id isResolved } }
-  comments(last: 50) { nodes { author { login } body } }
-  head: commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+  number isDraft isCrossRepository headRefName headRefOid body mergeable reviewDecision author { login } labels(first: 50) { totalCount nodes { name } }
+  commits(first: 100) { totalCount nodes { commit { author { user { login } } } } }
+  reviewThreads(first: 100) { totalCount nodes { id isResolved } }
+  comments(last: 50) { totalCount nodes { author { login } body } }
+  head: commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { totalCount nodes {
     __typename ... on CheckRun { name status conclusion } ... on StatusContext { context state } } } } } } }
 } } } }`;
 
@@ -110,10 +110,15 @@ async function prWatcher(ctx, dir, v) {
   const nodes = JSON.parse(gh(ctx, dir, ['api', 'graphql', '-f', `query=${QUERY}`, '-f', `owner=${owner}`, '-f', `name=${name}`])).data.repository.pullRequests.nodes;
   const decide = (p) => {
     const author = who(p.author?.login), labels = p.labels.nodes.map((l) => l.name);
-    const checks = (p.head.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map((c) => ({ name: c.name ?? c.context, result: result(c) }));
+    const contexts = p.head.nodes[0]?.commit.statusCheckRollup?.contexts;
+    const checks = (contexts?.nodes ?? []).map((c) => ({ name: c.name ?? c.context, result: result(c) }));
     const threads = p.reviewThreads.nodes.filter((t) => !t.isResolved).map((t) => t.id).sort();
     // A fix worker the session started leaves a comment with this line, so a head or a set of threads gets one worker.
     const started = (kind, key) => p.comments.nodes.some((c) => who(c.author?.login) === me && c.body.split('\n').includes(`pr-watcher fix ${kind} ${key}`));
+    // One page per connection: what it did not read could hold a foreign commit, the hold label, a thread, a failing check or the marker.
+    const cut = [[p.commits, 'commits'], [p.labels, 'labels'], [p.reviewThreads, 'review threads'], [contexts, 'check contexts'], [p.comments, 'comments']]
+      .find(([c]) => c?.totalCount > c.nodes.length);
+    if (cut) return { skip: `more than ${cut[0].nodes.length} ${cut[1]}, not read` };
     if (p.headRefName.startsWith('release-please--') || labels.includes('autorelease: pending')) return { skip: 'release pull request' };
     if (p.isCrossRepository) return { skip: 'from a fork' };
     if (author !== me) return { skip: `external, by ${author}` };

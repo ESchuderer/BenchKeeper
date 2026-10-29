@@ -88,11 +88,13 @@ function Health({ data }) {
   );
 }
 
-// Packs no project chose are one line under the table, not rows of zeros.
+// Packs no project chose are one line under the table, not rows of zeros; a pack installed globally is in every project.
 function PackCoverage({ data, names }) {
   const { agents } = data.coverage;
   const used = (p) => agents.some((a) => p.cells[a.id]);
-  const packs = data.coverage.packs.filter(used), unused = data.coverage.packs.filter((p) => !used(p));
+  const global = new Set(Object.values(data.global.packs).flat());
+  const packs = data.coverage.packs.filter(used), unused = data.coverage.packs.filter((p) => !used(p) && !global.has(p.id));
+  const all = data.coverage.packs.filter((p) => !used(p) && global.has(p.id));
   return (
     <Stack gap="xs">
       {!!packs.length && <Table.ScrollContainer minWidth={420}>
@@ -114,6 +116,7 @@ function PackCoverage({ data, names }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>}
+      {!!all.length && <Text size="sm">Global, in every project: {all.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
       {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
     </Stack>
   );

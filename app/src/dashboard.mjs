@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { agent, skillDirs } from './agents.mjs';
 import { classify } from './inventory.mjs';
 import { exists } from './fsx.mjs';
-import { libraryWith } from './packs.mjs';
+import { libraryWith, packScope, packScopes } from './packs.mjs';
 import { listProjects, projectItemPlan, projectState, skillCounts } from './projects.mjs';
 import { RANK } from './states.mjs';
 import { PLUGINS, globalSkills, pluginState } from './steps/global.mjs';
@@ -47,10 +47,12 @@ function untracked(path, state) {
   return found.size;
 }
 
-// The packs enabled as plugins, per agent (a pack that installs a plugin has no skill list).
-const globalPacks = (ctx, agents) => Object.fromEntries(agents.map((a) => {
+// The packs enabled as plugins, per agent (a pack that installs a plugin has no skill list), and the skill packs for all
+// projects, whose skills the global plan copies into the global folders of the agents that offer that scope.
+const globalPacks = (ctx, agents, lib) => Object.fromEntries(agents.map((a) => {
   const on = pluginState(ctx, a).listed.filter((p) => p.enabled).map((p) => p.id);
-  return [a, (PLUGINS[a] ?? []).filter((p) => p.pack && on.includes(p.id)).map((p) => p.pack)];
+  const skillPacks = lib.packs.filter((p) => !p.plugins && p.skills?.length && packScopes(p, a).scopes.includes('global') && packScope(ctx, p) === 'global');
+  return [a, [...(PLUGINS[a] ?? []).filter((p) => p.pack && on.includes(p.id)).map((p) => p.pack), ...skillPacks.map((p) => p.id)]];
 }));
 
 // agents: ids of the installed agents; items: the global inventory.
@@ -71,7 +73,7 @@ export function dashboard(ctx, agents, items) {
       } catch (e) { return { ...base, error: e.message }; }
     } catch (e) { return { ...row, error: e.message }; }
   });
-  const global = { skills: Object.fromEntries(agents.map((a) => [a, globalSkills(ctx, a)])), packs: globalPacks(ctx, agents), states: count(items) };
+  const global = { skills: Object.fromEntries(agents.map((a) => [a, globalSkills(ctx, a)])), packs: globalPacks(ctx, agents, lib), states: count(items) };
   const known = [...new Set([...agents, ...projects.flatMap((p) => p.agents)])];
   const codexOnly = (name) => lib.skills.find((s) => s.name === name)?.agents === 'codex';
   const packs = lib.packs.map((p) => ({

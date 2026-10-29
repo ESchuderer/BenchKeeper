@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { readText, writeAtomic } from './fsx.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
-import { listProjects } from './projects.mjs';
+import { canon, listProjects } from './projects.mjs';
 import { byRun } from './sessions.mjs';
 import { TOKENS, cssVars } from './tokens.mjs';
 
@@ -921,6 +921,6 @@ export function keepDays(ctx) {
 export function registeredPaths(ctx) {
   return listProjects(ctx).map(({ path }) => {
     const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain']);
-    return { path, worktrees: r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)).filter((w) => w !== path) : [] };
+    return { path, worktrees: r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)).filter((w) => canon(w) !== canon(path)) : [] };
   });
 }

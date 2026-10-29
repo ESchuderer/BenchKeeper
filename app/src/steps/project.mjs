@@ -2,7 +2,7 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
@@ -315,6 +315,9 @@ export function ownSkillFiles(name, paths) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
+// Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
+export const slashRel = (dir, p, path = { relative, sep }) => path.relative(dir, p).split(path.sep).join('/');
+
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);
   const lib = libraryWith(ctx);
@@ -324,7 +327,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c });
   // A skill pack for all projects is in the global skill folders: the project keeps it selected without copies.
   const skills = chosenSkills({ ...a, packs: a.packs.filter((id) => packScope(ctx, lib.packs.find((x) => x.id === id)) !== 'global') }, lib);
-  const rel = (p) => relative(dir, p);
+  const rel = (p) => slashRel(dir, p);
 
   // Files offered beside the setup. One is named in the block and the exclude list only once it is written: in this run, or as
   // an earlier run left it; the preview, which has no run, counts the preselected ones.

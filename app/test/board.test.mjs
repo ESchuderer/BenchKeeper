@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -37,6 +37,17 @@ test('registered projects and their worktrees go to the board as the Project fil
   assert.deepEqual(registeredPaths(ctx), [{ path: `${home}/shop`, worktrees: [`${home}/wt/shop-fix`] }, { path: `${home}/plain`, worktrees: [] }]);
   const html = boardHtml([], '2026-10-23T00:00:00Z', registeredPaths(ctx));
   assert.deepEqual(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).registered, registeredPaths(ctx));
+});
+
+test('the main folder in another spelling than the registry (Git on Windows prints C:/, a link here) is no extra worktree', () => {
+  const home = mkdtempSync(join(TMP, 'bk-board-'));
+  mkdirSync(join(home, 'shop'));
+  symlinkSync(join(home, 'shop'), join(home, 'link'), 'junction');
+  const run = () => ({ code: 0, stdout: `worktree ${home}/link\nHEAD 1\n\nworktree ${home}/wt/shop-fix\nHEAD 2\n`, stderr: '' });
+  const ctx = context({ home, run });
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: join(home, 'shop') }] }));
+  assert.deepEqual(registeredPaths(ctx)[0].worktrees, [`${home}/wt/shop-fix`]);
 });
 
 test('worktrees of two repositories count as their repository, also a removed one; a folder of no repository is left for Other; the rows go to the page unchanged', () => {

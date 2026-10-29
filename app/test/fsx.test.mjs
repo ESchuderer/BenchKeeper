@@ -21,8 +21,8 @@ test('readers fall back on a missing path', () => {
 test('listFiles: relative paths of a tree in name order', () => {
   const d = tmp();
   mkdirSync(join(d, 'b'));
-  for (const f of ['c', 'a', 'B', join('b', 'z'), join('b', 'y')]) writeFileSync(join(d, f), f);
-  assert.deepEqual(listFiles(d), ['a', join('b', 'y'), join('b', 'z'), 'B', 'c']);
+  for (const f of ['c', 'a', 'D', join('b', 'z'), join('b', 'y')]) writeFileSync(join(d, f), f);
+  assert.deepEqual(listFiles(d), ['a', join('b', 'y'), join('b', 'z'), 'c', 'D']);
 });
 
 test('hashPath: a folder hashes names and contents, a link its target', noLinks, () => {

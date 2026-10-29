@@ -63,8 +63,11 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const changed = scopes.filter(([id, s]) => s !== packScope(ctx, lib.packs.find((x) => x.id === id)));
   const projectBase = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(changed.map(([id]) => [id, 'projects'])) } };
   ctx = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(scopes) } };
-  const scopeChanges = scopes.map(([id, s]) => ({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(s)}`, ...scopeWrite(ctx, id, s) }));
-  const global = preview([...scopeChanges, ...globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli })]);
+  // A changed scope and the global installs of that pack form one unit: the saved scope never disagrees with what is installed.
+  const unitOf = (id) => (changed.some(([x]) => x === id) ? { unit: `scope:${id}` } : {});
+  const scopeChanges = scopes.map(([id, s]) => ({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(s)}`, ...scopeWrite(ctx, id, s), ...unitOf(id) }));
+  const globalChanges = globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }).map((c) => (c.step.startsWith('pack:') ? { ...c, ...unitOf(c.step.slice(5)) } : c));
+  const global = preview([...scopeChanges, ...globalChanges]);
   const projects = [], missing = [], skipped = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }

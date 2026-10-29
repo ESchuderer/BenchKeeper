@@ -144,7 +144,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
               <Title order={2} id={`${v.id}-h`} fz={{ base: 24, md: 30 }}>{v.title}</Title>
               <Stack gap="xs" maw={720}>
                 {v.text.map((t) => <Text key={t}>{t}</Text>)}
-                <Code block aria-label={`${v.title} on the command line`}>{v.cli.join('\n')}</Code>
+                <Code block role="group" aria-label={`${v.title} on the command line`}>{v.cli.join('\n')}</Code>
               </Stack>
               {(['light', 'dark'] as const).map((scheme) => (
                 <img key={scheme} className={`shot shot-${scheme}`} src={`${base}/app/${v.shot}-${scheme}.png`} alt={v.alt}

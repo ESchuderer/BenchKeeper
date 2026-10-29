@@ -133,6 +133,14 @@ test('sessions record runs the command after -- and records its files; sessions 
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /session exit 0, 1 files changed/);
   assert.equal(readFileSync(join(dir, 'n'), 'utf8'), 'x\n');
+  // The agent's exit code is passed on, and the failed session is still recorded for undo.
+  o = await exec(['sessions', 'record', '--project', dir, '--', 'sh', '-c', 'echo y > m; exit 3']);
+  assert.equal(o.code, 3, o.text);
+  assert.match(o.text, /session exit 3, 1 files changed/);
+  assert.equal(await exec(['undo', o.text.match(/run (\S+):/)[1]]).then((u) => u.code), 0);
+  assert.ok(!existsSync(join(dir, 'm')));
+  o = await exec(['sessions', 'record', '--project', dir, '--', 'benchkeeper-no-such-agent']);
+  assert.equal(o.code, 127, o.text);
   o = await exec(['sessions', 'record', '--project', dir]);
   assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
   o = await exec(['sessions']);

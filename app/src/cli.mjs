@@ -202,7 +202,8 @@ Usage: benchkeeper <command> [options]
                                     drops older ones; clear removes them all, the history of deleted transcripts for good
                                     (run it while no scan runs in the web UI: that scan writes them back). Both ask first
   sessions record [--project dir] -- <agent> [args]
-                                    runs an agent session and records the files it changes (undo restores them)
+                                    runs an agent session and records the files it changes (undo restores them);
+                                    exits with the agent's exit code (127: it did not start)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
   accounts add [name] [--agent claude|codex] [--container --mount path] [--label text] [--dir path] [--yes]
                                     registers an account: its own folder (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a
@@ -804,7 +805,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const run = recordSession({ ...ctx, roots: [dir] }, dir, argv);
     const e = run.entries[0];
     out.write(`session exit ${e.exit}, ${e.files.length} files changed${e.transcript ? `, transcript ${e.transcript}` : ''}\nrun ${run.id}: undo with benchkeeper undo ${run.id}\n`);
-    return 0;
+    return e.exit;
   }
   if (cmd === 'profile') {
     if (arg === 'export') {

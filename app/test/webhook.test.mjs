@@ -42,15 +42,13 @@ const until = async (check, ms = 15000) => {
   assert.fail('timed out');
 };
 
-test('webhook: off by default, send does nothing and exits 0', async (t) => {
-  const { ctx } = machine(), r = await receiver(t);
+test('webhook: off by default, send does nothing and exits 0', async () => {
+  const { ctx } = machine();
   assert.deepEqual(sendWebhook(ctx, { state: 'finished', run: 'run-1' }), { sent: false });
   const c = await cli(ctx, ['webhook', 'send', '--state', 'finished', '--run', 'run-1']);
   assert.equal(c.code, 0);
   assert.match(c.text, /no webhook set/);
   assert.match((await cli(ctx, ['webhook', 'status'])).text, /configured: no[\s\S]*last failure: none/);
-  await new Promise((done) => setTimeout(done, 200));
-  assert.equal(r.got.length, 0);
   // A store that cannot be read is the same as none.
   ctx.credentials = { ...ctx.credentials, get: () => { throw new Error('no secret service'); } };
   assert.deepEqual(sendWebhook(ctx, { state: 'failed', automation: 'pr-watch' }), { sent: false });

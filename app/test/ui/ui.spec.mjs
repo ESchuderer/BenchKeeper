@@ -2249,9 +2249,8 @@ test.describe('views', () => {
     await expect(changes.getByRole('status').filter({ hasText: 'Finish the running change first, then try again.' })).toBeVisible();
     answerJob();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
-    await page.unroute(view);
-    await page.unroute(/\/api\/rules-plan$/);
-    await page.unroute(/\/api\/job\?/);
+    // The run reloads the view: wait for that handler, or the unroute answers its request first.
+    await page.unrouteAll({ behavior: 'wait' });
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });

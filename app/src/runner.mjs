@@ -14,7 +14,7 @@ import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { blob, fileMode, git, hasTree } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
-import { mask } from './redact.mjs';
+import { lastLines, mask } from './redact.mjs';
 import { unitsOf } from './units.mjs';
 
 // New files that agents fill with tokens later are created for their user alone.
@@ -24,7 +24,7 @@ export const windowsTool = (...parts) => join(process.env.SystemRoot ?? 'C:\\Win
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
 // A --json command that fails prints its error as a JSON object on stdout: its message, not the object's last lines.
 const jsonError = (s) => { try { const m = JSON.parse(s)?.error?.message; return typeof m === 'string' ? m : undefined; } catch { return undefined; } };
-const failure = (r, lines = 3) => mask((r.stderr || jsonError(r.stdout) || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
+const failure = (r, lines = 3) => lastLines(r.stderr || jsonError(r.stdout) || r.stdout || '', lines) || `exit ${r.code}`;
 
 // The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file
 // that names anything else is not run (the ledger is a file the user's other processes can write).

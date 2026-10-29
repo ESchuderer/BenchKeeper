@@ -10,7 +10,7 @@ mode=$1 limit=$2 rebuildable=${3-node_modules,dist,build,.cache}
 case "$mode" in report|act) ;; *) echo "mode must be report or act" >&2; exit 2 ;; esac
 case "$limit" in ''|*[!0-9]*) echo "the limit must be a whole number of percent" >&2; exit 2 ;; esac
 top=$(git rev-parse --show-toplevel) || exit 2
-work=1
+work=1 moved=
 tmp=${TMPDIR:-/tmp}
 used=$(df -P "$tmp" | awk 'NR == 2 { sub(/%/, "", $5); print $5 }')
 case "$used" in
@@ -58,14 +58,14 @@ unmerged() {
 }
 
 # Removes worktree $1 of branch $2 at commit $3 with its containers and volumes; stops at the first failure. Keeps the
-# branch when its tip moved away from $3 meanwhile.
+# branch when its tip moved away from $3 meanwhile, and lists it in $moved so the branch sweep below keeps it too.
 remove() {
   [ "$(git -C "$1" rev-parse HEAD)" = "$3" ] || return 1
   for c in $(containers -a -q --filter "$(label "$1")"); do "$engine" rm -v "$c" >/dev/null && echo "removed container $c $1" || return 1; done
   for v in $(volumes "$1"); do "$engine" volume rm "$v" >/dev/null && echo "removed volume $v $1" || return 1; done
   git worktree remove "$1" && echo "removed worktree $1 $2" || return 1
   if [ "$(git rev-parse "refs/heads/$2")" = "$3" ]; then git branch -D "$2" >/dev/null && echo "removed branch $2"
-  else echo "kept branch $2 moved"
+  else echo "kept branch $2 moved"; moved="$moved $2"
   fi
 }
 
@@ -107,6 +107,7 @@ branches=$(git for-each-ref --format='%(objectname) %(refname:short) %(worktreep
   [ -z "$wt" ] || continue
   # The opening parenthesis lets bash 3.2 (sh on macOS) parse this case inside $().
   case "$branch" in ("$default"|main|master) continue ;; esac
+  case "$moved " in (*" $branch "*) continue ;; esac
   [ -n "$(unmerged "$branch" "$head")" ] || echo "$head $branch"
 done)
 while read -r head branch; do

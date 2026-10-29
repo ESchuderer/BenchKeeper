@@ -126,6 +126,8 @@ async function prWatcher(ctx, dir, v) {
     if (p.commits.nodes.some((c) => who(c.commit.author?.user?.login) !== author)) return { skip: 'holds a commit by someone else' };
     if (labels.includes(v.hold_label)) return { skip: `label ${v.hold_label}` };
     if (workers.some((w) => w.working && w.branch === p.headRefName)) return { skip: 'a worker is on it' };
+    // A draft waits for issue pickup to verify its worker's report and mark it ready: no fix worker before that.
+    if (p.isDraft) return { skip: 'draft' };
     if (v.head && p.headRefOid !== v.head) return { skip: `head is ${p.headRefOid}, not ${v.head}` };
     if (checks.some((c) => c.result === 'fail')) {
       return started('checks', p.headRefOid) ? { skip: 'a fix worker was started for this head' } : { fix: `fix-checks #${p.number} ${p.headRefOid}` };
@@ -137,7 +139,6 @@ async function prWatcher(ctx, dir, v) {
     const missing = (policy.merge?.requiredChecks ?? []).filter((n) => !checks.some((c) => c.name === n && c.result === 'pass'));
     if (checks.some((c) => c.result === 'pending')) return { skip: 'checks pending' };
     if (!policy.merge?.allowed) return { skip: 'the policy allows no merge' };
-    if (p.isDraft) return { skip: 'draft' };
     if (p.mergeable !== 'MERGEABLE') return { skip: `mergeable is ${p.mergeable}` };
     if (p.reviewDecision === 'CHANGES_REQUESTED') return { skip: 'changes requested' };
     if (missing.length) return { skip: `required checks not green: ${missing.join(', ')}` };

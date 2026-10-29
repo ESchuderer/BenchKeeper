@@ -141,10 +141,10 @@ test('pr watcher: merges only green own pull requests, and never release, fork, 
 test('pr watcher: one fix worker per failing head and per set of unresolved threads', async () => {
   const failing = checks({ __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'FAILURE' });
   const threads = { reviewThreads: { nodes: [{ id: 'T2', isResolved: false }, { id: 'T1', isResolved: false }, { id: 'T0', isResolved: true }] } };
-  const r = await watch({ nodes: [pr(1, failing), pr(2, threads), pr(3, { ...failing, author: { login: 'helper' }, commits: { nodes: [] } })] });
+  const r = await watch({ nodes: [pr(1, failing), pr(2, threads), pr(3, { ...failing, author: { login: 'helper' }, commits: { nodes: [] } }), pr(5, { ...failing, isDraft: true }), pr(6, { ...threads, isDraft: true })] });
   assert.equal(r.work[0], `fix-checks #1 ${HEAD}`);
   const [, key] = r.work[1].match(/^fix-threads #2 ([0-9a-f]{12})$/);
-  assert.deepEqual(r.skipped, ['skip #3 external, by helper'], 'a trusted author is not this account');
+  assert.deepEqual(r.skipped, ['skip #3 external, by helper', 'skip #5 draft', 'skip #6 draft'], 'a trusted author is not this account; a draft gets no fix worker');
   const said = (body, login = 'me') => ({ comments: { nodes: [{ author: { login }, body }] } });
   const again = await watch({ nodes: [pr(1, { ...failing, ...said(`started\npr-watcher fix checks ${HEAD}`) }), pr(2, { ...threads, ...said(`pr-watcher fix threads ${key}`) }), pr(4, { ...threads, ...said(`pr-watcher fix threads ${key}`, 'stranger') })] });
   assert.deepEqual(again.work, [`fix-threads #4 ${key}`], 'only a comment of this account counts');

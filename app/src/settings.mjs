@@ -163,6 +163,7 @@ function scopeRefusal(def, layer) {
   if (def.scope && SCOPE_NOTE[def.scope]) return SCOPE_NOTE[def.scope];
   if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return 'this key is taken from the user file only';
   if (def.scope === 'User, local, or managed' && layer === 'project') return 'this key is not taken from the project file';
+  if (def.type === 'autoMode' && layer && layer !== 'user') return 'the classifier reads it from the user file only (or managed settings)';
   return null;
 }
 
@@ -192,7 +193,6 @@ function validate(agentId, def, value, layer) {
       return null;
     }
     case 'autoMode': {
-      if (layer && layer !== 'user') return bad('the classifier reads it from the user file only (or managed settings)');
       const { classifyAllShell, ...lists } = kind(value) === 'object' ? value : { classifyAllShell: 0 };
       if (typeof (classifyAllShell ?? false) !== 'boolean' || Object.entries(lists).some(([k, v]) => !['allow', 'soft_deny', 'environment', 'hard_deny'].includes(k) || !Array.isArray(v) || v.some((x) => typeof x !== 'string'))) return bad('an object with allow, soft_deny, environment and hard_deny (lists of texts) and classifyAllShell (true or false)');
       return null;
@@ -380,7 +380,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const eff = vals[0];
     const dflt = setupValue(def.key);
     return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
+      changed: vals.length > 0, setByApp: !!def.setup, refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
   const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), precedence: a.precedence, settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };

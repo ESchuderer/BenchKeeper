@@ -931,7 +931,7 @@ test.describe('views', () => {
     await file.click();
     const changes = page.getByRole('region', { name: /^Changes in / });
     await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
-    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeFocused();
     for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
     finish({ done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} });
     await page.getByRole('button', { name: 'Plan again' }).click();
@@ -1098,7 +1098,12 @@ test.describe('views', () => {
     const doctor = page.getByRole('region', { name: 'Project doctor' });
     await expect(doctor).toContainText('pack matt-pocock is on, but docs/agents/ does not exist');
     await expect(doctor).toContainText(`benchkeeper sessions record --project '${dir}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
-    await expect(doctor.getByRole('button', { name: 'Copy the command for /mattpocock-skills:setup-matt-pocock-skills' })).toBeVisible();
+    const copy = doctor.getByRole('button', { name: 'Copy the command for /mattpocock-skills:setup-matt-pocock-skills' });
+    for (const [ok, text] of [[false, /^Copy failed/], [true, /^Copied$/]]) {
+      await page.evaluate((ok) => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => (ok ? Promise.resolve() : Promise.reject(new Error('denied'))) } }), ok);
+      await copy.click();
+      await expect(doctor.getByRole('status').filter({ hasText: /^Cop/ })).toHaveText(text);
+    }
     await noAxe(page);
     // The app runs nothing: the user's session writes the folder, Check again reads the doctor again.
     mkdirSync(join(dir, 'docs/agents'), { recursive: true });
@@ -1155,6 +1160,19 @@ test.describe('views', () => {
     // The folder is gone: Update writes it again through a run (undoable), which also makes a later edit visible as modified.
     await expect(own).toContainText('removed');
     await expect(own).toContainText('BenchKeeper');
+    // Check for updates keeps the button focused and the table while it loads; the check is answered without it, offline.
+    let answer;
+    const held = new Promise((r) => { answer = r; });
+    await page.route(/\/api\/skills\?check=1$/, async (route) => { await held; await route.fulfill({ response: await route.fetch({ url: route.request().url().replace('?check=1', '') }) }); });
+    const check = page.getByRole('button', { name: 'Check for updates' });
+    await check.focus();
+    await page.keyboard.press('Enter');
+    await expect(check).toHaveAttribute('aria-busy', 'true');
+    await expect(own).toContainText('removed');
+    await expect(check).toBeFocused();
+    answer();
+    await expect(check).toHaveAttribute('aria-busy', 'false');
+    await expect(check).toBeFocused();
     await own.getByRole('button', { name: /^Update/ }).click();
     const update = page.getByRole('dialog', { name: 'Update designing-technical-uis in sk-proj' });
     await update.getByRole('button', { name: /^Apply \d+ changes$/ }).click();

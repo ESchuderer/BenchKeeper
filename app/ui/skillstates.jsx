@@ -1,5 +1,5 @@
-import { Badge, Button, Group, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
-import { useState } from 'react';
+import { Badge, Button, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { useRef, useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
 import { label } from './cards.js';
@@ -107,17 +107,21 @@ export function SkillStates({ refresh }) {
   const [state, setState] = useState(null);
   const start = (dir, title, params) => setAct({ dir, title, params: [...params] });
   const close = () => { setAct(null); data.reload(); refresh?.(); };
+  // The check is another path, which drops the data: the table without the check stays until it answers.
+  const last = useRef(null);
+  if (data.data) last.current = data.data;
   return (
     <Section title="Skill states">
-      <Loading state={data} label="skill states">{(d) => {
+      <Group align="flex-end" gap="md">
+        <Select label="State" placeholder="Any" clearable maw={200} value={state} onChange={setState} data={STATES} />
+        {/* Not the loading prop: it disables the button, which drops the focus. */}
+        <Button variant="default" leftSection={checked && data.loading ? <Loader size={14} /> : icon(IconRefresh, 14)} aria-busy={checked && data.loading} onClick={() => (checked ? data.reload() : setChecked(true))}>Check for updates</Button>
+      </Group>
+      <Loading state={data.data || data.error ? data : { ...data, data: last.current }} label="skill states">{(d) => {
         const rows = d.projects.flatMap((p) => p.skills.map((s) => ({ p, s }))).filter(({ s }) => !state || s.state === state);
         const untracked = d.projects.flatMap((p) => p.untracked.map((u) => ({ p, u })));
         return (
           <>
-            <Group align="flex-end" gap="md">
-              <Select label="State" placeholder="Any" clearable maw={200} value={state} onChange={setState} data={STATES} />
-              <Button variant="default" leftSection={icon(IconRefresh, 14)} loading={checked && data.loading} onClick={() => (checked ? data.reload() : setChecked(true))}>Check for updates</Button>
-            </Group>
             {rows.length ? (
               <Table.ScrollContainer minWidth={820}>
                 <Table aria-label="Skill states">

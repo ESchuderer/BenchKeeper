@@ -1,6 +1,6 @@
 import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Paper, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { IconCopy, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
 import { Dot, Loading, Note, STATE_COLOR, StatusBadge, href, icon, useApi } from './shell.jsx';
@@ -15,12 +15,20 @@ export const Cli = ({ children }) => (
 );
 
 // A command line with a copy button.
-const CommandLine = ({ command, name }) => (
-  <Group gap="xs" wrap="nowrap" align="flex-start">
-    <Code block tabIndex={0} style={{ flex: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{command}</Code>
-    <Button size="compact-xs" variant="default" leftSection={icon(IconCopy)} aria-label={`Copy ${name}`} onClick={() => navigator.clipboard?.writeText(command).catch(() => {})}>Copy</Button>
-  </Group>
-);
+function CommandLine({ command, name }) {
+  const [copied, setCopied] = useState(null);
+  // Without a clipboard (an insecure context) the call throws, which counts as a failed copy.
+  const copy = () => Promise.resolve().then(() => navigator.clipboard.writeText(command)).then(() => setCopied('Copied'), () => setCopied('Copy failed: select the command and copy it by hand.'));
+  return (
+    <Stack gap={4}>
+      <Group gap="xs" wrap="nowrap" align="flex-start">
+        <Code block tabIndex={0} style={{ flex: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{command}</Code>
+        <Button size="compact-xs" variant="default" leftSection={icon(IconCopy)} aria-label={`Copy ${name}`} onClick={copy}>Copy</Button>
+      </Group>
+      <Text size="xs" role="status" c={copied && copied !== 'Copied' ? 'red' : undefined}>{copied}</Text>
+    </Stack>
+  );
+}
 
 // A step only the user can start: the app shows the line for their own terminal and does not run it.
 export const StartBlock = ({ start, why }) => (
@@ -309,14 +317,14 @@ export function Plan({ plan, onDone, onRunning }) {
     try { setJob(await api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) })); } catch (e) { setError(e.message); onRunning?.(false); }
     setBusy(false);
   };
-  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onRunning?.(false); onDone?.(run, output); }} />;
+  if (job) return <RunProgress focus job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onRunning?.(false); onDone?.(run, output); }} />;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}
       <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} />
       <Group role="group" aria-label="Selected changes" justify="space-between" gap="xs" py="xs"
         style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--mantine-color-body)', borderTop: '1px solid var(--mantine-color-default-border)' }}>
-        <Text size="sm">{select.length} {select.length === 1 ? 'change' : 'changes'} selected</Text>
+        <Text size="sm" role="status">{select.length} {select.length === 1 ? 'change' : 'changes'} selected</Text>
         <Group gap="xs">
           <Button variant="default" onClick={() => setCancelled(true)}>Cancel</Button>
           <Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length} aria-label={`Apply ${select.length} changes`}>Apply</Button>
@@ -374,15 +382,18 @@ export function CancelJob({ job, state, what }) {
 }
 
 // A started apply: each change with its status, the running command's output, then the run.
-export function RunProgress({ job, total, onDone }) {
+// focus: the section takes focus on mount, for a view that replaced the button that started it.
+export function RunProgress({ job, total, onDone, focus }) {
   const state = useJob(job, (s) => onDone?.(s.run, s.output, s));
+  const ref = useRef(null);
+  useEffect(() => { if (focus) ref.current?.focus(); }, []);
   const entries = state?.run?.entries ?? [];
   // Each change is journaled as running before it starts.
   const finished = entries.filter((e) => e.status && e.status !== 'running').length;
   const running = !state?.done && entries.find((e) => e.status === 'running');
   const waiting = state?.done ? 0 : Math.max(total - entries.length, 0);
   return (
-    <Stack gap="sm" component="section" aria-label="Apply progress">
+    <Stack gap="sm" component="section" aria-label="Apply progress" ref={ref} tabIndex={-1}>
       <Progress value={total ? (finished / total) * 100 : 100} aria-label="Changes done" color={state?.run?.status === 'failed' || entries.some((e) => e.status === 'failed') ? 'red' : 'teal'} />
       <Text role="status">
         {state?.done ? <>Run <Code>{state.run?.id ?? job}</Code>: {state.error ?? state.run?.status} ({finished} of {total} changes). <Anchor href={href('history', { run: state.run?.id })} underline="always">Open in History</Anchor></>

@@ -35,6 +35,7 @@ function ProjectPage({ rest, params, overview, history, refresh }) {
   // undefined until the user opens or closes a form: a missing folder starts with Relocate open.
   const [form, setForm] = useState(undefined);
   const [dialog, setDialog] = useState(null);
+  const [revealError, setRevealError] = useState(null);
   const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const reload = () => { projects.reload(); extra.reload(); refresh(); };
   return (
@@ -59,13 +60,14 @@ function ProjectPage({ rest, params, overview, history, refresh }) {
               {p.notes && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{p.notes}</Text>}
             </Stack>
             <Group gap="xs">
-              {live && <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: p.path }).catch(() => {})}>Open folder</Button>}
+              {live && <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: p.path }).then(() => setRevealError(null), (e) => setRevealError(e.message))}>Open folder</Button>}
               <Button leftSection={icon(IconPencil)} variant="default" onClick={() => setForm('edit')}>Edit name and notes</Button>
               <Button leftSection={icon(IconRoute)} variant="default" onClick={() => setForm('relocate')}>Relocate</Button>
               <Button leftSection={icon(IconTrash)} variant="subtle" onClick={() => setDialog('list')}>Remove from list</Button>
               {live && p.checkout && <Button leftSection={icon(IconTrash)} variant="subtle" onClick={() => setDialog('setup')}>Remove BenchKeeper setup</Button>}
             </Group>
           </Group>
+          {revealError && <Note color="red" title="Open folder failed">{revealError}</Note>}
           {open === 'edit' && <EditProject project={p} onDone={() => { setForm(null); reload(); }} onClose={() => setForm(null)} />}
           {open === 'relocate' && <Relocate project={p} onDone={() => { setForm(null); go('projects'); reload(); }} onClose={() => setForm(null)} />}
           {p.missing && <Note color="red" title="Folder not found">{p.path} does not exist. Relocate the project when the folder moved or was renamed, or remove it from the list.</Note>}

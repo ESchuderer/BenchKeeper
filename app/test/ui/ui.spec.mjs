@@ -1560,6 +1560,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(ask).toBeHidden();
     await expect(history.getByText(count)).toBeVisible();
+    await expect(history.getByText('Cache cleared.')).toBeHidden();
     await clear.click();
     await ask.getByRole('button', { name: 'Clear the cache' }).click();
     await expect(history.getByText('Cache cleared.')).toBeVisible();

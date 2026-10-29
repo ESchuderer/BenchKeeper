@@ -401,6 +401,15 @@ test('globalSkills: the global skill folder plus turned-on plugins, turned-off o
   assert.equal(globalSkills(ctx, 'claude'), 3);
 });
 
+test('a global skill folder that links to a missing target counts as empty', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-gdangling-'));
+  const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  symlinkSync(join(home, 'unmounted/skills'), join(home, '.claude/skills'));
+  assert.equal(globalSkills(ctx, 'claude'), 0);
+  assert.equal(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }).some((c) => c.step === 'other:claude:skill'), false);
+});
+
 test('third-party plugins are not pinned: the marketplace is added as the agent adds it, an installed one is left to the agent', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-unpinned-'));
   const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });

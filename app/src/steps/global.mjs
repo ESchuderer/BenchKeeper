@@ -8,7 +8,7 @@ import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
 import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
-import { exists, hashText, inside, listFiles, readText } from '../fsx.mjs';
+import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
@@ -111,7 +111,7 @@ const marketRefs = (list) => ({ markets: list.map((m) => m.name), refs: Object.f
 
 // Skills an agent loads in every session: its global skill folder plus the skills of its turned-on plugins.
 export function globalSkills(ctx, a) {
-  const count = (d) => (exists(d) ? readdirSync(d).filter((n) => exists(join(d, n, 'SKILL.md'))).length : 0);
+  const count = (d) => listDir(d).filter((n) => exists(join(d, n, 'SKILL.md'))).length;
   let n = count(join(ctx.home, agent(a).global.skills));
   if (a === 'claude' || a === 'codex') {
     for (const p of pluginState(ctx, a).listed.filter((x) => x.enabled && x.version)) {
@@ -134,7 +134,7 @@ export function pluginState(ctx, a, account) {
 function codexCache(ctx, id) {
   const [name, market] = id.split('@');
   const d = join(ctx.home, `.codex/plugins/cache/${market}/${name}`);
-  const version = (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
+  const version = listDir(d).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
   return { version, dir: version && join(d, version) };
 }
 function readPluginState(ctx, a, account) {
@@ -282,7 +282,7 @@ export function globalPlan(env) {
   }
   if (agents.includes('codex')) {
     const dir = at('.codex/rules');
-    for (const f of (exists(dir) ? readdirSync(dir) : []).filter((x) => !CODEX_OWN_RULES.includes(x))) add(`ask:codex:${f}`, `Codex command rules file ${f} (BenchKeeper adds none)`, { kind: 'remove', path: join(dir, f) });
+    for (const f of listDir(dir).filter((x) => !CODEX_OWN_RULES.includes(x))) add(`ask:codex:${f}`, `Codex command rules file ${f} (BenchKeeper adds none)`, { kind: 'remove', path: join(dir, f) });
   }
 
   }
@@ -384,8 +384,8 @@ export function globalPlan(env) {
   const globalPacks = lib.packs.filter((p) => !p.plugins && p.skills?.length && packScope(ctx, p) === 'global');
   const packSkills = globalPacks.flatMap((p) => p.skills);
   for (const [a, d] of Object.entries(skillDirs)) {
-    if (!agents.includes(a) || !exists(at(d))) continue;
-    for (const s of readdirSync(at(d))) if (!KEEP_SKILLS.includes(s) && !packSkills.includes(s)) add(`other:${a}:skill`, `move the global skill ~/${d}/${s} to the backup`, { kind: 'remove', path: at(join(d, s)) });
+    if (!agents.includes(a)) continue;
+    for (const s of listDir(at(d))) if (!KEEP_SKILLS.includes(s) && !packSkills.includes(s)) add(`other:${a}:skill`, `move the global skill ~/${d}/${s} to the backup`, { kind: 'remove', path: at(join(d, s)) });
   }
   if (agents.includes('claude')) {
     const servers = Object.keys(parseJsonSafe(readText(at('.claude.json'))).mcpServers ?? {}).filter((n) => SAFE_NAME.test(n));

@@ -403,7 +403,9 @@ export function gitCodeConfig(ctx, path) {
   const common = git(ctx, path, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();
   const hooks = common && join(common, 'hooks');
   for (const name of isDir(hooks) ? readdirSync(hooks).sort() : []) {
-    const file = join(hooks, name), st = statSync(file);
+    const file = join(hooks, name);
+    // A hook that links to a removed script runs nothing.
+    let st; try { st = statSync(file); } catch { continue; }
     if (!name.endsWith('.sample') && st.isFile() && (st.mode & 0o111)) out.push({ key: `hook ${name}`, value: readFileSync(file, 'utf8') });
   }
   return out;

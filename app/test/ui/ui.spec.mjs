@@ -1914,10 +1914,10 @@ test.describe('views', () => {
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
     await page.getByLabel('Search settings').fill('autoMemoryEnabled');
     await expect(about(page.getByRole('table', { name: 'Memory' }), 'autoMemoryEnabled')).toContainText('Current: the default');
-    // A key outside the catalog: no guessed text, the rest of the facts still there.
+    // A key outside the catalog: the reference description, no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
-    await expect(outside).toContainText('Not explained yet.');
+    await expect(outside).toContainText('Keep a saved effort level or auto-compact window per model');
     await expect(outside).toContainText('Default:');
     await expect(outside).not.toContainText('Impact:');
     await page.getByRole('switch', { name: 'Advanced: every key' }).uncheck();

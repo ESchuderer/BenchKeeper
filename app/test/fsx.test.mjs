@@ -21,8 +21,8 @@ test('readers fall back on a missing path', () => {
 test('listFiles: relative paths of a tree in name order', () => {
   const d = tmp();
   mkdirSync(join(d, 'b'));
-  for (const f of ['c', 'a', join('b', 'z'), join('b', 'y')]) writeFileSync(join(d, f), f);
-  assert.deepEqual(listFiles(d), ['a', join('b', 'y'), join('b', 'z'), 'c']);
+  for (const f of ['c', 'a', 'B', join('b', 'z'), join('b', 'y')]) writeFileSync(join(d, f), f);
+  assert.deepEqual(listFiles(d), ['a', join('b', 'y'), join('b', 'z'), 'B', 'c']);
 });
 
 test('hashPath: a folder hashes names and contents, a link its target', noLinks, () => {
@@ -123,7 +123,11 @@ test('copy: a new path, a dangling link, an existing folder, and no leftover on 
   copy(join(d, 'dangling'), join(d, 'out', 'link'));
   assert.equal(readlinkSync(join(d, 'out', 'link')), 'gone');
   assert.throws(() => copy(join(d, 'missing'), join(d, 'out', 'none')));
-  assert.deepEqual(readdirSync(join(d, 'out')).sort(), ['dst', 'link']);
+  mkdirSync(join(d, 'linked'));
+  symlinkSync('x', join(d, 'linked', 'l'));
+  copy(join(d, 'linked'), join(d, 'out', 'linked'));
+  assert.equal(readlinkSync(join(d, 'out', 'linked', 'l')), 'x');
+  assert.deepEqual(readdirSync(join(d, 'out')).sort(), ['dst', 'link', 'linked']);
   // A failed copy onto an existing folder leaves that folder.
   assert.throws(() => copy(join(d, 'missing'), join(d, 'out', 'dst')));
   assert.deepEqual(readdirSync(join(d, 'out', 'dst')).sort(), ['a', 'b']);

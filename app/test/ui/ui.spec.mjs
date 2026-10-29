@@ -130,7 +130,7 @@ test.describe('views', () => {
     const theme = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /theme$/ });
     await expect.poll(async () => (await theme.boundingBox()).x).toBeGreaterThanOrEqual(0);
     await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: 'Stop BenchKeeper' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('skip link: the first Tab stop moves focus to the view heading; each view has a title and a heading', async ({ page }) => {
@@ -477,7 +477,7 @@ test.describe('views', () => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
-    await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
@@ -489,6 +489,24 @@ test.describe('views', () => {
     await run.click();
     await expect(page).toHaveURL(/#\/history\?run=\d{8}T/);
     await expect(page.getByRole('region', { name: /^Run / })).toBeVisible();
+  });
+
+  test('Doctor counts: the header, the Dashboard and Insights count errors, warnings and info alike; an info finding has the info color', async ({ page }) => {
+    const info = { level: 'info', check: 'allow-rules', message: 'Claude Code allows WebFetch (user, settings.json): every WebFetch call', fix: 'information only, nothing is changed' };
+    await page.route(/\/api\/doctor(\?|$)/, async (route) => route.fulfill({ json: [...await (await route.fetch()).json(), info] }));
+    await page.route(/\/api\/insights(\?|$)/, async (route) => {
+      const real = await (await route.fetch()).json();
+      route.fulfill({ json: { ...real, findings: [...real.findings, { ...real.findings.at(-1), key: 'info-test', id: 'info-test', severity: 'info', message: info.message, triage: null }] } });
+    });
+    await page.goto('/#/dashboard');
+    await page.reload();
+    const badge = page.getByRole('banner').getByRole('link', { name: /^Doctor: / });
+    await expect(badge).toHaveText(/^Doctor: \d+ errors?, \d+ warnings?, 1 info$/);
+    const counts = (await badge.textContent()).slice('Doctor: '.length);
+    await expect(page.getByRole('region', { name: 'Doctor' }).getByRole('row', { name: /allows WebFetch/ }).locator('.bk-dot')).toHaveAttribute('style', /--mantine-color-blue-filled/);
+    await expect(page.getByText(counts, { exact: true })).toHaveCount(2);
+    await nav(page, 'Insights').click();
+    await expect(page.getByText(new RegExp(`^\\d+ findings: ${counts}\\. Do first: `))).toBeVisible();
   });
 
   test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {

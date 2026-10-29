@@ -2,6 +2,7 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, S
 import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { plural } from './cards.js';
 import { splitSource } from './fixsource.js';
 import { updateProjects } from './update.js';
 import { ChangeList, RunProgress, SettingFactsOf, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
@@ -14,6 +15,13 @@ export function fixAction(i) {
   if (i.check === 'agent-settings') return [href('agent-settings', { ...(/^Codex/.test(i.message) ? { agent: 'codex' } : {}), ...(i.dir ? { layer: 'project', path: i.dir } : {}) }), 'Open settings'];
   if (i.check === 'project') return [href('projects', i.dir ? { path: i.dir } : {}), 'Plan project'];
   return null;
+}
+
+export const LEVEL_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
+// The count per doctor level and its text ("2 errors, 1 warning, 1 info") with a zero level left out; Insights keeps the level in `severity`.
+export function levelCounts(found, of = (i) => i.level) {
+  const n = Object.fromEntries(Object.keys(LEVEL_COLOR).map((l) => [l, found.filter((i) => of(i) === l).length]));
+  return { ...n, text: Object.entries(n).filter(([, c]) => c).map(([l, c]) => (l === 'info' ? `${c} info` : plural(c, l))).join(', ') };
 }
 
 // A fix names its source (fixsource.js) and a finding its run by id: the cell shows the action, the source becomes
@@ -32,7 +40,7 @@ export function DoctorTable({ found, onAction }) {
             const action = fixAction(i), { text, source } = splitSource(i.fix);
             return (
               <Table.Tr key={n}>
-                <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.tag ?? i.level}</Badge></Table.Td>
+                <Table.Td><Badge variant="default" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge></Table.Td>
                 <Table.Td>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</Table.Td>
                 <Table.Td>
                   <Stack gap={4} align="flex-start">

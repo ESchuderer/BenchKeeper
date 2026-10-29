@@ -69,9 +69,9 @@ async function issuePickup(ctx, dir, v) {
   const here = workers.filter((w) => w.branch && w.working).length, host = workers.filter((w) => w.working).length;
   const free = Math.floor(freemem() / 2 ** 20);
   const limits = [
-    here >= perProject && `limit workersPerProject ${perProject} reached`,
-    host >= perHost && `limit hostWorkerLimit ${perHost} reached`,
-    free < Number(v.min_free_mb) && `limit free memory ${free} MB below ${v.min_free_mb} MB`,
+    here >= perProject && `skip limit workersPerProject ${perProject} reached`,
+    host >= perHost && `skip limit hostWorkerLimit ${perHost} reached`,
+    free < Number(v.min_free_mb) && `skip limit free memory ${free} MB below ${v.min_free_mb} MB`,
   ].filter(Boolean);
   if (limits.length) return { work, skipped: limits };
   const trusted = new Set((policy.trustedAuthors ?? []).map(who));

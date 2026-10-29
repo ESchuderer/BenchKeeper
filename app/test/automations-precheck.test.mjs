@@ -93,12 +93,12 @@ test('issue pickup: other author, dependency, open pull request, worktree and bl
 test('issue pickup: the worker limits and free memory, and a blocked worker that settled', async () => {
   const issues = [issue(1)];
   const here = await pickup({ issues, workers: [worker('/w2')], trees: { '/w2': 'feat/2-a' } });
-  assert.deepEqual([here.work, here.skipped], [[], ['limit workersPerProject 1 reached']]);
+  assert.deepEqual([here.work, here.skipped], [[], ['skip limit workersPerProject 1 reached']]);
   const host = world({ issues, workers: [worker('/elsewhere/a'), worker('/elsewhere/b')] });
   const h = await precheck(host.ctx, 'issue-pickup', { min_free_mb: '0' }, '/p');
-  assert.deepEqual(h.skipped, ['limit hostWorkerLimit 2 reached']);
+  assert.deepEqual(h.skipped, ['skip limit hostWorkerLimit 2 reached']);
   assert.ok(!host.calls.some((c) => c.startsWith('gh api --paginate')), 'a reached limit reads no issues');
-  assert.match((await pickup({ issues }, { min_free_mb: '99999999' })).skipped[0], /^limit free memory \d+ MB below 99999999 MB$/);
+  assert.match((await pickup({ issues }, { min_free_mb: '99999999' })).skipped[0], /^skip limit free memory \d+ MB below 99999999 MB$/);
   // A worker that reported BLOCKED settled: it holds no slot, is work for the session, and its issue is not picked again.
   const blocked = await pickup({ issues: [issue(1), issue(2)], workers: [worker('/w2', 'failed')], trees: { '/w2': 'feat/2-a' } });
   assert.deepEqual(blocked.work, ['settled feat/2-a /w2', 'pick #1']);

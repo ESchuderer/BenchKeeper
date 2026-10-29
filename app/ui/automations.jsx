@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, Select, Stack, Table, Text, TextInput } fro
 import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, Section } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
@@ -72,6 +72,7 @@ export function Automations({ overview, refresh }) {
   const state = useApi('/api/automations');
   const projects = overview.data?.projects ?? [];
   const [pending, setPending] = useState(null);
+  const [running, setRunning] = useState(false);
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
   const plan = async (body) => {
@@ -131,8 +132,8 @@ export function Automations({ overview, refresh }) {
               )}
               {pending && (
                 <Section title="Changes">
-                  <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onDone={done} />
-                  <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
+                  <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onRunning={setRunning} onDone={done} />
+                  <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
                 </Section>
               )}
             </Stack>

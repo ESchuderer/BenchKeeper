@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, Paper, Progress, Radio, Select, SimpleGrid,
 import { IconCopy, IconLogin2, IconPlus, IconStar, IconTrash } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, Cli, Plan, Section, useJob } from './parts.jsx';
+import { CancelJob, Cli, Plan, PlanClose, Section, useJob } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const AGENT = { claude: 'Claude Code', codex: 'Codex' };
@@ -176,6 +176,7 @@ export function Accounts({ overview, refresh }) {
   const projects = overview.data?.projects ?? [];
   const [project, setProject] = useState(null);
   const [pending, setPending] = useState(null);
+  const [running, setRunning] = useState(false);
   const [signIn, setSignIn] = useState(null);
   const [saving, setSaving] = useState(null);
   const [checks, setChecks] = useState({});
@@ -253,8 +254,8 @@ export function Accounts({ overview, refresh }) {
               )}
             {pending && (
               <Section title="Changes">
-                <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onDone={done} />
-                <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
+                <Plan key={pending.plan.planId} plan={pending.plan} why={pending.why} scope="global" onRunning={setRunning} onDone={done} />
+                <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
               </Section>
             )}
             {data.accounts.some((a) => a.mode === 'container') && <ContainerRisk />}

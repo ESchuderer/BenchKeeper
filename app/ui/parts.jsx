@@ -369,6 +369,12 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
   );
 }
 
+// Close under a plan: while it applies, closing would drop the run's view and its reload, so the button ignores clicks
+// but keeps the keyboard focus.
+export const PlanClose = ({ running, onClose }) => (
+  <Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && onClose()}>Close</Button>
+);
+
 
 // A started job (apply or eval), polled until it is done. A failed poll is retried; only a lost job (404) or ten
 // misses in a row end the view, the job itself goes on.

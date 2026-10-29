@@ -2106,6 +2106,35 @@ test.describe('views', () => {
     await page.unroute(/\/api\/rules-plan$/);
   });
 
+  test('Rules: while an apply runs, Close, the Pending switch and Show ignore input and keep the focus; after it the view shows the new state', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
+    await toggle.click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    const close = changes.getByRole('button', { name: 'Close' });
+    await expect(close).toHaveAttribute('aria-disabled', 'true');
+    await close.focus();
+    await page.keyboard.press('Enter');
+    await expect(close).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    await toggle.click({ force: true });
+    await expect(team).toContainText('Pending');
+    await expect(page.getByRole('combobox', { name: 'Show' })).toHaveAttribute('aria-disabled', 'true');
+    answer();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(team).toContainText('off');
+    await expect(close).not.toHaveAttribute('aria-disabled');
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
     const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Presets, pins and policy' });
     await expect(entry).toHaveCount(0);

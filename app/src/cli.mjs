@@ -933,7 +933,7 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     let uctx;
     try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
-    return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out);
+    try { return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out); } catch (e) { out.write(`${e.message}\n`); return e.usage ? 2 : 1; }
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
     if (positionals.length > 1) { out.write(`unexpected argument ${positionals[1]}\n`); return 2; }

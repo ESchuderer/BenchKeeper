@@ -93,6 +93,18 @@ test('undo of one step leaves the others', () => {
   assert.equal(existsSync(join(c.home, 'b')), true);
 });
 
+test('undo that restores nothing records no run: an unknown step or unit names the known ones, a second undo refuses', () => {
+  const c = context({ home: home() });
+  const run = apply([write(c, 'a', '1', { step: 'one', installUnit: { id: 'skill:a' } }), write(c, 'b', '2', { step: 'two' })], c);
+  const runs = c.ledger.list().length;
+  assert.throws(() => undo(run.id, c, { step: 'typo' }), (e) => e.usage && e.status === 400 && /has no step typo; its steps: one, two/.test(e.message));
+  assert.throws(() => undo(run.id, c, { unit: 'skill:b' }), (e) => e.usage && /has no unit skill:b; its units: skill:a/.test(e.message));
+  undo(run.id, c);
+  assert.throws(() => undo(run.id, c), (e) => !e.usage && e.status === 409 && /nothing to undo in run/.test(e.message));
+  assert.throws(() => undo(run.id, c, { step: 'one' }), /nothing to undo in run \S+ step one/);
+  assert.equal(c.ledger.list().length, runs + 1);
+});
+
 test('undo refuses a file changed after the change, and a missing backup; a whole run goes newest first', () => {
   const c = context({ home: home() });
   writeFileSync(join(c.home, 'f'), '0');

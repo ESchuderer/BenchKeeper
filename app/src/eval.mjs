@@ -39,18 +39,22 @@ function lastResults(ctx) {
 // The scratch repository takes no template from the user's git config (a template can bring hooks).
 const AGENTS = {
   claude: { argv: (ctx, q, model) => ['claude', '-p', q, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config', ...noTrace(ctx, 'claude'), ...(model ? ['--model', model] : [])], skills: '.claude/skills' },
-  // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
+  // shortcut: Codex trigger detection reads SKILL.md paths in the command of command_execution items (event shape unverified), check it on the first owner run.
   codex: { argv: (ctx, q, model, mcpOff) => ['codex', 'exec', ...mcpOff, '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
 export const EVAL_AGENTS = Object.keys(AGENTS);
+// A load is a Skill call, a Read of the SKILL.md or a Codex command naming it; the path in tool output (a Glob or ls of the scratch repository) is none.
 export function triggered(output, name) {
+  const path = new RegExp(`skills[\\\\/]${name}[\\\\/]SKILL\\.md`);
   for (const line of output.split('\n')) {
     let e;
     try { e = JSON.parse(line); } catch { continue; }
     const uses = e.message?.content?.filter?.((c) => c.type === 'tool_use') ?? [];
     if (uses.some((u) => u.name === 'Skill' && [name, `benchkeeper:${name}`].includes(u.input?.skill ?? u.input?.command))) return true;
+    if (uses.some((u) => u.name === 'Read' && new RegExp(`${path.source}$`).test(u.input?.file_path ?? ''))) return true;
+    if (e.item?.type === 'command_execution' && path.test([e.item.command ?? []].flat().join(' '))) return true;
   }
-  return new RegExp(`skills/${name}/SKILL\\.md`).test(output);
+  return false;
 }
 
 // The runs eval would start: targets whose skill, rules or cases changed since their last stored result (all: every target).

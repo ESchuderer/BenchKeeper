@@ -24,6 +24,7 @@ export function mask(text, { keys = true } = {}) {
 // key block whose END line has not come yet is masked too. s holds { text, rest, end }: the masked lines, the unfinished
 // last line (raw) and the END line an open key block waits for. shown(s) is the text with the unfinished line masked.
 // s.pending is set when a line ends with a secret key and no value: the first token of the next line is that value.
+// It also stays set when an unfinished line ends inside such a value, so the rest of the value is masked when it comes.
 const PENDING = new RegExp(`\\b${NAME}["']?\\s*[=:]\\s*(?:(?:Bearer|Basic|token)\\s+)?$`, 'i');
 const NEXT = new RegExp(`^(\\s*)${VALUE}`, 'i');
 const BEGIN = /-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY( BLOCK)?-----/g;
@@ -37,15 +38,17 @@ function maskLine(s, line) {
     return stars(line.slice(0, i)) + end + maskLine(s, line.slice(i + end.length));
   }
   if (s.pending && /\S/.test(line)) {
-    s.pending = false;
     // A key block on the next line is masked as a block: its BEGIN line is not the value.
     const v = !/^\s*-----BEGIN /.test(line) && line.match(NEXT);
+    // An unquoted value that runs to the end of an unfinished line goes on in the next chunk.
+    s.pending = !!v && v[0].length === line.length && !/["']$/.test(line);
     if (v) return `${v[1]}***${maskLine(s, line.slice(v[0].length))}`;
   }
   const open = [...line.matchAll(BEGIN)].at(-1);
   const end = open && `-----END ${open[1]}PRIVATE KEY${open[2] ?? ''}-----`;
   if (!open || line.includes(end, open.index)) {
-    if (PENDING.test(line)) s.pending = true;
+    const last = [...line.matchAll(ASSIGN)].at(-1);
+    if (PENDING.test(line) || (last && last.index + last[0].length === line.length && !/["']$/.test(line))) s.pending = true;
     return mask(line);
   }
   s.end = end;

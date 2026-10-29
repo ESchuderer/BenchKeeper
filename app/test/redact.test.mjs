@@ -59,3 +59,14 @@ test('maskStream: a secret assignment split across a line break masks the first 
   const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} RSA PRIVATE KEY-----`);
   assert.equal(shown(feed(`key:\n${b}\nabc\n${e}\n`)), `key:\n${b}\n***\n${e}\n`);
 });
+
+test('maskStream: a secret value cut by the kept tail stays masked until it ends', () => {
+  const run = (max, ...chunks) => chunks.reduce((s, c) => maskStream(s, c, max), { text: '', rest: '', end: null });
+  assert.equal(shown(run(65536, 'password =\n', 'v'.repeat(70000))), 'password =\n***');
+  assert.equal(shown(run(16, 'password =\n', 'v'.repeat(20), 'w'.repeat(20), ' ok\n')).slice(-7), '*** ok\n');
+  assert.equal(shown(run(16, `x secret=${'v'.repeat(20)}`, 'w'.repeat(4))), '***');
+  // The value ends before the cut: the text after it shows.
+  assert.equal(shown(run(16, 'password =\n', `abc ${'z'.repeat(30)}`)), `password =\n${'z'.repeat(16)}`);
+  assert.equal(shown(run(16, `x token=abc ${'z'.repeat(30)}`)), 'z'.repeat(16));
+  assert.equal(shown(run(16, 'password =\n', '"a"', 'z'.repeat(16))), `password =\n${'z'.repeat(16)}`);
+});

@@ -41,7 +41,8 @@ esac
   };
 }
 
-const check = (diff) => spawnSync('sh', [helper('check.sh')], { input: readFileSync(fixture(diff)), encoding: 'utf8' });
+// Outside a git checkout, so the fixtures' blobs are unknown.
+const check = (diff) => spawnSync('sh', [helper('check.sh')], { cwd: tmpdir(), input: readFileSync(fixture(diff)), encoding: 'utf8' });
 
 test('code-findings: parameters adapter, linter, token_var and max_workers, report only by default, lint passes', () => {
   const t = template();
@@ -114,7 +115,22 @@ test('code-findings check step: the quality configs and coverage markers of the 
     'config: tox.ini: +omit = src/hard.py',
   ], 'tool sections only, a hunk without its section header counts as one; dependencies pass');
   assert.deepEqual(lines('fix-quality-config.diff'), ['knip.json', 'tsconfig.json', 'biome-quality.jsonc', '.basedpyright/baseline.json', 'scripts/tsc-baseline.sh'].map((f) => `config: ${f}`));
-  assert.deepEqual(lines('fix-markers.diff'), ['suppression: src/a.js: /* v8 ignore next */', 'suppression: src/a.js: // stryker-disable-next-line all', 'suppression: pkg/mod.py:     return 1  # pragma: no cover']);
-  assert.deepEqual(lines('fix-rename.diff'), ['config: eslint.config.mjs']);
+  assert.deepEqual(lines('fix-markers.diff'), ['/* v8 ignore next */', '// stryker-disable-next-line all', '// Stryker disable next-line all', '/* node:coverage ignore next */']
+    .map((l) => `suppression: src/a.js: ${l}`).concat('suppression: pkg/mod.py:     return 1  # pragma: no cover'));
+  assert.deepEqual(lines('fix-rename.diff'), ['config: eslint.config.mjs', 'config: pyproject.toml']);
   assert.deepEqual(lines('fix-quoted.diff'), ['config: caf\\303\\251/tsconfig.json'], 'a path git quotes for its non-ASCII characters');
+});
+
+test('code-findings check step: a hunk below its section header is in the section git has above it', sh, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cf-toml-'));
+  const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd: dir });
+  const toml = (dep, opt) => ['[project]', 'dependencies = [', ...Array.from({ length: 10 }, (_, i) => `  "dep${i}>=${i === 8 ? dep : 1}",`), ']',
+    '  [tool.ruff]', ...Array.from({ length: 10 }, (_, i) => `opt${i} = ${i === 8 ? opt : 1}`), ''].join('\n');
+  writeFileSync(join(dir, 'pyproject.toml'), toml(1, 1));
+  git('init', '-q');
+  git('add', '.');
+  git('commit', '-qm', 'init');
+  writeFileSync(join(dir, 'pyproject.toml'), toml(2, 2));
+  const r = spawnSync('sh', [helper('check.sh')], { cwd: dir, input: git('diff').stdout, encoding: 'utf8' });
+  assert.deepEqual([r.status, r.stdout.trim().split('\n')], [1, ['config: pyproject.toml: -opt8 = 1', 'config: pyproject.toml: +opt8 = 2']], 'the dependency passes, the indented tool section does not');
 });

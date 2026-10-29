@@ -2,10 +2,12 @@ diff --git a/src/a.js b/src/a.js
 index 1111111..2222222 100644
 --- a/src/a.js
 +++ b/src/a.js
-@@ -1,2 +1,4 @@
+@@ -1,2 +1,6 @@
 +/* v8 ignore next */
  if (rare) handle();
 +// stryker-disable-next-line all
++// Stryker disable next-line all
++/* node:coverage ignore next */
  export const x = 1;
 diff --git a/pkg/mod.py b/pkg/mod.py
 index 1111111..2222222 100644

@@ -276,8 +276,8 @@ export const confirms = (plan, select) => ({ confirmDestructive: plan.changes.so
 export const defaultSelect = (plan) => plan.changes.filter((c) => c.selected && !c.error).map((c) => c.id);
 
 // A plan from the server: its changes (removals off by default), then apply from a footer that stays in view. After the
-// apply, the run with its undo replaces the plan.
-export function Plan({ plan, onDone }) {
+// apply, the run with its undo replaces the plan. onRunning hears when an apply starts and ends.
+export function Plan({ plan, onDone, onRunning }) {
   const [select, setSelect] = useState(() => defaultSelect(plan));
   const [cancelled, setCancelled] = useState(false);
   const [job, setJob] = useState(null);
@@ -285,6 +285,7 @@ export function Plan({ plan, onDone }) {
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(null);
   const prerun = usePrerun(plan);
+  useEffect(() => () => onRunning?.(false), []);
   if (applied) {
     return (
       <Stack gap="sm">
@@ -304,10 +305,11 @@ export function Plan({ plan, onDone }) {
   }
   const run = async () => {
     setBusy(true);
-    try { setJob(await api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) })); } catch (e) { setError(e.message); }
+    onRunning?.(true);
+    try { setJob(await api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) })); } catch (e) { setError(e.message); onRunning?.(false); }
     setBusy(false);
   };
-  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onDone?.(run, output); }} />;
+  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onRunning?.(false); onDone?.(run, output); }} />;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}

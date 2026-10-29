@@ -123,6 +123,7 @@ function Installs({ project, others, onDone, onSetup }) {
   const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
   const [applied, setApplied] = useState(null);
+  const [running, setRunning] = useState(false);
   const q = new URLSearchParams({ dir: project.path });
   for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off'], ['fileOn', 'file-on'], ['fileOff', 'file-off']]) for (const n of toggles[k]) q.append(name, n);
   const plan = useApi(!project.missing && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
@@ -130,6 +131,8 @@ function Installs({ project, others, onDone, onSetup }) {
   const shown = useRef(null);
   if (plan.data) shown.current = { path: project.path, data: plan.data };
   const rows = { ...plan, data: plan.data ?? (shown.current?.path === project.path ? shown.current.data : null) };
+  // A switch flips from its row, so it waits for the plan; during an apply a new plan would drop the running job's view.
+  const locked = plan.loading || running;
   const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
     ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
     : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
@@ -156,11 +159,11 @@ function Installs({ project, others, onDone, onSetup }) {
         <Loading state={rows} label="project plan">{(p) => (
           <>
             {/* A global pack this project does not choose shows once, in the global block. */}
-            <PackSwitches packs={p.packs.filter((x) => !p.global.packs.some((g) => g.id === x.id))} project={project} others={others} toggles={toggles} setToggles={setToggles} />
+            <PackSwitches packs={p.packs.filter((x) => !p.global.packs.some((g) => g.id === x.id))} project={project} others={others} toggles={toggles} setToggles={setToggles} busy={locked} />
             {!!p.chosen.length && (
               <Section title="Skills">
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
-                  {p.chosen.map((s) => <InstallRow key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} hint={s.hint} state={s.state}
+                  {p.chosen.map((s) => <InstallRow key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} busy={locked} hint={s.hint} state={s.state}
                     facts={{ summary: s.pickWhen ?? s.name, eli5: 'one instruction file the agent loads when a task fits it', impact: 'off moves it to .benchkeeper/disabled/ when the plan is applied', default: 'on, with its pack or as a single pick', current: s.disabled ? 'off' : 'on' }} />)}
                 </SimpleGrid>
               </Section>
@@ -168,7 +171,7 @@ function Installs({ project, others, onDone, onSetup }) {
             {!!p.files.length && (
               <Section title="Agent files">
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
-                  {p.files.map((f) => <InstallRow key={f.path} label={f.name} checked={f.on} onChange={() => flipFile(f)} disabled={!!f.fixed && !f.on} why={f.fixed} hint="only this project" state={f.state}
+                  {p.files.map((f) => <InstallRow key={f.path} label={f.name} checked={f.on} onChange={() => flipFile(f)} busy={locked} disabled={!!f.fixed && !f.on} why={f.fixed} hint="only this project" state={f.state}
                     facts={{ summary: f.pickWhen, eli5: 'a description of a helper agent your agent can hand work to', impact: `fetches ${f.name}.md from ${f.source} at a pinned commit into the project's agent folder`, default: 'off', current: f.on ? 'on' : 'off' }} />)}
                 </SimpleGrid>
               </Section>
@@ -178,7 +181,7 @@ function Installs({ project, others, onDone, onSetup }) {
               <Loading state={plan} label="project plan">{(fresh) => (
                 <>
                   {fresh.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                  <Plan key={fresh.planId} plan={fresh} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+                  <Plan key={fresh.planId} plan={fresh} onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
                 </>
               )}</Loading>
             </Section>

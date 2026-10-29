@@ -9,13 +9,14 @@ const STATES = ['current', 'outdated', 'modified', 'removed', 'disabled'];
 const short = (ref) => ref?.slice(0, 12);
 
 // One row of a project's Installs tab: a switch, the scope hint, the state on disk, the scopes an agent fixes with the reason,
-// and the five facts of the explainer (summary, plain words, impact, default, current).
-export function InstallRow({ label, checked, onChange, disabled, hint, state, fixed = [], facts, why }) {
+// and the five facts of the explainer (summary, plain words, impact, default, current). A busy switch ignores clicks but
+// stays focusable (a disabled input loses the keyboard focus).
+export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why }) {
   return (
     <Paper withBorder p="xs">
       <Stack gap={4}>
         <Group justify="space-between" align="flex-start" gap="xs">
-          <Switch checked={checked} onChange={onChange} disabled={disabled} label={label} />
+          <Switch checked={checked} onChange={busy ? () => {} : onChange} disabled={disabled} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />
           <Group gap={4}><Badge variant="default" size="sm">{hint}</Badge><StateBadge state={state} /></Group>
         </Group>
         {why && <Text size="xs">Fixed: {why}.</Text>}
@@ -41,7 +42,7 @@ const OWNER = 'these skills run the steps of larger tasks: questions first, a sp
 
 // One switch per pack of a project, the workflow owner in a section of its own, and "Copy packs from project". The switches
 // only change the plan below them; nothing is written before that plan is applied.
-export function PackSwitches({ packs, project, others, toggles, setToggles }) {
+export function PackSwitches({ packs, project, others, toggles, setToggles, busy }) {
   const flip = (p) => setToggles((t) => (p.enabled
     ? { ...t, packOff: [...t.packOff, p.id], packOn: t.packOn.filter((x) => x !== p.id) }
     : { ...t, packOn: [...t.packOn, p.id], packOff: t.packOff.filter((x) => x !== p.id) }));
@@ -56,7 +57,7 @@ export function PackSwitches({ packs, project, others, toggles, setToggles }) {
   const rest = packs.filter((p) => !p.owner), owners = packs.filter((p) => p.owner);
   const groups = [['In use or suggested', rest.filter(near)], ['More packs', rest.filter((p) => !near(p))]].filter(([, list]) => list.length);
   const row = (p, eli5) => (
-    <InstallRow key={p.id} checked={p.enabled} onChange={() => flip(p)} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
+    <InstallRow key={p.id} checked={p.enabled} onChange={() => flip(p)} busy={busy} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
       label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested</Badge>}</Group>} />
   );
   return (
@@ -68,7 +69,7 @@ export function PackSwitches({ packs, project, others, toggles, setToggles }) {
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{list.map((p) => row(p))}</SimpleGrid>
           </div>
         ))}
-        {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
+        {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable disabled={busy} maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
         <Text size="sm">Nothing is written before the plan below is applied.</Text>
       </Section>
       {!!owners.length && <Section title="Workflow owner"><SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{owners.map((p) => row(p, OWNER))}</SimpleGrid></Section>}

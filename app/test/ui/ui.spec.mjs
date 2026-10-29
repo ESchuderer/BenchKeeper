@@ -897,6 +897,50 @@ test.describe('views', () => {
     await expect(file).not.toBeChecked();
   });
 
+  test('Project Installs tab: the switches wait while the plan loads and while an apply runs', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /^bk-ui-proj/ }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
+    const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
+    const pack = page.getByRole('region', { name: 'Packs' }).getByRole('switch', { name: 'Frontend' });
+    const file = page.getByRole('region', { name: 'Agent files' }).getByRole('switch').first();
+    await expect(skill).toBeChecked();
+    // Two quick clicks on one switch: the second lands while the plan loads and is ignored; once the plan is back, a click
+    // turns the skill on again and the plan asks for no change.
+    let release;
+    const held = new Promise((r) => { release = r; });
+    const urls = [];
+    await page.route(/\/api\/project-plan\?/, async (route) => { urls.push(route.request().url()); await held; await route.continue(); });
+    await skill.click();
+    await expect(skill).toBeDisabled();
+    await expect(pack).toBeDisabled();
+    await skill.click({ force: true });
+    release();
+    await expect(skill).toBeEnabled();
+    await expect(skill).not.toBeChecked();
+    await skill.click();
+    await expect(skill).toBeChecked();
+    await expect(skill).toBeEnabled();
+    expect(urls.at(-1)).not.toMatch(/[?&]disable=/);
+    await page.unroute(/\/api\/project-plan\?/);
+    // An apply keeps them disabled until its result shows; the job is stubbed so the fixture project stays as it is.
+    let finish;
+    const done = new Promise((r) => { finish = r; });
+    await page.route(/\/api\/apply$/, (route) => route.fulfill({ json: { job: 'stub-job', total: 1 } }));
+    await page.route(/\/api\/job\?id=stub-job$/, async (route) => route.fulfill({ json: await Promise.race([done, { done: false, run: { entries: [] } }]) }));
+    await file.click();
+    const changes = page.getByRole('region', { name: /^Changes in / });
+    await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
+    finish({ done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} });
+    await page.getByRole('button', { name: 'Plan again' }).click();
+    for (const s of [skill, pack, file]) await expect(s).toBeEnabled();
+    await expect(file).not.toBeChecked();
+    await page.unroute(/\/api\/apply$/);
+    await page.unroute(/\/api\/job\?id=stub-job$/);
+  });
+
   test('Global setup: only global items, the pointer to Projects and the Accounts link; each per-project control is in the Installs tab; a part opens by keyboard; 390 px', async ({ page }) => {
     // The per-project controls, each a region of switches in a project's Installs tab and none on the global page.
     const MOVED = ['Packs', 'Workflow owner', 'Skills', 'Agent files'];

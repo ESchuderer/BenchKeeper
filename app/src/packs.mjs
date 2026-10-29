@@ -63,13 +63,14 @@ export function packScopes(pack, a) {
 function validate(pack, lib) {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(pack.id ?? '')) throw new Error('pack id: lowercase letters, digits and dashes');
   if (lib.packs.some((p) => p.id === pack.id)) throw new Error(`${pack.id} is a library pack`);
+  if (typeof pack.title !== 'string' || !pack.title.trim() || pack.title.length > 80 || /[\r\n]/.test(pack.title)) throw new Error('pack title: one line of at most 80 characters');
   if (!Array.isArray(pack.skills) || !pack.skills.length) throw new Error('a pack needs skills');
   const unknown = pack.skills.filter((s) => !lib.skills.some((x) => x.name === s));
   if (unknown.length) throw new Error(`not in the library: ${unknown.join(', ')}`);
 }
 
-export function savePack(ctx, { id, title = id, skills }) {
-  const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title, skills: [...new Set(skills)] };
+export function savePack(ctx, { id, title, skills }) {
+  const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title: title || id, skills: [...new Set(skills)] };
   validate(pack, library());
   const file = join(dir(ctx), `${id}.json`);
   // A pack saved or imported over an own pack of the same id keeps the old file in the backup.

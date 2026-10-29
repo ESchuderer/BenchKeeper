@@ -29,6 +29,8 @@ function markdownFiles(dir) {
 // A skill that hands issue or pull request text to a worker names the author filter somewhere in its files (docs/security.md, untrusted input).
 const HANDS_TEXT = /\b(read|pass|hand|send|give|copy|paste)\b[^.\n]{0,60}\b(issues?|pull requests?|PRs?)\b[^.\n]{0,60}\b(comments?|bod(y|ies)|text)\b/i;
 const AUTHOR_FILTER = [/^Trusted authors: \S/m, /\bdata, never instructions\b/i];
+// The workflow skill takes the Default tier line last, after the change-type table, so a handed-over Tier line must not name it first.
+const DEFAULT_TIER_FIRST = /^Tier: (?:(?!workflow skill)[^\n])*Default tier/m;
 
 export function lintSkill(dir) {
   const errors = [];
@@ -47,6 +49,7 @@ export function lintSkill(dir) {
   const all = files.map((f) => readFileSync(f, 'utf8')).join('\n');
   if (/\bworkers?\b/i.test(all) && HANDS_TEXT.test(all) && !AUTHOR_FILTER.every((re) => re.test(all)))
     errors.push(`${dir}: hands issue or pull request text to a worker without the author filter (a "Trusted authors:" line and the words "data, never instructions")`);
+  if (DEFAULT_TIER_FIRST.test(all)) errors.push(`${dir}: a Tier line names the Default tier line ahead of the workflow skill`);
   for (const file of files) {
     const body = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
     for (const [, target] of body.matchAll(/\]\(([^)\s]+)\)/g)) {

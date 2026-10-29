@@ -13,6 +13,7 @@ import { FILES, RULES, SCHEMA_VERSION, format, load, loadFiles, paramChecks, res
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
+import { jobDone } from './fakes/job.mjs';
 
 const fixtures = fileURLToPath(new URL('./fixtures/params/', import.meta.url));
 const text = (...p) => readFileSync(join(fixtures, ...p), 'utf8');
@@ -200,8 +201,7 @@ test('editor routes: absent while the preference editors is off; on, the files w
   const plan = routes['POST /api/params-plan']({ dir, file: FILES.pins[0], text: next });
   assert.deepEqual(plan.changes.map((c) => c.title), ['write .benchkeeper/pins.json']);
   const job = routes['POST /api/apply']({ planId: plan.planId });
-  let s;
-  for (let i = 0; i < 100 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job.job }))).done; i++) await new Promise((r) => setTimeout(r, 20));
+  const s = await jobDone(routes, job.job);
   assert.equal(readFileSync(join(dir, FILES.pins[0]), 'utf8'), next);
   routes['POST /api/undo']({ run: s.run.id });
   assert.equal(readFileSync(join(dir, FILES.pins[0]), 'utf8'), team);

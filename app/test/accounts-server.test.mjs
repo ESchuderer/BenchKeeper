@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import { listAccounts } from '../src/accounts.mjs';
 import { addProject } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
+import { jobDone, waitFor } from './fakes/job.mjs';
 import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
 
 // The accounts routes of the UI server against the fake agents of the accounts tests: nothing real is started.
 const skip = win ? { skip: 'the fake agents are shell scripts' } : {};
-const wait = async (f) => { for (let i = 0; i < 200; i++) { const v = await f(); if (v) return v; await new Promise((ok) => setTimeout(ok, 25)); } throw new Error('timed out'); };
 const q = (o) => new URLSearchParams(o);
 const job = (routes, id) => routes['GET /api/job'](q({ id }));
 
@@ -17,7 +17,7 @@ const job = (routes, id) => routes['GET /api/job'](q({ id }));
 async function applyPlan(routes, body) {
   const plan = await routes['POST /api/accounts-plan'](body);
   const { job: id } = await routes['POST /api/apply']({ planId: plan.planId });
-  await wait(() => job(routes, id).done);
+  await jobDone(routes, id);
   return { plan, state: job(routes, id) };
 }
 
@@ -73,7 +73,7 @@ test('sign-in job: the steps, the link opened in a private window, no credential
   const routes = api(m.ctx);
   await applyPlan(routes, { op: 'add', name: 'work', agent: 'claude' });
   const { job: id } = await routes['POST /api/accounts-login']({ name: 'work', email: 'me@example.com' });
-  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  const done = await jobDone(routes, id);
   assert.equal(done.error, null);
   assert.equal(done.login.step, 'done');
   assert.equal(done.login.loggedIn, true);
@@ -88,7 +88,7 @@ test('sign-in job: the steps, the link opened in a private window, no credential
   // Errors: unknown account, bad address, a container account without a project, a code nobody waits for.
   await assert.rejects(async () => routes['POST /api/accounts-login']({ name: 'ghost' }), /no account ghost/);
   const bad = await routes['POST /api/accounts-login']({ name: 'work', email: '-x' });
-  assert.match((await wait(() => { const s = job(routes, bad.job); return s.done && s; })).error, /--email needs an address/);
+  assert.match((await jobDone(routes, bad.job)).error, /--email needs an address/);
   await assert.rejects(async () => routes['POST /api/accounts-code']({ job: id, code: 'x' }), /no sign-in waits for a code/);
 });
 
@@ -97,12 +97,12 @@ test('sign-in job: the page pastes the code the browser shows; it reaches the ag
   const routes = api(m.ctx);
   await applyPlan(routes, { op: 'add', name: 'work', agent: 'claude' });
   const { job: id } = await routes['POST /api/accounts-login']({ name: 'work' });
-  await wait(() => job(routes, id).login?.awaitingCode);
+  await waitFor(() => job(routes, id).login?.awaitingCode, `login of job ${id}`);
   assert.equal((await routes['GET /api/accounts']()).login, id);
   // A running sign-in holds the other changes.
   await assert.rejects(async () => routes['POST /api/accounts-login']({ name: 'work' }), (e) => e.status === 409);
   await routes['POST /api/accounts-code']({ job: id, code: ' PASTED-CODE-42 ' });
-  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  const done = await jobDone(routes, id);
   assert.equal(done.error, null);
   assert.equal(readFileSync(join(m.bin, 'pasted'), 'utf8'), 'PASTED-CODE-42');
   assert.ok(!JSON.stringify(done).includes('PASTED-CODE-42'));
@@ -115,9 +115,9 @@ test('cancel ends a sign-in that waits for a code', skip, async () => {
   const routes = api(m.ctx);
   await applyPlan(routes, { op: 'add', name: 'work', agent: 'claude' });
   const { job: id } = await routes['POST /api/accounts-login']({ name: 'work' });
-  await wait(() => job(routes, id).login?.awaitingCode);
+  await waitFor(() => job(routes, id).login?.awaitingCode, `login of job ${id}`);
   await routes['POST /api/job-cancel']({ id });
-  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  const done = await jobDone(routes, id);
   assert.match(done.error, /cancelled/);
   assert.equal(done.login.awaitingCode, false);
 });
@@ -135,7 +135,7 @@ test('a container account signs in inside the dev container of a registered proj
   addProject(m.ctx, project);
   m.mode('container-login', 'yes');
   const { job: id } = await routes['POST /api/accounts-login']({ name: 'boxed', project });
-  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  const done = await jobDone(routes, id);
   assert.equal(done.error, null);
   assert.equal(done.login.loggedIn, true);
   assert.ok(m.calls().some((x) => x.me === 'devcontainer' && x.args[0] === 'up'));
@@ -164,7 +164,7 @@ test('add by sign-in: no question up front, the name from the identity with a nu
   m.mode('email', 'John.Doe@example.com');
   const added = async (agent) => {
     const { job: id } = await routes['POST /api/accounts-add']({ agent });
-    const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+    const done = await jobDone(routes, id);
     assert.equal(done.error, null);
     assert.equal(done.login.browser, 'Firefox');
     assert.ok(!JSON.stringify(done).includes('dummy-oauth-access') && !JSON.stringify(done).includes('dummy-codex-access'));
@@ -193,7 +193,7 @@ test('add by sign-in: the name trims dashes and underscores at both ends as the 
   for (const email of ['__Jo--Do__@example.com', '.a.b.@example.com', '-_-@example.com', `x${'-'.repeat(40)}@example.com`]) {
     m.mode('email', email);
     const { job: id } = await routes['POST /api/accounts-add']({ agent: 'claude' });
-    const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+    const done = await jobDone(routes, id);
     assert.equal(done.login.account, before(email), email);
   }
   assert.deepEqual(listAccounts(m.ctx).map((a) => a.name), ['jo--do', 'a-b', 'claude', 'x']);
@@ -203,7 +203,7 @@ test('a failed sign-in adds no account', skip, async () => {
   const m = machine({ flow: 'fail' });
   const routes = api(m.ctx);
   const { job: id } = await routes['POST /api/accounts-add']({ agent: 'claude' });
-  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  const done = await jobDone(routes, id);
   assert.match(done.error, /exit 1/);
   assert.equal(done.login.account, null);
   assert.deepEqual(listAccounts(m.ctx), []);

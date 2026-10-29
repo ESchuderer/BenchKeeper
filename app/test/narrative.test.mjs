@@ -10,10 +10,10 @@ import { collectInsights, insights } from '../src/insights.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt } from '../src/narrative.mjs';
 import { context } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
+import { jobDone } from './fakes/job.mjs';
 
 const TMP = realpathSync(tmpdir());
 const SECRET = 'marker-that-must-not-leak-9c2e';
-const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
 const status = async (f) => { try { await f(); } catch (e) { return e.status ?? 500; } return 200; };
 
 // A home with the settings of one doctor finding and a fake model command: `claude -p <prompt>` answers with a cost.
@@ -99,7 +99,7 @@ test('consent comes first; the preview equals the input the fake model command r
     assert.equal(await status(() => routes['POST /api/insights-narrative']({ agent: 'codex', id: first.id })), 400);
     assert.equal(sessions.length, 0);
     const { job } = await routes['POST /api/insights-narrative']({ agent: 'claude', id: first.id });
-    await until(() => routes['GET /api/job'](new URLSearchParams({ id: job })).done);
+    await jobDone(routes, job);
     // The session got exactly the previewed text, in an empty folder, with no tools.
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0][2], first.prompt);
@@ -177,7 +177,7 @@ test('insights --narrative shares the cached text with the view, also when a fin
     routes['POST /api/insights-narrative-consent']();
     const view = await routes['GET /api/insights-narrative']();
     const { job } = await routes['POST /api/insights-narrative']({ agent: 'claude', id: view.id });
-    await until(() => routes['GET /api/job'](new URLSearchParams({ id: job })).done);
+    await jobDone(routes, job);
     let text = '';
     const out = new Writable({ write(c, _, done) { text += c; done(); } }), err = new Writable({ write(_c, _, done) { done(); } });
     await main(['insights', '--agents', 'claude', '--json', '--narrative', '--agent', 'claude'], { out, err, ctx });

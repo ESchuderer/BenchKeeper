@@ -6,7 +6,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { ownPacks, savePack, scopeFile } from '../src/packs.mjs';
-import { exportProfile, readProfile } from '../src/profile.mjs';
+import { exportProfile, importPlan, readProfile } from '../src/profile.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { STATE, projectPlan, readState } from '../src/steps/project.mjs';
@@ -147,6 +147,25 @@ test('a round trip keeps guards, agent files and the pack scopes; an agent file 
   assert.deepEqual(readState(proj).guards, false);
   assert.deepEqual(readState(proj).agentFiles, [file]);
   assert.match(out, /pack ui: all projects/);
+});
+
+test('an import project plan keeps its skills when it is applied before the scope change, or that change is declined', () => {
+  const b = machine();
+  savePack(b, { id: 'ui', skills: ['accessibility'] });
+  const proj = tmp('bk-prof-proj-');
+  const p = { global: { agents: ['claude'], scopes: { ui: 'global' } }, projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], singles: [], tier: 'quick' } }] };
+  const [x] = importPlan(b, p).projects;
+  assert.ok(x.changes.some((c) => c.title.includes('accessibility')));
+  apply(x.changes, x.ctx, { scope: x.path });
+  assert.deepEqual(readState(proj).skills.map((s) => s.name), ['accessibility']);
+  assert.ok(!existsSync(scopeFile(b)));
+
+  // Global here and in the profile: the project gets no copies.
+  mkdirSync(b.config, { recursive: true });
+  writeFileSync(scopeFile(b), JSON.stringify({ schemaVersion: 1, scopes: { ui: 'global' } }));
+  const other = tmp('bk-prof-proj-');
+  const [y] = importPlan(b, { ...p, projects: [{ ...p.projects[0], path: other }] }).projects;
+  assert.ok(!y.changes.some((c) => c.title.includes('accessibility')));
 });
 
 test('a profile scope must be one of the pack scopes', () => {

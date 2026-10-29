@@ -853,7 +853,8 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
 const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };
 
 // Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
-// so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
+// so cmd gets the arguments as written. On Windows every caller passes a file URL (pathToFileURL encodes % and leaves
+// no quote; openFolder uses explorer there), so a temporary folder name cannot reach cmd as syntax.
 export function launch(target) {
   const win = process.platform === 'win32';
   const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
@@ -883,7 +884,7 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
     const clean = () => rmSync(dir, { recursive: true, force: true });
     process.once('exit', clean);
     setTimeout(() => { clean(); process.off('exit', clean); }, wait).unref();
-    open(file);
+    open(pathToFileURL(file).href);
     return file;
   } catch {
     if (dir) rmSync(dir, { recursive: true, force: true });

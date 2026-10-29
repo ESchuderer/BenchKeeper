@@ -1424,6 +1424,27 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Fix everything: the Apply step tells a project written in its checkout from one that gets a branch and pull request', async ({ page }) => {
+    const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local-a'), project('local-b'), project('shared', { share: true })] }));
+    await page.getByRole('button', { name: 'Fix everything' }).click();
+    const fix = page.getByRole('dialog', { name: 'Fix everything' });
+    const summary = fix.getByRole('list', { name: 'What Apply does' });
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await fix.getByRole('checkbox', { name: 'local-a' }).check();
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await expect(summary).toContainText('Projects: 1 written in their checkout');
+    await expect(summary).not.toContainText('pull request');
+    await fix.getByRole('button', { name: 'Back' }).click();
+    await fix.getByRole('button', { name: 'Back' }).click();
+    await fix.getByRole('button', { name: 'Select all' }).click();
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await expect(summary).toContainText('Projects: 2 written in their checkout, 1 as a branch and pull request');
+    await page.keyboard.press('Escape');
+  });
+
   test('an apply in Global setup shows up in History and the header without a reload', async ({ page }) => {
     await nav(page, 'History').click();
     const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');

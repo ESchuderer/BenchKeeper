@@ -164,7 +164,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   useEffect(() => { if (target) { document.getElementById(`setting-${target}`)?.focus(); setTarget(null); } }, [target]);
   const rowsOf = (n) => (n.keys ?? []).map((k) => data.settings.find((r) => r.key === k)).filter(Boolean);
   const noteButtons = (n) => {
-    const fix = fixOf(n, rowsOf(n), layer);
+    const fix = fixOf(n, rowsOf(n), layer, data.precedence);
     const first = rowsOf(n)[0];
     return (
       <>

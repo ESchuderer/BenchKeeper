@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { differs, fixOf, matches } from '../ui/suggest.js';
 
+const CLAUDE = ['managed', 'local', 'project', 'user'];
+
 const scrub = { key: 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB', type: 'switch', suggest: { value: true } };
 const telemetry = { key: 'env.DISABLE_TELEMETRY', type: 'switch', zeroIsSet: true, suggest: { value: null } };
 
@@ -29,7 +31,17 @@ test('differs reads the given layer, and a row without a suggestion never differ
 
 test('a note fixes only when it prescribes a fix, and only editable settings that differ', () => {
   const rows = [{ ...scrub, sets: [] }, { ...telemetry, sets: [{ layer: 'user', value: '1' }] }, { ...scrub, key: 'locked', editable: false, sets: [] }];
-  assert.deepEqual(fixOf({ fix: 'set it' }, rows, 'user'), { 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB': true, 'env.DISABLE_TELEMETRY': null });
+  assert.deepEqual(fixOf({ fix: 'set it' }, rows, 'user', CLAUDE), { 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB': true, 'env.DISABLE_TELEMETRY': null });
   // A note that says nothing needs to change offers no fix, even where its settings differ from their suggestions.
-  assert.deepEqual(fixOf({ fixChanges: 'Nothing needs to change.' }, rows, 'user'), {});
+  assert.deepEqual(fixOf({ fixChanges: 'Nothing needs to change.' }, rows, 'user', CLAUDE), {});
+});
+
+test('a fix skips a setting that a layer with higher precedence sets, and writes one that a lower layer sets', () => {
+  const fail = { key: 'sandbox.failIfUnavailable', type: 'switch', suggest: { value: true } };
+  const local = [{ ...fail, sets: [{ layer: 'local', value: false }] }];
+  assert.deepEqual(fixOf({ fix: 'set it' }, local, 'project', CLAUDE), {}, 'the local file wins over the project file');
+  assert.deepEqual(fixOf({ fix: 'set it' }, local, 'local', CLAUDE), { 'sandbox.failIfUnavailable': true });
+  const user = [{ ...fail, sets: [{ layer: 'user', value: false }] }];
+  assert.deepEqual(fixOf({ fix: 'set it' }, user, 'project', CLAUDE), { 'sandbox.failIfUnavailable': true }, 'the project file wins over the user file');
+  assert.deepEqual(fixOf({ fix: 'set it' }, [{ ...fail, sets: [] }], 'user', CLAUDE), { 'sandbox.failIfUnavailable': true });
 });

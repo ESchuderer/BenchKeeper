@@ -8,7 +8,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 // The whole file in its own order (newest first), without its `# ` title; relative links point at the file on GitHub.
 const html = (await changelog.compiledContent())
   .replace(/^\s*<h1[^>]*>.*?<\/h1>/, '')
-  .replace(/href="(?!https?:|#)([^"]*)"/g, (_, h) => { const u = new URL(h, 'https://x/'); return `href="https://github.com/${SLUG}/blob/main${u.pathname}${u.hash}"`; });
+  .replace(/href="(?!https?:|#)([^"]*)"/g, (_, h) => { const u = new URL(h, 'https://x/'); return `href="https://github.com/${SLUG}/blob/main${u.pathname}${u.search}${u.hash}"`; });
 ---
 <SiteLayout title="Changelog, BenchKeeper"
   description="The versions of BenchKeeper and what each one changed, from CHANGELOG.md.">

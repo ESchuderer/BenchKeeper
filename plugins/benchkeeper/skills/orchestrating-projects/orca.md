@@ -58,8 +58,10 @@ and handle it as blocked; run the `nextAction` that `worker-list` gives for the 
 
 ```text
 ORCA orchestration worker-release --dispatch <dispatch id> --json
-ORCA worktree rm --worktree path:<worktree path> --json
+ORCA worktree rm --worktree path:<worktree path> --run-hooks --json
 ```
+
+`--run-hooks` runs the project's `orca.yaml` archive script before the removal; the one BenchKeeper's project setup writes removes the worktree's dev containers. A failed archive script keeps the worktree: remove its containers by hand (step 2 of the clean up), then run the command again.
 
 A worker whose terminal a person typed in (its `worker-read` output shows input no `send` carried) is kept: `ORCA orchestration worker-retain --dispatch <dispatch id> --json`, no stop, no release, no worktree removal. Never type into a worker terminal or answer a dialog in it; Orca's `send` is the only way in.
 

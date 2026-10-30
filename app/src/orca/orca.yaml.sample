@@ -1,10 +1,14 @@
 # Sample for the repository root of a project whose workers run in new Orca worktrees. Project setup offers it, off by default, when workers ran there.
 # A new worktree is a clean checkout: commit this file, or list it in .worktreeinclude when Git ignores it.
 # Orca runs the setup script in each new worktree when its setup run policy (Settings, or --setup run|skip|inherit)
-# allows it. ORCA_ROOT_PATH is the primary checkout, ORCA_WORKTREE_PATH the new worktree.
+# allows it, and the archive script before it removes a worktree (orca worktree rm runs it only with --run-hooks).
+# ORCA_ROOT_PATH is the primary checkout, ORCA_WORKTREE_PATH the worktree.
 scripts:
   setup: |
     echo "set up $ORCA_WORKTREE_PATH"
     # the install command from AGENTS.md, for example: npm ci
+  archive: |
+    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.
+    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'
 # Start the worker's agent after the setup script has finished.
 setupAgentStartupPolicy: wait-for-setup

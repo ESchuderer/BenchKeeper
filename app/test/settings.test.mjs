@@ -10,6 +10,7 @@ import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, keyState, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { differs, fixOf } from '../ui/suggest.js';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -25,6 +26,7 @@ const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true })
 // The security controls (#313 and the sandbox settings, #312) fire on a home that sets none; tests of other rules leave them out.
 const CONTROLS = /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off|credential files/;
 const HIDDEN = new RegExp(`${CONTROLS.source}|sandbox\\.|sandbox is unsupported|sandbox_mode`);
+const CLAUDE = agentSettings('claude').precedence;
 const claudeUser = (ctx) => join(ctx.home, '.claude/settings.json');
 const codexUser = (ctx) => join(ctx.home, '.codex/config.toml');
 // Plan, apply and return the run.
@@ -463,6 +465,27 @@ test('catalog coverage of #468: manual alias, ask rules, read block, sandbox dis
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.defaultMode': 'nonsense' } }), /one of/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.ask': 'Bash(git push *)' } }), /list of texts/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.blockReadsOutsideWorkingDirectories': 'yes' } }), /true or false/);
+});
+
+test('autoMemoryEnabled suggests false: offered in the user file, written and undone there, skipped where a higher file sets it', () => {
+  const ctx = machine();
+  const row = (dir) => listSettings(ctx, 'claude', { dir }).settings.find((r) => r.key === 'autoMemoryEnabled');
+  const { suggest } = row();
+  assert.equal(suggest.value, false);
+  assert.ok(suggest.reason && !/sav|less|cheap|fewer|faster/i.test(suggest.reason) && /^https:\/\//.test(suggest.source), suggest.reason);
+  assert.ok(differs(row(), 'user'));
+  write(claudeUser(ctx), '{\n  "model": "x"\n}\n');
+  const before = readFileSync(claudeUser(ctx), 'utf8');
+  const r = apply(preview(settingsChanges(ctx, 'claude', { edits: fixOf({ fix: 'use it' }, [row()], 'user', CLAUDE) })), ctx, { scope: 'global' });
+  assert.equal(JSON.parse(readFileSync(claudeUser(ctx), 'utf8')).autoMemoryEnabled, false);
+  assert.ok(!differs(row(), 'user'));
+  assert.equal(undo(r.id, ctx).status, 'done');
+  assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before);
+  // The project file wins over the user file, so a value written in the user file would not take effect.
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ autoMemoryEnabled: true }));
+  assert.deepEqual(fixOf({ fix: 'use it' }, [row(dir)], 'user', CLAUDE), {});
+  assert.deepEqual(fixOf({ fix: 'use it' }, [row(dir)], 'project', CLAUDE), { autoMemoryEnabled: false });
 });
 
 test('autoMode is taken from the user file only; a project or local file is refused and Doctor flags one that exists', () => {

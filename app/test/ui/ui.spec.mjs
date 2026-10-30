@@ -2105,13 +2105,13 @@ test.describe('views', () => {
     await page.unroute(view);
   });
 
-  test('Rules: auto memory per project in numbers, read-only, over the load limit flagged, nothing flagged when off; no axe violations at 390 px', async ({ page }) => {
+  test('Rules: auto memory per project in numbers, read-only, over the load limit flagged, nothing flagged where off; no axe violations at 390 px', async ({ page }) => {
     const view = /\/api\/rules$/;
     const folders = [
-      { project: '/work/app', path: '/home/u/.claude/projects/-work-app/memory', notes: 3, bytes: 4096, changed: '2026-02-03T04:05:06.000Z', over: true },
-      { project: '-work-old', path: '/home/u/.claude/projects/-work-old/memory', notes: 0, bytes: 120, changed: '2026-01-01T00:00:00.000Z', over: false },
+      { project: '/work/app', path: '/home/u/.claude/projects/-work-app/memory', enabled: true, notes: 3, bytes: 4096, changed: '2026-02-03T04:05:06.000Z', over: true },
+      { project: '-work-old', path: '/home/u/.claude/projects/-work-old/memory', enabled: true, notes: 0, bytes: 120, changed: '2026-01-01T00:00:00.000Z', over: false },
     ];
-    let memory = { enabled: true, lines: 150, bytes: 10 * 1024, folders };
+    let memory = { lines: 150, bytes: 10 * 1024, folders };
     await page.route(view, async (route) => {
       const r = await route.fetch();
       const body = await r.json();
@@ -2125,9 +2125,16 @@ test.describe('views', () => {
     await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('over the load limit');
     await expect(table.getByRole('row', { name: /-work-old/ })).toContainText('120 bytes');
     await expect(section.getByRole('button')).toHaveCount(0);
+    await expect(section).not.toContainText('Auto memory is off');
     await noAxe(page);
-    // With auto memory off the folders stay, nothing loads and nothing is over a limit.
-    memory = { ...memory, enabled: false };
+    // A project with auto memory off: its row loads nothing, the others keep their badge.
+    memory = { ...memory, folders: [{ ...folders[0], enabled: false }, folders[1]] };
+    await page.reload();
+    await expect(section).toContainText('Auto memory is off for the rows marked not loaded');
+    await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('not loaded');
+    await expect(table.getByRole('row', { name: /-work-old/ })).toContainText('within the load limit');
+    // With auto memory off everywhere the folders stay, nothing loads and nothing is over a limit.
+    memory = { ...memory, folders: folders.map((m) => ({ ...m, enabled: false })) };
     await page.reload();
     await expect(section).toContainText('Auto memory is off');
     await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('not loaded');

@@ -594,7 +594,7 @@ test('the auto memory overview: notes, size, last change and the load limit per 
   utimesSync(join(folder, 'MEMORY.md'), new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
   utimesSync(join(folder, 'build.md'), new Date('2026-02-03T04:05:06Z'), new Date('2026-02-03T04:05:06Z'));
   const size = 20 + SECRET.length + 1;
-  assert.deepEqual(memoryOf(dir), [{ project: dir, path: folder, notes: 1, bytes: size, changed: '2026-02-03T04:05:06.000Z', over: false }]);
+  assert.deepEqual(memoryOf(dir), [{ project: dir, path: folder, enabled: true, notes: 1, bytes: size, changed: '2026-02-03T04:05:06.000Z', over: false }]);
   // Globally the folder name stands for a project that is not registered, and the registered path once it is.
   assert.deepEqual(memoryOf().map((m) => [m.project, m.notes]), [[dir.replace(/[^A-Za-z0-9]/g, '-'), 1]]);
   addProject(ctx, dir);
@@ -620,16 +620,24 @@ test('the auto memory overview reads a custom autoMemoryDirectory of the user se
   assert.deepEqual(view(ctx, 'claude', dir).memory.folders.map(pick), [{ ...custom, project: dir }]);
 });
 
-test('the auto memory overview says whether auto memory loads for the scope, with the load limits, and keeps the folders when off', () => {
+test('the auto memory overview says per folder whether its MEMORY.md loads, by the settings of its project, with the load limits', () => {
   const ctx = machine();
   const dir = project();
-  write(join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), 'note\n');
+  const other = project();
+  const memory = (d) => join(ctx.home, '.claude/projects', d.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md');
+  write(memory(dir), 'note\n');
+  write(memory(other), 'note\n');
+  addProject(ctx, dir);
   const memoryOf = (d) => view(ctx, 'claude', d).memory;
-  assert.deepEqual({ ...memoryOf(dir), folders: memoryOf(dir).folders.length }, { enabled: true, lines: 200, bytes: 25 * 1024, folders: 1 });
-  write(join(dir, '.claude/settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
-  assert.deepEqual([memoryOf(dir).enabled, memoryOf(dir).folders.length, memoryOf().enabled], [false, 1, true], 'a project turns it off for itself only');
+  const on = (d) => Object.fromEntries(memoryOf(d).folders.map((m) => [m.project, m.enabled]));
+  const loose = other.replace(/[^A-Za-z0-9]/g, '-');
+  assert.deepEqual({ ...memoryOf(dir), folders: memoryOf(dir).folders.length }, { lines: 200, bytes: 25 * 1024, folders: 1 });
+  assert.deepEqual(on(), { [dir]: true, [loose]: true });
+  write(join(dir, '.claude/settings.local.json'), JSON.stringify({ autoMemoryEnabled: false }));
+  assert.deepEqual([on(dir), on()], [{ [dir]: false }, { [dir]: false, [loose]: true }], 'a project turns it off for its own row only');
   write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
-  assert.deepEqual([memoryOf().enabled, memoryOf().folders.length], [false, 1]);
+  write(join(dir, '.claude/settings.local.json'), JSON.stringify({ autoMemoryEnabled: true }));
+  assert.deepEqual([on(dir), on()], [{ [dir]: true }, { [dir]: true, [loose]: false }], 'a project turns it on under a user false; a folder of no registered project keeps the user value');
 });
 
 test('the budget: kinds summed, path-scoped tokens on demand, project skills and skills without a space after the colon', () => {

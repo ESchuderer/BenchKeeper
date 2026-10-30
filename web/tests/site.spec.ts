@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { BASE } from './base';
 
-for (const path of ['./', './overview/', './app/', './writes/', './changelog/', './404.html']) {
+for (const path of ['./', './overview/', './app/', './writes/', './changelog/', './benchmark/', './404.html']) {
   test(`${path} links back to the repository and its security policy`, async ({ page }) => {
     await page.goto(path);
     const footer = page.locator('footer');
@@ -10,12 +10,11 @@ for (const path of ['./', './overview/', './app/', './writes/', './changelog/', 
     await expect(footer.locator('a[href$="/SECURITY.md"]')).toHaveCount(1);
   });
 
-  test(`${path} has no benchmark or evaluation link besides the homepage feature item`, async ({ page }) => {
+  test(`${path} has no evaluation link and links the research repository only on the benchmark page`, async ({ page }) => {
     await page.goto(path);
-    const links = page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]');
-    if (path !== './') return await expect(links).toHaveCount(0);
-    await expect(links).toHaveCount(1);
-    await expect(page.locator('#features a[href="https://github.com/ESchuderer/BenchKeeper-research"]')).toHaveCount(1);
+    await expect(page.locator('a[href*="EVALUATIONS"], a[href*="evaluations/"]')).toHaveCount(0);
+    if (path !== './benchmark/') return await expect(page.locator('a[href*="BenchKeeper-research"]')).toHaveCount(0);
+    await expect(page.locator('main a[href="https://github.com/ESchuderer/BenchKeeper-research"]')).toHaveCount(1);
   });
 
   test(`${path} theme button shows its state and follows the system scheme`, async ({ page }) => {
@@ -35,9 +34,9 @@ for (const path of ['./', './overview/', './app/', './writes/', './changelog/', 
   });
 }
 
-test('the sitemap lists the five pages', async ({ request }) => {
+test('the sitemap lists the six pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();
-  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`, `${BASE}writes/`, `${BASE}changelog/`]);
+  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`, `${BASE}writes/`, `${BASE}changelog/`, `${BASE}benchmark/`]);
 });
 
 test('the writes page renders the sections of docs/setup.md and docs/security.md', async ({ page }) => {
@@ -63,6 +62,12 @@ test('the homepage and the footer link to the writes page', async ({ page }) => 
   await page.goto('./');
   await expect(page.locator(`#start a[href="${BASE}writes/"]`)).toHaveCount(1);
   await expect(page.locator(`footer a[href="${BASE}writes/"]`)).toHaveCount(1);
+});
+
+test('the homepage benchmark item and the footer link to the benchmark page', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.locator(`#features a[href="${BASE}benchmark/"]`)).toHaveCount(1);
+  await expect(page.locator(`footer a[href="${BASE}benchmark/"]`)).toHaveCount(1);
 });
 
 test('the installed parts render code and links from facts.json', async ({ page }) => {

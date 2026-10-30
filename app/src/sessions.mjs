@@ -4,12 +4,15 @@ import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
-import { readText, writeAtomic } from './fsx.mjs';
+import { move, readText, writeAtomic } from './fsx.mjs';
 import { repoEnv } from './git.mjs';
 import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
 
-const SCHEMA = 1;
+// Converters from each older cache schema to the next; the schema is their count plus one, so a bump adds one here. The cache holds
+// the only copy of summaries whose transcripts the agent has deleted: a bump converts it, never drops it.
+export const MIGRATE = {};
+const schema = () => Object.keys(MIGRATE).length + 1;
 const MAX_DAYS = 3650;
 const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
@@ -142,13 +145,28 @@ const plain = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v 
 // The cache file: parsed summaries by transcript path, and the retention (days; null keeps them for good). A summary
 // outlives its transcript, which the agent deletes after its cleanup period. Message text is never in it.
 const cachePath = (ctx) => join(cacheDir(ctx), 'sessions.json');
-const readCache = (ctx) => {
-  const old = parse(readText(cachePath(ctx)) ?? '{}');
-  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null };
+// The files of the schema in use, converted step by step from an older one; null when that is not possible (an unreadable
+// file, or a newer or unknown schema).
+const migrate = (old) => {
+  let x = old;
+  while (x?.schema !== schema()) {
+    if (!(x?.schema < schema()) || !MIGRATE[x.schema]) return null;
+    try { x = { ...MIGRATE[x.schema](x), schema: x.schema + 1 }; } catch { return null; }
+  }
+  return x.files && typeof x.files === 'object' && !Array.isArray(x.files) ? x.files : null;
 };
+// lost: a cache file that cannot be converted. Its summaries read as none, and the next write moves it aside, never over it.
+const readCache = (ctx) => {
+  const text = readText(cachePath(ctx));
+  const old = parse(text ?? '{}');
+  const files = text == null ? {} : migrate(old);
+  return { files: files ?? {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null, lost: !files };
+};
+const asideOf = (ctx) => `${cachePath(ctx)}.${Date.now()}`;
 const writeCache = (ctx, files, keepDays) => {
+  if (readCache(ctx).lost) move(cachePath(ctx), asideOf(ctx));
   // Titles and paths of the user's sessions: this user only.
-  writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
+  writeAtomic(cachePath(ctx), JSON.stringify({ schema: schema(), keepDays, files }), 0o600);
 };
 // sessions: the rows the board shows. A Codex subagent rollout counts only while its parent is cached; without it the board shows it as a session.
 export const sessionCache = (ctx) => {
@@ -173,8 +191,9 @@ const expire = (files, keepDays, now = Date.now()) => {
 
 // Every transcript, parsed once per size and mtime (cache: sessions.json in the benchkeeper cache folder). The summary of a
 // transcript that is gone stays, until the retention drops it.
-async function parsed(ctx, onFile) {
-  const { files: cache } = readCache(ctx);
+async function parsed(ctx, onFile, onNote) {
+  const { files: cache, lost } = readCache(ctx);
+  if (lost) onNote?.(`The session cache ${cachePath(ctx)} is unreadable or of an unknown version: it is kept beside it with a time suffix, and the sessions whose transcripts are gone are not listed.`);
   const next = {};
   const claude = join(ctx.home, '.claude/projects'), codex = join(ctx.home, '.codex/sessions');
   const list = [
@@ -297,9 +316,10 @@ function withLedger(ctx, rows, since, onNote) {
 }
 
 // One row per session, newest first. since: an ISO time; older sessions are left out. onFile gets { done, total } files.
-// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped.
+// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped,
+// and one for a cache file it cannot convert.
 export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) {
-  const all = await parsed(ctx, onFile);
+  const all = await parsed(ctx, onFile, onNote);
   const entries = Object.entries(all);
   // Claude subagents add their skills to the session they belong to (<session>/subagents/agent-*.jsonl).
   const subSkills = new Map(), subCount = new Map();

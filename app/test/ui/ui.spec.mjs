@@ -1966,6 +1966,7 @@ test.describe('views', () => {
     await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
     await expect(page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Discard changes' }).click();
+    await expect(page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' })).toBeVisible();
     await page.unroute(view);
     await page.unroute(/\/api\/settings-dismiss$/);
   });

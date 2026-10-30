@@ -154,10 +154,12 @@ function skillRows(ctx, id, dir) {
 // memory is not found there shows no memory row.
 const memoryFolder = (root) => root.replace(/[^A-Za-z0-9]/g, '-');
 
-// The auto memory folder of a project, from settings layers read for it; null for a relative autoMemoryDirectory.
 // Only the user's own layers name another folder: a repository's settings must not point this read elsewhere.
+const customDir = (layers) => layers.filter((l) => ['user', 'local'].includes(l.layer)).map((l) => l.data.autoMemoryDirectory).filter((x) => typeof x === 'string').at(-1);
+
+// The auto memory folder of a project, from settings layers read for it; null for a relative autoMemoryDirectory.
 function memoryDir(ctx, dir, layers) {
-  const custom = layers.filter((l) => ['user', 'local'].includes(l.layer)).map((l) => l.data.autoMemoryDirectory).filter((x) => typeof x === 'string').at(-1);
+  const custom = customDir(layers);
   if (!dir && custom == null) return null;
   const common = dir ? git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim() : '';
   const root = isAbsolute(common) && common.endsWith(`${sep}.git`) ? dirname(common) : dir;
@@ -207,7 +209,9 @@ function memoryFolders(ctx, dir, layers) {
   }
   const names = new Map(listProjects(ctx).map((p) => [memoryFolder(p.path), p.path]));
   const base = join(ctx.home, '.claude/projects');
-  const folders = listDir(base).map((n) => { const p = names.get(n); return [join(base, n, 'memory'), p ?? n, p ? memoryOn(readSettings(ctx, 'claude', { dir: p })) : enabled]; });
+  // A default folder does not load where an autoMemoryDirectory names another one.
+  const loads = (l) => memoryOn(l) && customDir(l) == null;
+  const folders = listDir(base).map((n) => { const p = names.get(n); return [join(base, n, 'memory'), p ?? n, loads(p ? readSettings(ctx, 'claude', { dir: p }) : layers)]; });
   const custom = memoryDir(ctx, undefined, layers);
   if (custom && !folders.some(([f]) => f === custom)) folders.push([custom, display(ctx, undefined, custom), enabled]);
   return folders.map(([f, name, on]) => memoryStats(f, name, on)).filter(Boolean).sort((a, b) => a.project.localeCompare(b.project));

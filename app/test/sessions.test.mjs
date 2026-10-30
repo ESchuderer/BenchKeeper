@@ -270,9 +270,11 @@ test('tests: a test command counts in command position only, not echoed or quote
   assert.deepEqual([rows.echoed.tests, rows.chained.tests], ['fail', 'pass']);
 });
 
-test('tests: a long chain of variable assignments is matched in linear time', () => {
+test('tests: a long chain of variable assignments is matched in linear time, quoted values too', () => {
   const start = performance.now();
   assert.equal(TEST.test(';a=b'.repeat(20000)), false);
-  assert.ok(performance.now() - start < 100);
+  assert.equal(TEST.test(';a="b"'.repeat(20000)), false);
+  assert.ok(performance.now() - start < 200);
   assert.equal(TEST.test(`${';a=b'.repeat(20000)};A=1 B=2 npm test`), true);
+  assert.equal(TEST.test(`NODE_OPTIONS="--trace-warnings --no-deprecation" A='x y' npm test`), true);
 });

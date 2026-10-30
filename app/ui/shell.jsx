@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Text, VisuallyHidden } from '@mantine/core';
+import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Stack, Text, VisuallyHidden } from '@mantine/core';
 import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { NO_SESSION, api } from './api.js';
@@ -104,3 +104,14 @@ const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: Icon
 // An Alert with the icon of its color. A teal title has 4.32:1 on the light teal background, so it takes the text color.
 const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };
 export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} styles={TITLE[color]} {...props} />;
+
+// A change's diff (or another detail) behind a button: a long page stays short until one is opened.
+export function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Stack gap={4}>
+      <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${name}`} onClick={() => setOpen(!open)}>{label[open ? 1 : 0]}</Button></Group>
+      {open && children}
+    </Stack>
+  );
+}

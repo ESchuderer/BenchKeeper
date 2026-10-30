@@ -3,8 +3,8 @@ import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Folded, Plan, Section, SettingFacts } from './parts.jsx';
-import { Dot, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
+import { Plan, Section, SettingFacts } from './parts.jsx';
+import { Dot, Folded, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
 import { differs, editableIn, fixOf, matches, ownOf } from './suggest.js';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };

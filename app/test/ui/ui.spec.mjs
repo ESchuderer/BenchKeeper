@@ -1517,6 +1517,11 @@ test.describe('views', () => {
     const run = page.getByRole('region', { name: /^Run / });
     await expect(run.getByRole('article', { name: /Claude Code rules/ })).toBeVisible();
     await expect(run.getByRole('group', { name: 'Summary' })).toContainText(/\d+ done/);
+    // Steps open folded: each names its file and line counts, the diff opens on demand.
+    await expect(run.getByRole('group', { name: /^Diff of / })).toHaveCount(0);
+    await expect(run.getByRole('article', { name: /^Ponytail level/ })).toContainText(/ponytail\/config\.json \+4 -0/);
+    await openDiffs(run);
+    await expect(run.getByRole('button', { name: /^Hide file diff of / }).first()).toHaveAttribute('aria-expanded', 'true');
     // An edit of an existing file splits into before and after; a created file stays unified.
     const diffs = run.getByRole('group', { name: /^Diff of .*settings\.json$/ });
     const created = diffs.filter({ hasText: '@@ -0,0 ' }).first(), edited = diffs.filter({ hasNotText: '@@ -0,0 ' }).first();

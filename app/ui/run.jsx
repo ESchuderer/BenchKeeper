@@ -4,7 +4,7 @@ import { IconArrowBackUp, IconCircleCheck, IconCircleX, IconHandStop, IconPlayer
 import { useMemo, useState } from 'react';
 import { api } from './api.js';
 import { parseDiff, sideBySide } from './diff.js';
-import { Dot, Loading, Note, StatusBadge, groupBy, href, icon, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, StatusBadge, groupBy, href, icon, useApi } from './shell.jsx';
 import './run.css';
 
 export const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
@@ -72,8 +72,20 @@ export function DiffView({ diff, path, mode = 'unified' }) {
 const FILE_STATUS = { A: 'added', D: 'deleted', M: 'changed' };
 const undoable = (e) => (e.status === 'done' || e.touched) && !e.undone;
 
-function EntryBody({ e, mode, out }) {
-  if (e.diff) return <DiffView diff={e.diff} path={e.path} mode={mode} />;
+// Folded: the file and its line counts, the diff behind a button.
+function FileDiff({ diff, path, mode, fold }) {
+  if (!fold) return <DiffView diff={diff} path={path} mode={mode} />;
+  const d = parseDiff(diff);
+  return (
+    <Stack gap={4}>
+      <Text size="sm" style={{ overflowWrap: 'anywhere' }}><Code>{path}</Code> <span style={{ whiteSpace: 'nowrap' }}><span className="bk-plus">+{d.added}</span> <span className="bk-minus">-{d.removed}</span></span></Text>
+      <Folded label={['Show file diff', 'Hide file diff']} name={`file diff of ${path}`}><DiffView diff={diff} path={path} mode={mode} /></Folded>
+    </Stack>
+  );
+}
+
+function EntryBody({ e, mode, out, fold }) {
+  if (e.diff) return <FileDiff diff={e.diff} path={e.path} mode={mode} fold={fold} />;
   if (e.kind === 'write' && e.status === 'done') {
     return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.commit ? <>Committed in <Code>{e.commit.slice(0, 12)}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
   }
@@ -88,7 +100,7 @@ function EntryBody({ e, mode, out }) {
     return (
       <Stack gap="xs">
         {command}
-        {e.files.length ? e.files.map((f) => (f.diff ? <DiffView key={f.path} diff={f.diff} path={f.path} mode={mode} /> : <Text key={f.path} size="sm"><Code>{f.path}</Code> {FILE_STATUS[f.status] ?? f.status}, no text diff</Text>))
+        {e.files.length ? e.files.map((f) => (f.diff ? <FileDiff key={f.path} diff={f.diff} path={f.path} mode={mode} fold={fold} /> : <Text key={f.path} size="sm"><Code>{f.path}</Code> {FILE_STATUS[f.status] ?? f.status}, no text diff</Text>))
           : <Text size="sm">The session changed no files.</Text>}
       </Stack>
     );
@@ -100,7 +112,8 @@ function EntryBody({ e, mode, out }) {
 
 // One run as a report: what it did to each file and command, with undo per step and for the run.
 // output: what the commands printed, by change id, while the apply's job is known; the ledger does not keep it.
-function RunReport({ run: r, onUndo, busy, order = 3, output }) {
+// fold: each diff starts closed (History), so a run of many steps stays short.
+function RunReport({ run: r, onUndo, busy, order = 3, output, fold }) {
   const [mode, setMode] = useDiffMode();
   const diffs = r.entries.flatMap((e) => [e.diff, ...(e.files ?? []).map((f) => f.diff)]).filter(Boolean);
   const lines = useMemo(() => diffs.map(parseDiff).reduce((s, d) => ({ added: s.added + d.added, removed: s.removed + d.removed }), { added: 0, removed: 0 }), [r]);
@@ -142,7 +155,7 @@ function RunReport({ run: r, onUndo, busy, order = 3, output }) {
               </Group>
             </Group>
             {(e.error || e.reason) && <Text size="sm" c={e.error ? 'red' : undefined}>{e.error ?? e.reason}</Text>}
-            <EntryBody e={r.note?.commit ? { ...e, commit: r.note.commit } : e} mode={mode} out={output?.[e.id]} />
+            <EntryBody e={r.note?.commit ? { ...e, commit: r.note.commit } : e} mode={mode} out={output?.[e.id]} fold={fold} />
           </Stack>
         </Paper>
       ))}
@@ -151,7 +164,7 @@ function RunReport({ run: r, onUndo, busy, order = 3, output }) {
 }
 
 // A run loaded by id, with undo. onChanged runs after an undo, for counts elsewhere.
-export function RunPanel({ id, onChanged, order, output }) {
+export function RunPanel({ id, onChanged, order, output, fold }) {
   const run = useApi(`/api/run?id=${encodeURIComponent(id)}`);
   const [undone, setUndone] = useState(null);
   const [error, setError] = useState(null);
@@ -170,7 +183,7 @@ export function RunPanel({ id, onChanged, order, output }) {
           {undone.entries.filter((e) => e.status === 'done').length} of {undone.entries.length} changes undone, see run <Anchor href={href('history', { run: undone.id })}>{undone.id}</Anchor>.
         </Note>
       )}
-      <Loading state={run} label="run">{(r) => <RunReport run={r} onUndo={undo} busy={busy} order={order} output={output} />}</Loading>
+      <Loading state={run} label="run">{(r) => <RunReport run={r} onUndo={undo} busy={busy} order={order} output={output} fold={fold} />}</Loading>
     </Stack>
   );
 }

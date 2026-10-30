@@ -10,10 +10,12 @@ const row = (o = {}) => ({ agent: 'claude', id: `s${seq++}`, project: '/work/sho
   tier: { first: 'standard', last: 'standard', changeType: 'feature', movedUp: false }, skills: [], tests: 'pass', setup: ['BenchKeeper'], setupVersion: '6.24.0', pattern: 'single', subagents: 0, run: null, prs: [], title: 'Fix', ...o });
 const many = (n, o, spread = 25) => Array.from({ length: n }, (_, i) => row({ ...(typeof o === 'function' ? o(i) : o), start: ago(1 + (i % spread)) }));
 // Current period (30 days): shop 20 single, blog 19 group, api 1 loop. Previous 30 days: 10 shop sessions.
+// Turns of the api session and one blog session overlap for 5 minutes; the api session waited 20 minutes for a usage limit.
+const T = Date.parse(ago(0, 11)) / 1000;
 const data = () => [
   ...many(20, { project: '/work/shop', pattern: 'single' }),
-  ...many(19, (i) => ({ project: '/work/blog', pattern: 'group', tests: i % 2 ? 'pass' : 'fail', prs: i === 0 ? [{ url: 'https://github.com/acme/blog/pull/9', state: 'merged' }] : [], branch: i < 5 ? 'feat/x' : 'main' })),
-  row({ project: '/work/api', pattern: 'loop', start: ago(0, 11) }),
+  ...many(19, (i) => ({ project: '/work/blog', pattern: 'group', tests: i % 2 ? 'pass' : 'fail', prs: i === 0 ? [{ url: 'https://github.com/acme/blog/pull/9', state: 'merged' }] : [], branch: i < 5 ? 'feat/x' : 'main', ...(i === 0 && { active: [[T + 300, T + 900]], limits: [] }) })),
+  row({ project: '/work/api', pattern: 'loop', start: ago(0, 11), active: [[T, T + 600]], limits: [[T, T + 1200, null]] }),
   ...Array.from({ length: 10 }, (_, i) => row({ project: '/work/shop', start: ago(31 + i) })),
 ];
 // Registered projects as registeredPaths() gives them; the fixture's three by default.
@@ -193,11 +195,14 @@ test('at phone width the rail is one button with the choice that opens the list;
 test('quick facts first, then test runs and merged pull requests; each shows the change against the previous period of the same length; All time has none', async ({ page }) => {
   await load(page, data());
   const tile = (name) => page.locator('#tiles .tile').filter({ has: page.locator('.label', { hasText: new RegExp(`^${name}$`) }) });
-  await expect(page.locator('#tiles .facts').first().locator('.label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens', 'Most used agent', 'Busiest day', 'Active days', 'Longest streak']);
-  await expect(page.locator('#tiles .small .label')).toHaveText(['Tests passed', 'Merged pull requests']);
+  await expect(page.locator('#tiles .facts').first().locator('.label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens', 'Agents at once', 'Busiest day', 'Active days', 'Blocked by limits']);
+  await expect(page.locator('#tiles .small .label')).toHaveText(['Most used agent', 'Longest streak', 'Tests passed', 'Merged pull requests']);
   await expect(tile('Sessions')).toContainText('+300% vs previous 30 days');
   await expect(tile('Sessions')).toContainText('40');
   await expect(tile('Most used agent')).toContainText('Claude Code40 of 40 sessions');
+  // 20 minutes of turns over 15 minutes of wall-clock; sessions cached before these were read are left out.
+  await expect(tile('Agents at once')).toContainText('1.3on average while any turn ran, peak 2');
+  await expect(tile('Blocked by limits')).toContainText('20m1 usage limit wait across sessions, Claude Code only');
   await expect(tile('Active days')).toContainText('of 30 days');
   await expect(tile('Tests passed')).toContainText('points vs previous 30 days');
   await expect(page.locator('#history')).toBeHidden();

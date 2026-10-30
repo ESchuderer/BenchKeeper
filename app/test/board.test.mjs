@@ -237,9 +237,26 @@ test('the quick facts match the numbers of the period computed from the rows', (
   const rows = [s('claude', '/a', '2026-10-22', 1.5), s('claude', '/a', '2026-10-23', 2), s('codex', '/b', '2026-10-23', null, { tokens: 50 }), s('claude', '/b', '2026-10-25', 0.5, { busyMs: null }), s('codex', '/b', '2026-10-26', null)];
   assert.deepEqual(periodFacts(rows, CUR), {
     sessions: 5, time: 4 * 60e3, cost: 4, tokens: 450, uncosted: [['codex', 2]], agent: ['claude', 3], busiest: ['2026-10-23', 2], active: 4, streak: 2,
+    atOnce: null, peak: null, waits: null, blocked: null,
   });
   // Nothing in the period: zeros, no agent or busiest day, no cost rather than $0.
-  assert.deepEqual(periodFacts([], CUR), { sessions: 0, time: 0, cost: null, tokens: 0, uncosted: [], agent: null, busiest: null, active: 0, streak: 0 });
+  assert.deepEqual(periodFacts([], CUR), { sessions: 0, time: 0, cost: null, tokens: 0, uncosted: [], agent: null, busiest: null, active: 0, streak: 0, atOnce: null, peak: null, waits: null, blocked: null });
+});
+
+test('agents at once and limit waits: unions over sessions, back-to-back turns do not overlap, rows without the fields are left out', () => {
+  const rows = [
+    s('claude', '/a', '2026-10-22', 1, { active: [[0, 100], [200, 300]], limits: [[400, 500, 900], [1000, null, 1300]] }),
+    // Overlaps the first session's turn and wait; one limit stopping both counts its time once.
+    s('claude', '/b', '2026-10-22', 1, { active: [[50, 150], [300, 400]], limits: [[450, 600, null], [2000, null, null]] }),
+    s('codex', '/b', '2026-10-22', null, { active: [[60, 90]], limits: null }),
+    s('claude', '/c', '2026-10-22', 1, { active: null, limits: null }),
+  ];
+  const f = periodFacts(rows, CUR);
+  // Agent time 430 s over 350 s of wall-clock: [0, 150], [200, 400]; three at once from 60 to 90.
+  assert.deepEqual([f.atOnce, f.peak], [430 / 350, 3]);
+  // [400, 600] and [1000, 1300]; the wait without an end or a reset time counts, without time.
+  assert.deepEqual([f.waits, f.blocked], [4, 500e3]);
+  assert.deepEqual([periodFacts([s('codex', '/b', '2026-10-22', null, { active: [], limits: null })], CUR)].map((x) => [x.atOnce, x.peak, x.waits, x.blocked]), [[null, null, null, null]]);
 });
 
 test('two agents, one with an empty previous window: All gives the merged numbers, each agent its own', () => {

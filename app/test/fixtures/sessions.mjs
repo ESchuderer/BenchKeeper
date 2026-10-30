@@ -142,3 +142,39 @@ export function writeRunSessions(home, dir, mark, { title } = {}) {
     ]);
   }
 }
+
+const turn = (t, durationMs) => ({ ...common(t), type: 'system', subtype: 'turn_duration', durationMs });
+const limited = (t, resetsAt) => ({ ...assistant(t, `e${t}`, [{ type: 'text', text: 'Limit reached' }]), isApiErrorMessage: true, error: 'rate_limit', ...(resetsAt ? { quotaLimits: { resetsAt } } : {}) });
+const sec = (t) => Date.parse(t) / 1000;
+// Turns and usage limit waits in the project `act`: t1 with turn lines and limit waits, t2 with timestamps only, a Codex
+// rollout with task_complete, and a subagent of t1 whose turn is left out.
+export function writeActivitySessions(home) {
+  const dir = join(home, '.claude/projects', '-work-act');
+  const at = (id, lines) => jsonl(join(dir, `${id}.jsonl`), lines.map((l) => ({ ...l, cwd: '/work/act', sessionId: id })));
+  at('t1', [
+    human('2026-10-22T09:00:00.000Z', 'go'),
+    // Two turns back to back merge; the third stands apart.
+    turn('2026-10-22T09:10:00.000Z', 600e3), turn('2026-10-22T09:20:00.000Z', 600e3),
+    // Two errors before the answer are one wait; the reset time of the last one stays.
+    limited('2026-10-22T09:30:00.000Z', sec('2026-10-22T11:00:00.000Z')), limited('2026-10-22T09:31:00.000Z', sec('2026-10-22T10:00:00.000Z')),
+    assistant('2026-10-22T09:45:00.000Z', 'm9', [{ type: 'text', text: 'Back.' }]),
+    turn('2026-10-22T10:00:00.000Z', 300e3),
+    // Never resumed: the wait lasts until its reset time.
+    limited('2026-10-22T10:30:00.000Z', sec('2026-10-22T10:40:00.000Z')),
+  ]);
+  at('t2', [
+    human('2026-10-22T09:00:00.000Z', 'go'),
+    assistant('2026-10-22T09:05:00.000Z', 'n9', [{ type: 'text', text: 'x' }]),
+    // A gap over 15 minutes starts a new run; a lone timestamp counts no time.
+    assistant('2026-10-22T09:25:00.000Z', 'n9', [{ type: 'text', text: 'x' }]), assistant('2026-10-22T09:35:00.000Z', 'n9', [{ type: 'text', text: 'x' }]),
+    // Never resumed and no reset time: a wait without time.
+    limited('2026-10-22T10:00:00.000Z'),
+  ]);
+  jsonl(join(dir, 't1/subagents/agent-s.jsonl'), [{ ...turn('2026-10-22T09:05:00.000Z', 60e3), cwd: '/work/act' }]);
+  const ev = (t, type, payload) => ({ timestamp: t, type, payload });
+  jsonl(join(home, '.codex/sessions/2026/10/22/rollout-2026-10-22T09-00-00-x1.jsonl'), [
+    ev('2026-10-22T09:00:00.000Z', 'session_meta', { id: 'x1', cwd: '/work/act' }),
+    ev('2026-10-22T09:05:00.000Z', 'event_msg', { type: 'task_complete', duration_ms: 240e3 }),
+    ev('2026-10-22T09:15:00.000Z', 'event_msg', { type: 'task_complete', duration_ms: 60e3 }),
+  ]);
+}

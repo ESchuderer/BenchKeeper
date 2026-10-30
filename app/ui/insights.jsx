@@ -60,7 +60,7 @@ function FixButtons({ fix: { action, plan }, onPlan }) {
 
 // A path of four or more parts shows its last two in a row's title; the title's hover and the opened row show it in full.
 // A folder name may hold spaces; the last part may not, as the words after a path are not part of it.
-const PATH = /(?<![\w:/.~-])(?:[A-Za-z]:)?(?:[\\/][^\s\\/:,;()'"]+(?: [^\s\\/:,;()'"]+)*(?=[\\/])){3,}[\\/][^\s\\/:,;()'"]+/g;
+const PATH = /(?<![\w:/.~-])(?:[~.]|[A-Za-z]:)?(?:[\\/][^\s\\/:,;()'"]+(?: [^\s\\/:,;()'"]+)*(?=[\\/])){3,}[\\/][^\s\\/:,;()'"]+/g;
 const shortPaths = (text) => text.replace(PATH, (p) => `\u2026/${p.split(/[\\/]/).slice(-2).join('/')}`);
 // Errors are full cards; warnings and info are rows, so the summary names a finding as its card or row does.
 const titleOf = (f) => (f.severity === 'error' ? f.message : shortPaths(f.message));

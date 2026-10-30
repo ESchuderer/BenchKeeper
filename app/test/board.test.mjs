@@ -122,6 +122,12 @@ test('every series color holds 3:1 and every text color 4.5:1 against its surfac
   }
 });
 
+test('nothing moves on hover: the only transform is the open fold arrow, the only transitions are colors, shadows and bar widths', () => {
+  const css = boardHtml([], '2026-10-23T00:00:00Z').match(/<style>([\s\S]*?)<\/style>/)[1];
+  assert.deepEqual(css.match(/transform: [^;]+/g), ['transform: rotate(90deg)']);
+  assert.deepEqual(css.match(/transition: [^;]+/g), ['transition: border-color var(--ease), box-shadow var(--ease)', 'transition: width 250ms ease', 'transition: none !important']);
+});
+
 test('the app shares the board tokens: the primary scale holds its contrast, the health bar has a color per state, variables take the prefix', () => {
   assert.equal(PRIMARY[9], TOKENS.light.accent);
   assert.equal(PRIMARY[4], TOKENS.dark.accent);

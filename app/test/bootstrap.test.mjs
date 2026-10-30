@@ -139,7 +139,7 @@ test('a profile origin must be text', () => {
 test('import lists a missing project and clones it only after the question, with the hardened command', async () => {
   const { ctx, calls } = machine(fixture());
   const folder = tmp('bk-boot-into-'), gone = join(tmp('bk-boot-old-'), 'demo');
-  const r = await cli(['profile', 'import', profile([{ path: gone, origin: URL }]), '--clone-into', folder], ctx, ['y\n', NO]);
+  const r = await cli(['profile', 'import', profile([{ path: gone, origin: URL }]), '--clone-into', folder], ctx, ['y\ny\n', NO]);
   assert.equal(r.code, 0, r.out);
   const dest = join(folder, 'demo');
   assert.match(r.out, new RegExp(`missing ${gone}: ${URL} \\(host github.com\\)`));

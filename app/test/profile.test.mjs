@@ -52,6 +52,21 @@ test('export holds choices only; import registers projects, saves packs, sets up
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
 });
 
+test('import asks before it saves own packs and registers projects: no input refuses, n stops, both write nothing', async () => {
+  const b = machine(), proj = tmp('bk-prof-proj-');
+  const file = join(tmp('bk-prof-file-'), 'p.json');
+  writeFileSync(file, JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, packs: [{ id: 'ui', skills: ['accessibility'] }], projects: [{ path: proj }] }));
+  for (const [input, code] of [['', 2], ['n\n', 0]]) {
+    let out = '', err = '';
+    const r = await main(['profile', 'import', file], { out: new Writable({ write(c, _, done) { out += c; done(); } }), err: new Writable({ write(c, _, done) { err += c; done(); } }), ctx: b, input: Readable.from([input]) });
+    assert.equal(r, code, out);
+    assert.match(out, /Save 1 own packs and register 1 projects/);
+    if (code) assert.equal(err, 'profile import asks before it changes anything: add --yes\n');
+    else assert.match(out, /nothing applied\n$/);
+    assert.deepEqual([ownPacks(b), listProjects(b), b.ledger.list()], [[], [], []]);
+  }
+});
+
 test('profile files are checked before anything is applied', () => {
   const base = { kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] } };
   assert.throws(() => readProfile('x'), /profile:/);

@@ -1,7 +1,7 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -887,7 +887,13 @@ async function command(argv, { out, err, ask, ctx }) {
     let code = 0;
     // Clones first: a cloned project is registered and set up below like one that was here.
     for (const run of await cloneMissing(ctx, p, { into: o['clone-into'], yes: o.yes, ask, out })) code |= report(run, out);
-    // Own packs next: the project plans can name them.
+    // Own packs next: the project plans can name them. Saving them and registering the projects is asked first, as a
+    // pack with the same id is replaced outside any run; without both the plans below have nothing to stand on.
+    const packs = p.packs?.length ?? 0, here = (p.projects ?? []).filter((y) => existsSync(y.path)).length;
+    if (!o.yes && (packs || here) && !(await ask(`Save ${packs} own packs and register ${here} projects (an own pack with the same id is replaced, the old one goes to the backup)?`))) {
+      out.write('nothing applied\n');
+      return code;
+    }
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
     for (const m of done.skippedPacks) out.write(`skipped ${m}\n`);

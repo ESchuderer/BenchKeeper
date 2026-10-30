@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { HELP, helpFor, main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
@@ -308,4 +309,14 @@ test('ui: a busy port ends with one line and exit 1, a bad --port with exit 2', 
   } finally { busy.close(); }
   for (const bad of ['abc', '65536', '-1', '1.5']) assert.equal(await c.exec(['ui', '--no-open', `--port=${bad}`]), 2);
   assert.match(c.text(), /--port must be a whole number from 0 to 65535\n$/);
+});
+
+test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only the message', () => {
+  const bin = fileURLToPath(new URL('../bin/benchkeeper.mjs', import.meta.url));
+  const run = (env) => spawnSync(process.execPath, [bin, 'doctor', '--zzz'], { encoding: 'utf8', env: { ...process.env, BENCHKEEPER_HOME: mkdtempSync(join(tmpdir(), 'bk-cli-')), BENCHKEEPER_DEBUG: '', ...env } });
+  const plain = run({});
+  assert.deepEqual([plain.status, plain.stderr], [2, 'unknown option --zzz for doctor, see benchkeeper --help\n']);
+  const debug = run({ BENCHKEEPER_DEBUG: '1' });
+  assert.equal(debug.status, 2);
+  assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
 });

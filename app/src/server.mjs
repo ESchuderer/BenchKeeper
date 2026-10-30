@@ -795,11 +795,13 @@ async function body(req) {
 
 // The link works once and for this long: a token printed with --no-open does not stay valid until the server stops.
 export const TOKEN_MS = 10 * 60e3;
-export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx), tokenMs = TOKEN_MS } = {}) {
+export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx), tokenMs = TOKEN_MS, err = process.stderr } = {}) {
+  // The stack goes to the terminal of the server, masked; the browser gets the message only.
+  const log = (e) => err.write(`${mask(e?.stack ?? String(e))}\n`);
   let urlToken = token, session = null, key = null;
   const expires = Date.now() + tokenMs;
   // A failure nobody handled ends this request, never the server.
-  const server = createServer((req, res) => handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
+  const server = createServer((req, res) => handle(req, res).catch((e) => { log(e); if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
   const handle = async (req, res) => {
     const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
       res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", ...headers });
@@ -840,13 +842,18 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         // project: a project's page shows only its sessions; any other folder is refused.
         const only = url.searchParams.get('project'), registered = registeredPaths(ctx);
         if (only != null && !registered.some((x) => x.path === only)) return boardError(404, 'This folder is not a registered project: open the board from its project page in the app.');
-        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return boardError(500, `The session scan failed: ${mask(e.message)}. Fix that and scan again.`); }
+        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { log(e); return boardError(500, `The session scan failed: ${mask(e.message)}. Fix that and scan again.`); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).
     if (route && req.method === 'POST' && !/^application\/json(;|$)/i.test(req.headers['content-type'] ?? '')) return send(415, { error: 'content-type must be application/json' });
     if (route) {
-      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) {
+        // A 4xx is the request's fault and says so; anything else is a failure of the app, and its stack is in the terminal.
+        if (e.status < 500) return send(e.status, { error: e.message });
+        log(e);
+        return send(e.status ?? 500, { error: `${mask(e.message)} (details in the terminal)` });
+      }
       // After the answer: closing ends the CLI's ui command, as Ctrl+C does.
       if (url.pathname === '/api/shutdown') setImmediate(() => { server.close(); server.closeAllConnections(); });
       return;

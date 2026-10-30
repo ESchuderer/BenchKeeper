@@ -22,14 +22,17 @@ const TMP = realpathSync(tmpdir());
 
 let srv, srvCtx, port, cookie, key;
 const changed = [];
+// What the server writes to its terminal.
+let logged = '';
 before(async () => {
   const ctx = srvCtx = context({ home: mkdtempSync(join(TMP, 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
   const dist = mkdtempSync(join(TMP, 'bk-dist-'));
   writeFileSync(join(dist, 'index.html'), '<!doctype html><title>BenchKeeper</title>');
   mkdirSync(join(dist, 'assets'));
   writeFileSync(join(dist, 'assets/app.js'), 'console.log(1)');
-  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'], 'POST /api/shutdown': () => ({ stopping: true }) };
-  const s = await startServer(ctx, { token: 'secret-token-123', dist, routes });
+  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'], 'POST /api/shutdown': () => ({ stopping: true }),
+    'GET /api/broken': () => { throw new TypeError('cannot read token=abc123'); }, 'GET /api/refused': () => { throw Object.assign(new Error('no such run'), { status: 404 }); } };
+  const s = await startServer(ctx, { token: 'secret-token-123', dist, routes, err: { write: (t) => { logged += t; } } });
   srv = s.server;
   port = srv.address().port;
 });
@@ -130,6 +133,17 @@ test('the sessions cache: retention and Clear through the API drop the reused sc
   await jobDone(routes, again.job);
   assert.throws(() => routes['POST /api/sessions-cache']({ keepDays: 0 }), /whole number/);
   assert.throws(() => routes['POST /api/sessions-cache']({}), /clear: true or keepDays/);
+});
+
+test('a failing route answers 500 with its masked message and writes the masked stack to the terminal; a 4xx only answers', async () => {
+  logged = '';
+  const r = await req('GET', '/api/broken', auth());
+  assert.deepEqual([r.status, JSON.parse(r.body)], [500, { error: 'cannot read token=*** (details in the terminal)' }]);
+  assert.match(logged, /^TypeError: cannot read token=\*\*\*\n\s+at /);
+  assert.ok(!logged.includes('abc123'));
+  logged = '';
+  const n = await req('GET', '/api/refused', auth());
+  assert.deepEqual([n.status, JSON.parse(n.body), logged], [404, { error: 'no such run' }, '']);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {

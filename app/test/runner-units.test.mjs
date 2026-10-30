@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -15,9 +15,10 @@ const stub = (answer = () => ok) => {
   const c = context({ home: home(), run: (argv, opts) => { calls.push({ argv, opts }); return answer(argv); } });
   return { c, calls };
 };
-// A git repository with a committed README.md, and a context whose roots hold it.
+// A git repository with a committed README.md, and a context whose roots hold it. Its folder is resolved because the
+// session records paths under git's root, which has no links (macOS temp folders are under the link /var).
 const repo = () => {
-  const dir = home();
+  const dir = realpathSync(home());
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com');

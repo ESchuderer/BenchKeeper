@@ -112,7 +112,7 @@ export function Surfaces() {
             data={[{ value: 'merged', label: 'Usage and Ponytail level' }, { value: 'plugin', label: 'Ponytail level only' }, { value: 'benchkeeper', label: 'Usage only' }, { value: 'none', label: 'Nothing' }]}
             value={pending(key)?.value ?? a.value} onChange={(v) => (v === a.value ? setPlan(null) : ask(key, v, `You chose the status line style ${v} for account ${a.name} in Preferences.`, undefined, '/api/status-style', { account: a.name, value: v }))} />
         );
-      }) : <Text size="sm">Status line: <Code>benchkeeper accounts track &lt;name&gt;</Code> installs it in an account; its style is chosen here then.</Text>)}</Loading>
+      }) : <Text size="sm">Status line: no host account is tracked. <Code>benchkeeper accounts track &lt;name&gt;</Code> installs it in a host account, whose style is chosen here then. An account in a dev container sets its style in its own settings.json: the plugin option <Code>statusStyle</Code> under <Code>pluginConfigs."benchkeeper@benchkeeper".options</Code>.</Text>)}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
       {plan && (
         <Section title="Changes">

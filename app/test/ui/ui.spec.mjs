@@ -2507,14 +2507,56 @@ test.describe('views', () => {
     await expect(work).toBeVisible();
     await noAxe(page);
     await page.setViewportSize({ width: 1280, height: 900 });
+    // work stays for the status line test, which removes it.
+    await home.getByRole('button', { name: /^Remove / }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await changes.getByRole('button', { name: 'Close' }).click();
+  });
+
+  test('Preferences: the status line style of the tracked account work is a plan on its settings.json, applied, shown after the reload and undone; no axe violations at 390 px', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    const select = views.getByRole('combobox', { name: 'Status line of account work' });
+    await expect(select).toHaveValue('Usage and Ponytail level');
+    const file = await views.getByText(/accounts\/work\/settings\.json$/).textContent();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // The select ignores input while its plan is asked for.
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/status-style$/, async (route) => { if (route.request().method() === 'POST') await held; await route.continue(); });
+    await select.click();
+    await page.getByRole('option', { name: 'Usage only', exact: true }).click();
+    await expect(select).toBeDisabled();
+    answer();
+    const changes = views.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You chose the status line style benchkeeper for account work in Preferences.');
+    await page.unroute(/\/api\/status-style$/);
+    await expect(changes).toContainText(file);
+    await expect(select).toHaveValue('Usage only');
+    await expect(views).toContainText('Apply or cancel in Changes below');
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(select).toBeEnabled();
+    await expect(select).toHaveValue('Usage only');
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await changes.getByRole('button', { name: 'Close' }).click();
+    await page.reload();
+    await expect(views.getByRole('combobox', { name: 'Status line of account work' })).toHaveValue('Usage and Ponytail level');
     // Back to no account, as the other tests expect the machine.
-    for (const card of [home, work]) {
-      await card.getByRole('button', { name: /^Remove / }).click();
-      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
-      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
-      await changes.getByRole('button', { name: 'Close' }).click();
-    }
+    await nav(page, 'Accounts').click();
+    await page.getByRole('article', { name: 'work' }).getByRole('button', { name: /^Remove / }).click();
+    const removal = page.getByRole('region', { name: 'Changes' });
+    await removal.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(removal.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await removal.getByRole('button', { name: 'Close' }).click();
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
+    await nav(page, 'Preferences').click();
+    await expect(views).toContainText('An account in a dev container sets its style in its own settings.json');
   });
 
   test('Preferences: the tier strip plan says the user asked for it', async ({ page }) => {

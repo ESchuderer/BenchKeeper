@@ -38,8 +38,8 @@ export default function BenchmarkPage({ base }: { base: string }) {
         </Table.ScrollContainer>
 
         <Title order={2} fz={{ base: 24, md: 30 }}>Where the results and the method live</Title>
-        {/* research README.md "Recorded results", bench/README.md */}
-        <Text>The reports of the mistreevous brief, <Anchor href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Anchor> and <Anchor href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Anchor>, with the per-trial files they rest on next to them. The raw trial data was removed, so these tables cannot be recomputed.</Text>
+        {/* research README.md "Recorded results", research bench/ORIGIN.md "Not moved yet", bench/README.md */}
+        <Text>The reports of the mistreevous brief, <Anchor href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Anchor> and <Anchor href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Anchor>, with the per-trial files they rest on next to them, except a few review files still in this repository that <Anchor href={`${FILE}/bench/ORIGIN.md#not-moved-yet`}><Code>bench/ORIGIN.md</Code></Anchor> lists. The raw trial data was removed, so these tables cannot be recomputed.</Text>
         <Text>The compared arms are in <Anchor href={`${FILE}/bench/SCENARIOS.md`}><Code>bench/SCENARIOS.md</Code></Anchor>, the source of every file in <Anchor href={`${FILE}/bench/ORIGIN.md`}><Code>bench/ORIGIN.md</Code></Anchor>, and the protocol in <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/bench/PROTOCOL.md"><Code>bench/PROTOCOL.md</Code></Anchor> of this repository. New runs go into the research repository.</Text>
       </Stack>
     </SiteShell>

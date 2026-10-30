@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { TOKEN_MS, api, startServer } from '../src/server.mjs';
+import { httpRequest } from './helpers.mjs';
 
 let srv, port, cookie, key;
 before(async () => {
@@ -23,18 +24,7 @@ before(async () => {
 });
 after(() => srv.close());
 
-function req(method, path, headers = {}, body) {
-  return new Promise((ok, fail) => {
-    const r = request({ host: '127.0.0.1', port, method, path, headers: { host: `127.0.0.1:${port}`, ...headers } }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => ok({ status: res.statusCode, headers: res.headers, body: data }));
-    });
-    r.on('error', fail);
-    r.setTimeout(3000, () => r.destroy(new Error('no answer')));
-    r.end(body);
-  });
-}
+const req = (method, path, headers, body) => httpRequest(port, method, path, headers, body, 3000);
 const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
 const post = (path, body) => req('POST', path, auth({ 'content-type': 'application/json' }), typeof body === 'string' ? body : JSON.stringify(body));
 

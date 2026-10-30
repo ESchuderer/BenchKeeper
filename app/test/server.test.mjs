@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -17,6 +16,7 @@ import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
 import { dashboard } from '../src/dashboard.mjs';
+import { hostAccount, httpRequest } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -38,17 +38,7 @@ before(async () => {
 });
 after(() => { if (srv.listening) srv.close(); });
 
-function req(method, path, headers = {}, body) {
-  return new Promise((ok, fail) => {
-    const r = request({ host: '127.0.0.1', port, method, path, headers: { host: `127.0.0.1:${port}`, ...headers } }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => ok({ status: res.statusCode, headers: res.headers, body: data }));
-    });
-    r.on('error', fail);
-    r.end(body);
-  });
-}
+const req = (method, path, headers, body) => httpRequest(port, method, path, headers, body);
 const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
 const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', ...h }), '{"planId":"x"}');
 
@@ -1077,12 +1067,7 @@ test('the status line style: per tracked host account, planned in the settings.j
   const { ctx, routes } = fixture();
   const style = () => routes['GET /api/status-style']();
   assert.deepEqual(style(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle', accounts: [] });
-  const account = (name, tracked) => {
-    const dir = join(ctx.home, `acct-${name}`);
-    mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
-    if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
-    return { name, agent: 'claude', mode: 'host', dir };
-  };
+  const account = (name, tracked) => hostAccount(ctx, name, tracked);
   const work = account('work', true);
   mkdirSync(ctx.config, { recursive: true });
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [work, account('spare', false)] }));

@@ -4,11 +4,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir } from '../src/automations.mjs';
+import { automationTemplate, sh } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-rw-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'release-watch');
-const sh = { skip: process.platform === 'win32' && 'sh helpers' };
+const template = () => automationTemplate('release-watch');
 
 // A fake gh on PATH that logs its arguments, prints the newest release tag (the file release; "error" fails), lists the
 // open issues from the file issues and adds one there on issue create. XDG_STATE_HOME holds the record.

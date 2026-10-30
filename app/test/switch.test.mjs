@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,19 +14,14 @@ import { api } from '../src/server.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from '../src/skills.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { STATE, projectPlan, readState } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 const SKILL = 'designing-technical-uis';
 
 function repo() {
   const dir = mkdtempSync(join(TMP, 'bk-sw-'));
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const home = mkdtempSync(join(TMP, 'bk-swhome-'));
   const ctx = context({ home, roots: [home, dir], appVersion: '6.0.0' });
   // Two own packs that share one skill, and one that holds another skill the library has.

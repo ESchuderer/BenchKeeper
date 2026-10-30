@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { allowed, apply, applyAsync, claudeResult, context, legacyBackups, preview, restoreLegacy, runCommand, runCommandAsync, undo, undoable, windowsTool } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
+import { initRepo } from './helpers.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-home-'));
 const ok = { code: 0, stdout: '', stderr: '' };
@@ -19,13 +19,7 @@ const stub = (answer = () => ok) => {
 // session records paths under git's root, which has no links (macOS temp folders are under the link /var).
 const repo = () => {
   const dir = realpathSync(home());
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const h = home();
   return { dir, git, ctx: context({ home: h, roots: [h, dir], run: runCommand }) };
 };

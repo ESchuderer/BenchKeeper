@@ -178,3 +178,16 @@ export function writeActivitySessions(home) {
     ev('2026-10-22T09:15:00.000Z', 'event_msg', { type: 'task_complete', duration_ms: 60e3 }),
   ]);
 }
+
+// 20 Claude Code sessions in /work/friction whose Bash test run failed; the prompt and the error carry the marker secret.
+export function writeFrictionSessions(home, secret) {
+  const dir = join(home, '.claude/projects/-work-friction');
+  mkdirSync(dir, { recursive: true });
+  const line = (t, extra) => JSON.stringify({ cwd: '/work/friction', sessionId: 'x', timestamp: t, ...extra });
+  for (let i = 0; i < 20; i++) {
+    const t = `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z`;
+    const bash = { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'tool_use', id: 'k', name: 'Bash', input: { command: 'npm test' } }] } };
+    const res = { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k', content: `Exit code 1 ${secret}`, is_error: true }] } };
+    writeFileSync(join(dir, `f${i}.jsonl`), [line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: secret } }), line(t, bash), line(t, res)].join('\n') + '\n');
+  }
+}

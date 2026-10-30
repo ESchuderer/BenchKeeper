@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { registry } from '../src/agents.mjs';
-import { fill, genericDir, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir } from '../src/automations.mjs';
+import { automationTemplate } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-pc-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'provider-changelog');
+const template = () => automationTemplate('provider-changelog');
 const sh = { skip: process.platform === 'win32' && 'sh precheck' };
 
 // The precheck with a fake --version output per agent bin (missing: the agent fails, as if not installed) and the

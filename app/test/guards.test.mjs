@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,17 +10,12 @@ import { decide, denyReason } from '../src/guard-hook.mjs';
 import { DENY, GUARD_PATH, HOOK, guardChecks, guardScript } from '../src/guards.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { committedSetup, localSetup, projectPlan, readState } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 
 const TMP = realpathSync(tmpdir());
 function repo() {
   const dir = mkdtempSync(join(TMP, 'bk-guard-'));
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const home = mkdtempSync(join(TMP, 'bk-home-'));
   return { dir, git, ctx: context({ home, roots: [home, dir], appVersion: '6.0.0' }) };
 }

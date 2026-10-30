@@ -72,6 +72,9 @@ export function maskStream(s, chunk, max = 65536) {
   return s;
 }
 export const shown = (s) => s.text + maskLine({ end: s.end, pending: s.pending }, s.rest);
+// The last lines of a command's output, joined by a space: masked as a whole before the cut, so a key block whose BEGIN
+// line is cut off, or whose END line never came, keeps no body line.
+export const lastLines = (text, n = 3) => shown(maskStream({ text: '', rest: '', end: null }, String(text))).trim().split('\n').slice(-n).join(' ');
 
 // Files whose lines are key = value: their diff context may sit next to a secret.
 export const keyed = (path) => /\.(json|jsonc|toml|ya?ml|env|ini)$|(^|[\\/])(\.npmrc|config|\.env(\.[\w-]+)?)$/i.test(path ?? '');

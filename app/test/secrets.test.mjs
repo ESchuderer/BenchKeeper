@@ -195,6 +195,19 @@ test('an undo command reports the last lines of its output, masked', () => {
   assert.doesNotMatch(u.entries[0].error, /abc123/);
 });
 
+test('a failed command whose output ends inside or after a key block stores no body line of it', () => {
+  const home = tmp();
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} PRIVATE KEY-----`);
+  // One block with its END line, one that the output ends inside.
+  for (const tail of [`${e}\n`, '']) {
+    const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: `failed\n${b}\nbodylineone\nbodylinetwo\n${tail}` }) });
+    const r = apply([{ id: 'c', step: 's', title: 't', kind: 'command', argv: ['a'] }], ctx, { select: ['c'] });
+    assert.equal(r.status, 'failed');
+    assert.doesNotMatch(r.entries[0].error, /bodyline/);
+    assert.match(r.entries[0].error, /\*\*\* \*\*\*/);
+  }
+});
+
 // POSIX modes: Windows has none to check.
 const posix = { skip: process.platform === 'win32' };
 test('a new agent settings file is private; an existing one keeps its mode', posix, () => {

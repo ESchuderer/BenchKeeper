@@ -558,7 +558,12 @@ test.describe('views', () => {
     next = await nextHeading(scrub);
     await scrub.getByRole('button', { name: 'More' }).focus();
     await page.keyboard.press('Enter');
-    await scrub.getByRole('menuitem', { name: 'Snooze 7 days' }).focus();
+    // The menu takes focus once it has opened; the arrow keys then move through its items.
+    await page.waitForFunction(() => document.activeElement?.closest('[role="menu"]'));
+    await page.keyboard.press('ArrowDown');
+    await expect(scrub.getByRole('menuitem', { name: 'Dismiss' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(scrub.getByRole('menuitem', { name: 'Snooze 7 days' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(scrub).toHaveCount(0);
     await expect(page.locator(`[id="${next}"]`)).toBeFocused();

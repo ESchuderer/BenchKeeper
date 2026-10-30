@@ -11,6 +11,14 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('..', import.meta.url));
 const QUALITY = join(here, 'quality.json');
 const KINDS = { lines: ['LF', 'LH'], branches: ['BRF', 'BRH'], functions: ['FNF', 'FNH'] };
+// jscpd arguments per area of baselines.duplicatedLines, paths relative to app/. `tests` counts tests with the source they repeat.
+const JS = ['--format', 'javascript,jsx'];
+const AREAS = {
+  app: [...JS, 'src', 'ui', 'scripts', 'bin'],
+  tests: [...JS, 'src', 'ui', 'scripts', 'bin', 'test'],
+  web: ['../web/src', '../web/scripts', '../web/tests'],
+  plugins: ['../plugins'],
+};
 
 // Module name to path pattern, read from the `<module>-imports` rules so the modules are defined in one place.
 export const modules = () => Object.fromEntries(createRequire(import.meta.url)('../.dependency-cruiser.cjs').forbidden
@@ -47,10 +55,16 @@ export function compare(base, run) {
     problems: [
       ...run.knip.filter((f) => !known.has(f)).map((f) => `new knip finding: ${f}`),
       ...base.knip.filter((f) => !now.has(f)).map((f) => `fixed knip finding still in the baseline: ${f} (run with --write)`),
-      ...(run.duplicatedLines > base.duplicatedLines ? [`duplicated lines ${run.duplicatedLines} > baseline ${base.duplicatedLines}`] : []),
-      ...(run.duplicatedLines < base.duplicatedLines ? [`duplicated lines ${run.duplicatedLines} < baseline ${base.duplicatedLines} (run with --write)`] : []),
+      ...Object.entries(run.duplicatedLines).flatMap(([area, n]) => {
+        const b = base.duplicatedLines[area] ?? 0;
+        if (n > b) return [`${area} duplicated lines ${n} > baseline ${b}`];
+        return n < b ? [`${area} duplicated lines ${n} < baseline ${b} (run with --write)`] : [];
+      }),
     ],
-    shrunk: { knip: base.knip.filter((f) => now.has(f)), duplicatedLines: Math.min(base.duplicatedLines, run.duplicatedLines) },
+    shrunk: {
+      knip: base.knip.filter((f) => now.has(f)),
+      duplicatedLines: Object.fromEntries(Object.entries(run.duplicatedLines).map(([area, n]) => [area, Math.min(base.duplicatedLines[area] ?? 0, n)])),
+    },
   };
 }
 
@@ -60,16 +74,20 @@ function tool(bin, args) {
   return r.stdout;
 }
 
-function run() {
+function duplicated(args) {
   const out = mkdtempSync(join(tmpdir(), 'bk-jscpd-'));
   try {
-    tool('jscpd/run-jscpd.js', ['--format', 'javascript,jsx', '--reporters', 'json', '--output', out, '--silent', 'src', 'ui', 'scripts', 'bin']);
-    const duplicatedLines = JSON.parse(readFileSync(join(out, 'jscpd-report.json'), 'utf8')).statistics.total.duplicatedLines;
-    return { knip: knipFindings(JSON.parse(tool('knip/bin/knip.js', ['--reporter', 'json', '--no-progress']))), duplicatedLines };
+    tool('jscpd/run-jscpd.js', ['--ignore', '**/node_modules/**,**/dist/**', '--reporters', 'json', '--output', out, '--silent', ...args]);
+    return JSON.parse(readFileSync(join(out, 'jscpd-report.json'), 'utf8')).statistics.total.duplicatedLines;
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
 }
+
+const run = () => ({
+  knip: knipFindings(JSON.parse(tool('knip/bin/knip.js', ['--reporter', 'json', '--no-progress']))),
+  duplicatedLines: Object.fromEntries(Object.entries(AREAS).map(([area, args]) => [area, duplicated(args)])),
+});
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [what, arg] = process.argv.slice(2);

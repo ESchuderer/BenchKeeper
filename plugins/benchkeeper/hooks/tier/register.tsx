@@ -108,7 +108,8 @@ async function openBoard($: EngineInterface) {
   if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper sessions board')
   const windows = (await $.env.get('OS')) === 'Windows_NT'
   const mac = !windows && (await $.process.run(['uname'])).stdout.trim() === 'Darwin'
-  await $.process.run(windows ? ['cmd', '/c', 'start', '', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
+  // explorer takes the path as one argument; cmd would read & or % in a home folder name as its own syntax.
+  await $.process.run(windows ? ['explorer.exe', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
 }
 
 const HELP = 'BenchKeeper band. Top row: project, branch, Ponytail level. Second row: last test run and lint or type check, stale after an edit, and ready when the checks the tier asks for passed since the last edit. quick, standard, full set the tier of this session, auto lets each task choose. board opens the sessions board. doctor asks the agent to run benchkeeper doctor. Nothing leaves this machine. Turn off: set Tier band to false in the plugin options.'

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { libraryWith } from '../src/packs.mjs';
 import { addProject, confirmGit, gitCodeConfig, listProjects, prefetchOrigins, projectInstalls, registeredEntry, registryProblem, relocateProject, remoteHead, renameProject, skillCounts, status, unconfirmedGit, unshare, updateAll } from '../src/projects.mjs';
-import { apply, context, preview } from '../src/runner.mjs';
+import { apply, context, preview, runCommand } from '../src/runner.mjs';
 import { STATE, projectCtx, projectPlan } from '../src/steps/project.mjs';
 
 const TMP = realpathSync(tmpdir());
@@ -190,8 +190,21 @@ test('skillCounts: per agent, the skill files below the folder that agent reads'
 
 test('projectInstalls: per pack and skill the scope hint and the worst state on disk; global packs and skills', () => {
   const h = home(), dir = folder();
-  const ctx = context({ home: h, roots: [h, dir] });
-  apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } }).changes), ctx, { scope: dir });
+  // No network: the signature check passes, the skills CLI writes the skill's folder, the source has no known commit.
+  const run = (argv, o) => {
+    if (argv[1]?.endsWith('verify.mjs')) return { code: 0, stdout: '', stderr: '' };
+    if (argv[0] === 'npx' && argv[3] === 'add') {
+      const skill = join(o.cwd, '.claude/skills', argv[argv.indexOf('-s') + 1]);
+      mkdirSync(skill, { recursive: true });
+      writeFileSync(join(skill, 'SKILL.md'), '---\nname: x\n---\n');
+      return { code: 0, stdout: '', stderr: '' };
+    }
+    if (argv.includes('ls-remote')) return { code: 2, stdout: '', stderr: 'offline' };
+    return runCommand(argv, o);
+  };
+  const ctx = context({ home: h, roots: [h, dir], run });
+  const done = apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } }).changes), ctx, { scope: dir });
+  assert.deepEqual(done.entries.filter((e) => e.status === 'failed'), []);
   const a = projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: {} }).answers;
   const local = { state: 'installed', hint: 'only this project' };
   let rows = projectInstalls(ctx, dir, a);

@@ -83,7 +83,7 @@ The rules in this file come from the [permissions](https://code.claude.com/docs/
 - `disableBypassPermissionsMode` works from any scope, including your own settings.
 - A rule is not a security boundary around the program: a deny covers the usual invocation, not every form. The boundaries that hold are the repository's GitHub rulesets and the token's own rights.
 
-Merges stay on the deterministic path: the `pr-watcher` automation ([catalogue](automations.md#catalogue)) or a script that checks `merge.*` of the policy ([orchestrating-projects](../plugins/benchkeeper/skills/orchestrating-projects/SKILL.md#recurring-runs)). The cycle has no merge right. Workers the cycle starts get no flag that bypasses or skips permission prompts.
+Merges stay on the deterministic path: a script that checks `merge.*` of the policy ([orchestrating-projects](../plugins/benchkeeper/skills/orchestrating-projects/SKILL.md#recurring-runs)). The cycle has no merge right. Workers the cycle starts get no flag that bypasses or skips permission prompts.
 
 ## Test before you enable it
 

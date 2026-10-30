@@ -255,7 +255,7 @@
       {
         "id": "automations",
         "title": "Automations",
-        "text": "An automation template describes one scheduled agent run in a single Markdown file: schedule, precheck, prompt and what it may change. The app installs a template on Orca, shows when the template or the runner's copy changed, and updates or removes it as a plan with undo. Templates include a pull request watcher, issue pickup, issue triage, CI health, dependency triage and worktree cleanup.",
+        "text": "An automation template describes one scheduled agent run in a single Markdown file: schedule, precheck, prompt and what it may change. The app installs a template on Orca, shows when the template or the runner's copy changed, and updates or removes it as a plan with undo. Templates include issue triage, CI health, dependency triage and worktree cleanup.",
         "evidence": "docs/automations.md"
       },
       {

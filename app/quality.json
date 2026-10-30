@@ -45,9 +45,9 @@
     "knip": [],
     "duplicatedLines": {
       "app": 0,
-      "tests": 412,
+      "tests": 400,
       "web": 6,
-      "plugins": 51
+      "plugins": 32
     }
   },
   "mutation": {

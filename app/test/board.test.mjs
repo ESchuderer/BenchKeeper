@@ -52,12 +52,14 @@ test('the main folder in another spelling than the registry (Git on Windows prin
   assert.deepEqual(registeredPaths(ctx)[0].worktrees, [`${home}/wt/shop-fix`]);
 });
 
-test('worktrees of two repositories count as their repository, also a removed one; a folder of no repository is left for Other; the rows go to the page unchanged', () => {
+test('worktrees of two repositories count as their repository, also a removed one; a folder of no repository is left for Other; the folder name matches in any letter case; the rows go to the page unchanged', () => {
   const rows = [
     { ...row, id: 'a', project: '/wt/shop/a', repo: '/src/shop' },
     { ...row, id: 'b', project: '/wt/shop/b', repo: '/src/shop' },
     // Removed before the first scan: the folder pattern <worktrees root>/<repository>/<worktree> names it.
     { ...row, id: 'c', project: '/wt/shop/gone', repo: null },
+    // The same in another letter case: the runner names the folder after how the repository was added.
+    { ...row, id: 'c2', project: '/wt/Shop/gone', repo: null },
     // Cached before the repository was read: another row of the same folder has it.
     { ...row, id: 'd', project: '/wt/shop/a' },
     { ...row, id: 'e', project: '/src/blog', repo: '/src/blog' },
@@ -68,7 +70,7 @@ test('worktrees of two repositories count as their repository, also a removed on
   const before = structuredClone(rows);
   const data = JSON.parse(boardHtml(rows, '2026-10-23T00:00:00Z', [{ path: '/src/blog', worktrees: ['/wt/blog-fix'] }]).match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]);
   assert.deepEqual(Object.fromEntries(data.keys), {
-    '/wt/shop/a': '/src/shop', '/wt/shop/b': '/src/shop', '/wt/shop/gone': '/src/shop',
+    '/wt/shop/a': '/src/shop', '/wt/shop/b': '/src/shop', '/wt/shop/gone': '/src/shop', '/wt/Shop/gone': '/src/shop',
     '/src/blog': '/src/blog', '/src/blog/.claude/worktrees/x': '/src/blog', '/wt/blog-fix': '/src/blog',
   });
   assert.deepEqual(data.rows, before);

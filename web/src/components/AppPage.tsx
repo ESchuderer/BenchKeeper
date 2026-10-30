@@ -118,9 +118,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'rules', view: 'rules', title: 'Rules', shot: 'rules',
-    alt: 'The Rules view: the Claude Code context budget in tokens per source, then the auto memory per project with its number of notes, size, last change and whether MEMORY.md is within the load limit.',
+    alt: 'The Rules view: a summary strip with the tokens Claude Code loads at the start of a session against the limit, its largest source and the checks, then the Claude Code tab with the context budget per source and the auto memory per project with its number of notes, size, last change and whether MEMORY.md is within the load limit.',
     text: [
-      'The instruction files Claude Code and Codex load, in load order, with owner (BenchKeeper, project or yours), size and whether each loads. The context budget sums the tokens that load at the start of every session, counted as four bytes per token.',
+      'A strip at the top shows, per agent, the tokens that load at the start of every session against the limit, counted as four bytes per token, the largest source and the checks. Below it, Claude Code and Codex each have a tab with the instruction files they load, in load order, with owner (BenchKeeper, project or yours), size and whether each loads, and the context budget per source.',
       'Claude Code\'s auto memory shows per project in numbers only: topic notes, total size, last change and whether MEMORY.md is over what loads. The notes stay unread, and where auto memory is off the row says so.',
       'A file that is not BenchKeeper\'s has a switch; nothing here deletes it. A switch is a plan with a diff, and History undoes it.',
     ],

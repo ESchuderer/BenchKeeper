@@ -1,4 +1,4 @@
-import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Table, Text, Textarea, Title } from '@mantine/core';
+import { Badge, Button, Code, Drawer, Group, List, Paper, Progress, Select, SimpleGrid, Stack, Table, Tabs, Text, Textarea, Title } from '@mantine/core';
 import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -139,14 +139,33 @@ function Preview({ row, dir, onClose, onSaved }) {
   );
 }
 
+// The top strip: per agent what loads at the start of every session against BenchKeeper's limit and the largest source,
+// beside the checks on a wide screen.
+const Summary = ({ agents, children }) => (
+  <Paper withBorder p="md" component="section" aria-label="Summary">
+    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
+      <Stack gap="md">
+        {agents.map(({ id, name, budget: { total, largest, over, threshold, limits: [start] } }) => (
+          <Stack key={id} gap={4}>
+            <Text><Text span fw={700}>{name}:</Text> about <Text span fw={700}>{number(total)} tokens</Text> load at the start of every session, of {number(start.max)} (limit set by {start.by}){largest ? <>; the largest source is <Code>{largest.label}</Code> with {number(largest.tokens)}</> : null}.</Text>
+            <Limit {...start} />
+            {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
+          </Stack>
+        ))}
+        <Text size="sm">A token is counted as four bytes: an estimate.</Text>
+      </Stack>
+      {children}
+    </SimpleGrid>
+  </Paper>
+);
+
+// The rest of an agent's budget: the other limits, what loads on demand and the tokens per source.
 function Budget({ budget }) {
   return (
     <Stack gap="xs">
-      <Text>About <Text span fw={700}>{number(budget.total)} tokens</Text> load at the start of every session{budget.largest ? <>; the largest source is <Code>{budget.largest.label}</Code> with {number(budget.largest.tokens)}</> : null}. A token is counted as four bytes: an estimate.</Text>
-      {budget.over && <Note color="yellow">More than {number(budget.threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
       {budget.onDemand > 0 && <Text size="sm">About {number(budget.onDemand)} more tokens of path-scoped rules load only when matching files are used.</Text>}
       {budget.notes.map((n) => <Note key={n} color="yellow">{n}</Note>)}
-      {budget.limits.map((l) => (
+      {budget.limits.slice(1).map((l) => (
         <Stack key={l.label} gap={2}>
           <Text size="sm">{l.label}: {number(l.value)} of {number(l.max)} {l.unit} (limit set by {l.by})</Text>
           <Limit {...l} />
@@ -238,29 +257,35 @@ export function Rules({ overview, params, refresh, project }) {
   const onPlan = (p) => { if (p.dir === shown.current && idle()) setPending(p); };
   return (
     <Stack gap="lg">
-      <Note>The instruction files the agents load, who wrote them, what they cost in context and what the checks found. A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
+      <Note>A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
       {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} readOnly={running} aria-disabled={running || undefined} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
       <Loading state={state} label="instruction files">
         {(data) => (
           <Stack gap="xl">
-            <Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} locked={running} /></Section>
-            {data.agents.map((a) => (
-              <Stack key={a.id} gap="md">
-                <Title order={2} size="h3">{a.name}</Title>
-                <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
-                {a.memory?.folders.length > 0 && (
-                  <Section title={`${a.name} auto memory`}>
-                    <Text size="sm">{a.memory.folders.some((m) => m.enabled)
-                      ? `Notes are the topic files beside MEMORY.md, which load on demand. Claude Code loads the first ${a.memory.lines} lines or ${a.memory.bytes / 1024} KB of MEMORY.md at the start of a session.${a.memory.folders.every((m) => m.enabled) ? '' : ' Auto memory is off for the rows marked not loaded (autoMemoryEnabled is false in the settings that apply there).'}`
-                      : 'Auto memory is off (autoMemoryEnabled is false): Claude Code loads neither MEMORY.md nor the notes beside it. They stay on disk.'}</Text>
-                    <Memory memory={a.memory} />
-                  </Section>
-                )}
-                <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
-                </Section>
-              </Stack>
-            ))}
+            <Summary agents={data.agents}><Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} locked={running} /></Section></Summary>
+            {data.agents.length > 0 && (
+              <Tabs defaultValue={data.agents[0].id}>
+                <Tabs.List aria-label="Agents">{data.agents.map((a) => <Tabs.Tab key={a.id} value={a.id}>{a.name}</Tabs.Tab>)}</Tabs.List>
+                {data.agents.map((a) => (
+                  <Tabs.Panel key={a.id} value={a.id} pt="md">
+                    <Stack gap="xl">
+                      <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
+                      {a.memory?.folders.length > 0 && (
+                        <Section title={`${a.name} auto memory`}>
+                          <Text size="sm">{a.memory.folders.some((m) => m.enabled)
+                            ? `Notes are the topic files beside MEMORY.md, which load on demand. Claude Code loads the first ${a.memory.lines} lines or ${a.memory.bytes / 1024} KB of MEMORY.md at the start of a session.${a.memory.folders.every((m) => m.enabled) ? '' : ' Auto memory is off for the rows marked not loaded (autoMemoryEnabled is false in the settings that apply there).'}`
+                            : 'Auto memory is off (autoMemoryEnabled is false): Claude Code loads neither MEMORY.md nor the notes beside it. They stay on disk.'}</Text>
+                          <Memory memory={a.memory} />
+                        </Section>
+                      )}
+                      <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
+                        <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
+                      </Section>
+                    </Stack>
+                  </Tabs.Panel>
+                ))}
+              </Tabs>
+            )}
           </Stack>
         )}
       </Loading>

@@ -185,6 +185,8 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   // Ponytail's own status line is replaced; one combined with another command is not.
   const ponytail = '{"statusLine":{"type":"command","command":"bash \\"/home/u/.claude/ponytail-statusline.sh\\"","padding":0}}\n';
   assert.deepEqual(JSON.parse(trackedSettings(ponytail, script)).statusLine, { type: 'command', command: `node "${script}" statusline` });
+  // The replaced line is kept and written back by remove, padding and all.
+  assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(trackedSettings(ponytail, script), script), script, { remove: true })), JSON.parse(ponytail));
   assert.equal(JSON.parse(trackedSettings('{"statusLine":{"command":"powershell -File C:\\\\u\\\\.claude\\\\ponytail-statusline.ps1"}}', script)).statusLine.command, `node "${script}" statusline`);
   assert.equal(JSON.parse(trackedSettings(JSON.stringify({ statusLine: { command: 'bash "$HOME/.claude/ponytail-statusline.sh"' } }), script)).statusLine.command, `node "${script}" statusline`);
   for (const command of ['my-line && bash ~/.claude/ponytail-statusline.sh', 'bash ~/.claude/ponytail-statusline.sh; my-line', 'bash $(echo ponytail-statusline.sh)']) {
@@ -256,6 +258,13 @@ test('track: a status line that only runs Ponytail\'s script is replaced, and un
   const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
   assert.equal(await cli(m).exec(['undo', run.id]), 0);
   assert.equal(readFileSync(join(a.dir, 'settings.json'), 'utf8'), own);
+  // --off writes the replaced line back, and its plan shows it.
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
+  const plan = cli(m);
+  assert.equal(await plan.exec(['accounts', 'track', 'work', '--off']), 1);
+  assert.match(plan.text(), /-.*usage\.mjs\\" statusline[\s\S]*ponytail-statusline\.sh/);
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8')), JSON.parse(own));
 });
 
 test('track: an account folder outside the home folder is written and undone', skip, async () => {
@@ -532,6 +541,24 @@ test('auto-pick on with no member above its minimum: --yes goes on under the cho
   assert.equal(launches(m).length, 0);
   assert.equal(await go(m, cli(m), '--yes'), 0);
   assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, work.dir);
+});
+
+test('a dev container account: --off writes back the Ponytail status line that track replaced', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  const vol = (p) => join(m.bin, 'vol', p);
+  const own = { statusLine: { type: 'command', command: 'bash "/data/boxed/ponytail-statusline.sh"' } };
+  mkdirSync(vol('/data/boxed'), { recursive: true });
+  writeFileSync(vol('/data/boxed/settings.json'), JSON.stringify(own));
+  assert.equal(await cli(m).exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
+  assert.match(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')).statusLine.command, /usage\.mjs" statusline$/);
+  const off = cli(m);
+  assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
+  assert.match(off.text(), /-.*usage\.mjs\\" statusline[\s\S]*ponytail-statusline\.sh/);
+  assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), own);
 });
 
 test('a dev container track twice or --off twice has nothing to change; the script is written before the settings that name it', skip, async () => {

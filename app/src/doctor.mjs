@@ -5,6 +5,7 @@ import { accountChecks } from './accounts.mjs';
 import { automationChecks } from './automations.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
+import { containerChecks, containerEngine } from './containers.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion, library } from './content.mjs';
 import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
@@ -130,7 +131,9 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
-    if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
+    const engine = containerEngine(ctx);
+    if (!engine) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
+    else out.push(...containerChecks(ctx, engine, ctx.containerFacts));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);
     if (!sandbox.tool) out.push(issue('info', 'sandbox', `the skill install preview is off: ${sandbox.why}`, 'install the programs named (Windows has none), or use "Rehearse anyway without a sandbox" in the preview'));

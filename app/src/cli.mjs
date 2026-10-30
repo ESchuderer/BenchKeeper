@@ -14,6 +14,7 @@ import { GROUPS, audit, auditMarkdown } from './audit.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { childEnv } from './childenv.mjs';
+import { containerEngine, reconcile } from './containers.mjs';
 import { doctor } from './doctor.mjs';
 import { levelCounts } from './levels.mjs';
 import { EVAL_AGENTS, evalPlan, runEval } from './eval.mjs';
@@ -75,6 +76,10 @@ Usage: benchkeeper <command> [options]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
+  containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
+                                    label) no longer exists while its parent folder does; never one without the label or
+                                    whose folder exists; volumes stay; --dry-run lists them; Linux only; exit 1 when a
+                                    removal fails. For cron or a timer
   settings list [--agent claude|codex] [--advanced] [--project dir]
   settings get <key> [--agent a] [--project dir]
   settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]
@@ -550,10 +555,10 @@ const FLAGS = {
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations precheck': 'param project',
-  'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
+  'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
-const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3 };
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3, 'containers reconcile': 2 };
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
@@ -856,6 +861,16 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(`${levelCounts(found).text || 'no findings'}\n`);
     return found.some((i) => i.level === 'error') ? 1 : 0;
+  }
+  if (cmd === 'containers') {
+    if (arg !== 'reconcile') { out.write('containers needs reconcile\n'); return 2; }
+    if (process.platform !== 'linux') { out.write(`containers reconcile runs on Linux only: skipped on ${process.platform}\n`); return 0; }
+    const engine = containerEngine(ctx);
+    if (!engine) { out.write('no container engine (podman or docker): nothing to reconcile\n'); return 0; }
+    const found = reconcile(ctx, engine, { dryRun: o['dry-run'] });
+    for (const c of found) out.write(`${c.removed === undefined ? 'would remove' : c.removed ? 'removed' : 'failed'} ${c.id.slice(0, 12)} ${c.folder}\n`);
+    out.write(`${found.length} dev container${found.length === 1 ? '' : 's'} of folders that no longer exist\n`);
+    return found.some((c) => c.removed === false) ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });

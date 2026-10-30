@@ -66,7 +66,7 @@ Each step is separate; do the ones the outcome allows, in this order:
 A worker whose terminal a person typed in belongs to that person: skip every step below for it and list it in the report.
 
 1. Stop the worker if it has not settled (an idle worker that sent no report is stopped first), then release it once the runner reports it releasable.
-2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies.
+2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies. Remove the dev containers right before the worktree: `<engine> rm -f <id>` for each id that `<engine> ps -aq --filter label=devcontainer.local_folder=<worktree path>` prints, with `podman` or `docker` as `<engine>`. Volumes stay.
 3. Delete the branch (local and remote) only when its PR is merged and `deleteMergedBranch` allows it.
 
 Cleanup of a finished worker happens as part of reacting to its outcome, without waiting to be asked.

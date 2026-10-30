@@ -49,9 +49,9 @@ export const templates = (ctx) => FILES.map((f) => ({
 }));
 
 // The per-worktree setup files project setup offers when workers ran in the project's worktrees: the setup script runs
-// install (null: a line to fill in) before the agent starts, and the local files listed are copied into each new worktree.
+// install (null: a line to fill in) before the agent starts, the archive script removes the worktree's dev containers, and the local files listed are copied into each new worktree.
 export const worktreeFiles = (install, include) => [
-  { path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\nsetupAgentStartupPolicy: wait-for-setup\n` },
+  { path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\n  archive: |\n    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.\n    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'\nsetupAgentStartupPolicy: wait-for-setup\n` },
   { path: '.worktreeinclude', text: `# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n${include.join('\n')}\n` },
 ];
 

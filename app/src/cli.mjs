@@ -1,7 +1,7 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -14,6 +14,7 @@ import { GROUPS, audit, auditMarkdown } from './audit.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { childEnv } from './childenv.mjs';
+import { containerEngine, reconcile } from './containers.mjs';
 import { doctor } from './doctor.mjs';
 import { levelCounts } from './levels.mjs';
 import { EVAL_AGENTS, evalPlan, runEval } from './eval.mjs';
@@ -75,6 +76,11 @@ Usage: benchkeeper <command> [options]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
+  containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
+                                    label), inside the home folder, no longer exists while its parent folder does; never
+                                    one without the label, whose folder exists or cannot be read, or whose label is not an
+                                    absolute path inside the home folder; volumes stay; --dry-run lists them; Linux only;
+                                    exit 1 when a removal fails. For cron or a timer
   settings list [--agent claude|codex] [--advanced] [--project dir]
   settings get <key> [--agent a] [--project dir]
   settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]
@@ -295,16 +301,20 @@ Usage: benchkeeper <command> [options]
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
         packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
         sessions cache set|clear)
-                                    one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
-                                    level error, 2 usage or read failure; keys in app/README.md. A changing command
-                                    that would ask needs --yes: without it exit 2 and nothing changes
+                                    one JSON document on stdout, logs on stderr; keys in app/README.md. A changing
+                                    command that would ask needs --yes: without it exit 2 and nothing changes
+--version                           prints the version
+--help, -h                          prints this help; after a command, only its lines
+
+Exit codes, with and without --json: 0 clean, 1 findings of level error, a run that did not finish or a
+question answered no, 2 usage or read failure (an unknown command, option or name, such as a skill, pack, run or account).
 
 Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude or codex, default claude). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
-  step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+  step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
@@ -318,26 +328,33 @@ const OPTIONS = {
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
+// A question that found the end of the input before any answer: the command stops before it changes anything.
+class Refused extends Error {}
+
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
 // end early count as no. A read still open when its reader gave up (a sign-in that ended first) is the next line's.
-function asker(input, out) {
-  let rl, lines, pending;
+function asker(input, out, name) {
+  let rl, lines, pending, answered = false;
   const next = () => {
     rl ??= createInterface({ input, terminal: false });
     lines ??= rl[Symbol.asyncIterator]();
-    pending ??= lines.next().then(({ value }) => { pending = null; return value ?? null; });
+    pending ??= lines.next().then(({ value }) => { pending = null; if (value !== undefined) answered = true; return value ?? null; });
     return pending;
   };
-  const ask = async (question) => {
+  // No input at all (an agent's shell gives /dev/null) is no answer, not a no: refused, unless the question comes
+  // after the change (optional), where the end of the input still declines.
+  const ask = async (question, { optional = false } = {}) => {
     out.write(`${question} [y/N] `);
-    return /^y$/i.test(((await next()) ?? '').trim());
+    const line = await next();
+    if (line === null && !answered && !optional) { out.write('\n'); throw new Refused(`${name()} asks before it changes anything: add --yes`); }
+    return /^y$/i.test((line ?? '').trim());
   };
   // The next line as typed (null at the end of the input), after the question when there is one.
   ask.line = (question) => { if (question) out.write(question); return next(); };
   ask.tty = !!input.isTTY;
   ask.close = () => rl?.close();
   // A new reader of the same input, for a question after the agent had the terminal.
-  ask.fresh = () => asker(input, out);
+  ask.fresh = () => asker(input, out, name);
   return ask;
 }
 
@@ -396,14 +413,18 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
+const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
-  const ask = asker(input, out);
+  const named = () => { const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals; return [cmd, arg, sub]; };
+  const ask = asker(input, out, () => commandName(...named()));
   try { return await command(argv, { out, err, ask, ctx }); } catch (e) {
+    if (e instanceof Refused) { err.write(`${e.message}\n`); return 2; }
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    const [cmd, arg, sub] = named();
     out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
@@ -469,23 +490,23 @@ async function readDoc(ctx, { cmd, o, positionals, err }) {
   if (cmd === 'rules') {
     if (!target) return { error: 'rules show needs a file, see benchkeeper rules list', code: 2 };
     if (o.agent && !RULE_AGENTS.includes(o.agent)) return { error: `agent must be one of ${RULE_AGENTS.join(', ')}`, code: 2 };
-    try { return { doc: ruleText(ctx, { agent: o.agent, file: resolve(target), dir: o.project ? resolve(o.project) : undefined }) }; } catch (e) { return { error: e.message, code: 1 }; }
+    try { return { doc: ruleText(ctx, { agent: o.agent, file: resolve(target), dir: o.project ? resolve(o.project) : undefined }) }; } catch (e) { return { error: e.message, code: 2 }; }
   }
   if (cmd === 'skills') {
     if (!target) return { error: 'skills show needs a skill name, see benchkeeper skills list --library', code: 2 };
     const skill = libraryWith(ctx).skills.find((s) => s.name === target);
-    if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 1 };
+    if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 2 };
     // Only the skills BenchKeeper ships have their text in the app; the others live at their source.
     return { doc: { name: skill.name, source: skill.source, text: skill.source === 'own' ? readText(join(contentDir, 'library', skill.name, 'SKILL.md')) : null } };
   }
   if (cmd === 'packs') {
     if (!target) return { error: 'packs warnings needs a pack, see benchkeeper packs list', code: 2 };
     const pack = libraryWith(ctx).packs.find((p) => p.id === target);
-    if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 1 };
+    if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 2 };
     return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? []) } };
   }
   const dir = canon(target ?? '.');
-  if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 1 };
+  if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 2 };
   const installed = selectedAgents(ctx);
   const agent = o.agent ?? ADVISERS.find((a) => installed.includes(a));
   if (!ADVISERS.includes(agent) || !installed.includes(agent)) return { error: `--agent must be an installed one of ${ADVISERS.join(', ')}`, code: 2 };
@@ -550,10 +571,10 @@ const FLAGS = {
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations precheck': 'param project',
-  'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
+  'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
-const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3 };
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3, 'containers reconcile': 2 };
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
@@ -572,9 +593,44 @@ function checkArgs(o, positionals) {
   return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
 }
 
+// The lines of HELP for one command (the noun, and the verb when given) with their continuation lines, then the
+// footer; the whole help when no line matches.
+export function helpFor([noun, verb] = []) {
+  const at = HELP.indexOf('\n--json ('), lines = [];
+  let keep = false;
+  for (const line of HELP.slice(0, at).split('\n')) {
+    if (/^ {2}\S/.test(line)) {
+      const [first, ...rest] = line.trim().split(' ');
+      keep = first === noun && (!verb || rest.join(' ').split('|').some((s) => s.trim().replace(/^\[/, '').split(/[\s\]]/)[0] === verb));
+    } else if (!/^ {3}/.test(line)) keep = false;
+    if (keep) lines.push(line);
+  }
+  return lines.length ? `${lines.join('\n')}\n${HELP.slice(at)}` : HELP;
+}
+
+// The new command of each name the noun-first rename removed (docs/upgrading-to-7.md).
+const RENAMED = { project: 'projects', 'update-all': 'projects update', test: 'verify', board: 'sessions board', record: 'sessions record', eval: 'evals plan', case: 'evals cases', maintain: 'knowledge' };
+const known = (cmd) => Object.keys(FLAGS).some((k) => k.split(' ')[0] === cmd);
+// The one line for a command or subcommand that does not exist; an old name names its new command.
+function unknownCommand(cmd, arg) {
+  if (Object.hasOwn(RENAMED, cmd)) return `${cmd} is now ${RENAMED[cmd]}: see benchkeeper help ${RENAMED[cmd].split(' ')[0]}`;
+  return known(cmd) ? `unknown command ${[cmd, arg].filter(Boolean).join(' ')}: see benchkeeper help ${cmd}` : `unknown command ${cmd}: see benchkeeper help`;
+}
+
+// parseArgs, with an unknown option named for the command it was given to.
+function parse(argv) {
+  try { return parseArgs({ args: argv, options: OPTIONS, allowPositionals: true }); } catch (e) {
+    if (e.code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION') throw e;
+    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k)) ?? cmd;
+    throw new Error(`unknown option ${e.message.match(/'([^']+)'/)?.[1] ?? ''} for ${name}, see benchkeeper --help`);
+  }
+}
+
 async function command(argv, { out, err, ask, ctx }) {
-  const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
-  if (o.help || positionals[0] === 'help') { out.write(`${HELP}\n`); return 0; }
+  const { values: o, positionals } = parse(argv);
+  if (o.version) { out.write(`${appVersion}\n`); return 0; }
+  if (o.help || positionals[0] === 'help') { out.write(`${helpFor(positionals[0] === 'help' ? positionals.slice(1) : positionals)}\n`); return 0; }
   const refused = checkArgs(o, positionals);
   // With --json, main turns the error into the document.
   if (refused) { if (o.json) throw new Error(refused); out.write(`${refused}\n`); return 2; }
@@ -611,7 +667,7 @@ async function command(argv, { out, err, ask, ctx }) {
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+    return applyAnswered(plan, ctx, 'global', { o, ask, out });
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
@@ -629,18 +685,18 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ')} npx -y ${skillsSpec(ctx)}\n`);
     return 0;
   }
-  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
     else if (arg === 'show') {
       const p = catalog(ctx).packs.find((x) => x.id === positionals[2]);
-      if (!p) { out.write(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list\n`); return positionals[2] ? 1 : 2; }
+      if (!p) { out.write(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list\n`); return 2; }
       out.write(`${p.id}  ${p.own ? 'own' : 'library'}  ${p.title ?? p.id}\n${p.skills ? `skills: ${p.skills.join(', ')}` : `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\nused by: ${p.usedBy.join(', ') || 'no registered project'}\n`);
     }
     else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
-    else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
+    else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
     else {
       for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${packScope(ctx, p).padEnd(8)} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
       for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
@@ -657,7 +713,7 @@ async function command(argv, { out, err, ask, ctx }) {
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes.\n`);
     } else {
-      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out) : 0;
+      const code = plan.length ? await applyAnswered(plan, pctx, dir, { o, ask, out }) : 0;
       if (code) return code;
     }
     out.write('Then, in an agent session the app records:\n');
@@ -772,12 +828,12 @@ async function command(argv, { out, err, ask, ctx }) {
       for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
       return results.some((r) => r.status === 'stopped') ? 1 : 0;
     }
-    else if (arg && arg !== 'list') { out.write(`unknown projects command ${arg}\n`); return 2; }
+    else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
     if (!arg || arg === 'list') for (const p of listProjects(ctx)) out.write(`${p.path}\n`);
     return 0;
   }
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
-  if (cmd === 'sessions' && !['board', 'list', 'cache', 'record'].includes(arg)) { out.write('sessions needs board, list, cache or record\n'); return 2; }
+  if (cmd === 'sessions' && !['board', 'list', 'cache', 'record'].includes(arg)) { err.write('sessions needs board, list, cache or record\n'); return 2; }
   if (cmd === 'sessions' && arg === 'cache') {
     const c = cacheCommand(ctx, o, positionals);
     if (c.error) { out.write(`${c.error}\n`); return 2; }
@@ -792,7 +848,7 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'sessions' && arg === 'list') {
     const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
-    if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 1; }
+    if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 2; }
     const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens`;
     for (const x of runs) {
       out.write(`run ${x.run ?? 'not recorded'}: ${line(x)}\n`);
@@ -831,7 +887,13 @@ async function command(argv, { out, err, ask, ctx }) {
     let code = 0;
     // Clones first: a cloned project is registered and set up below like one that was here.
     for (const run of await cloneMissing(ctx, p, { into: o['clone-into'], yes: o.yes, ask, out })) code |= report(run, out);
-    // Own packs next: the project plans can name them.
+    // Own packs next: the project plans can name them. Saving them and registering the projects is asked first, as a
+    // pack with the same id is replaced outside any run; without both the plans below have nothing to stand on.
+    const packs = p.packs?.length ?? 0, here = (p.projects ?? []).filter((y) => existsSync(y.path)).length;
+    if (!o.yes && (packs || here) && !(await ask(`Save ${packs} own packs and register ${here} projects (an own pack with the same id is replaced, the old one goes to the backup)?`))) {
+      out.write('nothing applied\n');
+      return code;
+    }
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
     for (const m of done.skippedPacks) out.write(`skipped ${m}\n`);
@@ -840,10 +902,10 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     for (const m of plan.notes) out.write(`note: ${m}\n`);
-    if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
+    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out });
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
-      code |= report(apply(x.changes, x.ctx, { scope: x.path, select: await choose(x.changes, o, ask, out) }), out);
+      code |= await applyAnswered(x.changes, x.ctx, x.path, { o, ask, out });
     }
     return code;
   }
@@ -857,10 +919,20 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${levelCounts(found).text || 'no findings'}\n`);
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
-  if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'containers') {
+    if (arg !== 'reconcile') { out.write('containers needs reconcile\n'); return 2; }
+    if (process.platform !== 'linux') { out.write(`containers reconcile runs on Linux only: skipped on ${process.platform}\n`); return 0; }
+    const engine = containerEngine(ctx);
+    if (!engine) { out.write('no container engine (podman or docker): nothing to reconcile\n'); return 0; }
+    const found = reconcile(ctx, engine, { dryRun: o['dry-run'] });
+    for (const c of found) out.write(`${c.removed === undefined ? 'would remove' : c.removed ? 'removed' : 'failed'} ${c.id.slice(0, 12)} ${c.folder}\n`);
+    out.write(`${found.length} dev container${found.length === 1 ? '' : 's'} of folders that no longer exist\n`);
+    return found.some((c) => c.removed === false) ? 1 : 0;
+  }
+  if (cmd === 'settings') return settingsCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
   if (cmd === 'pins') {
-    if (arg !== undefined && arg !== 'list') { out.write('pins needs list\n'); return 2; }
+    if (arg !== undefined && arg !== 'list') { err.write('pins needs list\n'); return 2; }
     const dir = resolve(positionals[2] ?? '.');
     if (!isDir(dir)) { out.write(`${dir} is not a folder\n`); return 2; }
     const { pins, errors } = resolvePins(dir);
@@ -869,13 +941,13 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of pins) out.write(`${p.phase.padEnd(10)} ${(p.agent ?? 'session').padEnd(8)} ${(p.model ?? 'default').padEnd(24)} ${(p.effort ?? 'default').padEnd(8)} ${p.source}\n`);
     return 0;
   }
-  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
-  if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
-    if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
+    if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
     out.write(`${extensionLines(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined })).join('\n')}\n`);
     return 0;
@@ -903,7 +975,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return 0;
   }
   if (cmd === 'evals') {
-    if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
+    if (arg !== 'plan' && arg !== 'run') { err.write('evals needs plan, run, results or cases add\n'); return 2; }
     const agents = evalAgentNames(o.agents), agentsProblem = evalAgentsProblem(agents);
     if (agentsProblem) { out.write(`${agentsProblem}\n`); return 2; }
     if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
@@ -922,7 +994,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'history' && arg === 'show') {
     if (!positionals[2] || positionals.length > 3) { out.write(positionals[2] ? `unexpected argument ${positionals[3]}\n` : 'history show needs a run, see benchkeeper history\n'); return 2; }
     let run;
-    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     out.write(`${run.id}  ${run.kind} ${run.status ?? 'interrupted'}  ${run.scope}${run.of ? ` (undo of ${run.of})` : ''}\n`);
     for (const e of run.entries) {
       out.write(`${(e.status ?? '').padEnd(7)} ${e.title}${e.removed ? ' (removed)' : ''}${e.folder ? ' (folder)' : ''}${e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}\n`);
@@ -943,14 +1015,14 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
     if (cmd === 'restore') {
       // Files written into the home folder from a backup: listed, and asked once unless --yes.
-      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 1; }
+      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 2; }
       const files = listFiles(join(ctx.ledger.backups, arg));
       files.forEach((f) => out.write(`restore ${f}\n`));
       if (!o.yes && !(await ask(`Restore ${files.length} files into ${ctx.home}?`))) return 1;
       return report(restoreLegacy(arg, ctx), out);
     }
     let uctx;
-    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     try { return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out); } catch (e) { out.write(`${e.message}\n`); return e.usage ? 2 : 1; }
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
@@ -962,7 +1034,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of board.projects) out.write(`${p.path}  ${p.error ? `error: ${p.error}` : !p.setup ? 'no setup' : `${states(p.states)}${p.untracked ? `, untracked ${p.untracked}` : ''}  packs ${p.packs.join(', ') || 'none'}`}\n`);
     return 0;
   }
-  out.write(`unknown command ${cmd}\n\n${HELP}\n`);
+  err.write(`${unknownCommand(cmd, arg)}\n`);
   return 2;
 }
 
@@ -986,7 +1058,7 @@ async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
   if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
   for (const w of warnings) out.write(`warning: ${w}\n`);
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
-  return report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, pctx, dir, { o, ask, out });
 }
 
 // packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.
@@ -996,10 +1068,10 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   if (o.global && o.project) { out.write('--project and --global exclude each other\n'); return 2; }
   const known = libraryWith(ctx).packs;
   const unknown = ids.filter((id) => !known.some((p) => p.id === id));
-  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 1; }
+  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 2; }
   if (!o.global) {
     const dir = resolve(o.project ?? '.');
-    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 1; }
+    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 2; }
     return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
   }
   const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
@@ -1017,7 +1089,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
 async function packScopeCommand(ctx, { o, positionals, out, ask }) {
   const [, , id, scope] = positionals;
   const pack = libraryWith(ctx).packs.find((p) => p.id === id);
-  if (!pack) { out.write(`unknown pack ${id ?? ''}, see benchkeeper packs list\n`); return id ? 1 : 2; }
+  if (!pack) { out.write(`unknown pack ${id ?? ''}, see benchkeeper packs list\n`); return 2; }
   const agents = selectedAgents(ctx, o.agents);
   if (!scope) out.write(`${id}: ${packScope(ctx, pack)} (${scopeText(packScope(ctx, pack))})\n`);
   for (const a of agents) {
@@ -1032,6 +1104,8 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
   let sections;
   try { sections = [['global', ctx], ...[...new Set(plan.map((c) => c.project).filter(Boolean))].map((p) => [p, projectCtx(ctx, p)])]; } catch (e) { out.write(`${e.message}\n`); return 1; }
   const select = await choose(plan, o, ask, out);
+  const none = nothingChosen(plan, select, o, out);
+  if (none !== null) return none;
   let code = 0;
   for (const [where, sctx] of sections) {
     const changes = plan.filter((c) => (c.project ?? 'global') === where);
@@ -1043,15 +1117,35 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
 // A global plan: nothing to change, or the changes chosen applied as one run.
 async function applyChosen(plan, ctx, { o, ask, out }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
-  return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, ctx, 'global', { o, ask, out });
+}
+
+// Nothing chosen records no run: the exit code when every change was declined or, under --yes, none is preselected (0),
+// or none can be made (1), else null.
+function nothingChosen(plan, select, o, out) {
+  if (select.length) return null;
+  if (plan.length && plan.every((c) => c.error)) {
+    // --yes and --all show no change on the way, so the reasons are shown here.
+    if (o.yes || o.all) plan.forEach((c) => show(c, out));
+    out.write('nothing applied: no change can be made\n');
+    return 1;
+  }
+  out.write('nothing applied\n');
+  return 0;
+}
+
+// The changes chosen from a plan applied as one run.
+async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
+  const select = await choose(plan, o, ask, out);
+  return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
 // skills list|update|reset|remove|adopt|add|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
-async function skillsCommand(ctx, { o, positionals, out, ask }) {
+async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
-  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
   // list --check and update without names ask each source's default branch; update with names re-adds those skills.
   const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
@@ -1061,10 +1155,10 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
     if (!rows) out.write(`${dir} has no setup yet\n`);
     return 0;
   }
-  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
+  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 2; }
   if (['add', 'enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
-  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }
@@ -1106,8 +1200,8 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
   let code, error;
   try { code = await command(argv.filter((a) => a !== '--json'), { out: log, err, ask: refuse, ctx }); } catch (e) { code = 2; error = e.message; err.write(`${redact(e.message)}\n`); }
   const made = log.runs.length || log.projects?.length;
-  // A command that stops before a change prints why as its last line; with nothing made that is a usage or read failure.
-  if (code && !made) { error ??= lines.at(-1)?.trim(); code = 2; }
+  // A command that stops before a change prints why as its last line; the exit code stays the one the terminal gets.
+  if (code && !made) error ??= lines.at(-1)?.trim();
   const doc = { runs: log.runs.map(runDoc), ...(log.projects ? { projects: log.projects.map(projectDoc) } : {}) };
   out.write(jsonDoc(name, error && !made ? { error: redact(error) } : { ...doc, ...(error ? { error: redact(error) } : {}) }));
   return code;
@@ -1322,13 +1416,14 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
+  if (!known(cmd) || (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`))) return fail(unknownCommand(cmd, arg));
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
 
 // settings list|get|set: the editor of the UI on the command line, through the same plan, diff and undo.
-async function settingsCommand({ o, positionals, out, ask, ctx }) {
+async function settingsCommand({ o, positionals, out, err, ask, ctx }) {
   const [, sub, key, ...rest] = positionals;
   const agentId = o.agent ?? 'claude';
   if (!settingsAgents.includes(agentId)) { out.write(`agent must be one of ${settingsAgents.join(', ')}\n`); return 2; }
@@ -1351,13 +1446,13 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
     if (!key) { out.write('settings get needs a key\n'); return 2; }
     const l = view();
     const s = [...l.settings, ...(l.advanced ?? [])].find((x) => x.key === key);
-    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 1; }
+    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 2; }
     out.write(`${show1(s.value)}${s.layer ? ` (${s.layer})` : `  (unset; default: ${s.default ?? 'built-in'})`}\n`);
     for (const x of s.sets ?? []) out.write(`  ${x.layer}: ${show1(x.value)}\n`);
     noteLines(s.notes ?? []);
     return 0;
   }
-  if (sub !== 'set') { out.write('settings needs list, get or set\n'); return 2; }
+  if (sub !== 'set') { err.write('settings needs list, get or set\n'); return 2; }
   const layer = o.layer ?? 'user';
   let edits;
   try {
@@ -1365,7 +1460,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
     else {
       if (!key) { out.write('settings set needs a key and a value, or --unset, or --bundle\n'); return 2; }
       const def = describeKey(agentId, key) ?? (agentId === 'codex' && key.startsWith('projects.') ? { key, type: 'any' } : null);
-      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 1; }
+      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 2; }
       if (o.unset) edits = { [key]: null };
       else if (rest.length === 0 && def.type !== 'switch') { out.write(`settings set ${key} needs a value or --unset\n`); return 2; }
       else edits = { [key]: parseInput(def, rest.length ? rest.join(' ') : 'set') };
@@ -1378,7 +1473,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
-  return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, sctx, layer === 'user' ? 'global' : dir, { o, ask, out });
 }
 
 // knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
@@ -1414,9 +1509,9 @@ function rulesCheckOptions(ctx, o) {
 }
 
 // rules list|check|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
-async function rulesCommand({ o, positionals, out, ask, ctx }) {
+async function rulesCommand({ o, positionals, out, err, ask, ctx }) {
   const [, sub, file] = positionals;
-  if (!['list', 'check', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, show, check, disable or enable\n'); return 2; }
+  if (!['list', 'check', 'disable', 'enable'].includes(sub)) { err.write('rules needs list, show, check, disable or enable\n'); return 2; }
   if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
   const dir = o.project ? resolve(o.project) : undefined;
   if (sub === 'check') {
@@ -1443,7 +1538,7 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
   try { plan = preview(ruleChanges(ctx, { agent: o.agent, file: resolve(file), dir, on: sub === 'enable' })); } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const rctx = dir ? projectCtx(ctx, dir) : ctx;
-  return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, rctx, dir ?? 'global', { o, ask, out });
 }
 
 // ---- automations: templates (automations.mjs) installed on the runner
@@ -1481,7 +1576,7 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
     }
     if (sub === 'show') {
       const t = loadAutomations(ctx).templates.find((x) => x.id === id);
-      if (!t) return { error: `no automation template ${id}, see benchkeeper automations list`, code: 1 };
+      if (!t) return { error: `no automation template ${id}, see benchkeeper automations list`, code: 2 };
       const keys = ['id', 'tier', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers', 'prompt'];
       return { doc: { template: Object.fromEntries(keys.map((k) => [k, t[k]])) } };
     }
@@ -1490,7 +1585,7 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
       const rows = automationStatus(ctx);
       return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
     }
-  } catch (e) { return { error: e.message, code: 1 }; }
+  } catch (e) { return { error: e.message, code: lookupCode(e) }; }
   return { error: 'automations needs list, show, install, update, remove, diff, status or precheck', code: 2 };
 }
 
@@ -1502,7 +1597,7 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     const { values, error } = paramValues(o.param);
     if (error) { out.write(`${error}\n`); return 2; }
     let plan;
-    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     return applyChosen(plan, ctx, { o, ask, out });
   }
   const r = await automationsDoc(ctx, sub, positionals, o);
@@ -1559,6 +1654,7 @@ async function webhookCommand(ctx, { o, positionals, out, ask }) {
     out.write('deleted the webhook\n');
     return 0;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return e instanceof UsageError ? 2 : 1;
   }
@@ -1596,7 +1692,7 @@ async function signIn(ctx, a, { o, out, ask }) {
       const run = commit(ctx, tokenChange(ctx, a.name, new Date().toISOString()));
       out.write(`token kept in the OS credential store (${store(ctx).name}), recorded in accounts.json without its value (run ${run.id})\n`);
     }
-  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  } catch (e) { if (e instanceof Refused) throw e; out.write(`${e.message}\n`); return 1; }
   out.write(`${a.name}: signed in\n`);
   return 0;
 }
@@ -1653,13 +1749,14 @@ const limitsShown = (ctx) => {
     ...listAccounts(ctx).filter((a) => a.limits || a.pool).map((a) => `${a.name}: ${a.limits ? `minimum headroom ${text(limitsFor(settings, a))}` : 'defaults'}${a.pool ? `; pool ${a.pool}` : ''}`)];
 };
 
-async function accountsCommand(ctx, { o, positionals, out, ask }) {
+async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', name] = positionals;
   const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits', 'handover'];
-  if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
+  if (!subs.includes(sub)) { err.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
   if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const problem = accountsProblem(ctx);
   if (problem) { out.write(`${problem}\n`); return 2; }
+  if (name && !['add', 'list'].includes(sub) && !listAccounts(ctx).some((a) => a.name === name)) { out.write(`no account ${name}: benchkeeper accounts list\n`); return 2; }
   const need = () => { if (!name) { out.write(`accounts ${sub} needs an account name, see benchkeeper accounts list\n`); return false; } return true; };
   try {
     if (sub === 'list') {
@@ -1731,11 +1828,12 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
     }
     if (sub === 'add') {
       if (entry.mode === 'container') out.write(`A mount applies when a container is created: start the project's dev container with benchkeeper accounts login ${entry.name} --project <dir>, which mounts every container account's volume (an existing container is recreated by the command it prints).\n`);
-      if (!o.yes && (await ask(`Sign in ${entry.name} now?`))) return signIn(ctx, entry, { o, out, ask });
+      if (!o.yes && (await ask(`Sign in ${entry.name} now?`, { optional: true }))) return signIn(ctx, entry, { o, out, ask });
       out.write(`Next: benchkeeper accounts login ${entry.name}\n`);
     }
     return 0;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return 1;
   }
@@ -1816,6 +1914,7 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
     // After the session, whatever its exit code: the opt-in handover of the account that ran (nothing is read while it is off).
     return (await handoverFlow(ctx, ran, { dir: opts.dir, yes: false, ask: ask.fresh(), out, after: true })) ?? code;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return 1;
   }

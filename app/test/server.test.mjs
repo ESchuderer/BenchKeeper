@@ -20,16 +20,19 @@ import { dashboard } from '../src/dashboard.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
-let srv, port, cookie, key;
+let srv, srvCtx, port, cookie, key;
 const changed = [];
+// What the server writes to its terminal.
+let logged = '';
 before(async () => {
-  const ctx = context({ home: mkdtempSync(join(TMP, 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  const ctx = srvCtx = context({ home: mkdtempSync(join(TMP, 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
   const dist = mkdtempSync(join(TMP, 'bk-dist-'));
   writeFileSync(join(dist, 'index.html'), '<!doctype html><title>BenchKeeper</title>');
   mkdirSync(join(dist, 'assets'));
   writeFileSync(join(dist, 'assets/app.js'), 'console.log(1)');
-  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'], 'POST /api/shutdown': () => ({ stopping: true }) };
-  const s = await startServer(ctx, { token: 'secret-token-123', dist, routes });
+  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'], 'POST /api/shutdown': () => ({ stopping: true }),
+    'GET /api/broken': () => { throw new TypeError('cannot read token=abc123'); }, 'GET /api/refused': () => { throw Object.assign(new Error('no such run'), { status: 404 }); } };
+  const s = await startServer(ctx, { token: 'secret-token-123', dist, routes, err: { write: (t) => { logged += t; } } });
   srv = s.server;
   port = srv.address().port;
 });
@@ -50,8 +53,14 @@ const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
 const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', ...h }), '{"planId":"x"}');
 
 test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', async () => {
-  assert.equal((await req('GET', '/api/overview')).status, 401);
-  assert.equal((await req('GET', '/?token=wrong')).status, 401);
+  const none = await req('GET', '/api/overview');
+  assert.deepEqual([none.status, JSON.parse(none.body)], [401, { error: 'no session' }]);
+  const wrong = await req('GET', '/?token=wrong');
+  assert.equal(wrong.status, 401);
+  assert.match(wrong.headers['content-type'], /^text\/html/);
+  assert.match(wrong.body, /works once and for 10 minutes.*http:\/\/127\.0\.0\.1:\d+\/.*npx benchkeeper/s);
+  assert.ok(!wrong.body.includes('<script'));
+  assert.match(wrong.headers['content-security-policy'], /default-src 'self'/);
   const r = await req('GET', '/?token=secret-token-123');
   // A page of this origin moves on to the app, so the next request is same-origin even after a file opened the link.
   assert.equal(r.status, 200);
@@ -59,7 +68,9 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   assert.match(r.headers['set-cookie'][0], new RegExp(`^bk_session_${port}=[\\w-]{43}; HttpOnly; SameSite=Strict; Path=/$`));
   assert.ok(!r.headers['set-cookie'][0].includes('secret-token-123'));
   cookie = r.headers['set-cookie'][0].split(';')[0];
-  assert.equal((await req('GET', '/?token=secret-token-123')).status, 401);
+  const used = await req('GET', '/?token=secret-token-123');
+  assert.equal(used.status, 401);
+  assert.match(used.body, new RegExp(`works once and for 10 minutes.*http://127\\.0\\.0\\.1:${port}/`, 's'));
   const ok = await req('GET', '/api/overview', auth());
   assert.deepEqual([ok.status, JSON.parse(ok.body)], [200, { ok: true }]);
   assert.equal((await req('GET', '/api/overview', { cookie: `bk_session_${port}=guess` })).status, 401);
@@ -71,19 +82,30 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
 });
 
 test('the sessions board: the session cookie and a one-time ticket asked for with the API key; a CSP of its own that only this origin may frame', async () => {
-  assert.equal((await req('GET', '/board')).status, 401);
+  // Errors are short pages the app's frame may show: the app cannot read why a frame did not load.
+  const frameable = (r, code, text) => {
+    assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [code, 'text/html; charset=utf-8', "default-src 'none'; frame-ancestors 'self'"]);
+    assert.match(r.body, text);
+  };
+  frameable(await req('GET', '/board'), 401, /cannot be shown \(no session\): open it from the app again/);
   // The cookie alone, as another server on 127.0.0.1 receives and replays it, does not show the board.
   assert.equal((await req('GET', '/board', { cookie })).status, 403);
   assert.equal((await req('GET', '/board?ticket=guess', { cookie })).status, 403);
   assert.equal((await req('POST', '/api/board-ticket', { cookie, 'content-type': 'application/json' }, '{}')).status, 403);
-  const { ticket } = JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body);
+  const newTicket = async () => JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body).ticket;
+  // A failed scan says why, with secrets masked; the next load scans again.
+  const list = srvCtx.ledger.list;
+  srvCtx.ledger.list = () => { throw new Error('cannot read token=ghp_abcdefghijklmnop <x>'); };
+  const failed = await req('GET', `/board?ticket=${await newTicket()}`, { cookie });
+  srvCtx.ledger.list = list;
+  frameable(failed, 500, /The session scan failed: cannot read token=\*\*\* &#60;x&#62;\. Fix that and scan again\./);
+  const ticket = await newTicket();
   const r = await req('GET', `/board?ticket=${ticket}`, { cookie });
   assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [200, 'text/html; charset=utf-8', `${BOARD_CSP}; frame-ancestors 'self'`]);
   assert.match(r.body, /<title>Sessions board<\/title>/);
-  assert.equal((await req('GET', `/board?ticket=${ticket}`, { cookie })).status, 403, 'a ticket works once');
+  frameable(await req('GET', `/board?ticket=${ticket}`, { cookie }), 403, /already used or is too old: open the board from the app again/);
   // A project's board names a registered folder; any other is refused.
-  const other = JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body).ticket;
-  assert.equal((await req('GET', `/board?ticket=${other}&project=${encodeURIComponent('/not/registered')}`, { cookie })).status, 404);
+  frameable(await req('GET', `/board?ticket=${await newTicket()}&project=${encodeURIComponent('/not/registered')}`, { cookie }), 404, /not a registered project/);
 });
 
 test('a session scan is reused for a minute: the board renders from it and is saved as board.html; force scans again', async () => {
@@ -113,10 +135,26 @@ test('the sessions cache: retention and Clear through the API drop the reused sc
   assert.throws(() => routes['POST /api/sessions-cache']({}), /clear: true or keepDays/);
 });
 
+test('a failing route answers 500 with its masked message and writes the masked stack to the terminal; a 4xx only answers', async () => {
+  logged = '';
+  const r = await req('GET', '/api/broken', auth());
+  assert.deepEqual([r.status, JSON.parse(r.body)], [500, { error: 'cannot read token=*** (details in the terminal)' }]);
+  assert.match(logged, /^TypeError: cannot read token=\*\*\*\n\s+at /);
+  assert.ok(!logged.includes('abc123'));
+  logged = '';
+  const n = await req('GET', '/api/refused', auth());
+  assert.deepEqual([n.status, JSON.parse(n.body), logged], [404, { error: 'no such run' }, '']);
+});
+
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {
   for (const host of ['localhost:' + port, `127.0.0.1:${port + 1}`, 'evil.example', `127.0.0.1:${port}.evil.example`]) {
     assert.equal((await req('GET', '/api/overview', auth({ host }))).status, 421, host);
   }
+  // A page in the browser says to open the link as printed; the API answer stays JSON.
+  const page = await req('GET', '/', auth({ host: `localhost:${port}` }));
+  assert.deepEqual([page.status, page.headers['content-type']], [421, 'text/html; charset=utf-8']);
+  assert.match(page.body, new RegExp(`http://127\\.0\\.0\\.1:${port}/, not at localhost`));
+  assert.deepEqual(JSON.parse((await req('GET', '/api/overview', auth({ host: `localhost:${port}` }))).body), { error: 'wrong host' });
   for (const origin of ['http://evil.example', 'null', `http://localhost:${port}`, `https://127.0.0.1:${port}`]) {
     assert.equal((await req('GET', '/api/overview', auth({ origin }))).status, 403, origin);
     assert.equal((await post({ origin })).status, 403, origin);
@@ -1033,4 +1071,31 @@ test('the tier strip switch: off by default; on and off are plans in the Claude 
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs, { 'other@x': { options: { a: 1 } }, 'benchkeeper@benchkeeper': { options: { tierBand: false } } });
   routes['POST /api/undo']({ run: off.id });
   assert.equal(band().on, true);
+});
+
+test('the status line style: per tracked host account, planned in the settings.json its status line reads', async () => {
+  const { ctx, routes } = fixture();
+  const style = () => routes['GET /api/status-style']();
+  assert.deepEqual(style(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle', accounts: [] });
+  const account = (name, tracked) => {
+    const dir = join(ctx.home, `acct-${name}`);
+    mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
+    if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
+    return { name, agent: 'claude', mode: 'host', dir };
+  };
+  const work = account('work', true);
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [work, account('spare', false)] }));
+  const file = join(work.dir, 'settings.json');
+  assert.deepEqual(style().accounts, [{ name: 'work', file, value: 'merged' }]);
+  const plan = routes['POST /api/status-style']({ account: 'work', value: 'plugin' });
+  assert.deepEqual(plan.changes.map((c) => [c.path, c.keyState]), [[file, 'new']]);
+  const { run } = await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job);
+  assert.equal(style().accounts[0].value, 'plugin');
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs['benchkeeper@benchkeeper'].options.statusStyle, 'plugin');
+  assert.equal(existsSync(join(ctx.home, '.claude/settings.json')), false);
+  routes['POST /api/undo']({ run: run.id });
+  assert.equal(style().accounts[0].value, 'merged');
+  assert.throws(() => routes['POST /api/status-style']({ account: 'spare', value: 'none' }), /accounts track/);
+  assert.throws(() => routes['POST /api/status-style']({ account: 'work', value: 'bogus' }), /one of merged, plugin, benchkeeper, none/);
 });

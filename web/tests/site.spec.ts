@@ -35,3 +35,11 @@ test('the sitemap lists the three pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();
   expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`]);
 });
+
+test('the installed parts render code and links from facts.json', async ({ page }) => {
+  await page.goto('./');
+  const parts = page.locator('#parts');
+  await expect(parts.locator('code', { hasText: 'rules/global.md' })).toHaveCount(1);
+  await expect(parts.getByRole('link', { name: 'BenchKeeper library' })).toHaveAttribute('href', /plugins\/benchkeeper\/library\/README\.md$/);
+  await expect(parts).not.toContainText('[');
+});

@@ -2,7 +2,7 @@
 
 7.0 does not migrate a 6.x setup. Undo 6.x with the 6.x app, remove what its undo leaves, then install 7.0 as on a new machine.
 
-The commands of the `benchkeeper` CLI follow one scheme: a noun group, then a verb (`projects plan`, `skills enable`). The old names are gone, with no alias. A call that still uses one exits with 2 and prints the help.
+The commands of the `benchkeeper` CLI follow one scheme: a noun group, then a verb (`projects plan`, `skills enable`). The old names are gone, with no alias. A call that still uses one exits with 2 and names the new command, for example `update-all is now projects update: see benchkeeper help projects`.
 
 ## Clean uninstall of 6.x, clean install of 7
 

@@ -1,7 +1,7 @@
 import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Text, VisuallyHidden } from '@mantine/core';
 import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api.js';
+import { NO_SESSION, api } from './api.js';
 
 export { RANK } from '../src/states.mjs';
 
@@ -64,7 +64,7 @@ export function useAnnounce() {
 }
 
 export function Loading({ state, label, children }) {
-  if (state.error) return <Note color="red" title={`${label[0].toUpperCase()}${label.slice(1)} not loaded`}><Group gap="sm">{state.error}{state.reload && <Button size="xs" variant="default" onClick={state.reload}>Try again</Button>}</Group></Note>;
+  if (state.error) return <Note color="red" title={`${label[0].toUpperCase()}${label.slice(1)} not loaded`}><Group gap="sm">{state.error}{state.reload && state.error !== NO_SESSION && <Button size="xs" variant="default" onClick={state.reload}>Try again</Button>}</Group></Note>;
   // No data yet also covers the first render after the path changes, before the effect marks it loading.
   if (state.data == null) return <Group gap="xs" role="status"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
   return children(state.data);

@@ -105,7 +105,7 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
-| `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full |
+| `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full. It adds about 1,000 tokens at each session start (its rules and a map of the repository) and about 700 per subagent |
 | `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |

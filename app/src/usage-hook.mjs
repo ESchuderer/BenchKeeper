@@ -1,8 +1,10 @@
 // Runs inside one account's folder as the Claude Code status line (`statusline`) and as its StopFailure hook (`failure`).
 // BenchKeeper copies this file there (`accounts track`); it imports nothing but node builtins. It keeps next to itself
 // usage.json (the two rate limit windows) and failures.jsonl (one line per failed turn). Only the fields listed here are
-// kept: no credential, path, message or session id from the input ever reaches a file.
+// kept: no credential, path, message or session id from the input ever reaches a file. The status line also shows
+// Ponytail's level, read from the account folder (the plugin option statusStyle in settings.json picks what it prints).
 import { appendFileSync, chmodSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,17 +32,44 @@ export const failureLine = (input, now) => (FAILURES.includes(input?.error) ? `$
 
 const shown = (r) => ['fiveHour', 'sevenDay'].filter((k) => r[k]).map((k) => `${k === 'fiveHour' ? '5h' : '7d'} ${Math.round(100 - r[k].used)}% left`).join('  ');
 
-function main(mode, text, dir, now = Date.now()) {
+const read = (p) => { try { return readFileSync(p, 'utf8').replace(/^\uFEFF/, ''); } catch { return null; } };
+const parsed = (t) => { try { return JSON.parse(t); } catch { return null; } };
+// The plugin option is a plain string (an option list stops older Claude Code versions from loading the plugin): any other value is merged.
+const STYLES = ['merged', 'plugin', 'benchkeeper', 'none'];
+const styleOf = (account) => {
+  const v = parsed(read(join(account, 'settings.json')))?.pluginConfigs?.['benchkeeper@benchkeeper']?.options?.statusStyle;
+  return STYLES.includes(v) ? v : 'merged';
+};
+// Ponytail's hide switch as its own scripts read it: the variable wins, else hideStatus in its config file.
+function ponytailHidden(env) {
+  if (env.PONYTAIL_HIDE_STATUS !== undefined) return !['', '0', 'false', 'no'].includes(env.PONYTAIL_HIDE_STATUS.trim().toLowerCase());
+  const base = env.XDG_CONFIG_HOME || (process.platform === 'win32' ? env.APPDATA || join(homedir(), 'AppData', 'Roaming') : join(homedir(), '.config'));
+  return parsed(read(join(base, 'ponytail', 'config.json')))?.hideStatus === true;
+}
+// Ponytail's badge as its own status line draws it: green, amber for ultra. An unknown level or no flag file shows nothing.
+function ponytailSegment(account, env) {
+  const flag = read(join(account, '.ponytail-active'));
+  const level = flag === null ? null : flag.split('\n')[0].trim() || 'full';
+  if (!['lite', 'full', 'ultra'].includes(level) || ponytailHidden(env)) return '';
+  return `\x1b[38;5;${level === 'ultra' ? 173 : 108}m[PONYTAIL${level === 'full' ? '' : `:${level.toUpperCase()}`}]\x1b[0m`;
+}
+
+function main(mode, text, dir, now = Date.now(), env = process.env) {
   let input = null;
   try { input = JSON.parse(text); } catch { /* not JSON: nothing is kept */ }
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (mode === 'statusline') {
     const r = usageRecord(input, now);
-    if (!r) return '';
-    const tmp = join(dir, `usage.json.${process.pid}`);
-    writeFileSync(tmp, `${JSON.stringify(r)}\n`, { mode: 0o600 });
-    renameSync(tmp, join(dir, 'usage.json'));
-    return shown(r);
+    if (r) {
+      const tmp = join(dir, `usage.json.${process.pid}`);
+      writeFileSync(tmp, `${JSON.stringify(r)}\n`, { mode: 0o600 });
+      renameSync(tmp, join(dir, 'usage.json'));
+    }
+    // The script sits in <account>/benchkeeper/, so the account folder is its parent.
+    const account = dirname(dir), style = styleOf(account);
+    const usage = r && ['merged', 'benchkeeper'].includes(style) ? shown(r) : '';
+    const segment = ['merged', 'plugin'].includes(style) ? ponytailSegment(account, env) : '';
+    return [usage, segment].filter(Boolean).join('  ');
   }
   const line = mode === 'failure' ? failureLine(input, now) : null;
   if (!line) return '';

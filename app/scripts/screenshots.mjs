@@ -86,8 +86,17 @@ const VIEWS = [
   show('global', 'Global setup', 'table', 'Agents'),
   show('extensions', 'Extensions', 'table', 'Claude Code extensions'),
   show('automations', 'Automations', 'table', 'Automations'),
-  show('preferences', 'Preferences', 'table', 'Keyboard shortcuts'),
-  show('rules', 'Rules', 'region', 'Checks'),
+  // Scrolled to Views and their cost: the status line select of the tracked account work.
+  ['preferences', async (page) => {
+    await nav(page, 'Preferences').click();
+    await expect(page.getByRole('combobox', { name: 'Status line of account work' })).toBeVisible();
+    await page.getByRole('region', { name: 'Views and their cost' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
+  }],
+  // Scrolled to the auto memory of shop, below the context budget.
+  ['rules', async (page) => {
+    await nav(page, 'Rules').click();
+    await page.getByRole('region', { name: 'Claude Code auto memory' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -400); });
+  }],
   ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
   ['accounts', async (page) => {
     await nav(page, 'Accounts').click();

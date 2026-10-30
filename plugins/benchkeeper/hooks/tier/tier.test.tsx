@@ -137,6 +137,22 @@ test('on: the board button opens the board the app wrote, or says how to get one
   await ui.unmount()
 })
 
+test('on: on Windows the board button opens the board through explorer, never cmd', ON, async ($, on) => {
+  engine(on)
+  const ran: string[][] = []
+  const env: Record<string, string> = { OS: 'Windows_NT', USERPROFILE: 'C:/Users/A&B %PATH%' }
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  on('fs.exists', () => ({ value: true }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'board' })
+  expect(ran).toEqual([['explorer.exe', 'C:\\Users\\A&B %PATH%\\.config\\benchkeeper\\board.html']])
+  await ui.unmount()
+})
+
 test('on: the band names the project, branch, last test run and Ponytail level; no Ponytail file, no Ponytail text', ON, async ($, on) => {
   engine(on)
   let level = 'full\n'

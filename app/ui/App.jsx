@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
 import { PRIMARY, SHAPE, varsOf } from '../src/tokens.mjs';
-import { api } from './api.js';
+import { NO_SESSION, api } from './api.js';
 import { EvalJob, RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, projectHref, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
@@ -130,7 +130,7 @@ function Splash({ error, retry }) {
     <Stack component="main" h="100vh" align="center" justify="center" gap="md" p="md">
       <Title order={1} size="h3">BenchKeeper</Title>
       {error
-        ? <Alert color="red" title="Cannot read the setup" maw={480}><Stack gap="sm" align="flex-start">{error}<Button size="xs" variant="default" onClick={retry}>Try again</Button></Stack></Alert>
+        ? <Alert color="red" title="Cannot read the setup" maw={480}><Stack gap="sm" align="flex-start">{error}{error !== NO_SESSION && <Button size="xs" variant="default" onClick={retry}>Try again</Button>}</Stack></Alert>
         : <Group gap="xs" role="status"><Loader size="sm" /><Text size="sm">Starting, reading the setup</Text></Group>}
     </Stack>
   );

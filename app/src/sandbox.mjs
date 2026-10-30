@@ -6,7 +6,7 @@
 import { accessSync, constants, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { exists } from './fsx.mjs';
-import { mask } from './redact.mjs';
+import { lastLines } from './redact.mjs';
 import { verifyArgv } from './verify.mjs';
 
 // Exact, and at least 7 days old when it was chosen (PIN_DATES in steps/global.mjs holds its publish date).
@@ -82,7 +82,7 @@ export async function starts(tool, run, { t, home, hosts, env, signal }) {
   if (hit && hit.until > Date.now()) return hit.error;
   const w = wrap(tool, { argv: ['true'], t, home, hosts, env });
   const r = await run(w.argv, { cwd: t, env: w.env, signal, timeout: 60e3 });
-  const tail = mask((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '));
+  const tail = lastLines(r.stderr || r.stdout || '');
   const error = r.code === 0 ? null : `the sandbox (${tool}) did not start: ${tail || `exit ${r.code}`}${/mount proc/i.test(tail) ? ' (in a container, start it with --security-opt unmask=/proc/*)' : ''}`;
   // A stop or a timeout says nothing about the sandbox: it is checked again next time.
   if (!signal?.aborted && r.code !== 124) probed.set(key, { error, until: Date.now() + (error ? 60e3 : 10 * 60e3) });

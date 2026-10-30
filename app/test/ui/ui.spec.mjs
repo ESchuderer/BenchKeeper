@@ -635,6 +635,13 @@ test.describe('views', () => {
     await expect(page.getByText(/BenchKeeper does not answer: its server has stopped/)).toBeVisible();
   });
 
+  test('a 401 (a restarted server, another browser) says to start the app again, with no Try again', async ({ page }) => {
+    await page.route(/\/api\/overview(\?|$)/, (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"no session"}' }));
+    await page.reload();
+    await expect(page.getByText(/Run npx benchkeeper again and open the link it prints/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  });
+
   test('slash opens the palette too', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
     await page.keyboard.press('/');
@@ -1931,8 +1938,8 @@ test.describe('views', () => {
     await expect(advisor).toContainText('from the user file');
     // A catalog key that is not basic is listed in its group with every key.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
-    await page.getByLabel('Search settings').fill('autoMemoryEnabled');
-    await expect(about(page.getByRole('table', { name: 'Memory' }), 'autoMemoryEnabled')).toContainText('Current: the default');
+    await page.getByLabel('Search settings').fill('includeGitInstructions');
+    await expect(about(page.getByRole('table', { name: 'Commits' }), 'includeGitInstructions')).toContainText('Current: the default');
     // A key outside the catalog: the reference description, no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
@@ -2095,6 +2102,46 @@ test.describe('views', () => {
     const changes = page.getByRole('region', { name: 'Changes' });
     await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
     await changes.getByRole('button', { name: 'Cancel' }).click();
+    await page.unroute(view);
+  });
+
+  test('Rules: auto memory per project in numbers, read-only, over the load limit flagged, nothing flagged where off; no axe violations at 390 px', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    const folders = [
+      { project: '/work/app', path: '/home/u/.claude/projects/-work-app/memory', enabled: true, notes: 3, bytes: 4096, changed: '2026-02-03T04:05:06.000Z', over: true },
+      { project: '-work-old', path: '/home/u/.claude/projects/-work-old/memory', enabled: true, notes: 0, bytes: 120, changed: '2026-01-01T00:00:00.000Z', over: false },
+    ];
+    let memory = { lines: 150, bytes: 10 * 1024, folders };
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      await route.fulfill({ response: r, json: { ...body, agents: body.agents.map((a) => (a.id === 'claude' ? { ...a, memory } : a)) } });
+    });
+    await nav(page, 'Rules').click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const section = page.getByRole('region', { name: 'Claude Code auto memory' });
+    const table = page.getByRole('table', { name: 'Auto memory per project' });
+    await expect(section).toContainText('the first 150 lines or 10 KB of MEMORY.md');
+    await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('over the load limit');
+    await expect(table.getByRole('row', { name: /-work-old/ })).toContainText('120 bytes');
+    await expect(section.getByRole('button')).toHaveCount(0);
+    await expect(section).not.toContainText('Auto memory is off');
+    await noAxe(page);
+    // A project with auto memory off: its row loads nothing, the others keep their badge.
+    memory = { ...memory, folders: [{ ...folders[0], enabled: false }, folders[1]] };
+    await page.reload();
+    await expect(section).toContainText('Auto memory is off for the rows marked not loaded');
+    await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('not loaded');
+    await expect(table.getByRole('row', { name: /-work-old/ })).toContainText('within the load limit');
+    // With auto memory off everywhere the folders stay, nothing loads and nothing is over a limit.
+    memory = { ...memory, folders: folders.map((m) => ({ ...m, enabled: false })) };
+    await page.reload();
+    await expect(section).toContainText('Auto memory is off');
+    await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('not loaded');
+    await expect(table).not.toContainText('load limit');
+    await expect(section).not.toContainText('at the start of a session');
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.unroute(view);
   });
 
@@ -2467,14 +2514,56 @@ test.describe('views', () => {
     await expect(work).toBeVisible();
     await noAxe(page);
     await page.setViewportSize({ width: 1280, height: 900 });
+    // work stays for the status line test, which removes it.
+    await home.getByRole('button', { name: /^Remove / }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await changes.getByRole('button', { name: 'Close' }).click();
+  });
+
+  test('Preferences: the status line style of the tracked account work is a plan on its settings.json, applied, shown after the reload and undone; no axe violations at 390 px', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    const select = views.getByRole('combobox', { name: 'Status line of account work' });
+    await expect(select).toHaveValue('Usage and Ponytail level');
+    const file = await views.getByText(/accounts\/work\/settings\.json$/).textContent();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // The select ignores input while its plan is asked for.
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/status-style$/, async (route) => { if (route.request().method() === 'POST') await held; await route.continue(); });
+    await select.click();
+    await page.getByRole('option', { name: 'Usage only', exact: true }).click();
+    await expect(select).toBeDisabled();
+    answer();
+    const changes = views.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You chose the status line style benchkeeper for account work in Preferences.');
+    await page.unroute(/\/api\/status-style$/);
+    await expect(changes).toContainText(file);
+    await expect(select).toHaveValue('Usage only');
+    await expect(views).toContainText('Apply or cancel in Changes below');
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(select).toBeEnabled();
+    await expect(select).toHaveValue('Usage only');
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await changes.getByRole('button', { name: 'Close' }).click();
+    await page.reload();
+    await expect(views.getByRole('combobox', { name: 'Status line of account work' })).toHaveValue('Usage and Ponytail level');
     // Back to no account, as the other tests expect the machine.
-    for (const card of [home, work]) {
-      await card.getByRole('button', { name: /^Remove / }).click();
-      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
-      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
-      await changes.getByRole('button', { name: 'Close' }).click();
-    }
+    await nav(page, 'Accounts').click();
+    await page.getByRole('article', { name: 'work' }).getByRole('button', { name: /^Remove / }).click();
+    const removal = page.getByRole('region', { name: 'Changes' });
+    await removal.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    await expect(removal.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await removal.getByRole('button', { name: 'Close' }).click();
     await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
+    await nav(page, 'Preferences').click();
+    await expect(views).toContainText('An account in a dev container sets its style in its own settings.json');
   });
 
   test('Preferences: the tier strip plan says the user asked for it', async ({ page }) => {

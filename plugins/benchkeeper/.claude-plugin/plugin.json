@@ -15,6 +15,12 @@
       "title": "Status band above the prompt (terminal and desktop app)",
       "description": "Off by default. Adds three rows above the prompt in the Claude Code terminal and desktop app: project, branch and Ponytail's level when it is installed, then the last test run and lint or type check, then the tier of the last answer with buttons that set the tier for this session, open the sessions board and ask the agent to run the doctor. It reads your working folder, git, one Ponytail flag file and the commands and edits of the main loop, keeps the session's tier override in the plugin's own store and sends nothing. Turn it off by setting this option to false. The VS Code extension does not draw it.",
       "default": false
+    },
+    "statusStyle": {
+      "type": "string",
+      "title": "What BenchKeeper's status line prints (accounts with usage tracking)",
+      "description": "merged (default): the usage windows and Ponytail's level. plugin: Ponytail's level only. benchkeeper: the usage windows only. none: nothing. Any other value counts as merged. The usage windows are recorded in every style. Applies only where benchkeeper accounts track installed the status line.",
+      "default": "merged"
     }
   }
 }

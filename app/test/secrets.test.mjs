@@ -195,6 +195,19 @@ test('an undo command reports the last lines of its output, masked', () => {
   assert.doesNotMatch(u.entries[0].error, /abc123/);
 });
 
+test('a failed command whose output ends inside or after a key block stores no body line of it', () => {
+  const home = tmp();
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} PRIVATE KEY-----`);
+  // One block with its END line, one that the output ends inside.
+  for (const tail of [`${e}\n`, '']) {
+    const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: `failed\n${b}\nbodylineone\nbodylinetwo\n${tail}` }) });
+    const r = apply([{ id: 'c', step: 's', title: 't', kind: 'command', argv: ['a'] }], ctx, { select: ['c'] });
+    assert.equal(r.status, 'failed');
+    assert.doesNotMatch(r.entries[0].error, /bodyline/);
+    assert.match(r.entries[0].error, /\*\*\* \*\*\*/);
+  }
+});
+
 // POSIX modes: Windows has none to check.
 const posix = { skip: process.platform === 'win32' };
 test('a new agent settings file is private; an existing one keeps its mode', posix, () => {
@@ -311,6 +324,17 @@ test('an eval session that exits non-zero is no missed trigger and stores no res
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `error: unknown option, ${TOKEN}` } : { code: 0, stdout: '', stderr: '' }) });
   await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => /claude exited with 1 on case a of skill:x: error: unknown option, \*\*\*$/.test(e.message));
   assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
+});
+
+test('a failed eval session shows the sentence of its result event, also when it exits 0', async () => {
+  const last = (err) => JSON.stringify({ type: 'result', is_error: err, result: `Please run /login ${TOKEN}` });
+  for (const [code, stdout, why] of [[1, `{"type":"system"}\n${last(true)}\n`, 'exited with 1'], [0, `{"type":"system"}\n${last(true)}\n`, 'reported an error']]) {
+    const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code, stdout, stderr: 'noise' } : { code: 0, stdout: '', stderr: '' }) });
+    await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => e.message === `claude ${why} on case a of skill:x: Please run /login ***`);
+  }
+  // Output that is not JSON keeps the excerpt.
+  const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: 'plain words', stderr: '' } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => e.message.endsWith('of skill:x: plain words'));
 });
 
 test('a rule target whose second case fails keeps no output of its first case', async () => {

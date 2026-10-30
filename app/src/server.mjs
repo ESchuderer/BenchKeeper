@@ -17,7 +17,7 @@ import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, projectRows, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
-import { boardFile as ponytailBoard } from './ponytail.mjs';
+import { boardFile as ponytailBoard, STATUS_STYLES, styleOf, trackedStyles } from './ponytail.mjs';
 import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
@@ -40,8 +40,8 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { maskStream, shown } from './redact.mjs';
-import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
+import { mask, maskStream, shown } from './redact.mjs';
+import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
@@ -117,6 +117,7 @@ function setupAnswers(src) {
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
 const TIER_BAND = 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand';
+const STATUS_STYLE = 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle';
 const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
@@ -487,6 +488,17 @@ export function api(ctx) {
     },
     // The terminal tier strip: the plugin option the Settings switch plans through /api/settings-plan.
     'GET /api/tier-band': () => ({ key: TIER_BAND, on: valuesOf(readSettings(ctx, 'claude'), 'claude', TIER_BAND)[0]?.value === true }),
+    // What the usage status line prints (usage-hook.mjs), per tracked host account from the settings.json that script reads; unset is merged.
+    'GET /api/status-style': () => ({ key: STATUS_STYLE, accounts: trackedStyles(ctx).map(({ account, file, value }) => ({ name: account.name, file, value: styleOf(value) })) }),
+    // A plan that sets the style in one tracked account's settings.json; applied through /api/apply.
+    'POST /api/status-style': (b) => {
+      const t = trackedStyles(ctx).find((x) => x.account.name === b.account);
+      if (!t) throw bad('account must be a host account that accounts track set up');
+      if (!STATUS_STYLES.includes(b.value)) throw bad(`value must be one of ${STATUS_STYLES.join(', ')}`);
+      const changes = preview([{ id: `status-style:${t.account.name}`, step: 'accounts', title: `account ${t.account.name} settings: ${STATUS_STYLE} = ${JSON.stringify(b.value)}`, kind: 'write', path: t.file,
+        edit: editFor('claude', STATUS_STYLE, b.value, t.file), settings: { agent: 'claude', keys: [STATUS_STYLE] } }]);
+      return { planId: keep(changes, { ...ctx, roots: [...ctx.roots, t.account.dir] }, 'global'), changes: serialize(changes, ctx) };
+    },
     // The runs view, read only when it is opened or refreshed: the orchestrated runs of the sessions scan in the registered
     // projects and their worktrees (git), each project's last setup change from the ledger, and the IDE's runs when it is
     // installed (not joined: a run line names the coordinator's fan-out, not the IDE's run). Fields are picked: a row's
@@ -783,11 +795,13 @@ async function body(req) {
 
 // The link works once and for this long: a token printed with --no-open does not stay valid until the server stops.
 export const TOKEN_MS = 10 * 60e3;
-export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx), tokenMs = TOKEN_MS } = {}) {
+export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx), tokenMs = TOKEN_MS, err = process.stderr } = {}) {
+  // The stack goes to the terminal of the server, masked; the browser gets the message only.
+  const log = (e) => err.write(`${mask(e?.stack ?? String(e))}\n`);
   let urlToken = token, session = null, key = null;
   const expires = Date.now() + tokenMs;
   // A failure nobody handled ends this request, never the server.
-  const server = createServer((req, res) => handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
+  const server = createServer((req, res) => handle(req, res).catch((e) => { log(e); if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
   const handle = async (req, res) => {
     const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
       res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", ...headers });
@@ -807,27 +821,39 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       return send(200, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/#k=${key}"><title>BenchKeeper</title>`, 'text/html; charset=utf-8', { 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
+    // A browser that opens a used, expired or wrong-host link reads what to do; API calls keep JSON, the board frame a page of its own.
+    if (why && req.method === 'GET' && [401, 421].includes(why[0]) && !url.pathname.startsWith('/api/') && url.pathname !== '/board') {
+      return send(why[0], `<!doctype html><meta charset="utf-8"><title>BenchKeeper</title><h1>This link does not open BenchKeeper</h1>\n<p>The link works once and for 10 minutes. Open it as printed, at http://127.0.0.1:${p}/, not at localhost or another port.</p>\n<p>For a new link, run <code>npx benchkeeper</code> again.</p>`, 'text/html; charset=utf-8');
+    }
+    // The board frame shows its errors: the app cannot read why a frame failed to load.
+    const boardError = (code, text) => send(code, `<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Sessions board</title><p>${text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)}</p>`, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; frame-ancestors 'self'" });
+    if (why && req.method === 'GET' && url.pathname === '/board') return boardError(why[0], `The board cannot be shown (${why[1]}): open it from the app again.`);
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {
       const t = boardTickets(ctx), ticket = url.searchParams.get('ticket') ?? '';
       const issued = t.get(ticket);
       t.delete(ticket);
-      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
+      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return boardError(403, 'This board link was already used or is too old: open the board from the app again.');
       try {
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
         // project: a project's page shows only its sessions; any other folder is refused.
         const only = url.searchParams.get('project'), registered = registeredPaths(ctx);
-        if (only != null && !registered.some((x) => x.path === only)) return send(404, { error: 'not a registered project' });
-        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        if (only != null && !registered.some((x) => x.path === only)) return boardError(404, 'This folder is not a registered project: open the board from its project page in the app.');
+        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { log(e); return boardError(500, `The session scan failed: ${mask(e.message)}. Fix that and scan again.`); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).
     if (route && req.method === 'POST' && !/^application\/json(;|$)/i.test(req.headers['content-type'] ?? '')) return send(415, { error: 'content-type must be application/json' });
     if (route) {
-      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) {
+        // A 4xx is the request's fault and says so; anything else is a failure of the app, and its stack is in the terminal.
+        if (e.status < 500) return send(e.status, { error: e.message });
+        log(e);
+        return send(e.status ?? 500, { error: `${mask(e.message)} (details in the terminal)` });
+      }
       // After the answer: closing ends the CLI's ui command, as Ctrl+C does.
       if (url.pathname === '/api/shutdown') setImmediate(() => { server.close(); server.closeAllConnections(); });
       return;

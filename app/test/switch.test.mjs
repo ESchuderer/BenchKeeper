@@ -51,7 +51,7 @@ function tree(dir, base = dir, out = {}) {
   return out;
 }
 const sink = () => { let text = ''; return { out: new Writable({ write(c, _, done) { text += c; done(); } }), text: () => text }; };
-const cli = (r, args) => { const s = sink(); return main(args, { out: s.out, ctx: r.ctx, input: Readable.from(['']) }).then((code) => ({ code, text: s.text() })); };
+const cli = (r, args, answers = '') => { const s = sink(); return main(args, { out: s.out, ctx: r.ctx, input: Readable.from([answers]) }).then((code) => ({ code, text: s.text() })); };
 
 test('disabling a pack removes only the skills no other pack or single pick still needs', () => {
   const r = repo();
@@ -236,7 +236,7 @@ test('an own pack a project names cannot be removed; the message names the proje
   assert.ok(!existsSync(join(r.ctx.config, 'packs/ui-b.json')));
 });
 
-test('CLI: skills disable and enable move a skill out of the project and back; both need a known name', async () => {
+test('CLI: skills disable and enable move a skill out of the project and back; an unknown name exits 2', async () => {
   const r = repo();
   run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
   assert.ok(existsSync(r.skill));
@@ -249,7 +249,12 @@ test('CLI: skills disable and enable move a skill out of the project and back; b
   assert.ok(existsSync(r.skill));
   assert.deepEqual(readState(r.dir).disabled, []);
   assert.equal((await cli(r, ['skills', 'disable', '--project', r.dir])).code, 2);
-  assert.equal((await cli(r, ['skills', 'enable', 'nope', '--project', r.dir])).code, 1);
+  for (const sub of ['enable', 'disable', 'remove', 'add', 'adopt', 'update']) {
+    assert.equal((await cli(r, ['skills', sub, 'nope', '--project', r.dir])).code, 2, sub);
+    const j = await cli(r, ['skills', sub, 'nope', '--project', r.dir, '--yes', '--json']);
+    assert.equal(j.code, 2, `${sub} --json`);
+    assert.ok(JSON.parse(j.text).error, `${sub} --json`);
+  }
 });
 
 test('CLI: packs enable and disable are a plan with a diff, in the project or for the plugin of a pack', async () => {
@@ -257,9 +262,13 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
   run(r, { agents: ['claude'], env: 'host', packs: [] });
   const before = tree(r.dir);
   let o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir]);
+  assert.equal(o.code, 2, o.text);
+  assert.equal(existsSync(r.skill), false, 'no answer: nothing applied');
+  o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir], 'n\n'.repeat(20));
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /change .*designing-technical-uis/);
-  assert.equal(existsSync(r.skill), false, 'no answer: nothing applied');
+  assert.match(o.text, /nothing applied\n$/);
+  assert.equal(existsSync(r.skill), false);
   o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir, '--yes']);
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /skills: \+designing-technical-uis/);
@@ -275,10 +284,10 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
   assert.equal((await cli(r, ['packs', 'remove', 'ui-a'])).code, 0);
   for (const [args, code, text] of [
     [['packs', 'enable'], 2, /needs a pack id/],
-    [['packs', 'enable', 'nope', '--project', r.dir], 1, /unknown pack nope/],
+    [['packs', 'enable', 'nope', '--project', r.dir], 2, /unknown pack nope/],
     [['packs', 'enable', 'ui-b', '--project', r.dir, '--global'], 2, /exclude each other/],
     [['packs', 'enable', 'frontend', '--global'], 1, /per project, not on the machine/],
-    [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 1, /has no setup yet/],
+    [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 2, /has no setup yet/],
   ]) { o = await cli(r, args); assert.deepEqual([o.code, text.test(o.text)], [code, true], `${args.join(' ')}: ${o.text}`); }
 });
 
@@ -295,7 +304,7 @@ test('CLI --global: the plugin of a pack is a plan of that pack alone, on and of
     if (/^claude plugin uninstall /.test(cmd)) { plugins.delete(argv[3]); return ok(); }
     return ok();
   } };
-  const o = await cli({ ctx: stub }, ['packs', 'enable', 'matt-pocock', '--global', '--agents', 'claude']);
+  const o = await cli({ ctx: stub }, ['packs', 'enable', 'matt-pocock', '--global', '--agents', 'claude'], 'n\n'.repeat(20));
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /mattpocock-skills/);
   assert.ok(!/rules|settings/i.test(o.text.replace(/mattpocock-skills[^\n]*/g, '')), 'only the pack plugin steps are listed');

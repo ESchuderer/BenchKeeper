@@ -16,7 +16,7 @@ import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, inside, isDir, readText } from './fsx.mjs';
 import { git } from './git.mjs';
-import { mask } from './redact.mjs';
+import { lastLines, mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
 import { CODEX_READER, HOOK_SOURCE, STATE_DIR, assess, codexReading, headroom, lowWindows, limitsFor, nearNotices, parseState, qualifies, readyAt, rotation, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
 
@@ -31,7 +31,7 @@ const MOUNT = /^\/[\w./-]{1,200}$/;
 const VOLUME = /^[\w.-]{1,100}$/;
 const DAY = 864e5;
 
-const tail = (r, secret) => hide((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '), secret) || `exit ${r.code}`;
+const tail = (r, secret) => hide(lastLines(r.stderr || r.stdout || ''), secret) || `exit ${r.code}`;
 // Text from a child that is shown or kept: control characters out, token shapes and the known token masked.
 const ESC = String.fromCharCode(27), BEL = String.fromCharCode(7);
 const ANSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]|${ESC}\\][^${BEL}]*${BEL}`, 'g');

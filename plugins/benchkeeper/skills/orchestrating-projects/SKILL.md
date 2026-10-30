@@ -66,7 +66,7 @@ Each step is separate; do the ones the outcome allows, in this order:
 A worker whose terminal a person typed in belongs to that person: skip every step below for it and list it in the report.
 
 1. Stop the worker if it has not settled (an idle worker that sent no report is stopped first), then release it once the runner reports it releasable.
-2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies.
+2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies. Remove the dev containers right before the worktree: `<engine> rm -f <id>` for each id that `<engine> ps -aq --filter label=devcontainer.local_folder=<worktree path>` prints, with `podman` or `docker` as `<engine>`. Volumes stay.
 3. Delete the branch (local and remote) only when its PR is merged and `deleteMergedBranch` allows it.
 
 Cleanup of a finished worker happens as part of reacting to its outcome, without waiting to be asked.
@@ -78,6 +78,7 @@ A scheduled run starts a session only when there is work, so a tick with nothing
 - Pick, the caps (`workersPerProject`, `hostWorkerLimit`), merge by `merge.*` and one fix worker per failing head commit of a worker's PR are deterministic checks: a script decides them, not a model session. The script reads the policy from the default branch, as above.
 - A scheduled session starts only after its precheck exits 0, and never while a session of the same schedule is alive. The sample [precheck.mjs](precheck.mjs) (`node precheck.mjs <project paths>`) exits 0 when a project has an issue to pick and prints which; it starts and merges nothing.
 - An unattended run starts each worker in a disposable worktree.
+- A coordinator that must outlive usage limits and restarts (one owner, a handover in two files, a loop without a model, short cycles, a watchdog): [restart-safe coordinator](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/restart-safe-coordinator.md).
 
 ## Rules
 

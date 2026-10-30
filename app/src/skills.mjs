@@ -76,13 +76,14 @@ export function globalUntracked(ctx, agents) {
 
 // The skill answers of one action. remove: a single pick goes, a skill a pack brings stays with the pack. add: a library skill
 // the project does not have becomes a single pick.
+const unknown = (message) => Object.assign(new Error(message), { status: 404 });
 export function skillAction(rows, action, names, lib) {
   const row = (n) => rows.skills.find((s) => s.name === n);
   for (const n of names) {
-    if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw new Error(`${n} is not an untracked library skill of this project`);
+    if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw unknown(`${n} is not an untracked library skill of this project`);
     if (action === 'add' && (row(n) || rows.untracked.some((u) => u.name === n))) throw new Error(`${n} is already in this project${row(n)?.state === 'disabled' ? `: benchkeeper skills enable ${n}` : ''}`);
-    if (action === 'add' && !lib.skills.some((s) => s.name === n)) throw new Error(`${n} is not a library skill`);
-    if (!['adopt', 'add'].includes(action) && !row(n)) throw new Error(`${n} is not a skill of this project`);
+    if (action === 'add' && !lib.skills.some((s) => s.name === n)) throw unknown(`${n} is not a library skill`);
+    if (!['adopt', 'add'].includes(action) && !row(n)) throw unknown(`${n} is not a skill of this project`);
     if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper skills disable ${n})`);
   }
   if (action === 'update' && !names.length) {

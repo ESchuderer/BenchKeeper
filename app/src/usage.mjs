@@ -164,13 +164,18 @@ export function rotation(u, pool, setting, now) {
 const SAFE = /^[\w ./\\:@+~-]+$/;
 const status = (script) => ({ type: 'command', command: `node "${script}" statusline` });
 const hook = (script, matcher = FAILURES.join('|')) => ({ matcher, hooks: [{ type: 'command', command: `node "${script}" failure` }] });
+// A status line that runs Ponytail's script and nothing else: the usage script draws its badge too (plugin option statusStyle).
+const PONYTAIL_LINE = /^[^;&|`()<>\n]*(?<![\w.-])ponytail-statusline\.(?:sh|ps1)["']?\s*$/;
+const REPLACED = 'benchkeeperReplacedStatusLine';
 // The account's settings.json with the status line and the StopFailure hook (remove: without them). An existing status line of
-// another kind is not replaced: the agent has one only. The hook is added to the user's own StopFailure entries.
+// another kind is not replaced: the agent has one only. Ponytail's own is replaced and kept under REPLACED, which remove writes
+// back (undo restores it too; a container account has no undo). The hook is added to the user's own StopFailure entries.
 export function trackedSettings(text, script, { remove = false } = {}) {
   if (!SAFE.test(script)) throw new Error(`the path ${script} has characters that do not go into a hook command`);
   const current = parseJson(text, 'settings.json');
   const ours = typeof current.statusLine?.command === 'string' && current.statusLine.command.includes(script);
-  if (remove) return text == null ? text : mergeJson(text, [...(ours ? [{ path: ['statusLine'], remove: true }] : []), { path: ['hooks', 'StopFailure'], pull: [hook(script), hook(script, LEGACY_MATCHER)] }, { path: ['hooks'], prune: true }], 'settings.json');
-  if (current.statusLine && !ours) throw new Error('this account already has a status line of its own, and the agent has one only: remove it from its settings.json first');
-  return mergeJson(text, [{ path: ['statusLine'], value: status(script) }, { path: ['hooks', 'StopFailure'], pull: [hook(script, LEGACY_MATCHER)] }, { path: ['hooks', 'StopFailure'], append: [hook(script)] }], 'settings.json');
+  const back = isObject(current[REPLACED]) ? { value: current[REPLACED] } : { remove: true };
+  if (remove) return text == null ? text : mergeJson(text, [...(ours ? [{ path: ['statusLine'], ...back }] : []), { path: [REPLACED], remove: true }, { path: ['hooks', 'StopFailure'], pull: [hook(script), hook(script, LEGACY_MATCHER)] }, { path: ['hooks'], prune: true }], 'settings.json');
+  if (current.statusLine && !ours && !PONYTAIL_LINE.test(current.statusLine.command ?? '')) throw new Error('this account already has a status line of its own, and the agent has one only: remove it from its settings.json first');
+  return mergeJson(text, [...(current.statusLine && !ours ? [{ path: [REPLACED], value: current.statusLine }] : []), { path: ['statusLine'], value: status(script) }, { path: ['hooks', 'StopFailure'], pull: [hook(script, LEGACY_MATCHER)] }, { path: ['hooks', 'StopFailure'], append: [hook(script)] }], 'settings.json');
 }

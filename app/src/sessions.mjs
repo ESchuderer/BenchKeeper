@@ -4,24 +4,28 @@ import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
-import { readText, writeAtomic } from './fsx.mjs';
+import { move, readText, writeAtomic } from './fsx.mjs';
 import { repoEnv } from './git.mjs';
 import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
 
-const SCHEMA = 1;
+// Converters from each older cache schema to the next; the schema is their count plus one, so a bump adds one here. The cache holds
+// the only copy of summaries whose transcripts the agent has deleted: a bump converts it, never drops it.
+export const MIGRATE = {};
+const schema = () => Object.keys(MIGRATE).length + 1;
 const MAX_DAYS = 3650;
 const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 // In command position only: at the start of a chain part, after variables or a runner (npx playwright test), also as the
 // start of a sh -c script (devcontainer exec ... sh -lc 'npm test'), not in quoted or echoed text.
-const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=\S+\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
+// A variable's value is quoted or stops at the next separator or quote, so a long chain of a=b parts is matched in linear time.
+export const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=(?:"[^"]*"|'[^']*'|[^\s;&|'"]*)\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
-const PARSE = 3;
+const PARSE = 4;
 const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
@@ -33,18 +37,49 @@ const parse = (line) => { try { return JSON.parse(line); } catch { return null; 
 const texts = (content) => (typeof content === 'string' ? [content] : Array.isArray(content) ? content.map((c) => c.text ?? (typeof c.content === 'string' ? c.content : '')) : []);
 // `(override)` marks a tier set with /benchkeeper:tier: no change type.
 const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.push([m[1], m[2] && m[2] !== 'override' ? m[2] : null]); };
+const sec = (iso) => Math.round(Date.parse(iso) / 1000);
+// [start, end] pairs in epoch seconds, sorted, overlapping or adjacent ones merged.
+const merged = (spans) => spans.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]).reduce((out, [a, b]) => {
+  const last = out.at(-1);
+  if (last && a <= last[1]) last[1] = Math.max(last[1], b); else out.push([a, b]);
+  return out;
+}, []);
+// When the file was active: its turns, or without a turn line its timestamp runs split at gaps over 15 minutes.
+function activity() {
+  const turns = [], runs = [];
+  return {
+    // The line's timestamp, also kept as the file's start and end.
+    at(line, d) {
+      const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
+      if (!ts) return ts;
+      d.start ??= ts; d.end = ts;
+      const t = sec(ts), last = runs.at(-1);
+      if (last && t >= last[0] && t - last[1] <= 900) last[1] = Math.max(last[1], t); else runs.push([t, t]);
+      return ts;
+    },
+    turn(ts, ms) { const end = sec(ts); turns.push([end - Math.round(ms / 1000), end]); },
+    spans: () => merged(turns.length ? turns : runs),
+  };
+}
 
 // One Claude Code transcript (or a subagent's, of which only the skills count).
 async function claudeFile(file) {
-  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null, task: null };
-  const pending = new Map();
+  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null, task: null, limits: [] };
+  const pending = new Map(), active = activity();
+  // The usage limit wait still open: [hit, resumed, resetsAt] in epoch seconds, from its first error to the next answer.
+  let wait = null;
   await lines(file, (line) => {
-    const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
-    if (ts) { d.start ??= ts; d.end = ts; }
+    const ts = active.at(line, d);
     // Only lines of the kinds read below are parsed; their type is checked after, as tool output can quote such text.
-    if (!/"type":"(assistant|user|cost-state|ai-title|agent-name|pr-link)"|"skill_listing"|"humanTurn":true/.test(line)) return;
+    if (!/"type":"(assistant|user|cost-state|ai-title|agent-name|pr-link)"|"skill_listing"|"humanTurn":true|"turn_duration"/.test(line)) return;
     const e = parse(line);
     if (!e) return;
+    if (e.type === 'system' && e.subtype === 'turn_duration' && ts && Number.isFinite(e.durationMs)) active.turn(ts, e.durationMs);
+    if (e.type === 'assistant' && ts) {
+      const resets = Number.isFinite(e.quotaLimits?.resetsAt) ? e.quotaLimits.resetsAt : null;
+      if (e.isApiErrorMessage && e.error === 'rate_limit') { if (wait) wait[2] = resets ?? wait[2]; else d.limits.push(wait = [sec(ts), null, resets]); }
+      else if (wait && !e.isApiErrorMessage) { wait[1] = sec(ts); wait = null; }
+    }
     if (e.cwd && !d.cwd) Object.assign(d, { cwd: e.cwd, branch: e.gitBranch ?? null, agentVersion: e.version ?? null });
     if (e.type === 'cost-state') d.cost = { usd: e.totalCostUSD, busy: (e.totalAPIDuration ?? 0) + (e.totalToolDuration ?? 0), models: e.modelUsage ?? {} };
     else if (e.type === 'ai-title') d.title = e.aiTitle;
@@ -83,7 +118,7 @@ async function claudeFile(file) {
     }
   });
   // Each message's usage counted once (a message streams as several lines), kept as the sum.
-  return { ...d, usage: Object.values(d.usage).reduce((n, x) => n + x, 0) };
+  return { ...d, usage: Object.values(d.usage).reduce((n, x) => n + x, 0), active: active.spans() };
 }
 
 // One Codex rollout. Compacted lines repeat earlier history and are skipped.
@@ -91,9 +126,9 @@ async function claudeFile(file) {
 async function codexFile(file) {
   // shortcut: no loop or worker detection: the rollout signature of /goal and of a dispatched prompt is not documented; read user messages if that is verified.
   const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0, loop: false, orca: false, run: null };
+  const active = activity();
   await lines(file, (line) => {
-    const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
-    if (ts) { d.start ??= ts; d.end = ts; }
+    const ts = active.at(line, d);
     if (!/"(session_meta|turn_context|token_count|task_started|task_complete|CommandExecution)"|"role":"assistant"|<skills_instructions>/.test(line)) return;
     const e = parse(line);
     const p = e?.payload;
@@ -102,7 +137,7 @@ async function codexFile(file) {
     else if (e.type === 'turn_context' && p.model) d.models.add(p.model);
     else if (p.type === 'token_count' && p.info?.total_token_usage) d.tokens = p.info.total_token_usage.total_tokens ?? d.tokens;
     else if (p.type === 'task_started' && p.turn_attribution?.turn_trigger === 'user') d.turns++;
-    else if (p.type === 'task_complete') d.busy += p.duration_ms ?? 0;
+    else if (p.type === 'task_complete') { d.busy += p.duration_ms ?? 0; if (ts && Number.isFinite(p.duration_ms)) active.turn(ts, p.duration_ms); }
     else if (p.type === 'item_completed' && p.item?.type === 'CommandExecution') {
       const cmd = [p.item.command ?? []].flat().join(' ');
       for (const m of cmd.matchAll(SKILL_READ)) d.skills.add(m[1]);
@@ -117,7 +152,7 @@ async function codexFile(file) {
       }
     }
   });
-  return { ...d, cost: null };
+  return { ...d, cost: null, active: active.spans() };
 }
 
 const files = (dir, pick, depth) => {
@@ -141,13 +176,28 @@ const plain = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v 
 // The cache file: parsed summaries by transcript path, and the retention (days; null keeps them for good). A summary
 // outlives its transcript, which the agent deletes after its cleanup period. Message text is never in it.
 const cachePath = (ctx) => join(cacheDir(ctx), 'sessions.json');
-const readCache = (ctx) => {
-  const old = parse(readText(cachePath(ctx)) ?? '{}');
-  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null };
+// The files of the schema in use, converted step by step from an older one; null when that is not possible (an unreadable
+// file, or a newer or unknown schema).
+const migrate = (old) => {
+  let x = old;
+  while (x?.schema !== schema()) {
+    if (!(x?.schema < schema()) || !MIGRATE[x.schema]) return null;
+    try { x = { ...MIGRATE[x.schema](x), schema: x.schema + 1 }; } catch { return null; }
+  }
+  return x.files && typeof x.files === 'object' && !Array.isArray(x.files) ? x.files : null;
 };
+// lost: a cache file that cannot be converted. Its summaries read as none, and the next write moves it aside, never over it.
+const readCache = (ctx) => {
+  const text = readText(cachePath(ctx));
+  const old = parse(text ?? '{}');
+  const files = text == null ? {} : migrate(old);
+  return { files: files ?? {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null, lost: !files };
+};
+const asideOf = (ctx) => `${cachePath(ctx)}.${Date.now()}`;
 const writeCache = (ctx, files, keepDays) => {
+  if (readCache(ctx).lost) move(cachePath(ctx), asideOf(ctx));
   // Titles and paths of the user's sessions: this user only.
-  writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
+  writeAtomic(cachePath(ctx), JSON.stringify({ schema: schema(), keepDays, files }), 0o600);
 };
 // sessions: the rows the board shows. A Codex subagent rollout counts only while its parent is cached; without it the board shows it as a session.
 export const sessionCache = (ctx) => {
@@ -172,8 +222,9 @@ const expire = (files, keepDays, now = Date.now()) => {
 
 // Every transcript, parsed once per size and mtime (cache: sessions.json in the benchkeeper cache folder). The summary of a
 // transcript that is gone stays, until the retention drops it.
-async function parsed(ctx, onFile) {
-  const { files: cache } = readCache(ctx);
+async function parsed(ctx, onFile, onNote) {
+  const { files: cache, lost } = readCache(ctx);
+  if (lost) onNote?.(`The session cache ${cachePath(ctx)} is unreadable or of an unknown version: it is kept beside it with a time suffix, and the sessions whose transcripts are gone are not listed.`);
   const next = {};
   const claude = join(ctx.home, '.claude/projects'), codex = join(ctx.home, '.codex/sessions');
   const list = [
@@ -289,16 +340,17 @@ function withLedger(ctx, rows, since, onNote) {
     rows.push({
       agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
       costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null, task: null,
-      setupVersion: null, prs: [], repo: null, source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
+      setupVersion: null, prs: [], repo: null, active: null, limits: null, source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
     });
   }
   return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
 }
 
 // One row per session, newest first. since: an ISO time; older sessions are left out. onFile gets { done, total } files.
-// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped.
+// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped,
+// and one for a cache file it cannot convert.
 export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) {
-  const all = await parsed(ctx, onFile);
+  const all = await parsed(ctx, onFile, onNote);
   const entries = Object.entries(all);
   // Claude subagents add their skills to the session they belong to (<session>/subagents/agent-*.jsonl).
   const subSkills = new Map(), subCount = new Map();
@@ -335,6 +387,8 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
       pattern: patternOf(d, subagents), subagents, run: d.run ?? null, task: d.task ?? null,
       setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs, repo: d.repo ?? null,
+      // Not recorded (null) on a summary cached before they were read; Codex records no limit waits.
+      active: d.active ?? null, limits: d.limits ?? null,
     });
   }
   const states = await prStates(ctx, rows.flatMap((r) => r.prs));

@@ -63,6 +63,49 @@ test('the hook keeps only the two windows and the error type: no token, path, me
   assert.equal(failureLine({ error: 'rate_limit' }, T0).includes('rate_limit'), true);
 });
 
+test('the status line style: usage and Ponytail\'s level from the account folder, usage.json written in every style', () => {
+  const account = mkdtempSync(join(tmpdir(), 'bk-style-'));
+  const dir = join(account, 'benchkeeper');
+  const env = { XDG_CONFIG_HOME: join(account, 'xdg') };
+  const style = (v) => writeFileSync(join(account, 'settings.json'), JSON.stringify({ pluginConfigs: { 'benchkeeper@benchkeeper': { options: { statusStyle: v } } } }));
+  const level = (v) => writeFileSync(join(account, '.ponytail-active'), `${v}\n`);
+  const line = (text = JSON.stringify(windows(41.5, 7))) => hook('statusline', text, dir, T0, env);
+  const written = () => { const f = join(dir, 'usage.json'); const r = existsSync(f); rmSync(f, { force: true }); return r; };
+  const usage = '5h 59% left  7d 93% left';
+  // No flag file: no segment, no error.
+  assert.equal(line(), usage);
+  level('full');
+  assert.equal(line(), `${usage}  \x1b[38;5;108m[PONYTAIL]\x1b[0m`, 'unset is merged');
+  style('merged'); level('ultra');
+  assert.equal(line(), `${usage}  \x1b[38;5;173m[PONYTAIL:ULTRA]\x1b[0m`);
+  level('lite');
+  assert.equal(line(), `${usage}  \x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m`);
+  style('plugin');
+  assert.equal(line(), '\x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m');
+  assert.equal(written(), true);
+  style('benchkeeper');
+  assert.equal(line(), usage);
+  assert.equal(written(), true);
+  style('none');
+  assert.equal(line(), '');
+  assert.equal(written(), true);
+  style('rainbow');
+  assert.match(line(), /^5h .*\[PONYTAIL:LITE\]/, 'an unknown style is merged');
+  // An input without rate_limits still shows the level and writes no reading.
+  written();
+  assert.equal(line('{}'), '\x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m');
+  assert.equal(written(), false);
+  level('sideways');
+  assert.equal(line(), usage, 'an unknown level shows nothing');
+  // Ponytail's hide switch: hideStatus in its config, or the variable, which wins.
+  level('full');
+  mkdirSync(join(account, 'xdg', 'ponytail'), { recursive: true });
+  writeFileSync(join(account, 'xdg', 'ponytail', 'config.json'), '{"hideStatus":true}');
+  assert.equal(line(), usage);
+  assert.equal(hook('statusline', '{}', dir, T0, { ...env, PONYTAIL_HIDE_STATUS: '0' }), '\x1b[38;5;108m[PONYTAIL]\x1b[0m');
+  assert.equal(hook('statusline', '{}', dir, T0, { PONYTAIL_HIDE_STATUS: '1' }), '');
+});
+
 test('the failure file keeps its last 20 lines', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-usage-'));
   for (let i = 0; i < 25; i++) hook('failure', JSON.stringify({ error: 'rate_limit' }), dir, T0 + i * 1000);
@@ -139,6 +182,16 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(null, script), script, { remove: true })), {});
   // A status line of another kind is not replaced; a path with shell characters is refused.
   assert.throws(() => trackedSettings('{"statusLine":{"type":"command","command":"my-line"}}', script), /already has a status line of its own/);
+  // Ponytail's own status line is replaced; one combined with another command is not.
+  const ponytail = '{"statusLine":{"type":"command","command":"bash \\"/home/u/.claude/ponytail-statusline.sh\\"","padding":0}}\n';
+  assert.deepEqual(JSON.parse(trackedSettings(ponytail, script)).statusLine, { type: 'command', command: `node "${script}" statusline` });
+  // The replaced line is kept and written back by remove, padding and all.
+  assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(trackedSettings(ponytail, script), script), script, { remove: true })), JSON.parse(ponytail));
+  assert.equal(JSON.parse(trackedSettings('{"statusLine":{"command":"powershell -File C:\\\\u\\\\.claude\\\\ponytail-statusline.ps1"}}', script)).statusLine.command, `node "${script}" statusline`);
+  assert.equal(JSON.parse(trackedSettings(JSON.stringify({ statusLine: { command: 'bash "$HOME/.claude/ponytail-statusline.sh"' } }), script)).statusLine.command, `node "${script}" statusline`);
+  for (const command of ['my-line && bash ~/.claude/ponytail-statusline.sh', 'bash ~/.claude/ponytail-statusline.sh; my-line', 'bash $(echo ponytail-statusline.sh)', 'bash ~/.claude/my-ponytail-statusline.sh']) {
+    assert.throws(() => trackedSettings(JSON.stringify({ statusLine: { type: 'command', command } }), script), /already has a status line of its own/, command);
+  }
   assert.throws(() => trackedSettings(null, '/x/$(id)/usage.mjs'), /do not go into a hook command/);
   assert.match(HOOK_SOURCE, /^\/\/ Runs inside one account's folder/);
 });
@@ -192,6 +245,26 @@ test('track: a plan with a diff and an undo; the installed script writes what st
   const again = cli(m);
   assert.equal(await again.exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
   assert.match(again.text(), /nothing to change/);
+});
+
+test('track: a status line that only runs Ponytail\'s script is replaced, and undo restores it byte for byte', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  const own = '{\n    "statusLine": { "type": "command", "command": "bash \\"/home/u/.claude/ponytail-statusline.sh\\"" }\n}\n';
+  writeFileSync(join(a.dir, 'settings.json'), own);
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 0, c.text());
+  assert.match(JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8')).statusLine.command, /usage\.mjs" statusline$/);
+  const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
+  assert.equal(await cli(m).exec(['undo', run.id]), 0);
+  assert.equal(readFileSync(join(a.dir, 'settings.json'), 'utf8'), own);
+  // --off writes the replaced line back, and its plan shows it.
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
+  const plan = cli(m, ['n\n'.repeat(10)]);
+  assert.equal(await plan.exec(['accounts', 'track', 'work', '--off']), 1);
+  assert.match(plan.text(), /-.*usage\.mjs\\" statusline[\s\S]*ponytail-statusline\.sh/);
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8')), JSON.parse(own));
 });
 
 test('track: an account folder outside the home folder is written and undone', skip, async () => {
@@ -255,12 +328,12 @@ test('limits: defaults, per-account values, the pool, and the refusals', skip, a
   assert.equal(listAccounts(m.ctx)[0].pool, 'me');
   // Refusals leave the file alone.
   const before = readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8');
-  for (const [args, message] of [
+  for (const [args, message, code] of [
     [['--five-hour', '150'], /--five-hour is a percentage/], [['--seven-day', ''], /--seven-day is a percentage/], [['--auto-pick', 'maybe'], /--auto-pick is on or off/],
     [['--when-none', 'sleep'], /--when-none is stop or wait/], [['work', '--auto-pick', 'on'], /settings for all accounts/], [['--pool', 'me'], /belong to one account/],
-    [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/]]) {
+    [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/, 2]]) {
     const r = cli(m);
-    assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), 1, `${args.join(' ')}: ${r.text()}`);
+    assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), code ?? 1, `${args.join(' ')}: ${r.text()}`);
     assert.match(r.text(), message);
   }
   assert.equal(readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8'), before);
@@ -286,9 +359,9 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(launches(m).length, 2);
   assert.match(warn.text(), /notice: account work: 5-hour window has 12% left \(notice below 16%, resets .+ UTC\) \(a long task may not finish before the reset: --account <name> starts under another account\)/);
   assert.doesNotMatch(ok.text(), /notice:/);
-  // Below the minimum: the account, the window, what is left and the reset are shown, then the question. No answer is no.
+  // Below the minimum: the account, the window, what is left and the reset are shown, then the question.
   reading(a, 95, 50);
-  const no = cli(m);
+  const no = cli(m, ['n\n']);
   assert.equal(await go(m, no), 1);
   assert.match(no.text(), /warning: account work: 5-hour window has 5% left, below the minimum of 8% \(resets \d{4}-\d\d-\d\d \d\d:\d\d UTC\)/);
   assert.match(no.text(), /Start anyway\? \[y\/N\] not started/);
@@ -304,7 +377,7 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(await cli(m).exec(['accounts', 'limits', '--continue-below', 'off', '--yes']), 0);
   // The weekly window counts too, and a per-account minimum moves the line.
   reading(a, 50, 98);
-  assert.equal(await go(m, cli(m)), 1);
+  assert.equal(await go(m, cli(m)), 2);
   assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--seven-day', '1', '--yes']), 0);
   assert.equal(await go(m, cli(m)), 0);
 });
@@ -328,7 +401,7 @@ test('auto-pick is off by default: below the minimum the chosen account stays ch
   reading(a, 97, 10);
   reading(b, 10, 10);
   const c = cli(m);
-  assert.equal(await go(m, c), 1);
+  assert.equal(await go(m, c), 2);
   assert.match(c.text(), /Start anyway\?/);
   assert.equal(launches(m).length, 0);
   assert.equal(await go(m, cli(m), '--yes'), 0);
@@ -351,7 +424,7 @@ test('auto-pick on: a new launch under the default account starts under the pool
   assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, spare.dir, 'one launch, under the pick; the account outside the pool is never one');
   // An account named with --account is never replaced.
   const named = cli(m);
-  assert.equal(await go(m, named, '--account', 'work'), 1);
+  assert.equal(await go(m, named, '--account', 'work'), 2);
   assert.match(named.text(), /Start anyway\?/);
   assert.equal(launches(m).length, 1);
   // A member that is below its minimum, unknown, or not tracked is no candidate.
@@ -364,7 +437,7 @@ test('auto-pick on: a new launch under the default account starts under the pool
   // An account that is not in a pool has no candidates: the usual question.
   assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--pool', 'none', '--yes']), 0);
   const solo = cli(m);
-  assert.equal(await go(m, solo), 1);
+  assert.equal(await go(m, solo), 2);
   assert.match(solo.text(), /Start anyway\?/);
 });
 
@@ -433,9 +506,9 @@ test('a dev container account: usage and failures are read through devcontainer 
   assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
   assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
   assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), {});
-  // Asked without --yes: no answer is no and nothing is written.
+  // Asked without --yes: no answer refuses and nothing is written.
   const no = cli(m);
-  assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 1);
+  assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 2);
   assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
 });
 
@@ -468,6 +541,24 @@ test('auto-pick on with no member above its minimum: --yes goes on under the cho
   assert.equal(launches(m).length, 0);
   assert.equal(await go(m, cli(m), '--yes'), 0);
   assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, work.dir);
+});
+
+test('a dev container account: --off writes back the Ponytail status line that track replaced', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  const vol = (p) => join(m.bin, 'vol', p);
+  const own = { statusLine: { type: 'command', command: 'bash "/data/boxed/ponytail-statusline.sh"' } };
+  mkdirSync(vol('/data/boxed'), { recursive: true });
+  writeFileSync(vol('/data/boxed/settings.json'), JSON.stringify(own));
+  assert.equal(await cli(m).exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
+  assert.match(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')).statusLine.command, /usage\.mjs" statusline$/);
+  const off = cli(m);
+  assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
+  assert.match(off.text(), /-.*usage\.mjs\\" statusline[\s\S]*ponytail-statusline\.sh/);
+  assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), own);
 });
 
 test('a dev container track twice or --off twice has nothing to change; the script is written before the settings that name it', skip, async () => {
@@ -569,7 +660,7 @@ test('Codex: status, list and run read the app-server of the account\'s CODEX_HO
   assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
   codexLimits(m, codexWindow(97, 300), codexWindow(20, 10080));
   const low = cli(m);
-  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 1);
+  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 2);
   assert.match(low.text(), /Start anyway\?/);
   assert.doesNotMatch(low.text(), /auto-pick/);
   assert.ok(m.calls().filter((x) => x.me === 'codex' && x.args[0] === '--go').every((x) => x.env.CODEX_HOME === a.dir));

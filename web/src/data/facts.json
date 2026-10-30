@@ -304,6 +304,56 @@
       }
     ]
   },
+  "parts": [
+    {
+      "id": "rules",
+      "title": "`rules/global.md`",
+      "href": "https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/rules/global.md",
+      "scope": "Global, every session, full level",
+      "text": "Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in `rules/project.md`, part of each project's block.",
+      "evidence": ["plugins/benchkeeper/rules/global.md", "plugins/benchkeeper/rules/project.md", "docs/stack.md#contents"]
+    },
+    {
+      "id": "workflow",
+      "title": "`workflow`",
+      "href": "https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md",
+      "scope": "Global, before repository work",
+      "text": "The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.",
+      "evidence": ["plugins/benchkeeper/skills/workflow/SKILL.md", "docs/stack.md#contents"]
+    },
+    {
+      "id": "mattpocock",
+      "title": "Matt Pocock's skills",
+      "href": "https://github.com/mattpocock/skills",
+      "scope": "Optional, workflow owner, his plugin, global in both agents",
+      "text": "Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in `docs/agents/`.",
+      "evidence": "docs/stack.md#components"
+    },
+    {
+      "id": "ponytail",
+      "title": "Ponytail",
+      "href": "https://github.com/DietrichGebert/ponytail",
+      "scope": "Optional pack, global, level full",
+      "text": "The smallest complete change: reuse before new code, no unrequested options, a test for new logic, `shortcut:` comments for known limits.",
+      "evidence": "docs/stack.md#components"
+    },
+    {
+      "id": "app",
+      "title": "The app and the setup skills",
+      "href": "https://github.com/ESchuderer/BenchKeeper/tree/main/app",
+      "scope": "On request",
+      "text": "`npx benchkeeper@6.25.0` sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates the projects that are behind, and the Sessions board tracks tier, cost and outcome per session. `/benchkeeper:setting-up-projects` adds stack skills and the dev container, `/benchkeeper:maintaining-repos` runs a maintenance pass, `/benchkeeper:orchestrating-projects` coordinates workers on labeled issues across projects.",
+      "evidence": ["app/README.md#web-ui", "app/ui/fix.jsx", "docs/stack.md#contents"]
+    },
+    {
+      "id": "devcontainer",
+      "title": "Devcontainer and Playwright",
+      "href": "https://code.visualstudio.com/docs/devcontainers/devcontainer-cli",
+      "scope": "Per repository",
+      "text": "Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the [BenchKeeper library](https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/library/README.md), stack skills from [find-skills](https://github.com/vercel-labs/skills), at most two per technology.",
+      "evidence": ["docs/stack.md#components", "plugins/benchkeeper/skills/setting-up-projects/SKILL.md"]
+    }
+  ],
   "sdlc": {
     "requirements": "Requests come from you, GitHub issues, Jira, Linear and other trackers, bug reports, reviews and Maintain findings. Only GitHub issues are automated.",
     "phases": [

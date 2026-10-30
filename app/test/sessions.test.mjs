@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
-import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
+import { TITLE, writeActivitySessions, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
@@ -107,6 +107,27 @@ test('pattern: a cached summary from before it was read is parsed again; one who
   assert.match(boardHtml(Object.values(rows)), /not recorded/);
 });
 
+test('turns and usage limit waits: turn lines, task_complete, the gap fallback, merged errors, unresumed waits; an old summary reads not recorded', async () => {
+  const { home, ctx } = fixture();
+  writeActivitySessions(home);
+  const rows = byId(await scanSessions(ctx));
+  const S = Date.parse('2026-10-22T09:00:00.000Z') / 1000;
+  assert.deepEqual(rows.t1.active, [[S, S + 1200], [S + 3300, S + 3600]]);
+  assert.deepEqual(rows.t1.limits, [[S + 1800, S + 2700, S + 3600], [S + 5400, null, S + 6000]]);
+  assert.deepEqual(rows.t2.active, [[S, S + 300], [S + 1500, S + 2100]]);
+  assert.deepEqual(rows.t2.limits, [[S + 3600, null, null]]);
+  assert.deepEqual([rows.x1.active, rows.x1.limits], [[[S + 60, S + 300], [S + 840, S + 900]], null]);
+  // Cached before the fields were read, and the transcript gone since.
+  const cache = join(home, '.cache/benchkeeper/sessions.json');
+  const saved = JSON.parse(readFileSync(cache, 'utf8'));
+  const file = join(home, '.claude/projects/-work-act/t1.jsonl');
+  const { active, limits, ...d } = saved.files[file].d;
+  saved.files[join(home, '.claude/projects/-work-act/gone.jsonl')] = { ...saved.files[file], key: 'old', d };
+  writeFileSync(cache, JSON.stringify(saved));
+  const again = byId(await scanSessions(ctx));
+  assert.deepEqual([again.gone.active, again.gone.limits], [null, null]);
+});
+
 test('an unchanged file comes from the cache; a changed one is read again; since leaves out older sessions', async () => {
   const { home, ctx } = fixture();
   const file = join(home, '.claude/projects/-work-blog/s2.jsonl');
@@ -165,6 +186,37 @@ test('a transcript the agent deleted between two scans: its row, the board and t
   assert.equal(sessionCache(ctx).sessions, 3);
 });
 
+test('a schema bump converts the cache: the summary of a deleted transcript is still listed', async () => {
+  const { home, ctx } = fixture();
+  const before = await scanSessions(ctx);
+  removeS1(home);
+  MIGRATE[1] = (x) => ({ ...x, files: Object.fromEntries(Object.entries(x.files).map(([f, v]) => [f, { ...v, moved: true }])) });
+  try {
+    const notes = [];
+    assert.deepEqual(await scanSessions(ctx, { onNote: (n) => notes.push(n) }), before);
+    assert.deepEqual(notes, []);
+    const saved = JSON.parse(readFileSync(cacheFile(home), 'utf8'));
+    assert.equal(saved.schema, 2);
+    assert.ok(Object.values(saved.files).every((v) => v.moved));
+  } finally { delete MIGRATE[1]; }
+});
+
+test('a cache file it cannot convert is moved aside with a note, not overwritten; a normal scan has no note', async () => {
+  const { home, ctx } = fixture();
+  const notes = [];
+  await scanSessions(ctx, { onNote: (n) => notes.push(n) });
+  assert.deepEqual(notes, []);
+  for (const [i, text] of ['{"schema":99,"files":{"x":{}}}', 'not json'].entries()) {
+    writeFileSync(cacheFile(home), text);
+    await scanSessions(ctx, { onNote: (n) => notes.push(n) });
+    assert.equal(notes.length, i + 1);
+    assert.match(notes[i], /session cache .* unreadable or of an unknown version/);
+    const aside = readdirSync(join(home, '.cache/benchkeeper')).filter((f) => /^sessions\.json\.\d+$/.test(f));
+    assert.ok(aside.some((f) => readFileSync(join(home, '.cache/benchkeeper', f), 'utf8') === text), text);
+    assert.equal(JSON.parse(readFileSync(cacheFile(home), 'utf8')).schema, 1);
+  }
+});
+
 test('the cache file holds no message text and is readable by this user only', async () => {
   const { home, ctx } = fixture();
   await scanSessions(ctx);
@@ -216,4 +268,13 @@ test('tests: a test command counts in command position only, not echoed or quote
   rollout('chained', [['npm test', 1], ['cd app && CI=1 npx vitest run', 0]]);
   const rows = byId(await scanSessions(context({ home, run: () => ({ code: 127, stdout: '', stderr: '' }) })));
   assert.deepEqual([rows.echoed.tests, rows.chained.tests], ['fail', 'pass']);
+});
+
+test('tests: a long chain of variable assignments is matched in linear time, quoted values too', () => {
+  const start = performance.now();
+  assert.equal(TEST.test(';a=b'.repeat(20000)), false);
+  assert.equal(TEST.test(';a="b"'.repeat(20000)), false);
+  assert.ok(performance.now() - start < 200);
+  assert.equal(TEST.test(`${';a=b'.repeat(20000)};A=1 B=2 npm test`), true);
+  assert.equal(TEST.test(`NODE_OPTIONS="--trace-warnings --no-deprecation" A='x y' npm test`), true);
 });

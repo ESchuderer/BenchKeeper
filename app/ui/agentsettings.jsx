@@ -209,8 +209,10 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   useEffect(() => { if (target) { document.getElementById(`setting-${target}`)?.focus(); setTarget(null); } }, [target]);
   const rowsOf = (n) => (n.keys ?? []).map((k) => data.settings.find((r) => r.key === k)).filter(Boolean);
   const noteButtons = (n) => {
-    const fix = fixOf(n, rowsOf(n), layer, data.precedence);
-    const first = rowsOf(n).find((r) => !r.decided);
+    // A setting the user decided to keep is left out of the fix and the navigation.
+    const open = rowsOf(n).filter((r) => !r.decided);
+    const fix = fixOf(n, open, layer, data.precedence);
+    const first = open[0];
     return (
       <>
         {Object.keys(fix).length > 0 ? <Button size="compact-xs" variant="default" loading={busy} aria-label={`Fix, review the change: ${n.id}`} onClick={() => stage(fix)}>Fix: review the change</Button>

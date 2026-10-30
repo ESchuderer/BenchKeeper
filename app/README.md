@@ -277,7 +277,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/rule-check` | `rules check` | the size and findings of a rule file with the text being edited, nothing written |
 | `POST /api/rule-edit-plan` | `UI internal` | a plan that writes the edited text of a rule file of yours |
 | `POST /api/preferences` | `UI internal` | the app's own preferences (`editors`) |
-| `POST /api/settings-dismiss` | `UI internal` | dismiss an Agent settings note, or keep a setting as decided (`setting:<agent>:<key>`), or show it again (`dismissed` in `preferences.json`); Doctor leaves a dismissed note and the notes of decided settings out |
+| `POST /api/settings-dismiss` | `UI internal` | dismiss an Agent settings note, or keep a setting as decided (`setting:<agent>:<key>`), or show it again (`dismissed` in `preferences.json`); Doctor leaves out a dismissed note and a note whose settings are all decided |
 | `GET /api/params` | `pins list` | presets, pins and policy files with their errors; 404 while `editors` is off |
 | `POST /api/params-check` | `doctor` | 404 while `editors` is off |
 | `POST /api/params-plan` | `UI internal` | 404 while `editors` is off |

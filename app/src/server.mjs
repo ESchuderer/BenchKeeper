@@ -40,7 +40,7 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { maskStream, shown } from './redact.mjs';
+import { mask, maskStream, shown } from './redact.mjs';
 import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
@@ -807,25 +807,28 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       return send(200, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/#k=${key}"><title>BenchKeeper</title>`, 'text/html; charset=utf-8', { 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
-    // A browser that opens a used, expired or wrong-host link reads what to do; API calls and the board frame keep JSON.
+    // A browser that opens a used, expired or wrong-host link reads what to do; API calls keep JSON, the board frame a page of its own.
     if (why && req.method === 'GET' && [401, 421].includes(why[0]) && !url.pathname.startsWith('/api/') && url.pathname !== '/board') {
       return send(why[0], `<!doctype html><meta charset="utf-8"><title>BenchKeeper</title><h1>This link does not open BenchKeeper</h1>\n<p>The link works once and for 10 minutes. Open it as printed, at http://127.0.0.1:${p}/, not at localhost or another port.</p>\n<p>For a new link, run <code>npx benchkeeper</code> again.</p>`, 'text/html; charset=utf-8');
     }
+    // The board frame shows its errors: the app cannot read why a frame failed to load.
+    const boardError = (code, text) => send(code, `<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Sessions board</title><p>${text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)}</p>`, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; frame-ancestors 'self'" });
+    if (why && req.method === 'GET' && url.pathname === '/board') return boardError(why[0], `The board cannot be shown (${why[1]}): open it from the app again.`);
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {
       const t = boardTickets(ctx), ticket = url.searchParams.get('ticket') ?? '';
       const issued = t.get(ticket);
       t.delete(ticket);
-      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
+      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return boardError(403, 'This board link was already used or is too old: open the board from the app again.');
       try {
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
         // project: a project's page shows only its sessions; any other folder is refused.
         const only = url.searchParams.get('project'), registered = registeredPaths(ctx);
-        if (only != null && !registered.some((x) => x.path === only)) return send(404, { error: 'not a registered project' });
-        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        if (only != null && !registered.some((x) => x.path === only)) return boardError(404, 'This folder is not a registered project: open the board from its project page in the app.');
+        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return boardError(500, `The session scan failed: ${mask(e.message)}. Fix that and scan again.`); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).

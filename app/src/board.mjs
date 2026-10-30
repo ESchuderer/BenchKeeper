@@ -159,6 +159,8 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // In the app's frame its heading, intro and theme button are the app's: the app sends the theme and takes the height.
   if (parent !== window) {
     document.documentElement.classList.add('framed');
+    // The project choice is a chip at the head of the filter line, so the quick facts come right after it.
+    $('filters').prepend($('rail'));
     addEventListener('message', (e) => { if (e.source === parent && e.origin === location.origin && ['light', 'dark'].includes(e.data?.bkTheme)) theme(e.data.bkTheme); });
     new ResizeObserver(() => parent.postMessage({ bkBoardHeight: Math.ceil(document.body.getBoundingClientRect().height) }, location.origin)).observe(document.body);
   }
@@ -764,8 +766,8 @@ button:hover { border-color: var(--accent); }
 .older summary { margin: 0; }
 /* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
 .framed .layout { grid-template-columns: minmax(0, 1fr); }
-.framed #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
-.framed #rail-toggle { display: block; } .framed #rail:not(.open) #rail-panel { display: none; }
+.framed #rail { position: static; max-height: none; overflow: visible; margin: 0; padding: 0; } .framed #rail.open { flex-basis: 100%; }
+.framed #rail-toggle { display: block; width: auto; border-radius: 999px; } .framed #rail:not(.open) #rail-panel { display: none; }
 .framed #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
 .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card.all { display: block; font-weight: 600; }

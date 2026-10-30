@@ -223,6 +223,24 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Sessions board: the project choice opens closed as a chip at the head of the filter line, the quick facts right below; it opens the list and filters as before', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    const toggle = board.getByRole('group', { name: 'Filters' }).locator('#rail-toggle');
+    await expect(toggle).toHaveText(/^All projects, /);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(board.getByLabel('Find a project')).toBeHidden();
+    const bar = await board.locator('#filters').boundingBox(), tiles = await board.locator('#tiles').boundingBox();
+    expect(tiles.y - (bar.y + bar.height)).toBeLessThan(20);
+    await board.getByLabel('Period').selectOption('all');
+    await toggle.click();
+    await expect(board.getByLabel('Find a project')).toBeFocused();
+    await board.locator('#rail button.card:not(.all)').filter({ hasText: /^bk-ui-proj/ }).click();
+    await expect(toggle).toHaveText(/^bk-ui-proj, /);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
+  });
+
   test('Sessions board: one entry per repository with its worktree sessions folded in, a folder of no repository under Other; Registered only keeps the registered project and is remembered', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');

@@ -189,7 +189,7 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(trackedSettings(ponytail, script), script), script, { remove: true })), JSON.parse(ponytail));
   assert.equal(JSON.parse(trackedSettings('{"statusLine":{"command":"powershell -File C:\\\\u\\\\.claude\\\\ponytail-statusline.ps1"}}', script)).statusLine.command, `node "${script}" statusline`);
   assert.equal(JSON.parse(trackedSettings(JSON.stringify({ statusLine: { command: 'bash "$HOME/.claude/ponytail-statusline.sh"' } }), script)).statusLine.command, `node "${script}" statusline`);
-  for (const command of ['my-line && bash ~/.claude/ponytail-statusline.sh', 'bash ~/.claude/ponytail-statusline.sh; my-line', 'bash $(echo ponytail-statusline.sh)']) {
+  for (const command of ['my-line && bash ~/.claude/ponytail-statusline.sh', 'bash ~/.claude/ponytail-statusline.sh; my-line', 'bash $(echo ponytail-statusline.sh)', 'bash ~/.claude/my-ponytail-statusline.sh']) {
     assert.throws(() => trackedSettings(JSON.stringify({ statusLine: { type: 'command', command } }), script), /already has a status line of its own/, command);
   }
   assert.throws(() => trackedSettings(null, '/x/$(id)/usage.mjs'), /do not go into a hook command/);

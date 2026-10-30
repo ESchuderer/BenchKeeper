@@ -618,6 +618,11 @@ test('the auto memory overview reads a custom autoMemoryDirectory of the user se
   const pick = (m) => ({ project: m.project, path: m.path, notes: m.notes, bytes: m.bytes });
   assert.deepEqual(view(ctx, 'claude').memory.folders.map(pick), [custom]);
   assert.deepEqual(view(ctx, 'claude', dir).memory.folders.map(pick), [{ ...custom, project: dir }]);
+  // The default folders of projects, registered or not, do not load while the custom folder is set.
+  const other = project();
+  for (const d of [dir, other]) write(join(ctx.home, '.claude/projects', d.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), 'old\n');
+  addProject(ctx, dir);
+  assert.deepEqual(view(ctx, 'claude').memory.folders.map((m) => [m.path, m.enabled]).filter(([, on]) => on), [[join(ctx.home, 'mem'), true]]);
 });
 
 test('the auto memory overview says per folder whether its MEMORY.md loads, by the settings of its project, with the load limits', () => {

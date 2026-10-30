@@ -6,10 +6,10 @@ import { inside, readText } from './fsx.mjs';
 
 const LABEL = 'devcontainer.local_folder';
 // A hung engine must not hang doctor or the UI; reconcile runs unattended and may wait longer (hundreds of containers take minutes).
-const DOCTOR = 30e3, RECONCILE = 5 * 60e3;
+const DOCTOR = 30e3, RECONCILE = 5 * 60e3, VERSION = 5e3;
 const KEY_WARN = 0.8;
 
-export const containerEngine = (ctx) => ['podman', 'docker'].find((e) => ctx.run([e, '--version']).code === 0);
+export const containerEngine = (ctx) => ['podman', 'docker'].find((e) => ctx.run([e, '--version'], { timeout: VERSION }).code === 0);
 
 // [{ id, running, folder }] of every container, folder '' without the workspace label; null when the engine cannot list them.
 function listContainers(ctx, engine, timeout = DOCTOR) {

@@ -5,6 +5,8 @@ import { Cli, Section } from './parts.jsx';
 import { Loading, Note, href, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
+// Owner and transport chips carry free text (a plugin id, a type): they wrap inside the row instead of widening it.
+const WRAP = { root: { maxWidth: '100%', height: 'auto' }, label: { whiteSpace: 'normal', overflowWrap: 'anywhere' } };
 const KINDS = { mcp: 'MCP server', hook: 'Hook', subagent: 'Subagent', command: 'Command', style: 'Output style' };
 
 // One row per extension: name, state chips, what it runs and the file; an agent without any gets an empty state.
@@ -32,8 +34,8 @@ function Rows({ agent, chosen }) {
                 <Badge variant="default" miw="max-content">{KINDS[r.kind]}</Badge>
                 {r.runsCode && <Badge variant="default" miw="max-content" leftSection={icon(IconPlayerPlay, 12)}>runs code</Badge>}
                 <Badge variant="default" miw="max-content">scope {r.scope}</Badge>
-                <Badge variant="default" miw="max-content">owner {r.owner}{r.plugin ? ` (${r.plugin})` : ''}</Badge>
-                {r.transport && <Badge variant="default" miw="max-content">{r.kind === 'mcp' ? 'transport' : 'type'} {r.transport}{r.state && r.state !== 'on' ? `, ${r.state}` : r.kind === 'mcp' ? ', on' : ''}</Badge>}
+                <Badge variant="default" styles={WRAP}>owner {r.owner}{r.plugin ? ` (${r.plugin})` : ''}</Badge>
+                {r.transport && <Badge variant="default" styles={WRAP}>{r.kind === 'mcp' ? 'transport' : 'type'} {r.transport}{r.state && r.state !== 'on' ? `, ${r.state}` : r.kind === 'mcp' ? ', on' : ''}</Badge>}
               </Group>
               <Group gap="md">
                 {r.detail && <Code style={{ overflowWrap: 'anywhere' }}>{r.detail}</Code>}

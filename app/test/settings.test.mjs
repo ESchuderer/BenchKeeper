@@ -629,7 +629,7 @@ test('CLI: list, get, set with a diff and undo, --unset, refused values', async 
   text = '';
   assert.equal(await exec(['settings', 'get', 'cleanupPeriodDays']), 0);
   assert.match(text, /^7 \(user\)/);
-  assert.equal(await exec(['settings', 'get', 'noSuchKey']), 1);
+  assert.equal(await exec(['settings', 'get', 'noSuchKey']), 2);
   text = '';
   assert.equal(await exec(['settings', 'set', 'cleanupPeriodDays', '60'], 'n\n'), 0);
   assert.match(text, /\+ {2}"cleanupPeriodDays": 60/);

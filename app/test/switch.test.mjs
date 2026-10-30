@@ -283,7 +283,7 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
     [['packs', 'enable', 'nope', '--project', r.dir], 2, /unknown pack nope/],
     [['packs', 'enable', 'ui-b', '--project', r.dir, '--global'], 2, /exclude each other/],
     [['packs', 'enable', 'frontend', '--global'], 1, /per project, not on the machine/],
-    [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 1, /has no setup yet/],
+    [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 2, /has no setup yet/],
   ]) { o = await cli(r, args); assert.deepEqual([o.code, text.test(o.text)], [code, true], `${args.join(' ')}: ${o.text}`); }
 });
 

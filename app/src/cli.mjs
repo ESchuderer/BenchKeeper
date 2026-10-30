@@ -1032,7 +1032,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 2; }
   if (!o.global) {
     const dir = resolve(o.project ?? '.');
-    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 1; }
+    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 2; }
     return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
   }
   const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
@@ -1094,7 +1094,7 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
     if (!rows) out.write(`${dir} has no setup yet\n`);
     return 0;
   }
-  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
+  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 2; }
   if (['add', 'enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
   try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
@@ -1139,8 +1139,8 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
   let code, error;
   try { code = await command(argv.filter((a) => a !== '--json'), { out: log, err, ask: refuse, ctx }); } catch (e) { code = 2; error = e.message; err.write(`${redact(e.message)}\n`); }
   const made = log.runs.length || log.projects?.length;
-  // A command that stops before a change prints why as its last line; with nothing made that is a usage or read failure.
-  if (code && !made) { error ??= lines.at(-1)?.trim(); code = 2; }
+  // A command that stops before a change prints why as its last line; the exit code stays the one the terminal gets.
+  if (code && !made) error ??= lines.at(-1)?.trim();
   const doc = { runs: log.runs.map(runDoc), ...(log.projects ? { projects: log.projects.map(projectDoc) } : {}) };
   out.write(jsonDoc(name, error && !made ? { error: redact(error) } : { ...doc, ...(error ? { error: redact(error) } : {}) }));
   return code;
@@ -1385,7 +1385,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
     if (!key) { out.write('settings get needs a key\n'); return 2; }
     const l = view();
     const s = [...l.settings, ...(l.advanced ?? [])].find((x) => x.key === key);
-    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 1; }
+    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 2; }
     out.write(`${show1(s.value)}${s.layer ? ` (${s.layer})` : `  (unset; default: ${s.default ?? 'built-in'})`}\n`);
     for (const x of s.sets ?? []) out.write(`  ${x.layer}: ${show1(x.value)}\n`);
     noteLines(s.notes ?? []);
@@ -1399,7 +1399,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
     else {
       if (!key) { out.write('settings set needs a key and a value, or --unset, or --bundle\n'); return 2; }
       const def = describeKey(agentId, key) ?? (agentId === 'codex' && key.startsWith('projects.') ? { key, type: 'any' } : null);
-      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 1; }
+      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 2; }
       if (o.unset) edits = { [key]: null };
       else if (rest.length === 0 && def.type !== 'switch') { out.write(`settings set ${key} needs a value or --unset\n`); return 2; }
       else edits = { [key]: parseInput(def, rest.length ? rest.join(' ') : 'set') };

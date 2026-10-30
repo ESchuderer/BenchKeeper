@@ -245,7 +245,7 @@ test('--json: the changing commands print their runs and entries, refuse a quest
     assert.ok(undo.runs[0].kind === 'undo' && undo.runs[0].entries.every((e) => e.status === 'done'));
     const runs = ctx.ledger.list().length;
     assert.match((await doc(['undo', set.id, '--step', 'typo'], 2, 'undo', ['error'])).error, /has no step typo; its steps: /);
-    assert.match((await doc(['undo', set.id], 2, 'undo', ['error'])).error, /nothing to undo in run/);
+    assert.match((await doc(['undo', set.id], 1, 'undo', ['error'])).error, /nothing to undo in run/);
     assert.equal(ctx.ledger.list().length, runs);
 
     const other = mkdtempSync(join(TMP, 'bk-json-other-')), moved = mkdtempSync(join(TMP, 'bk-json-moved-'));

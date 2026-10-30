@@ -159,6 +159,17 @@ test('a name that does not exist and an unknown option exit 2 with and without -
   assert.equal(await p.exec(['projects', 'nope']), 2);
 });
 
+test('a changing command that stops before a change exits with the same code with and without --json', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-none-'));
+  for (const [args, code] of [[['packs', 'enable', 'frontend', '--project', dir, '--yes'], 2], [['skills', 'update', 'tdd', '--project', dir, '--yes'], 2], [['packs', 'enable', 'frontend', '--global', '--yes'], 1]]) {
+    const t = cli();
+    assert.equal(await t.exec(args), code, `${args.join(' ')}: ${t.text()}`);
+    const j = cli();
+    assert.equal(await j.exec([...args, '--json']), code, `${args.join(' ')} --json`);
+    assert.ok(JSON.parse(j.text()).error, `${args.join(' ')} --json`);
+  }
+});
+
 test('sessions record runs the command after -- and records its files; sessions without a subcommand is a usage error', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-rec-'));
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });

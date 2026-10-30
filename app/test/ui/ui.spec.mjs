@@ -2491,28 +2491,38 @@ test.describe('views', () => {
     await expect(entry).toHaveCount(0);
   });
 
-  test('Extensions: server, hook and subagent with owner and the runs-code mark, a link to the removal offer, no secret value; no axe violations', async ({ page }) => {
+  test('Extensions: one row per server, hook and subagent with owner and the runs-code chip, Remove leads to the Doctor, an empty state, the command folded, no secret value; no axe violations', async ({ page }) => {
     await nav(page, 'Extensions').click();
-    const table = page.getByRole('table', { name: 'Claude Code extensions' });
-    const server = table.getByRole('row', { name: /MCP server/ });
+    const list = page.getByRole('list', { name: 'Claude Code extensions' });
+    const server = list.getByRole('listitem').filter({ hasText: 'MCP server' });
     await expect(server).toContainText('files');
-    await expect(server).toContainText('yours');
+    await expect(server).toContainText('owner yours');
     await expect(server).toContainText('runs code');
     await expect(server).toContainText('npx -y files-server');
-    await expect(server.getByRole('link', { name: 'Doctor offers removal (full level)' })).toBeVisible();
-    await expect(table.getByRole('row', { name: /Subagent/ })).toContainText('reviewer');
-    await expect(table.getByRole('row', { name: /Subagent/ })).not.toContainText('runs code');
+    await expect(server).toContainText('Doctor offers removal (full level)');
+    await expect(server.getByRole('link', { name: 'Remove files' })).toHaveAttribute('href', '#/agents?plan=1');
+    const subagent = list.getByRole('listitem').filter({ hasText: 'Subagent' });
+    await expect(subagent).toContainText('reviewer');
+    await expect(subagent).not.toContainText('runs code');
+    await expect(subagent.getByRole('link')).toHaveCount(0);
+    // Default state: Codex has none and shows the empty state; the command line stays folded until Command opens.
+    await expect(page.getByRole('region', { name: 'Codex extensions' })).toContainText('Nothing found.');
+    await expect(page.getByRole('list', { name: 'Codex extensions' })).toHaveCount(0);
+    const cli = page.getByText('benchkeeper extensions list', { exact: false });
+    await expect(cli).toBeHidden();
+    await page.locator('summary').getByText('Command', { exact: true }).click();
+    await expect(cli).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
     // A project adds its own: a hook whose command carries a secret shows it masked.
     await page.getByRole('combobox', { name: 'Show' }).click();
     await page.getByRole('option', { name: /bk-ui-proj/ }).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code extensions for this project' })).toBeVisible();
-    const hook = page.getByRole('table', { name: 'Claude Code extensions' }).getByRole('row', { name: /Hook.*AUDIT_TOKEN/ });
+    const hook = page.getByRole('list', { name: 'Claude Code extensions' }).getByRole('listitem').filter({ hasText: /Hook[\s\S]*AUDIT_TOKEN/ });
     await expect(hook).toContainText('PreToolUse');
     await expect(hook).toContainText('runs code');
     await expect(hook).toContainText('AUDIT_TOKEN=***');
-    await expect(hook).toContainText('local');
+    await expect(hook).toContainText('scope local');
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
   });

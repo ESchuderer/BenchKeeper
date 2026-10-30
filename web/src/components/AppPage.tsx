@@ -128,7 +128,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'extensions', view: 'extensions', title: 'Extensions', shot: 'extensions',
-    alt: 'The Extensions view for the global files: per agent a table of MCP servers, hooks, subagents, commands and output styles with name, scope, owner, what each is with a runs code mark, and the file it comes from.',
+    alt: 'The Extensions view for the global files: per agent one row per MCP server, hook, subagent, command or output style with its name, chips for kind, runs code, scope, owner and transport, what it runs, the file it comes from and a Remove link to the Doctor, and an empty state for an agent without extensions.',
     text: [
       'What each agent loads or runs besides rules and skills, globally or for a registered project: MCP servers, hooks, subagents, commands and output styles, with scope, owner and the file each comes from. Runs code marks what executes a command on this machine.',
       'The view reads the agents\' files only: no agent starts and nothing is written. Environment values and headers never appear; secrets in command lines are masked when their name or shape is a known one, so a secret in another form can still show.',

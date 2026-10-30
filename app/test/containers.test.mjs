@@ -17,13 +17,13 @@ import { context } from '../src/runner.mjs';
 function machine({ ps = 0, inspect = 0, rm = 0, extra = () => [] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bk-ctr-')), live = join(root, 'wt', 'live'), gone = join(root, 'wt', 'gone');
   mkdirSync(live, { recursive: true });
-  const rows = [['a1', true, live], ['a2', false, live], ['b1', true, gone], ['b2', false, gone], ['c1', true, join(root, 'drive', 'x')], ['d1', true, '<no value>'], ...extra(root)];
+  const rows = [['a1', true, live], ['a2', false, live], ['b1', true, gone], ['b2', false, gone], ['c1', true, join(root, 'drive', 'x')], ['d1', true, null], ...extra(root)];
   const calls = [];
   const run = (argv) => {
     calls.push(argv);
     if (argv[1] === '--version') return { code: argv[0] === 'podman' ? 0 : 127, stdout: '5.0.0', stderr: '' };
     if (argv[1] === 'ps') return { code: ps, stdout: rows.map((r) => `${r[0]}\n`).join(''), stderr: '' };
-    if (argv[1] === 'container') return { code: inspect, stdout: rows.map((r) => `${r[0]}full\t${r[1]}\t${r[2]}\n`).join(''), stderr: '' };
+    if (argv[1] === 'container') return { code: inspect, stdout: rows.map((r) => `${r[0]}full\t${r[1]}\t${JSON.stringify(r[2])}\n`).join(''), stderr: '' };
     if (argv[1] === 'rm') return { code: rm, stdout: '', stderr: '' };
     return { code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' };
   };
@@ -103,6 +103,22 @@ test('reconcile keeps a container whose folder it cannot read, that is not an ab
   const found = containerChecks(m.ctx, 'podman', { platform: 'linux', proc: m.proc });
   assert.equal(found[2].message, `${root ? 3 : 4} dev containers whose folder could not be checked (outside the home folder, not a path of this system or not readable), which reconcile leaves alone`);
   chmodSync(join(m.root, 'locked'), 0o700);
+});
+
+test('reconcile keeps a container whose existing folder has a tab or a line break; a label adds no container id', { skip: process.platform === 'win32' && 'Windows names hold no tab' }, () => {
+  const m = machine({ extra: (root) => {
+    const tab = join(root, 'ws', 'a\tb'), nl = join(root, 'ws', `c\nx9full\ttrue\t${JSON.stringify(join(root, 'wt', 'gone'))}`);
+    mkdirSync(tab, { recursive: true });
+    mkdirSync(nl, { recursive: true });
+    return [['f1', true, tab], ['f2', true, nl]];
+  } });
+  assert.deepEqual(reconcile(m.ctx, 'podman', { dryRun: true }).map((c) => c.id), ['b1full', 'b2full']);
+  const injected = machine();
+  const run = injected.ctx.run;
+  injected.ctx.run = (argv, o) => (argv[2] === 'inspect' ? { ...run(argv, o), stdout: `${run(argv, o).stdout}x9full\ttrue\t${JSON.stringify(injected.gone)}\n` } : run(argv, o));
+  assert.deepEqual(reconcile(injected.ctx, 'podman', { dryRun: true }).map((c) => c.id), ['b1full', 'b2full']);
+  injected.ctx.run = (argv, o) => (argv[2] === 'inspect' ? { code: 0, stdout: 'x9full\ttrue\t/w/a\n', stderr: '' } : run(argv, o));
+  assert.throws(() => reconcile(injected.ctx, 'podman'), /podman cannot list the containers/);
 });
 
 test('benchkeeper containers reconcile prints each container and the count, exit 1 when a removal fails', { skip: process.platform !== 'linux' && 'Linux only' }, async () => {

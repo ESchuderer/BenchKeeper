@@ -18,12 +18,15 @@ function listContainers(ctx, engine, timeout = DOCTOR) {
   const ids = ps.stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   if (!ids.length) return [];
   // shortcut: a container removed between ps and inspect fails the whole list, the next run reads it again.
-  const r = ctx.run([engine, 'container', 'inspect', '--format', `{{.Id}}\t{{.State.Running}}\t{{index .Config.Labels "${LABEL}"}}`, ...ids], { timeout });
+  // The label as JSON: a folder name may hold a tab or a line break. Podman refuses a format that starts with {{json.
+  const r = ctx.run([engine, 'container', 'inspect', '--format', `{{.Id}}\t{{.State.Running}}\t{{json (index .Config.Labels "${LABEL}")}}`, ...ids], { timeout });
   if (r.code !== 0) return null;
-  return r.stdout.split('\n').filter((l) => l.trim()).map((l) => {
-    const [id, running, folder = ''] = l.split('\t');
-    return { id, running: running === 'true', folder: folder === '<no value>' ? '' : folder.trim() };
-  });
+  try {
+    return r.stdout.split('\n').filter((l) => l.trim()).map((l) => {
+      const [id, running, folder] = l.split('\t');
+      return { id, running: running === 'true', folder: JSON.parse(folder) ?? '' };
+    }).filter((c) => ids.some((s) => c.id.startsWith(s)));
+  } catch { return null; }
 }
 
 // true only when lstat says the path does not exist; null when it cannot tell (permission denied, an I/O error).

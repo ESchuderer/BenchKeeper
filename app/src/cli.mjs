@@ -77,9 +77,10 @@ Usage: benchkeeper <command> [options]
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
   containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
-                                    label) no longer exists while its parent folder does; never one without the label or
-                                    whose folder exists; volumes stay; --dry-run lists them; Linux only; exit 1 when a
-                                    removal fails. For cron or a timer
+                                    label), inside the home folder, no longer exists while its parent folder does; never
+                                    one without the label, whose folder exists or cannot be read, or whose label is not an
+                                    absolute path inside the home folder; volumes stay; --dry-run lists them; Linux only;
+                                    exit 1 when a removal fails. For cron or a timer
   settings list [--agent claude|codex] [--advanced] [--project dir]
   settings get <key> [--agent a] [--project dir]
   settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]

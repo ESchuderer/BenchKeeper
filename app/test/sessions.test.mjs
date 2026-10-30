@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
 import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
@@ -163,6 +163,37 @@ test('a transcript the agent deleted between two scans: its row, the board and t
   assert.ok(after.find((r) => r.id === 's1').skills.includes('diagnosing-bugs'));
   assert.equal(boardHtml(after, '2026-10-25T00:00:00.000Z', []), boardHtml(before, '2026-10-25T00:00:00.000Z', []));
   assert.equal(sessionCache(ctx).sessions, 3);
+});
+
+test('a schema bump converts the cache: the summary of a deleted transcript is still listed', async () => {
+  const { home, ctx } = fixture();
+  const before = await scanSessions(ctx);
+  removeS1(home);
+  MIGRATE[1] = (x) => ({ ...x, files: Object.fromEntries(Object.entries(x.files).map(([f, v]) => [f, { ...v, moved: true }])) });
+  try {
+    const notes = [];
+    assert.deepEqual(await scanSessions(ctx, { onNote: (n) => notes.push(n) }), before);
+    assert.deepEqual(notes, []);
+    const saved = JSON.parse(readFileSync(cacheFile(home), 'utf8'));
+    assert.equal(saved.schema, 2);
+    assert.ok(Object.values(saved.files).every((v) => v.moved));
+  } finally { delete MIGRATE[1]; }
+});
+
+test('a cache file it cannot convert is moved aside with a note, not overwritten; a normal scan has no note', async () => {
+  const { home, ctx } = fixture();
+  const notes = [];
+  await scanSessions(ctx, { onNote: (n) => notes.push(n) });
+  assert.deepEqual(notes, []);
+  for (const [i, text] of ['{"schema":99,"files":{"x":{}}}', 'not json'].entries()) {
+    writeFileSync(cacheFile(home), text);
+    await scanSessions(ctx, { onNote: (n) => notes.push(n) });
+    assert.equal(notes.length, i + 1);
+    assert.match(notes[i], /session cache .* unreadable or of an unknown version/);
+    const aside = readdirSync(join(home, '.cache/benchkeeper')).filter((f) => /^sessions\.json\.\d+$/.test(f));
+    assert.ok(aside.some((f) => readFileSync(join(home, '.cache/benchkeeper', f), 'utf8') === text), text);
+    assert.equal(JSON.parse(readFileSync(cacheFile(home), 'utf8')).schema, 1);
+  }
 });
 
 test('the cache file holds no message text and is readable by this user only', async () => {

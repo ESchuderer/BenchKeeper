@@ -23,8 +23,16 @@ const theme = createTheme({
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
-// Backticks in facts.json become inline code, the same text the README renders.
-export const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
+const PART_ICONS: Record<string, ReactNode> = {
+  rules: <IconFileText size={20} />, workflow: <IconListCheck size={20} />, mattpocock: <IconSchool size={20} />,
+  ponytail: <IconFeather size={20} />, app: <IconRoute size={20} />, devcontainer: <IconContainer size={20} />,
+};
+// Backticks in facts.json become inline code and `[label](url)` a link, the same text the README renders.
+export const md = (t: string) => t.split(/(`[^`]*`|\[[^\]]+\]\([^)]+\))/).map((part, i) => {
+  if (part.startsWith('`')) return <Code key={i}>{part.slice(1, -1)}</Code>;
+  const link = /^\[(.+)\]\((.+)\)$/.exec(part);
+  return link ? <Anchor key={i} href={link[2]}>{link[1]}</Anchor> : part;
+});
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
@@ -147,24 +155,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session, full level">
-              Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in <Code>rules/project.md</Code>, part of each project's block.
-            </Part>
-            <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
-              The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.
-            </Part>
-            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, workflow owner, his plugin, global in both agents">
-              Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
-            </Part>
-            <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Optional pack, global, level full">
-              The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
-            </Part>
-            <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
-              <Code>npx benchkeeper@6.25.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass, <Code>/benchkeeper:orchestrating-projects</Code> coordinates workers on labeled issues across projects.
-            </Part>
-            <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
-              Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
-            </Part>
+            {facts.parts.map((p) => (
+              <Part key={p.id} icon={PART_ICONS[p.id]} title={md(p.title)} href={p.href} scope={p.scope}>{md(p.text)}</Part>
+            ))}
           </SimpleGrid>
         </Section>
 

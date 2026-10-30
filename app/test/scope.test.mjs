@@ -217,7 +217,7 @@ test('packs scope prints the scope and each agent\'s offer, and applies a move',
   const exec = (args) => main(args, { out, ctx, input: Readable.from(['']) });
   assert.equal(await exec(['packs', 'scope', 'ponytail', '--agents', 'claude,codex']), 0);
   assert.match(text, /^ponytail: global \(all projects\)\n {2}Claude Code: global, projects\n {2}Codex: global only: Codex installs plugins for the user only/);
-  assert.equal(await exec(['packs', 'scope', 'missing']), 1);
+  assert.equal(await exec(['packs', 'scope', 'missing']), 2);
   assert.equal(await exec(['packs', 'scope', 'ponytail', 'projects', '--agents', 'claude', '--yes']), 0);
   assert.equal(installs()[0].scope, 'local');
   text = '';

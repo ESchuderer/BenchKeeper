@@ -77,9 +77,10 @@ Usage: benchkeeper <command> [options]
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
   containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
-                                    label) no longer exists while its parent folder does; never one without the label or
-                                    whose folder exists; volumes stay; --dry-run lists them; Linux only; exit 1 when a
-                                    removal fails. For cron or a timer
+                                    label), inside the home folder, no longer exists while its parent folder does; never
+                                    one without the label, whose folder exists or cannot be read, or whose label is not an
+                                    absolute path inside the home folder; volumes stay; --dry-run lists them; Linux only;
+                                    exit 1 when a removal fails. For cron or a timer
   settings list [--agent claude|codex] [--advanced] [--project dir]
   settings get <key> [--agent a] [--project dir]
   settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]
@@ -300,16 +301,20 @@ Usage: benchkeeper <command> [options]
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
         packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
         sessions cache set|clear)
-                                    one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
-                                    level error, 2 usage or read failure; keys in app/README.md. A changing command
-                                    that would ask needs --yes: without it exit 2 and nothing changes
+                                    one JSON document on stdout, logs on stderr; keys in app/README.md. A changing
+                                    command that would ask needs --yes: without it exit 2 and nothing changes
+--version                           prints the version
+--help, -h                          prints this help
+
+Exit codes, with and without --json: 0 clean, 1 findings of level error, a run that did not finish or a
+question answered no, 2 usage or read failure (an unknown command, option or name, such as a skill, pack, run or account).
 
 Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude or codex, default claude). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
-  step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+  step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
@@ -401,6 +406,8 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
+const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const ask = asker(input, out);
@@ -474,23 +481,23 @@ async function readDoc(ctx, { cmd, o, positionals, err }) {
   if (cmd === 'rules') {
     if (!target) return { error: 'rules show needs a file, see benchkeeper rules list', code: 2 };
     if (o.agent && !RULE_AGENTS.includes(o.agent)) return { error: `agent must be one of ${RULE_AGENTS.join(', ')}`, code: 2 };
-    try { return { doc: ruleText(ctx, { agent: o.agent, file: resolve(target), dir: o.project ? resolve(o.project) : undefined }) }; } catch (e) { return { error: e.message, code: 1 }; }
+    try { return { doc: ruleText(ctx, { agent: o.agent, file: resolve(target), dir: o.project ? resolve(o.project) : undefined }) }; } catch (e) { return { error: e.message, code: 2 }; }
   }
   if (cmd === 'skills') {
     if (!target) return { error: 'skills show needs a skill name, see benchkeeper skills list --library', code: 2 };
     const skill = libraryWith(ctx).skills.find((s) => s.name === target);
-    if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 1 };
+    if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 2 };
     // Only the skills BenchKeeper ships have their text in the app; the others live at their source.
     return { doc: { name: skill.name, source: skill.source, text: skill.source === 'own' ? readText(join(contentDir, 'library', skill.name, 'SKILL.md')) : null } };
   }
   if (cmd === 'packs') {
     if (!target) return { error: 'packs warnings needs a pack, see benchkeeper packs list', code: 2 };
     const pack = libraryWith(ctx).packs.find((p) => p.id === target);
-    if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 1 };
+    if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 2 };
     return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? []) } };
   }
   const dir = canon(target ?? '.');
-  if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 1 };
+  if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 2 };
   const installed = selectedAgents(ctx);
   const agent = o.agent ?? ADVISERS.find((a) => installed.includes(a));
   if (!ADVISERS.includes(agent) || !installed.includes(agent)) return { error: `--agent must be an installed one of ${ADVISERS.join(', ')}`, code: 2 };
@@ -577,8 +584,19 @@ function checkArgs(o, positionals) {
   return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
 }
 
+// parseArgs, with an unknown option named for the command it was given to.
+function parse(argv) {
+  try { return parseArgs({ args: argv, options: OPTIONS, allowPositionals: true }); } catch (e) {
+    if (e.code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION') throw e;
+    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k)) ?? cmd;
+    throw new Error(`unknown option ${e.message.match(/'([^']+)'/)?.[1] ?? ''} for ${name}, see benchkeeper --help`);
+  }
+}
+
 async function command(argv, { out, err, ask, ctx }) {
-  const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+  const { values: o, positionals } = parse(argv);
+  if (o.version) { out.write(`${appVersion}\n`); return 0; }
   if (o.help || positionals[0] === 'help') { out.write(`${HELP}\n`); return 0; }
   const refused = checkArgs(o, positionals);
   // With --json, main turns the error into the document.
@@ -641,7 +659,7 @@ async function command(argv, { out, err, ask, ctx }) {
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
     else if (arg === 'show') {
       const p = catalog(ctx).packs.find((x) => x.id === positionals[2]);
-      if (!p) { out.write(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list\n`); return positionals[2] ? 1 : 2; }
+      if (!p) { out.write(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list\n`); return 2; }
       out.write(`${p.id}  ${p.own ? 'own' : 'library'}  ${p.title ?? p.id}\n${p.skills ? `skills: ${p.skills.join(', ')}` : `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\nused by: ${p.usedBy.join(', ') || 'no registered project'}\n`);
     }
     else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
@@ -797,7 +815,7 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'sessions' && arg === 'list') {
     const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
-    if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 1; }
+    if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 2; }
     const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens`;
     for (const x of runs) {
       out.write(`run ${x.run ?? 'not recorded'}: ${line(x)}\n`);
@@ -937,7 +955,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'history' && arg === 'show') {
     if (!positionals[2] || positionals.length > 3) { out.write(positionals[2] ? `unexpected argument ${positionals[3]}\n` : 'history show needs a run, see benchkeeper history\n'); return 2; }
     let run;
-    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     out.write(`${run.id}  ${run.kind} ${run.status ?? 'interrupted'}  ${run.scope}${run.of ? ` (undo of ${run.of})` : ''}\n`);
     for (const e of run.entries) {
       out.write(`${(e.status ?? '').padEnd(7)} ${e.title}${e.removed ? ' (removed)' : ''}${e.folder ? ' (folder)' : ''}${e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}\n`);
@@ -958,14 +976,14 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
     if (cmd === 'restore') {
       // Files written into the home folder from a backup: listed, and asked once unless --yes.
-      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 1; }
+      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 2; }
       const files = listFiles(join(ctx.ledger.backups, arg));
       files.forEach((f) => out.write(`restore ${f}\n`));
       if (!o.yes && !(await ask(`Restore ${files.length} files into ${ctx.home}?`))) return 1;
       return report(restoreLegacy(arg, ctx), out);
     }
     let uctx;
-    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     try { return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out); } catch (e) { out.write(`${e.message}\n`); return e.usage ? 2 : 1; }
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
@@ -1011,7 +1029,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   if (o.global && o.project) { out.write('--project and --global exclude each other\n'); return 2; }
   const known = libraryWith(ctx).packs;
   const unknown = ids.filter((id) => !known.some((p) => p.id === id));
-  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 1; }
+  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 2; }
   if (!o.global) {
     const dir = resolve(o.project ?? '.');
     if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 1; }
@@ -1032,7 +1050,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
 async function packScopeCommand(ctx, { o, positionals, out, ask }) {
   const [, , id, scope] = positionals;
   const pack = libraryWith(ctx).packs.find((p) => p.id === id);
-  if (!pack) { out.write(`unknown pack ${id ?? ''}, see benchkeeper packs list\n`); return id ? 1 : 2; }
+  if (!pack) { out.write(`unknown pack ${id ?? ''}, see benchkeeper packs list\n`); return 2; }
   const agents = selectedAgents(ctx, o.agents);
   if (!scope) out.write(`${id}: ${packScope(ctx, pack)} (${scopeText(packScope(ctx, pack))})\n`);
   for (const a of agents) {
@@ -1079,7 +1097,7 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
   if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
   if (['add', 'enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
-  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }
@@ -1337,6 +1355,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
+  if (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`)) return fail(`unknown projects command ${arg}`);
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
@@ -1496,7 +1515,7 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
     }
     if (sub === 'show') {
       const t = loadAutomations(ctx).templates.find((x) => x.id === id);
-      if (!t) return { error: `no automation template ${id}, see benchkeeper automations list`, code: 1 };
+      if (!t) return { error: `no automation template ${id}, see benchkeeper automations list`, code: 2 };
       const keys = ['id', 'tier', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers', 'prompt'];
       return { doc: { template: Object.fromEntries(keys.map((k) => [k, t[k]])) } };
     }
@@ -1505,7 +1524,7 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
       const rows = automationStatus(ctx);
       return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
     }
-  } catch (e) { return { error: e.message, code: 1 }; }
+  } catch (e) { return { error: e.message, code: lookupCode(e) }; }
   return { error: 'automations needs list, show, install, update, remove, diff, status or precheck', code: 2 };
 }
 
@@ -1517,7 +1536,7 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     const { values, error } = paramValues(o.param);
     if (error) { out.write(`${error}\n`); return 2; }
     let plan;
-    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     return applyChosen(plan, ctx, { o, ask, out });
   }
   const r = await automationsDoc(ctx, sub, positionals, o);
@@ -1675,6 +1694,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
   if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const problem = accountsProblem(ctx);
   if (problem) { out.write(`${problem}\n`); return 2; }
+  if (name && !['add', 'list'].includes(sub) && !listAccounts(ctx).some((a) => a.name === name)) { out.write(`no account ${name}: benchkeeper accounts list\n`); return 2; }
   const need = () => { if (!name) { out.write(`accounts ${sub} needs an account name, see benchkeeper accounts list\n`); return false; } return true; };
   try {
     if (sub === 'list') {

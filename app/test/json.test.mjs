@@ -348,8 +348,8 @@ test('--json: the read commands of the web UI print their documented keys, refus
     // sessions list --run above scanned again: the summaries are back.
     assert.equal((await text(['sessions', 'cache', 'show'])).t, `${cache.sessions} session summaries, kept 7 days\n`);
     for (const args of [['history', 'show'], ['sessions', 'cache'], ['inventory', 'x'], ['evals', 'results', 'x'], ['packs', 'show'], ['projects', 'status', join(TMP, 'bk-json-never')]]) assert.equal((await text(args)).code, 2, args.join(' '));
-    assert.equal((await text(['history', 'show', 'nosuchrun'])).code, 1);
-    assert.equal((await text(['packs', 'show', 'nope'])).code, 1);
+    assert.equal((await text(['history', 'show', 'nosuchrun'])).code, 2);
+    assert.equal((await text(['packs', 'show', 'nope'])).code, 2);
   } finally {
     if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
   }
@@ -393,14 +393,14 @@ test('rules show, skills show, packs warnings and projects advise print the text
 
     for (const [args, command, message, code] of [
       [['rules', 'show'], 'rules show', /needs a file/, 2],
-      [['rules', 'show', join(home, 'nope.md')], 'rules show', /is not an instruction file/, 1],
+      [['rules', 'show', join(home, 'nope.md')], 'rules show', /is not an instruction file/, 2],
       [['rules', 'show', rule, '--agent', 'gemini'], 'rules show', /agent must be one of/, 2],
       [['skills', 'show'], 'skills show', /needs a skill name/, 2],
-      [['skills', 'show', 'nope'], 'skills show', /unknown skill nope/, 1],
+      [['skills', 'show', 'nope'], 'skills show', /unknown skill nope/, 2],
       [['packs', 'warnings'], 'packs warnings', /needs a pack/, 2],
-      [['packs', 'warnings', 'nope'], 'packs warnings', /unknown pack nope/, 1],
+      [['packs', 'warnings', 'nope'], 'packs warnings', /unknown pack nope/, 2],
       [['packs', 'warnings', 'testing', 'extra'], 'packs warnings', /unexpected argument extra/, 2],
-      [['projects', 'advise', home], 'projects advise', /is not a registered project/, 1],
+      [['projects', 'advise', home], 'projects advise', /is not a registered project/, 2],
       [['projects', 'advise', dir, '--agent', 'gemini'], 'projects advise', /--agent must be an installed one of claude, codex/, 2],
     ]) {
       assert.match((await shape(args, 2, command, ['error'])).error, message);

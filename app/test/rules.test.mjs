@@ -1,7 +1,7 @@
 // The Rules view: owners, load states, the size budget, the switch (plan, apply, undo) and what stays out of reports.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -580,6 +580,44 @@ test('auto memory: a folder of the user settings with ~ for the home folder; a r
   assert.deepEqual([custom.path, custom.lines, custom.size, custom.bytes, custom.label], [join(ctx.home, 'mem/MEMORY.md'), 2, 14, 14, 'Auto memory (first 200 lines or 25 KB of MEMORY.md)']);
   write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: 'mem' }));
   assert.equal(memoryOf(dir), undefined);
+});
+
+test('the auto memory overview: notes, size, last change and the load limit per project folder, never the text', () => {
+  const ctx = machine();
+  const dir = project();
+  const memoryOf = (d) => view(ctx, 'claude', d).memory;
+  assert.deepEqual(memoryOf(), [], 'no projects folder');
+  assert.equal(view(ctx, 'codex').memory, undefined);
+  const folder = join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory');
+  write(join(folder, 'MEMORY.md'), '- [Build](build.md)\n');
+  write(join(folder, 'build.md'), `${SECRET}\n`);
+  utimesSync(join(folder, 'MEMORY.md'), new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+  utimesSync(join(folder, 'build.md'), new Date('2026-02-03T04:05:06Z'), new Date('2026-02-03T04:05:06Z'));
+  const size = 20 + SECRET.length + 1;
+  assert.deepEqual(memoryOf(dir), [{ project: dir, path: folder, notes: 1, bytes: size, changed: '2026-02-03T04:05:06.000Z', over: false }]);
+  // Globally the folder name stands for a project that is not registered, and the registered path once it is.
+  assert.deepEqual(memoryOf().map((m) => [m.project, m.notes]), [[dir.replace(/[^A-Za-z0-9]/g, '-'), 1]]);
+  addProject(ctx, dir);
+  assert.equal(memoryOf()[0].project, dir);
+  assert.equal(JSON.stringify(rulesView(ctx)).includes(SECRET), false);
+  // An empty folder is left out; an index over 200 lines is flagged.
+  mkdirSync(join(ctx.home, '.claude/projects/-empty/memory'), { recursive: true });
+  write(join(folder, 'MEMORY.md'), `${Array.from({ length: 201 }, (_, i) => `- ${i}`).join('\n')}\n`);
+  assert.deepEqual(memoryOf().map((m) => [m.project, m.over]), [[dir, true]]);
+});
+
+test('the auto memory overview reads a custom autoMemoryDirectory of the user settings, never one a project sets', () => {
+  const ctx = machine();
+  const dir = project();
+  write(join(ctx.home, 'mem/MEMORY.md'), 'note\n');
+  write(join(ctx.home, 'mem/a.md'), 'a\n');
+  write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: '~/mem' }));
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ autoMemoryDirectory: join(ctx.home, 'elsewhere') }));
+  write(join(ctx.home, 'elsewhere/b.md'), 'b\n');
+  const custom = { project: join('~', 'mem'), path: join(ctx.home, 'mem'), notes: 1, bytes: 7 };
+  const pick = (m) => ({ project: m.project, path: m.path, notes: m.notes, bytes: m.bytes });
+  assert.deepEqual(view(ctx, 'claude').memory.map(pick), [custom]);
+  assert.deepEqual(view(ctx, 'claude', dir).memory.map(pick), [{ ...custom, project: dir }]);
 });
 
 test('the budget: kinds summed, path-scoped tokens on demand, project skills and skills without a space after the colon', () => {

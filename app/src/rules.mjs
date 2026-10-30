@@ -4,12 +4,13 @@
 // claudeMdExcludes (https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files, patterns match absolute
 // paths and cover rules folders), Codex has no such setting and a global file moves to a folder of the app's own.
 // The text of a file is returned only by ruleText, for a file the view lists.
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
-import { exists, isDir, readText, real, realish } from './fsx.mjs';
+import { exists, isDir, listDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
 import { display, frontMatter, markdownIn, pluginSkills, skillDescription, textOf, walkInstructions } from './instructions.mjs';
+import { listProjects } from './projects.mjs';
 import { allowed } from './runner.mjs';
 import { editFor, readSettings, settingsChanges, valuesOf } from './settings.mjs';
 import { projectCtx } from './steps/project.mjs';
@@ -153,20 +154,54 @@ function skillRows(ctx, id, dir) {
 // memory is not found there shows no memory row.
 const memoryFolder = (root) => root.replace(/[^A-Za-z0-9]/g, '-');
 
+// The auto memory folder of a project, from settings layers read for it; null for a relative autoMemoryDirectory.
+// Only the user's own layers name another folder: a repository's settings must not point this read elsewhere.
+function memoryDir(ctx, dir, layers) {
+  const custom = layers.filter((l) => ['user', 'local'].includes(l.layer)).map((l) => l.data.autoMemoryDirectory).filter((x) => typeof x === 'string').at(-1);
+  if (!dir && custom == null) return null;
+  const common = dir ? git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim() : '';
+  const root = isAbsolute(common) && common.endsWith(`${sep}.git`) ? dirname(common) : dir;
+  const folder = custom ? (custom.startsWith(`${TILDE}/`) ? join(ctx.home, custom.slice(2)) : custom) : join(ctx.home, '.claude/projects', memoryFolder(root), 'memory');
+  return isAbsolute(folder) ? folder : null;
+}
+
+const memoryOver = (text) => text.replace(/\n$/, '').split('\n').length > MEMORY_LINES || sizeOf(text) > MEMORY_BYTES;
+
 function memoryRow(ctx, dir) {
   const layers = readSettings(ctx, 'claude', { dir });
   if (valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value === false) return null;
-  // Only the user's own layers name another folder: a repository's settings must not point this read elsewhere.
-  const custom = layers.filter((l) => ['user', 'local'].includes(l.layer)).map((l) => l.data.autoMemoryDirectory).filter((x) => typeof x === 'string').at(-1);
-  const common = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();
-  const root = isAbsolute(common) && common.endsWith(`${sep}.git`) ? dirname(common) : dir;
-  const folder = custom ? (custom.startsWith(`${TILDE}/`) ? join(ctx.home, custom.slice(2)) : custom) : join(ctx.home, '.claude/projects', memoryFolder(root), 'memory');
-  if (!isAbsolute(folder)) return null;
+  const folder = memoryDir(ctx, dir, layers);
+  if (!folder) return null;
   const text = readText(join(folder, 'MEMORY.md'));
   if (text == null) return null;
   const head = text.split('\n').slice(0, MEMORY_LINES).join('\n');
   const bytes = Math.min(sizeOf(head), MEMORY_BYTES);
   return { kind: 'memory', label: `Auto memory (first ${MEMORY_LINES} lines or ${MEMORY_BYTES / 1024} KB of MEMORY.md)`, bytes, tokens: tokensOf(bytes), path: join(folder, 'MEMORY.md'), lines: text.replace(/\n$/, '').split('\n').length, size: sizeOf(text) };
+}
+
+// One auto memory folder in numbers: topic notes (the .md files besides MEMORY.md), total bytes, the newest change and
+// whether MEMORY.md is over what Claude Code loads. Only MEMORY.md is read, for its line count; no text leaves here.
+function memoryStats(folder, project) {
+  const files = listDir(folder).map((n) => { try { const s = statSync(join(folder, n)); return s.isFile() ? { n, size: s.size, at: s.mtimeMs } : null; } catch { return null; } }).filter(Boolean);
+  if (!files.length) return null;
+  const index = readText(join(folder, 'MEMORY.md'));
+  return { project, path: folder, notes: files.filter((f) => f.n.endsWith('.md') && f.n !== 'MEMORY.md').length, bytes: files.reduce((n, f) => n + f.size, 0), changed: new Date(Math.max(...files.map((f) => f.at))).toISOString(), over: index != null && memoryOver(index) };
+}
+
+// The auto memory folders with notes: a project's own, or without dir every project folder under the config folder and the
+// user's autoMemoryDirectory. A folder is named by the registered project it belongs to, else by its folder name.
+// shortcut: the config folder is ~/.claude, CLAUDE_CONFIG_DIR is not followed, as in the rest of the app.
+function memoryOverview(ctx, dir) {
+  if (dir) {
+    const folder = memoryDir(ctx, dir, readSettings(ctx, 'claude', { dir }));
+    return [folder && memoryStats(folder, dir)].filter(Boolean);
+  }
+  const names = new Map(listProjects(ctx).map((p) => [memoryFolder(p.path), p.path]));
+  const base = join(ctx.home, '.claude/projects');
+  const folders = listDir(base).map((n) => [join(base, n, 'memory'), names.get(n) ?? n]);
+  const custom = memoryDir(ctx, undefined, readSettings(ctx, 'claude'));
+  if (custom && !folders.some(([f]) => f === custom)) folders.push([custom, display(ctx, undefined, custom)]);
+  return folders.map(([f, name]) => memoryStats(f, name)).filter(Boolean).sort((a, b) => a.project.localeCompare(b.project));
 }
 
 // What an agent loads at the start of a session, with its size: the files that load, their @imports, skill descriptions,
@@ -209,7 +244,7 @@ function agentView(ctx, id, dir, written, excludes, budget = true) {
     return { ...row, switch: switchOf(id, row, dir) };
   });
   rows.push(...parkedRows(ctx, id, dir));
-  return { id, name: agent(id).name, rows, ...(budget ? { budget: budgetOf(ctx, id, rows, dir) } : {}) };
+  return { id, name: agent(id).name, rows, ...(budget ? { budget: budgetOf(ctx, id, rows, dir), ...(id === 'claude' ? { memory: memoryOverview(ctx, dir) } : {}) } : {}) };
 }
 
 // agents: ids of RULE_AGENTS; dir: a project folder, without it the global files; budget false: the rows only, else also

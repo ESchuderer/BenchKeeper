@@ -141,6 +141,14 @@ test('broken: run files that are not a JSON object, sorted; no folder is none', 
   assert.deepEqual(l.broken(), ['a.json', 'n.json', 'num.json', 's.json', 'z.json']);
 });
 
+test('foreign: parsing runs of another schema, sorted; unreadable files and runs of this schema are not', () => {
+  const l = ledger();
+  assert.deepEqual(l.foreign(), []);
+  mkdirSync(l.dir, { recursive: true });
+  for (const [n, text] of [['ok', JSON.stringify({ schema: SCHEMA })], ['z', JSON.stringify({ schema: 99 })], ['none', '{}'], ['bad', '{'], ['n', 'null'], ['a', '[]']]) writeFileSync(join(l.dir, `${n}.json`), text);
+  assert.deepEqual(l.foreign(), ['none.json', 'z.json']);
+});
+
 test('relocate: runs of the moved folder and its Update all runs get the new path, backups and other runs do not', () => {
   const l = ledger();
   const from = join(l.home, 'p'), to = join(l.home, 'q');

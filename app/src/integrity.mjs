@@ -10,10 +10,12 @@ const left = (e) => {
   return e.path ? [[e.path, e.kind === 'remove' ? null : e.hashAfter]] : [];
 };
 
-// A run that never finished, an unreadable run file, and each path whose newest recorded change no longer holds: a file
-// edited or removed outside the app, or one that came back after a removal.
+// A run that never finished, an unreadable run file, runs a newer app wrote, and each path whose newest recorded change
+// no longer holds: a file edited or removed outside the app, or one that came back after a removal.
 export function ledgerIssues(ctx) {
   const out = ctx.ledger.broken().map((n) => ({ message: `ledger file ${n} is unreadable`, fix: `move it out of ${ctx.ledger.dir}: history and undo skip it until then` }));
+  const foreign = ctx.ledger.foreign();
+  if (foreign.length) out.push({ message: `${foreign.length} ledger ${foreign.length === 1 ? 'run was' : 'runs were'} written by a newer benchkeeper: ${foreign.join(', ')}`, fix: 'run the newer benchkeeper: this one leaves them out of history and refuses to undo them or a run before them' });
   const seen = new Set();
   for (const run of ctx.ledger.list()) {
     // A run another process is still applying has no status yet: only one older than an hour counts as unfinished.

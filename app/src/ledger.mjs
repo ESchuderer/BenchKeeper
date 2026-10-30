@@ -143,11 +143,22 @@ export class Ledger {
     return runs;
   }
 
-  // Names of run files that do not parse: list() leaves them out, so doctor names them.
-  broken() {
+  // Each run file's name with its content, undefined where it does not parse.
+  files() {
     let names = [];
     try { names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
-    return names.filter((n) => { try { const v = JSON.parse(readFileSync(join(this.dir, n), 'utf8')); return v === null || typeof v !== 'object' || Array.isArray(v); } catch { return true; } }).sort();
+    return names.sort().map((n) => { try { return [n, JSON.parse(readFileSync(join(this.dir, n), 'utf8'))]; } catch { return [n, undefined]; } });
+  }
+
+  // Names of run files that do not parse: list() leaves them out, so doctor names them.
+  broken() {
+    return this.files().filter(([, v]) => v === null || typeof v !== 'object' || Array.isArray(v)).map(([n]) => n);
+  }
+
+  // Names of runs of another schema (a newer app wrote them): list() leaves them out too, so doctor names them and undo
+  // refuses to go past them.
+  foreign() {
+    return this.files().filter(([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v) && v.schema !== SCHEMA).map(([n]) => n);
   }
 
   // A moved project folder: the runs of that scope (and the Update all and removal runs, whose scope is a worktree and

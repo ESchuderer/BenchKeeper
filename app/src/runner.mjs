@@ -307,6 +307,9 @@ export function undo(id, ctx, opts) {
 
 function undoRun(id, ctx, { step, unit } = {}) {
   const source = ctx.ledger.get(id);
+  // A newer app's run may have changed the same files after this one, in a form this app cannot read.
+  const newer = ctx.ledger.foreign().filter((n) => n >= `${id}.json`);
+  if (newer.length) throw Object.assign(new Error(`run ${id} cannot be undone here: a newer benchkeeper wrote ${newer.join(', ')}; undo with that version`), { status: 409 });
   // Update all on a branch worked in a worktree that is gone; its result is a branch and a pull request. A local run
   // changed the checkout and undoes like any other.
   if (source.note?.updateAll && source.note.branch) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);

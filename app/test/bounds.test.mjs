@@ -505,6 +505,25 @@ test('a ledger scope outside any project is refused by the CLI undo, and a link 
   assert.throws(() => addProject(c, join(h, 'rootlink')), /root of a drive/);
 });
 
+test('a run of another schema: not in history, named by doctor, and undo refuses it and the runs before it', () => {
+  const h = home();
+  const c = context({ home: h, run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  const run = apply([write(c, 'a', '1')], c);
+  const later = apply([write(c, 'b', '1')], c);
+  const id = '29990101T000000Z-ffffff';
+  c.ledger.save({ schema: 99, id, time: '2999-01-01T00:00:00.000Z', entries: [] });
+  assert.deepEqual(api(c)['GET /api/history']().map((r) => r.id), [later.id, run.id]);
+  const found = doctor(c, { agents: [], env: {} }).filter((i) => i.check === 'ledger').map((i) => i.message);
+  assert.deepEqual(found, [`1 ledger run was written by a newer benchkeeper: ${id}.json`]);
+  for (const r of [run.id, id]) assert.throws(() => undo(r, c), (e) => e.status === 409 && e.message.includes(`a newer benchkeeper wrote ${id}.json`));
+  assert.equal(readFileSync(join(h, 'a'), 'utf8'), '1');
+  // A run after the foreign one undoes as before.
+  c.ledger.save({ ...c.ledger.get(id), id: '20000101T000000Z-ffffff' });
+  rmSync(join(c.ledger.dir, `${id}.json`));
+  undo(later.id, c);
+  assert.equal(existsSync(join(h, 'b')), false);
+});
+
 test('doctor names an edited file, an unfinished run, an unreadable run file and an invalid pack file', () => {
   const h = home();
   const c = context({ home: h, run: () => ({ code: 0, stdout: '', stderr: '' }) });

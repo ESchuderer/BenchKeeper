@@ -43,7 +43,12 @@
   },
   "baselines": {
     "knip": [],
-    "duplicatedLines": 0
+    "duplicatedLines": {
+      "app": 0,
+      "tests": 412,
+      "web": 6,
+      "plugins": 51
+    }
   },
   "mutation": {
     "allow": {

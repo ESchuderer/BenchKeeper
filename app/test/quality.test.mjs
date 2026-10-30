@@ -27,16 +27,17 @@ test('quality: every module of the import rules has coverage floors, every mutat
 
 test('quality: the baselines only shrink, a new finding or more duplicated lines fail, a fixed finding must leave the file', () => {
   const report = { issues: [{ file: 'src/a.mjs', exports: [{ name: 'x', line: 3 }], files: [], dependencies: [] }, { file: 'package.json', devDependencies: [{ name: 'p' }] }] };
-  const run = { knip: knipFindings(report), duplicatedLines: 12 };
+  const run = { knip: knipFindings(report), duplicatedLines: { app: 12, web: 3 } };
   assert.deepEqual(run.knip, ['devDependencies package.json p', 'exports src/a.mjs x']);
 
-  assert.deepEqual(compare({ knip: run.knip, duplicatedLines: 12 }, run).problems, []);
-  const grown = compare({ knip: ['exports src/a.mjs x'], duplicatedLines: 10 }, run);
-  assert.deepEqual(grown.problems, ['new knip finding: devDependencies package.json p', 'duplicated lines 12 > baseline 10']);
-  assert.deepEqual(grown.shrunk, { knip: ['exports src/a.mjs x'], duplicatedLines: 10 });
+  assert.deepEqual(compare({ knip: run.knip, duplicatedLines: { app: 12, web: 3 } }, run).problems, []);
+  const grown = compare({ knip: ['exports src/a.mjs x'], duplicatedLines: { app: 10, web: 3 } }, run);
+  assert.deepEqual(grown.problems, ['new knip finding: devDependencies package.json p', 'app duplicated lines 12 > baseline 10']);
+  assert.deepEqual(grown.shrunk, { knip: ['exports src/a.mjs x'], duplicatedLines: { app: 10, web: 3 } });
+  assert.deepEqual(compare({ knip: run.knip, duplicatedLines: { app: 12 } }, run).problems, ['web duplicated lines 3 > baseline 0']);
 
-  const fixed = compare({ knip: [...run.knip, 'exports src/b.mjs y'], duplicatedLines: 20 }, run);
+  const fixed = compare({ knip: [...run.knip, 'exports src/b.mjs y'], duplicatedLines: { app: 20, web: 3 } }, run);
   assert.equal(fixed.problems.length, 2);
   assert.ok(fixed.problems.every((p) => p.endsWith('(run with --write)')));
-  assert.deepEqual(fixed.shrunk, { knip: run.knip, duplicatedLines: 12 });
+  assert.deepEqual(fixed.shrunk, { knip: run.knip, duplicatedLines: { app: 12, web: 3 } });
 });

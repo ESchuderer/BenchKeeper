@@ -1938,8 +1938,8 @@ test.describe('views', () => {
     await expect(advisor).toContainText('from the user file');
     // A catalog key that is not basic is listed in its group with every key.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
-    await page.getByLabel('Search settings').fill('autoMemoryEnabled');
-    await expect(about(page.getByRole('table', { name: 'Memory' }), 'autoMemoryEnabled')).toContainText('Current: the default');
+    await page.getByLabel('Search settings').fill('includeGitInstructions');
+    await expect(about(page.getByRole('table', { name: 'Commits' }), 'includeGitInstructions')).toContainText('Current: the default');
     // A key outside the catalog: the reference description, no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');

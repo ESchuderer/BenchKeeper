@@ -78,6 +78,7 @@ A scheduled run starts a session only when there is work, so a tick with nothing
 - Pick, the caps (`workersPerProject`, `hostWorkerLimit`), merge by `merge.*` and one fix worker per failing head commit of a worker's PR are deterministic checks: a script decides them, not a model session. The script reads the policy from the default branch, as above.
 - A scheduled session starts only after its precheck exits 0, and never while a session of the same schedule is alive. The sample [precheck.mjs](precheck.mjs) (`node precheck.mjs <project paths>`) exits 0 when a project has an issue to pick and prints which; it starts and merges nothing.
 - An unattended run starts each worker in a disposable worktree.
+- A coordinator that must outlive usage limits and restarts (one owner, a handover in two files, a loop without a model, short cycles, a watchdog): [restart-safe coordinator](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/restart-safe-coordinator.md).
 
 ## Rules
 

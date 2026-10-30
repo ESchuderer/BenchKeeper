@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
+import { main } from '../src/cli.mjs';
 import { contentDir } from '../src/content.mjs';
 import { globalDrift } from '../src/doctor.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
@@ -361,7 +363,7 @@ test('each account folder has its own plugin cache: doctor names the one behind 
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, []);
 });
 
-test('an account on another marketplace ref or sharing the default plugins folder gets no update', () => {
+test('an account on another marketplace ref or sharing the default plugins folder gets no update', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-acct-ref-'));
   const folder = (dir, ref) => {
     mkdirSync(join(dir, 'plugins'), { recursive: true });
@@ -383,6 +385,14 @@ test('an account on another marketplace ref or sharing the default plugins folde
   assert.equal(away.length, 1);
   assert.match(away[0].error, /account outside lies outside/);
   assert.equal(away[0].selected, false);
+  // A plan whose every change cannot be made is a failure, asked or with --yes, and records no run.
+  for (const yes of [[], ['--yes']]) {
+    let text = '';
+    const out = new Writable({ write(c, _, done) { text += c; done(); } });
+    assert.equal(await main(['apply', '--agents', 'claude', '--level', 'lite', ...yes], { out, err: out, ctx, input: Readable.from(['']) }), 1, text);
+    assert.match(text, /cannot merge: [^]*nothing applied: no change can be made\n$/);
+  }
+  assert.equal(ctx.ledger.list().length, 0);
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => [x.name, x.ref]), [['tagged', 'v6.0.0']]);
   assert.deepEqual(preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } })), []);

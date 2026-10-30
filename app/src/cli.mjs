@@ -1098,7 +1098,8 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
   let sections;
   try { sections = [['global', ctx], ...[...new Set(plan.map((c) => c.project).filter(Boolean))].map((p) => [p, projectCtx(ctx, p)])]; } catch (e) { out.write(`${e.message}\n`); return 1; }
   const select = await choose(plan, o, ask, out);
-  if (declinedAll(select, o, out)) return 0;
+  const none = nothingChosen(plan, select, o, out);
+  if (none !== null) return none;
   let code = 0;
   for (const [where, sctx] of sections) {
     const changes = plan.filter((c) => (c.project ?? 'global') === where);
@@ -1113,17 +1114,24 @@ async function applyChosen(plan, ctx, { o, ask, out }) {
   return applyAnswered(plan, ctx, 'global', { o, ask, out });
 }
 
-// Every change declined records no run.
-function declinedAll(select, o, out) {
-  if (o.yes || select.length) return false;
+// Nothing chosen records no run: the exit code when every change was declined (0) or none can be made (1), else null.
+function nothingChosen(plan, select, o, out) {
+  if (select.length) return null;
+  if (plan.length && plan.every((c) => c.error)) {
+    // --yes and --all show no change on the way, so the reasons are shown here.
+    if (o.yes || o.all) plan.forEach((c) => show(c, out));
+    out.write('nothing applied: no change can be made\n');
+    return 1;
+  }
+  if (o.yes) return null;
   out.write('nothing applied\n');
-  return true;
+  return 0;
 }
 
 // The changes chosen from a plan applied as one run.
 async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
   const select = await choose(plan, o, ask, out);
-  return declinedAll(select, o, out) ? 0 : report(apply(plan, ctx, { scope, select }), out);
+  return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];

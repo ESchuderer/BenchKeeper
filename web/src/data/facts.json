@@ -35,7 +35,10 @@
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
     "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
-    "evidence": "plugins/benchkeeper/skills/workflow/software.md#matt-pococks-skills-when-installed"
+    "evidence": [
+      "plugins/benchkeeper/library/library.json",
+      "plugins/benchkeeper/skills/workflow/software.md#steps"
+    ]
   },
   "quickstart": {
     "needs": "Node.js 22 and at least one agent, Claude Code or Codex.",

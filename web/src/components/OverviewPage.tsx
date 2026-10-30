@@ -2,7 +2,7 @@ import { Anchor, Container, Paper, SimpleGrid, Stack, Text, Title } from '@manti
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
-import { BenchShell } from './BenchShell';
+import { SiteShell } from './SiteShell';
 import { SDLC_INTRO, StepList, half, md } from './Page';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
@@ -26,7 +26,7 @@ function Source({ path }: { path: string }) {
 
 export default function OverviewPage({ base }: { base: string }) {
   return (
-    <BenchShell base={base}>
+    <SiteShell base={base}>
       <Stack gap={56}>
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>{overview.title}</Title>
@@ -64,6 +64,6 @@ export default function OverviewPage({ base }: { base: string }) {
           </SimpleGrid>
         </Section>
       </Stack>
-    </BenchShell>
+    </SiteShell>
   );
 }

@@ -1,5 +1,5 @@
 import { Anchor, Code, Container, Stack, Text, Title } from '@mantine/core';
-import { BenchShell } from './BenchShell';
+import { SiteShell } from './SiteShell';
 
 export type Shot = { width: number; height: number };
 
@@ -195,7 +195,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
 
 export default function AppPage({ base, shots }: { base: string; shots: Record<string, Shot> }) {
   return (
-    <BenchShell base={base}>
+    <SiteShell base={base}>
       <Stack gap={56}>
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>The app</Title>
@@ -221,6 +221,6 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
           </Container>
         ))}
       </Stack>
-    </BenchShell>
+    </SiteShell>
   );
 }

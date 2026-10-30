@@ -16,7 +16,7 @@ import '@mantine/core/styles/Title.css';
 import '@fontsource-variable/inter';
 import '../styles/global.css';
 
-const { title, description } = Astro.props;
+const { title, description, imageAlt = 'BenchKeeper logo' } = Astro.props;
 import { themeKey } from '../lib/edition';
 import ThemeScript from '../components/ThemeScript.astro';
 
@@ -40,7 +40,7 @@ const image = new URL(`${base}/og.png`, Astro.site).href;
   <meta property="og:image" content={image}>
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="BenchKeeper logo">
+  <meta property="og:image:alt" content={imageAlt}>
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href={`${base}/logo.svg`} type="image/svg+xml">
   <script is:inline define:vars={{ themeKey }}>

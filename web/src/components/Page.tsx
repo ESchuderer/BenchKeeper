@@ -1,6 +1,6 @@
 import {
-  ActionIcon, Alert, Anchor, Badge, Box, Button, Card, Code, Container, Group, List, MantineProvider,
-  Paper, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, VisuallyHidden, createTheme,
+  ActionIcon, Alert, Anchor, Badge, Box, Button, Card, Code, Container, Group, List,
+  Paper, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, VisuallyHidden,
 } from '@mantine/core';
 import {
   IconAlertTriangle, IconArrowDown, IconArrowRight, IconCheck, IconContainer, IconCopy, IconFeather, IconFileText,
@@ -9,17 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
-import SiteFooter from './SiteFooter';
-import SiteHeader from './SiteHeader';
-
-const theme = createTheme({
-  primaryColor: 'teal',
-  primaryShade: { light: 9, dark: 9 },
-  components: { Anchor: { defaultProps: { underline: 'always' } } },
-  fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',
-  headings: { fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif', fontWeight: '800' },
-  defaultRadius: 'md',
-});
+import { SiteShell } from './SiteShell';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
@@ -114,11 +104,7 @@ function Side({ label, color, items }: { label: string; color: string; items: st
 
 export default function Page({ base, updated, commit }: { base: string; updated?: string; commit?: string }) {
   return (
-    <MantineProvider theme={theme} defaultColorScheme="auto">
-      <a className="skip" href="#main">Skip to content</a>
-      <SiteHeader base={base} home />
-
-      <main id="main" tabIndex={-1}>
+    <SiteShell base={base} home updated={updated} commit={commit}>
         <Box className="hero" py={{ base: 64, md: 112 }}>
           <Container size="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
@@ -244,9 +230,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, projects apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
           </Alert>
         </Section>
-      </main>
-
-      <SiteFooter updated={updated} commit={commit} />
-    </MantineProvider>
+    </SiteShell>
   );
 }

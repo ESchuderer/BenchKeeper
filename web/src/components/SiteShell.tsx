@@ -12,16 +12,18 @@ const theme = createTheme({
   defaultRadius: 'md',
 });
 
-export function BenchShell({ base, children }: { base: string; children: ReactNode }) {
+// The frame of every page: theme, skip link, header and footer. The main page (home) lays out its own sections.
+export function SiteShell({ base, home = false, updated, commit, children }: { base: string; home?: boolean; updated?: string; commit?: string; children: ReactNode }) {
+  const size = home ? undefined : 'xl';
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <a className="skip" href="#main">Skip to content</a>
-      <SiteHeader base={base} size="xl" />
+      <SiteHeader base={base} home={home} size={size} />
 
       <main id="main" tabIndex={-1}>
-        <Container size="xl" py={{ base: 40, md: 64 }}>{children}</Container>
+        {home ? children : <Container size="xl" py={{ base: 40, md: 64 }}>{children}</Container>}
       </main>
-      <SiteFooter size="xl" />
+      <SiteFooter size={size} updated={updated} commit={commit} />
     </MantineProvider>
   );
 }

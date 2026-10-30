@@ -1961,6 +1961,11 @@ test.describe('views', () => {
     await expect(row('cleanupPeriodDays')).toContainText('Differs from suggested');
     await expect(notes.getByRole('button', { name: /^Decided/ })).toHaveCount(0);
     await expect(notes.getByRole('status')).toHaveText('Shown again: cleanupPeriodDays');
+    await expect(notes).toBeFocused();
+    // A pending edit is no decision: Keep mine waits until it is reviewed or discarded.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await expect(page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Discard changes' }).click();
     await page.unroute(view);
     await page.unroute(/\/api\/settings-dismiss$/);
   });

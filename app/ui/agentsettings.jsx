@@ -110,7 +110,7 @@ function Row({ row, layer, edits, setEdit, stage, decide, running, phone, cols }
       <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{phone && 'Suggested: '}{suggestedText(s)}</Text>
       <Group gap={4}>
         {!matches(row, shown) && editable && <Button size="compact-xs" variant="default" leftSection={icon(IconArrowBackUp)} aria-label={`Use suggested for ${row.key}`} onClick={() => stage({ [row.key]: s.value })}>Use suggested</Button>}
-        {decide && differs(row, layer) && <Button size="compact-xs" variant="default" aria-label={`Keep mine for ${row.key}`} onClick={() => decide(row, true)}>Keep mine</Button>}
+        {decide && edit === undefined && differs(row, layer) && <Button size="compact-xs" variant="default" aria-label={`Keep mine for ${row.key}`} onClick={() => decide(row, true)}>Keep mine</Button>}
       </Group>
     </Stack>
   ) : <Text size="sm">{phone && 'Suggested: '}none</Text>;
@@ -175,6 +175,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [showHardening, setShowHardening] = useState(false);
   const [showDecided, setShowDecided] = useState(false);
   const [showMatching, setShowMatching] = useState(false);
+  // After a click in the notes region it stays, so its status and focus survive the last entry leaving it.
+  const [used, setUsed] = useState(false);
   const [target, setTarget] = useState(null);
   // A plan holds the edits of its Review: a later edit drops it, and a pending Review's answer for older edits is ignored, so Apply never clears edits it did not write.
   // While it applies, edits and Reviews are ignored: dropping it would lose the run's view and its reload.
@@ -208,7 +210,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const rowsOf = (n) => (n.keys ?? []).map((k) => data.settings.find((r) => r.key === k)).filter(Boolean);
   const noteButtons = (n) => {
     const fix = fixOf(n, rowsOf(n), layer, data.precedence);
-    const first = rowsOf(n)[0];
+    const first = rowsOf(n).find((r) => !r.decided);
     return (
       <>
         {Object.keys(fix).length > 0 ? <Button size="compact-xs" variant="default" loading={busy} aria-label={`Fix, review the change: ${n.id}`} onClick={() => stage(fix)}>Fix: review the change</Button>
@@ -222,7 +224,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [status, announce] = useAnnounce();
   // The notes region stays after either click: a dismissed note is listed under Dismissed, a shown one among the notes; a
   // decided setting under Decided.
-  const dismiss = (id, dismissed, said = `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`) => { setDismissError(null); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', said); }, (e) => setDismissError(e.message)); };
+  const dismiss = (id, dismissed, said = `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`) => { setDismissError(null); setUsed(true); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', said); }, (e) => setDismissError(e.message)); };
   // Keep mine: the setting stays as it is and leaves the differences, until Show again.
   const decide = (r, on) => { if (!running) dismiss(r.decideId, on, `${on ? 'Decided' : 'Shown again'}: ${r.key}`); };
   const dismissed = data.dismissed ?? [];
@@ -231,7 +233,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   return (
     <Stack gap="lg">
       {data.layers.filter((l) => l.error && !l.readOnly).map((l) => <Note key={l.path} color="red"><Text span fw={600}>This file is not edited. </Text>{l.path} cannot be read ({l.error}). {agent === 'claude' ? 'Claude Code reads strict JSON and skips the whole file on one error.' : ''} Fix it by hand first.</Note>)}
-      {(data.notes.length > 0 || dismissed.length > 0 || decided.length > 0) && (
+      {(data.notes.length > 0 || dismissed.length > 0 || decided.length > 0 || used) && (
         <Stack gap="xs" role="region" aria-label="Notes on the settings" id="setting-notes" tabIndex={-1}>
           {status}
           {dismissError && <Note color="red" title="Not saved">{dismissError}</Note>}

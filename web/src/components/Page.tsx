@@ -13,6 +13,18 @@ import { SiteShell } from './SiteShell';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
+// Homepage features beyond the overview cards: title, link (relative to the site base unless absolute or `#`), one line.
+const MORE_FEATURES: [string, string, string][] = [
+  ['Local by default', '/overview/#defaults', 'Keep the app and each project setup on your machine: the app opens on 127.0.0.1 behind a one-time link and sends no telemetry, and a project setup stays out of the repository until you share it.'],
+  ['Plan, diff and undo', '/app/#history', 'See every change as a diff or command before it runs, then undo a whole run or a single step.'],
+  ['Dashboard', '/app/#dashboard', 'See which items of the global setup and of each project need attention, and fix them in one plan.'],
+  ['Catalog', '/app/#skills', 'Browse the library skills with how many projects use each, and build your own packs from them.'],
+  ['Agent settings', '/app/#settings', 'Compare each agent setting with the value in effect and the suggested value with its reason, and change it through a plan.'],
+  ['Rules', '/app/#rules', 'See which instruction files each agent loads, in load order, with their owner and the tokens they add to every session.'],
+  ['Doctor', '/app/#doctor', 'Find rules that differ from the setup, missing plugins and skills and environment variables that turn features off, each with a planned fix or the step to do by hand.'],
+  ['Lite install', '#levels', 'Install only the BenchKeeper plugin with `--level lite`: nothing else is written besides the app\'s run record for undo.'],
+  ['Benchmark evidence', 'https://github.com/ESchuderer/BenchKeeper-research', 'Read the recorded benchmark results and the tooling that compares agent setups on the same task.'],
+];
 const PART_ICONS: Record<string, ReactNode> = {
   rules: <IconFileText size={20} />, workflow: <IconListCheck size={20} />, mattpocock: <IconSchool size={20} />,
   ponytail: <IconFeather size={20} />, app: <IconRoute size={20} />, devcontainer: <IconContainer size={20} />,
@@ -149,10 +161,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="features" title="Features">
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" verticalSpacing="lg">
-            {facts.overview.parts.map((p) => (
-              <Stack key={p.id} gap={4}>
-                <Anchor href={`${base}/overview/#${p.id}`} fw={700}>{p.title}</Anchor>
-                <Text size="sm" c="dimmed">{md(`${p.text.split('. ')[0]}.`)}</Text>
+            {[...facts.overview.parts.map((p): [string, string, string] => [p.title, `/overview/#${p.id}`, `${p.text.split('. ')[0]}.`]), ...MORE_FEATURES].map(([title, href, text]) => (
+              <Stack key={title} gap={4}>
+                <Anchor href={href.startsWith('/') ? `${base}${href}` : href} fw={700}>{title}</Anchor>
+                <Text size="sm" c="dimmed">{md(text)}</Text>
               </Stack>
             ))}
           </SimpleGrid>

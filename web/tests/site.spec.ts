@@ -9,9 +9,12 @@ for (const path of ['./', './overview/', './app/', './404.html']) {
     await expect(footer.locator('a[href$="/SECURITY.md"]')).toHaveCount(1);
   });
 
-  test(`${path} has no benchmark or evaluation link`, async ({ page }) => {
+  test(`${path} has no benchmark or evaluation link besides the homepage feature item`, async ({ page }) => {
     await page.goto(path);
-    await expect(page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]')).toHaveCount(0);
+    const links = page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]');
+    if (path !== './') return await expect(links).toHaveCount(0);
+    await expect(links).toHaveCount(1);
+    await expect(page.locator('#features a[href="https://github.com/ESchuderer/BenchKeeper-research"]')).toHaveCount(1);
   });
 
   test(`${path} theme button shows its state and follows the system scheme`, async ({ page }) => {

@@ -30,10 +30,10 @@ export function bandStacks(ctx) {
     && readText(join(ctx.home, BAND_FLAG))?.trim() !== 'off';
 }
 
-// The two writes that hide Ponytail's band and status indicator; its behaviour (mode, skills) stays on. Plan changes.
+// The two writes that hide Ponytail's band and its level in BenchKeeper's status line; its behaviour (mode, skills) stays on. Plan changes.
 export const hideBandChanges = (ctx) => [
   { title: "hide Ponytail's band above the prompt (writes off to ~/.claude/.ponytail-band, what /ponytail band off does)", kind: 'write', path: join(ctx.home, BAND_FLAG), after: 'off' },
-  { title: "hide Ponytail's status indicator (hideStatus in ~/.config/ponytail/config.json)", kind: 'write', path: join(ctx.home, CONFIG), edit: (t) => {
+  { title: "hide Ponytail's level in BenchKeeper's status line (hideStatus in ~/.config/ponytail/config.json; Ponytail's own Claude Code status line does not read it)", kind: 'write', path: join(ctx.home, CONFIG), edit: (t) => {
     // A config that is there but unreadable fails the plan, so the flag file is not written alone.
     if (t === null && exists(join(ctx.home, CONFIG))) throw new Error(`${join(ctx.home, CONFIG)} cannot be read`);
     return mergeJson(t, [{ path: ['hideStatus'], value: true }]);
@@ -43,7 +43,7 @@ export const hideBandChanges = (ctx) => [
 // The doctor finding for bandStacks, or [].
 export const bandChecks = (ctx) => (bandStacks(ctx) ? [{
   level: 'warning', check: 'ponytail',
-  message: "Ponytail draws its own band above the prompt, so two bands stack with BenchKeeper's tier band. The switch is the file ~/.claude/.ponytail-band (off hides it, /ponytail band off writes it) and hideStatus in ~/.config/ponytail/config.json for its status indicator",
+  message: "Ponytail draws its own band above the prompt, so two bands stack with BenchKeeper's tier band. The switch is the file ~/.claude/.ponytail-band (off hides it, /ponytail band off writes it) and hideStatus in ~/.config/ponytail/config.json for its level in BenchKeeper's status line (Ponytail's own Claude Code status line does not read it)",
   fix: "benchkeeper apply: choose the optional change \"hide Ponytail's band\" (a plan with a diff; benchkeeper undo restores both files)",
 }] : []);
 

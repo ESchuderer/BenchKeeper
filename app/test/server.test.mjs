@@ -1058,3 +1058,13 @@ test('the tier strip switch: off by default; on and off are plans in the Claude 
   routes['POST /api/undo']({ run: off.id });
   assert.equal(band().on, true);
 });
+
+test('the status line style: merged while unset, the plugin option once a plan sets it', async () => {
+  const { ctx, routes } = fixture();
+  const style = () => routes['GET /api/status-style']();
+  assert.deepEqual(style(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle', value: 'merged' });
+  const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [style().key]: 'plugin' } });
+  await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job);
+  assert.equal(style().value, 'plugin');
+  assert.equal(JSON.parse(readFileSync(join(ctx.home, '.claude/settings.json'), 'utf8')).pluginConfigs['benchkeeper@benchkeeper'].options.statusStyle, 'plugin');
+});

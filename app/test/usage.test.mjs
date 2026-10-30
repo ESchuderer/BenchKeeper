@@ -63,6 +63,49 @@ test('the hook keeps only the two windows and the error type: no token, path, me
   assert.equal(failureLine({ error: 'rate_limit' }, T0).includes('rate_limit'), true);
 });
 
+test('the status line style: usage and Ponytail\'s level from the account folder, usage.json written in every style', () => {
+  const account = mkdtempSync(join(tmpdir(), 'bk-style-'));
+  const dir = join(account, 'benchkeeper');
+  const env = { XDG_CONFIG_HOME: join(account, 'xdg') };
+  const style = (v) => writeFileSync(join(account, 'settings.json'), JSON.stringify({ pluginConfigs: { 'benchkeeper@benchkeeper': { options: { statusStyle: v } } } }));
+  const level = (v) => writeFileSync(join(account, '.ponytail-active'), `${v}\n`);
+  const line = (text = JSON.stringify(windows(41.5, 7))) => hook('statusline', text, dir, T0, env);
+  const written = () => { const f = join(dir, 'usage.json'); const r = existsSync(f); rmSync(f, { force: true }); return r; };
+  const usage = '5h 59% left  7d 93% left';
+  // No flag file: no segment, no error.
+  assert.equal(line(), usage);
+  level('full');
+  assert.equal(line(), `${usage}  \x1b[38;5;108m[PONYTAIL]\x1b[0m`, 'unset is merged');
+  style('merged'); level('ultra');
+  assert.equal(line(), `${usage}  \x1b[38;5;173m[PONYTAIL:ULTRA]\x1b[0m`);
+  level('lite');
+  assert.equal(line(), `${usage}  \x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m`);
+  style('plugin');
+  assert.equal(line(), '\x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m');
+  assert.equal(written(), true);
+  style('benchkeeper');
+  assert.equal(line(), usage);
+  assert.equal(written(), true);
+  style('none');
+  assert.equal(line(), '');
+  assert.equal(written(), true);
+  style('rainbow');
+  assert.match(line(), /^5h .*\[PONYTAIL:LITE\]/, 'an unknown style is merged');
+  // An input without rate_limits still shows the level and writes no reading.
+  written();
+  assert.equal(line('{}'), '\x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m');
+  assert.equal(written(), false);
+  level('sideways');
+  assert.equal(line(), usage, 'an unknown level shows nothing');
+  // Ponytail's hide switch: hideStatus in its config, or the variable, which wins.
+  level('full');
+  mkdirSync(join(account, 'xdg', 'ponytail'), { recursive: true });
+  writeFileSync(join(account, 'xdg', 'ponytail', 'config.json'), '{"hideStatus":true}');
+  assert.equal(line(), usage);
+  assert.equal(hook('statusline', '{}', dir, T0, { ...env, PONYTAIL_HIDE_STATUS: '0' }), '\x1b[38;5;108m[PONYTAIL]\x1b[0m');
+  assert.equal(hook('statusline', '{}', dir, T0, { PONYTAIL_HIDE_STATUS: '1' }), '');
+});
+
 test('the failure file keeps its last 20 lines', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-usage-'));
   for (let i = 0; i < 25; i++) hook('failure', JSON.stringify({ error: 'rate_limit' }), dir, T0 + i * 1000);
@@ -139,6 +182,14 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(null, script), script, { remove: true })), {});
   // A status line of another kind is not replaced; a path with shell characters is refused.
   assert.throws(() => trackedSettings('{"statusLine":{"type":"command","command":"my-line"}}', script), /already has a status line of its own/);
+  // Ponytail's own status line is replaced; one combined with another command is not.
+  const ponytail = '{"statusLine":{"type":"command","command":"bash \\"/home/u/.claude/ponytail-statusline.sh\\"","padding":0}}\n';
+  assert.deepEqual(JSON.parse(trackedSettings(ponytail, script)).statusLine, { type: 'command', command: `node "${script}" statusline` });
+  assert.equal(JSON.parse(trackedSettings('{"statusLine":{"command":"powershell -File C:\\\\u\\\\.claude\\\\ponytail-statusline.ps1"}}', script)).statusLine.command, `node "${script}" statusline`);
+  assert.equal(JSON.parse(trackedSettings(JSON.stringify({ statusLine: { command: 'bash "$HOME/.claude/ponytail-statusline.sh"' } }), script)).statusLine.command, `node "${script}" statusline`);
+  for (const command of ['my-line && bash ~/.claude/ponytail-statusline.sh', 'bash ~/.claude/ponytail-statusline.sh; my-line', 'bash $(echo ponytail-statusline.sh)']) {
+    assert.throws(() => trackedSettings(JSON.stringify({ statusLine: { type: 'command', command } }), script), /already has a status line of its own/, command);
+  }
   assert.throws(() => trackedSettings(null, '/x/$(id)/usage.mjs'), /do not go into a hook command/);
   assert.match(HOOK_SOURCE, /^\/\/ Runs inside one account's folder/);
 });
@@ -192,6 +243,19 @@ test('track: a plan with a diff and an undo; the installed script writes what st
   const again = cli(m);
   assert.equal(await again.exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
   assert.match(again.text(), /nothing to change/);
+});
+
+test('track: a status line that only runs Ponytail\'s script is replaced, and undo restores it byte for byte', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  const own = '{\n    "statusLine": { "type": "command", "command": "bash \\"/home/u/.claude/ponytail-statusline.sh\\"" }\n}\n';
+  writeFileSync(join(a.dir, 'settings.json'), own);
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 0, c.text());
+  assert.match(JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8')).statusLine.command, /usage\.mjs" statusline$/);
+  const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
+  assert.equal(await cli(m).exec(['undo', run.id]), 0);
+  assert.equal(readFileSync(join(a.dir, 'settings.json'), 'utf8'), own);
 });
 
 test('track: an account folder outside the home folder is written and undone', skip, async () => {

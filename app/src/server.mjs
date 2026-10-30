@@ -117,6 +117,7 @@ function setupAnswers(src) {
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
 const TIER_BAND = 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand';
+const STATUS_STYLE = 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle';
 const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
@@ -487,6 +488,8 @@ export function api(ctx) {
     },
     // The terminal tier strip: the plugin option the Settings switch plans through /api/settings-plan.
     'GET /api/tier-band': () => ({ key: TIER_BAND, on: valuesOf(readSettings(ctx, 'claude'), 'claude', TIER_BAND)[0]?.value === true }),
+    // What the usage status line prints (usage-hook.mjs); unset is merged.
+    'GET /api/status-style': () => ({ key: STATUS_STYLE, value: valuesOf(readSettings(ctx, 'claude'), 'claude', STATUS_STYLE)[0]?.value ?? 'merged' }),
     // The runs view, read only when it is opened or refreshed: the orchestrated runs of the sessions scan in the registered
     // projects and their worktrees (git), each project's last setup change from the ledger, and the IDE's runs when it is
     // installed (not joined: a run line names the coordinator's fan-out, not the IDE's run). Fields are picked: a row's

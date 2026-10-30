@@ -1,4 +1,4 @@
-import { Button, Code, Group, List, Stack, Table, Text } from '@mantine/core';
+import { Button, Code, Group, List, Select, Stack, Table, Text } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
@@ -78,16 +78,19 @@ export function Runs() {
 // Preferences: each surface with its default and what it costs while on; the tier strip is the one that runs without being opened.
 export function Surfaces() {
   const band = useApi('/api/tier-band');
+  const style = useApi('/api/status-style');
   const [plan, setPlan] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
   // While a plan is asked for, the switch ignores input: a second answer could replace a plan that already applies.
   const [asking, setAsking] = useState(false);
-  const ask = async (on) => {
+  // why: the sentence the plan shows; on: set for the tier strip switch only.
+  const ask = async (key, value, why, on) => {
     setError(null); setPlan(null); setAsking(true);
-    try { setPlan({ on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } }) }); } catch (e) { setError(e.message); }
+    try { setPlan({ key, value, why, on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [key]: value } }) }); } catch (e) { setError(e.message); }
     setAsking(false);
   };
+  const pending = (key) => (plan && !plan.done && plan.key === key ? plan : null);
   return (
     <Section title="Views and their cost">
       <List spacing={4} size="sm" maw={720}>
@@ -98,14 +101,20 @@ export function Surfaces() {
       </List>
       <Loading state={band} label="tier strip setting">{(b) => (
         <PlanSwitch name="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." on={b.on}
-          pending={plan && !plan.done ? plan : null} off={running || asking} onAsk={ask} onClear={() => setPlan(null)} />
+          pending={pending(b.key)} off={running || asking} onAsk={(on) => ask(b.key, on, `You turned the tier strip ${on ? 'on' : 'off'} in Preferences.`, on)} onClear={() => setPlan(null)} />
+      )}</Loading>
+      <Loading state={style} label="status line setting">{(st) => (
+        <Select label="Status line of tracked accounts" maw={420} allowDeselect={false} disabled={running || asking}
+          description={pending(st.key) ? 'Apply or cancel in Changes below' : 'The plugin option in your Claude Code user settings, read by the status line that accounts track installs. Usage is recorded in every style.'}
+          data={[{ value: 'merged', label: 'Usage and Ponytail level' }, { value: 'plugin', label: 'Ponytail level only' }, { value: 'benchkeeper', label: 'Usage only' }, { value: 'none', label: 'Nothing' }]}
+          value={pending(st.key)?.value ?? st.value} onChange={(v) => (v === st.value ? setPlan(null) : ask(st.key, v, `You chose the status line style ${v} in Preferences.`))} />
       )}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
       {plan && (
         <Section title="Changes">
           {/* done: applied or cancelled, so the switch shows the setting again. */}
-          <Plan key={plan.plan.planId} plan={plan.plan} why={`You turned the tier strip ${plan.on ? 'on' : 'off'} in Preferences.`} scope="global" onRunning={setRunning}
-            onCancel={(done) => setPlan((p) => ({ ...p, done }))} onDone={() => { setPlan((p) => ({ ...p, done: true })); band.reload(); }} />
+          <Plan key={plan.plan.planId} plan={plan.plan} why={plan.why} scope="global" onRunning={setRunning}
+            onCancel={(done) => setPlan((p) => ({ ...p, done }))} onDone={() => { setPlan((p) => ({ ...p, done: true })); band.reload(); style.reload(); }} />
           <Group><PlanClose running={running} onClose={() => setPlan(null)} /></Group>
         </Section>
       )}

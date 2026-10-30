@@ -635,6 +635,13 @@ test.describe('views', () => {
     await expect(page.getByText(/BenchKeeper does not answer: its server has stopped/)).toBeVisible();
   });
 
+  test('a 401 (a restarted server, another browser) says to start the app again, with no Try again', async ({ page }) => {
+    await page.route(/\/api\/overview(\?|$)/, (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"no session"}' }));
+    await page.reload();
+    await expect(page.getByText(/Run npx benchkeeper again and open the link it prints/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  });
+
   test('slash opens the palette too', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
     await page.keyboard.press('/');

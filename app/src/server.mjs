@@ -807,6 +807,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       return send(200, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/#k=${key}"><title>BenchKeeper</title>`, 'text/html; charset=utf-8', { 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
+    // A browser that opens a used, expired or wrong-host link reads what to do; API calls and the board frame keep JSON.
+    if (why && req.method === 'GET' && [401, 421].includes(why[0]) && !url.pathname.startsWith('/api/') && url.pathname !== '/board') {
+      return send(why[0], `<!doctype html><meta charset="utf-8"><title>BenchKeeper</title><h1>This link does not open BenchKeeper</h1>\n<p>The link works once and for 10 minutes. Open it as printed, at http://127.0.0.1:${p}/, not at localhost or another port.</p>\n<p>For a new link, run <code>npx benchkeeper</code> again.</p>`, 'text/html; charset=utf-8');
+    }
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {

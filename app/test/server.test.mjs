@@ -50,8 +50,14 @@ const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
 const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', ...h }), '{"planId":"x"}');
 
 test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', async () => {
-  assert.equal((await req('GET', '/api/overview')).status, 401);
-  assert.equal((await req('GET', '/?token=wrong')).status, 401);
+  const none = await req('GET', '/api/overview');
+  assert.deepEqual([none.status, JSON.parse(none.body)], [401, { error: 'no session' }]);
+  const wrong = await req('GET', '/?token=wrong');
+  assert.equal(wrong.status, 401);
+  assert.match(wrong.headers['content-type'], /^text\/html/);
+  assert.match(wrong.body, /works once and for 10 minutes.*http:\/\/127\.0\.0\.1:\d+\/.*npx benchkeeper/s);
+  assert.ok(!wrong.body.includes('<script'));
+  assert.match(wrong.headers['content-security-policy'], /default-src 'self'/);
   const r = await req('GET', '/?token=secret-token-123');
   // A page of this origin moves on to the app, so the next request is same-origin even after a file opened the link.
   assert.equal(r.status, 200);
@@ -59,7 +65,9 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   assert.match(r.headers['set-cookie'][0], new RegExp(`^bk_session_${port}=[\\w-]{43}; HttpOnly; SameSite=Strict; Path=/$`));
   assert.ok(!r.headers['set-cookie'][0].includes('secret-token-123'));
   cookie = r.headers['set-cookie'][0].split(';')[0];
-  assert.equal((await req('GET', '/?token=secret-token-123')).status, 401);
+  const used = await req('GET', '/?token=secret-token-123');
+  assert.equal(used.status, 401);
+  assert.match(used.body, new RegExp(`works once and for 10 minutes.*http://127\\.0\\.0\\.1:${port}/`, 's'));
   const ok = await req('GET', '/api/overview', auth());
   assert.deepEqual([ok.status, JSON.parse(ok.body)], [200, { ok: true }]);
   assert.equal((await req('GET', '/api/overview', { cookie: `bk_session_${port}=guess` })).status, 401);
@@ -71,7 +79,8 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
 });
 
 test('the sessions board: the session cookie and a one-time ticket asked for with the API key; a CSP of its own that only this origin may frame', async () => {
-  assert.equal((await req('GET', '/board')).status, 401);
+  const board = await req('GET', '/board');
+  assert.deepEqual([board.status, JSON.parse(board.body)], [401, { error: 'no session' }]);
   // The cookie alone, as another server on 127.0.0.1 receives and replays it, does not show the board.
   assert.equal((await req('GET', '/board', { cookie })).status, 403);
   assert.equal((await req('GET', '/board?ticket=guess', { cookie })).status, 403);
@@ -117,6 +126,11 @@ test('rejected: other Host, foreign or null Origin, cross-site fetches', async (
   for (const host of ['localhost:' + port, `127.0.0.1:${port + 1}`, 'evil.example', `127.0.0.1:${port}.evil.example`]) {
     assert.equal((await req('GET', '/api/overview', auth({ host }))).status, 421, host);
   }
+  // A page in the browser says to open the link as printed; the API answer stays JSON.
+  const page = await req('GET', '/', auth({ host: `localhost:${port}` }));
+  assert.deepEqual([page.status, page.headers['content-type']], [421, 'text/html; charset=utf-8']);
+  assert.match(page.body, new RegExp(`http://127\\.0\\.0\\.1:${port}/, not at localhost`));
+  assert.deepEqual(JSON.parse((await req('GET', '/api/overview', auth({ host: `localhost:${port}` }))).body), { error: 'wrong host' });
   for (const origin of ['http://evil.example', 'null', `http://localhost:${port}`, `https://127.0.0.1:${port}`]) {
     assert.equal((await req('GET', '/api/overview', auth({ origin }))).status, 403, origin);
     assert.equal((await post({ origin })).status, 403, origin);

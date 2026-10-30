@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
 import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
@@ -216,4 +216,11 @@ test('tests: a test command counts in command position only, not echoed or quote
   rollout('chained', [['npm test', 1], ['cd app && CI=1 npx vitest run', 0]]);
   const rows = byId(await scanSessions(context({ home, run: () => ({ code: 127, stdout: '', stderr: '' }) })));
   assert.deepEqual([rows.echoed.tests, rows.chained.tests], ['fail', 'pass']);
+});
+
+test('tests: a long chain of variable assignments is matched in linear time', () => {
+  const start = performance.now();
+  assert.equal(TEST.test(';a=b'.repeat(20000)), false);
+  assert.ok(performance.now() - start < 100);
+  assert.equal(TEST.test(`${';a=b'.repeat(20000)};A=1 B=2 npm test`), true);
 });

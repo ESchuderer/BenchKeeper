@@ -507,7 +507,7 @@ test.describe('views', () => {
     await expect(page.getByText(new RegExp(`^\\d+ findings: ${counts}\\. Do first: `))).toBeVisible();
   });
 
-  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; a card names its action as the Doctor table does and links its fix source, the action opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; errors are cards, warnings are one-line rows whose title opens the evidence and fix and whose More menu holds Dismiss and Snooze; a long path shows its last parts, in full on hover and in the opened row; a card names its action as the Doctor table does and links its fix source, the action opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
     const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
@@ -515,7 +515,22 @@ test.describe('views', () => {
     await expect(deny).toBeVisible();
     await expect(scrub).toBeVisible();
     await expect(deny.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', /^#\/agent-settings/);
+    // By default a warning is one line: its title, its fix button and More; an error card shows Dismiss and Snooze.
+    await expect(deny).not.toContainText('permissions.deny');
+    await expect(deny.getByRole('button', { name: 'Dismiss' })).toHaveCount(0);
+    await expect(deny.getByRole('button', { name: 'More' })).toBeVisible();
+    await expect(market.getByRole('button', { name: 'Dismiss' })).toBeVisible();
+    const toggle = deny.getByRole('button', { name: /No Read deny rule/ });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(deny).toContainText('permissions.deny');
+    // A changed-file warning names the file by its last two path parts; the hover and the opened row hold the full path.
+    const changed = card(/^\u2026\/rules\/00-global\.md changed since run /);
+    const path = await changed.getByRole('button', { name: /00-global\.md/ }).getAttribute('title');
+    expect(path).toMatch(/^\/.+\/\.claude\/rules\/00-global\.md changed since run /);
+    await changed.getByRole('button', { name: /00-global\.md/ }).click();
+    await expect(changed).toContainText(path);
     await expect(deny.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
     await expect(deny).not.toContainText('(https://');
     await expect(page.getByText(/^\d+ findings: \d+ (error|warning).*\. Do first: /)).toBeVisible();
@@ -541,7 +556,9 @@ test.describe('views', () => {
     await expect(page.locator(`[id="${next}"]`)).toBeFocused();
     await expect(status).toHaveText(/^Dismissed: .*marketplace benchkeeper$/);
     next = await nextHeading(scrub);
-    await scrub.getByRole('button', { name: 'Snooze 7 days' }).focus();
+    await scrub.getByRole('button', { name: 'More' }).focus();
+    await page.keyboard.press('Enter');
+    await scrub.getByRole('menuitem', { name: 'Snooze 7 days' }).focus();
     await page.keyboard.press('Enter');
     await expect(scrub).toHaveCount(0);
     await expect(page.locator(`[id="${next}"]`)).toBeFocused();
@@ -612,7 +629,9 @@ test.describe('views', () => {
     await page.reload();
     await expect(narrative).toContainText('Fix the deny rule first.');
     await expect(narrative.getByRole('button', { name: 'Write again with Claude Code' })).toBeVisible();
-    await page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('button', { name: 'Dismiss' }).click();
+    const scrub = page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ });
+    await scrub.getByRole('button', { name: 'More' }).click();
+    await scrub.getByRole('menuitem', { name: 'Dismiss' }).click();
     await expect(narrative.getByText('Model text')).toHaveCount(0);
     const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
     await hidden.getByRole('button', { name: /^Dismissed and snoozed/ }).click();
@@ -2009,7 +2028,9 @@ test.describe('views', () => {
     await nav(page, 'Dashboard').click();
     await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
     await nav(page, 'Insights').click();
-    await facts(about(page.getByRole('article', { name: /No Read deny rule/ }), 'permissions.deny'));
+    const denyRow = page.getByRole('article', { name: /No Read deny rule/ });
+    await denyRow.getByRole('button', { name: /No Read deny rule/ }).click();
+    await facts(about(denyRow, 'permissions.deny'));
     await noAxe(page);
     // The Apply drawer: the global settings change, planned again, lists the facts of each key it writes.
     await nav(page, 'Dashboard').click();

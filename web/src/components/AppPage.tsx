@@ -90,7 +90,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'insights', view: 'insights', title: 'Insights', shot: 'insights',
-    alt: 'The Insights view: the number of findings by level with the one to do first, what was checked, the folded adviser narrative, then the findings grouped by level and area, each with its evidence, its fix and the Dismiss and Snooze 7 days buttons.',
+    alt: 'The Insights view: the number of findings by level with the one to do first, what was checked, the folded adviser narrative, then the findings grouped by level and area: errors as cards with their evidence, fix and the Dismiss and Snooze 7 days buttons, warnings and info as one-line rows with their fix button and a More menu that holds Dismiss and Snooze 7 days.',
     text: [
       'Findings of the setup and the sessions: doctor findings, agent settings, versions behind, installed skills no session used and friction in one project. They are grouped by level (error, warning, info) and area, most severe first, each with its evidence and a fix or a Plan button.',
       'The session signals need 20 Claude Code sessions of the last 90 days and report nothing below that. Dismiss and Snooze 7 days are kept per finding; a finding whose evidence changed comes back.',

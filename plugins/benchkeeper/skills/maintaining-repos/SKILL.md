@@ -4,7 +4,7 @@ description: "Runs a repository-wide maintenance pass: dead code, duplicates, un
 disable-model-invocation: true
 disallowed-tools: "Edit Write NotebookEdit"
 when: "On request, on a clean working tree."
-writes: "Nothing until you approve the findings (Edit and Write are off), apart from the verdicts in the project's local knowledge base and the `.benchkeeper/` line in `.git/info/exclude` that keeps it local; then the issues you approve and the commits of each approved change under `workflow`."
+writes: "Nothing until you approve the findings (Edit and Write are off), apart from the verdicts in the project's local knowledge base and the `.benchkeeper/` line in `.git/info/exclude` that keeps it local; then the commits of each approved change under `workflow`."
 ---
 
 # Maintaining repositories
@@ -22,13 +22,13 @@ Read only until the findings are approved. Start on a clean tree (`git status --
 - Test audit (a mutation tester for the stack, last because it is the longest part): [test-audit.md](test-audit.md). It sets the time and memory bounds for the run.
 - Open requests and sessions that went sideways: suggest a triage skill and a retro skill, when installed; the user starts them.
 - BenchKeeper setup: `npx benchkeeper@6 doctor` and `verify` in the repository; `projects update` when its setup version is behind. Skill proposals: `npx benchkeeper@6 insights --json --project .`, the findings of signal `skills` (turn off, add or update a skill, from the project's sessions and what the repository matches). List each with its `fix`; run a `fix` only after the owner approves that proposal (it shows a plan with a diff and an undo).
-- Repository hygiene: merged branches and worktrees, stopped containers, tickets in the issue tracker (`docs/agents/issue-tracker.md`) that the merged work already closed.
+- Repository hygiene: merged branches and worktrees, stopped containers, tickets in the project's tracker that the merged work already closed.
 
 A tool that is missing and cannot be installed is not a failed pass: do that part by reference search and reading, and say so in the report.
 
 ## Report
 
-One list, ranked: each finding has its file and line, the tool or search that found it, effort and risk. Create issues only for those the user approves.
+One list, ranked: each finding has its file and line, the tool or search that found it, effort and risk.
 
 Baseline: the verdicts of the knowledge base (`verdicts.json`). The next pass reads them first and reports new, resolved and kept findings; a verdict is reused only while its files are unchanged.
 

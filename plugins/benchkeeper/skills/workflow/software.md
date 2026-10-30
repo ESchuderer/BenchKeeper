@@ -7,7 +7,6 @@ The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [ful
 - **Branches, commits and pull requests** follow the project's own convention (`AGENTS.md`, a contributing guide, the history).
 - **Review before pushing** standard, full or risky work. First a scope line: the branch or diff range and the issue it implements, when one exists. Depth: standard one correctness pass, fixes made once; full the rounds in [full-tier.md](full-tier.md), plus a security pass when risky; quick none. Claude Code: the built-in `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over the changed assets, trust boundaries and failure modes (authentication, permissions, secrets and input handling among them). Docs-only changes skip this unless risky.
 - **Pull request**, when the project uses them: body with the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert. After pushing, wait for the checks (step 5 of [SKILL.md](SKILL.md)). Review comments and failing checks: new commits on the same branch.
-- No GitHub remote or `gh auth status` fails: local branch only, review before reporting done, say so in one line.
 
 ## Matt Pocock's skills, when installed
 
@@ -20,7 +19,7 @@ The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [ful
 | `codebase-design` | a refactor across modules or a changed interface |
 | `prototype` | a design question that needs running code |
 | `domain-modeling` | new terms or decisions worth a glossary entry or ADR |
-| `code-review` | spec check of a branch against its issue (reads the tracker doc in `docs/agents/`) |
+| `code-review` | spec check of a branch against its issue |
 | `pr` | the pull request body |
 | `to-spec`, `to-tickets` (U) | full work spanning several sessions |
 

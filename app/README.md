@@ -45,7 +45,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 ## Commands
 
-`benchkeeper help` lists every option.
+`benchkeeper help` lists every option; `benchkeeper help <command> [verb]` or `benchkeeper <command> [verb] --help` prints only that command's lines. An unknown command prints one line on stderr (exit 2), and an old name from before the noun-first rename names its new command.
 
 | Command | Does |
 |---|---|

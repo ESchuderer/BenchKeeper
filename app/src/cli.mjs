@@ -304,7 +304,7 @@ Usage: benchkeeper <command> [options]
                                     one JSON document on stdout, logs on stderr; keys in app/README.md. A changing
                                     command that would ask needs --yes: without it exit 2 and nothing changes
 --version                           prints the version
---help, -h                          prints this help
+--help, -h                          prints this help; after a command, only its lines
 
 Exit codes, with and without --json: 0 clean, 1 findings of level error, a run that did not finish or a
 question answered no, 2 usage or read failure (an unknown command, option or name, such as a skill, pack, run or account).
@@ -593,6 +593,30 @@ function checkArgs(o, positionals) {
   return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
 }
 
+// The lines of HELP for one command (the noun, and the verb when given) with their continuation lines, then the
+// footer; the whole help when no line matches.
+export function helpFor([noun, verb] = []) {
+  const at = HELP.indexOf('\n--json ('), lines = [];
+  let keep = false;
+  for (const line of HELP.slice(0, at).split('\n')) {
+    if (/^ {2}\S/.test(line)) {
+      const [first, ...rest] = line.trim().split(' ');
+      keep = first === noun && (!verb || rest.join(' ').split('|').some((s) => s.trim().replace(/^\[/, '').split(/[\s\]]/)[0] === verb));
+    } else if (!/^ {3}/.test(line)) keep = false;
+    if (keep) lines.push(line);
+  }
+  return lines.length ? `${lines.join('\n')}\n${HELP.slice(at)}` : HELP;
+}
+
+// The new command of each name the noun-first rename removed (docs/upgrading-to-7.md).
+const RENAMED = { project: 'projects', 'update-all': 'projects update', test: 'verify', board: 'sessions board', record: 'sessions record', eval: 'evals plan', case: 'evals cases', maintain: 'knowledge' };
+const known = (cmd) => Object.keys(FLAGS).some((k) => k.split(' ')[0] === cmd);
+// The one line for a command or subcommand that does not exist; an old name names its new command.
+function unknownCommand(cmd, arg) {
+  if (Object.hasOwn(RENAMED, cmd)) return `${cmd} is now ${RENAMED[cmd]}: see benchkeeper help ${RENAMED[cmd].split(' ')[0]}`;
+  return known(cmd) ? `unknown command ${[cmd, arg].filter(Boolean).join(' ')}: see benchkeeper help ${cmd}` : `unknown command ${cmd}: see benchkeeper help`;
+}
+
 // parseArgs, with an unknown option named for the command it was given to.
 function parse(argv) {
   try { return parseArgs({ args: argv, options: OPTIONS, allowPositionals: true }); } catch (e) {
@@ -606,7 +630,7 @@ function parse(argv) {
 async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parse(argv);
   if (o.version) { out.write(`${appVersion}\n`); return 0; }
-  if (o.help || positionals[0] === 'help') { out.write(`${HELP}\n`); return 0; }
+  if (o.help || positionals[0] === 'help') { out.write(`${helpFor(positionals[0] === 'help' ? positionals.slice(1) : positionals)}\n`); return 0; }
   const refused = checkArgs(o, positionals);
   // With --json, main turns the error into the document.
   if (refused) { if (o.json) throw new Error(refused); out.write(`${refused}\n`); return 2; }
@@ -661,7 +685,7 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ')} npx -y ${skillsSpec(ctx)}\n`);
     return 0;
   }
-  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
@@ -672,7 +696,7 @@ async function command(argv, { out, err, ask, ctx }) {
       out.write(`${p.id}  ${p.own ? 'own' : 'library'}  ${p.title ?? p.id}\n${p.skills ? `skills: ${p.skills.join(', ')}` : `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\nused by: ${p.usedBy.join(', ') || 'no registered project'}\n`);
     }
     else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
-    else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
+    else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
     else {
       for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${packScope(ctx, p).padEnd(8)} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
       for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
@@ -804,12 +828,12 @@ async function command(argv, { out, err, ask, ctx }) {
       for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
       return results.some((r) => r.status === 'stopped') ? 1 : 0;
     }
-    else if (arg && arg !== 'list') { out.write(`unknown projects command ${arg}\n`); return 2; }
+    else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
     if (!arg || arg === 'list') for (const p of listProjects(ctx)) out.write(`${p.path}\n`);
     return 0;
   }
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
-  if (cmd === 'sessions' && !['board', 'list', 'cache', 'record'].includes(arg)) { out.write('sessions needs board, list, cache or record\n'); return 2; }
+  if (cmd === 'sessions' && !['board', 'list', 'cache', 'record'].includes(arg)) { err.write('sessions needs board, list, cache or record\n'); return 2; }
   if (cmd === 'sessions' && arg === 'cache') {
     const c = cacheCommand(ctx, o, positionals);
     if (c.error) { out.write(`${c.error}\n`); return 2; }
@@ -899,10 +923,10 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${found.length} dev container${found.length === 1 ? '' : 's'} of folders that no longer exist\n`);
     return found.some((c) => c.removed === false) ? 1 : 0;
   }
-  if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'settings') return settingsCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
   if (cmd === 'pins') {
-    if (arg !== undefined && arg !== 'list') { out.write('pins needs list\n'); return 2; }
+    if (arg !== undefined && arg !== 'list') { err.write('pins needs list\n'); return 2; }
     const dir = resolve(positionals[2] ?? '.');
     if (!isDir(dir)) { out.write(`${dir} is not a folder\n`); return 2; }
     const { pins, errors } = resolvePins(dir);
@@ -911,13 +935,13 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of pins) out.write(`${p.phase.padEnd(10)} ${(p.agent ?? 'session').padEnd(8)} ${(p.model ?? 'default').padEnd(24)} ${(p.effort ?? 'default').padEnd(8)} ${p.source}\n`);
     return 0;
   }
-  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
-  if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
-    if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
+    if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
     out.write(`${extensionLines(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined })).join('\n')}\n`);
     return 0;
@@ -945,7 +969,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return 0;
   }
   if (cmd === 'evals') {
-    if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
+    if (arg !== 'plan' && arg !== 'run') { err.write('evals needs plan, run, results or cases add\n'); return 2; }
     const agents = evalAgentNames(o.agents), agentsProblem = evalAgentsProblem(agents);
     if (agentsProblem) { out.write(`${agentsProblem}\n`); return 2; }
     if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
@@ -1004,7 +1028,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of board.projects) out.write(`${p.path}  ${p.error ? `error: ${p.error}` : !p.setup ? 'no setup' : `${states(p.states)}${p.untracked ? `, untracked ${p.untracked}` : ''}  packs ${p.packs.join(', ') || 'none'}`}\n`);
     return 0;
   }
-  out.write(`unknown command ${cmd}\n\n${HELP}\n`);
+  err.write(`${unknownCommand(cmd, arg)}\n`);
   return 2;
 }
 
@@ -1104,10 +1128,10 @@ async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
 // skills list|update|reset|remove|adopt|add|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
-async function skillsCommand(ctx, { o, positionals, out, ask }) {
+async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
-  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
   // list --check and update without names ask each source's default branch; update with names re-adds those skills.
   const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
@@ -1378,14 +1402,14 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
-  if (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`)) return fail(`unknown projects command ${arg}`);
+  if (!known(cmd) || (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`))) return fail(unknownCommand(cmd, arg));
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
 
 // settings list|get|set: the editor of the UI on the command line, through the same plan, diff and undo.
-async function settingsCommand({ o, positionals, out, ask, ctx }) {
+async function settingsCommand({ o, positionals, out, err, ask, ctx }) {
   const [, sub, key, ...rest] = positionals;
   const agentId = o.agent ?? 'claude';
   if (!settingsAgents.includes(agentId)) { out.write(`agent must be one of ${settingsAgents.join(', ')}\n`); return 2; }
@@ -1414,7 +1438,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
     noteLines(s.notes ?? []);
     return 0;
   }
-  if (sub !== 'set') { out.write('settings needs list, get or set\n'); return 2; }
+  if (sub !== 'set') { err.write('settings needs list, get or set\n'); return 2; }
   const layer = o.layer ?? 'user';
   let edits;
   try {
@@ -1471,9 +1495,9 @@ function rulesCheckOptions(ctx, o) {
 }
 
 // rules list|check|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
-async function rulesCommand({ o, positionals, out, ask, ctx }) {
+async function rulesCommand({ o, positionals, out, err, ask, ctx }) {
   const [, sub, file] = positionals;
-  if (!['list', 'check', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, show, check, disable or enable\n'); return 2; }
+  if (!['list', 'check', 'disable', 'enable'].includes(sub)) { err.write('rules needs list, show, check, disable or enable\n'); return 2; }
   if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
   const dir = o.project ? resolve(o.project) : undefined;
   if (sub === 'check') {
@@ -1711,10 +1735,10 @@ const limitsShown = (ctx) => {
     ...listAccounts(ctx).filter((a) => a.limits || a.pool).map((a) => `${a.name}: ${a.limits ? `minimum headroom ${text(limitsFor(settings, a))}` : 'defaults'}${a.pool ? `; pool ${a.pool}` : ''}`)];
 };
 
-async function accountsCommand(ctx, { o, positionals, out, ask }) {
+async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', name] = positionals;
   const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits', 'handover'];
-  if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
+  if (!subs.includes(sub)) { err.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
   if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const problem = accountsProblem(ctx);
   if (problem) { out.write(`${problem}\n`); return 2; }

@@ -86,7 +86,7 @@ test('refusals: bad names and agents, duplicates, a folder inside the config fol
   const full = join(m.root, 'Documents'), empty = join(m.root, 'empty');
   mkdirSync(full); writeFileSync(join(full, 'notes.txt'), 'x'); mkdirSync(empty);
   cases.push([['accounts', 'add', 'x', '--agent', 'claude', '--dir', full, '--yes'], /Documents is not empty: an account gets a new or empty folder/]);
-  for (const [args, re] of cases) { const x = cli(m); assert.notEqual(await x.exec(args), 0, args.join(' ')); assert.match(x.text(), re); }
+  for (const [args, re] of cases) { const x = cli(m); assert.notEqual(await x.exec(args), 0, args.join(' ')); assert.match(x.text() + x.err(), re); }
   assert.equal(await cli(m).exec(['accounts', 'add', 'blank', '--agent', 'claude', '--dir', empty, '--yes']), 0);
   assert.equal(await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']), 0);
   const dup = cli(m);

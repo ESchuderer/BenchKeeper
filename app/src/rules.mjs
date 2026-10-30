@@ -165,11 +165,13 @@ function memoryDir(ctx, dir, layers) {
   return isAbsolute(folder) ? folder : null;
 }
 
+const memoryOn = (layers) => valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value !== false;
+
 const memoryOver = (text) => text.replace(/\n$/, '').split('\n').length > MEMORY_LINES || sizeOf(text) > MEMORY_BYTES;
 
 function memoryRow(ctx, dir) {
   const layers = readSettings(ctx, 'claude', { dir });
-  if (valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value === false) return null;
+  if (!memoryOn(layers)) return null;
   const folder = memoryDir(ctx, dir, layers);
   if (!folder) return null;
   const text = readText(join(folder, 'MEMORY.md'));
@@ -181,34 +183,34 @@ function memoryRow(ctx, dir) {
 
 // One auto memory folder in numbers: topic notes (the .md files besides MEMORY.md), total bytes, the newest change and
 // whether MEMORY.md is over what Claude Code loads. Only MEMORY.md is read, for its line count; no text leaves here.
-function memoryStats(folder, project) {
+function memoryStats(folder, project, enabled) {
   const files = listDir(folder).map((n) => { try { const s = statSync(join(folder, n)); return s.isFile() ? { n, size: s.size, at: s.mtimeMs } : null; } catch { return null; } }).filter(Boolean);
   if (!files.length) return null;
   const index = readText(join(folder, 'MEMORY.md'));
-  return { project, path: folder, notes: files.filter((f) => f.n.endsWith('.md') && f.n !== 'MEMORY.md').length, bytes: files.reduce((n, f) => n + f.size, 0), changed: new Date(Math.max(...files.map((f) => f.at))).toISOString(), over: index != null && memoryOver(index) };
+  return { project, path: folder, enabled, notes: files.filter((f) => f.n.endsWith('.md') && f.n !== 'MEMORY.md').length, bytes: files.reduce((n, f) => n + f.size, 0), changed: new Date(Math.max(...files.map((f) => f.at))).toISOString(), over: index != null && memoryOver(index) };
 }
 
 // The auto memory folders with notes: a project's own, or without dir every project folder under the config folder and the
 // user's autoMemoryDirectory. A folder is named by the registered project it belongs to, else by its folder name. enabled
-// is autoMemoryEnabled of the layers read for the scope, as for the budget row; lines and bytes are the load limits.
+// is autoMemoryEnabled of the layers that apply to the folder: its registered project's, else the scope's; lines and bytes
+// are the load limits.
 // shortcut: the config folder is ~/.claude, CLAUDE_CONFIG_DIR is not followed, as in the rest of the app.
 function memoryOverview(ctx, dir) {
-  const layers = readSettings(ctx, 'claude', { dir });
-  const enabled = valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value !== false;
-  return { enabled, lines: MEMORY_LINES, bytes: MEMORY_BYTES, folders: memoryFolders(ctx, dir, layers) };
+  return { lines: MEMORY_LINES, bytes: MEMORY_BYTES, folders: memoryFolders(ctx, dir, readSettings(ctx, 'claude', { dir })) };
 }
 
 function memoryFolders(ctx, dir, layers) {
+  const enabled = memoryOn(layers);
   if (dir) {
     const folder = memoryDir(ctx, dir, layers);
-    return [folder && memoryStats(folder, dir)].filter(Boolean);
+    return [folder && memoryStats(folder, dir, enabled)].filter(Boolean);
   }
   const names = new Map(listProjects(ctx).map((p) => [memoryFolder(p.path), p.path]));
   const base = join(ctx.home, '.claude/projects');
-  const folders = listDir(base).map((n) => [join(base, n, 'memory'), names.get(n) ?? n]);
+  const folders = listDir(base).map((n) => { const p = names.get(n); return [join(base, n, 'memory'), p ?? n, p ? memoryOn(readSettings(ctx, 'claude', { dir: p })) : enabled]; });
   const custom = memoryDir(ctx, undefined, layers);
-  if (custom && !folders.some(([f]) => f === custom)) folders.push([custom, display(ctx, undefined, custom)]);
-  return folders.map(([f, name]) => memoryStats(f, name)).filter(Boolean).sort((a, b) => a.project.localeCompare(b.project));
+  if (custom && !folders.some(([f]) => f === custom)) folders.push([custom, display(ctx, undefined, custom), enabled]);
+  return folders.map(([f, name, on]) => memoryStats(f, name, on)).filter(Boolean).sort((a, b) => a.project.localeCompare(b.project));
 }
 
 // What an agent loads at the start of a session, with its size: the files that load, their @imports, skill descriptions,

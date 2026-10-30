@@ -766,8 +766,8 @@ button:hover { border-color: var(--accent); }
 .older summary { margin: 0; }
 /* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
 .framed .layout { grid-template-columns: minmax(0, 1fr); }
-.framed #rail { position: static; max-height: none; overflow: visible; margin: 0; padding: 0; } .framed #rail.open { flex-basis: 100%; }
-.framed #rail-toggle { display: block; width: auto; border-radius: 999px; } .framed #rail:not(.open) #rail-panel { display: none; }
+.framed #rail { position: static; max-height: none; overflow: visible; margin: 0; padding: 0; max-width: 100%; } .framed #rail.open { flex-basis: 100%; }
+.framed #rail-toggle { display: block; width: auto; max-width: 100%; overflow-wrap: anywhere; border-radius: 999px; } .framed #rail:not(.open) #rail-panel { display: none; }
 .framed #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
 .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card.all { display: block; font-weight: 600; }

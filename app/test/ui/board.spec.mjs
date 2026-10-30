@@ -136,6 +136,19 @@ test('no side scroll with 300 folders over 12 repositories, folders of no reposi
   expect(await fits()).toBe(true);
 });
 
+test('framed at phone width, the project chip with a long chosen name wraps inside the frame', async ({ page }) => {
+  const long = `/work/${'verylongprojectname'.repeat(6)}`;
+  const html = boardHtml([row({ project: long, repo: long }), row()], NOW, reg(long, '/work/shop'));
+  await page.route('http://board.test/', (r) => r.fulfill({ body: '<iframe src="/board" style="width:390px;height:800px;border:0"></iframe>', contentType: 'text/html' }));
+  await page.route('http://board.test/board', (r) => r.fulfill({ body: html, contentType: 'text/html' }));
+  await page.goto('http://board.test/');
+  const board = page.frameLocator('iframe');
+  await board.locator('#rail-toggle').click();
+  await board.locator(`.card[title="${long}"]`).click();
+  await expect(board.locator('#rail-toggle')).toHaveText(/^verylongprojectname/);
+  expect(await board.locator('html').evaluate((d) => d.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
 test('the last choice is remembered, chosen with the keyboard, and named on the project page after a reload', async ({ page }) => {
   const html = boardHtml(fleet(), NOW, reg('/src/r3'));
   await page.route('http://board.test/', (r) => r.fulfill({ body: html, contentType: 'text/html' }));

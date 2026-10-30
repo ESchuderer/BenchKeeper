@@ -16,7 +16,8 @@ const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 // In command position only: at the start of a chain part, after variables or a runner (npx playwright test), also as the
 // start of a sh -c script (devcontainer exec ... sh -lc 'npm test'), not in quoted or echoed text.
-const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=\S+\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
+// A variable's value stops at the next separator, so a long chain of a=b parts is matched in linear time.
+export const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=[^\s;&|]*\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];

@@ -14,7 +14,7 @@ export function bypasses(text) {
     const t = part.trim().split(/\s+/).map((a) => a.replace(/^["']|["']$/g, ''));
     const commit = t.indexOf('commit');
     return SKIPS.test(part)
-      || (t[commit - 1] === 'git' && t.slice(commit + 1).some((a) => /^-[a-z]*n[a-z]*$/.test(a)))
+      || (t[commit - 1] === 'git' && t.slice(commit + 1).some((a) => /^-[a-z]+$/.test(a) && a.includes('n')))
       || (WRITERS.has(t[0]) && t.some((a) => /hooks?\//.test(a)));
   });
 }

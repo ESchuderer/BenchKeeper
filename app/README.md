@@ -154,11 +154,13 @@ The commands marked in the first table take `--json`. One JSON document on stdou
 | `projects advise [dir]` | `dir`, `agent`, `env` (`id`, `reason`, or null), `packs` (`id`, `reason`), `skills` (`name`, `reason`) |
 | `knowledge show` | `dir`, `path`, `present` (the folder exists), `files` (`name`, `entries`: the stored objects, token shapes in text masked), `ignored` (`name`, `reason`) |
 
+The exit codes are the same with and without `--json`.
+
 | Exit code | Meaning |
 |---|---|
 | 0 | clean: no finding of level error (warnings and info do not count) |
-| 1 | a finding of level error (`doctor`), a failed check (`verify`), a change that cannot be made (`plan`, `projects plan`), a run that did not finish (the changing commands); the list commands have no findings and exit 0 |
-| 2 | usage or read failure: an unknown option or command, an option or extra argument the command does not read (`<flag> does not belong to <command>`, `unexpected argument`), a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan`, `projects list`, `projects status`, `projects scan`, `insights` and `profile export`; an unknown `--only` group or a folder that does not exist for `projects audit`), `--json` on another command, a changing command under `--json` that would ask without `--yes`, and with `--json` an uncaught error |
+| 1 | a finding of level error (`doctor`), a failed check (`verify`), a change that cannot be made (`plan`, `projects plan`), a run that did not finish (the changing commands), in the terminal a question answered no; the list commands have no findings and exit 0 |
+| 2 | usage or read failure: an unknown option, command or subcommand, a name that does not exist (a skill, pack, automation template, run, account, setup.sh backup, or `sessions list --run` without sessions), an option or extra argument the command does not read (`<flag> does not belong to <command>`, `unexpected argument`), a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan`, `projects list`, `projects status`, `projects scan`, `insights` and `profile export`; an unknown `--only` group or a folder that does not exist for `projects audit`), `--json` on another command, a changing command under `--json` that would ask without `--yes`, and with `--json` an uncaught error |
 
 ## Web UI
 

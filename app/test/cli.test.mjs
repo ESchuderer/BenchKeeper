@@ -123,7 +123,7 @@ test('sessions list: cost and tokens per run, with --run per task; no worker tex
     '  task task_a: 2 sessions, $2.00, 230 tokens',
     '',
   ].join('\n'));
-  assert.equal(await c.exec(['sessions', 'list', '--run', 'nope']), 1);
+  assert.equal(await c.exec(['sessions', 'list', '--run', 'nope']), 2);
   assert.match(c.text(), /no sessions of run nope/);
   assert.ok(!c.text().includes(MARK));
 });
@@ -134,8 +134,28 @@ test('the old command names are unknown and the removed skill flags are refused'
     assert.equal(await c.exec(old), 2, old.join(' '));
     assert.match(c.text(), /unknown command/, old.join(' '));
   }
-  await assert.rejects(cli().exec(['projects', 'apply', '--disable', 'x']), /Unknown option '--disable'/);
-  await assert.rejects(cli().exec(['projects', 'apply', '--enable', 'x']), /Unknown option '--enable'/);
+  await assert.rejects(cli().exec(['projects', 'apply', '--disable', 'x']), { message: 'unknown option --disable for projects apply, see benchkeeper --help' });
+  await assert.rejects(cli().exec(['projects', 'apply', '--enable', 'x']), { message: 'unknown option --enable for projects apply, see benchkeeper --help' });
+});
+
+test('a name that does not exist and an unknown option exit 2 with and without --json; --version prints the version', async () => {
+  for (const args of [['skills', 'show', 'nope'], ['automations', 'show', 'nope'], ['sessions', 'list', '--run', 'nope'], ['history', 'show', 'nope'], ['undo', 'nope'], ['accounts', 'status', 'ghost']]) {
+    assert.equal(await cli().exec(args), 2, args.join(' '));
+    const j = cli();
+    assert.equal(await j.exec([...args, '--json']), 2, `${args.join(' ')} --json`);
+    assert.ok(JSON.parse(j.text()).error, `${args.join(' ')} --json`);
+  }
+  await assert.rejects(cli().exec(['doctor', '--x']), { message: 'unknown option --x for doctor, see benchkeeper --help' });
+  const j = cli();
+  assert.equal(await j.exec(['skills', 'list', '--x', '--json']), 2);
+  assert.equal(JSON.parse(j.text()).error, 'unknown option --x for skills list, see benchkeeper --help');
+  const v = cli();
+  assert.equal(await v.exec(['--version']), 0);
+  assert.match(v.text(), /^\d+\.\d+\.\d+\S*\n$/);
+  const p = cli();
+  assert.equal(await p.exec(['projects', 'nope', '--json']), 2);
+  assert.equal(JSON.parse(p.text()).error, 'unknown projects command nope');
+  assert.equal(await p.exec(['projects', 'nope']), 2);
 });
 
 test('sessions record runs the command after -- and records its files; sessions without a subcommand is a usage error', async () => {

@@ -319,12 +319,12 @@ test('limits: defaults, per-account values, the pool, and the refusals', skip, a
   assert.equal(listAccounts(m.ctx)[0].pool, 'me');
   // Refusals leave the file alone.
   const before = readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8');
-  for (const [args, message] of [
+  for (const [args, message, code] of [
     [['--five-hour', '150'], /--five-hour is a percentage/], [['--seven-day', ''], /--seven-day is a percentage/], [['--auto-pick', 'maybe'], /--auto-pick is on or off/],
     [['--when-none', 'sleep'], /--when-none is stop or wait/], [['work', '--auto-pick', 'on'], /settings for all accounts/], [['--pool', 'me'], /belong to one account/],
-    [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/]]) {
+    [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/, 2]]) {
     const r = cli(m);
-    assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), 1, `${args.join(' ')}: ${r.text()}`);
+    assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), code ?? 1, `${args.join(' ')}: ${r.text()}`);
     assert.match(r.text(), message);
   }
   assert.equal(readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8'), before);

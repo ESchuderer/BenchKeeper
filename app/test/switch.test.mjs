@@ -275,7 +275,7 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
   assert.equal((await cli(r, ['packs', 'remove', 'ui-a'])).code, 0);
   for (const [args, code, text] of [
     [['packs', 'enable'], 2, /needs a pack id/],
-    [['packs', 'enable', 'nope', '--project', r.dir], 1, /unknown pack nope/],
+    [['packs', 'enable', 'nope', '--project', r.dir], 2, /unknown pack nope/],
     [['packs', 'enable', 'ui-b', '--project', r.dir, '--global'], 2, /exclude each other/],
     [['packs', 'enable', 'frontend', '--global'], 1, /per project, not on the machine/],
     [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 1, /has no setup yet/],

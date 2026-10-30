@@ -164,7 +164,18 @@ if (DEMO) {
   mkdirSync(acct('personal'), { recursive: true });
   mkdirSync(join(acct('work'), 'benchkeeper'), { recursive: true });
   const hour = Math.ceil(Date.now() / 3600e3) * 3600;
+  // The usage script accounts track installs: Preferences shows the status line select of work.
+  writeFileSync(join(acct('work'), 'benchkeeper/usage.mjs'), '');
   writeFileSync(join(acct('work'), 'benchkeeper/usage.json'), JSON.stringify({ checkedAt: new Date().toISOString(), fiveHour: { used: 28, resetsAt: hour + 2 * 3600 }, sevenDay: { used: 59, resetsAt: hour + 4 * 86400 } }));
+}
+
+// Claude Code's auto memory of shop, for the Rules view: an index and two topic notes.
+if (DEMO) {
+  const memory = join(home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory');
+  mkdirSync(memory, { recursive: true });
+  writeFileSync(join(memory, 'MEMORY.md'), '- [Cart totals](cart.md)\n- [Release steps](release.md)\n');
+  writeFileSync(join(memory, 'cart.md'), '# Cart totals\n\nTotals round per line, then sum.\n');
+  writeFileSync(join(memory, 'release.md'), '# Release steps\n\nTag after the changelog.\n');
 }
 
 // Claude Code and Codex transcripts for the Sessions board, dated relative to the start so the period filter keeps them.

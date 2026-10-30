@@ -118,12 +118,13 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'rules', view: 'rules', title: 'Rules', shot: 'rules',
-    alt: 'The Rules view: the Claude Code context budget in tokens per source, then the instruction files in load order with owner, size, state and a switch for a file that is not BenchKeeper\'s.',
+    alt: 'The Rules view: the Claude Code context budget in tokens per source, then the auto memory per project with its number of notes, size, last change and whether MEMORY.md is within the load limit.',
     text: [
       'The instruction files Claude Code and Codex load, in load order, with owner (BenchKeeper, project or yours), size and whether each loads. The context budget sums the tokens that load at the start of every session, counted as four bytes per token.',
+      'Claude Code\'s auto memory shows per project in numbers only: topic notes, total size, last change and whether MEMORY.md is over what loads. The notes stay unread, and where auto memory is off the row says so.',
       'A file that is not BenchKeeper\'s has a switch; nothing here deletes it. A switch is a plan with a diff, and History undoes it.',
     ],
-    cli: [`${V} rules list`, `${V} rules disable <file>`],
+    cli: [`${V} rules list`, `${V} rules check`, `${V} rules disable <file>`],
   },
   {
     id: 'extensions', view: 'extensions', title: 'Extensions', shot: 'extensions',
@@ -164,12 +165,13 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'preferences', view: 'settings', title: 'Preferences', shot: 'preferences',
-    alt: 'The Preferences view: the Profile section with the Export profile and Import profile buttons and their commands, then the keyboard shortcuts table and the switch for the / key.',
+    alt: 'The Preferences view: Views and their cost with the terminal tier strip switch and the status line select of the tracked account work, then the sessions history, the Advanced switch for editors and the config files.',
     text: [
       'Export profile writes the agents, packs, own packs and registered projects with their answers as one file, without file contents, environment values or tokens; Import profile shows the changes it would make on this machine first.',
       'The keyboard shortcuts, the switch for the / key that opens the command palette, the terminal tier strip, how long the sessions cache keeps summaries, the Advanced editors and the files the app keeps in its config folder.',
+      'Each account that accounts track set up has a status line select: usage windows and Ponytail level, one of them, or nothing. It changes that account\'s settings.json as a plan with undo.',
     ],
-    cli: [`${V} profile export <file>`, `${V} profile import <file>`, `${V} sessions cache show`],
+    cli: [`${V} profile export <file>`, `${V} profile import <file>`, `${V} sessions cache show`, `${V} accounts track <name>`],
   },
   {
     id: 'history', view: 'history', title: 'History and undo', shot: 'history',
@@ -184,10 +186,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     id: 'doctor', view: 'dashboard', title: 'Doctor', shot: 'doctor',
     alt: 'The Doctor table: a level (error, warning or info), the problem, and a fix column that holds a Plan fix button or the step to do by hand.',
     text: [
-      'The doctor checks the setup against what is installed: rules that differ from the setup, missing plugins and skills, a missing container engine, environment variables that turn features off. Each finding has a level: error, warning or info.',
+      'The doctor checks the setup against what is installed: rules that differ from the setup, missing plugins and skills, a missing container engine, environment variables that turn features off. On Linux it counts dev containers whose folder was removed, which containers reconcile stops and removes. Each finding has a level: error, warning or info.',
       'A finding the setup can fix has a Plan fix button that opens the plan, a settings finding opens Agent settings with its documentation link. The others carry the step to do by hand.',
     ],
-    cli: [`${V} doctor`],
+    cli: [`${V} doctor`, `${V} containers reconcile --dry-run`, `${V} containers reconcile`],
   },
 ];
 

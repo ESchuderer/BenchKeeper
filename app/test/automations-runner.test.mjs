@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { automationChecks, automationDiff, automationRuns, automationStatus, installChanges, readRegistry, registryFile, removeChanges, updateChanges, userDir } from '../src/automations.mjs';
@@ -129,6 +129,16 @@ test('status and doctor report drift: an edited prompt, a changed schedule, a re
   mkdirSync(m.ctx.config, { recursive: true });
   writeFileSync(registryFile(m.ctx), readFileSync(registryFile(w.ctx)));
   assert.deepEqual(automationStatus(m.ctx).map((r) => [r.state, r.note]), [['unknown', notInstalled(m.ctx)]]);
+});
+
+test('doctor: an installed automation whose template is gone is unknown with the reason, and remove still plans', () => {
+  const w = world();
+  install(w);
+  rmSync(join(userDir(w.ctx), 'alpha.md'));
+  assert.deepEqual(automationStatus(w.ctx).map((r) => [r.state, r.note]), [['unknown', 'no automation template alpha, see benchkeeper automations list']]);
+  assert.deepEqual(automationChecks(w.ctx).map((f) => [f.level, f.message, f.fix]),
+    [['warning', 'automation alpha is unknown: no automation template alpha, see benchkeeper automations list', 'benchkeeper automations status']]);
+  assert.deepEqual(all(removeChanges(w.ctx, 'alpha')), ['automation:alpha:runner', 'automation:alpha:registry', 'automation:alpha:helpers']);
 });
 
 test('the last run that was not skipped and the skipped runs since, as the runner reports them; no history is a note', () => {

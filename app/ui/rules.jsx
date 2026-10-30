@@ -3,6 +3,7 @@ import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
+import { when } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
@@ -163,6 +164,26 @@ function Budget({ budget }) {
   );
 }
 
+// The auto memory folders with notes, in numbers only: read-only, the notes stay with Claude Code.
+const Memory = ({ memory }) => (
+  <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Auto memory per project, scrollable' } }}>
+    <Table aria-label="Auto memory per project" verticalSpacing="xs">
+      <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th ta="right">Notes</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>Last change</Table.Th><Table.Th>MEMORY.md</Table.Th></Table.Tr></Table.Thead>
+      <Table.Tbody>
+        {memory.map((m) => (
+          <Table.Tr key={m.path}>
+            <Table.Td><Code style={{ overflowWrap: 'anywhere' }}>{m.project}</Code></Table.Td>
+            <Table.Td ta="right">{number(m.notes)}</Table.Td>
+            <Table.Td ta="right">{number(m.bytes)} bytes</Table.Td>
+            <Table.Td>{when(m.changed)}</Table.Td>
+            <Table.Td><Badge variant="default" miw="max-content" leftSection={<Dot color={m.over ? 'yellow' : 'teal'} />}>{m.over ? 'over the load limit' : 'within the load limit'}</Badge></Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  </Table.ScrollContainer>
+);
+
 // pending: the open plan; its row's switch shows it (PlanSwitch).
 function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
@@ -226,6 +247,12 @@ export function Rules({ overview, params, refresh, project }) {
               <Stack key={a.id} gap="md">
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
+                {a.memory?.length > 0 && (
+                  <Section title={`${a.name} auto memory`}>
+                    <Text size="sm">Notes are the topic files beside MEMORY.md, which load on demand. Claude Code loads the first 200 lines or 25 KB of MEMORY.md at the start of a session.</Text>
+                    <Memory memory={a.memory} />
+                  </Section>
+                )}
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
                   <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
                 </Section>

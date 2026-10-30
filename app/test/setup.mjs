@@ -8,5 +8,5 @@ process.env.BENCHKEEPER_SKILLS_CLI = '1.7.2';
 // Tests leave their mkdtemp folders behind: each test process (and its children) gets its own temp folder, removed on exit.
 // shortcut: a killed process (Stryker timeout, kill -9, Ctrl-C) skips the exit handler and leaves its one folder; add a sweep of old bk-run-* folders if they pile up.
 const dir = mkdtempSync(join(tmpdir(), 'bk-run-'));
-process.env.TMPDIR = process.env.TEMP = process.env.TMP = dir;
+Object.assign(process.env, { TMPDIR: dir, TEMP: dir, TMP: dir });
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));

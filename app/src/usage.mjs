@@ -165,7 +165,7 @@ const SAFE = /^[\w ./\\:@+~-]+$/;
 const status = (script) => ({ type: 'command', command: `node "${script}" statusline` });
 const hook = (script, matcher = FAILURES.join('|')) => ({ matcher, hooks: [{ type: 'command', command: `node "${script}" failure` }] });
 // A status line that runs Ponytail's script and nothing else: the usage script draws its badge too (plugin option statusStyle).
-const PONYTAIL_LINE = /^[^;&|`()<>\n]*ponytail-statusline\.(?:sh|ps1)["']?\s*$/;
+const PONYTAIL_LINE = /^[^;&|`()<>\n]*(?<![\w.-])ponytail-statusline\.(?:sh|ps1)["']?\s*$/;
 const REPLACED = 'benchkeeperReplacedStatusLine';
 // The account's settings.json with the status line and the StopFailure hook (remove: without them). An existing status line of
 // another kind is not replaced: the agent has one only. Ponytail's own is replaced and kept under REPLACED, which remove writes

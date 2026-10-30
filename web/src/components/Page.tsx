@@ -23,7 +23,7 @@ const MORE_FEATURES: [string, string, string][] = [
   ['Rules', '/app/#rules', 'See which instruction files each agent loads, in load order, with their owner and the tokens they add to every session.'],
   ['Doctor', '/app/#doctor', 'Find rules that differ from the setup, missing plugins and skills and environment variables that turn features off, each with a planned fix or the step to do by hand.'],
   ['Lite install', '#levels', 'Install only the BenchKeeper plugin with `--level lite`: nothing else is written besides the app\'s run record for undo.'],
-  ['Benchmark evidence', 'https://github.com/ESchuderer/BenchKeeper-research', 'Read the recorded benchmark results and the tooling that compares agent setups on the same task.'],
+  ['Benchmark evidence', '/benchmark/', 'Read the recorded benchmark results and the tooling that compares agent setups on the same task.'],
 ];
 const PART_ICONS: Record<string, ReactNode> = {
   rules: <IconFileText size={20} />, workflow: <IconListCheck size={20} />, mattpocock: <IconSchool size={20} />,

@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 import facts from '../src/data/facts.json' with { type: 'json' };
 
-test('the overview page has no benchmark or evaluation link or text', async ({ page }) => {
+test('the overview page has no benchmark or evaluation link or text in its content', async ({ page }) => {
   await page.goto('./overview/');
   await expect(page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]')).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText(/benchmark|evaluation|\beval/i);
+  await expect(page.locator('main')).not.toContainText(/benchmark|evaluation|\beval/i);
 });
 
 test('every step link of the workflow ring reaches its step on the overview page', async ({ page }) => {
@@ -29,7 +29,9 @@ test('the homepage features start with the overview cards, each linked to its ca
   expect(hrefs.slice(0, ids.length).map((h) => h.split('#')[1])).toEqual(ids);
   for (const href of hrefs.slice(ids.length)) {
     if (href.startsWith('http')) continue;
-    await page.goto(href);
-    await expect(page.locator(`#${href.split('#')[1]}`)).toHaveCount(1);
+    const res = await page.goto(href);
+    const id = href.split('#')[1];
+    if (id) await expect(page.locator(`#${id}`)).toHaveCount(1);
+    else expect(res?.ok()).toBe(true);
   }
 });

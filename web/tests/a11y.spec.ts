@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const [name, path] of [['main page', './'], ['app page', './app/'], ['overview page', './overview/'], ['writes page', './writes/'], ['changelog page', './changelog/'], ['404 page', './404.html']]) {
+for (const [name, path] of [['main page', './'], ['app page', './app/'], ['overview page', './overview/'], ['writes page', './writes/'], ['changelog page', './changelog/'], ['benchmark page', './benchmark/'], ['404 page', './404.html']]) {
   for (const scheme of ['light', 'dark']) {
     for (const width of [undefined, 390]) {
       test(`no axe violations on the ${name} in ${scheme} mode${width ? ` at ${width} px` : ''}`, async ({ page }) => {

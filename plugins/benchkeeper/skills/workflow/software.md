@@ -4,7 +4,6 @@
 
 The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [full-tier.md](full-tier.md). Standard: for a refactor the suite passes before and after with tests unchanged. Detail:
 
-- **Issue**: title, goal, acceptance criteria, tasks. Creating or editing one needs the user's approval of that plan; declined, continue without. Orca and other runners pick work up from the issue, so its tasks stay current.
 - **Branch**: on the default branch, create `<type>/<issue>-<slug>` (or `<type>/<slug>`) before the first edit.
 - **Commits**: Conventional Commits, `Refs #<issue>` in the footer when an issue exists.
 - **Review before pushing** standard, full or risky work. First a scope line: the branch or diff range and the issue it implements, when one exists. Depth: standard one correctness pass, fixes made once; full the rounds in [full-tier.md](full-tier.md), plus a security pass when risky; quick none. Claude Code: the built-in `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over the changed assets, trust boundaries and failure modes (authentication, permissions, secrets and input handling among them). Docs-only changes skip this unless risky.

@@ -382,10 +382,9 @@
       {
         "name": "Understand",
         "phase": "define",
-        "sub": "request, issue, on-ramps",
-        "human": "approve issue",
-        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, plan mode, then a GitHub issue you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval.",
+        "sub": "request, questions, on-ramps",
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, then plan mode.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, then explores in plan mode.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/software.md#steps"
@@ -396,8 +395,8 @@
         "phase": "define",
         "sub": "plan, spec, tickets",
         "human": "approve the plan",
-        "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec in the issue, terms and decisions recorded. Several sessions: one ticket per testable slice.",
-        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
+        "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec, terms and decisions recorded. Several sessions: one ticket per testable slice.",
+        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/full-tier.md"

@@ -85,9 +85,10 @@ export function Surfaces() {
   // While a plan is asked for, the switch ignores input: a second answer could replace a plan that already applies.
   const [asking, setAsking] = useState(false);
   // why: the sentence the plan shows; on: set for the tier strip switch only.
-  const ask = async (key, value, why, on) => {
+  // route and body: the status line style plans in an account's settings.json, not in the user settings.
+  const ask = async (key, value, why, on, route = '/api/settings-plan', body = { agent: 'claude', layer: 'user', edits: { [key]: value } }) => {
     setError(null); setPlan(null); setAsking(true);
-    try { setPlan({ key, value, why, on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [key]: value } }) }); } catch (e) { setError(e.message); }
+    try { setPlan({ key, value, why, on, plan: await api(route, body) }); } catch (e) { setError(e.message); }
     setAsking(false);
   };
   const pending = (key) => (plan && !plan.done && plan.key === key ? plan : null);
@@ -103,12 +104,15 @@ export function Surfaces() {
         <PlanSwitch name="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." on={b.on}
           pending={pending(b.key)} off={running || asking} onAsk={(on) => ask(b.key, on, `You turned the tier strip ${on ? 'on' : 'off'} in Preferences.`, on)} onClear={() => setPlan(null)} />
       )}</Loading>
-      <Loading state={style} label="status line setting">{(st) => (
-        <Select label="Status line of tracked accounts" maw={420} allowDeselect={false} disabled={running || asking}
-          description={pending(st.key) ? 'Apply or cancel in Changes below' : 'The plugin option in your Claude Code user settings, read by the status line that accounts track installs. Usage is recorded in every style.'}
-          data={[{ value: 'merged', label: 'Usage and Ponytail level' }, { value: 'plugin', label: 'Ponytail level only' }, { value: 'benchkeeper', label: 'Usage only' }, { value: 'none', label: 'Nothing' }]}
-          value={pending(st.key)?.value ?? st.value} onChange={(v) => (v === st.value ? setPlan(null) : ask(st.key, v, `You chose the status line style ${v} in Preferences.`))} />
-      )}</Loading>
+      <Loading state={style} label="status line setting">{(st) => (st.accounts.length ? st.accounts.map((a) => {
+        const key = `${st.key}:${a.name}`;
+        return (
+          <Select key={a.name} label={`Status line of account ${a.name}`} maw={420} allowDeselect={false} disabled={running || asking}
+            description={pending(key) ? 'Apply or cancel in Changes below' : <>The plugin option in <Code>{a.file}</Code>, which this account's status line reads. Usage is recorded in every style.</>}
+            data={[{ value: 'merged', label: 'Usage and Ponytail level' }, { value: 'plugin', label: 'Ponytail level only' }, { value: 'benchkeeper', label: 'Usage only' }, { value: 'none', label: 'Nothing' }]}
+            value={pending(key)?.value ?? a.value} onChange={(v) => (v === a.value ? setPlan(null) : ask(key, v, `You chose the status line style ${v} for account ${a.name} in Preferences.`, undefined, '/api/status-style', { account: a.name, value: v }))} />
+        );
+      }) : <Text size="sm">Status line: <Code>benchkeeper accounts track &lt;name&gt;</Code> installs it in an account; its style is chosen here then.</Text>)}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
       {plan && (
         <Section title="Changes">

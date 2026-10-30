@@ -66,7 +66,7 @@ function Part({ icon, title, href, scope, children }: { icon: ReactNode; title: 
 const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
 export const half = Math.ceil(facts.sdlc.steps.length / 2);
 
-export const SDLC_INTRO = 'The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.';
+export const SDLC_INTRO = 'The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.';
 
 export function StepList({ from, className }: { from: number; className?: string }) {
   return (

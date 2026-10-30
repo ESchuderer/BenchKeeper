@@ -4,7 +4,6 @@
 
 The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [full-tier.md](full-tier.md). Standard: for a refactor the suite passes before and after with tests unchanged. Detail:
 
-- **Branch**: on the default branch, create `<type>/<issue>-<slug>` (or `<type>/<slug>`) before the first edit.
 - **Commits**: Conventional Commits, `Refs #<issue>` in the footer when an issue exists.
 - **Review before pushing** standard, full or risky work. First a scope line: the branch or diff range and the issue it implements, when one exists. Depth: standard one correctness pass, fixes made once; full the rounds in [full-tier.md](full-tier.md), plus a security pass when risky; quick none. Claude Code: the built-in `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over the changed assets, trust boundaries and failure modes (authentication, permissions, secrets and input handling among them). Docs-only changes skip this unless risky.
 - **Pull request**, when the project uses them: body with the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert. After pushing, wait for the checks (step 5 of [SKILL.md](SKILL.md)). Review comments and failing checks: new commits on the same branch.
@@ -47,7 +46,7 @@ Sets the tier when the user named none, and the check before done. Never run a c
 | Schema migration | full | expand and contract, migrate a throwaway database |
 | Production data fix | full | dry run on a copy, the user runs it |
 | Auth, permissions, secrets, input validation | full | tests for denied paths |
-| Review-thread follow-up on an open pull request | standard, no issue or branch step | the fix verified, each thread answered |
+| Review-thread follow-up on an open pull request | standard | the fix verified, each thread answered |
 | CI fix | quick | the failing check rerun |
 | Merge conflict | quick | resolved the way the repository's conventions say, checks rerun |
 | Live-system change or incident | full when secrets, data or production configuration are touched, else by the table | backup first, verify live, record in the repository docs |

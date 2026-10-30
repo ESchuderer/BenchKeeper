@@ -405,9 +405,9 @@
       {
         "name": "Build",
         "phase": "build",
-        "sub": "branch, tests first",
-        "tip": "Every tier: a branch off the default branch. Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
-        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
+        "sub": "tests first",
+        "tip": "Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
+        "text": "Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/software.md#steps",
           "docs/stack.md#components"

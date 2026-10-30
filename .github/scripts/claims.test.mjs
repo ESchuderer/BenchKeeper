@@ -56,4 +56,5 @@ test('failing fixture: each kind of bad evidence is reported', () => {
   assert.match(check({ quickstart: { paths: [{ steps: [{ text: 'Runs.' }] }] } })[0], /facts\.quickstart\.paths\[0\]\.steps\[0\]: no evidence/);
   assert.match(check({ evidence: { tagline: 'docs/setup.md' } })[0], /facts\.evidence\["tagline"\]: no such string claim/);
   assert.match(check({ pricing: 'Costs less.' })[0], /facts\.pricing: not a known claim/);
+  assert.match(check({ parts: [{ title: 'Demo', text: 'Installs a thing.' }] })[0], /facts\.parts\[0\] "Demo": no evidence/);
 });

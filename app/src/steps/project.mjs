@@ -196,11 +196,12 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), fileOn, fileOff (agent files switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
+// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), workflowLoad (default true: the
+// rule line that loads the workflow skill), callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -211,6 +212,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.guards = a.guards !== false;
+  a.workflowLoad = a.workflowLoad !== false;
   a.agentFiles = [...new Set([...[a.agentFiles].flat(), ...fileOn])].filter((p) => !fileOff.includes(p));
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
@@ -357,8 +359,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
-  const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
-  const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, ''));
+  const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
+  const ruleLines = forAgent(rules, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]).split('\n').map((l) => l.replace(/^- /, ''));
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
   const lines = (run) => [...ruleLines, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
@@ -563,7 +565,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });

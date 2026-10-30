@@ -14,7 +14,7 @@ import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState } from './steps/project.mjs';
 
 const PROFILE_SCHEMA = 1;
-const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'agentFiles'];
+const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'workflowLoad', 'agentFiles'];
 
 // The optional packs whose plugin is installed: the profile's global packs.
 export function installedPacks(ctx) {

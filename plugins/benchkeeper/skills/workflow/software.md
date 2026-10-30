@@ -39,4 +39,4 @@ A follow-up commit on an open pull request keeps its tier and needs no workflow 
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also in a browser (Playwright MCP) next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted.
+The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.

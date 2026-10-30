@@ -311,6 +311,21 @@ test('a second plan reads the answers from the state file', () => {
   assert.equal(readState(r.dir).tier, '');
 });
 
+test('the workflow load line: on by default, off per project and kept off, on again', () => {
+  const r = repo();
+  const block = () => readFileSync(join(r.dir, 'AGENTS.md'), 'utf8');
+  apply(preview(plan(r, { agents: ['claude'], share: true }).changes), r.ctx, { scope: r.dir });
+  assert.match(block(), /load the `benchkeeper:workflow` skill/);
+  assert.equal(readState(r.dir).workflowLoad, undefined);
+  apply(preview(plan(r, { workflowLoad: false }).changes), r.ctx, { scope: r.dir });
+  assert.doesNotMatch(block(), /workflow` skill/);
+  assert.match(block(), /fix the cause/, 'the other rule lines stay');
+  assert.equal(readState(r.dir).workflowLoad, false);
+  assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), [], 'a later plan keeps it off');
+  apply(preview(plan(r, { workflowLoad: true }).changes), r.ctx, { scope: r.dir });
+  assert.match(block(), /load the `benchkeeper:workflow` skill/);
+});
+
 test('packs with plugins install them and list their prompts', () => {
   const r = repo();
   const p = plan(r, { agents: ['claude'], packs: ['matt-pocock'] });

@@ -1,6 +1,7 @@
 // Writes the current app version into the install commands of the docs (not the plugin's skill text): `npx benchkeeper@<version>` and the clone
 // tag `--branch app-v<version>` (older pins name `setup-v`). Other version mentions (benchmark arms, history) stay as written.
-// Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs)
+// Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs, or when the dev container's Playwright differs
+// from @playwright/test in web/ or app/)
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -14,6 +15,13 @@ export function pins(text, version) {
   return text
     .replace(/npx benchkeeper@\d+\.\d+\.\d+/g, `npx benchkeeper@${version}`)
     .replace(/--branch (setup|app)-v\d+\.\d+(\.\d+)?/g, `--branch app-v${version}`);
+}
+
+// Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
+export function playwrightDrift(dockerfile, packages) {
+  // From the install command, not a comment; the whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
+  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
+  return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -30,5 +38,17 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv[2] === '--check' && stale.length) {
     console.log(`::error::install commands name another version than app/package.json (${version}) in ${stale.join(', ')}: run node .github/scripts/version-pins.mjs`);
     process.exit(1);
+  }
+  if (process.argv[2] === '--check') {
+    const packages = Object.fromEntries(['web/package.json', 'app/package.json'].map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
+    const { image, drift } = playwrightDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), packages);
+    if (!image) {
+      console.log('::error::found no playwright@<version> in .devcontainer/Dockerfile');
+      process.exit(1);
+    }
+    if (drift.length) {
+      console.log(`::error::@playwright/test in ${drift.join(', ')} differs from playwright@${image} in .devcontainer/Dockerfile: set them equal`);
+      process.exit(1);
+    }
   }
 }

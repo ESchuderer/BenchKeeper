@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -13,10 +13,11 @@ import { context } from '../src/runner.mjs';
 
 // A fake podman with five containers: running and stopped ones of an existing worktree, a running and a stopped one of a
 // removed worktree, one of a folder whose parent is gone too (an unmounted drive), and one without the workspace label.
-function machine({ ps = 0, inspect = 0, rm = 0 } = {}) {
+// extra(root) adds rows [id, running, folder].
+function machine({ ps = 0, inspect = 0, rm = 0, extra = () => [] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bk-ctr-')), live = join(root, 'wt', 'live'), gone = join(root, 'wt', 'gone');
   mkdirSync(live, { recursive: true });
-  const rows = [['a1', true, live], ['a2', false, live], ['b1', true, gone], ['b2', false, gone], ['c1', true, join(root, 'drive', 'x')], ['d1', true, '<no value>']];
+  const rows = [['a1', true, live], ['a2', false, live], ['b1', true, gone], ['b2', false, gone], ['c1', true, join(root, 'drive', 'x')], ['d1', true, '<no value>'], ...extra(root)];
   const calls = [];
   const run = (argv) => {
     calls.push(argv);
@@ -86,6 +87,22 @@ test('reconcile removes only containers of a removed folder whose parent exists;
   assert.deepEqual(done.map((c) => c.removed), [true, true]);
   assert.deepEqual(m.calls.filter((c) => c[1] === 'rm'), [['podman', 'rm', '-f', 'b1full'], ['podman', 'rm', '-f', 'b2full']]);
   assert.throws(() => reconcile(machine({ ps: 1 }).ctx, 'podman'), /podman cannot list the containers/);
+});
+
+test('reconcile keeps a container whose folder it cannot read, that is not an absolute path or lies outside the home folder; doctor counts them', { skip: process.platform !== 'linux' && 'Linux only' }, () => {
+  const outside = mkdtempSync(join(tmpdir(), 'bk-out-'));
+  const m = machine({ extra: (root) => {
+    mkdirSync(join(root, 'locked', 'proj'), { recursive: true });
+    chmodSync(join(root, 'locked'), 0o600);
+    return [['e1', true, join(root, 'locked', 'proj')], ['e2', true, 'C:\\Users\\x\\proj'], ['e3', true, 'wt/gone'], ['e4', true, join(outside, 'gone')]];
+  } });
+  // root reads any folder, so the permission case only holds for another user.
+  const root = process.getuid?.() === 0;
+  assert.deepEqual(reconcile(m.ctx, 'podman').map((c) => c.id), ['b1full', 'b2full']);
+  assert.deepEqual(m.calls.filter((c) => c[1] === 'rm').map((c) => c[3]), ['b1full', 'b2full']);
+  const found = containerChecks(m.ctx, 'podman', { platform: 'linux', proc: m.proc });
+  assert.equal(found[2].message, `${root ? 3 : 4} dev containers whose folder could not be checked (outside the home folder, not a path of this system or not readable), which reconcile leaves alone`);
+  chmodSync(join(m.root, 'locked'), 0o700);
 });
 
 test('benchkeeper containers reconcile prints each container and the count, exit 1 when a removal fails', { skip: process.platform !== 'linux' && 'Linux only' }, async () => {

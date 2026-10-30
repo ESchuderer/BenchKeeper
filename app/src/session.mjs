@@ -1,8 +1,8 @@
 // Records what an interactive agent session changes in a project: a snapshot before and after, the changed files,
 // the exit code and the agent's transcript. Undo restores the files from the snapshot before (runner.undo).
-import { openSync, readSync, closeSync, readdirSync, statSync } from 'node:fs';
+import { openSync, readSync, closeSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { realish } from './fsx.mjs';
+import { realish, walkDir } from './fsx.mjs';
 import { changedFiles, isRepo, repoRoot, snapshot } from './git.mjs';
 import { SCHEMA, runId } from './ledger.mjs';
 import { redactArgv } from './redact.mjs';
@@ -24,15 +24,9 @@ function codexCwd(file) {
 export function transcript(home, dir, since, agent) {
   const claude = join(home, '.claude/projects', dir.replace(/[^a-zA-Z0-9]/g, '-'));
   const found = [];
-  const scan = (d, depth) => {
-    let entries = [];
-    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      const p = join(d, e.name);
-      if (e.isDirectory() && depth > 0) scan(p, depth - 1);
-      else if (e.name.endsWith('.jsonl')) { try { const t = statSync(p).mtimeMs; if (t >= since) found.push([t, p]); } catch { /* a dangling link */ } }
-    }
-  };
+  const scan = (d, depth) => walkDir(d, depth, (e, p) => {
+    if (e.name.endsWith('.jsonl')) { try { const t = statSync(p).mtimeMs; if (t >= since) found.push([t, p]); } catch { /* a dangling link */ } }
+  });
   if (agent === 'claude') scan(claude, 0);
   else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => { const cwd = codexCwd(p); return typeof cwd === 'string' && realish(cwd) === realish(dir); })); }
   return found.sort((a, b) => b[0] - a[0])[0]?.[1] ?? null;

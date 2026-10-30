@@ -27,6 +27,18 @@ export function listFiles(dir, base = dir) {
   });
 }
 
+// Calls visit(entry, path) for each entry under dir that is not a folder to go into: folders are entered depth levels
+// down. An unreadable folder is skipped.
+export function walkDir(dir, depth, visit) {
+  let entries = [];
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory() && depth > 0) walkDir(p, depth - 1, visit);
+    else visit(e, p);
+  }
+}
+
 // A link to a file stands for that file: writes go through it, so a dotfiles link stays a link.
 export const real = (p) => (isLink(p) && existsSync(p) && !isDir(p) ? realpathSync(p) : resolve(p));
 

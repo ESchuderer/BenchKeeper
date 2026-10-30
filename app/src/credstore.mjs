@@ -32,6 +32,20 @@ export function credentialStore(run, { platform = process.platform, env = proces
     if (!/^[\w.-]{1,64}$/.test(name)) throw new StoreError('invalid account name');
     if (token !== undefined && !TOKEN.test(token)) throw new StoreError('the token has an unexpected shape: nothing was stored');
   };
+  // get answers the token on stdout; delete is confirmed by a lookup after it.
+  const lookup = (getArgv, deleteArgv, notDeleted) => ({
+    get(name) {
+      check(name);
+      const r = call(getArgv(name));
+      return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
+    },
+    has(name) { return this.get(name) !== null; },
+    delete(name) {
+      check(name);
+      call(deleteArgv(name));
+      if (this.has(name)) throw new StoreError(notDeleted);
+    },
+  });
   if (platform === 'linux') {
     const attrs = (name) => ['service', SERVICE, 'account', name];
     return {
@@ -41,17 +55,8 @@ export function credentialStore(run, { platform = process.platform, env = proces
         const r = call(['secret-tool', 'store', `--label=BenchKeeper ${name}`, ...attrs(name)], token);
         if (r.code !== 0) throw new StoreError('the secret service did not store the token (is a keyring running and unlocked?)');
       },
-      get(name) {
-        check(name);
-        const r = call(['secret-tool', 'lookup', ...attrs(name)]);
-        return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
-      },
-      has(name) { return this.get(name) !== null; },
-      delete(name) {
-        check(name);
-        call(['secret-tool', 'clear', ...attrs(name)]);
-        if (this.has(name)) throw new StoreError('the secret service did not delete the token: delete it there by hand (it is stored under the service name benchkeeper)');
-      },
+      ...lookup((name) => ['secret-tool', 'lookup', ...attrs(name)], (name) => ['secret-tool', 'clear', ...attrs(name)],
+        'the secret service did not delete the token: delete it there by hand (it is stored under the service name benchkeeper)'),
     };
   }
   if (platform === 'darwin') {
@@ -64,17 +69,8 @@ export function credentialStore(run, { platform = process.platform, env = proces
         const r = call(['security', '-i'], `add-generic-password -U ${target(name)} -w "${token}"\n`);
         if (r.code !== 0) throw new StoreError('the keychain did not store the token');
       },
-      get(name) {
-        check(name);
-        const r = call(['security', 'find-generic-password', '-s', SERVICE, '-a', name, '-w']);
-        return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
-      },
-      has(name) { return this.get(name) !== null; },
-      delete(name) {
-        check(name);
-        call(['security', 'delete-generic-password', '-s', SERVICE, '-a', name]);
-        if (this.has(name)) throw new StoreError('the keychain did not delete the token: delete it in Keychain Access (service benchkeeper)');
-      },
+      ...lookup((name) => ['security', 'find-generic-password', '-s', SERVICE, '-a', name, '-w'], (name) => ['security', 'delete-generic-password', '-s', SERVICE, '-a', name],
+        'the keychain did not delete the token: delete it in Keychain Access (service benchkeeper)'),
     };
   }
   return refuse(`no credential store is supported on ${platform}: the token is not kept (sign in with accounts login instead)`);

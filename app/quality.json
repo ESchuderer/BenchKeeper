@@ -83,7 +83,14 @@
       "floor": 76.51
     },
     "runner": {
-      "floor": null
+      "tests": [
+        "engine.test.mjs",
+        "security.test.mjs",
+        "runner-units.test.mjs",
+        "bootstrap.test.mjs",
+        "cases.test.mjs"
+      ],
+      "floor": 81.08
     },
     "settings": {
       "floor": 82.14

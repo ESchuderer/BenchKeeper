@@ -1059,12 +1059,29 @@ test('the tier strip switch: off by default; on and off are plans in the Claude 
   assert.equal(band().on, true);
 });
 
-test('the status line style: merged while unset, the plugin option once a plan sets it', async () => {
+test('the status line style: per tracked host account, planned in the settings.json its status line reads', async () => {
   const { ctx, routes } = fixture();
   const style = () => routes['GET /api/status-style']();
-  assert.deepEqual(style(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle', value: 'merged' });
-  const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [style().key]: 'plugin' } });
-  await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job);
-  assert.equal(style().value, 'plugin');
-  assert.equal(JSON.parse(readFileSync(join(ctx.home, '.claude/settings.json'), 'utf8')).pluginConfigs['benchkeeper@benchkeeper'].options.statusStyle, 'plugin');
+  assert.deepEqual(style(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.statusStyle', accounts: [] });
+  const account = (name, tracked) => {
+    const dir = join(ctx.home, `acct-${name}`);
+    mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
+    if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
+    return { name, agent: 'claude', mode: 'host', dir };
+  };
+  const work = account('work', true);
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [work, account('spare', false)] }));
+  const file = join(work.dir, 'settings.json');
+  assert.deepEqual(style().accounts, [{ name: 'work', file, value: 'merged' }]);
+  const plan = routes['POST /api/status-style']({ account: 'work', value: 'plugin' });
+  assert.deepEqual(plan.changes.map((c) => [c.path, c.keyState]), [[file, 'new']]);
+  const { run } = await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job);
+  assert.equal(style().accounts[0].value, 'plugin');
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs['benchkeeper@benchkeeper'].options.statusStyle, 'plugin');
+  assert.equal(existsSync(join(ctx.home, '.claude/settings.json')), false);
+  routes['POST /api/undo']({ run: run.id });
+  assert.equal(style().accounts[0].value, 'merged');
+  assert.throws(() => routes['POST /api/status-style']({ account: 'spare', value: 'none' }), /accounts track/);
+  assert.throws(() => routes['POST /api/status-style']({ account: 'work', value: 'bogus' }), /one of merged, plugin, benchkeeper, none/);
 });

@@ -17,7 +17,7 @@ import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, projectRows, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
-import { boardFile as ponytailBoard } from './ponytail.mjs';
+import { boardFile as ponytailBoard, STATUS_STYLES, styleOf, trackedStyles } from './ponytail.mjs';
 import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
@@ -41,7 +41,7 @@ import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache }
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { mask, maskStream, shown } from './redact.mjs';
-import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
+import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
@@ -488,8 +488,17 @@ export function api(ctx) {
     },
     // The terminal tier strip: the plugin option the Settings switch plans through /api/settings-plan.
     'GET /api/tier-band': () => ({ key: TIER_BAND, on: valuesOf(readSettings(ctx, 'claude'), 'claude', TIER_BAND)[0]?.value === true }),
-    // What the usage status line prints (usage-hook.mjs); unset is merged.
-    'GET /api/status-style': () => ({ key: STATUS_STYLE, value: valuesOf(readSettings(ctx, 'claude'), 'claude', STATUS_STYLE)[0]?.value ?? 'merged' }),
+    // What the usage status line prints (usage-hook.mjs), per tracked host account from the settings.json that script reads; unset is merged.
+    'GET /api/status-style': () => ({ key: STATUS_STYLE, accounts: trackedStyles(ctx).map(({ account, file, value }) => ({ name: account.name, file, value: styleOf(value) })) }),
+    // A plan that sets the style in one tracked account's settings.json; applied through /api/apply.
+    'POST /api/status-style': (b) => {
+      const t = trackedStyles(ctx).find((x) => x.account.name === b.account);
+      if (!t) throw bad('account must be a host account that accounts track set up');
+      if (!STATUS_STYLES.includes(b.value)) throw bad(`value must be one of ${STATUS_STYLES.join(', ')}`);
+      const changes = preview([{ id: `status-style:${t.account.name}`, step: 'accounts', title: `account ${t.account.name} settings: ${STATUS_STYLE} = ${JSON.stringify(b.value)}`, kind: 'write', path: t.file,
+        edit: editFor('claude', STATUS_STYLE, b.value, t.file), settings: { agent: 'claude', keys: [STATUS_STYLE] } }]);
+      return { planId: keep(changes, { ...ctx, roots: [...ctx.roots, t.account.dir] }, 'global'), changes: serialize(changes, ctx) };
+    },
     // The runs view, read only when it is opened or refreshed: the orchestrated runs of the sessions scan in the registered
     // projects and their worktrees (git), each project's last setup change from the ledger, and the IDE's runs when it is
     // installed (not joined: a run line names the coordinator's fan-out, not the IDE's run). Fields are picked: a row's

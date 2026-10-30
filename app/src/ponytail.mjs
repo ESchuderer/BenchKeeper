@@ -53,21 +53,29 @@ export const bandChecks = (ctx) => (bandStacks(ctx) ? [{
 // What BenchKeeper's status line prints per style (the plugin option statusStyle, read as usage-hook.mjs reads it).
 const SHOWS = { merged: "the usage windows and Ponytail's level", plugin: "Ponytail's level only", benchkeeper: 'the usage windows only', none: 'nothing' };
 
-// One info finding per host account whose status line is BenchKeeper's (accounts track wrote the usage script): its style
-// and what it prints. Reads only. A container account's folder is a volume, not read here; a broken registry is accountChecks' finding.
-export function styleChecks(ctx) {
+// The host accounts whose status line is BenchKeeper's (accounts track wrote the usage script), each with the settings.json
+// its status line reads and the style set there (undefined when unset). A container account's folder is a volume, not read
+// here; a broken registry is accountChecks' finding.
+export function trackedStyles(ctx) {
   let list = [];
   try { list = listAccounts(ctx); } catch { /* reported by accountChecks */ }
   return list.filter((a) => supports(a.agent, 'usage') && a.mode === 'host' && exists(join(a.dir, STATE_DIR, 'usage.mjs'))).map((a) => {
-    const v = json(readText(join(a.dir, 'settings.json'))).pluginConfigs?.['benchkeeper@benchkeeper']?.options?.statusStyle;
-    const style = Object.hasOwn(SHOWS, v) ? v : 'merged';
-    return {
-      level: 'info', check: 'statusline',
-      message: `account ${a.name}: status line style ${style}${v === undefined ? ' (the default)' : ''}, prints ${SHOWS[style]}; the usage windows are recorded in every style`,
-      fix: `to change it, set the plugin option statusStyle (merged, plugin, benchkeeper or none) under pluginConfigs."benchkeeper@benchkeeper".options in ${join(a.dir, 'settings.json')}`,
-    };
+    const file = join(a.dir, 'settings.json');
+    return { account: a, file, value: json(readText(file)).pluginConfigs?.['benchkeeper@benchkeeper']?.options?.statusStyle };
   });
 }
+export const styleOf = (v) => (Object.hasOwn(SHOWS, v) ? v : 'merged');
+export const STATUS_STYLES = Object.keys(SHOWS);
+
+// One info finding per tracked host account: its style and what it prints. Reads only.
+export const styleChecks = (ctx) => trackedStyles(ctx).map(({ account: a, file, value: v }) => {
+  const style = styleOf(v);
+  return {
+    level: 'info', check: 'statusline',
+    message: `account ${a.name}: status line style ${style}${v === undefined ? ' (the default)' : ''}, prints ${SHOWS[style]}; the usage windows are recorded in every style`,
+    fix: `to change it, set the plugin option statusStyle (merged, plugin, benchkeeper or none) under pluginConfigs."benchkeeper@benchkeeper".options in ${file}`,
+  };
+});
 
 // Quote-aware: a task name holds commas, quotes and line breaks.
 export function parseCsv(text) {

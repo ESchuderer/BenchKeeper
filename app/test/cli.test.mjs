@@ -68,6 +68,13 @@ test('a changing command with no answer refuses before any change; every change 
   assert.equal(r.err, '');
   assert.equal((await exec(['projects', 'apply', dir, '--agents', 'claude', '--yes'])).code, 0);
   await refused(['packs', 'enable', 'testing', '--project', dir], 'packs enable');
+  // --yes with nothing preselected (only the optional changes are left): no run either.
+  assert.equal((await exec(['apply', '--agents', 'gemini', '--level', 'full', '--yes'])).code, 0);
+  const runs = ctx.ledger.list().length;
+  r = await exec(['apply', '--agents', 'gemini', '--level', 'full', '--yes']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.text, /\nnothing applied\n$/);
+  assert.equal(ctx.ledger.list().length, runs);
 });
 
 test('apply --yes, history, undo', async () => {

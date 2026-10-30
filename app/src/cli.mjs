@@ -1120,7 +1120,8 @@ async function applyChosen(plan, ctx, { o, ask, out }) {
   return applyAnswered(plan, ctx, 'global', { o, ask, out });
 }
 
-// Nothing chosen records no run: the exit code when every change was declined (0) or none can be made (1), else null.
+// Nothing chosen records no run: the exit code when every change was declined or, under --yes, none is preselected (0),
+// or none can be made (1), else null.
 function nothingChosen(plan, select, o, out) {
   if (select.length) return null;
   if (plan.length && plan.every((c) => c.error)) {
@@ -1129,7 +1130,6 @@ function nothingChosen(plan, select, o, out) {
     out.write('nothing applied: no change can be made\n');
     return 1;
   }
-  if (o.yes) return null;
   out.write('nothing applied\n');
   return 0;
 }

@@ -7,6 +7,8 @@ export function setKey(k) {
 }
 const current = () => { if (key) return key; try { return localStorage.getItem(KEY) ?? ''; } catch { return ''; } };
 
+export const NO_SESSION = 'This tab has no session with the running BenchKeeper server: it was started again, or the link was opened in another browser. Run npx benchkeeper again and open the link it prints (it works once and for 10 minutes).';
+
 // Every request carries the key; every change is a POST.
 export async function api(path, body, { signal } = {}) {
   const headers = { 'x-benchkeeper': current() };
@@ -22,6 +24,8 @@ export async function api(path, body, { signal } = {}) {
     // Still no answer: the server stopped (Ctrl+C, Stop, a closed terminal), not a request it refused.
     if (!r) throw new Error('BenchKeeper does not answer: its server has stopped. Start it again with npx benchkeeper, then reload.');
   }
+  // 401: this tab's session is gone (the server restarted, or the link was opened in another browser); a retry cannot help.
+  if (r.status === 401) throw Object.assign(new Error(NO_SESSION), { status: 401 });
   const data = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
   if (!r.ok) throw Object.assign(new Error(data.error ?? `HTTP ${r.status}`), { status: r.status });
   return data;

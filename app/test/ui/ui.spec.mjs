@@ -2125,14 +2125,15 @@ test.describe('views', () => {
       const r = await route.fetch();
       const body = await r.json();
       const [claude] = body.agents;
-      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, budget: { ...claude.budget, total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 } } };
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, budget: { ...claude.budget, total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
       await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
     });
     await nav(page, 'Rules').click();
     const strip = page.getByRole('region', { name: 'Summary' });
-    await expect(strip).toContainText(/Claude Code: about [\d,]+ tokens load at the start of every session, of 10,000 \(limit set by BenchKeeper\); the largest source is /);
+    await expect(strip).toContainText(/Claude Code: about [\d,]+ tokens load at the start of every session, of 10,000 \(limit set by BenchKeeper\); the largest source is ~\/\.claude\/rules\/00-global\.md with [\d,]+\./);
     await expect(strip).toContainText('Codex: about 12,000 tokens load at the start of every session, of 10,000 (limit set by BenchKeeper); the largest source is ~/.codex/AGENTS.md with 11,000.');
     await expect(strip.getByRole('progressbar')).toHaveCount(2);
+    await expect(strip.getByRole('progressbar', { name: 'At the start of a session: 12,000 of 10,000 tokens, limit set by BenchKeeper' })).toBeVisible();
     await expect(strip).toContainText('More than 10,000 tokens');
     await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
     const tabs = page.getByRole('tablist', { name: 'Agents' });

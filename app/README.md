@@ -236,6 +236,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/sessions-scan` | `sessions list`, `sessions board` | both scan; `sessions board --json` prints the rows |
 | `GET /api/sessions-cache` | `sessions cache show` | |
 | `GET /api/tier-band` | `UI internal` | the tier strip setting's key and state; the Preferences switch plans it through `POST /api/settings-plan` |
+| `GET /api/status-style` | `UI internal` | the status line style setting's key and value (`merged` when unset); the Preferences select plans it through `POST /api/settings-plan` |
 | `GET /api/runs` | `sessions list` | adds each task's worktree and branch, each project's last setup change and Orca's runs |
 | `GET /api/project-cards` | `UI internal` | per registered project: sessions of the last 30 days, doctor finding count, items by state, workflow owner packs |
 | `POST /api/sessions-cache` | `sessions cache clear`, `sessions cache set --keep-days` | the command cannot see a scan the web UI runs: clear while none runs |

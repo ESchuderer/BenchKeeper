@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Claims that are objects carry `evidence`; `[]` means each item.
-export const ITEMS = ['levels[]', 'quickstart.paths[].steps[]', 'overview.parts[]', 'overview.defaults[]', 'sdlc.steps[]', 'stack.reasons[]'];
+export const ITEMS = ['levels[]', 'quickstart.paths[].steps[]', 'overview.parts[]', 'overview.defaults[]', 'sdlc.steps[]', 'stack.reasons[]', 'parts[]'];
 export const THIRD_PARTY = ['core', 'prerequisites[]', 'parallelTools[]', 'openhands'];
 // Claims that are strings keep their evidence in the top-level map `evidence`, keyed by path.
 export const STRINGS = ['description', 'tagline', 'overview.audience', 'sdlc.requirements', 'quickstart.needs', 'quickstart.choose', 'quickstart.next', 'quickstart.changes'];

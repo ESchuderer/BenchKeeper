@@ -73,7 +73,6 @@ const VIEWS = [
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Fix the cart total');
-    await board.getByRole('button', { name: /^All projects/ }).click();
   }],
   // Scrolled to Skill states: the library list above it is the same on every machine.
   ['skills', async (page) => {

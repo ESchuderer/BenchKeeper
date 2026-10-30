@@ -72,7 +72,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'sessions', view: 'sessions', title: 'Sessions board', shot: 'sessions',
-    alt: 'The Sessions view with the board in a frame: filters for agent, tier, pattern, setup and period, the project list open with its search, then tiles for sessions, agent time, cost, tokens, tests passed and merged pull requests.',
+    alt: 'The Sessions view with the board in a frame: the project choice closed as a chip in one line with the filters for agent, tier, pattern, setup and period, then tiles for sessions, agent time, cost, tokens, tests passed and merged pull requests.',
     text: [
       'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code), time and pull request state.',
       'The project list puts registered repositories first, one entry per repository with its worktrees folded in, and has a search. Comparison charts by tier, pattern and setup show how many sessions each bar rests on and mark the ones under 20. Each chart has its table behind a button.',

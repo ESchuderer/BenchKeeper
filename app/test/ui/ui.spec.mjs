@@ -2125,7 +2125,7 @@ test.describe('views', () => {
       const r = await route.fetch();
       const body = await r.json();
       const [claude] = body.agents;
-      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
       await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
     });
     await nav(page, 'Rules').click();
@@ -2144,7 +2144,9 @@ test.describe('views', () => {
     await tabs.getByRole('tab', { name: 'Codex' }).click();
     await expect(page.getByRole('table', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
     await expect(page.getByRole('table', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
-    await expect(page.getByRole('region', { name: 'Codex context budget' }).getByRole('table', { name: 'Context budget' })).toBeVisible();
+    const codexBudget = page.getByRole('region', { name: 'Codex context budget' }).getByRole('table', { name: 'Context budget' });
+    await expect(codexBudget).toContainText('~/.codex/AGENTS.md');
+    await expect(codexBudget).not.toContainText('00-global.md');
     await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeHidden();
     await noAxe(page);
     await page.unroute(view);

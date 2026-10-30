@@ -201,7 +201,7 @@ const withRecord = (text, id, rec) => {
 
 function template(ctx, id) {
   const t = load(ctx).templates.find((x) => x.id === id);
-  if (!t) throw new Error(`no automation template ${id}, see benchkeeper automations list`);
+  if (!t) throw Object.assign(new Error(`no automation template ${id}, see benchkeeper automations list`), { status: 404 });
   return t;
 }
 
@@ -266,7 +266,7 @@ function onRunner(ctx, rec) {
 // The diff of the installed automation (as the runner holds it) and the template now, with the registry record.
 export function automationDiff(ctx, id) {
   const rec = readRegistry(ctx)[id];
-  if (!rec) throw new Error(`${id} is not installed, see benchkeeper automations status`);
+  if (!rec) throw Object.assign(new Error(`${id} is not installed, see benchkeeper automations status`), { status: 404 });
   const { f } = spec(ctx, template(ctx, id), rec.values, rec.dir);
   const r = onRunner(ctx, rec);
   return { rec, f, runner: r, diff: diffLines(specText(r.now ?? rec.spec), specText(f), `automation ${id}`), note: r.note ?? null };
@@ -290,7 +290,7 @@ export function updateChanges(ctx, id) {
 // Remove: the runner deletes it with its run history, so undo puts back the record only and install creates it again.
 export function removeChanges(ctx, id) {
   const rec = readRegistry(ctx)[id];
-  if (!rec) throw new Error(`${id} is not installed, see benchkeeper automations status`);
+  if (!rec) throw Object.assign(new Error(`${id} is not installed, see benchkeeper automations status`), { status: 404 });
   needRunner(ctx);
   const step = `automation:${id}`, gone = orca.showAutomation(ctx, rec.runnerId).removed;
   return [

@@ -406,6 +406,8 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
+const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const ask = asker(input, out);
@@ -953,7 +955,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'history' && arg === 'show') {
     if (!positionals[2] || positionals.length > 3) { out.write(positionals[2] ? `unexpected argument ${positionals[3]}\n` : 'history show needs a run, see benchkeeper history\n'); return 2; }
     let run;
-    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return e.status === 404 ? 2 : 1; }
+    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     out.write(`${run.id}  ${run.kind} ${run.status ?? 'interrupted'}  ${run.scope}${run.of ? ` (undo of ${run.of})` : ''}\n`);
     for (const e of run.entries) {
       out.write(`${(e.status ?? '').padEnd(7)} ${e.title}${e.removed ? ' (removed)' : ''}${e.folder ? ' (folder)' : ''}${e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}\n`);
@@ -981,7 +983,7 @@ async function command(argv, { out, err, ask, ctx }) {
       return report(restoreLegacy(arg, ctx), out);
     }
     let uctx;
-    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return e.status === 404 ? 2 : 1; }
+    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     try { return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out); } catch (e) { out.write(`${e.message}\n`); return e.usage ? 2 : 1; }
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
@@ -1095,7 +1097,7 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
   if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
   if (['add', 'enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
-  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }
@@ -1522,7 +1524,7 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
       const rows = automationStatus(ctx);
       return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
     }
-  } catch (e) { return { error: e.message, code: 1 }; }
+  } catch (e) { return { error: e.message, code: lookupCode(e) }; }
   return { error: 'automations needs list, show, install, update, remove, diff, status or precheck', code: 2 };
 }
 
@@ -1534,7 +1536,7 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     const { values, error } = paramValues(o.param);
     if (error) { out.write(`${error}\n`); return 2; }
     let plan;
-    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
     return applyChosen(plan, ctx, { o, ask, out });
   }
   const r = await automationsDoc(ctx, sub, positionals, o);

@@ -139,7 +139,8 @@ test('the old command names are unknown and the removed skill flags are refused'
 });
 
 test('a name that does not exist and an unknown option exit 2 with and without --json; --version prints the version', async () => {
-  for (const args of [['skills', 'show', 'nope'], ['automations', 'show', 'nope'], ['sessions', 'list', '--run', 'nope'], ['history', 'show', 'nope'], ['undo', 'nope'], ['accounts', 'status', 'ghost']]) {
+  for (const args of [['skills', 'show', 'nope'], ['automations', 'show', 'nope'], ['sessions', 'list', '--run', 'nope'], ['history', 'show', 'nope'], ['history', 'show', 'bad.id'], ['undo', 'nope'], ['undo', 'bad.id'], ['accounts', 'status', 'ghost'],
+    ['automations', 'install', 'nope', '--yes'], ['automations', 'update', 'nope', '--yes'], ['automations', 'remove', 'nope', '--yes'], ['automations', 'diff', 'nope']]) {
     assert.equal(await cli().exec(args), 2, args.join(' '));
     const j = cli();
     assert.equal(await j.exec([...args, '--json']), 2, `${args.join(' ')} --json`);

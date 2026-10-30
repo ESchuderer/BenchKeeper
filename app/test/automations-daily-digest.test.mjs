@@ -4,10 +4,10 @@ import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir } from '../src/automations.mjs';
+import { automationTemplate } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-dd-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'daily-digest');
+const template = () => automationTemplate('daily-digest');
 
 // The precheck in the template folder with a fake gh on PATH that logs its arguments and prints the number of changed
 // items its list reports (pr and issue answers by repository).

@@ -12,18 +12,13 @@ import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
 function repo() {
   const dir = mkdtempSync(join(TMP, 'bk-proj-'));
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const home = mkdtempSync(join(TMP, 'bk-home-'));
   const ctx = context({ home, roots: [home, dir], appVersion: '6.0.0' });
   return { dir, ctx, git };

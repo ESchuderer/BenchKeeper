@@ -1,6 +1,6 @@
 // One test per limit of docs/security.md that no other test file covers. Each fails when its control is removed.
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
@@ -17,19 +17,14 @@ import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
 import { newest } from '../src/steps/global.mjs';
 import { projectCtx } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-sec-'));
 const write = (c, path, after, extra = {}) => ({ id: `w-${path}`, step: 's', title: path, kind: 'write', path: join(c.home, path), after, ...extra });
 const mode = (p) => statSync(p).mode & 0o777;
 const repo = () => {
   const dir = home();
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const h = home();
   return { dir, git, ctx: context({ home: h, roots: [h, dir], run: runCommand }) };
 };

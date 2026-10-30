@@ -4,11 +4,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, lint, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir, lint } from '../src/automations.mjs';
+import { automationTemplate, sh } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-dt-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'dependency-triage');
-const sh = { skip: process.platform === 'win32' && 'sh helpers' };
+const template = () => automationTemplate('dependency-triage');
 
 // A pull request as gh pr list prints it through the helper's --jq: number, author and the login of each commit author.
 const pr = (number, author, ...commits) => `${number} ${author} ${commits.join(' ')}`;

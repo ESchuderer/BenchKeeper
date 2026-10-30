@@ -4,11 +4,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, lint, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir, lint } from '../src/automations.mjs';
+import { automationTemplate, sh } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-wc-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'worktree-cleanup');
-const sh = { skip: process.platform === 'win32' && 'sh helpers' };
+const template = () => automationTemplate('worktree-cleanup');
 const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
 const git = (dir, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', '-C', dir, ...args], { encoding: 'utf8', env }).trim();
 const commit = (dir, name) => { writeFileSync(join(dir, name), name); git(dir, 'add', name); git(dir, 'commit', '-qm', name); return git(dir, 'rev-parse', 'HEAD'); };

@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { fill, genericDir, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir } from '../src/automations.mjs';
+import { automationTemplate } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-ms-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'maintenance-sweep');
+const template = () => automationTemplate('maintenance-sweep');
 const cli = fileURLToPath(new URL('../bin/benchkeeper.mjs', import.meta.url));
 
 // The precheck with a fixture knowledge base (entries by file name; null: none), a fake npx that runs this app's

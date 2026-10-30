@@ -4,10 +4,10 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, lint, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir, lint } from '../src/automations.mjs';
+import { automationTemplate } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-ca-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'ci-audit');
+const template = () => automationTemplate('ci-audit');
 const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).stdout.trim();
 
 // A repository with one commit; commit() adds files and returns the new HEAD.

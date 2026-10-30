@@ -11,6 +11,7 @@ import { apply, context, preview, undo } from '../src/runner.mjs';
 import { scanSessions } from '../src/sessions.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { writeSessions } from './fixtures/sessions.mjs';
+import { hostAccount } from './helpers.mjs';
 
 const run = (argv) => ({ code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' });
 const HEADER = 'key,started,project,name,cost_usd,turns,agent_minutes,tokens_total,tokens_output,reuse_pct,reused,new,callers_open,tests,level,model';
@@ -29,12 +30,7 @@ const bandPlan = (ctx) => preview(globalPlan({ ctx, agents: ['claude'], options:
 test('status line style: one info per host account with the usage script, none without one', () => {
   const ctx = machine();
   assert.deepEqual(styleChecks(ctx), []);
-  const account = (name, tracked) => {
-    const dir = join(ctx.home, `acct-${name}`);
-    mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
-    if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
-    return { name, agent: 'claude', mode: 'host', dir };
-  };
+  const account = (name, tracked) => hostAccount(ctx, name, tracked);
   const work = account('work', true);
   mkdirSync(ctx.config, { recursive: true });
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [work, account('spare', false)] }));

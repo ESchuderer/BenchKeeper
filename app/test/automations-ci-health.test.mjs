@@ -4,11 +4,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, lint, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir, lint } from '../src/automations.mjs';
+import { automationTemplate, sh } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-ch-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'ci-health');
-const sh = { skip: process.platform === 'win32' && 'sh helpers' };
+const template = () => automationTemplate('ci-health');
 
 // A completed run as the --jq of due.sh prints it, newest first: workflow id, run id, attempt, pass or fail, new or old, path.
 const run = (wf, id, attempt, result, age = 'new', path = `.github/workflows/w${wf}.yml`) => `${wf} ${id} ${attempt} ${result} ${age} ${path}`;

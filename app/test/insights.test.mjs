@@ -9,7 +9,7 @@ import { MIN_SAMPLES, collectInsights, insights } from '../src/insights.mjs';
 import { narrativeInput } from '../src/narrative.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
-import { writeSessions } from './fixtures/sessions.mjs';
+import { writeFrictionSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const TMP = realpathSync(tmpdir());
 const SECRET = 'marker-that-must-not-leak-4d1f';
@@ -212,15 +212,7 @@ test('collectInsights: 20 sessions in the window report the installed skill none
 
 test('collectInsights lists friction from the transcripts: the folder name, counts and no message text', async () => {
   const { home, ctx } = machine();
-  const dir = join(home, '.claude/projects/-work-friction');
-  mkdirSync(dir, { recursive: true });
-  const line = (t, extra) => JSON.stringify({ cwd: '/work/friction', sessionId: 'x', timestamp: t, ...extra });
-  for (let i = 0; i < 20; i++) {
-    const t = `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z`;
-    const bash = { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'tool_use', id: 'k', name: 'Bash', input: { command: 'npm test' } }] } };
-    const res = { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k', content: `Exit code 1 ${SECRET}`, is_error: true }] } };
-    writeFileSync(join(dir, `f${i}.jsonl`), [line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: SECRET } }), line(t, bash), line(t, res)].join('\n') + '\n');
-  }
+  writeFrictionSessions(home, SECRET);
   const r = await collectInsights(ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z') });
   const f = r.findings.find((x) => x.signal === 'friction');
   assert.deepEqual({ ...f.evidence, sessionIds: f.evidence.sessionIds.length }, { project: 'friction', sessions: 20, failed: 20, rate: 100, sessionIds: 20 });

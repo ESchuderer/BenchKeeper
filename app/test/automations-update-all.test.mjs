@@ -4,11 +4,11 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill } from '../src/automations.mjs';
+import { automationTemplate } from './helpers.mjs';
 
 const plan = readFileSync(new URL('./fixtures/automations/update-all-plan.json', import.meta.url), 'utf8');
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-ua-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'update-all');
+const template = () => automationTemplate('update-all');
 
 // The precheck with a fake npx on PATH that records its arguments and prints the plan document.
 function precheck(values, doc) {

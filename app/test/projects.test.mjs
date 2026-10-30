@@ -36,6 +36,16 @@ function project(h) {
   git('push', '-q', 'origin', 'main');
   return { dir, git };
 }
+// A second clone of the project's origin, and a commit of all its changes pushed back to main.
+const cloneOrigin = (p) => {
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  return other;
+};
+function pushAll(other, message) {
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', message]);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+}
 
 test('registry: add, list, remove; scan finds folders with an agent setup', () => {
   const h = home();
@@ -306,12 +316,10 @@ test('a GitHub origin gets a push and a pull request', () => {
 test('an untracked local setup with a newer shared one on origin: the list promises no pull request and Update all opens none', async () => {
   const h = home();
   const p = project(h);
-  const other = mkdtempSync(join(TMP, 'bk-clone-'));
-  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const other = cloneOrigin(p);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion, contentVersion: appVersion }));
-  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
-  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  pushAll(other, 'setup');
   // This checkout keeps an older setup local: its state file is untracked and ignored.
   p.git('rm', '-q', '--cached', STATE);
   p.git('commit', '-qm', 'local setup');
@@ -393,12 +401,10 @@ test('status and Update all read the state file on the fetched default branch wh
   const ctx = context({ home: h });
   const p = project(h);
   // The setup merged on origin from another clone; this checkout has not fetched or pulled it.
-  const other = mkdtempSync(join(TMP, 'bk-clone-'));
-  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const other = cloneOrigin(p);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
-  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
-  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  pushAll(other, 'setup');
   const s = status(ctx, p.dir);
   assert.deepEqual([s.setupVersion, s.current, s.checkout, s.origin, s.changes], [appVersion, true, '5.0.0', 'origin/main', null]);
   // A checkout without a state file: the one on origin counts, so Update all builds on it without answers.
@@ -430,11 +436,9 @@ test('status takes origin\'s state when only its app version is newer (same cont
   writeFileSync(join(p.dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion }));
   p.git('commit', '-qam', 'content current');
   p.git('push', '-q', 'origin', 'main');
-  const other = mkdtempSync(join(TMP, 'bk-clone-'));
-  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const other = cloneOrigin(p);
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion, contentVersion }));
-  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'app-only setup']);
-  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  pushAll(other, 'app-only setup');
   const s = status(ctx, p.dir);
   assert.deepEqual([s.current, s.origin, s.changes], [true, 'origin/main', null]);
 });
@@ -443,12 +447,10 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   const h = home();
   const ctx = context({ home: h });
   const p = project(h);
-  const other = mkdtempSync(join(TMP, 'bk-clone-'));
-  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const other = cloneOrigin(p);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
-  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
-  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  pushAll(other, 'setup');
   const offline = project(h);
   offline.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
   // The event loop runs while the git commands do.

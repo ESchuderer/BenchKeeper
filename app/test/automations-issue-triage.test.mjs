@@ -4,11 +4,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir, lint, load } from '../src/automations.mjs';
-import { context } from '../src/runner.mjs';
+import { fill, genericDir, lint } from '../src/automations.mjs';
+import { automationTemplate, sh } from './helpers.mjs';
 
-const template = () => load(context({ home: mkdtempSync(join(tmpdir(), 'bk-it-')) }), [['generic', genericDir]]).templates.find((t) => t.id === 'issue-triage');
-const sh = { skip: process.platform === 'win32' && 'sh helpers' };
+const template = () => automationTemplate('issue-triage');
 // The label that approves agent work (the default triage labels of the setup).
 const APPROVE = 'ready-for-agent';
 

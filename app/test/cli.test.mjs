@@ -11,6 +11,7 @@ import { HELP, helpFor, main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
+import { initRepo } from './helpers.mjs';
 
 function cli(answers = '') {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
@@ -248,13 +249,7 @@ test('a changing command that stops before a change exits with the same code wit
 
 test('sessions record runs the command after -- and records its files; sessions without a subcommand is a usage error', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-rec-'));
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   // The default runner: the recording needs real git and a real process.
   const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-rec-home-')) });
   const exec = async (args) => {

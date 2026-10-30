@@ -12,6 +12,7 @@ import { classify } from '../src/inventory.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { localSetup, projectPlan, readState, resolveAnswers } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 const FILE = 'engineering/engineering-frontend-developer.md';
@@ -20,13 +21,7 @@ const AGENT = '.claude/agents/engineering-frontend-developer.md';
 // A project in a git repository, and a machine whose curl is stubbed: it writes the file it is told to.
 function repo() {
   const dir = mkdtempSync(join(TMP, 'bk-fw-'));
-  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(dir, 'README.md'), '# P\n');
-  git('add', '-A');
-  git('commit', '-qm', 'init');
+  const git = initRepo(dir);
   const home = mkdtempSync(join(TMP, 'bk-fwhome-'));
   const calls = [];
   const run = (argv, o = {}) => {

@@ -1033,7 +1033,14 @@ test.describe('views', () => {
     const packs = page.getByRole('region', { name: 'Packs' });
     await expect(packs.getByRole('switch', { name: 'Frontend' })).toBeChecked();
     await expect(packs).toContainText('only this project');
-    await expect(packs).toContainText('Impact: copies');
+    // One row per pack: switch, sentence and chips show; the other facts wait under Details.
+    await expect(packs.getByText('The repository has a web UI')).toBeVisible();
+    await expect(packs.getByText(/^Impact: copies/)).toBeHidden();
+    const details = packs.getByRole('button', { name: 'Details of Frontend' });
+    await expect(details).toHaveAttribute('aria-expanded', 'false');
+    await details.click();
+    await expect(details).toHaveAttribute('aria-expanded', 'true');
+    await expect(packs.getByText(/^Impact: copies/)).toBeVisible();
     const owner = page.getByRole('region', { name: 'Workflow owner' });
     await expect(owner.getByRole('switch', { name: /Matt Pocock/ })).toBeVisible();
     await expect(owner).toContainText('also global');

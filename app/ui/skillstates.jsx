@@ -1,5 +1,5 @@
-import { Badge, Button, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
-import { useRef, useState } from 'react';
+import { Badge, Button, Group, Loader, Modal, Paper, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { useId, useRef, useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
 import { label } from './cards.js';
@@ -9,24 +9,42 @@ const STATES = ['current', 'outdated', 'modified', 'removed', 'disabled'];
 const short = (ref) => ref?.slice(0, 12);
 
 // One row of a project's Installs tab: a switch, the scope hint, the state on disk, the scopes an agent fixes with the reason,
-// and the five facts of the explainer (summary, plain words, impact, default, current). A busy switch ignores clicks but
-// stays focusable (a disabled input loses the keyboard focus).
-export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why }) {
+// and the five facts of the explainer (summary, plain words, impact, default, current). A row with `details` (a pack: the
+// accessible name of its Details button) is one line, the summary beside the switch, the other facts shown on Details. A
+// busy switch ignores clicks but stays focusable (a disabled input loses the keyboard focus).
+export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why, details }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const toggle = <Switch checked={checked} onChange={busy ? () => {} : onChange} disabled={disabled} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />;
+  const chips = <Group gap={4}><Badge variant="default" size="sm">{hint}</Badge><StateBadge state={state} /></Group>;
+  const more = (
+    <>
+      <Text size="xs">In plain words: {facts.eli5}</Text>
+      <Text size="xs">Impact: {facts.impact}</Text>
+      <Text size="xs">Default: {facts.default}. Current: {facts.current}.</Text>
+    </>
+  );
   return (
     <Paper withBorder p="xs">
       <Stack gap={4}>
-        <Group justify="space-between" align="flex-start" gap="xs">
-          <Switch checked={checked} onChange={busy ? () => {} : onChange} disabled={disabled} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />
-          <Group gap={4}><Badge variant="default" size="sm">{hint}</Badge><StateBadge state={state} /></Group>
-        </Group>
+        {details ? (
+          <Group justify="space-between" gap="xs">
+            <Group gap="sm" style={{ flex: '1 1 320px', overflowWrap: 'anywhere' }}>{toggle}<Text size="sm" style={{ flex: '1 1 260px' }}>{facts.summary}</Text></Group>
+            <Group gap={4}>{chips}<Button size="compact-xs" variant="subtle" aria-label={details} aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>Details</Button></Group>
+          </Group>
+        ) : (
+          <Group justify="space-between" align="flex-start" gap="xs">{toggle}{chips}</Group>
+        )}
         {why && <Text size="xs">Fixed: {why}.</Text>}
         {fixed.map((f) => <Text key={f.agent} size="xs">{f.agent}: {f.scope === 'global' ? 'also global' : 'only this project'}, fixed: {f.reason}.</Text>)}
-        <Stack gap={0} style={{ overflowWrap: 'anywhere' }}>
-          <Text size="xs">{facts.summary}</Text>
-          <Text size="xs">In plain words: {facts.eli5}</Text>
-          <Text size="xs">Impact: {facts.impact}</Text>
-          <Text size="xs">Default: {facts.default}. Current: {facts.current}.</Text>
-        </Stack>
+        {details ? (
+          open && <Stack id={id} gap={0} style={{ overflowWrap: 'anywhere' }}>{more}</Stack>
+        ) : (
+          <Stack gap={0} style={{ overflowWrap: 'anywhere' }}>
+            <Text size="xs">{facts.summary}</Text>
+            {more}
+          </Stack>
+        )}
       </Stack>
     </Paper>
   );
@@ -57,7 +75,7 @@ export function PackSwitches({ packs, project, others, toggles, setToggles, busy
   const rest = packs.filter((p) => !p.owner), owners = packs.filter((p) => p.owner);
   const groups = [['In use or suggested', rest.filter(near)], ['More packs', rest.filter((p) => !near(p))]].filter(([, list]) => list.length);
   const row = (p, eli5) => (
-    <InstallRow key={p.id} checked={p.enabled} onChange={() => flip(p)} busy={busy} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
+    <InstallRow key={p.id} details={`Details of ${p.title}`} checked={p.enabled} onChange={() => flip(p)} busy={busy} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
       label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested</Badge>}</Group>} />
   );
   return (
@@ -66,13 +84,13 @@ export function PackSwitches({ packs, project, others, toggles, setToggles, busy
         {groups.map(([group, list], g) => (
           <div key={group} role="group" aria-labelledby={`packs-${g}`}>
             <Text id={`packs-${g}`} size="sm" fw={600} mb="xs">{group}</Text>
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{list.map((p) => row(p))}</SimpleGrid>
+            <Stack gap="xs">{list.map((p) => row(p))}</Stack>
           </div>
         ))}
         {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable disabled={busy} maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
         <Text size="sm">Nothing is written before the plan below is applied.</Text>
       </Section>
-      {!!owners.length && <Section title="Workflow owner"><SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">{owners.map((p) => row(p, OWNER))}</SimpleGrid></Section>}
+      {!!owners.length && <Section title="Workflow owner"><Stack gap="xs">{owners.map((p) => row(p, OWNER))}</Stack></Section>}
     </>
   );
 }

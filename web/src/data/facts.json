@@ -35,7 +35,10 @@
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
     "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
-    "evidence": "plugins/benchkeeper/skills/workflow/software.md#matt-pococks-skills-when-installed"
+    "evidence": [
+      "plugins/benchkeeper/library/library.json",
+      "plugins/benchkeeper/skills/workflow/software.md#steps"
+    ]
   },
   "quickstart": {
     "needs": "Node.js 22 and at least one agent, Claude Code or Codex.",
@@ -382,10 +385,9 @@
       {
         "name": "Understand",
         "phase": "define",
-        "sub": "request, issue, on-ramps",
-        "human": "approve issue",
-        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, plan mode, then a GitHub issue you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval.",
+        "sub": "request, questions, on-ramps",
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, then plan mode.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, then explores in plan mode.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/software.md#steps"
@@ -396,8 +398,8 @@
         "phase": "define",
         "sub": "plan, spec, tickets",
         "human": "approve the plan",
-        "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec in the issue, terms and decisions recorded. Several sessions: one ticket per testable slice.",
-        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
+        "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec, terms and decisions recorded. Several sessions: one ticket per testable slice.",
+        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/full-tier.md"
@@ -406,9 +408,9 @@
       {
         "name": "Build",
         "phase": "build",
-        "sub": "branch, tests first",
-        "tip": "Every tier: a branch off the default branch. Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
-        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
+        "sub": "tests first",
+        "tip": "Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
+        "text": "Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/software.md#steps",
           "docs/stack.md#components"
@@ -429,8 +431,8 @@
         "phase": "ship",
         "sub": "pr, /code-review, checks",
         "human": "you merge",
-        "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
-        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end.",
+        "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Pull request when the project uses them, checks. You merge.",
+        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. When the project uses pull requests, one with the key decisions, then its checks. Merge only on your instruction. Several tasks on one branch get one review at the end.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/software.md#steps"
         ]

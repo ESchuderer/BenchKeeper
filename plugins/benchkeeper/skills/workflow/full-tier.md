@@ -1,11 +1,11 @@
 # Full tier
 
-Names in parentheses are Matt Pocock's skills (`mattpocock-skills:<name>`, U: the user starts them). Without them, do the step directly.
+Parentheses name the kind of skill that runs a step when installed; one only the user starts is suggested, then wait. None installed: do the step directly.
 
-1. Settle the spec in the issue (one issue; edit it rather than create a second): the decisions an agent does not take on its own (deployment target, data storage, module boundaries, core types and interfaces), terms and decisions recorded (`domain-modeling`). Add an acceptance table: per requirement the instrument (test, command, screenshot), the wrong implementation it rejects, and where the result is observed. The design names one plausible counterexample (an input or state that breaks the obvious approach) and how the design handles it.
-2. Several sessions of work: one ticket per independently testable slice in the tracker (`/to-tickets`, U), each with acceptance criteria. Work too big to see the way yet: suggest `/wayfinder` (U).
-3. Build ticket by ticket: the existing tests of the touched code first, then test-first at the agreed seams (`tdd`; `/implement`, `/implement-spec` when the user starts them). A step only a person can take (an account, a key, a console setting): walk the user through it (`wizard`); secrets stay a risky change.
-4. Verify against the acceptance table, review the branch against the spec (`code-review`, skipped when `/implement` just ran it), the review before pushing from [software.md](software.md), then the draft pull request. After a session that went sideways, suggest `/retro` (U).
+1. Settle the spec: the decisions an agent does not take on its own (deployment target, data storage, module boundaries, core types and interfaces), terms and decisions recorded (a domain-modeling skill). Add an acceptance table: per requirement the instrument (test, command, screenshot), the wrong implementation it rejects, and where the result is observed. The design names one plausible counterexample (an input or state that breaks the obvious approach) and how the design handles it.
+2. Several sessions of work: one ticket per independently testable slice where the project tracks work (a ticket skill, user-started), each with acceptance criteria. Work too big to see the way yet: suggest a planning skill the user starts.
+3. Build ticket by ticket: the existing tests of the touched code first, then test-first at the agreed seams (a TDD skill; an implementation skill when the user starts one). A step only a person can take (an account, a key, a console setting): walk the user through it (a walkthrough skill); secrets stay a risky change.
+4. Verify against the acceptance table, review the branch against the spec (a spec-review skill, skipped when an implementation skill just ran it), the review before pushing from [software.md](software.md), then the pull request. After a session that went sideways, suggest a retro skill the user starts.
 
 The build drifts from the plan (another design or scope), or a result cannot be explained against it: stop, add the cause to the plan, and ask the user whether to discard this task's unpushed branch and restart in a fresh context. Non-interactive runs: keep the branch, report the cause and stop.
 

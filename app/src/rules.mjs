@@ -11,7 +11,7 @@ import { exists, isDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
 import { display, frontMatter, markdownIn, pluginSkills, skillDescription, textOf, walkInstructions } from './instructions.mjs';
 import { allowed } from './runner.mjs';
-import { editFor, readSettings, settingsChanges } from './settings.mjs';
+import { editFor, readSettings, settingsChanges, valuesOf } from './settings.mjs';
 import { projectCtx } from './steps/project.mjs';
 
 export const RULE_AGENTS = ['claude', 'codex'];
@@ -155,7 +155,7 @@ const memoryFolder = (root) => root.replace(/[^A-Za-z0-9]/g, '-');
 
 function memoryRow(ctx, dir) {
   const layers = readSettings(ctx, 'claude', { dir });
-  if (layers.some((l) => l.data.autoMemoryEnabled === false)) return null;
+  if (valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value === false) return null;
   // Only the user's own layers name another folder: a repository's settings must not point this read elsewhere.
   const custom = layers.filter((l) => ['user', 'local'].includes(l.layer)).map((l) => l.data.autoMemoryDirectory).filter((x) => typeof x === 'string').at(-1);
   const common = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();

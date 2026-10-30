@@ -228,6 +228,25 @@ test('auto memory of 25 KB is the most that counts, and a project turns it off i
   assert.equal(view(ctx, 'claude', dir).budget.items.some((i) => i.kind === 'memory'), false);
 });
 
+test('auto memory follows the layer that wins: a higher true keeps it on, a higher false turns it off', () => {
+  const ctx = machine();
+  const dir = project();
+  write(join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), 'note\n');
+  const shown = () => view(ctx, 'claude', dir).budget.items.some((i) => i.kind === 'memory');
+  const set = (file, value) => write(file, JSON.stringify({ autoMemoryEnabled: value }));
+  const [user, projectFile, local] = [join(ctx.home, '.claude/settings.json'), join(dir, '.claude/settings.json'), join(dir, '.claude/settings.local.json')];
+  set(user, false);
+  assert.equal(shown(), false);
+  set(local, true);
+  assert.equal(shown(), true, 'local true over user false');
+  write(local, '{}');
+  set(projectFile, true);
+  assert.equal(shown(), true, 'project true over user false');
+  set(user, true);
+  set(projectFile, false);
+  assert.equal(shown(), false, 'project false over user true');
+});
+
 test('Codex stops at 32 KiB: the rest is a note and out of the total', () => {
   const ctx = machine();
   write(join(ctx.home, '.codex/AGENTS.override.md'), 'c'.repeat(40 * 1024));

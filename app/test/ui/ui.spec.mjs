@@ -2527,7 +2527,7 @@ test.describe('views', () => {
     await expect(page.getByText('Each login stays in the agent\'s own folder (mode 0700)')).toBeVisible();
     // Usage limits (with the CLI) and the token section start folded to a one-line summary.
     const limits = page.getByRole('region', { name: 'Usage limits' }), token = page.getByRole('region', { name: 'Token for unattended containers' });
-    await expect(limits.locator('summary')).toHaveText('Usage limits minimum 5-hour 8%, 7-day 3%, auto-pick off');
+    await expect(limits.locator('summary')).toHaveText('Usage limits default minimum 5-hour 8%, 7-day 3%, auto-pick off');
     await expect(token.locator('summary')).toContainText('kept in the OS credential store');
     await expect(limits.getByText('Auto-pick is off')).toBeHidden();
     await expect(limits.getByText('CLI', { exact: true })).toBeHidden();
@@ -2535,7 +2535,7 @@ test.describe('views', () => {
     await limits.locator('summary').click();
     await token.locator('summary').click();
     await expect(limits.getByText(/Auto-pick is off/)).toBeVisible();
-    await expect(limits).toContainText('minimum 5-hour 8%, 7-day 3%');
+    await expect(limits.getByText(/^Below the minimum headroom/)).toHaveText('Below the minimum headroom of a window (100 minus the used percentage), benchkeeper run warns and asks before it starts; a notice shows before that. Defaults: minimum 5-hour 8%, 7-day 3%, notice below 5-hour 16%, 7-day 6%. Usage of a Claude Code account is read from its status line once tracked, and for a signed-in Codex host account from its app-server at each check.');
     await expect(limits.getByText('benchkeeper accounts limits', { exact: false })).toBeVisible();
     await expect(token.getByText(/never in a file/)).toBeVisible();
     await noAxe(page);

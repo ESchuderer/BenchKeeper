@@ -11,11 +11,12 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('..', import.meta.url));
 const QUALITY = join(here, 'quality.json');
 const KINDS = { lines: ['LF', 'LH'], branches: ['BRF', 'BRH'], functions: ['FNF', 'FNH'] };
-// jscpd arguments per area of baselines.duplicatedLines, paths relative to app/. `tests` counts tests with the source they repeat.
+// jscpd arguments per area of baselines.duplicatedLines, paths relative to app/. `tests` counts tests with the source they repeat,
+// .jsx included.
 const JS = ['--format', 'javascript,jsx'];
 const AREAS = {
   app: [...JS, 'src', 'ui', 'scripts', 'bin'],
-  tests: [...JS, 'src', 'ui', 'scripts', 'bin', 'test'],
+  tests: [...JS, '--cross-formats', 'javascript,jsx', 'src', 'ui', 'scripts', 'bin', 'test'],
   web: ['../web/src', '../web/scripts', '../web/tests'],
   plugins: ['../plugins'],
 };

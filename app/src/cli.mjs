@@ -48,7 +48,6 @@ import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/pro
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
-import { precheck } from './precheck.mjs';
 import { undoableAutomation } from './orca/index.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
@@ -278,10 +277,6 @@ Usage: benchkeeper <command> [options]
   automations diff <id>             the installed automation as the runner holds it against the template now
   automations status                each installed one: current, outdated (template changed), modified (changed on
                                     the runner), removed (gone from the runner) or unknown; nothing is written
-  automations precheck <id> [--param name=value..] [--project dir]
-                                    the built-in read-only check of issue-pickup or pr-watcher that a template's
-                                    precheck calls: exit 0 and one line per item when there is work, 1 when there is
-                                    none, 2 without the policy file on the default branch, the runner or gh
   webhook set|remove|status         the webhook a run calls when it finishes or needs a person, off until set: set reads
                                     the URL (https, or http to this machine) from the first line of stdin and an optional
                                     bearer token from the second into the OS credential store; remove [--yes] deletes it;
@@ -295,7 +290,7 @@ Usage: benchkeeper <command> [options]
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
-        automations list|show|diff|status|precheck, packs list|show|warnings, skills list|show|sources,
+        automations list|show|diff|status, packs list|show|warnings, skills list|show|sources,
         rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
         profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
@@ -570,7 +565,7 @@ const FLAGS = {
   'accounts login': 'token email no-browser project', run: 'account project token yes',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
-  'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations precheck': 'param project',
+  'automations remove': 'yes all', 'automations diff': '', 'automations status': '',
   'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
@@ -1554,21 +1549,11 @@ function paramValues(list = []) {
   return { values };
 }
 
-// list, show, diff, status and precheck as a document, or { error, code } (the terminal prints it; 2: usage).
+// list, show, diff and status as a document, or { error, code } (the terminal prints it; 2: usage).
 async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
   const id = positionals[2];
-  if (positionals.length > (['show', 'diff', 'precheck'].includes(sub) ? 3 : 2)) return { error: `unexpected argument ${positionals.at(-1)}`, code: 2 };
-  if (['show', 'diff', 'precheck'].includes(sub) && !id) return { error: `automations ${sub} needs a template id, see benchkeeper automations list`, code: 2 };
-  if (o.param && sub !== 'precheck') return { error: '--param belongs to automations install and precheck', code: 2 };
-  if (sub === 'precheck') {
-    const { values, error } = paramValues(o.param);
-    if (error) return { error, code: 2 };
-    // Exit 0: work, 1: none, 2: a refusal (no policy, no runner, a failing read) or a usage error.
-    try {
-      const r = await precheck(ctx, id, values, resolve(o.project ?? '.'));
-      return { doc: { id, work: r.work, skipped: r.skipped }, code: r.work.length ? 0 : 1 };
-    } catch (e) { return { error: e.message, code: 2 }; }
-  }
+  if (positionals.length > (['show', 'diff'].includes(sub) ? 3 : 2)) return { error: `unexpected argument ${positionals.at(-1)}`, code: 2 };
+  if (['show', 'diff'].includes(sub) && !id) return { error: `automations ${sub} needs a template id, see benchkeeper automations list`, code: 2 };
   try {
     if (sub === 'list') {
       const { templates, errors } = loadAutomations(ctx), installed = readRegistry(ctx);
@@ -1586,14 +1571,14 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
       return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
     }
   } catch (e) { return { error: e.message, code: lookupCode(e) }; }
-  return { error: 'automations needs list, show, install, update, remove, diff, status or precheck', code: 2 };
+  return { error: 'automations needs list, show, install, update, remove, diff or status', code: 2 };
 }
 
 async function automationsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', id] = positionals;
   if (['install', 'update', 'remove'].includes(sub)) {
     if (!id) { out.write(`automations ${sub} needs a template id\n`); return 2; }
-    if (o.param && sub !== 'install') { out.write('--param belongs to automations install and precheck\n'); return 2; }
+    if (o.param && sub !== 'install') { out.write('--param belongs to automations install\n'); return 2; }
     const { values, error } = paramValues(o.param);
     if (error) { out.write(`${error}\n`); return 2; }
     let plan;
@@ -1612,8 +1597,7 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     out.write(`${t.id} (${t.tier}): ${t.title}\nagent ${t.agent}, schedule ${t.schedule || 'none'}, workspace ${t.workspace}, mode ${t.mode}\nprecheck: ${t.precheck}\n`);
     for (const [k, p] of Object.entries(t.parameters)) out.write(`--param ${k}=${p.default ?? '(required)'}  ${p.description}\n`);
     out.write(`\n${t.prompt}\n`);
-  } else if (sub === 'precheck') for (const l of [...d.work, ...d.skipped]) out.write(`${l}\n`);
-  else if (sub === 'diff') out.write(`${d.note ? `${d.note}\n` : ''}${d.diff || 'the installed automation matches the template\n'}`);
+  } else if (sub === 'diff') out.write(`${d.note ? `${d.note}\n` : ''}${d.diff || 'the installed automation matches the template\n'}`);
   else {
     for (const a of d.automations) out.write(`${a.id.padEnd(24)} ${a.state.padEnd(9)} ${a.enabled === null ? '' : a.enabled ? 'enabled ' : 'disabled'} ${a.changed.length ? `changed: ${a.changed.join(', ')}` : ''}${a.note ? ` ${a.note}` : ''}\n`);
     if (!d.automations.length) out.write('no automation installed\n');

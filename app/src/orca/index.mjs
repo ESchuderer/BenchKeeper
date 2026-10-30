@@ -84,15 +84,6 @@ export async function runs(ctx, limit = 20) {
   return out;
 }
 
-// The supervised workers whose terminal is open, in every run: the worktree path and whether the worker still works or has
-// settled with its report and waits for release. null when it is not installed, fails or listed the bound run only.
-// shortcut: one page of 100 rows; more open workers than that already exceed every host limit the policy schema allows.
-export async function workers(ctx) {
-  const list = await cli(ctx, ['worker-list', '--terminal-state', 'active', '--limit', '100']);
-  if (list?.scope?.source !== 'all' || !Array.isArray(list.workers)) return null;
-  return list.workers.map((w) => ({ path: String(w.resource?.worktreeId ?? '').split('::').slice(1).join('::'), working: w.dispatchStatus === 'dispatched' }));
-}
-
 // ---- scheduled automations: create, edit, remove and show through its CLI (help of OBSERVED; the JSON shapes are read
 // from its source of that version). f is { name, schedule, prompt, agent, precheck, workspace, dir, reuseSession, grace }.
 const AUTO = (ctx) => [bin(ctx), 'automations'];

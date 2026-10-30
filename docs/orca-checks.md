@@ -20,7 +20,6 @@ Observed version: 1.4.243 (`OBSERVED` in `app/src/orca/index.mjs`, `app/test/fix
 | Installed | `installed` | `orca --version` exits 0 and prints the version on one line; on Linux, from a terminal Orca did not open, `orca-ide --version` does the same |
 | Runs view: run list | `runs` | `orca orchestration run-list --limit 20 --json` exits 0 with `ok: true` and `result.runs[]` holding `id`, `created_at`, `updated_at` |
 | Runs view: tasks | `runs` | `orca orchestration task-list --run <id> --json` gives `result.tasks[]` with `status` one of the values `orca orchestration task-update --help` lists |
-| Open workers | `workers` | `orca orchestration worker-list --terminal-state active --limit 100 --json` from a terminal outside a run answers `ok: true` with `result.scope.source` `all` and `result.workers[]` holding `dispatchStatus` (`dispatched` while the worker works) and `resource.worktreeId` as `<repo id>::<worktree path>`; recorded in `worker-list.json` |
 | Runs view: errors | `runs` | a failing command exits non-zero, or prints `ok: false` with `error.code` |
 | Worker prompt | `isWorkerPrompt`, `taskOf` | a dispatched worker's first prompt has the lines `You are working inside Orca, a multi-agent IDE.` and `Your task ID is: <id>` (not documented, seen in transcripts) |
 | Run line | `runOf` | a worker started from the worker-spec template carries `Orca run: <id>` in its prompt |

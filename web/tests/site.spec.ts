@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { BASE } from './base';
 
-for (const path of ['./', './overview/', './app/', './404.html']) {
+for (const path of ['./', './overview/', './app/', './writes/', './404.html']) {
   test(`${path} links back to the repository and its security policy`, async ({ page }) => {
     await page.goto(path);
     const footer = page.locator('footer');
@@ -34,9 +34,25 @@ for (const path of ['./', './overview/', './app/', './404.html']) {
   });
 }
 
-test('the sitemap lists the three pages', async ({ request }) => {
+test('the sitemap lists the four pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();
-  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`]);
+  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`, `${BASE}writes/`]);
+});
+
+test('the writes page renders the sections of docs/setup.md and docs/security.md', async ({ page }) => {
+  await page.goto('./writes/');
+  const doc = page.locator('.doc');
+  await expect(doc).toContainText('The app itself never: runs a command through a shell');
+  await expect(doc.locator('h2#what-the-app-writes + table')).toContainText('.git is denied');
+  await expect(doc.locator('h2#what-the-app-never-does + ul > li').first()).toHaveText('Run a command through a shell.');
+  await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/docs/security.md#controls-in-claude-code"]')).toHaveCount(1);
+  await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/SECURITY.md"]')).toHaveCount(1);
+});
+
+test('the homepage and the footer link to the writes page', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.locator(`#start a[href="${BASE}writes/"]`)).toHaveCount(1);
+  await expect(page.locator(`footer a[href="${BASE}writes/"]`)).toHaveCount(1);
 });
 
 test('the installed parts render code and links from facts.json', async ({ page }) => {

@@ -23,7 +23,7 @@ export function SiteShell({ base, home = false, updated, commit, children }: { b
       <main id="main" tabIndex={-1}>
         {home ? children : <Container size="xl" py={{ base: 40, md: 64 }}>{children}</Container>}
       </main>
-      <SiteFooter size={size} updated={updated} commit={commit} />
+      <SiteFooter base={base} size={size} updated={updated} commit={commit} />
     </MantineProvider>
   );
 }

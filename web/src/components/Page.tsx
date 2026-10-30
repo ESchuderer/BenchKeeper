@@ -202,7 +202,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </div>
             <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
             <Group gap="md">
-              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${SETUP}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
+              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : l.anchor === 'what-the-app-writes-and-what-it-never-does' ? `${base}/writes/` : `${SETUP}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
             </Group>
             <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
           </Stack>

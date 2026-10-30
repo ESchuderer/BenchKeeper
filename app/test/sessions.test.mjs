@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
-import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
+import { TITLE, writeActivitySessions, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
@@ -105,6 +105,27 @@ test('pattern: a cached summary from before it was read is parsed again; one who
   assert.equal(rows.gone.pattern, null);
   assert.equal(rows.gone.subagents, 0);
   assert.match(boardHtml(Object.values(rows)), /not recorded/);
+});
+
+test('turns and usage limit waits: turn lines, task_complete, the gap fallback, merged errors, unresumed waits; an old summary reads not recorded', async () => {
+  const { home, ctx } = fixture();
+  writeActivitySessions(home);
+  const rows = byId(await scanSessions(ctx));
+  const S = Date.parse('2026-10-22T09:00:00.000Z') / 1000;
+  assert.deepEqual(rows.t1.active, [[S, S + 1200], [S + 3300, S + 3600]]);
+  assert.deepEqual(rows.t1.limits, [[S + 1800, S + 2700, S + 3600], [S + 5400, null, S + 6000]]);
+  assert.deepEqual(rows.t2.active, [[S, S + 300], [S + 1500, S + 2100]]);
+  assert.deepEqual(rows.t2.limits, [[S + 3600, null, null]]);
+  assert.deepEqual([rows.x1.active, rows.x1.limits], [[[S + 60, S + 300], [S + 840, S + 900]], null]);
+  // Cached before the fields were read, and the transcript gone since.
+  const cache = join(home, '.cache/benchkeeper/sessions.json');
+  const saved = JSON.parse(readFileSync(cache, 'utf8'));
+  const file = join(home, '.claude/projects/-work-act/t1.jsonl');
+  const { active, limits, ...d } = saved.files[file].d;
+  saved.files[join(home, '.claude/projects/-work-act/gone.jsonl')] = { ...saved.files[file], key: 'old', d };
+  writeFileSync(cache, JSON.stringify(saved));
+  const again = byId(await scanSessions(ctx));
+  assert.deepEqual([again.gone.active, again.gone.limits], [null, null]);
 });
 
 test('an unchanged file comes from the cache; a changed one is read again; since leaves out older sessions', async () => {

@@ -19,10 +19,25 @@ export function periodFacts(list, span) {
   let run = 0, streak = 0;
   for (const d of span) { run = seen.has(d) ? run + 1 : 0; streak = Math.max(streak, run); }
   const costed = list.filter((r) => r.costUSD != null);
+  // Wall-clock seconds covered by any of the [start, end] spans, and the most at one time. At the same second an end
+  // goes first, so back-to-back spans do not overlap.
+  const sweep = (spans) => {
+    let n = 0, peak = 0, wall = 0, from = 0;
+    const edges = spans.flatMap(([a, b]) => (b > a ? [[a, 1], [b, -1]] : [])).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    for (const [t, step] of edges) { if (n) wall += t - from; n += step; from = t; peak = Math.max(peak, n); }
+    return { wall, peak };
+  };
+  // Null when no session of the period recorded them (cached before they were read, a Codex session for limits).
+  const turns = list.filter((r) => r.active).flatMap((r) => r.active), on = sweep(turns);
+  const limited = list.filter((r) => r.limits);
+  // An unresumed wait lasts until its reset time, or counts no time without one.
+  const waits = sweep(limited.flatMap((r) => r.limits).map(([hit, back, reset]) => [hit, back ?? reset ?? hit]));
   return {
     sessions: list.length, time: sum((r) => r.busyMs), cost: costed.length ? sum((r) => r.costUSD) : null, tokens: sum((r) => r.tokens),
     uncosted: ranked(list.filter((r) => r.costUSD == null), (r) => r.agent), agent: ranked(list, (r) => r.agent)[0] ?? null,
     busiest: ranked(list, day)[0] ?? null, active: span.filter((d) => seen.has(d)).length, streak,
+    atOnce: on.wall ? turns.reduce((n, [a, b]) => n + b - a, 0) / on.wall : null, peak: on.wall ? on.peak : null,
+    waits: limited.length ? limited.reduce((n, r) => n + r.limits.length, 0) : null, blocked: limited.length ? waits.wall * 1000 : null,
   };
 }
 
@@ -267,15 +282,17 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
       ['Agent time', dur(cur.time), delta('time', dur), 'API and tool time'],
       ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${missing ? `; ${missing}` : ''}`],
       ['Tokens', compact(cur.tokens), delta('tokens', compact), 'input, cache and output'],
-      ['Most used agent', cur.agent ? agentName(cur.agent[0]) : '-', cur.agent && `${cur.agent[1]} of ${plural(cur.sessions, 'session')}`],
+      ['Agents at once', cur.atOnce == null ? 'not recorded' : cur.atOnce.toFixed(1), delta('atOnce', (x) => x.toFixed(1)), cur.atOnce == null ? null : `on average while any turn ran, peak ${cur.peak}`],
       ['Busiest day', cur.busiest?.[0] ?? '-', cur.busiest && plural(cur.busiest[1], 'session')],
       ['Active days', String(cur.active), delta('active'), `of ${plural(span.length, 'day')}`],
-      ['Longest streak', plural(cur.streak, 'day'), delta('streak')],
+      ['Blocked by limits', dur(cur.blocked), delta('blocked', dur), cur.waits == null ? null : `${plural(cur.waits, 'usage limit wait')} across sessions, Claude Code only`],
     ];
-    // Under the quick facts, smaller: test runs and merged pull requests, with the same change rule.
+    // Under the quick facts, smaller: the most used agent, the longest streak, test runs and merged pull requests, with the same change rule.
     const stats = (l) => l && { pass: passRate(l).v, merged: mergedPrs(l).size };
     const is = stats(list), was = stats(old && prev);
     const more = [
+      ['Most used agent', cur.agent ? agentName(cur.agent[0]) : '-', cur.agent && `${cur.agent[1]} of ${plural(cur.sessions, 'session')}`],
+      ['Longest streak', plural(cur.streak, 'day'), delta('streak')],
       ['Tests passed', is.pass == null ? '-' : `${Math.round(is.pass)}%`, changeText(is.pass, was?.pass ?? null, len, { points: true }), `of ${plural(list.filter((r) => r.tests).length, 'session')} with a test run`],
       ['Merged pull requests', String(is.merged), changeText(is.merged, was?.merged ?? null, len), 'by first session'],
     ];

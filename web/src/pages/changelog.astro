@@ -1,0 +1,22 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ChangelogPage from '../components/ChangelogPage';
+import { SLUG } from '../lib/repo-facts';
+import * as changelog from '../../../CHANGELOG.md';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+// The whole file in its own order (newest first), without its `# ` title; relative links point at the file on GitHub.
+const html = (await changelog.compiledContent())
+  .replace(/^\s*<h1[^>]*>.*?<\/h1>/, '')
+  .replace(/href="(?!https?:|#)([^"]*)"/g, (_, h) => { const u = new URL(h, 'https://x/'); return `href="https://github.com/${SLUG}/blob/main${u.pathname}${u.hash}"`; });
+---
+<SiteLayout title="Changelog, BenchKeeper"
+  description="The versions of BenchKeeper and what each one changed, from CHANGELOG.md.">
+  <ChangelogPage base={base} html={html} />
+  <style is:global>
+    .doc { overflow-wrap: anywhere; }
+    /* long commands in inline code may break on a phone */
+    .doc code { font-size: 0.9em; white-space: normal; }
+    .doc h2 { margin-top: 2em; }
+  </style>
+</SiteLayout>

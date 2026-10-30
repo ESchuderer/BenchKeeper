@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { BASE } from './base';
 
-for (const path of ['./', './overview/', './app/', './writes/', './404.html']) {
+for (const path of ['./', './overview/', './app/', './writes/', './changelog/', './404.html']) {
   test(`${path} links back to the repository and its security policy`, async ({ page }) => {
     await page.goto(path);
     const footer = page.locator('footer');
@@ -34,9 +35,9 @@ for (const path of ['./', './overview/', './app/', './writes/', './404.html']) {
   });
 }
 
-test('the sitemap lists the four pages', async ({ request }) => {
+test('the sitemap lists the five pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();
-  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`, `${BASE}writes/`]);
+  expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)).toEqual([BASE, `${BASE}overview/`, `${BASE}app/`, `${BASE}writes/`, `${BASE}changelog/`]);
 });
 
 test('the writes page renders the sections of docs/setup.md and docs/security.md', async ({ page }) => {
@@ -48,6 +49,14 @@ test('the writes page renders the sections of docs/setup.md and docs/security.md
   await expect(doc.locator('h2#what-the-app-never-does + ul > li').first()).toHaveText('Run a command through a shell.');
   await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/docs/security.md#controls-in-claude-code"]')).toHaveCount(1);
   await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/SECURITY.md"]')).toHaveCount(1);
+});
+
+test('the changelog page shows the entries of CHANGELOG.md in its order', async ({ page }) => {
+  const entries = [...readFileSync('../CHANGELOG.md', 'utf8').matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+  await page.goto('./changelog/');
+  await expect(page.locator('.doc h2')).toHaveText(entries);
+  await expect(page.locator('.doc h1')).toHaveCount(0);
+  await expect(page.locator(`footer a[href="${BASE}changelog/"]`)).toHaveCount(1);
 });
 
 test('the homepage and the footer link to the writes page', async ({ page }) => {

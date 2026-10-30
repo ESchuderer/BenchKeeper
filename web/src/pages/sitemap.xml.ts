@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 
 // The pages of the site; 404 is left out.
-const PAGES = ['', 'overview/', 'app/', 'writes/'];
+const PAGES = ['', 'overview/', 'app/', 'writes/', 'changelog/'];
 
 export const GET: APIRoute = ({ site }) => {
   const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');

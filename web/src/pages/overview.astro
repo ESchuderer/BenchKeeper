@@ -1,5 +1,5 @@
 ---
-import BenchLayout from '../layouts/BenchLayout.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
 import '@mantine/core/styles/Badge.css';
 import '@mantine/core/styles/Code.css';
 import '@mantine/core/styles/Paper.css';
@@ -10,6 +10,6 @@ import facts from '../data/facts.json';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
-<BenchLayout title={`${facts.overview.title}, BenchKeeper`} description={facts.overview.audience}>
+<SiteLayout title={`${facts.overview.title}, BenchKeeper`} description={facts.overview.audience}>
   <OverviewPage base={base} />
-</BenchLayout>
+</SiteLayout>

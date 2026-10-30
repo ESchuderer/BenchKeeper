@@ -168,6 +168,16 @@ function AccountCard({ a, c, onUse, onTrack, onSignIn, onRemove }) {
   );
 }
 
+// A long reference section folded to its title and a one-line summary.
+const Fold = ({ title, summary, children }) => (
+  <section aria-label={title}>
+    <details>
+      <summary><Title order={3} size="h4" display="inline">{title}</Title> <Text span size="sm">{summary}</Text></summary>
+      <Stack gap="sm" mt="sm">{children}</Stack>
+    </details>
+  </section>
+);
+
 const ACCOUNT_WHY = { add: 'You asked to add this account in Accounts.', remove: 'You asked to remove this account in Accounts.' };
 
 // Several accounts per agent: one card each with its sign-in and usage, add by sign-in, a check before a launch. The registry holds no credential.
@@ -267,18 +277,18 @@ export function Accounts({ overview, refresh }) {
                 <AddForm onPlan={(p) => idle() && setPending({ plan: p, why: ACCOUNT_WHY.add })} />
               </Stack>
             </details>
-            <Section title="Usage limits">
+            <Fold title="Usage limits" summary={`minimum ${minimum({ minimum: data.settings.minimum })}, auto-pick ${data.settings.autoPick ? 'on' : 'off'}`}>
               <Text size="sm">Below the minimum headroom of a window (100 minus the used percentage), <Code>benchkeeper run</Code> warns and asks before it starts; a notice shows before that. Defaults: minimum {minimum({ minimum: data.settings.minimum })}, notice below {WINDOWS.map(([k, label]) => `${label} ${data.settings.warn[k]}%`).join(', ')}. Usage of a Claude Code account is read from its status line once tracked, and for a signed-in Codex host account from its app-server at each check.</Text>
               <Text size="sm">Auto-pick is {data.settings.autoPick ? 'on' : 'off'}{data.settings.autoPick ? `; with no pool member above its minimum a launch ${data.settings.whenNone === 'wait' ? 'waits for the earliest reset' : 'stops'}` : ''}. When it is on, a new launch under the default Claude Code account starts under another Claude Code account of the same pool that has headroom, never inside a running session. The provider's consumer terms prohibit bypassing its protective measures and do not say whether switching accounts at a limit is one: the setting is yours to carry. Pool members must all be accounts of one person.</Text>
               {data.accounts.length > 0 && <Text size="sm">{data.accounts.map((a) => `${a.name}: ${minimum(a.limits)}`).join('; ')}</Text>}
-            </Section>
-            <Section title="Token for unattended containers">
+              <Cli>{'benchkeeper accounts list\nbenchkeeper accounts add [name] --agent claude|codex [--container --mount <path>]\nbenchkeeper accounts use|remove <name>\nbenchkeeper accounts status [name] [--project <dir>]\nbenchkeeper accounts track <name> [--off]\nbenchkeeper accounts limits [name] [--five-hour N] [--seven-day N] [--pool name] [--auto-pick on|off]\nbenchkeeper accounts login <name> [--token] [--project <dir>]\nbenchkeeper run --account <name> -- claude|codex'}</Cli>
+            </Fold>
+            <Fold title="Token for unattended containers" summary={data.store === 'none' ? 'no OS credential store on this system' : `kept in the OS credential store (${data.store}), set in a terminal`}>
               <Text size="sm">A one-year token for Claude Code (<Code>claude setup-token</Code>, subscription, model requests only) is kept in the OS credential store ({data.store === 'none' ? 'none is available on this system, so the command refuses' : data.store}), never in a file, the list, History or a log. It is set in a terminal, and it reaches one launch only with <Code>--token</Code>.</Text>
-            </Section>
+            </Fold>
           </Stack>
         )}
       </Loading>
-      <Cli>{'benchkeeper accounts list\nbenchkeeper accounts add [name] --agent claude|codex [--container --mount <path>]\nbenchkeeper accounts use|remove <name>\nbenchkeeper accounts status [name] [--project <dir>]\nbenchkeeper accounts track <name> [--off]\nbenchkeeper accounts limits [name] [--five-hour N] [--seven-day N] [--pool name] [--auto-pick on|off]\nbenchkeeper accounts login <name> [--token] [--project <dir>]\nbenchkeeper run --account <name> -- claude|codex'}</Cli>
     </Stack>
   );
 }

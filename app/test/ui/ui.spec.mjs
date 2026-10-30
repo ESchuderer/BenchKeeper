@@ -2525,9 +2525,19 @@ test.describe('views', () => {
     await expect(accounts.getByRole('button', { name: 'Add Claude Code account' })).toBeVisible();
     await expect(accounts.getByRole('button', { name: 'Add Codex account' })).toBeVisible();
     await expect(page.getByText('Each login stays in the agent\'s own folder (mode 0700)')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Token for unattended containers' })).toContainText('never in a file');
-    await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('Auto-pick is off');
-    await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('minimum 5-hour 8%, 7-day 3%');
+    // Usage limits (with the CLI) and the token section start folded to a one-line summary.
+    const limits = page.getByRole('region', { name: 'Usage limits' }), token = page.getByRole('region', { name: 'Token for unattended containers' });
+    await expect(limits.locator('summary')).toHaveText('Usage limits minimum 5-hour 8%, 7-day 3%, auto-pick off');
+    await expect(token.locator('summary')).toContainText('kept in the OS credential store');
+    await expect(limits.getByText('Auto-pick is off')).toBeHidden();
+    await expect(limits.getByText('CLI', { exact: true })).toBeHidden();
+    await expect(token.getByText(/never in a file/)).toBeHidden();
+    await limits.locator('summary').click();
+    await token.locator('summary').click();
+    await expect(limits.getByText(/Auto-pick is off/)).toBeVisible();
+    await expect(limits).toContainText('minimum 5-hour 8%, 7-day 3%');
+    await expect(limits.getByText('benchkeeper accounts limits', { exact: false })).toBeVisible();
+    await expect(token.getByText(/never in a file/)).toBeVisible();
     await noAxe(page);
     // Advanced: the form of a name, label, folder or dev container, as a plan.
     await page.getByText('Advanced: choose the name').click();

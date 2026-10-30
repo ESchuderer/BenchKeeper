@@ -100,7 +100,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'evals', view: 'evals', title: 'Evals', shot: 'evals',
-    alt: 'The Evals view: what miss and false trigger mean, the agent and model picker, the table of eval targets with cases, miss and false trigger rates, and the Run evals form with the agents to use and the Plan evals button.',
+    alt: 'The Evals view: the agent and model picker, the table of eval targets with cases, miss and false trigger rates, the Run evals form with the agents to use and the Plan evals button, and the folded How evals work section.',
     text: [
       'An eval case is a short task that a real agent session gets in a throwaway folder; the result records whether the skill loaded. Miss counts the tasks that needed the skill when it did not load, false trigger the tasks that did not need it when it loaded. Lower is better for both.',
       'Each target shows its latest rates and, when you pick it, its rates over time. Plan lists the targets changed since their last result and the sessions they start; nothing runs before Start. Evals use your agent subscription and never run in CI.',

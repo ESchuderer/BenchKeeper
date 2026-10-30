@@ -1703,6 +1703,16 @@ test.describe('views', () => {
   test('Evals: one agent at a time, targets worst first, the chart and runs table of one target', async ({ page }) => {
     await nav(page, 'Evals').click();
     const targets = page.getByRole('table', { name: 'Eval targets' });
+    // Results first; how evals work and the CLI stay folded below Run evals until opened.
+    const fold = page.locator('details', { hasText: 'How evals work' });
+    await expect(targets).toBeVisible();
+    await expect(fold).not.toHaveAttribute('open');
+    await expect(page.getByText('Evals test exactly that.')).toBeHidden();
+    await expect(page.getByText('benchkeeper evals run --all')).toBeHidden();
+    await fold.getByText('How evals work').click();
+    await expect(page.getByText('Evals test exactly that.')).toBeVisible();
+    await expect(fold.getByRole('listitem')).toHaveText([/^Miss: /, /^False trigger: /]);
+    await expect(page.getByText('benchkeeper evals run --all')).toBeVisible();
     // The newest result is Codex's: its one target, no overview chart for a single target.
     await expect(targets.getByRole('link')).toHaveText(['skill:workflow']);
     await expect(page.getByRole('region', { name: 'Latest rates per target' })).toHaveCount(0);

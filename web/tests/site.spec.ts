@@ -43,6 +43,7 @@ test('the writes page renders the sections of docs/setup.md and docs/security.md
   await page.goto('./writes/');
   const doc = page.locator('.doc');
   await expect(doc).toContainText('The app itself never: runs a command through a shell');
+  await expect(doc.locator('h2#trust-boundaries + ul')).toContainText('Two exceptions.');
   await expect(doc.locator('h2#what-the-app-writes + table')).toContainText('.git is denied');
   await expect(doc.locator('h2#what-the-app-never-does + ul > li').first()).toHaveText('Run a command through a shell.');
   await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/docs/security.md#controls-in-claude-code"]')).toHaveCount(1);

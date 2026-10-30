@@ -16,6 +16,7 @@ const section = async (doc: typeof setup, file: string, id: string, bare = false
 };
 const html = [
   await section(setup, 'setup.md', 'what-the-app-writes-and-what-it-never-does', true),
+  await section(security, 'security.md', 'trust-boundaries'),
   await section(security, 'security.md', 'what-the-app-writes'),
   await section(security, 'security.md', 'what-the-app-never-does'),
 ].join('');

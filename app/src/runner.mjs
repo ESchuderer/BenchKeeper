@@ -24,6 +24,9 @@ export const windowsTool = (...parts) => join(process.env.SystemRoot ?? 'C:\\Win
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
 // A --json command that fails prints its error as a JSON object on stdout: its message, not the object's last lines.
 const jsonError = (s) => { try { const m = JSON.parse(s)?.error?.message; return typeof m === 'string' ? m : undefined; } catch { return undefined; } };
+// Claude Code's result document (the --output-format json output, the last event of stream-json): { error, text } where
+// error says whether the session failed (is_error or a non-zero exit), undefined for any other output.
+export const claudeResult = (s, code = 0) => { try { const j = JSON.parse(s); return typeof j?.result === 'string' && typeof j.is_error === 'boolean' ? { error: j.is_error || code !== 0, text: j.result } : undefined; } catch { return undefined; } };
 const failure = (r, lines = 3) => lastLines(r.stderr || jsonError(r.stdout) || r.stdout || '', lines) || `exit ${r.code}`;
 
 // The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file

@@ -326,6 +326,17 @@ test('an eval session that exits non-zero is no missed trigger and stores no res
   assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
 });
 
+test('a failed eval session shows the sentence of its result event, also when it exits 0', async () => {
+  const last = (err) => JSON.stringify({ type: 'result', is_error: err, result: `Please run /login ${TOKEN}` });
+  for (const [code, stdout, why] of [[1, `{"type":"system"}\n${last(true)}\n`, 'exited with 1'], [0, `{"type":"system"}\n${last(true)}\n`, 'reported an error']]) {
+    const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code, stdout, stderr: 'noise' } : { code: 0, stdout: '', stderr: '' }) });
+    await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => e.message === `claude ${why} on case a of skill:x: Please run /login ***`);
+  }
+  // Output that is not JSON keeps the excerpt.
+  const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: 'plain words', stderr: '' } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => e.message.endsWith('of skill:x: plain words'));
+});
+
 test('a rule target whose second case fails keeps no output of its first case', async () => {
   const home = tmp();
   let n = 0;

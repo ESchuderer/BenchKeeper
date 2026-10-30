@@ -25,6 +25,12 @@ test('Codex answers through its output file; it reads only the project, without 
   // No server list, no session: none of them could be turned off.
   await assert.rejects(adviseSetup({ run: (a) => (a[1] === 'mcp' ? { code: 1, stdout: '', stderr: 'unknown command' } : assert.fail('session started')) }, { dir: '/p', agent: 'codex', lib }), /codex mcp list --json failed \(1\): unknown command/);
   await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: '', stderr: 'not logged in' }) }, { dir: '/p', agent: 'claude', lib }), /not logged in/);
+  // The result document's own sentence, masked, instead of the JSON tail; a result marked as an error is no answer.
+  const doc = (code, err) => ({ run: () => ({ code, stdout: JSON.stringify({ type: 'result', is_error: err, result: `Limit reached ghp_${'a'.repeat(36)}`, total_cost_usd: 0 }), stderr: 'noise' }) });
+  await assert.rejects(adviseSetup(doc(1, true), { dir: '/p', agent: 'claude', lib }), (e) => e.message === 'claude exited with 1: Limit reached ***');
+  await assert.rejects(adviseSetup(doc(0, true), { dir: '/p', agent: 'claude', lib }), (e) => e.message === 'claude reported an error: Limit reached ***');
+  await assert.rejects(adviseSetup(doc(1, false), { dir: '/p', agent: 'claude', lib }), (e) => e.message === 'claude exited with 1: Limit reached ***');
+  await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: '{"result": 1', stderr: '' }) }, { dir: '/p', agent: 'claude', lib }), (e) => e.message === 'claude exited with 1: {"result": 1');
   // The session read the repository: a token it quotes is masked in the error.
   const token = `ghp_${'a'.repeat(36)}`;
   await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: `found ${token}`, stderr: '' }) }, { dir: '/p', agent: 'claude', lib }), (e) => !e.message.includes(token) && /found \*\*\*/.test(e.message));

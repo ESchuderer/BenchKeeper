@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { agentEnv } from './childenv.mjs';
 import { mask } from './redact.mjs';
+import { claudeResult } from './runner.mjs';
 import { ENVS, isEnv } from './steps/project.mjs';
 
 // The flag that keeps an agent from saving the session to disk, where the installed CLI has it: read from the CLI's help
@@ -109,7 +110,12 @@ export async function agentAnswer(ctx, { dir, agent, prompt, signal, tools, usag
     const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, prompt, out, { tools, usage }), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
-    if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${mask((r.stderr || r.stdout || '').trim()).slice(-300)}`);
+    // A result marked as an error is never an answer; its own sentence is the error.
+    const doc = agent === 'claude' ? claudeResult(r.stdout, r.code) : undefined;
+    if (r.code !== 0 || doc?.error) {
+      const why = doc?.text.trim() ? mask(doc.text.trim()).slice(0, 300) : mask((r.stderr || r.stdout || '').trim()).slice(-300);
+      throw new Error(`${agent} ${r.code ? `exited with ${r.code}` : 'reported an error'}: ${why}`);
+    }
     let text;
     try { text = agent === 'claude' ? JSON.parse(r.stdout).result : readFileSync(out, 'utf8'); } catch { throw new Error(`${agent} gave no answer`); }
     return { text, cost: costOf(agent, r.stdout ?? '') };

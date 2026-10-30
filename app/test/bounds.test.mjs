@@ -512,7 +512,8 @@ test('a run of another schema: not in history, named by doctor, and undo refuses
   const later = apply([write(c, 'b', '1')], c);
   const id = '29990101T000000Z-ffffff';
   c.ledger.save({ schema: 99, id, time: '2999-01-01T00:00:00.000Z', entries: [] });
-  assert.deepEqual(api(c)['GET /api/history']().map((r) => r.id), [later.id, run.id]);
+  // Two runs in one second order by their random suffix: compare the ids, not their order.
+  assert.deepEqual(api(c)['GET /api/history']().map((r) => r.id).sort(), [run.id, later.id].sort());
   const found = doctor(c, { agents: [], env: {} }).filter((i) => i.check === 'ledger').map((i) => i.message);
   assert.deepEqual(found, [`1 ledger run was written by a newer benchkeeper: ${id}.json`]);
   for (const r of [run.id, id]) assert.throws(() => undo(r, c), (e) => e.status === 409 && e.message.includes(`a newer benchkeeper wrote ${id}.json`));

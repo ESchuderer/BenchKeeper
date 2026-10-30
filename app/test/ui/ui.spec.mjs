@@ -50,7 +50,7 @@ test.describe('views', () => {
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
 
-  test('the board tokens are the app variables in both schemes; reduced motion removes the transitions', async ({ page }) => {
+  test('the board tokens are the app variables in both schemes; buttons do not move on hover; reduced motion removes the transitions', async ({ page }) => {
     for (const scheme of ['light', 'dark']) {
       await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
       const read = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
@@ -64,9 +64,18 @@ test.describe('views', () => {
     await button.focus();
     expect(await button.evaluate((el) => getComputedStyle(el).outlineColor)).toBe('rgb(134, 182, 239)');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).not.toBe('0s');
+    await button.hover();
+    expect(await button.evaluate((el) => [getComputedStyle(el).transform, getComputedStyle(el).transitionDuration])).toEqual(['none', '0s']);
+    // The app adds no transition of its own, so a probe element carries one.
+    const duration = () => page.evaluate(() => {
+      const el = document.body.appendChild(Object.assign(document.createElement('div'), { style: 'transition: opacity 1s' }));
+      const d = getComputedStyle(el).transitionDuration;
+      el.remove();
+      return d;
+    });
+    expect(await duration()).toBe('1s');
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+    expect(await duration()).toBe('0s');
   });
 
   test('phone width: the header fits at 320 px; the menu holds theme and Stop, and says whether it is open', async ({ page }) => {

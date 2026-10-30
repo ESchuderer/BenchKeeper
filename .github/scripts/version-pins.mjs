@@ -19,8 +19,8 @@ export function pins(text, version) {
 
 // Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {
-  // The whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
-  const image = dockerfile.match(/\bplaywright@(\S+)/)?.[1];
+  // From the install command, not a comment; the whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
+  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
   return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 

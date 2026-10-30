@@ -23,5 +23,6 @@ test('a package whose @playwright/test differs from the dev container is reporte
   assert.deepEqual(playwrightDrift(dockerfile, { 'web/package.json': pkg('1.64.1'), 'app/package.json': pkg('1.64.1') }), { image: '1.64.1', drift: [] });
   assert.deepEqual(playwrightDrift(dockerfile, { 'web/package.json': pkg('1.64.1'), 'app/package.json': pkg('1.65.0') }).drift, ['app/package.json']);
   assert.deepEqual(playwrightDrift('npm i -g playwright@1.64.1-beta.0', { 'web/package.json': pkg('1.64.1') }).drift, ['web/package.json']);
+  assert.equal(playwrightDrift('# was playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
   assert.equal(playwrightDrift('no version', { 'web/package.json': pkg('1.64.1') }).image, undefined);
 });

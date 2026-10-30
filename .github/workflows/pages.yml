@@ -54,11 +54,23 @@ jobs:
           node_modules/.bin/playwright install --with-deps chromium
       - run: npm test
       # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.
-      # Relative links only (anchors are not checked: lychee does not find the bench arm ids in the built HTML); external links of the site run weekly in links.yml.
+      # Relative links only (anchors are not checked); external links of the site run weekly in links.yml.
       - run: mkdir -p "$RUNNER_TEMP/site" && ln -s "$PWD/dist" "$RUNNER_TEMP/site/BenchKeeper"
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           args: --offline --no-progress --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
+      # The bundle job deploys main under /BenchKeeper/next/: build, test and link-check that edition too.
+      - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SITE_EDITION: next
+      - run: npm test
+        env:
+          SITE_EDITION: next
+      - run: mkdir -p "$RUNNER_TEMP/site-next/BenchKeeper" && ln -s "$PWD/dist" "$RUNNER_TEMP/site-next/BenchKeeper/next"
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --offline --no-progress --root-dir ${{ runner.temp }}/site-next 'web/dist/**/*.html'
 
   # The site root shows the latest GitHub Release, built from its tag; /next/ shows main. A Pages deployment replaces the
   # whole site, so this job builds both into one artifact. The Release workflow starts this workflow after it creates a

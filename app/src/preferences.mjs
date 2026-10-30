@@ -1,5 +1,6 @@
 // The app's own preferences, kept in the BenchKeeper config folder: editors turns on the editor view for presets, pins
-// and the orchestrator policy (off by default); dismissed lists the Agent settings notes the user accepted, by note id.
+// and the orchestrator policy (off by default); dismissed lists the Agent settings notes the user accepted, by note id,
+// and the settings the user decided to keep, as setting:<agent>:<key>.
 // Written directly, without a plan.
 import { join } from 'node:path';
 import { readText, writeAtomic } from './fsx.mjs';

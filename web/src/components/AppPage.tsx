@@ -137,9 +137,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'settings', view: 'agent-settings', title: 'Agent settings', shot: 'settings',
-    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and the first settings with a Differs from suggested marker and a Use suggested button.',
+    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and a table of the differing settings with their current, default and suggested values, a Differs from suggested marker and the Use suggested and Keep mine buttons.',
     text: [
-      'The agents\' own settings, per agent and layer. Each setting shows the value in your file, the value in effect when another source wins, and BenchKeeper\'s suggestion with its reason; Use suggested opens the change plan.',
+      'The agents\' own settings, per agent and layer, one row each: the value in your file, the default and BenchKeeper\'s suggestion. Settings that differ from the suggestion come first, matching ones are folded, and Details opens what a setting does and why it is suggested. Use suggested opens the change plan; Keep mine lists the setting under Decided and silences it here and in Doctor until Show again.',
       'Conflicting settings are shown in full with the default, the risk and what the fix changes; hardening advice folds into one line.',
       'Every change is a plan with a diff, and History undoes it.',
     ],

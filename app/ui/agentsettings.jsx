@@ -93,7 +93,7 @@ function Row({ row, layer, edits, setEdit, stage, decide, running, phone, cols }
   const s = row.suggest;
   const setting = (
     <Group gap="xs">
-      <Code id={`setting-${row.key}`} tabIndex={-1}>{row.key}</Code>
+      <Code id={`setting-${row.key}`} tabIndex={-1} style={{ overflowWrap: 'anywhere' }}>{row.key}</Code>
       {s && <Chip ok={matches(row, shown)} pending={edit !== undefined} />}
       <Button size="compact-xs" variant="subtle" aria-expanded={open} aria-label={`Details of ${row.key}`} onClick={() => setOpen(!open)}>Details</Button>
     </Group>

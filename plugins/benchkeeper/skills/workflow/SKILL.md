@@ -1,7 +1,7 @@
 ---
 name: workflow
 description: "Picks the workflow and tier for a task: a software change (quick, standard, full), a docs pass, research, or a batch of tasks on one branch, with the checks and reviews each needs. Use before the first edit in a repository, before issue or pull request work, and before research with two or more items."
-writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; through its playbooks commits, a pull request, issue comments, issue closes and a handoff note for work left over."
+writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; through its playbooks commits and a pull request in the project's convention."
 ---
 
 # Workflow
@@ -26,6 +26,6 @@ writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; thr
 
 4. **Batch** when the user asks for it or names several tasks for one branch: the tasks run one after another, each at quick tier with no per-task review. Tier each task first (step 1): a task that is risky or above quick tier is not batched and runs at its own tier. Step 5 and the reviews then run once for the whole branch.
 5. **Long checks last.** Fast checks (types, lint, the tests of the touched code) after each edit. The full suite, end-to-end and browser tests and builds run once, after the last edit, in a subagent that returns only failures and key lines. Reviews start then and follow the tier playbook, including its remediation and re-review rounds. A long check writes to a log file and is read by its failures and last lines. Fixes are new commits, and failed checks rerun. Waiting for pull request checks: run `gh pr checks --watch` in the background or with one until-loop Monitor, never a leading `sleep`; load a deferred tool's schema (ToolSearch) before the first call.
-6. **Report done** with each check's command and result, a "steps skipped" line naming the checklist steps not run (or "none") and what was not checked. Work left for another session or worker gets a handoff note in the issue or pull request: done, state of the branch, next step, open decisions. After a merge or when the next task is unrelated, suggest a new session (`/clear` in Claude Code).
+6. **Report done** with each check's command and result, a "steps skipped" line naming the checklist steps not run (or "none") and what was not checked. After a merge or when the next task is unrelated, suggest a new session (`/clear` in Claude Code).
 
 After a compaction, read this skill and the playbook of the current tier again before the next step.

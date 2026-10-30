@@ -9,4 +9,3 @@
 - Benchmarks and evaluations: independent or vendor-run, version, harness, model and effort, task count, runs per arm, deltas next to the spread, advertised claims next to measured ones.
 - A question that needs running code: a throwaway spike in the scratch directory (`mattpocock-skills:prototype` when installed).
 - Subagent brief: the question in one sentence, what is already known, the sources to trust, the return format (answer, source URL per claim, confidence), and the scope limit (read-only, no further subagents).
-- Research for an issue: post the answer as one issue comment and close the issue then when nothing is left, per the project rules.

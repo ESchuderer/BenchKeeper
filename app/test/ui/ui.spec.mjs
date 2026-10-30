@@ -2105,12 +2105,13 @@ test.describe('views', () => {
     await page.unroute(view);
   });
 
-  test('Rules: auto memory per project in numbers, read-only, over the load limit flagged; no axe violations at 390 px', async ({ page }) => {
+  test('Rules: auto memory per project in numbers, read-only, over the load limit flagged, nothing flagged when off; no axe violations at 390 px', async ({ page }) => {
     const view = /\/api\/rules$/;
-    const memory = [
+    const folders = [
       { project: '/work/app', path: '/home/u/.claude/projects/-work-app/memory', notes: 3, bytes: 4096, changed: '2026-02-03T04:05:06.000Z', over: true },
       { project: '-work-old', path: '/home/u/.claude/projects/-work-old/memory', notes: 0, bytes: 120, changed: '2026-01-01T00:00:00.000Z', over: false },
     ];
+    let memory = { enabled: true, lines: 150, bytes: 10 * 1024, folders };
     await page.route(view, async (route) => {
       const r = await route.fetch();
       const body = await r.json();
@@ -2118,10 +2119,20 @@ test.describe('views', () => {
     });
     await nav(page, 'Rules').click();
     await page.setViewportSize({ width: 390, height: 844 });
+    const section = page.getByRole('region', { name: 'Claude Code auto memory' });
     const table = page.getByRole('table', { name: 'Auto memory per project' });
+    await expect(section).toContainText('the first 150 lines or 10 KB of MEMORY.md');
     await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('over the load limit');
     await expect(table.getByRole('row', { name: /-work-old/ })).toContainText('120 bytes');
-    await expect(page.getByRole('region', { name: 'Claude Code auto memory' }).getByRole('button')).toHaveCount(0);
+    await expect(section.getByRole('button')).toHaveCount(0);
+    await noAxe(page);
+    // With auto memory off the folders stay, nothing loads and nothing is over a limit.
+    memory = { ...memory, enabled: false };
+    await page.reload();
+    await expect(section).toContainText('Auto memory is off');
+    await expect(table.getByRole('row', { name: /\/work\/app/ })).toContainText('not loaded');
+    await expect(table).not.toContainText('load limit');
+    await expect(section).not.toContainText('at the start of a session');
     await noAxe(page);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.unroute(view);

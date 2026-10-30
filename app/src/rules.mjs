@@ -189,17 +189,24 @@ function memoryStats(folder, project) {
 }
 
 // The auto memory folders with notes: a project's own, or without dir every project folder under the config folder and the
-// user's autoMemoryDirectory. A folder is named by the registered project it belongs to, else by its folder name.
+// user's autoMemoryDirectory. A folder is named by the registered project it belongs to, else by its folder name. enabled
+// is autoMemoryEnabled of the layers read for the scope, as for the budget row; lines and bytes are the load limits.
 // shortcut: the config folder is ~/.claude, CLAUDE_CONFIG_DIR is not followed, as in the rest of the app.
 function memoryOverview(ctx, dir) {
+  const layers = readSettings(ctx, 'claude', { dir });
+  const enabled = valuesOf(layers, 'claude', 'autoMemoryEnabled')[0]?.value !== false;
+  return { enabled, lines: MEMORY_LINES, bytes: MEMORY_BYTES, folders: memoryFolders(ctx, dir, layers) };
+}
+
+function memoryFolders(ctx, dir, layers) {
   if (dir) {
-    const folder = memoryDir(ctx, dir, readSettings(ctx, 'claude', { dir }));
+    const folder = memoryDir(ctx, dir, layers);
     return [folder && memoryStats(folder, dir)].filter(Boolean);
   }
   const names = new Map(listProjects(ctx).map((p) => [memoryFolder(p.path), p.path]));
   const base = join(ctx.home, '.claude/projects');
   const folders = listDir(base).map((n) => [join(base, n, 'memory'), names.get(n) ?? n]);
-  const custom = memoryDir(ctx, undefined, readSettings(ctx, 'claude'));
+  const custom = memoryDir(ctx, undefined, layers);
   if (custom && !folders.some(([f]) => f === custom)) folders.push([custom, display(ctx, undefined, custom)]);
   return folders.map(([f, name]) => memoryStats(f, name)).filter(Boolean).sort((a, b) => a.project.localeCompare(b.project));
 }

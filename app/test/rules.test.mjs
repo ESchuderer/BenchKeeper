@@ -585,7 +585,7 @@ test('auto memory: a folder of the user settings with ~ for the home folder; a r
 test('the auto memory overview: notes, size, last change and the load limit per project folder, never the text', () => {
   const ctx = machine();
   const dir = project();
-  const memoryOf = (d) => view(ctx, 'claude', d).memory;
+  const memoryOf = (d) => view(ctx, 'claude', d).memory.folders;
   assert.deepEqual(memoryOf(), [], 'no projects folder');
   assert.equal(view(ctx, 'codex').memory, undefined);
   const folder = join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory');
@@ -616,8 +616,20 @@ test('the auto memory overview reads a custom autoMemoryDirectory of the user se
   write(join(ctx.home, 'elsewhere/b.md'), 'b\n');
   const custom = { project: join('~', 'mem'), path: join(ctx.home, 'mem'), notes: 1, bytes: 7 };
   const pick = (m) => ({ project: m.project, path: m.path, notes: m.notes, bytes: m.bytes });
-  assert.deepEqual(view(ctx, 'claude').memory.map(pick), [custom]);
-  assert.deepEqual(view(ctx, 'claude', dir).memory.map(pick), [{ ...custom, project: dir }]);
+  assert.deepEqual(view(ctx, 'claude').memory.folders.map(pick), [custom]);
+  assert.deepEqual(view(ctx, 'claude', dir).memory.folders.map(pick), [{ ...custom, project: dir }]);
+});
+
+test('the auto memory overview says whether auto memory loads for the scope, with the load limits, and keeps the folders when off', () => {
+  const ctx = machine();
+  const dir = project();
+  write(join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), 'note\n');
+  const memoryOf = (d) => view(ctx, 'claude', d).memory;
+  assert.deepEqual({ ...memoryOf(dir), folders: memoryOf(dir).folders.length }, { enabled: true, lines: 200, bytes: 25 * 1024, folders: 1 });
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
+  assert.deepEqual([memoryOf(dir).enabled, memoryOf(dir).folders.length, memoryOf().enabled], [false, 1, true], 'a project turns it off for itself only');
+  write(join(ctx.home, '.claude/settings.json'), JSON.stringify({ autoMemoryEnabled: false }));
+  assert.deepEqual([memoryOf().enabled, memoryOf().folders.length], [false, 1]);
 });
 
 test('the budget: kinds summed, path-scoped tokens on demand, project skills and skills without a space after the colon', () => {

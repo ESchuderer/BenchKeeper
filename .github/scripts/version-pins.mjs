@@ -19,8 +19,9 @@ export function pins(text, version) {
 
 // Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {
-  const image = dockerfile.match(/\bplaywright@(\d+\.\d+\.\d+)/)?.[1];
-  return Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image);
+  // The whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
+  const image = dockerfile.match(/\bplaywright@(\S+)/)?.[1];
+  return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -40,9 +41,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   if (process.argv[2] === '--check') {
     const packages = Object.fromEntries(['web/package.json', 'app/package.json'].map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
-    const drift = playwrightDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), packages);
+    const { image, drift } = playwrightDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), packages);
+    if (!image) {
+      console.log('::error::found no playwright@<version> in .devcontainer/Dockerfile');
+      process.exit(1);
+    }
     if (drift.length) {
-      console.log(`::error::@playwright/test in ${drift.join(', ')} differs from playwright@<version> in .devcontainer/Dockerfile: set them equal`);
+      console.log(`::error::@playwright/test in ${drift.join(', ')} differs from playwright@${image} in .devcontainer/Dockerfile: set them equal`);
       process.exit(1);
     }
   }

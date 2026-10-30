@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { boardHtml } from '../src/board.mjs';
 import { doctor } from '../src/doctor.mjs';
-import { bandStacks, parseCsv, readLedger } from '../src/ponytail.mjs';
+import { bandStacks, parseCsv, readLedger, styleChecks } from '../src/ponytail.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { scanSessions } from '../src/sessions.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
@@ -25,6 +25,33 @@ function machine({ band = true, ponytail = true, benchkeeper = true, flag } = {}
   return context({ home, run });
 }
 const bandPlan = (ctx) => preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } })).filter((c) => c.step === 'settings:ponytail:band');
+
+test('status line style: one info per host account with the usage script, none without one', () => {
+  const ctx = machine();
+  assert.deepEqual(styleChecks(ctx), []);
+  const account = (name, tracked) => {
+    const dir = join(ctx.home, `acct-${name}`);
+    mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
+    if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
+    return { name, agent: 'claude', mode: 'host', dir };
+  };
+  const work = account('work', true);
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [work, account('spare', false)] }));
+  const style = (v) => writeFileSync(join(work.dir, 'settings.json'), JSON.stringify({ pluginConfigs: { 'benchkeeper@benchkeeper': { options: { statusStyle: v } } } }));
+  const [unset] = styleChecks(ctx);
+  assert.equal(unset.level, 'info');
+  assert.match(unset.message, /^account work: status line style merged \(the default\), prints the usage windows and Ponytail's level/);
+  assert.match(unset.fix, /statusStyle/);
+  style('none');
+  assert.deepEqual(styleChecks(ctx).map((f) => f.message), ['account work: status line style none, prints nothing; the usage windows are recorded in every style']);
+  style('bogus');
+  assert.match(styleChecks(ctx)[0].message, /style merged,/);
+  assert.equal(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'statusline').length, 1);
+  // A broken registry is accountChecks' finding, not a second one here.
+  writeFileSync(join(ctx.config, 'accounts.json'), '{');
+  assert.deepEqual(styleChecks(ctx), []);
+});
 
 test('two bands: doctor warns, the plan hides both with a diff, nothing changes unplanned, undo restores', () => {
   const ctx = machine();

@@ -3,8 +3,11 @@
 // shortcut: paths follow the default layout below the home folder; CLAUDE_CONFIG_DIR, XDG_CONFIG_HOME and APPDATA are not followed, as in the rest of the app.
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { listAccounts } from './accounts.mjs';
+import { supports } from './agents.mjs';
 import { exists, readText } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
+import { STATE_DIR } from './usage.mjs';
 
 const PLUGIN = 'ponytail@ponytail';
 const BAND_FLAG = '.claude/.ponytail-band';
@@ -46,6 +49,25 @@ export const bandChecks = (ctx) => (bandStacks(ctx) ? [{
   message: "Ponytail draws its own band above the prompt, so two bands stack with BenchKeeper's tier band. The switch is the file ~/.claude/.ponytail-band (off hides it, /ponytail band off writes it) and hideStatus in ~/.config/ponytail/config.json for its level in BenchKeeper's status line (Ponytail's own Claude Code status line does not read it)",
   fix: "benchkeeper apply: choose the optional change \"hide Ponytail's band\" (a plan with a diff; benchkeeper undo restores both files)",
 }] : []);
+
+// What BenchKeeper's status line prints per style (the plugin option statusStyle, read as usage-hook.mjs reads it).
+const SHOWS = { merged: "the usage windows and Ponytail's level", plugin: "Ponytail's level only", benchkeeper: 'the usage windows only', none: 'nothing' };
+
+// One info finding per host account whose status line is BenchKeeper's (accounts track wrote the usage script): its style
+// and what it prints. Reads only. A container account's folder is a volume, not read here; a broken registry is accountChecks' finding.
+export function styleChecks(ctx) {
+  let list = [];
+  try { list = listAccounts(ctx); } catch { /* reported by accountChecks */ }
+  return list.filter((a) => supports(a.agent, 'usage') && a.mode === 'host' && exists(join(a.dir, STATE_DIR, 'usage.mjs'))).map((a) => {
+    const v = json(readText(join(a.dir, 'settings.json'))).pluginConfigs?.['benchkeeper@benchkeeper']?.options?.statusStyle;
+    const style = Object.hasOwn(SHOWS, v) ? v : 'merged';
+    return {
+      level: 'info', check: 'statusline',
+      message: `account ${a.name}: status line style ${style}${v === undefined ? ' (the default)' : ''}, prints ${SHOWS[style]}; the usage windows are recorded in every style`,
+      fix: `to change it, set the plugin option statusStyle (merged, plugin, benchkeeper or none) under pluginConfigs."benchkeeper@benchkeeper".options in ${join(a.dir, 'settings.json')}`,
+    };
+  });
+}
 
 // Quote-aware: a task name holds commas, quotes and line breaks.
 export function parseCsv(text) {

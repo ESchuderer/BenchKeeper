@@ -430,7 +430,7 @@
     {
       "id": "ponytail",
       "title": "Ponytail",
-      "pickWhen": "The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full",
+      "pickWhen": "The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full. It adds about 1,000 tokens at each session start (its rules and a map of the repository) and about 700 per subagent",
       "plugins": {
         "claude": {
           "id": "ponytail@ponytail",

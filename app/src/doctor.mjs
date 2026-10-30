@@ -15,7 +15,7 @@ import { exists, readText } from './fsx.mjs';
 import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
 import { paramChecks } from './params.mjs';
-import { bandChecks } from './ponytail.mjs';
+import { bandChecks, styleChecks } from './ponytail.mjs';
 import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
@@ -128,7 +128,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   const ide = orca.unobserved(ctx);
   if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
   out.push(...automationChecks(ctx));
-  if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
+  if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx), ...styleChecks(ctx));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     const engine = containerEngine(ctx);

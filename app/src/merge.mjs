@@ -83,28 +83,41 @@ export function getBlock(text, id, comment) {
 const tomlLiteral = (v) => (typeof v === 'string' ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(tomlLiteral).join(', ')}]` : String(v));
 const keyRe = (key) => new RegExp(`^(\\s*)(${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|"${key}")\\s*=`);
 
-// Sets one scalar key in a table (or at the root with table ''). The edit is a line edit, accepted only when the
-// parsed result equals the parsed original with that key set; anything else is reported for manual editing.
-export function setToml(text, table, key, value) {
-  const src = text ?? '';
+// The parsed text of a line edit: CRLF line endings and invalid TOML are reported for manual editing.
+function parsed(src) {
   if (src.includes('\r')) throw new MergeError('CRLF line endings: edit by hand');
-  let before;
-  try { before = parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
-  const scope = table ? table.split('.').reduce((o, k) => o?.[k], before) : before;
-  if (scope?.[key] === value) return src;
-  const lines = src.split('\n');
+  try { return parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
+}
+
+// The lines [from, to) of a table below its header (or of the root, up to the first header with table ''); null when the
+// table has no header line of its own.
+function tableLines(lines, table) {
   const header = (l) => /^\s*\[/.test(l);
   let from = 0, to = lines.findIndex(header);
   if (table) {
     from = lines.findIndex((l) => l.trim() === `[${table}]`);
-    if (from < 0) to = -2;
-    else { from++; to = lines.slice(from).findIndex(header); to = to < 0 ? lines.length : from + to; }
+    if (from < 0) return null;
+    from++;
+    to = lines.slice(from).findIndex(header);
+    to = to < 0 ? lines.length : from + to;
   }
-  if (to === -1) to = lines.length;
+  return [from, to < 0 ? lines.length : to];
+}
+
+// Sets one scalar key in a table (or at the root with table ''). The edit is a line edit, accepted only when the
+// parsed result equals the parsed original with that key set; anything else is reported for manual editing.
+export function setToml(text, table, key, value) {
+  const src = text ?? '';
+  const before = parsed(src);
+  const scope = table ? table.split('.').reduce((o, k) => o?.[k], before) : before;
+  if (scope?.[key] === value) return src;
+  const lines = src.split('\n');
+  const range = tableLines(lines, table);
   const line = `${key} = ${tomlLiteral(value)}`;
-  if (to === -2) {
+  if (!range) {
     lines.splice(lines.length - (lines.at(-1) === '' ? 1 : 0), 0, ...(src.trim() ? [''] : []), `[${table}]`, line);
   } else {
+    const [from, to] = range;
     const at = lines.slice(from, to).findIndex((l) => keyRe(key).test(l));
     // A comment after the old value stays with the line.
     if (at >= 0) lines[from + at] = `${line}${lines[from + at].match(/^\s*[^\s=]+\s*=\s*(?:"(?:[^"\\]|\\.)*"|'[^']*'|\[[^\]]*\]|[^#\s]+)(\s*#.*)$/)?.[1] ?? ''}`;
@@ -130,22 +143,13 @@ export function setToml(text, table, key, value) {
 // own in that table (dotted or inline form, a multi-line value) is reported for manual editing.
 export function removeToml(text, table, key) {
   const src = text ?? '';
-  if (src.includes('\r')) throw new MergeError('CRLF line endings: edit by hand');
-  let before;
-  try { before = parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
+  const before = parsed(src);
   const scope = table ? table.split('.').reduce((o, k) => o?.[k], before) : before;
   if (scope?.[key] === undefined) return src;
   const lines = src.split('\n');
-  const header = (l) => /^\s*\[/.test(l);
-  let from = 0, to = lines.findIndex(header);
-  if (table) {
-    from = lines.findIndex((l) => l.trim() === `[${table}]`);
-    if (from < 0) throw new MergeError(`${table}.${key}: this form needs manual editing`);
-    from++;
-    to = lines.slice(from).findIndex(header);
-    to = to < 0 ? lines.length : from + to;
-  }
-  if (to === -1) to = lines.length;
+  const range = tableLines(lines, table);
+  if (!range) throw new MergeError(`${table}.${key}: this form needs manual editing`);
+  const [from, to] = range;
   const at = lines.slice(from, to).findIndex((l) => keyRe(key).test(l));
   if (at < 0) throw new MergeError(`${table || 'root'}.${key}: this form needs manual editing`);
   lines.splice(from + at, 1);
@@ -155,9 +159,7 @@ export function removeToml(text, table, key) {
 // Removes a whole [a."b"] table: its header line and the lines up to the next header; comments above stay.
 export function removeTable(text, path) {
   const src = text ?? '';
-  if (src.includes('\r')) throw new MergeError('CRLF line endings: edit by hand');
-  let before;
-  try { before = parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
+  const before = parsed(src);
   if (path.reduce((o, k) => o?.[k], before) === undefined) return src;
   const lines = src.split('\n');
   const keys = (l) => {

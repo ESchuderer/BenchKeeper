@@ -94,6 +94,12 @@ function installedFiles(dir, state, add, skip = () => false) {
   if (exists(join(dir, '.benchkeeper')) && !skip(join(dir, '.benchkeeper'))) add('state', 'remove .benchkeeper/', { kind: 'remove', path: join(dir, '.benchkeeper') });
 }
 
+// A list of changes that take a setup out, all selected, and the function that adds one.
+function removals() {
+  const changes = [];
+  return [changes, (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c })];
+}
+
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
 // AGENTS.md, a CLAUDE.md that only imports AGENTS.md, the sandbox keys BenchKeeper set in .claude/settings.json, the
 // state folder, the offered files it wrote, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
@@ -101,8 +107,7 @@ function installedFiles(dir, state, add, skip = () => false) {
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
   const state = readState(dir);
-  const changes = [];
-  const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
+  const [changes, add] = removals();
   const agentsMd = readText(at('AGENTS.md'));
   if (getBlock(agentsMd, 'project') != null) {
     if (setBlock(agentsMd, 'project', null).trim()) add('agents-md', 'AGENTS.md without the BenchKeeper block', { kind: 'write', path: at('AGENTS.md'), edit: (t) => setBlock(t, 'project', null) });
@@ -131,8 +136,7 @@ export function committedSetup(dir) {
 export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const at = (p) => join(dir, p);
   const state = readState(dir);
-  const changes = [];
-  const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
+  const [changes, add] = removals();
   const claude = readText(at(LOCAL_CLAUDE));
   if (getBlock(claude, 'project') != null) {
     const strip = (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '');

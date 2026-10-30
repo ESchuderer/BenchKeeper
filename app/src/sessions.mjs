@@ -1,10 +1,10 @@
 // Agent sessions on this machine, read from the Claude Code and Codex transcripts: tier, setup, skills, tests, cost
 // and pull requests per session, for the board. Reads only the transcripts, the ledger and gh; writes only its caches.
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
-import { move, readText, writeAtomic } from './fsx.mjs';
+import { move, readText, walkDir, writeAtomic } from './fsx.mjs';
 import { repoEnv } from './git.mjs';
 import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
@@ -157,16 +157,7 @@ async function codexFile(file) {
 
 const files = (dir, pick, depth) => {
   const out = [];
-  const walk = (d, n) => {
-    let entries = [];
-    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      const p = join(d, e.name);
-      if (e.isDirectory() && n > 0) walk(p, n - 1);
-      else if (e.isFile() && pick(p)) out.push(p);
-    }
-  };
-  walk(dir, depth);
+  walkDir(dir, depth, (e, p) => { if (e.isFile() && pick(p)) out.push(p); });
   return out;
 };
 

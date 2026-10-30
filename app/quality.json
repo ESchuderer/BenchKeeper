@@ -43,7 +43,7 @@
   },
   "baselines": {
     "knip": [],
-    "duplicatedLines": 33
+    "duplicatedLines": 0
   },
   "mutation": {
     "allow": {

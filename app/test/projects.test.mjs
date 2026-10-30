@@ -346,7 +346,7 @@ test('projects update shows the plan, asks once, and --yes --no-push commits wit
   assert.match(text, /Update 1 projects: .*git push and gh pr create/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
   text = '';
-  assert.equal(await exec(['projects', 'update']), 1, 'end of input is no');
+  assert.equal(await exec(['projects', 'update']), 2, 'no answer at all refuses');
   assert.match(text, /Update 1 projects: .*git push and gh pr create/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
   assert.equal(await exec(['projects', 'update', '--yes', '--no-push']), 0);

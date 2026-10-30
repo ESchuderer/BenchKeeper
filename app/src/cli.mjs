@@ -328,26 +328,33 @@ const OPTIONS = {
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
+// A question that found the end of the input before any answer: the command stops before it changes anything.
+class Refused extends Error {}
+
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
 // end early count as no. A read still open when its reader gave up (a sign-in that ended first) is the next line's.
-function asker(input, out) {
-  let rl, lines, pending;
+function asker(input, out, name) {
+  let rl, lines, pending, answered = false;
   const next = () => {
     rl ??= createInterface({ input, terminal: false });
     lines ??= rl[Symbol.asyncIterator]();
-    pending ??= lines.next().then(({ value }) => { pending = null; return value ?? null; });
+    pending ??= lines.next().then(({ value }) => { pending = null; if (value !== undefined) answered = true; return value ?? null; });
     return pending;
   };
-  const ask = async (question) => {
+  // No input at all (an agent's shell gives /dev/null) is no answer, not a no: refused, unless the question comes
+  // after the change (optional), where the end of the input still declines.
+  const ask = async (question, { optional = false } = {}) => {
     out.write(`${question} [y/N] `);
-    return /^y$/i.test(((await next()) ?? '').trim());
+    const line = await next();
+    if (line === null && !answered && !optional) { out.write('\n'); throw new Refused(`${name()} asks before it changes anything: add --yes`); }
+    return /^y$/i.test((line ?? '').trim());
   };
   // The next line as typed (null at the end of the input), after the question when there is one.
   ask.line = (question) => { if (question) out.write(question); return next(); };
   ask.tty = !!input.isTTY;
   ask.close = () => rl?.close();
   // A new reader of the same input, for a question after the agent had the terminal.
-  ask.fresh = () => asker(input, out);
+  ask.fresh = () => asker(input, out, name);
   return ask;
 }
 
@@ -410,12 +417,14 @@ const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.p
 const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
-  const ask = asker(input, out);
+  const named = () => { const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals; return [cmd, arg, sub]; };
+  const ask = asker(input, out, () => commandName(...named()));
   try { return await command(argv, { out, err, ask, ctx }); } catch (e) {
+    if (e instanceof Refused) { err.write(`${e.message}\n`); return 2; }
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    const [cmd, arg, sub] = named();
     out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
@@ -634,7 +643,7 @@ async function command(argv, { out, err, ask, ctx }) {
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+    return applyAnswered(plan, ctx, 'global', { o, ask, out });
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
@@ -680,7 +689,7 @@ async function command(argv, { out, err, ask, ctx }) {
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes.\n`);
     } else {
-      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out) : 0;
+      const code = plan.length ? await applyAnswered(plan, pctx, dir, { o, ask, out }) : 0;
       if (code) return code;
     }
     out.write('Then, in an agent session the app records:\n');
@@ -863,10 +872,10 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     for (const m of plan.notes) out.write(`note: ${m}\n`);
-    if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
+    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out });
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
-      code |= report(apply(x.changes, x.ctx, { scope: x.path, select: await choose(x.changes, o, ask, out) }), out);
+      code |= await applyAnswered(x.changes, x.ctx, x.path, { o, ask, out });
     }
     return code;
   }
@@ -1019,7 +1028,7 @@ async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
   if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
   for (const w of warnings) out.write(`warning: ${w}\n`);
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
-  return report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, pctx, dir, { o, ask, out });
 }
 
 // packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.
@@ -1065,6 +1074,7 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
   let sections;
   try { sections = [['global', ctx], ...[...new Set(plan.map((c) => c.project).filter(Boolean))].map((p) => [p, projectCtx(ctx, p)])]; } catch (e) { out.write(`${e.message}\n`); return 1; }
   const select = await choose(plan, o, ask, out);
+  if (declinedAll(select, o, out)) return 0;
   let code = 0;
   for (const [where, sctx] of sections) {
     const changes = plan.filter((c) => (c.project ?? 'global') === where);
@@ -1076,7 +1086,20 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
 // A global plan: nothing to change, or the changes chosen applied as one run.
 async function applyChosen(plan, ctx, { o, ask, out }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
-  return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, ctx, 'global', { o, ask, out });
+}
+
+// Every change declined records no run.
+function declinedAll(select, o, out) {
+  if (o.yes || select.length) return false;
+  out.write('nothing applied\n');
+  return true;
+}
+
+// The changes chosen from a plan applied as one run.
+async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
+  const select = await choose(plan, o, ask, out);
+  return declinedAll(select, o, out) ? 0 : report(apply(plan, ctx, { scope, select }), out);
 }
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
@@ -1412,7 +1435,7 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
-  return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, sctx, layer === 'user' ? 'global' : dir, { o, ask, out });
 }
 
 // knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
@@ -1477,7 +1500,7 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
   try { plan = preview(ruleChanges(ctx, { agent: o.agent, file: resolve(file), dir, on: sub === 'enable' })); } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const rctx = dir ? projectCtx(ctx, dir) : ctx;
-  return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
+  return applyAnswered(plan, rctx, dir ?? 'global', { o, ask, out });
 }
 
 // ---- automations: templates (automations.mjs) installed on the runner
@@ -1593,6 +1616,7 @@ async function webhookCommand(ctx, { o, positionals, out, ask }) {
     out.write('deleted the webhook\n');
     return 0;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return e instanceof UsageError ? 2 : 1;
   }
@@ -1630,7 +1654,7 @@ async function signIn(ctx, a, { o, out, ask }) {
       const run = commit(ctx, tokenChange(ctx, a.name, new Date().toISOString()));
       out.write(`token kept in the OS credential store (${store(ctx).name}), recorded in accounts.json without its value (run ${run.id})\n`);
     }
-  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  } catch (e) { if (e instanceof Refused) throw e; out.write(`${e.message}\n`); return 1; }
   out.write(`${a.name}: signed in\n`);
   return 0;
 }
@@ -1766,11 +1790,12 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
     }
     if (sub === 'add') {
       if (entry.mode === 'container') out.write(`A mount applies when a container is created: start the project's dev container with benchkeeper accounts login ${entry.name} --project <dir>, which mounts every container account's volume (an existing container is recreated by the command it prints).\n`);
-      if (!o.yes && (await ask(`Sign in ${entry.name} now?`))) return signIn(ctx, entry, { o, out, ask });
+      if (!o.yes && (await ask(`Sign in ${entry.name} now?`, { optional: true }))) return signIn(ctx, entry, { o, out, ask });
       out.write(`Next: benchkeeper accounts login ${entry.name}\n`);
     }
     return 0;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return 1;
   }
@@ -1851,6 +1876,7 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
     // After the session, whatever its exit code: the opt-in handover of the account that ran (nothing is read while it is off).
     return (await handoverFlow(ctx, ran, { dir: opts.dir, yes: false, ask: ask.fresh(), out, after: true })) ?? code;
   } catch (e) {
+    if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
     return 1;
   }

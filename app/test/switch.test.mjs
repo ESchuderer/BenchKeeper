@@ -51,7 +51,7 @@ function tree(dir, base = dir, out = {}) {
   return out;
 }
 const sink = () => { let text = ''; return { out: new Writable({ write(c, _, done) { text += c; done(); } }), text: () => text }; };
-const cli = (r, args) => { const s = sink(); return main(args, { out: s.out, ctx: r.ctx, input: Readable.from(['']) }).then((code) => ({ code, text: s.text() })); };
+const cli = (r, args, answers = '') => { const s = sink(); return main(args, { out: s.out, ctx: r.ctx, input: Readable.from([answers]) }).then((code) => ({ code, text: s.text() })); };
 
 test('disabling a pack removes only the skills no other pack or single pick still needs', () => {
   const r = repo();
@@ -262,9 +262,13 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
   run(r, { agents: ['claude'], env: 'host', packs: [] });
   const before = tree(r.dir);
   let o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir]);
+  assert.equal(o.code, 2, o.text);
+  assert.equal(existsSync(r.skill), false, 'no answer: nothing applied');
+  o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir], 'n\n'.repeat(20));
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /change .*designing-technical-uis/);
-  assert.equal(existsSync(r.skill), false, 'no answer: nothing applied');
+  assert.match(o.text, /nothing applied\n$/);
+  assert.equal(existsSync(r.skill), false);
   o = await cli(r, ['packs', 'enable', 'ui-a', '--project', r.dir, '--yes']);
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /skills: \+designing-technical-uis/);
@@ -300,7 +304,7 @@ test('CLI --global: the plugin of a pack is a plan of that pack alone, on and of
     if (/^claude plugin uninstall /.test(cmd)) { plugins.delete(argv[3]); return ok(); }
     return ok();
   } };
-  const o = await cli({ ctx: stub }, ['packs', 'enable', 'matt-pocock', '--global', '--agents', 'claude']);
+  const o = await cli({ ctx: stub }, ['packs', 'enable', 'matt-pocock', '--global', '--agents', 'claude'], 'n\n'.repeat(20));
   assert.equal(o.code, 0, o.text);
   assert.match(o.text, /mattpocock-skills/);
   assert.ok(!/rules|settings/i.test(o.text.replace(/mattpocock-skills[^\n]*/g, '')), 'only the pack plugin steps are listed');

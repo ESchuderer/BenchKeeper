@@ -260,7 +260,7 @@ test('track: a status line that only runs Ponytail\'s script is replaced, and un
   assert.equal(readFileSync(join(a.dir, 'settings.json'), 'utf8'), own);
   // --off writes the replaced line back, and its plan shows it.
   assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
-  const plan = cli(m);
+  const plan = cli(m, ['n\n'.repeat(10)]);
   assert.equal(await plan.exec(['accounts', 'track', 'work', '--off']), 1);
   assert.match(plan.text(), /-.*usage\.mjs\\" statusline[\s\S]*ponytail-statusline\.sh/);
   assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
@@ -359,9 +359,9 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(launches(m).length, 2);
   assert.match(warn.text(), /notice: account work: 5-hour window has 12% left \(notice below 16%, resets .+ UTC\) \(a long task may not finish before the reset: --account <name> starts under another account\)/);
   assert.doesNotMatch(ok.text(), /notice:/);
-  // Below the minimum: the account, the window, what is left and the reset are shown, then the question. No answer is no.
+  // Below the minimum: the account, the window, what is left and the reset are shown, then the question.
   reading(a, 95, 50);
-  const no = cli(m);
+  const no = cli(m, ['n\n']);
   assert.equal(await go(m, no), 1);
   assert.match(no.text(), /warning: account work: 5-hour window has 5% left, below the minimum of 8% \(resets \d{4}-\d\d-\d\d \d\d:\d\d UTC\)/);
   assert.match(no.text(), /Start anyway\? \[y\/N\] not started/);
@@ -377,7 +377,7 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(await cli(m).exec(['accounts', 'limits', '--continue-below', 'off', '--yes']), 0);
   // The weekly window counts too, and a per-account minimum moves the line.
   reading(a, 50, 98);
-  assert.equal(await go(m, cli(m)), 1);
+  assert.equal(await go(m, cli(m)), 2);
   assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--seven-day', '1', '--yes']), 0);
   assert.equal(await go(m, cli(m)), 0);
 });
@@ -401,7 +401,7 @@ test('auto-pick is off by default: below the minimum the chosen account stays ch
   reading(a, 97, 10);
   reading(b, 10, 10);
   const c = cli(m);
-  assert.equal(await go(m, c), 1);
+  assert.equal(await go(m, c), 2);
   assert.match(c.text(), /Start anyway\?/);
   assert.equal(launches(m).length, 0);
   assert.equal(await go(m, cli(m), '--yes'), 0);
@@ -424,7 +424,7 @@ test('auto-pick on: a new launch under the default account starts under the pool
   assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, spare.dir, 'one launch, under the pick; the account outside the pool is never one');
   // An account named with --account is never replaced.
   const named = cli(m);
-  assert.equal(await go(m, named, '--account', 'work'), 1);
+  assert.equal(await go(m, named, '--account', 'work'), 2);
   assert.match(named.text(), /Start anyway\?/);
   assert.equal(launches(m).length, 1);
   // A member that is below its minimum, unknown, or not tracked is no candidate.
@@ -437,7 +437,7 @@ test('auto-pick on: a new launch under the default account starts under the pool
   // An account that is not in a pool has no candidates: the usual question.
   assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--pool', 'none', '--yes']), 0);
   const solo = cli(m);
-  assert.equal(await go(m, solo), 1);
+  assert.equal(await go(m, solo), 2);
   assert.match(solo.text(), /Start anyway\?/);
 });
 
@@ -506,9 +506,9 @@ test('a dev container account: usage and failures are read through devcontainer 
   assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
   assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
   assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), {});
-  // Asked without --yes: no answer is no and nothing is written.
+  // Asked without --yes: no answer refuses and nothing is written.
   const no = cli(m);
-  assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 1);
+  assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 2);
   assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
 });
 
@@ -660,7 +660,7 @@ test('Codex: status, list and run read the app-server of the account\'s CODEX_HO
   assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
   codexLimits(m, codexWindow(97, 300), codexWindow(20, 10080));
   const low = cli(m);
-  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 1);
+  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 2);
   assert.match(low.text(), /Start anyway\?/);
   assert.doesNotMatch(low.text(), /auto-pick/);
   assert.ok(m.calls().filter((x) => x.me === 'codex' && x.args[0] === '--go').every((x) => x.env.CODEX_HOME === a.dir));

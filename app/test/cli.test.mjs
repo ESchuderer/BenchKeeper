@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -28,6 +28,44 @@ test('plan writes nothing; apply asks per change and n skips', async () => {
   await c.exec(['apply', '--agents', 'claude']);
   assert.match(c.text(), /apply\? \[y\/N\]/);
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
+});
+
+test('a changing command with no answer refuses before any change; every change declined records no run', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
+  execFileSync('git', ['-C', dir, 'init', '-q', '-b', 'main']);
+  const ctx = context({ home, roots: [home, dir], run: (argv) => ({ code: ['npm', 'podman', 'docker'].includes(argv[0]) ? 1 : 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' }) });
+  addProject(ctx, dir);
+  const exec = async (args, answers = '') => {
+    let text = '', err = '';
+    const code = await main(args, { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: new Writable({ write(c, _, done) { err += c; done(); } }), ctx, input: Readable.from([answers]) });
+    return { code, text, err };
+  };
+  const files = () => [home, dir].flatMap((d) => readdirSync(d, { recursive: true })).sort();
+  const refused = async (args, name) => {
+    const before = files(), runs = ctx.ledger.list().length;
+    const r = await exec(args);
+    assert.deepEqual([r.code, r.err], [2, `${name} asks before it changes anything: add --yes\n`], r.text);
+    assert.deepEqual(files(), before, `${name}: nothing written`);
+    assert.equal(ctx.ledger.list().length, runs, `${name}: no run`);
+  };
+  await refused(['apply', '--agents', 'claude'], 'apply');
+  await refused(['projects', 'apply', dir, '--agents', 'claude'], 'projects apply');
+  await refused(['settings', 'set', 'model', 'opus'], 'settings set');
+  // Every change declined: no run.
+  let r = await exec(['projects', 'apply', dir, '--agents', 'claude'], 'n\n'.repeat(200));
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.text, /\[y\/N\] nothing applied\n/);
+  assert.doesNotMatch(r.text, /undo with/);
+  assert.equal(ctx.ledger.list().length, 0);
+  // Answers that end after the first one: the rest count as no.
+  r = await exec(['projects', 'apply', dir, '--agents', 'claude'], 'y\n');
+  assert.equal(r.code, 0, r.err);
+  assert.equal(ctx.ledger.list().length, 1);
+  assert.match(r.text, /undo with benchkeeper undo /);
+  assert.equal(r.err, '');
+  assert.equal((await exec(['projects', 'apply', dir, '--agents', 'claude', '--yes'])).code, 0);
+  await refused(['packs', 'enable', 'testing', '--project', dir], 'packs enable');
 });
 
 test('apply --yes, history, undo', async () => {

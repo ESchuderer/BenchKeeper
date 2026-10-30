@@ -319,7 +319,7 @@ test('--json: the read commands of the web UI print their documented keys, refus
     assert.equal(readFileSync(file, 'utf8'), bytes);
     assert.deepEqual(await shape(['sessions', 'cache', 'set', '--keep-days', '30', '--yes'], 0, 'sessions cache set', ['keepDays', 'sessions']), { schemaVersion: 1, command: 'sessions cache set', keepDays: 30, sessions: cache.sessions });
     assert.equal((await shape(['sessions', 'cache', 'set', '--keep-days', 'none', '--yes'], 0, 'sessions cache set', ['keepDays', 'sessions'])).keepDays, null);
-    assert.deepEqual((await text(['sessions', 'cache', 'set', '--keep-days', '7'])), { code: 1, t: 'keep session summaries 7 days instead of for good: the next scan drops those older than 7 days\nChange the retention? [y/N] ' });
+    assert.deepEqual((await text(['sessions', 'cache', 'set', '--keep-days', '7'])), { code: 2, t: 'keep session summaries 7 days instead of for good: the next scan drops those older than 7 days\nChange the retention? [y/N] \n' });
     assert.equal((await text(['sessions', 'cache', 'set', '--keep-days', '7', '--yes'])).t.split('\n').at(-2), `${cache.sessions} session summaries, kept 7 days`);
     assert.deepEqual((await shape(['sessions', 'cache', 'clear', '--yes'], 0, 'sessions cache clear', ['keepDays', 'sessions'])), { schemaVersion: 1, command: 'sessions cache clear', keepDays: 7, sessions: 0 });
 

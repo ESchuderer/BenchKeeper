@@ -3,7 +3,7 @@ import { IconCopy, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
-import { Dot, Loading, Note, STATE_COLOR, StatusBadge, href, icon, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, STATE_COLOR, StatusBadge, href, icon, useApi } from './shell.jsx';
 
 export const pct = (v) => (v == null ? null : Math.round(v * 100));
 
@@ -124,17 +124,6 @@ export function SettingFacts({ f }) {
 export function SettingFactsOf({ settings: s }) {
   const state = useApi(`/api/settings?${new URLSearchParams({ agent: s.agent, keys: s.keys.join(','), ...(s.dir ? { dir: s.dir } : {}) })}`);
   return <Loading state={state} label="setting facts">{(list) => <Stack gap="xs">{list.map((f) => <SettingFacts key={f.key} f={f} />)}</Stack>}</Loading>;
-}
-
-// A change's diff (or another detail) behind a button: a long page stays short until one is opened.
-export function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Stack gap={4}>
-      <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${name}`} onClick={() => setOpen(!open)}>{label[open ? 1 : 0]}</Button></Group>
-      {open && children}
-    </Stack>
-  );
 }
 
 // The cards of a plan in this order; plugins BenchKeeper did not install get their own card after them.

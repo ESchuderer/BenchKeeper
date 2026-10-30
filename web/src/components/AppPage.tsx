@@ -175,9 +175,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'history', view: 'history', title: 'History and undo', shot: 'history',
-    alt: 'The History view: a list of runs, and the report of the global setup run with the number of changes done and a diff per changed file, unified or split, each with an Undo step button.',
+    alt: 'The History view: a list of runs, and the report of the global setup run with the number of changes done and, per step, the changed file with its line counts, a Show file diff button and an Undo step button.',
     text: [
-      'Every apply, update and undo is a run. The report lists each change with its diff, shown unified or split.',
+      'Every apply, update and undo is a run. The report lists each change with the file it changed; Show file diff opens the diff, unified or split.',
       'Undo run restores every file of the run; Undo step restores one. Replaced and removed files are kept for it.',
     ],
     cli: [`${V} history`, `${V} undo <run>`],

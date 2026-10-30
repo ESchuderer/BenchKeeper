@@ -2,7 +2,7 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List,
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Folded, Plan, Section, StateBadge, useJob } from './parts.jsx';
+import { Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { UpdateResults } from './fix.jsx';
 import { ATTENTION } from './dashboard.jsx';
@@ -13,7 +13,7 @@ import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
 import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
 import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
-import { Dot, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
@@ -530,7 +530,7 @@ export function History({ history, params, refresh, only, link = (run) => href('
               ))}
               {listed.length < runs.length && <Button variant="default" onClick={() => setMore(true)}>Show {runs.length - listed.length} older runs</Button>}
             </Stack>
-          } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} /> : null} />
+          } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} fold /> : null} />
         ) : <Text>No runs yet.</Text>;
       }}</Loading>
       <Cli>{`benchkeeper history\nbenchkeeper undo ${open ?? '<run>'}\nbenchkeeper undo ${open ?? '<run>'} --step <step>\nbenchkeeper evals cases add --run <session run> --target skill:<name> --expected <text>`}</Cli>

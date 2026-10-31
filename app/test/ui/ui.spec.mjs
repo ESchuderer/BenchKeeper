@@ -602,6 +602,7 @@ test.describe('views', () => {
     await first.getByRole('button', { name: 'Dismiss' }).click();
     await expect(second.getByRole('button', { name: 'Dismiss' })).toBeDisabled();
     await expect(second.getByRole('button', { name: 'Snooze 7 days' })).toBeDisabled();
+    await expect(page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('button', { name: 'More' })).toBeDisabled();
     release();
     await expect(page.locator(`[id="${name}"]`)).toHaveCount(0);
     const focused = await page.evaluate(() => document.activeElement.id);

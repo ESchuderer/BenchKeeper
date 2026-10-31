@@ -2,7 +2,7 @@
 // global rules). The highest one present counts; null when nothing is installed.
 import { join } from 'node:path';
 import { agent } from './agents.mjs';
-import { exists, readText } from './fsx.mjs';
+import { readText } from './fsx.mjs';
 import { listProjects } from './projects.mjs';
 import { pluginState } from './steps/global.mjs';
 import { defaultEnv, tryState, usesContainer } from './steps/project.mjs';

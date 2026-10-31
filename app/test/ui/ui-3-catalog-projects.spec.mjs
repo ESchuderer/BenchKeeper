@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nav, ready } from './views.mjs';
+import { nav } from './views.mjs';
 import { BATCH, ONE, noAxe, openDiffs, opened } from './chain.mjs';
 
 test.describe('views', () => {

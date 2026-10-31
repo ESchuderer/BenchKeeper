@@ -7,7 +7,6 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { MIN_SAMPLES, collectInsights, insights } from '../src/insights.mjs';
 import { narrativeInput } from '../src/narrative.mjs';
-import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeFrictionSessions, writeSessions } from './fixtures/sessions.mjs';
 

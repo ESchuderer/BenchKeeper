@@ -6,7 +6,6 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { addCase } from '../src/cases.mjs';
 import { main } from '../src/cli.mjs';
-import { library } from '../src/content.mjs';
 import { evalPlan, runEval, triggered } from '../src/eval.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { apply, context, preview, runCommand } from '../src/runner.mjs';

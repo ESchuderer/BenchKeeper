@@ -8,7 +8,7 @@ import { agentEnv, childEnv } from './childenv.mjs';
 import { contentDir } from './content.mjs';
 import { mask } from './redact.mjs';
 import { claudeResult } from './runner.mjs';
-import { exists, hashPath, hashText, readText } from './fsx.mjs';
+import { hashPath, hashText, readText } from './fsx.mjs';
 import { inLibrary, loadCases, scopeOf, skillSource, userEvals } from './cases.mjs';
 
 const results = (ctx) => join(userEvals(ctx), 'results.jsonl');

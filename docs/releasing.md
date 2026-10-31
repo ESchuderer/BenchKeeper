@@ -15,7 +15,7 @@ BenchKeeper releases only when the owner merges the release pull request or star
 
 1. Pull requests target `main`, squash-merged; the title is a Conventional Commit and becomes the changelog line (`.github/workflows/pr-title.yml`). `docs`, `refactor`, `test`, `chore` and `ci` release nothing.
 2. On every push to `main`, release-please (`.github/workflows/release.yml`, `release-please-config.json`, `.release-please-manifest.json`) keeps one release pull request open with the new versions and changelogs, titled `chore(main): release benchkeeper` for both components (the title of a pull request that groups components carries no version; its body lists each component with its version). The same workflow pins the install commands in the docs to the new app version on that branch and sets `minApp` in `plugins/benchkeeper/content.json` to it, so the released content refuses an older app (`.github/scripts/version-pins.mjs`).
-3. The owner merges the release pull request.
+3. Before an app release, the owner checks the Codex price table `app/src/codex-prices.json` (the board's Codex cost estimate) against the page in its `source` field, adds every new Codex model and sets `date`. Then the owner merges the release pull request.
 4. The job `release` of the Release workflow, on that merge:
    1. starts `npm.yml` when the app version changed and npm does not have it, waits for the run and checks that the registry serves the version;
    2. creates the tags and the GitHub Releases;

@@ -255,6 +255,11 @@ test('Codex only: a file the project had in .codex/agents stays its own, and a f
   const st = readState(s.dir);
   assert.deepEqual([st.agentOwned, st.agentHashes, st.frameworkRefs], [[`codex:${FILE}`], undefined, undefined]);
   assert.deepEqual(frameworkSteps(plan(s, {})).map((c) => c.kind), ['command', 'write']);
+  // A converted file edited into Markdown here is an edit, not a failed conversion: not fetched again.
+  const u = repo();
+  run(u, { ...base, agents: ['codex'], agentFiles: [FILE] });
+  writeFileSync(join(u.dir, CODEX), '---\nname: my edit\n---\n');
+  assert.deepEqual(frameworkSteps(plan(u, {})), []);
   // A Markdown file the project had there itself stays its own.
   const t = repo();
   mkdirSync(join(t.dir, '.codex/agents'), { recursive: true });

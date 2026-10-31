@@ -75,8 +75,9 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
     for (const { id, path, key, target } of copiesOf(dir, f)) {
       // Only a file this setup fetched (agentOwned) is refreshed or taken out again: one that was there before is the project's.
       const convert = agent(id).project[f.install.dest].format === 'toml';
-      // A Codex file of the setup still in Markdown is a fetch whose conversion failed: fetched again.
-      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && (refetch(prev, f, key) || (convert && mine && /^---\r?\n/.test(readText(target) ?? '')));
+      // A Codex file of the setup still in Markdown with no hash recorded is a fetch whose conversion failed: fetched again. One
+      // with a hash was converted, so Markdown there is an edit and stays.
+      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && (refetch(prev, f, key) || (convert && mine && !prev?.agentHashes?.[key] && /^---\r?\n/.test(readText(target) ?? '')));
       const step = `framework:${f.id}`, name = `${stemOf(path)}${id === 'claude' ? '' : ` for ${agent(id).name}`}`;
       if (picked && (!exists(target) || outdated)) {
         const title = `agent ${name} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`;

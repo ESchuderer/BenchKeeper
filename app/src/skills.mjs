@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, isDir, listDir, readText } from './fsx.mjs';
-import { libraryWith } from './packs.mjs';
+import { copied, libraryWith, ownSkillFiles, skillFolder } from './packs.mjs';
 import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
 import { KEEP_SKILLS } from './steps/global.mjs';
-import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/project.mjs';
+import { editedHere, lockedSkills, tryState } from './steps/project.mjs';
 
 // The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
 // Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
@@ -24,7 +24,7 @@ const subfolders = (dir) => listDir(dir).filter((n) => NAME.test(n) && isDir(joi
 // current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone), disabled.
 function ownState(ctx, dir, skill, a) {
   const ids = a.agents.filter((x) => skill.agents !== 'codex' || x === 'codex');
-  const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skill.name, a.paths?.[skill.name]).map(({ file, text }) => itemState(join(d, skill.name, file), text, ctx)));
+  const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skillFolder(ctx, skill), a.paths?.[skill.name]).map(({ file, text, bytes }) => itemState(join(d, skill.name, file), text ?? bytes, ctx)));
   if (seen.includes('modified')) return 'modified';
   if (seen.some((s) => ['removed', 'absent'].includes(s))) return 'removed';
   // Foreign: no run of this machine wrote it (a clone, another worktree), so the library's copy counts as the newer one.
@@ -49,10 +49,10 @@ export function projectSkills(ctx, dir, { check = false } = {}) {
   const lib = libraryWith(ctx);
   const a = { agents: state.agents ?? [], paths: state.paths ?? {} };
   const disabled = state.disabled ?? [];
-  const latest = check ? latestCommits(ctx, (state.skills ?? []).filter((r) => r.source !== 'own').map((r) => r.source)) : {};
+  const latest = check ? latestCommits(ctx, (state.skills ?? []).filter((r) => !copied(r)).map((r) => r.source)) : {};
   const skills = (state.skills ?? []).filter((r) => NAME.test(r.name ?? '')).map((rec) => {
     const skill = lib.skills.find((x) => x.name === rec.name);
-    const own = rec.source === 'own';
+    const own = copied(rec);
     const packs = (state.packs ?? []).filter((p) => lib.packs.find((x) => x.id === p)?.skills?.includes(rec.name));
     const status = disabled.includes(rec.name) ? 'disabled' : own && skill ? ownState(ctx, dir, skill, a) : communityState(dir, rec, skill, a, latest);
     return { name: rec.name, source: rec.source, own, state: status, pinned: own ? null : rec.ref ?? null, newest: own ? null : latest[rec.source] ?? null, packs, single: (state.singles ?? []).includes(rec.name) };

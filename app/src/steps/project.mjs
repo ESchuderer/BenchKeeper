@@ -8,12 +8,12 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
-import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
+import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
 import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { libraryWith, packScope, scopeText, warnings } from '../packs.mjs';
+import { copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -322,15 +322,6 @@ export function chosenSkills(a, lib = library()) {
   return lib.skills.filter((s) => names.has(s.name) && (s.agents !== 'codex' || a.agents.includes('codex')));
 }
 
-// A library skill's own files as a project gets them: with the path globs of the setup in the front matter.
-export function ownSkillFiles(name, paths) {
-  const src = join(contentDir, 'library', name);
-  return listFiles(src).map((file) => {
-    const text = readFileSync(join(src, file), 'utf8');
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
-  });
-}
-
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
@@ -504,9 +495,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from, unit: `move:${from}`, installUnit });
     add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true, unit: `move:${from}`, installUnit });
   };
-  // An own skill is copied from the library, a community skill comes through the skills CLI from its source's default branch.
-  const skillUnit = (s, ids) => unit({ id: `skill:${s.name}`, kind: 'skill', source: s.source === 'own' ? { type: 'library' } : { type: 'git', repo: s.source }, agents: ids, scope: 'project',
-    files: skillDirs(ids, 'project', dir).map(({ dir: d }) => join(d, s.name)), removal: s.source === 'own' ? 'files' : 'skills-cli' });
+  // An own skill is copied from the library and a user skill from the user's folder, a community skill comes through the skills
+  // CLI from its source's default branch.
+  const skillUnit = (s, ids) => unit({ id: `skill:${s.name}`, kind: 'skill', source: s.source === 'own' ? { type: 'library' } : s.source === 'user' ? { type: 'user' } : { type: 'git', repo: s.source }, agents: ids, scope: 'project',
+    files: skillDirs(ids, 'project', dir).map(({ dir: d }) => join(d, s.name)), removal: copied(s) ? 'files' : 'skills-cli' });
 
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI from the default branch of their source
 // (undo puts back the copies of their folders and the lockfile taken before the command).
@@ -531,13 +523,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     // A copy edited here (it differs from what a run of this machine left), or a folder of that name being adopted, is replaced only
     // when asked for (reset): the plan shows its diff.
     const reseat = a.reset.includes(s.name);
-    if (s.source === 'own') {
+    if (copied(s)) {
       for (const { dir: d } of rest) {
-        for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
+        for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          const found = itemState(path, text ?? bytes, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
           if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
-          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
+          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {
@@ -568,7 +560,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const installUnit = s && skillUnit(s, dirs.flatMap((x) => x.agents));
     for (const { dir: d } of dirs) if (exists(parked(d, name))) add(`remove:${name}`, `remove ${rel(parked(d, name))}${why}`, { kind: 'remove', path: parked(d, name), selected: true, installUnit });
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
-    if (s && s.source !== 'own' && present.length) {
+    if (s && !copied(s) && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', installUnit, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
         argv: ['npx', '-y', skillsSpec(ctx), 'remove', name, ...flags, '-y'] });
@@ -586,7 +578,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // install was not chosen or failed in the run that writes this file (apply passes the run to edit).
   // Its hash is the folder as the install left it (a later edit shows as a difference); kept while no install ran.
   const recorded = (s, run, runCtx) => {
-    if (s.source === 'own') return {};
+    if (copied(s)) return {};
     const id = installs.get(s.name);
     const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
     const fresh = id && run && ran && !a.disabled.includes(s.name);

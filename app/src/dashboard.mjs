@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { agent, skillDirs } from './agents.mjs';
 import { classify } from './inventory.mjs';
 import { exists } from './fsx.mjs';
-import { libraryWith, packScope, packScopes } from './packs.mjs';
+import { copied, libraryWith, packScope, packScopes } from './packs.mjs';
 import { listProjects, projectItemPlan, projectState, skillCounts } from './projects.mjs';
 import { RANK } from './states.mjs';
 import { PLUGINS, globalSkills, pluginState } from './steps/global.mjs';
@@ -30,7 +30,7 @@ function projectItems(ctx, path, state) {
   classify(ctx, plan, put);
   const planned = new Set(plan.map((c) => c.step));
   const dirs = skillDirs(state.agents ?? [], 'project', path);
-  for (const s of (state.skills ?? []).filter((x) => SKILL_NAME.test(x.name ?? '') && x.source !== 'own' && !(state.disabled ?? []).includes(x.name) && !planned.has(`skill:${x.name}`))) {
+  for (const s of (state.skills ?? []).filter((x) => SKILL_NAME.test(x.name ?? '') && !copied(x) && !(state.disabled ?? []).includes(x.name) && !planned.has(`skill:${x.name}`))) {
     if (dirs.some((d) => exists(join(d.dir, s.name)))) put(`skill:${s.name}`, `skill ${s.name}`, 'current');
   }
   return [...items.values()];

@@ -1,4 +1,4 @@
-// The Doctor table at phone width. Read-only, so it runs in parallel with ui.spec.mjs on the same server.
+// The Doctor table at phone width. Read-only, so it runs in parallel with the serial chain (ui-<n>-*.spec.mjs) on the same server.
 import { expect, test } from '@playwright/test';
 
 test('Doctor at 390 px: the level badge is not cut and the fix action is on screen without a sideways scroll', async ({ page }) => {

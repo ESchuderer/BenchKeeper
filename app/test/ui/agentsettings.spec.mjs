@@ -1,4 +1,4 @@
-// The Agent settings tables at phone width. Read-only, so it runs in parallel with ui.spec.mjs on the same server.
+// The Agent settings tables at phone width. Read-only, so it runs in parallel with the serial chain (ui-<n>-*.spec.mjs) on the same server.
 import { expect, test } from '@playwright/test';
 
 test('Agent settings at 390 px: the first value control is on screen without a sideways scroll', async ({ page }) => {

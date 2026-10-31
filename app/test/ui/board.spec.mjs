@@ -1,4 +1,4 @@
-// The sessions board page on its own, with generated rows (the app's frame is covered in ui.spec.mjs).
+// The sessions board page on its own, with generated rows (the app's frame is covered in ui-1-shell.spec.mjs).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { boardHtml } from '../../src/board.mjs';

@@ -2115,9 +2115,9 @@ test.describe('views', () => {
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Claude Code' })).toBeVisible();
-    // The checks come before the files; each limit is a bar that names who sets it.
-    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
+    // The checks come before the files, in the summary strip; each limit is a bar that names who sets it.
+    await expect(page.getByRole('region', { name: 'Summary' }).getByRole('region', { name: 'Checks' })).toBeVisible();
     await expect(page.getByRole('progressbar', { name: /^At the start of a session: .* tokens, limit set by BenchKeeper$/ }).first()).toBeVisible();
     const files = page.getByRole('table', { name: 'Claude Code instruction files' });
     const team = files.getByRole('row', { name: /20-team\.md/ });
@@ -2178,6 +2178,39 @@ test.describe('views', () => {
     await page.getByRole('option').nth(1).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
     await noAxe(page);
+  });
+
+  test('Rules: the summary strip shows each agent\'s budget bar and largest source above the checks; Claude Code is the open tab, Codex one click away', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const [claude] = body.agents;
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
+      await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
+    });
+    await nav(page, 'Rules').click();
+    const strip = page.getByRole('region', { name: 'Summary' });
+    await expect(strip).toContainText(/Claude Code: about [\d,]+ tokens load at the start of every session, of 10,000 \(limit set by BenchKeeper\); the largest source is ~\/\.claude\/rules\/00-global\.md with [\d,]+\./);
+    await expect(strip).toContainText('Codex: about 12,000 tokens load at the start of every session, of 10,000 (limit set by BenchKeeper); the largest source is ~/.codex/AGENTS.md with 11,000.');
+    await expect(strip.getByRole('progressbar')).toHaveCount(2);
+    await expect(strip.getByRole('progressbar', { name: 'At the start of a session: 12,000 of 10,000 tokens, limit set by BenchKeeper' })).toBeVisible();
+    await expect(strip).toContainText('More than 10,000 tokens');
+    await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
+    const tabs = page.getByRole('tablist', { name: 'Agents' });
+    await expect(tabs.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toBeHidden();
+    await noAxe(page);
+    await tabs.getByRole('tab', { name: 'Codex' }).click();
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
+    const codexBudget = page.getByRole('region', { name: 'Codex context budget' }).getByRole('table', { name: 'Context budget' });
+    await expect(codexBudget).toContainText('~/.codex/AGENTS.md');
+    await expect(codexBudget).not.toContainText('00-global.md');
+    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeHidden();
+    await noAxe(page);
+    await page.unroute(view);
   });
 
   test('Rules: a path-scoped file costs its tokens only in the turns it loads for matching files', async ({ page }) => {

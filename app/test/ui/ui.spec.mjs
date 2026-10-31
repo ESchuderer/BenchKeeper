@@ -282,13 +282,14 @@ test.describe('views', () => {
     const hits = board.locator('#chart svg rect[fill=transparent]');
     await hits.nth(await hits.count() - 3).hover();
     await expect(board.locator('#tip')).toContainText(/\d{4}-\d{2}-\d{2}.*(Total|no sessions)/);
-    // Keyboard: arrow keys read day by day, Escape closes.
+    // Keyboard: arrow keys read day by day, Escape closes. The last day is the day the board was read, not the clock's.
+    const read = (await board.locator('.head .muted').textContent()).match(/\d{4}-\d{2}-\d{2}/)[0];
     await board.locator('#chart').focus();
     await page.keyboard.press('End');
-    await expect(board.locator('#tip')).toContainText(new Date().toISOString().slice(0, 10));
-    await expect(board.locator('#tip-live')).toContainText(new Date().toISOString().slice(0, 10));
+    await expect(board.locator('#tip')).toContainText(read);
+    await expect(board.locator('#tip-live')).toContainText(read);
     await page.keyboard.press('ArrowLeft');
-    await expect(board.locator('#tip')).not.toContainText(new Date().toISOString().slice(0, 10));
+    await expect(board.locator('#tip')).not.toContainText(read);
     await page.keyboard.press('Escape');
     await expect(board.locator('#tip')).toBeEmpty();
     // The fixture's sessions with subagents are groups; the others are single.
@@ -573,8 +574,12 @@ test.describe('views', () => {
     await expect(scrub.getByRole('menuitem', { name: 'Dismiss' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(scrub.getByRole('menuitem', { name: 'Snooze 7 days' })).toBeFocused();
+    // The snooze ends 7 days from the click; read the date on both sides of it, as the click may fall on midnight UTC.
+    const week = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const weeks = [week()];
     await page.keyboard.press('Enter');
     await expect(scrub).toHaveCount(0);
+    weeks.push(week());
     await expect(page.locator(`[id="${next}"]`)).toBeFocused();
     await expect(status).toHaveText(/^Snoozed for 7 days: .*SUBPROCESS_ENV_SCRUB/);
     await page.reload();
@@ -583,9 +588,8 @@ test.describe('views', () => {
     await expect(scrub).toHaveCount(0);
     const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
     await hidden.getByRole('button', { name: 'Dismissed and snoozed (2)' }).click();
-    const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     await expect(hidden).toContainText('Dismissed');
-    await expect(hidden).toContainText(`Snoozed until ${week}`);
+    await expect(hidden).toContainText(new RegExp(`Snoozed until (${weeks.join('|')})`));
     await noAxe(page);
     await hidden.getByRole('button', { name: 'Show again' }).first().focus();
     await page.keyboard.press('Enter');

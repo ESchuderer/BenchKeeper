@@ -17,6 +17,12 @@ test.describe('views', () => {
     await expect(detail.getByText('# Designing technical UIs')).toBeVisible();
     await expect(detail.getByRole('table', { name: 'Eval runs' }).getByRole('row')).toHaveCount(3);
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
+    // The library packs that name the skill are its areas, in the row and in the detail; no pack button until a skill is ticked.
+    await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row', { name: /designing-technical-uis/ })).toContainText('Frontend');
+    await expect(detail).toContainText('Docs');
+    await expect(page.getByRole('button', { name: /^Build pack/ })).toHaveCount(0);
+    // An own skill of the library has no Edit or Remove.
+    await expect(page.getByRole('table', { name: 'Skills' }).getByRole('button')).toHaveCount(0);
   });
 
   test('Skills: the pack builder removes a skill with focus kept, finds no overlapping descriptions in the library and saves an own pack; Packs exports it', async ({ page }) => {
@@ -70,8 +76,11 @@ test.describe('views', () => {
       await region.getByRole('button', { name: 'Close editor' }).click();
     };
     await page.getByRole('button', { name: 'New skill' }).click();
-    const create = page.getByRole('region', { name: 'New skill' });
+    const create = page.getByRole('dialog', { name: 'New skill' });
     await create.getByRole('textbox', { name: 'Name' }).fill('Bad--name');
+    // Typed text keeps the dialog open against Escape.
+    await page.keyboard.press('Escape');
+    await expect(create).toBeVisible();
     await create.getByRole('button', { name: 'Save' }).click();
     await expect(create.getByText(/^skill name: 1 to 64/)).toBeVisible();
     await create.getByRole('textbox', { name: 'Name' }).fill('ui-own-skill');
@@ -84,8 +93,8 @@ test.describe('views', () => {
     const detail = page.getByRole('region', { name: 'Skill ui-own-skill' });
     await expect(table.getByRole('row', { name: /ui-own-skill/ })).toContainText('yours');
     await expect(detail).toContainText('Source: your skills');
-    await detail.getByRole('button', { name: 'Edit' }).click();
-    const edit = page.getByRole('region', { name: 'Edit skill ui-own-skill' });
+    await table.getByRole('button', { name: 'Edit ui-own-skill' }).click();
+    const edit = page.getByRole('dialog', { name: 'Edit skill ui-own-skill' });
     const body = edit.getByRole('textbox', { name: 'SKILL.md' });
     await body.fill((await body.inputValue()).replace('What this skill does', 'Edited in the UI. What it does'));
     await edit.getByRole('button', { name: 'Save' }).click();
@@ -98,8 +107,8 @@ test.describe('views', () => {
     await drawer.getByLabel(/^Pack id/).fill('with-own');
     await drawer.getByRole('button', { name: 'Save pack' }).click();
     await expect(drawer).toBeHidden();
-    await page.getByRole('region', { name: 'Skill ui-own-skill' }).getByRole('button', { name: 'Remove' }).click();
-    const remove = page.getByRole('region', { name: 'Remove skill ui-own-skill' });
+    await table.getByRole('button', { name: 'Remove ui-own-skill' }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove skill ui-own-skill' });
     await expect(remove.getByText(/in use by pack with-own/)).toBeVisible();
     await remove.getByRole('button', { name: 'Close editor' }).click();
     await nav(page, 'Packs').click();
@@ -111,7 +120,7 @@ test.describe('views', () => {
     await nav(page, 'Skills').click();
     await table.getByRole('link', { name: 'ui-own-skill' }).click();
     await page.getByRole('region', { name: 'Skill ui-own-skill' }).getByRole('button', { name: 'Remove' }).click();
-    const removing = page.getByRole('region', { name: 'Remove skill ui-own-skill' });
+    const removing = page.getByRole('dialog', { name: 'Remove skill ui-own-skill' });
     await expect(removing.getByText('remove your skill ui-own-skill')).toBeVisible();
     await apply(removing);
     await expect(table.getByRole('link', { name: 'ui-own-skill' })).toHaveCount(0);

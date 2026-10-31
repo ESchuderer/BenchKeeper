@@ -1,6 +1,6 @@
 // A project's own page (#/projects/<folder>/<tab>): the header with name, health and folder, and one tab per part.
-import { Anchor, Button, Code, Group, List, SimpleGrid, Stack, Tabs, Text, Title } from '@mantine/core';
-import { IconAdjustments, IconFolderOpen, IconListCheck, IconListNumbers, IconPencil, IconRoute, IconTrash } from '@tabler/icons-react';
+import { Anchor, Button, Code, Group, List, Menu, SimpleGrid, Stack, Tabs, Text, Title } from '@mantine/core';
+import { IconAdjustments, IconChevronDown, IconFolderOpen, IconListCheck, IconListNumbers, IconPencil, IconRoute, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { label, lags } from './cards.js';
@@ -60,11 +60,18 @@ function ProjectPage({ rest, params, overview, history, refresh }) {
               {p.notes && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{p.notes}</Text>}
             </Stack>
             <Group gap="xs">
-              {live && <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: p.path }).then(() => setRevealError(null), (e) => setRevealError(e.message))}>Open folder</Button>}
-              <Button leftSection={icon(IconPencil)} variant="default" onClick={() => setForm('edit')}>Edit name and notes</Button>
-              <Button leftSection={icon(IconRoute)} variant="default" onClick={() => setForm('relocate')}>Relocate</Button>
-              <Button leftSection={icon(IconTrash)} variant="subtle" onClick={() => setDialog('list')}>Remove from list</Button>
-              {live && p.checkout && <Button leftSection={icon(IconTrash)} variant="subtle" onClick={() => setDialog('setup')}>Remove BenchKeeper setup</Button>}
+              {live && p.setupVersion && !lags(p) && <Button leftSection={icon(IconAdjustments)} onClick={() => setDialog('setup-run')}>Change setup</Button>}
+              <Menu position="bottom-end" withinPortal={false} withInitialFocusPlaceholder={false}>
+                <Menu.Target><Button variant="default" rightSection={icon(IconChevronDown, 14)}>More</Button></Menu.Target>
+                <Menu.Dropdown>
+                  {live && <Menu.Item leftSection={icon(IconFolderOpen)} onClick={() => api('/api/reveal', { path: p.path }).then(() => setRevealError(null), (e) => setRevealError(e.message))}>Open folder</Menu.Item>}
+                  <Menu.Item leftSection={icon(IconPencil)} onClick={() => setForm('edit')}>Edit name and notes</Menu.Item>
+                  <Menu.Item leftSection={icon(IconRoute)} onClick={() => setForm('relocate')}>Relocate</Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item c="light-dark(var(--mantine-color-red-9), var(--mantine-color-red-3))" leftSection={icon(IconTrash)} onClick={() => setDialog('list')}>Remove from list</Menu.Item>
+                  {live && p.checkout && <Menu.Item c="light-dark(var(--mantine-color-red-9), var(--mantine-color-red-3))" leftSection={icon(IconTrash)} onClick={() => setDialog('setup')}>Remove BenchKeeper setup</Menu.Item>}
+                </Menu.Dropdown>
+              </Menu>
             </Group>
           </Group>
           {revealError && <Note color="red" title="Open folder failed">{revealError}</Note>}
@@ -154,7 +161,6 @@ function Installs({ project, others, onDone, onSetup }) {
   if (lags(project)) return <Text>Setup {project.setupVersion} is on <Code>{project.origin}</Code>; this checkout has {project.checkout ? `setup ${project.checkout}` : 'no state file'}. Pull <Code>{project.origin}</Code> to see or change the setup here.</Text>;
   return (
     <Stack gap="lg">
-      <Group><Button leftSection={icon(IconAdjustments)} variant="default" onClick={onSetup}>Change setup</Button></Group>
       {applied ? (
         <Section title="Changes">
           <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={projectHref(project.path, 'history', { run: applied.id })}>Open in History</Anchor></Group>

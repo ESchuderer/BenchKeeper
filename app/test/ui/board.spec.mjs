@@ -167,10 +167,47 @@ test('framed at phone width, the project chip with a long chosen name wraps insi
   await page.route('http://board.test/board', (r) => r.fulfill({ body: html, contentType: 'text/html' }));
   await page.goto('http://board.test/');
   const board = page.frameLocator('iframe');
+  await board.getByRole('button', { name: 'Filters' }).click();
   await board.locator('#rail-toggle').click();
   await board.locator(`.card[title="${long}"]`).click();
   await expect(board.locator('#rail-toggle')).toHaveText(/^verylongprojectname/);
   expect(await board.locator('html').evaluate((d) => d.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+test('framed, the filters stand in a column beside the figures; at phone width one Filters button opens them, and Escape or a click outside closes them', async ({ page }) => {
+  const html = boardHtml([row()], NOW, []);
+  await page.route('http://board.test/', (r) => r.fulfill({ body: '<iframe src="/board" style="width:1000px;height:800px;border:0"></iframe>', contentType: 'text/html' }));
+  await page.route('http://board.test/board', (r) => r.fulfill({ body: html, contentType: 'text/html' }));
+  await page.goto('http://board.test/');
+  const board = page.frameLocator('iframe');
+  const filters = board.locator('#filters'), toggle = board.getByRole('button', { name: 'Filters' });
+  await expect(toggle).toBeHidden();
+  await expect(filters).toBeVisible();
+  const f = await filters.boundingBox(), t = await board.locator('#tiles').boundingBox();
+  expect(t.x).toBeGreaterThanOrEqual(f.x + f.width);
+  await page.locator('iframe').evaluate((e) => { e.style.width = '390px'; });
+  await expect(toggle).toBeVisible();
+  await expect(filters).toBeHidden();
+  await toggle.click();
+  await expect(filters).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await board.locator('#rail-toggle').click();
+  await page.keyboard.press('Escape');
+  await expect(board.locator('#rail-panel')).toBeHidden();
+  await expect(filters).toBeVisible();
+  await board.locator('#f-agent').focus();
+  await page.keyboard.press('Escape');
+  await expect(filters).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await board.locator('#tiles').click();
+  await expect(filters).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await board.locator('#tiles summary').focus();
+  await page.keyboard.press('Escape');
+  await expect(filters).toBeHidden();
+  await expect(toggle).toBeFocused();
 });
 
 test('the last choice is remembered, chosen with the keyboard, and named on the project page after a reload', async ({ page }) => {
@@ -232,7 +269,10 @@ test('at phone width the rail is one button with the choice that opens the list;
 test('quick facts first, then test runs; each shows the change against the previous period of the same length; All time has none', async ({ page }) => {
   await load(page, data());
   const tile = (name) => page.locator('#tiles .tile').filter({ has: page.locator('.label', { hasText: new RegExp(`^${name}$`) }) });
-  await expect(page.locator('#tiles .facts').first().locator('.label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens', 'Agents at once', 'Busiest day', 'Active days', 'Blocked by limits']);
+  await expect(page.locator('#tiles > .facts .label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens']);
+  await expect(page.locator('#tiles details.more')).not.toHaveJSProperty('open', true);
+  await page.locator('#tiles summary', { hasText: 'More figures' }).click();
+  await expect(page.locator('#tiles details.more > .facts:not(.small) .label')).toHaveText(['Agents at once', 'Busiest day', 'Active days', 'Blocked by limits']);
   await expect(page.locator('#tiles .small .label')).toHaveText(['Most used agent', 'Longest streak', 'Tests passed']);
   await expect(tile('Sessions')).toContainText('+300% vs previous 30 days');
   await expect(tile('Sessions')).toContainText('40');
@@ -245,6 +285,7 @@ test('quick facts first, then test runs; each shows the change against the previ
   await expect(page.locator('#history')).toBeHidden();
   await page.getByLabel('Period').selectOption('7');
   await expect(tile('Sessions')).toContainText('vs previous 7 days');
+  await expect(page.locator('#tiles details.more')).toHaveJSProperty('open', true);
   await page.getByLabel('Period').selectOption('all');
   await expect(tile('Sessions')).toContainText('50');
   await expect(page.locator('#tiles .delta', { hasText: /vs previous/ })).toHaveCount(0);

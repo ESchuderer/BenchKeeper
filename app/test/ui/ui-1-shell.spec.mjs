@@ -179,7 +179,7 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Sessions board: the project choice opens closed as a chip at the head of the filter line, the quick facts right below; it opens the list and filters as before', async ({ page }) => {
+  test('Sessions board: the project choice opens closed as a chip at the head of the filter column, the figures beside it; it opens the list and filters as before', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     const toggle = board.getByRole('group', { name: 'Filters' }).locator('#rail-toggle');
@@ -187,7 +187,8 @@ test.describe('views', () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(board.getByLabel('Find a project')).toBeHidden();
     const bar = await board.locator('#filters').boundingBox(), tiles = await board.locator('#tiles').boundingBox();
-    expect(tiles.y - (bar.y + bar.height)).toBeLessThan(20);
+    expect(tiles.x).toBeGreaterThanOrEqual(bar.x + bar.width);
+    expect(Math.abs((await toggle.boundingBox()).y - bar.y)).toBeLessThan(20);
     await board.getByLabel('Period').selectOption('all');
     await toggle.click();
     await expect(board.getByLabel('Find a project')).toBeFocused();

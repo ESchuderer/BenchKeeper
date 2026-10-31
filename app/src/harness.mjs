@@ -2,7 +2,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { agent } from './agents.mjs';
-import { contentDir, library } from './content.mjs';
+import { contentDir } from './content.mjs';
 import { exists, hashPath, readText } from './fsx.mjs';
 import { copied } from './packs.mjs';
 import { PLUGINS, pluginState } from './steps/global.mjs';

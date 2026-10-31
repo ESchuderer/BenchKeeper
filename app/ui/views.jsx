@@ -3,7 +3,7 @@ import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconList
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
-import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
+import { RunPanel, StatusIcon, note, runTitle } from './run.jsx';
 import { UpdateResults } from './fix.jsx';
 import { ATTENTION } from './dashboard.jsx';
 import { updateProjects } from './update.js';

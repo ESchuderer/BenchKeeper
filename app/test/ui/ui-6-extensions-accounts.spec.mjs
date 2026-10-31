@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NAME as IDE } from '../../src/orca/index.mjs';
-import { nav, ready } from './views.mjs';
+import { nav } from './views.mjs';
 import { ONE, GATE, RUNNER, noAxe, openDiffs, opened } from './chain.mjs';
 
 test.describe('views', () => {

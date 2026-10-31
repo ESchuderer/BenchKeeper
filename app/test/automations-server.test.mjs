@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { readRegistry, userDir } from '../src/automations.mjs';

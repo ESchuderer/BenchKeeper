@@ -453,7 +453,7 @@ test('cancel: an apply skips the changes not started yet; an eval stops and stor
   const ci = process.env.CI;
   delete process.env.CI;
   try {
-    const { ctx, routes } = fixture();
+    const { routes } = fixture();
     const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
     const select = [plan.changes.find((c) => c.kind === 'write').id, plan.changes.find((c) => c.kind === 'command' && !c.unit).id];
     const { job } = routes['POST /api/apply']({ planId: plan.planId, select });

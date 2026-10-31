@@ -254,7 +254,7 @@ test('a changing command that stops before a change exits with the same code wit
 
 test('sessions record runs the command after -- and records its files; sessions without a subcommand is a usage error', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-rec-'));
-  const git = initRepo(dir);
+  initRepo(dir);
   // The default runner: the recording needs real git and a real process.
   const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-rec-home-')) });
   const exec = async (args) => {

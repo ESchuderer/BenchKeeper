@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { openPrivate, signInUrl } from './browser.mjs';
 import { childEnv } from './childenv.mjs';
-import { StoreError, credentialStore } from './credstore.mjs';
+import { credentialStore } from './credstore.mjs';
 import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, inside, isDir, readText } from './fsx.mjs';

@@ -109,7 +109,7 @@ test('CLI: projects create applies the plan, registers the folder and offers the
     [['projects', 'create', join(h, 'x'), '--preset', 'nope'], /unknown preset nope/],
     [['projects', 'create', join(h, 'x')], /needs a directory and --preset/],
   ]) { o = await cli(ctx, args); assert.deepEqual([o.code, text.test(o.text)], [2, true], `${args.join(' ')}: ${o.text}`); }
-  o = await cli(ctx, ['projects', 'create', join(h, 'y'), '--preset', 'web'], 'n\n'.repeat(20));
+  await cli(ctx, ['projects', 'create', join(h, 'y'), '--preset', 'web'], 'n\n'.repeat(20));
   assert.equal(existsSync(join(h, 'y')), false, 'declined: no folder');
   // Every change but the state file: the folder exists, but it is not set up and not registered.
   o = await cli(ctx, ['projects', 'create', join(h, 'z'), '--preset', 'web'], `${'y\n'.repeat(createPlan(ctx, join(h, 'z'), 'web').plan.length - 1)}n\n`);

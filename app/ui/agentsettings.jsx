@@ -4,7 +4,7 @@ import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Plan, Section, SettingFacts } from './parts.jsx';
-import { Dot, Folded, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, icon, useAnnounce, useApi } from './shell.jsx';
 import { differs, editableIn, fixOf, matches, ownOf } from './suggest.js';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };

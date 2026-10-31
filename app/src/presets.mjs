@@ -38,7 +38,7 @@ function preset(ctx, id) {
 export function savePreset(ctx, id, from) {
   if (!ID.test(id ?? '')) throw new Error('preset id: lowercase letters, digits and dashes');
   // Also a file that is not a valid preset stays: it may be one to repair.
-  if (exists(join(dir(ctx), `${id}.json`))) throw new Error(`preset ${id} exists: remove it first (benchkeeper presets remove ${id})`);
+  if (exists(join(dir(ctx), `${id}.json`))) throw new Error(`preset ${id} exists (also a file that is not a valid preset): remove it first (benchkeeper presets remove ${id})`);
   const state = readState(from);
   if (!state) throw new Error(`${from} has no setup yet: benchkeeper projects apply --agents a,b`);
   const p = { kind: 'benchkeeper-preset', schemaVersion: PRESET_SCHEMA, id, title: id, answers: savedAnswers(state) };
@@ -46,8 +46,9 @@ export function savePreset(ctx, id, from) {
   return p;
 }
 
+// Also a file of the id that is not a valid preset, so it can be cleared away.
 export function removePreset(ctx, id) {
-  preset(ctx, id);
+  if (!ID.test(id ?? '') || !exists(join(dir(ctx), `${id}.json`))) throw lookup(`unknown preset ${id}, see benchkeeper presets list`);
   move(join(dir(ctx), `${id}.json`), join(ctx.config, 'backup', 'presets', `${id}-${Date.now()}.json`));
 }
 

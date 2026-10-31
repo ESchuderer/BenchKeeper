@@ -50,8 +50,10 @@ test('presets: saved from a project with a setup, listed, never replaced, remove
   assert.deepEqual(listPresets(ctx).map((x) => x.id), ['web']);
   assert.throws(() => savePreset(ctx, 'broken', join(h, 'first')), /preset broken exists/, 'a file that is not a valid preset is not replaced');
   removePreset(ctx, 'web');
+  removePreset(ctx, 'broken');
   assert.deepEqual(listPresets(ctx), []);
-  assert.equal(readdirSync(join(ctx.config, 'backup', 'presets')).length, 1);
+  assert.equal(readdirSync(join(ctx.config, 'backup', 'presets')).length, 2);
+  assert.throws(() => removePreset(ctx, '../x'), /unknown preset/);
   assert.throws(() => removePreset(ctx, 'web'), /unknown preset web/);
 });
 

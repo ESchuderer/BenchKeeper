@@ -87,7 +87,7 @@ const VIEWS = [
   }],
   // The Catalog's Skills page: the library list is the same on every machine.
   show('skills', 'Skills', 'table', 'Skills'),
-  show('packs', 'Packs', 'table', 'Packs'),
+  show('packs', 'Packs', 'region', 'Library and own packs'),
   show('runs', 'Runs', 'table', 'Orchestrated runs and tasks'),
   show('insights', 'Insights', 'heading', 'Findings'),
   show('evals', 'Evals', 'table', 'Eval targets'),

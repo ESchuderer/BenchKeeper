@@ -130,8 +130,20 @@ test('a plugin pack for selected projects switched off in a project leaves that 
   undo(run.id, ctx);
   assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
   // An install no run of this app made is the user's: offered, not preselected.
-  const theirs = preview(projectPlan({ ctx: { ...ctx, ledger: context({ home: mkdtempSync(join(TMP, 'bk-scope-')) }).ledger }, dir, answers: { packOff: ['ponytail'] } }).changes).find((c) => c.step === 'pack:ponytail:claude');
+  const fresh = { ...ctx, ledger: context({ home: mkdtempSync(join(TMP, 'bk-scope-')) }).ledger };
+  const removal = () => preview(projectPlan({ ctx: fresh, dir, answers: { packOff: ['ponytail'] } }).changes);
+  const theirs = removal().find((c) => c.step === 'pack:ponytail:claude');
   assert.deepEqual([theirs.selected, theirs.foreign, /did not install it/.test(theirs.title)], [false, true, true]);
+  // Removed on purpose and undone: still the user's.
+  undo(apply([theirs], fresh, { scope: dir, select: [theirs.id] }).id, fresh);
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  assert.equal(removal().find((c) => c.step === 'pack:ponytail:claude').selected, false);
+  // A removal that fails keeps the pack in the state, so the next plan offers it again.
+  const failing = { ...ctx, run: (argv, o) => (argv[2] === 'uninstall' ? { code: 1, stdout: '', stderr: 'refused' } : ctx.run(argv, o)) };
+  const plan = preview(projectPlan({ ctx: failing, dir, answers: { packOff: ['ponytail'] } }).changes);
+  apply(plan, failing, { scope: dir, select: plan.filter((c) => ['pack:ponytail:claude', 'state'].includes(c.step)).map((c) => c.id) });
+  assert.ok(JSON.parse(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8')).packs.includes('ponytail'));
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
   // For all projects the plugin stays: other projects use it, and the global plan owns it.
   apply(preview(scopePlan(ctx, 'ponytail', 'global', ['claude'])), ctx);
   assert.ok(!projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes.some((c) => c.step.startsWith('pack:ponytail')));

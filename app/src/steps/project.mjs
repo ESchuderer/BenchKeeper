@@ -452,19 +452,23 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   }
   // A pack switched off here takes its local-scope plugin out of this folder; a plugin for all projects stays with the global plan.
   // Preselected only when the last local install or removal of it here was a run of this app; the user's own install is offered.
+  // An undo puts back what was there and says nothing about who installed it: the run it undid is marked and skipped too.
   const ours = (id) => {
-    for (const run of ctx.ledger.list()) {
+    for (const run of ctx.ledger.list().filter((r) => r.kind !== 'undo')) {
       const e = [...run.entries].reverse().find((x) => x.kind === 'command' && x.status === 'done' && !x.undone && x.cwd === dir && x.argv?.[0] === 'claude' && x.argv[1] === 'plugin' && x.argv.includes('local') && x.argv.at(-1) === id);
       if (e) return e.argv[2] === 'install';
     }
     return false;
   };
+  // A removal that ran and did not finish keeps the pack in the state, so the next plan offers it again.
+  const offIds = new Map();
   for (const id of (prev?.packs ?? []).filter((x) => !a.packs.includes(x))) {
     const p = PLUGINS.claude.find((x) => x.pack === id);
     if (p && pluginScope(ctx, p, 'claude') === 'projects' && localPlugins(ctx, dir).includes(p.id)) {
       const argv = ['claude', 'plugin', 'uninstall', '--scope', 'local', p.id], own = ours(p.id);
       add(`pack:${id}:claude`, `remove Claude Code plugin ${p.id} from this project (pack ${id} switched off${own ? '' : '; BenchKeeper did not install it'})`, { kind: 'command', argv, undoArgv: ['claude', 'plugin', 'install', '--scope', 'local', p.id], cwd: dir, machine: true, destructive: true, selected: own, foreign: !own,
         impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from this project; the undo installs it again` });
+      offIds.set(id, changes.at(-1).id);
     }
   }
 
@@ -592,7 +596,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });

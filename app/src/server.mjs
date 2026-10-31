@@ -29,7 +29,7 @@ import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, pushTargets, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
@@ -340,8 +340,7 @@ export function api(ctx) {
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-        // willPush: the rule Update all pushes by, so its confirmation counts what the run opens.
-        return { ...s, seen, willPush: pushTargets(ctx, [p.path]).length === 1, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
       });
     },
     // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
@@ -360,7 +359,7 @@ export function api(ctx) {
       } else throw bad('action must be add, remove, rename or relocate');
       return listProjects(ctx);
     }),
-    // The files "Remove BenchKeeper setup" would change in a project, before it runs; shared: it becomes a pull request.
+    // The files "Remove BenchKeeper setup" would change in a project, before it runs; shared: it becomes a commit on a local branch.
     'GET /api/remove-setup-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
@@ -370,7 +369,7 @@ export function api(ctx) {
     'POST /api/remove-setup': (b) => {
       idle();
       const paths = [b.paths ?? []].flat().filter((x) => typeof x === 'string' && registered(x));
-      return paths.map((x) => removeSetup(ctx, canon(x), { push: b.push !== false }));
+      return paths.map((x) => removeSetup(ctx, canon(x)));
     },
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {
@@ -424,13 +423,13 @@ export function api(ctx) {
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a
-    // folder without a repository, a shared setup (a pull request) or one still committed (a pull request removes it).
+    // folder without a repository, a shared setup (a commit on a branch) or one still committed (a commit removes it).
     'GET /api/one-run': async () => {
       await originsOfProjects();
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, level: levelFor(ctx, agents.map((a) => a.id)), advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
-        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all opens its pull request' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
+        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
         return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
       }) };
     },
@@ -544,7 +543,7 @@ export function api(ctx) {
       const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
       // dryRun: what each project would get (setup version, changes, whether it is clean), nothing changed.
       if (b.dryRun === true) return paths.map((p) => { const s = status(ctx, p); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(ctx, p)) }; });
-      return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
+      return input(() => updateAll(ctx, { paths, answers }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
     'GET /api/run': (q) => runReport(ctx, q.get('id') ?? ''),

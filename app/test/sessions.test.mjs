@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, prStates, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
 import { TITLE, writeActivitySessions, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
@@ -35,7 +35,7 @@ test('Claude Code sessions: cost, time and tokens from the last cost-state, tier
   assert.equal(s1.tests, 'pass');
   assert.deepEqual(s1.setup, ['BenchKeeper', 'ponytail', 'matt-pocock', 'frontend']);
   assert.equal(s1.setupVersion, '6.0.0');
-  assert.deepEqual(s1.prs, [{ url: 'https://github.com/acme/shop/pull/7', state: 'unknown' }]);
+  assert.deepEqual(s1.prs, ['https://github.com/acme/shop/pull/7']);
   // No cost-state yet: no cost, tokens from each message once.
   assert.deepEqual([s2.costUSD, s2.busyMs, s2.tokens, s2.tests, s2.setup], [null, null, 115, null, null]);
   assert.deepEqual(s2.tier, { first: 'quick', last: 'quick', changeType: 'docs, typo', movedUp: false });
@@ -144,31 +144,6 @@ test('an unchanged file comes from the cache; a changed one is read again; since
   utimesSync(file, new Date(), new Date());
   assert.equal(byId(await scanSessions(ctx)).s2.tier.first, 'full');
   assert.deepEqual((await scanSessions(ctx, { since: '2026-10-21T00:00:00.000Z' })).map((r) => r.id).sort(), ['c1', 's2']);
-});
-
-test('PR states: merged is kept, open is asked again after 6 hours, closed after a day, a failed lookup after 10 minutes', async () => {
-  const calls = [];
-  let answer = { state: 'OPEN' };
-  const { ctx } = fixture((argv) => { calls.push(argv); return answer ? { code: 0, stdout: JSON.stringify(answer), stderr: '' } : { code: 127, stdout: '', stderr: 'not installed' }; });
-  const a = 'https://github.com/acme/shop/pull/7', b = 'https://github.com/acme/shop/pull/8';
-  const t0 = Date.parse('2026-10-22T00:00:00Z');
-  assert.deepEqual(await prStates(ctx, [a], t0), { [a]: 'open' });
-  assert.deepEqual(calls[0], ['gh', 'pr', 'view', a, '--json', 'state']);
-  await prStates(ctx, [a], t0 + 5 * 3600e3);
-  assert.equal(calls.length, 1);
-  answer = { state: 'MERGED' };
-  assert.deepEqual(await prStates(ctx, [a], t0 + 7 * 3600e3), { [a]: 'merged' });
-  answer = null;
-  assert.deepEqual(await prStates(ctx, [a, b, '--help', 'https://github.com/acme/shop/pull/9;rm'], t0 + 1e9), { [a]: 'merged', [b]: 'unknown', '--help': 'unknown', 'https://github.com/acme/shop/pull/9;rm': 'unknown' });
-  assert.equal(calls.length, 3);
-  await prStates(ctx, [b], t0 + 1e9 + 300e3);
-  assert.equal(calls.length, 3);
-  answer = { state: 'CLOSED' };
-  assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3), { [b]: 'closed' });
-  // Reopened and merged since: a closed state is asked again after a day.
-  answer = { state: 'MERGED' };
-  assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 23 * 3600e3), { [b]: 'closed' });
-  assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 25 * 3600e3), { [b]: 'merged' });
 });
 
 const cacheFile = (home) => join(home, '.cache/benchkeeper/sessions.json');

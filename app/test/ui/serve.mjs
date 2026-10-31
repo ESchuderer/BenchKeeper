@@ -83,11 +83,10 @@ const TREES = ['a', 'b'].map((t) => join(tmpdir(), `bk-ui-tree-${PORT}`, t));
 let registered = null;
 const run = (argv, o = {}) => {
   if (!DEMO && argv[0] === 'git' && argv[2] === registered && argv.slice(3).join(' ') === 'worktree list --porcelain') return { code: 0, stdout: [registered, ...TREES].map((w) => `worktree ${w}\nHEAD 0\n`).join('\n'), stderr: '' };
-  // GitHub is never reached: fetch answers with the local default branch as origin's, push and ls-remote answer as an empty remote, gh opens a pull request.
+  // GitHub is never reached: fetch answers with the local default branch as origin's, ls-remote as an empty remote.
   // The fetch becomes a ref update in the same repository, so origin/<branch> exists as after a real fetch.
   if (argv[0] === 'git' && argv.includes('fetch')) argv = [...argv.slice(0, argv.indexOf('fetch')), 'update-ref', `refs/remotes/origin/${argv.at(-1)}`, 'HEAD'];
-  if (argv[0] === 'git' && (argv.includes('push') || argv.includes('ls-remote'))) return { code: 0, stdout: '', stderr: '' };
-  if (argv[0] === 'gh' && argv[1] === 'pr' && argv[2] === 'create') return { code: 0, stdout: 'https://github.com/acme/alpha/pull/1\n', stderr: '' };
+  if (argv[0] === 'git' && argv.includes('ls-remote')) return { code: 0, stdout: '', stderr: '' };
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync(GIT, argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
   // The skills CLI adds a skill folder with one file: in a rehearsal's scratch home, else in the fixture home, never the real one.
   if (argv[0] === 'npx' && argv[2] === SKILLS_SPEC) {

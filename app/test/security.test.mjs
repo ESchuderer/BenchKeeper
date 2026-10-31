@@ -8,7 +8,7 @@ import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { machineContext } from '../src/cli.mjs';
 import { inside, writeAtomic } from '../src/fsx.mjs';
-import { clean, defaultBranch, githubRemote } from '../src/git.mjs';
+import { clean, defaultBranch } from '../src/git.mjs';
 import { runId } from '../src/ledger.mjs';
 import { loadCases } from '../src/cases.mjs';
 import { ownPacks, removePack } from '../src/packs.mjs';
@@ -195,12 +195,6 @@ test('a default branch named by origin is a plain branch name: no option, no ref
     const ctx = { run: () => ({ code: 1, stdout: '', stderr: '' }) };
     assert.notEqual(remoteHead(ctx, '/p', ok(bad)), bad, bad);
   }
-});
-
-test('only a github.com origin is a GitHub remote', () => {
-  const at = (url) => githubRemote({ run: () => ({ code: 0, stdout: `${url}\n` }) }, '/p');
-  for (const url of ['https://github.com/o/r.git', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'https://user@github.com/o/r', 'https://user:token@github.com/o/r', 'ssh://git@github.com:22/o/r']) assert.equal(at(url), true, url);
-  for (const url of ['https://git.example/github.com/o/r.git', 'ssh://git@evil.example/github.com/x.git', 'https://notgithub.com/o/r', 'https://github.com:x@evil.example/o/r', '']) assert.equal(at(url), false, url);
 });
 
 test('a failing git status is not a clean tree', () => {

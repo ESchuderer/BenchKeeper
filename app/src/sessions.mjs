@@ -1,5 +1,5 @@
 // Agent sessions on this machine, read from the Claude Code and Codex transcripts: tier, setup, skills, tests, cost
-// and pull requests per session, for the board. Reads only the transcripts, the ledger and gh; writes only its caches.
+// and pull request links per session, for the board. Reads only the transcripts and the ledger; writes only its caches.
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -26,7 +26,6 @@ const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
 const PARSE = 4;
-const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
 async function lines(file, each) {
@@ -283,35 +282,6 @@ const tierOf = (list) => {
 // and whose transcript the agent has since deleted: shown as not recorded, never as single.
 const patternOf = (d, subagents) => (d.orca === undefined ? null : d.orca ? orca.WORKER_PATTERN : d.loop ? 'loop' : subagents ? 'group' : 'single');
 
-// Pull request states from gh: merged kept for good, open asked again after 6 hours (like newest() in
-// steps/global.mjs) and closed after a day (it can be reopened), a failed lookup (no gh, no login, offline) after 10 minutes. Not a GitHub pull request URL:
-// unknown, never asked. Four lookups at a time, off the server's event loop.
-const AGAIN = { open: 6 * 3600e3, closed: 24 * 3600e3, unknown: 600e3 };
-export async function prStates(ctx, urls, now = Date.now()) {
-  const file = join(cacheDir(ctx), 'prs.json');
-  const cache = parse(readText(file) ?? '{}') ?? {};
-  const run = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
-  const out = {};
-  const ask = [];
-  for (const url of new Set(urls)) {
-    const hit = cache[url];
-    out[url] = hit && !(now - hit.at >= (AGAIN[hit.state] ?? Infinity)) ? hit.state : 'unknown';
-    if (PR.test(url) && out[url] === 'unknown' && !(hit?.state === 'unknown' && now - hit.at < AGAIN.unknown)) ask.push(url);
-  }
-  const work = async () => {
-    for (let url; (url = ask.shift());) {
-      const r = await run(['gh', 'pr', 'view', url, '--json', 'state'], { timeout: 15e3 });
-      const state = r.code === 0 ? parse(r.stdout)?.state?.toLowerCase() : null;
-      cache[url] = { state: ['open', 'merged', 'closed'].includes(state) ? state : 'unknown', at: now };
-      out[url] = cache[url].state;
-    }
-  };
-  const asked = ask.length;
-  await Promise.all([1, 2, 3, 4].map(work));
-  if (asked) writeAtomic(file, `${JSON.stringify(cache)}\n`, 0o600);
-  return out;
-}
-
 // Ponytail's ledger beside the transcript rows (opt-in; the figures stay Ponytail's own, in `ponytail`). A Claude Code row
 // whose session id starts like a ledger key is matched and counted once; a ledger row without a transcript here becomes a row
 // of its own, named by `source`. A ledger row is its project's name, not a path, and has no tier, skills or pull requests.
@@ -382,8 +352,6 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       active: d.active ?? null, limits: d.limits ?? null,
     });
   }
-  const states = await prStates(ctx, rows.flatMap((r) => r.prs));
-  for (const r of rows) r.prs = r.prs.map((url) => ({ url, state: states[url] }));
   rows.sort((a, b) => (a.start < b.start ? 1 : -1));
   return ledger ? withLedger(ctx, rows, since, onNote) : rows;
 }

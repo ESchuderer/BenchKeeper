@@ -220,7 +220,7 @@ test('Update all stops at a project whose folder is gone', () => {
   const p = repo();
   addProject(ctx, p.dir);
   renameSync(p.dir, `${p.dir}-gone`);
-  assert.match(updateAll(ctx, { paths: [p.dir], push: false })[0].reason, /folder not found/);
+  assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /folder not found/);
 });
 
 test('Remove BenchKeeper setup, shared: a pull request branch without the committed setup; the checkout stays', () => {
@@ -236,7 +236,7 @@ test('Remove BenchKeeper setup, shared: a pull request branch without the commit
   addProject(ctx, p.dir);
   assert.equal(setupRemoval(ctx, p.dir).shared, true);
   const before = tree(p.dir);
-  const r = removeSetup(ctx, p.dir, { push: false });
+  const r = removeSetup(ctx, p.dir);
   assert.equal(r.status, 'committed', r.reason);
   assert.equal(r.branch, 'chore/remove-agent-setup');
   assert.deepEqual(tree(p.dir), before);

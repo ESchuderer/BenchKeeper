@@ -216,13 +216,13 @@
       {
         "id": "sessions",
         "title": "Sessions board",
-        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost (Claude Code) and pull request state. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
+        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost (Claude Code) and pull request links. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
         "evidence": "app/README.md#commands"
       },
       {
         "id": "analysis",
         "title": "Analysis of sessions",
-        "text": "Insights turns the sessions scan and the doctor into findings, each with its evidence and a fix: installed skills no session of the last 90 days used, with the tokens their descriptions cost per turn; projects where sessions ended on a failed test run without a pull request; setup drift; skills a project could add, turn off or update. A finding the setup can fix opens its plan with a diff and undo. The Runs view lists orchestrated runs and their tasks with sessions, cost and tokens. Both read the transcripts when the view opens, Runs also on Refresh; nothing watches a running session.",
+        "text": "Insights turns the sessions scan and the doctor into findings, each with its evidence and a fix: installed skills no session of the last 90 days used, with the tokens their descriptions cost per turn; projects where sessions ended on a failed test run; setup drift; skills a project could add, turn off or update. A finding the setup can fix opens its plan with a diff and undo. The Runs view lists orchestrated runs and their tasks with sessions, cost and tokens. Both read the transcripts when the view opens, Runs also on Refresh; nothing watches a running session.",
         "evidence": "app/README.md#web-ui"
       },
       {

@@ -151,20 +151,20 @@ export function RemoveFromList({ paths, onClose, onDone }) {
 }
 
 // One request per project, so each row reports on its own, as in Update all.
-async function removeSetups(paths, push, onProgress) {
+async function removeSetups(paths, onProgress) {
   const rows = paths.map((path) => ({ path, status: 'pending' }));
   onProgress([...rows]);
   for (const [i, row] of rows.entries()) {
     rows[i] = { ...row, status: 'running' };
     onProgress([...rows]);
-    try { rows[i] = (await api('/api/remove-setup', { paths: [row.path], push }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
+    try { rows[i] = (await api('/api/remove-setup', { paths: [row.path] }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
     onProgress([...rows]);
   }
 }
 
 // Remove BenchKeeper setup: every file of every project first, then one confirmation. A local setup is one run per
-// project with undo in History; a shared one becomes a pull request.
-export function RemoveSetup({ paths, push, onClose, onDone }) {
+// project with undo in History; a shared one becomes a commit on a local branch.
+export function RemoveSetup({ paths, onClose, onDone }) {
   const [plans, setPlans] = useState(null);
   const [progress, setProgress] = useState(null);
   useEffect(() => {
@@ -174,7 +174,7 @@ export function RemoveSetup({ paths, push, onClose, onDone }) {
     return () => { live = false; };
   }, [paths]);
   const ready = (plans ?? []).filter((p) => !p.error && p.changes.length);
-  const prs = ready.filter((p) => p.shared).length;
+  const branches = ready.filter((p) => p.shared).length;
   const finished = progress && progress.every((r) => !['pending', 'running'].includes(r.status));
   const close = () => { if (progress) onDone(); else onClose(); };
   return (
@@ -189,7 +189,7 @@ export function RemoveSetup({ paths, push, onClose, onDone }) {
             {!p.error && !p.changes.length && <Text size="sm">No BenchKeeper setup to remove.</Text>}
             {!p.error && !!p.changes.length && (
               <>
-                <Text size="sm">{p.shared ? 'Shared setup: a pull request removes these files; undo it by closing the pull request.' : 'Local setup: removed in the checkout, as one run you can undo in History.'}</Text>
+                <Text size="sm">{p.shared ? 'Shared setup: a commit on branch chore/remove-agent-setup removes these files, for you to push; undo it by deleting the branch.' : 'Local setup: removed in the checkout, as one run you can undo in History.'}</Text>
                 <List size="sm" aria-label={`Changes in ${p.path}`}>{p.changes.map((c) => <List.Item key={c.id}>{c.title}</List.Item>)}</List>
               </>
             )}
@@ -199,7 +199,7 @@ export function RemoveSetup({ paths, push, onClose, onDone }) {
         {progress && <UpdateResults what="Remove setup" progress={progress} />}
         <Group justify="flex-end">
           <Button variant="default" onClick={close}>{finished ? 'Close' : 'Cancel'}</Button>
-          {!progress && <Button leftSection={icon(IconTrash)} disabled={!ready.length} onClick={() => removeSetups(ready.map((p) => p.path), push, setProgress)}>Remove setup of {plural(ready.length, 'project')}{prs ? ` (${plural(prs, 'pull request')})` : ''}</Button>}
+          {!progress && <Button leftSection={icon(IconTrash)} disabled={!ready.length} onClick={() => removeSetups(ready.map((p) => p.path), setProgress)}>Remove setup of {plural(ready.length, 'project')}{branches ? ` (${branches} on a branch)` : ''}</Button>}
         </Group>
       </Stack>
     </Modal>

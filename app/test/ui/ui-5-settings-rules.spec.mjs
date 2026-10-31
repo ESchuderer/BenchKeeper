@@ -296,15 +296,22 @@ test.describe('views', () => {
     // The checks come before the files, in the summary strip; each limit is a bar that names who sets it.
     await expect(page.getByRole('region', { name: 'Summary' }).getByRole('region', { name: 'Checks' })).toBeVisible();
     await expect(page.getByRole('progressbar', { name: /^At the start of a session: .* tokens, limit set by BenchKeeper$/ }).first()).toBeVisible();
-    const files = page.getByRole('table', { name: 'Claude Code instruction files' });
-    const team = files.getByRole('row', { name: /20-team\.md/ });
+    const files = page.getByRole('list', { name: 'Claude Code instruction files' });
+    const team = files.getByRole('listitem').filter({ hasText: /20-team\.md/ });
     await expect(team).toContainText('yours');
     await expect(team).toContainText('loads');
     // BenchKeeper's own rules file has no switch; the budget bar has one segment per source, largest first, named in its legend.
-    await expect(files.getByRole('row', { name: /00-global\.md/ })).toContainText('No switch: BenchKeeper wrote it');
+    await expect(files.getByRole('listitem').filter({ hasText: /00-global\.md/ })).toContainText('No switch: BenchKeeper wrote it');
     await expect(page.getByRole('list', { name: 'Claude Code sources' }).getByRole('listitem').first()).toContainText('00-global.md');
     await expect(page.getByText('tokens at the start of a session').first()).toBeVisible();
     await expect(page.getByRole('region', { name: 'Checks' })).toContainText('No rule file is over a limit or broken');
+    // The estimate note is behind an info control, not a paragraph.
+    await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeHidden();
+    await page.getByRole('button', { name: 'How Claude Code tokens are counted' }).click();
+    await expect(page.getByRole('button', { name: 'How Claude Code tokens are counted' })).toHaveAccessibleDescription('A token is counted as four bytes: an estimate.');
+    await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeHidden();
     await noAxe(page);
     // The text opens on this machine only.
     await team.getByRole('button', { name: /Show text of/ }).click();
@@ -383,14 +390,14 @@ test.describe('views', () => {
     await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
     const tabs = page.getByRole('tablist', { name: 'Agents' });
     await expect(tabs.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeVisible();
-    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toBeHidden();
+    await expect(page.getByRole('list', { name: 'Claude Code instruction files' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Codex instruction files' })).toBeHidden();
     await noAxe(page);
     await tabs.getByRole('tab', { name: 'Codex' }).click();
-    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
-    await expect(page.getByRole('table', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
+    await expect(page.getByRole('list', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
+    await expect(page.getByRole('list', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
     await expect(strip.getByRole('list', { name: 'Codex sources' })).not.toContainText('00-global.md');
-    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeHidden();
+    await expect(page.getByRole('list', { name: 'Claude Code instruction files' })).toBeHidden();
     await noAxe(page);
     await page.unroute(view);
   });
@@ -407,6 +414,8 @@ test.describe('views', () => {
     await noAxe(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await noAxe(page);
+    // The bar and the count wrap under the path: nothing scrolls sideways.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await page.setViewportSize({ width: 1280, height: 720 });
   });
 
@@ -419,7 +428,7 @@ test.describe('views', () => {
       await route.fulfill({ response: r, json: { ...body, agents } });
     });
     await nav(page, 'Rules').click();
-    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    const team = page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ });
     await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
     await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
@@ -476,6 +485,9 @@ test.describe('views', () => {
     const held = new Promise((resolve) => { answer = resolve; });
     await page.route(/\/api\/rules-plan$/, async (route) => { await held; await route.continue(); });
     await nav(page, 'Rules').click();
+    await expect(page.getByRole('region', { name: 'Checks' })).toContainText('1 finding');
+    await expect(page.getByRole('region', { name: 'Checks' }).getByRole('table', { name: 'Rule findings' })).toBeVisible();
+    await noAxe(page);
     const off = page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / });
     await off.focus();
     await page.keyboard.press('Enter');
@@ -495,7 +507,7 @@ test.describe('views', () => {
     const held = new Promise((resolve) => { answer = resolve; });
     await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
     await nav(page, 'Rules').click();
-    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    const team = page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ });
     const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
     await toggle.click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
@@ -558,7 +570,7 @@ test.describe('views', () => {
     const held = new Promise((resolve) => { answer = resolve; });
     await page.route(/\/api\/job\?/, async (route) => { await held; await route.continue(); });
     await nav(page, 'Rules').click();
-    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('button', { name: /Show text of/ }).click();
+    await page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ }).getByRole('button', { name: /Show text of/ }).click();
     const drawer = page.getByRole('dialog', { name: 'Rule file text' });
     await drawer.getByRole('button', { name: 'Edit' }).click();
     const text = drawer.getByRole('textbox', { name: /^Text of / });
@@ -600,7 +612,7 @@ test.describe('views', () => {
     await page.route(/\/api\/rules-plan$/, async (route) => { if (asked++) await planHeld; await route.continue(); });
     await page.route(/\/api\/job\?/, async (route) => { await jobHeld; await route.continue(); });
     await nav(page, 'Rules').click();
-    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    await page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
     const apply = changes.getByRole('button', { name: /^Apply 1 change$/ });
     await expect(apply).toBeVisible();
@@ -625,7 +637,7 @@ test.describe('views', () => {
     const held = new Promise((resolve) => { answer = resolve; });
     await page.route(/\/api\/apply$/, async (route) => { await held; await route.continue(); });
     await nav(page, 'Rules').click();
-    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    await page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
     await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     const cancel = changes.getByRole('button', { name: 'Cancel' });
@@ -648,7 +660,7 @@ test.describe('views', () => {
     };
     await page.route(/\/api\/(rules|settings)-plan$/, edited);
     await nav(page, 'Rules').click();
-    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    const team = page.getByRole('list', { name: 'Claude Code instruction files' }).getByRole('listitem').filter({ hasText: /20-team\.md/ });
     await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).focus();
     await page.keyboard.press('Space');
     let changes = page.getByRole('region', { name: 'Changes' });

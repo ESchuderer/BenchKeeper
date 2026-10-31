@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -595,10 +595,19 @@ function EditorSetting({ overview, refresh }) {
   );
 }
 
+// Three tabs; the one destructive button (Clear the sessions cache) sits last in Advanced. display-none keeps the effects
+// of a hidden tab running: a profile preview or a plan being applied goes on while another tab is open.
 export function Settings({ overview, refresh, keys }) {
+  const cache = useApi('/api/sessions-cache');
   return (
-    <Stack gap="xl">
-      <Profile overview={overview} refresh={refresh} />
+    <Tabs defaultValue="views" keepMountedMode="display-none">
+      <Tabs.List aria-label="Preferences">
+        <Tabs.Tab value="views">Views</Tabs.Tab>
+        <Tabs.Tab value="history">Sessions history</Tabs.Tab>
+        <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="views" pt="md"><Stack gap="xl">
+      <Surfaces />
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
@@ -606,8 +615,10 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
-      <Surfaces />
-      <SessionsHistory />
+      </Stack></Tabs.Panel>
+      <Tabs.Panel value="history" pt="md"><SessionsHistory cache={cache} /></Tabs.Panel>
+      <Tabs.Panel value="advanced" pt="md"><Stack gap="xl">
+      <Profile overview={overview} refresh={refresh} />
       <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
@@ -622,7 +633,10 @@ export function Settings({ overview, refresh, keys }) {
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
-    </Stack>
+      <Divider />
+      <SessionsHistory cache={cache} clear />
+      </Stack></Tabs.Panel>
+    </Tabs>
   );
 }
 

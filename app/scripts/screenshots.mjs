@@ -86,12 +86,8 @@ const VIEWS = [
   show('extensions', 'Extensions', 'list', 'Claude Code extensions'),
   // Demo mode has no runner: its setup panel, the templates folded.
   show('automations', 'Automations', 'button', 'Check again'),
-  // Scrolled to Views and their cost: the status line select of the tracked account work.
-  ['preferences', async (page) => {
-    await nav(page, 'Preferences').click();
-    await expect(page.getByRole('combobox', { name: 'Status line of account work' })).toBeVisible();
-    await page.getByRole('region', { name: 'Views and their cost' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
-  }],
+  // The Views tab as it opens: the status line select of the tracked account work.
+  show('preferences', 'Preferences', 'combobox', 'Status line of account work'),
   // Scrolled to the auto memory of shop, below the context budget.
   ['rules', async (page) => {
     await nav(page, 'Rules').click();

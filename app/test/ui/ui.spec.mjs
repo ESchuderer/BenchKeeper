@@ -1800,8 +1800,25 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Preferences: Views is the open tab; Sessions history and Advanced, with Clear last, show on their tabs', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const tabs = page.getByRole('tablist', { name: 'Preferences' });
+    await expect(tabs.getByRole('tab')).toHaveText(['Views', 'Sessions history', 'Advanced']);
+    await expect(tabs.getByRole('tab', { name: 'Views' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('region', { name: 'Views and their cost' })).toContainText('Terminal tier strip: off by default.');
+    await expect(page.getByRole('table', { name: 'Keyboard shortcuts' })).toBeVisible();
+    for (const hidden of ['Sessions history', 'Profile', 'Advanced', 'Files', 'Sessions cache']) await expect(page.getByRole('region', { name: hidden })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Clear the sessions cache' })).toBeHidden();
+    await tabs.getByRole('tab', { name: 'Advanced' }).click();
+    const panel = page.getByRole('tabpanel', { name: 'Advanced' });
+    await expect(panel.getByRole('heading', { level: 3 })).toHaveText(['Profile', 'Advanced', 'Files', 'Sessions cache']);
+    await expect(page.getByRole('region', { name: 'Views and their cost' })).toBeHidden();
+    await noAxe(page);
+  });
+
   test('Preferences: the sessions cache has a retention and Clear', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Sessions history' }).click();
     const history = page.getByRole('region', { name: 'Sessions history' });
     await expect(history).toContainText('sessions in the cache');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
@@ -1809,8 +1826,10 @@ test.describe('views', () => {
     await expect(history.getByRole('textbox', { name: 'Days since the last activity' })).toHaveValue('30');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
     await expect(history.getByText('Summaries are kept.')).toBeVisible();
-    const count = await history.getByText(/\d+ sessions in the cache/).textContent();
-    const clear = history.getByRole('button', { name: 'Clear the sessions cache' });
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    const cache = page.getByRole('region', { name: 'Sessions cache' });
+    const count = await cache.getByText(/\d+ sessions in the cache/).textContent();
+    const clear = cache.getByRole('button', { name: 'Clear the sessions cache' });
     const ask = page.getByRole('dialog', { name: 'Clear the sessions cache?' });
     await clear.focus();
     await page.keyboard.press('Enter');
@@ -1818,26 +1837,30 @@ test.describe('views', () => {
     await ask.getByRole('button', { name: 'Cancel' }).focus();
     await page.keyboard.press('Enter');
     await expect(ask).toBeHidden();
-    await expect(history.getByText(count)).toBeVisible();
-    await expect(history.getByText('Cache cleared.')).toBeHidden();
+    await expect(cache.getByText(count)).toBeVisible();
+    await expect(cache.getByText('Cache cleared.')).toBeHidden();
     await clear.click();
     await ask.getByRole('button', { name: 'Clear the cache' }).click();
-    await expect(history.getByText('Cache cleared.')).toBeVisible();
+    await expect(cache.getByText('Cache cleared.')).toBeVisible();
+    await expect(cache).toContainText('0 sessions in the cache');
+    await page.getByRole('tab', { name: 'Sessions history' }).click();
     await expect(history).toContainText('0 sessions in the cache');
   });
 
   test('Preferences: the Clear dialog reads the count again when it opens', async ({ page }) => {
     await nav(page, 'Preferences').click();
-    const history = page.getByRole('region', { name: 'Sessions history' });
-    await expect(history).toContainText('sessions in the cache');
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    const cache = page.getByRole('region', { name: 'Sessions cache' });
+    await expect(cache).toContainText('sessions in the cache');
     // Another tab scans meanwhile: the server now holds 7 summaries.
     await page.route(/\/api\/sessions-cache$/, (r) => (r.request().method() === 'GET' ? r.fulfill({ json: { sessions: 7, keepDays: null } }) : r.continue()));
-    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await cache.getByRole('button', { name: 'Clear the sessions cache' }).click();
     await expect(page.getByRole('dialog', { name: 'Clear the sessions cache?' })).toContainText('7 session summaries go');
   });
 
   test('Preferences: a profile import clears the export warnings', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.route(/\/api\/profile-export/, async (r) => r.fulfill({ json: { ...(await (await r.fetch()).json()), skipped: ['an export warning'] } }));
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
@@ -1852,6 +1875,7 @@ test.describe('views', () => {
 
   test('Preferences: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
     const file = await download;
@@ -2511,6 +2535,7 @@ test.describe('views', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
     expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).status)).toBe(404);
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     const editors = page.getByRole('switch', { name: 'Editors' });
     await editors.click();
     await expect(page.getByRole('group', { name: 'Advanced' })).toBeVisible();
@@ -2547,6 +2572,7 @@ test.describe('views', () => {
     await noAxe(page);
     // Off again: the entry and the route are gone.
     await page.goto('/#/settings');
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await editors.click();
     await expect(editors).not.toBeChecked();
     await expect(entry).toHaveCount(0);

@@ -165,10 +165,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'preferences', view: 'settings', title: 'Preferences', shot: 'preferences',
-    alt: 'The Preferences view: Views and their cost with the terminal tier strip switch and the status line select of the tracked account work, then the sessions history, the Advanced switch for editors and the config files.',
+    alt: 'The Preferences view on its Views tab, beside the tabs Sessions history and Advanced: Views and their cost with the terminal tier strip switch and the status line select of the tracked account work, then the keyboard shortcuts.',
     text: [
       'Export profile writes the agents, packs, own packs and registered projects with their answers as one file, without file contents, environment values or tokens; Import profile shows the changes it would make on this machine first.',
-      'The keyboard shortcuts, the switch for the / key that opens the command palette, the terminal tier strip, how long the sessions cache keeps summaries, the Advanced editors and the files the app keeps in its config folder.',
+      'The Views tab holds the terminal tier strip with what each view costs, the keyboard shortcuts and the switch for the / key that opens the command palette; Sessions history, how long the sessions cache keeps summaries; Advanced, the profile, the editors, the files the app keeps in its config folder and, last, Clear the sessions cache.',
       'Each account that accounts track set up has a status line select: usage windows and Ponytail level, one of them, or nothing. It changes that account\'s settings.json as a plan with undo.',
     ],
     cli: [`${V} profile export <file>`, `${V} profile import <file>`, `${V} sessions cache show`, `${V} accounts track <name>`],

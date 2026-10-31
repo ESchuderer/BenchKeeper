@@ -29,7 +29,7 @@ const compliant = () => ({
 const SONAR = `${BASELINE_REPO}/.github/workflows/sonar.yml`;
 const withSonar = (db) => { db.callers = ['sonar']; db.selected.patterns_allowed = [`${SONAR}@*`]; return db; };
 
-// A gh that answers GET requests from db, records every call, and serves repo-baseline's profile files.
+// A gh that answers GET requests from db, records every call, and serves repo-standards's profile files.
 function stub(db) {
   const calls = [];
   const bad = (code, msg) => ({ code: 1, stdout: '', stderr: `gh: ${msg} (HTTP ${code})\n` });
@@ -197,14 +197,14 @@ test('without gh, a login or the network the check says so, and nothing throws',
   assert.deepEqual(baselineIssues(ctx, checkout({ remote: 'https://gitlab.com/o/r.git' })).length, 1);
 });
 
-test('the profile falls back to the bundled copy when repo-baseline is unreachable; another ref has no fallback', () => {
+test('the profile falls back to the bundled copy when repo-standards is unreachable; another ref has no fallback', () => {
   const { ctx } = machine({ baselineDown: true });
   const r = loadProfile(ctx, 'oss');
   assert.deepEqual(r.profile, OSS);
-  assert.match(r.source, /bundled copy of ESchuderer\/repo-baseline@/);
+  assert.match(r.source, /bundled copy of ESchuderer\/repo-standards@/);
   const odd = machine({ baselineInvalid: true });
-  assert.match(loadProfile(odd.ctx, 'oss').source, /repo-baseline: not a valid profile file/);
-  assert.throws(() => loadProfile(ctx, 'oss', 'feature/x'), /cannot read profile oss at ESchuderer\/repo-baseline@feature\/x/);
+  assert.match(loadProfile(odd.ctx, 'oss').source, /repo-standards: not a valid profile file/);
+  assert.throws(() => loadProfile(ctx, 'oss', 'feature/x'), /cannot read profile oss at ESchuderer\/repo-standards@feature\/x/);
   assert.throws(() => loadProfile(ctx, 'oss', '--evil'), /not a ref/);
   assert.throws(() => loadProfile(ctx, '../oss'), /profile must be one of/);
   const live = machine(compliant());
@@ -250,7 +250,7 @@ test('projects update --baseline reports each project and changes no setting and
   assert.equal(runCommand(['git', '-C', dir, 'status', '--porcelain']).stdout.includes('sonar'), false);
 });
 
-test('project setup writes a repo-baseline caller only when asked; an own file is offered, not preselected', () => {
+test('project setup writes a repo-standards caller only when asked; an own file is offered, not preselected', () => {
   const dir = checkout({ dependabot: false });
   const { ctx } = machine(compliant());
   const answers = { agents: ['claude'], env: 'container' };

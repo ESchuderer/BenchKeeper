@@ -74,7 +74,7 @@ Usage: benchkeeper <command> [options]
   doctor [dir] [--project dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
-                                    repo-baseline profile (read-only gh api; auto: advisory for private repositories)
+                                    repo-standards profile (read-only gh api; auto: advisory for private repositories)
   containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
                                     label), inside the home folder, no longer exists while its parent folder does; never
                                     one without the label, whose folder exists or cannot be read, or whose label is not an
@@ -129,7 +129,7 @@ Usage: benchkeeper <command> [options]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --caller writes that repo-baseline workflow file (never GitHub settings);
+                                    --caller writes that repo-standards workflow file (never GitHub settings);
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
   projects create <dir> --preset <id> [--yes] [--all]
                                     a new folder set up from a preset, as a plan with a diff, then registered; refused for a

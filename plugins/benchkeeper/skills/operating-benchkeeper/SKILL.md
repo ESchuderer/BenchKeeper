@@ -32,6 +32,7 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--guards\|--no-guards`, `--agent-file`, `--caller lint-js\|lint-python\|sonar`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `projects plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
+| New project from a preset | `presets list`, `presets save <id> --project dir` (the answers of a set-up project), `presets remove <id>` (moves the file to the backup); `projects create <dir> --preset <id>` with no input prints the plan, then after approval `--yes` applies it and registers the folder; it then prints recommended skills to turn off and packs to add as a second plan, which `--yes` leaves unselected and `--all` takes whole |
 | Update one project | `projects plan [dir]`, then `projects apply [dir] --yes` (the answers default to its state file) |
 | Update every project | `projects update [dir..]` with no input first: it prints each project's changes and the summary, then exits 2 without applying (`--dry-run` omits the summary). After approval, `projects update [dir..] --yes`; it pushes nothing, and each result line names the `push` command of a committed branch for the user to run |
 | Take the setup out of a project | `projects remove <dir> --setup` (lists the files; ask, then `--yes`) |

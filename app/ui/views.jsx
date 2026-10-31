@@ -291,7 +291,7 @@ export function Agents({ overview, params, refresh }) {
 }
 
 // One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
-// all opens the pull request that removes it.
+// all commits its removal on a branch.
 const SetupBadge = ({ p }) => {
   if (p.missing) return <MissingBadge />;
   const where = p.share ? 'shared' : p.committed ? 'local, still committed' : 'local';
@@ -353,7 +353,6 @@ export function ProjectList({ params, overview, refresh }) {
   const [path, setPath] = useState('');
   const [found, setFound] = useState(null);
   const [pick, setPick] = useState([]);
-  const [push, setPush] = useState(true);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -400,13 +399,7 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project the list marks willPush (a shared or still
-  // committed setup whose origin is on GitHub); any other shared or committed project gets a local branch only.
-  const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && p.willPush).length : 0);
-  const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
-  const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
-  const prs = prsOf(confirmPrs ?? []);
+  const startUpdate = (paths) => act('update', async () => { await updateProjects(paths, setProgress); reload(); })();
   const rows = visibleProjects(all, view, cards);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
@@ -474,28 +467,17 @@ export function ProjectList({ params, overview, refresh }) {
         </Stack>
       ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit, which you push. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
-          <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!live.length} onClick={() => startUpdate(live.map((p) => p.path))}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
-      <Modal opened={!!confirmPrs} onClose={() => setConfirmPrs(null)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} on GitHub with a shared setup or a local one still committed get a branch pushed to origin and a pull request (the second kind removes the committed setup); without a GitHub origin the branch stays local. Projects with uncommitted changes are skipped.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setConfirmPrs(null)}>Cancel</Button>
-            <Button leftSection={icon(IconRefresh)} onClick={() => runUpdate(confirmPrs)}>Update all and open up to {plural(prs, 'pull request')}</Button>
-          </Group>
-        </Stack>
-      </Modal>
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
-      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
-      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
+      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} onClose={() => { setSetupPaths(null); reload(); }} />}
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }

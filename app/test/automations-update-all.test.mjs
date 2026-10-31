@@ -19,10 +19,10 @@ function precheck(values, doc) {
   return { code: r.status, args: readFileSync(join(bin, 'args'), 'utf8').trim() };
 }
 
-test('update-all: parameters projects, push and mode, report only by default', () => {
+test('update-all: parameters projects and mode, report only by default', () => {
   const t = template();
-  assert.deepEqual(Object.keys(t.parameters), ['projects', 'push']);
-  assert.deepEqual(fill(t).values, { mode: 'report', projects: '', push: 'false' });
+  assert.deepEqual(Object.keys(t.parameters), ['projects']);
+  assert.deepEqual(fill(t).values, { mode: 'report', projects: '' });
 });
 
 test('update-all precheck: starts the run only when the plan reports an outdated project', { skip: process.platform === 'win32' && 'sh precheck' }, () => {

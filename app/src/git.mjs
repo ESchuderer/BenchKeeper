@@ -127,6 +127,4 @@ export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplev
 
 // A status that fails is not a clean tree.
 export const clean = (ctx, dir, pin = []) => { const r = git(ctx, dir, [...pin, 'status', '--porcelain']); return r.code === 0 && r.stdout.trim() === ''; };
-// The host of origin is github.com: https, ssh or scp form, not a folder of that name on another host.
-export const githubRemote = (ctx, dir) => /^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|(?:[^@/:]+@)?github\.com:)/i.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim());
 export { git };

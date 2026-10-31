@@ -71,7 +71,7 @@ export function UpdateResults({ progress, extra, what = 'Update all' }) {
           <Table.Tr key={r.path}>
             <Table.Td><Code>{r.path}</Code></Table.Td>
             <Table.Td>
-              {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
+              {r.status}{r.reason ? `: ${r.reason}` : ''}{r.push && <>, push with <Code>{r.push}</Code></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
               {extra?.(r)}
             </Table.Td>
           </Table.Tr>
@@ -103,7 +103,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
   const branched = list.filter((p) => picked.includes(p.path) && (p.share || p.committed));
-  const viaPr = branched.filter((p) => p.willPush).length, onBranch = branched.length - viaPr, inPlace = picked.length - branched.length;
+  const onBranch = branched.length, inPlace = picked.length - branched.length;
   return (
     <Stack gap="md">
       <Stepper active={running ? 4 : step} onStepClick={running ? undefined : setStep} size="sm">
@@ -118,7 +118,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Projects">
           <Loading state={projects} label="projects">{() => (
             <Stack gap="sm">
-              <Text size="sm">A shared setup, or one still committed in the repository, gets a branch and a pull request when origin is on GitHub; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
+              <Text size="sm">A shared setup, or one still committed in the repository, gets a local branch with one commit, which you push; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
               {list.length ? (
                 <>
                   <Group gap="xs">
@@ -149,7 +149,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Apply">
           <List spacing={4} aria-label="What Apply does">
             <List.Item>Global setup: {select?.length ? `${select.length} of ${global.data.changes.length} changes` : 'nothing'}</List.Item>
-            <List.Item>Projects: {picked.length ? [inPlace && `${inPlace} written in their checkout`, onBranch && `${onBranch} as a branch`, viaPr && `${viaPr} as a branch and pull request`].filter(Boolean).join(', ') : 'none'}</List.Item>
+            <List.Item>Projects: {picked.length ? [inPlace && `${inPlace} written in their checkout`, onBranch && `${onBranch} as a branch`].filter(Boolean).join(', ') : 'none'}</List.Item>
             <List.Item>By hand: {manual.length ? `${manual.length} left to you` : 'nothing'}; the doctor runs again after the run</List.Item>
           </List>
         </Stepper.Step>
@@ -180,7 +180,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const control = useRef({ stop: false });
   const after = useApi(finished ? '/api/doctor' : null);
   const finish = () => { setFinished(true); setBusy(false); };
-  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
+  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }

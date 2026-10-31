@@ -90,8 +90,8 @@ function ProjectPage({ rest, params, overview, history, refresh }) {
             </Tabs.Panel>
           </Tabs>
           {dialog === 'list' && <RemoveFromList paths={[p.path]} onClose={() => setDialog(null)} onDone={() => { setDialog(null); go('projects'); reload(); }} />}
-          {dialog === 'setup' && <RemoveSetup paths={[p.path]} push onClose={() => setDialog(null)} onDone={() => { setDialog(null); reload(); }} />}
-          {dialog === 'setup-run' && <ProjectSetup paths={[p.path]} change={!!p.setupVersion} push onClose={() => { setDialog(null); reload(); }} />}
+          {dialog === 'setup' && <RemoveSetup paths={[p.path]} onClose={() => setDialog(null)} onDone={() => { setDialog(null); reload(); }} />}
+          {dialog === 'setup-run' && <ProjectSetup paths={[p.path]} change={!!p.setupVersion} onClose={() => { setDialog(null); reload(); }} />}
         </Stack>
       );
     }}</Loading>

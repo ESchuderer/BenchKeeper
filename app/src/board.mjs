@@ -156,6 +156,9 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     document.documentElement.classList.add('framed');
     // The project choice is a chip at the head of the filter line, so the quick facts come right after it.
     $('filters').prepend($('rail'));
+    // The filters stand in a column left of the content; narrow, one button opens them.
+    const toggle = el('button', { id: 'filters-toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'filters' }, 'Filters');
+    document.querySelector('.layout').prepend(el('div', { id: 'side' }, toggle, $('filters')));
     report = () => parent.postMessage({ bkBoardHeight: Math.ceil(Math.max(document.body.getBoundingClientRect().height, $('rail').classList.contains('open') ? $('rail-panel').getBoundingClientRect().bottom + scrollY : 0)) }, location.origin);
     addEventListener('message', (e) => { if (e.source === parent && e.origin === location.origin && ['light', 'dark'].includes(e.data?.bkTheme)) theme(e.data.bkTheme); });
     new ResizeObserver(report).observe(document.body);
@@ -178,7 +181,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // reg: Registered only, remembered like the theme; it leaves out every session outside a registered project.
   let reg = false;
   try { reg = localStorage.getItem('bk-board-registered') === 'true'; } catch { /* storage blocked */ }
-  const state = { period: '30', q: '', project: '', folder: '', rq: '', open: new Set(), older: false, reg: reg && D.registered.length > 0, hidden: new Set(), stack: 'project' };
+  const state = { period: '30', q: '', project: '', folder: '', rq: '', open: new Set(), older: false, reg: reg && D.registered.length > 0, hidden: new Set(), stack: 'project', more: false };
   const pool = () => (state.reg ? rows.filter(listed) : rows);
   // The last project chosen, remembered like the theme; one no longer in the data falls back to All.
   try {
@@ -208,7 +211,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     if (state.reg && state.project && owner(state.project) == null) state.project = state.folder = '';
     render();
   });
-  bar.append(el('span', { class: 'f' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
+  bar.append(el('span', { class: 'f reg' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
   const metric = $('metric');
   metric.addEventListener('change', () => render());
   $('search').addEventListener('input', (e) => { state.q = e.target.value.toLowerCase(); renderTable(current); });
@@ -296,7 +299,10 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     ];
     const tile = ([label, value, line, note]) => el('div', { class: 'tile' }, el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value),
       line && el('div', { class: 'delta num' }, line), note && el('div', { class: 'note' }, note));
-    $('tiles').replaceChildren(el('div', { class: 'facts' }, facts.map(tile)), el('div', { class: 'facts small' }, more.map(tile)));
+    // Four figures lead; the rest fold, and stay open or shut across the filters.
+    const fold = el('details', { class: 'more', open: state.more }, el('summary', {}, 'More figures'), el('div', { class: 'facts' }, facts.slice(4).map(tile)), el('div', { class: 'facts small' }, more.map(tile)));
+    fold.addEventListener('toggle', () => { state.more = fold.open; });
+    $('tiles').replaceChildren(el('div', { class: 'facts' }, facts.slice(0, 4).map(tile)), fold);
   }
 
   // The project rail: registered repositories, All, then the other repositories, each newest first. A repository with
@@ -373,6 +379,18 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // A click on the app around the frame does not reach the click listener; the frame loses the focus instead.
   addEventListener('blur', () => { if (narrow() && $('rail').classList.contains('open')) setOpen(false); });
   $('rail-toggle').addEventListener('click', () => { const open = !$('rail').classList.contains('open'); setOpen(open); if (open) $('rail-q').focus(); });
+  // Framed and narrow, the filters are one button that opens them; a click outside, the frame losing the focus and Escape close them.
+  const filtersToggle = $('filters-toggle');
+  if (filtersToggle) {
+    const narrowFilters = () => getComputedStyle(filtersToggle).display !== 'none';
+    const setFilters = (open) => { $('filters').classList.toggle('open', open); filtersToggle.setAttribute('aria-expanded', String(open)); report(); };
+    const isOpen = () => narrowFilters() && $('filters').classList.contains('open');
+    filtersToggle.addEventListener('click', () => setFilters(!$('filters').classList.contains('open')));
+    addEventListener('click', (e) => { if (isOpen() && !$('side').contains(e.target)) setFilters(false); });
+    addEventListener('blur', () => { if (isOpen()) setFilters(false); });
+    // The rail's own Escape (clear the search, close the list) calls preventDefault first, so one press closes one thing.
+    $('side').addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !ev.defaultPrevented && isOpen()) { setFilters(false); filtersToggle.focus(); } });
+  }
   // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
   $('rail').addEventListener('keydown', (ev) => {
     const items = [...$('rail').querySelectorAll('input, button, summary')].filter((n) => n.getClientRects().length);
@@ -756,7 +774,13 @@ button:hover { border-color: var(--accent); }
 .folder { width: 100%; text-align: left; border-color: transparent; padding: 2px 8px; overflow-wrap: anywhere; } .folder[aria-pressed="true"] { border-color: var(--accent); }
 .older summary { margin: 0; }
 /* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
-.framed .layout { grid-template-columns: minmax(0, 1fr); }
+.framed .layout { grid-template-columns: 220px minmax(0, 1fr); }
+#filters-toggle { display: none; }
+.framed #filters { flex-direction: column; align-items: stretch; margin: 0; gap: 10px; }
+.framed #filters .f { flex-direction: column; align-items: stretch; gap: 2px; } .framed #filters .f.reg { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.framed #filters select { max-width: 100%; width: 100%; }
+.framed #filters #rail-toggle { width: 100%; text-align: left; }
+.more { margin: 0 0 12px; } .more > summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
 .framed #rail { position: relative; max-height: none; overflow: visible; margin: 0; padding: 0; max-width: 100%; }
 .framed #rail-toggle { display: block; width: auto; max-width: 100%; overflow-wrap: anywhere; border-radius: 999px; } .framed #rail:not(.open) #rail-panel { display: none; }
 .framed #rail-panel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: min(340px, calc(100vw - 32px)); max-height: 360px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -814,6 +838,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); } dialog .f, #x-options { dis
   #rail-toggle { display: block; } #rail:not(.open) #rail-panel { display: none; }
   #rail-panel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: min(340px, 100%); max-height: 360px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
   #rail-q { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; margin: 0; padding: 8px 12px; background: var(--surface); position: sticky; top: 0; } #rail-q:focus-visible { outline-offset: -2px; } #rail-list { padding: 4px 0; }
+  .framed .layout { grid-template-columns: minmax(0, 1fr); }
+  .framed #filters-toggle { display: inline-flex; margin-bottom: 8px; } .framed #filters:not(.open) { display: none; } .framed #filters { margin-bottom: 12px; }
   .bars { grid-template-columns: minmax(0, 1fr); } .bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; } .bar-track { grid-column: 1 / -1; order: 3; }
 }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }

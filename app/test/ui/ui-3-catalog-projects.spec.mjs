@@ -377,6 +377,7 @@ test.describe('views', () => {
     await expect(frame).toHaveAttribute('src', /[?&]project=/);
     expect(new URLSearchParams((await frame.getAttribute('src')).split('?')[1]).get('project')).toBe(path);
     const board = page.frameLocator('iframe[title="Sessions board"]');
+    await board.getByRole('button', { name: 'Filters' }).click();
     await board.getByLabel('Period').selectOption('all');
     await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
     // Rules and settings: this project's files, no choice of another.

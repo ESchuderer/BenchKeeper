@@ -369,18 +369,23 @@ export function settingFacts(ctx, agentId, keys, { dir, env } = {}) {
   return keys.map((key) => ({ key, ...facts(agentId, describeKey(agentId, key) ?? { key }, valuesOf(layers, agentId, key), env) }));
 }
 
+// A setting the user decided to keep ("Keep mine") shares the dismissed list with the notes, under its own id.
+const decideId = (agentId, key) => `setting:${agentId}:${key}`;
+// A note whose keys are all decided settings is hidden with them.
+const onDecided = (n, agentId, off) => n.keys?.length > 0 && n.keys.every((k) => off.has(decideId(agentId, k)));
+
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
   const all = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
-  // A note the user dismissed is listed apart, so it can be shown again.
-  const off = dismissedNotes(ctx), found = all.filter((n) => !off.has(n.id));
+  // A note the user dismissed is listed apart, so it can be shown again; a note on decided settings only is left out.
+  const off = dismissedNotes(ctx), found = all.filter((n) => !off.has(n.id) && !onDecided(n, agentId, off));
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
     const dflt = setupValue(def.key);
     return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
+      changed: vals.length > 0, setByApp: !!def.setup, decideId: decideId(agentId, def.key), decided: off.has(decideId(agentId, def.key)), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
   const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), precedence: a.precedence, settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
@@ -514,7 +519,7 @@ export function bundleEdits(agentId, id) {
 const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
-// folders that are gone; a note the user dismissed in Agent settings is left out. With dir, only what the project and
+// folders that are gone; a note the user dismissed in Agent settings, or one on settings the user decided to keep, is left out. With dir, only what the project and
 // local layers add to the global findings. Names and places, never values.
 export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) {
   const out = [];
@@ -529,7 +534,7 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const partial = readable.length < all.length;
     const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id) && !onDecided(x, id, off))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

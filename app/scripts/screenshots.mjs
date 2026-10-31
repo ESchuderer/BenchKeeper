@@ -83,7 +83,7 @@ const VIEWS = [
   show('insights', 'Insights', 'heading', 'Findings'),
   show('evals', 'Evals', 'table', 'Eval targets'),
   show('global', 'Global setup', 'table', 'Agents'),
-  show('extensions', 'Extensions', 'table', 'Claude Code extensions'),
+  show('extensions', 'Extensions', 'list', 'Claude Code extensions'),
   // Demo mode has no runner: its setup panel, the templates folded.
   show('automations', 'Automations', 'button', 'Check again'),
   // Scrolled to Views and their cost: the status line select of the tracked account work.

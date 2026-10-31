@@ -702,6 +702,28 @@ test('kinds and dismiss: only a real conflict is titled as one; a dismissed note
   await assert.rejects(async () => routes['POST /api/settings-dismiss']({ id: 3 }), (e) => e.status === 400);
 });
 
+test('decided: Keep mine stores setting:<agent>:<key> in the dismissed list; the row is marked, its notes leave the list and Doctor until shown again', async () => {
+  const ctx = machine();
+  ctx.sandbox = { platform: 'linux', has: () => true };
+  write(claudeUser(ctx), JSON.stringify({ effortLevel: 'high' }));
+  const routes = api(ctx);
+  const row = (key) => listSettings(ctx, 'claude', { env: {} }).settings.find((s) => s.key === key);
+  const scrub = () => doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message));
+  assert.equal(row('env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').decideId, 'setting:claude:env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB');
+  assert.equal(row('env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').decided, false);
+  assert.equal(scrub().length, 1);
+  await routes['POST /api/settings-dismiss']({ id: 'setting:claude:env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' });
+  const list = listSettings(ctx, 'claude', { env: {} });
+  assert.equal(list.settings.find((s) => s.key === 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').decided, true);
+  assert.ok(!list.notes.some((n) => n.id === 'env-scrub-off'), 'its note is hidden with it');
+  assert.deepEqual(list.dismissed, [], 'a decided setting is not a dismissed note');
+  assert.deepEqual(scrub(), [], 'Doctor leaves it out');
+  assert.equal(listSettings(ctx, 'codex', { env: {} }).settings.find((s) => s.key === 'model').decided, false, 'the other agent keeps its own key');
+  await routes['POST /api/settings-dismiss']({ id: 'setting:claude:env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB', dismissed: false });
+  assert.equal(row('env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').decided, false);
+  assert.equal(scrub().length, 1);
+});
+
 test('masking: whole words of the name, tokens inside values, no false hits', () => {
   assert.deepEqual(maskSecrets({ includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: 'x', ANTHROPIC_AUTH_TOKEN: 'y' }), { includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: '(set)', ANTHROPIC_AUTH_TOKEN: '(set)' });
   assert.equal(redact('"commit": "Co-Authored-By: Name <x>"'), '"commit": "Co-Authored-By: Name <x>"');

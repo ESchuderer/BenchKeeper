@@ -118,9 +118,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'rules', view: 'rules', title: 'Rules', shot: 'rules',
-    alt: 'The Rules view: the Claude Code context budget in tokens per source, then the auto memory per project with its number of notes, size, last change and whether MEMORY.md is within the load limit.',
+    alt: 'The Rules view: a summary strip with the tokens Claude Code loads at the start of a session against the limit, its largest source and the checks, then the Claude Code tab with the context budget per source and the auto memory per project with its number of notes, size, last change and whether MEMORY.md is within the load limit.',
     text: [
-      'The instruction files Claude Code and Codex load, in load order, with owner (BenchKeeper, project or yours), size and whether each loads. The context budget sums the tokens that load at the start of every session, counted as four bytes per token.',
+      'A strip at the top shows, per agent, the tokens that load at the start of every session against the limit, counted as four bytes per token, the largest source and the checks. Below it, Claude Code and Codex each have a tab with the instruction files they load, in load order, with owner (BenchKeeper, project or yours), size and whether each loads, and the context budget per source.',
       'Claude Code\'s auto memory shows per project in numbers only: topic notes, total size, last change and whether MEMORY.md is over what loads. The notes stay unread, and where auto memory is off the row says so.',
       'A file that is not BenchKeeper\'s has a switch; nothing here deletes it. A switch is a plan with a diff, and History undoes it.',
     ],
@@ -128,7 +128,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'extensions', view: 'extensions', title: 'Extensions', shot: 'extensions',
-    alt: 'The Extensions view for the global files: per agent a table of MCP servers, hooks, subagents, commands and output styles with name, scope, owner, what each is with a runs code mark, and the file it comes from.',
+    alt: 'The Extensions view for the global files: per agent one row per MCP server, hook, subagent, command or output style with its name, chips for kind, runs code, scope, owner and transport, what it runs, the file it comes from and a Remove link to the Doctor, and an empty state for an agent without extensions.',
     text: [
       'What each agent loads or runs besides rules and skills, globally or for a registered project: MCP servers, hooks, subagents, commands and output styles, with scope, owner and the file each comes from. Runs code marks what executes a command on this machine.',
       'The view reads the agents\' files only: no agent starts and nothing is written. Environment values and headers never appear; secrets in command lines are masked when their name or shape is a known one, so a secret in another form can still show.',
@@ -137,9 +137,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'settings', view: 'agent-settings', title: 'Agent settings', shot: 'settings',
-    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and the first settings with a Differs from suggested marker and a Use suggested button.',
+    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and a table of the differing settings with their current, default and suggested values, a Differs from suggested marker and the Use suggested and Keep mine buttons.',
     text: [
-      'The agents\' own settings, per agent and layer. Each setting shows the value in your file, the value in effect when another source wins, and BenchKeeper\'s suggestion with its reason; Use suggested opens the change plan.',
+      'The agents\' own settings, per agent and layer, one row each: the value in your file, the default and BenchKeeper\'s suggestion. Settings that differ from the suggestion come first, matching ones are folded, and Details opens what a setting does and why it is suggested. Use suggested opens the change plan; Keep mine lists the setting under Decided and silences it here and in Doctor until Show again.',
       'Conflicting settings are shown in full with the default, the risk and what the fix changes; hardening advice folds into one line.',
       'Every change is a plan with a diff, and History undoes it.',
     ],

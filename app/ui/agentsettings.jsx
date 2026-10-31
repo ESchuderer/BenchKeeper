@@ -1,7 +1,7 @@
 import { Anchor, Badge, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Plan, Section, SettingFacts } from './parts.jsx';
 import { Dot, Folded, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
@@ -29,23 +29,13 @@ const SettingNote = ({ n, children }) => (
   </Note>
 );
 
-// Under the value: the value in effect when another file or the environment wins, then the suggestion with its marker.
-function Compare({ row, layer, own, edit, use }) {
-  const s = row.suggest;
-  const shown = edit === undefined ? own : edit;
-  return (
-    <>
-      {row.from !== layer && row.from !== 'default' && <Text size="sm">In effect: {text(row.value)}, from {FROM[row.from] ?? row.from}.</Text>}
-      {s && (matches(row, shown) ? <Text size="sm">Matches suggested{edit === undefined ? '' : ' (in your changes)'}.</Text> : (
-        <Group gap="xs">
-          <Text size="sm">Suggested: {s.value == null ? 'leave unset' : text(s.value)}. {s.reason}</Text>
-          {use && <Button size="compact-xs" variant="default" leftSection={icon(IconArrowBackUp)} aria-label={`Use suggested for ${row.key}`} onClick={use}>Use suggested</Button>}
-          {s.source && <Anchor underline="always" size="sm" href={s.source} target="_blank" rel="noreferrer">Source</Anchor>}
-        </Group>
-      ))}
-    </>
-  );
+// Whether the value shown (the file's, or the pending change) matches the suggestion.
+function Chip({ ok, pending }) {
+  let label = 'Differs from suggested';
+  if (ok) label = pending ? 'Matches suggested (in your changes)' : 'Matches suggested';
+  return <Badge variant="default" miw="max-content" leftSection={<Dot color={ok ? 'teal' : 'yellow'} />}>{label}</Badge>;
 }
+const suggestedText = (s) => (s.value == null ? 'leave unset' : text(s.value));
 
 // One control for one key; edit is undefined (untouched), null (remove the key) or the new value. readOnly: while a
 // plan applies, the edit is ignored, and a text field would keep showing what was typed.
@@ -92,44 +82,82 @@ function ValueControl({ row, own, edit, setEdit, readOnly }) {
   }
 }
 
-function Row({ row, layer, edits, setEdit, stage, running, phone }) {
+// One setting: the key with its chip, the value in the file, the default and the suggestion with its buttons; the facts, the
+// notes and the reason for the suggestion open under Details.
+function Row({ row, layer, edits, setEdit, stage, decide, running, phone, cols }) {
+  const [open, setOpen] = useState(false);
   const own = ownOf(row, layer);
   const edit = edits[row.key];
+  const shown = edit === undefined ? own : edit;
   const editable = editableIn(row, layer);
+  const s = row.suggest;
   const setting = (
-    <Stack gap={2}>
-      <Group gap="xs"><Code id={`setting-${row.key}`} tabIndex={-1}>{row.key}</Code>{differs(row, layer) && <Badge variant="default" miw="max-content" leftSection={<Dot color="yellow" />}>Differs from suggested</Badge>}</Group>
-      <SettingFacts f={row} />
-      {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
-      {row.notes?.map((n) => (
-        <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'} p="xs">
-          {n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor>
-        </Note>
-      ))}
-    </Stack>
+    <Group gap="xs">
+      <Code id={`setting-${row.key}`} tabIndex={-1} style={{ overflowWrap: 'anywhere' }}>{row.key}</Code>
+      {s && <Chip ok={matches(row, shown)} pending={edit !== undefined} />}
+      <Button size="compact-xs" variant="subtle" aria-expanded={open} aria-label={`Details of ${row.key}`} onClick={() => setOpen(!open)}>Details</Button>
+    </Group>
   );
   const value = (
     <Stack gap={6}>
       {editable ? <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} readOnly={running} /> : <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text>}
-      <Compare row={row} layer={layer} own={own} edit={edit} use={editable ? () => stage({ [row.key]: row.suggest.value }) : undefined} />
+      {row.from !== layer && row.from !== 'default' && <Text size="sm">In effect: {text(row.value)}, from {FROM[row.from] ?? row.from}.</Text>}
     </Stack>
   );
+  const dflt = <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{phone && 'Default: '}{row.default ?? 'not stated'}</Text>;
+  const suggestion = s ? (
+    <Stack gap={4} align="flex-start">
+      <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{phone && 'Suggested: '}{suggestedText(s)}</Text>
+      <Group gap={4}>
+        {!matches(row, shown) && editable && <Button size="compact-xs" variant="default" leftSection={icon(IconArrowBackUp)} aria-label={`Use suggested for ${row.key}`} onClick={() => stage({ [row.key]: s.value })}>Use suggested</Button>}
+        {decide && edit === undefined && differs(row, layer) && <Button size="compact-xs" variant="default" aria-label={`Keep mine for ${row.key}`} onClick={() => decide(row, true)}>Keep mine</Button>}
+      </Group>
+    </Stack>
+  ) : <Text size="sm">{phone && 'Suggested: '}none</Text>;
   return (
-    <Table.Tr>
-      {phone ? <Table.Td><Stack gap="sm">{setting}{value}</Stack></Table.Td> : <><Table.Td>{setting}</Table.Td><Table.Td miw={200}>{value}</Table.Td></>}
-    </Table.Tr>
+    <>
+      <Table.Tr>
+        {phone ? <Table.Td><Stack gap="sm">{setting}{value}{dflt}{suggestion}</Stack></Table.Td>
+          : <><Table.Td>{setting}</Table.Td><Table.Td miw={200}>{value}</Table.Td><Table.Td>{dflt}</Table.Td><Table.Td>{suggestion}</Table.Td></>}
+      </Table.Tr>
+      {open && (
+        <Table.Tr>
+          <Table.Td colSpan={cols}>
+            <Stack gap={4}>
+              <SettingFacts f={row} />
+              {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
+              {row.notes?.map((n) => (
+                <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'} p="xs">
+                  {n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor>
+                </Note>
+              ))}
+              {s && <Text size="sm" style={{ overflowWrap: 'anywhere' }}>Suggested: {suggestedText(s)}. {s.reason} {s.source && <Anchor underline="always" size="sm" href={s.source} target="_blank" rel="noreferrer">Source</Anchor>}</Text>}
+            </Stack>
+          </Table.Td>
+        </Table.Tr>
+      )}
+    </>
   );
 }
 
-function Rows({ rows, layer, edits, setEdit, stage, label, running }) {
+// grouped: a row with the group name before each group's first setting.
+function Rows({ rows, layer, edits, setEdit, stage, decide, label, running, grouped }) {
   // Below sm each setting is one cell (key and description above the value), so the value control needs no sideways scroll.
   const phone = useMediaQuery('(max-width: 47.99em)');
   if (!rows.length) return <Text size="sm">No setting matches.</Text>;
+  const cols = phone ? 1 : 4;
   return (
     <Table.ScrollContainer minWidth={phone ? 0 : 720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
-        <Table.Thead><Table.Tr>{phone ? <Table.Th>Setting, {LAYERS[layer]}</Table.Th> : <><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></>}</Table.Tr></Table.Thead>
-        <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} running={running} phone={phone} />)}</Table.Tbody>
+        <Table.Thead><Table.Tr>{phone ? <Table.Th>Setting, {LAYERS[layer]}</Table.Th> : <><Table.Th w="30%">Setting</Table.Th><Table.Th w="20%">Current, {LAYERS[layer].toLowerCase()}</Table.Th><Table.Th w="22%">Default</Table.Th><Table.Th>Suggested</Table.Th></>}</Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {rows.map((r, i) => (
+            <Fragment key={r.key}>
+              {grouped && r.group !== rows[i - 1]?.group && <Table.Tr><Table.Td colSpan={cols} pt="md" pb={4}><Text size="sm" fw={600}>{r.group}</Text></Table.Td></Table.Tr>}
+              <Row row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} decide={decide} running={running} phone={phone} cols={cols} />
+            </Fragment>
+          ))}
+        </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
   );
@@ -145,6 +173,10 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [showDismissed, setShowDismissed] = useState(false);
   const [only, setOnly] = useState(false);
   const [showHardening, setShowHardening] = useState(false);
+  const [showDecided, setShowDecided] = useState(false);
+  const [showMatching, setShowMatching] = useState(false);
+  // After a click in the notes region it stays, so its status and focus survive the last entry leaving it.
+  const [used, setUsed] = useState(false);
   const [target, setTarget] = useState(null);
   // A plan holds the edits of its Review: a later edit drops it, and a pending Review's answer for older edits is ignored, so Apply never clears edits it did not write.
   // While it applies, edits and Reviews are ignored: dropping it would lose the run's view and its reload.
@@ -153,8 +185,14 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
   const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed) && (!only || differs(r, layer));
-  const basic = data.settings.filter(match);
+  // A decided setting is listed under Decided only; the rest is grouped, differing settings first, matching ones folded
+  // unless a search or filter narrows the list.
+  const decided = data.settings.filter((r) => r.decided);
+  const basic = data.settings.filter((r) => !r.decided && match(r));
   const groups = [...new Set(basic.map((r) => r.group))];
+  const ordered = groups.flatMap((g) => basic.filter((r) => r.group === g));
+  const differing = ordered.filter((r) => differs(r, layer)), rest = ordered.filter((r) => !differs(r, layer));
+  const narrowed = !!q || changed;
   const adv = (data.advanced ?? []).filter(match);
   const review = async (body) => {
     if (running) return;
@@ -171,26 +209,33 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   useEffect(() => { if (target) { document.getElementById(`setting-${target}`)?.focus(); setTarget(null); } }, [target]);
   const rowsOf = (n) => (n.keys ?? []).map((k) => data.settings.find((r) => r.key === k)).filter(Boolean);
   const noteButtons = (n) => {
-    const fix = fixOf(n, rowsOf(n), layer, data.precedence);
-    const first = rowsOf(n)[0];
+    // A setting the user decided to keep is left out of the fix and the navigation.
+    const open = rowsOf(n).filter((r) => !r.decided);
+    const fix = fixOf(n, open, layer, data.precedence);
+    const first = open[0];
     return (
       <>
         {Object.keys(fix).length > 0 ? <Button size="compact-xs" variant="default" loading={busy} aria-label={`Fix, review the change: ${n.id}`} onClick={() => stage(fix)}>Fix: review the change</Button>
-          : first && <Button size="compact-xs" variant="default" aria-label={`Go to the setting: ${n.id}`} onClick={() => { clearFilters(); setTarget(first.key); }}>Go to the setting</Button>}
+          : first && <Button size="compact-xs" variant="default" aria-label={`Go to the setting: ${n.id}`} onClick={() => { clearFilters(); setShowMatching(true); setTarget(first.key); }}>Go to the setting</Button>}
         <Button size="compact-xs" variant="default" aria-label={`Dismiss, I accept this: ${n.id}`} onClick={() => dismiss(n.id, true)}>Dismiss, I accept this</Button>
       </>
     );
   };
   const hardening = data.notes.filter((n) => n.kind === 'hardening');
-  const suggested = data.settings.filter((r) => r.suggest);
+  const suggested = data.settings.filter((r) => r.suggest && !r.decided);
   const [status, announce] = useAnnounce();
-  // The notes region stays after either click: a dismissed note is listed under Dismissed, a shown one among the notes.
-  const dismiss = (id, dismissed) => { setDismissError(null); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`); }, (e) => setDismissError(e.message)); };
+  // The notes region stays after either click: a dismissed note is listed under Dismissed, a shown one among the notes; a
+  // decided setting under Decided.
+  const dismiss = (id, dismissed, said = `${dismissed ? 'Dismissed' : 'Shown again'}: ${id}`) => { setDismissError(null); setUsed(true); api('/api/settings-dismiss', { id, dismissed }).then(() => { onApplied(); announce('setting-notes', said); }, (e) => setDismissError(e.message)); };
+  // Keep mine: the setting stays as it is and leaves the differences, until Show again.
+  const decide = (r, on) => { if (!running) dismiss(r.decideId, on, `${on ? 'Decided' : 'Shown again'}: ${r.key}`); };
   const dismissed = data.dismissed ?? [];
+  const fold = (label, open, set) => <Group><Button size="compact-sm" variant="subtle" aria-expanded={open} onClick={() => set(!open)}>{label}</Button></Group>;
+  const rowsProps = { layer, edits, setEdit, stage, running };
   return (
     <Stack gap="lg">
       {data.layers.filter((l) => l.error && !l.readOnly).map((l) => <Note key={l.path} color="red"><Text span fw={600}>This file is not edited. </Text>{l.path} cannot be read ({l.error}). {agent === 'claude' ? 'Claude Code reads strict JSON and skips the whole file on one error.' : ''} Fix it by hand first.</Note>)}
-      {(data.notes.length > 0 || dismissed.length > 0) && (
+      {(data.notes.length > 0 || dismissed.length > 0 || decided.length > 0 || used) && (
         <Stack gap="xs" role="region" aria-label="Notes on the settings" id="setting-notes" tabIndex={-1}>
           {status}
           {dismissError && <Note color="red" title="Not saved">{dismissError}</Note>}
@@ -202,8 +247,16 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
             </Group>
           )}
           {showHardening && hardening.map((n) => <SettingNote key={n.id} n={n}>{noteButtons(n)}</SettingNote>)}
-          {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={showDismissed} onClick={() => setShowDismissed(!showDismissed)}>Dismissed ({dismissed.length})</Button></Group>}
+          {dismissed.length > 0 && fold(`Dismissed (${dismissed.length})`, showDismissed, setShowDismissed)}
           {showDismissed && dismissed.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Show again: ${n.id}`} onClick={() => dismiss(n.id, false)}>Show again</Button></SettingNote>)}
+          {decided.length > 0 && fold(`Decided (${decided.length})`, showDecided, setShowDecided)}
+          {showDecided && decided.map((r) => (
+            <Group key={r.key} gap="xs">
+              <Code>{r.key}</Code>
+              <Text size="sm" style={{ overflowWrap: 'anywhere' }}>Kept: {text(ownOf(r, layer)) || UNSET}.{r.suggest && ` Suggested: ${suggestedText(r.suggest)}.`}</Text>
+              <Button size="compact-xs" variant="default" aria-label={`Show again: ${r.key}`} onClick={() => decide(r, false)}>Show again</Button>
+            </Group>
+          ))}
         </Stack>
       )}
       {suggested.length > 0 && <Text>{suggested.filter((r) => differs(r, layer)).length} of {suggested.length} settings with a suggestion differ from it in the {LAYERS[layer].toLowerCase()}.</Text>}
@@ -214,9 +267,9 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
         {data.bundles?.map((b) => <Button key={b.id} variant="default" loading={busy} onClick={() => review({ bundle: b.id })}>{b.label}: set the switches</Button>)}
       </Group>
       {data.bundles?.map((b) => <Text key={b.id} size="sm">{b.label}: {b.sentence} <Anchor underline="always" size="sm" href={b.source} target="_blank" rel="noreferrer">Source</Anchor></Text>)}
-      {groups.map((g) => (
-        <Section key={g} title={g}><Rows rows={basic.filter((r) => r.group === g)} layer={layer} edits={edits} setEdit={setEdit} stage={stage} label={g} running={running} /></Section>
-      ))}
+      {differing.length > 0 && <Rows rows={differing} {...rowsProps} decide={decide} label="Settings that differ from the suggestion" grouped />}
+      {rest.length > 0 && !narrowed && fold(`Matching or without a suggestion (${rest.length})`, showMatching, setShowMatching)}
+      {rest.length > 0 && (showMatching || narrowed) && <Rows rows={rest} {...rowsProps} label="Settings that match the suggestion or have none" grouped />}
       {!groups.length && !advanced && <Group gap="sm"><Text>No setting matches.</Text><Button size="xs" variant="default" onClick={clearFilters}>Clear search and filters</Button></Group>}
       {advanced && (
         <Section title="Every key of the pinned schemas">

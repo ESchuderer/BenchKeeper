@@ -30,6 +30,14 @@ async function noAxe(page) {
   }
 }
 // A plan's diffs are folded: open each before reading one.
+// Agent settings: the settings that match the suggestion or have none start folded.
+const showMatching = (page) => page.getByRole('button', { name: /^Matching or without a suggestion \(\d+\)$/ }).click();
+// Agent settings of Claude Code with the server's answer passed through edit; returns the route to unroute.
+const stubSettings = async (page, edit) => {
+  const view = /\/api\/settings\?agent=claude$/;
+  await page.route(view, async (route) => { const r = await route.fetch(); await route.fulfill({ response: r, json: edit(await r.json()) }); });
+  return view;
+};
 const openDiffs = async (scope) => {
   const buttons = scope.getByRole('button', { name: /^Show file diff of / });
   await expect(buttons.first()).toBeVisible();
@@ -1837,10 +1845,10 @@ test.describe('views', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
     await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
-    // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
-    const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
-    await expect(advisor).toContainText('The model that answers when Claude calls the advisor tool');
-    await expect(advisor).toContainText("BenchKeeper's setup writes this key too");
+    // The fixture home holds the setup's advisor model: its details say what it is, and BenchKeeper's setup writes it too.
+    await page.getByRole('button', { name: 'Details of advisorModel' }).click();
+    await expect(page.getByRole('group', { name: 'About advisorModel' })).toContainText('The model that answers when Claude calls the advisor tool');
+    await expect(page.getByText("BenchKeeper's setup writes this key too").first()).toBeVisible();
     await noAxe(page);
     // A change is a plan with a diff and an undo.
     await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
@@ -1856,6 +1864,7 @@ test.describe('views', () => {
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
     // An environment switch is set or removed; the advisor with a telemetry switch shows the note on both rows.
+    await showMatching(page);
     await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
     await page.getByRole('button', { name: 'Review 1 change' }).click();
     await openDiffs(page.getByRole('region', { name: 'Changes' }));
@@ -1875,19 +1884,17 @@ test.describe('views', () => {
 
   test('Agent settings: each row compares the user file with the suggestion, Use suggested and a note fix open the plan, hardening folds, a conflict stays; no axe violations', async ({ page }) => {
     const conflict = { id: 'stub-conflict', level: 'warning', kind: 'conflict', message: 'A stubbed conflict.', default: 'The default.', risk: 'The risk.', fixChanges: 'What changes.', keys: ['model'], source: 'https://example.com/' };
-    const view = /\/api\/settings\?agent=claude$/;
-    await page.route(view, async (route) => {
-      const r = await route.fetch();
-      const body = await r.json();
-      await route.fulfill({ response: r, json: { ...body, notes: [conflict, ...body.notes] } });
-    });
+    const view = await stubSettings(page, (body) => ({ ...body, notes: [conflict, ...body.notes] }));
     await nav(page, 'Agent settings').click();
     await expect(page.getByText(/^\d+ of \d+ settings with a suggestion differ from it in the user file\.$/)).toBeVisible();
     // The setup's retention differs from the suggestion to leave it unset; the update channel matches.
     const row = (key) => page.getByRole('row').filter({ has: page.locator(`[id="setting-${key}"]`) });
     await expect(row('cleanupPeriodDays')).toContainText('Differs from suggested');
-    await expect(row('cleanupPeriodDays')).toContainText('Suggested: leave unset.');
-    await expect(row('autoUpdatesChannel')).toContainText('Matches suggested.');
+    await expect(row('cleanupPeriodDays')).toContainText('leave unset');
+    await page.getByRole('button', { name: 'Details of cleanupPeriodDays' }).click();
+    await expect(page.getByText(/^Suggested: leave unset\. /)).toBeVisible();
+    await showMatching(page);
+    await expect(row('autoUpdatesChannel')).toContainText('Matches suggested');
     await expect(row('autoUpdatesChannel')).not.toContainText('Differs from suggested');
     // The conflict stays in full with its three lines; hardening advice is one folded line.
     const notes = page.getByRole('region', { name: 'Notes on the settings' });
@@ -1909,7 +1916,7 @@ test.describe('views', () => {
     const changes = page.getByRole('region', { name: 'Changes' });
     await expect(changes).toContainText('sandbox.enabled');
     await expect(changes.getByRole('heading', { name: 'Changes' })).toBeFocused();
-    await expect(row('sandbox.enabled')).toContainText('Matches suggested (in your changes).');
+    await expect(row('sandbox.enabled')).toContainText('Matches suggested (in your changes)');
     await page.getByRole('button', { name: 'Discard changes' }).click();
     // A hardening note's fix plans the suggestion of its setting; one without a suggested value goes to its setting.
     await fold.click();
@@ -1925,16 +1932,51 @@ test.describe('views', () => {
     await page.unroute(view);
   });
 
+  test('Agent settings: by default the differing settings are listed with their details closed and the matching ones folded; Keep mine moves a setting under Decided and Show again brings it back; no axe violations', async ({ page }) => {
+    // The decision follows the stubbed store, so the fixture home keeps every setting for the other tests.
+    let kept = false;
+    const view = await stubSettings(page, (body) => ({ ...body, settings: body.settings.map((x) => (x.key === 'cleanupPeriodDays' ? { ...x, decided: kept } : x)) }));
+    let sent;
+    await page.route(/\/api\/settings-dismiss$/, (route) => { sent = route.request().postDataJSON(); kept = sent.dismissed; return route.fulfill({ json: { dismissed: [] } }); });
+    await nav(page, 'Agent settings').click();
+    const differing = page.getByRole('table', { name: 'Settings that differ from the suggestion' });
+    const row = (key) => page.getByRole('row').filter({ has: page.locator(`[id="setting-${key}"]`) });
+    await expect(differing.getByRole('row').filter({ has: page.locator('[id="setting-cleanupPeriodDays"]') })).toContainText('Differs from suggested');
+    await expect(page.getByRole('button', { name: /^Matching or without a suggestion \(\d+\)$/ })).toHaveAttribute('aria-expanded', 'false');
+    await expect(row('autoUpdatesChannel')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Details of cleanupPeriodDays' })).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('group', { name: 'About cleanupPeriodDays' })).toHaveCount(0);
+    await noAxe(page);
+    // Keep mine: the row leaves the table, Decided lists it, the status says so and focus is on the notes.
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    await page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' }).click();
+    expect(sent).toEqual({ id: 'setting:claude:cleanupPeriodDays', dismissed: true });
+    await expect(row('cleanupPeriodDays')).toHaveCount(0);
+    await expect(notes).toBeFocused();
+    await expect(notes.getByRole('status')).toHaveText('Decided: cleanupPeriodDays');
+    await notes.getByRole('button', { name: 'Decided (1)' }).click();
+    await expect(notes).toContainText('Kept: 14. Suggested: leave unset.');
+    await notes.getByRole('button', { name: 'Show again: cleanupPeriodDays' }).click();
+    expect(sent).toEqual({ id: 'setting:claude:cleanupPeriodDays', dismissed: false });
+    await expect(row('cleanupPeriodDays')).toContainText('Differs from suggested');
+    await expect(notes.getByRole('button', { name: /^Decided/ })).toHaveCount(0);
+    await expect(notes.getByRole('status')).toHaveText('Shown again: cleanupPeriodDays');
+    await expect(notes).toBeFocused();
+    // A pending edit is no decision: Keep mine waits until it is reviewed or discarded.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await expect(page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await expect(page.getByRole('button', { name: 'Keep mine for cleanupPeriodDays' })).toBeVisible();
+    await page.unroute(view);
+    await page.unroute(/\/api\/settings-dismiss$/);
+  });
+
   test('Agent settings: Dismiss and Show again move a note between the lists, focus stays on the notes and the status says what happened', async ({ page }) => {
     // The note's list follows the stubbed dismissal, so the fixture home keeps its notes for the other tests.
     const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
     let off = false;
     // Only the view's own read: the setting facts the Dashboard reads for settings findings share the path and return a list.
-    const view = /\/api\/settings\?agent=claude$/;
-    await page.route(view, async (route) => {
-      const r = await route.fetch();
-      await route.fulfill({ response: r, json: { ...(await r.json()), notes: off ? [] : [note], dismissed: off ? [note] : [] } });
-    });
+    const view = await stubSettings(page, (body) => ({ ...body, notes: off ? [] : [note], dismissed: off ? [note] : [] }));
     await page.route(/\/api\/settings-dismiss$/, (route) => { off = route.request().postDataJSON().dismissed; return route.fulfill({ json: { dismissed: [] } }); });
     await nav(page, 'Agent settings').click();
     const notes = page.getByRole('region', { name: 'Notes on the settings' });
@@ -1956,11 +1998,7 @@ test.describe('views', () => {
 
   test('Agent settings: a failed Dismiss says Not saved inside the notes, and focus stays on the note', async ({ page }) => {
     const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
-    const view = /\/api\/settings\?agent=claude$/;
-    await page.route(view, async (route) => {
-      const r = await route.fetch();
-      await route.fulfill({ response: r, json: { ...(await r.json()), notes: [note], dismissed: [] } });
-    });
+    const view = await stubSettings(page, (body) => ({ ...body, notes: [note], dismissed: [] }));
     await page.route(/\/api\/settings-dismiss$/, (route) => route.fulfill({ status: 500, json: { error: 'stubbed failure' } }));
     await nav(page, 'Agent settings').click();
     const notes = page.getByRole('region', { name: 'Notes on the settings' });
@@ -1982,15 +2020,18 @@ test.describe('views', () => {
     };
     await nav(page, 'Agent settings').click();
     // The fixture home holds the global setup's settings: the advisor and the retention come from the user file.
+    await page.getByRole('button', { name: 'Details of advisorModel' }).click();
     const advisor = about(page, 'advisorModel');
     await facts(advisor);
     await expect(advisor).toContainText('from the user file');
     // A catalog key that is not basic is listed in its group with every key.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
     await page.getByLabel('Search settings').fill('includeGitInstructions');
-    await expect(about(page.getByRole('table', { name: 'Commits' }), 'includeGitInstructions')).toContainText('Current: the default');
+    await page.getByRole('button', { name: 'Details of includeGitInstructions' }).click();
+    await expect(about(page, 'includeGitInstructions')).toContainText('Current: the default');
     // A key outside the catalog: the reference description, no guessed text, the rest of the facts still there.
     await page.getByLabel('Search settings').fill('modelSettings');
+    await page.getByRole('table', { name: 'Advanced keys' }).getByRole('button', { name: 'Details of modelSettings' }).click();
     const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
     await expect(outside).toContainText('Keep a saved effort level or auto-compact window per model');
     await expect(outside).toContainText('Default:');
@@ -2033,6 +2074,7 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Review 1 change' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
     await expect(changes).toContainText('cleanupPeriodDays');
+    await showMatching(page);
     await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
     await expect(changes).toBeHidden();
     await page.getByRole('button', { name: 'Review 2 changes' }).click();
@@ -2057,6 +2099,7 @@ test.describe('views', () => {
     const asked = page.waitForRequest(/\/api\/settings-plan$/);
     await page.getByRole('button', { name: 'Review 1 change' }).click();
     await asked;
+    await showMatching(page);
     await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
     const answered = page.waitForResponse(/\/api\/settings-plan$/);
     release();
@@ -2072,9 +2115,9 @@ test.describe('views', () => {
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Claude Code' })).toBeVisible();
-    // The checks come before the files; each limit is a bar that names who sets it.
-    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
+    // The checks come before the files, in the summary strip; each limit is a bar that names who sets it.
+    await expect(page.getByRole('region', { name: 'Summary' }).getByRole('region', { name: 'Checks' })).toBeVisible();
     await expect(page.getByRole('progressbar', { name: /^At the start of a session: .* tokens, limit set by BenchKeeper$/ }).first()).toBeVisible();
     const files = page.getByRole('table', { name: 'Claude Code instruction files' });
     const team = files.getByRole('row', { name: /20-team\.md/ });
@@ -2135,6 +2178,39 @@ test.describe('views', () => {
     await page.getByRole('option').nth(1).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
     await noAxe(page);
+  });
+
+  test('Rules: the summary strip shows each agent\'s budget bar and largest source above the checks; Claude Code is the open tab, Codex one click away', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const [claude] = body.agents;
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
+      await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
+    });
+    await nav(page, 'Rules').click();
+    const strip = page.getByRole('region', { name: 'Summary' });
+    await expect(strip).toContainText(/Claude Code: about [\d,]+ tokens load at the start of every session, of 10,000 \(limit set by BenchKeeper\); the largest source is ~\/\.claude\/rules\/00-global\.md with [\d,]+\./);
+    await expect(strip).toContainText('Codex: about 12,000 tokens load at the start of every session, of 10,000 (limit set by BenchKeeper); the largest source is ~/.codex/AGENTS.md with 11,000.');
+    await expect(strip.getByRole('progressbar')).toHaveCount(2);
+    await expect(strip.getByRole('progressbar', { name: 'At the start of a session: 12,000 of 10,000 tokens, limit set by BenchKeeper' })).toBeVisible();
+    await expect(strip).toContainText('More than 10,000 tokens');
+    await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
+    const tabs = page.getByRole('tablist', { name: 'Agents' });
+    await expect(tabs.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toBeHidden();
+    await noAxe(page);
+    await tabs.getByRole('tab', { name: 'Codex' }).click();
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
+    await expect(page.getByRole('table', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
+    const codexBudget = page.getByRole('region', { name: 'Codex context budget' }).getByRole('table', { name: 'Context budget' });
+    await expect(codexBudget).toContainText('~/.codex/AGENTS.md');
+    await expect(codexBudget).not.toContainText('00-global.md');
+    await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeHidden();
+    await noAxe(page);
+    await page.unroute(view);
   });
 
   test('Rules: a path-scoped file costs its tokens only in the turns it loads for matching files', async ({ page }) => {
@@ -2448,28 +2524,38 @@ test.describe('views', () => {
     await expect(entry).toHaveCount(0);
   });
 
-  test('Extensions: server, hook and subagent with owner and the runs-code mark, a link to the removal offer, no secret value; no axe violations', async ({ page }) => {
+  test('Extensions: one row per server, hook and subagent with owner and the runs-code chip, Remove leads to the Doctor, an empty state, the command folded, no secret value; no axe violations', async ({ page }) => {
     await nav(page, 'Extensions').click();
-    const table = page.getByRole('table', { name: 'Claude Code extensions' });
-    const server = table.getByRole('row', { name: /MCP server/ });
+    const list = page.getByRole('list', { name: 'Claude Code extensions' });
+    const server = list.getByRole('listitem').filter({ hasText: 'MCP server' });
     await expect(server).toContainText('files');
-    await expect(server).toContainText('yours');
+    await expect(server).toContainText('owner yours');
     await expect(server).toContainText('runs code');
     await expect(server).toContainText('npx -y files-server');
-    await expect(server.getByRole('link', { name: 'Doctor offers removal (full level)' })).toBeVisible();
-    await expect(table.getByRole('row', { name: /Subagent/ })).toContainText('reviewer');
-    await expect(table.getByRole('row', { name: /Subagent/ })).not.toContainText('runs code');
+    await expect(server).toContainText('Doctor offers removal (full level)');
+    await expect(server.getByRole('link', { name: 'Remove files' })).toHaveAttribute('href', '#/agents?plan=1');
+    const subagent = list.getByRole('listitem').filter({ hasText: 'Subagent' });
+    await expect(subagent).toContainText('reviewer');
+    await expect(subagent).not.toContainText('runs code');
+    await expect(subagent.getByRole('link')).toHaveCount(0);
+    // Default state: Codex has none and shows the empty state; the command line stays folded until Command opens.
+    await expect(page.getByRole('region', { name: 'Codex extensions' })).toContainText('Nothing found.');
+    await expect(page.getByRole('list', { name: 'Codex extensions' })).toHaveCount(0);
+    const cli = page.getByText('benchkeeper extensions list', { exact: false });
+    await expect(cli).toBeHidden();
+    await page.locator('summary').getByText('Command', { exact: true }).click();
+    await expect(cli).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
     // A project adds its own: a hook whose command carries a secret shows it masked.
     await page.getByRole('combobox', { name: 'Show' }).click();
     await page.getByRole('option', { name: /bk-ui-proj/ }).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code extensions for this project' })).toBeVisible();
-    const hook = page.getByRole('table', { name: 'Claude Code extensions' }).getByRole('row', { name: /Hook.*AUDIT_TOKEN/ });
+    const hook = page.getByRole('list', { name: 'Claude Code extensions' }).getByRole('listitem').filter({ hasText: /Hook[\s\S]*AUDIT_TOKEN/ });
     await expect(hook).toContainText('PreToolUse');
     await expect(hook).toContainText('runs code');
     await expect(hook).toContainText('AUDIT_TOKEN=***');
-    await expect(hook).toContainText('local');
+    await expect(hook).toContainText('scope local');
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
   });

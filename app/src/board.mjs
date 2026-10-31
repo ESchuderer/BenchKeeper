@@ -150,13 +150,15 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   const asked = new URLSearchParams(location.search).get('theme');
   const theme = (t) => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
   theme(['light', 'dark'].includes(asked) ? asked : stored);
+  let report = () => {};
   // In the app's frame its heading, intro and theme button are the app's: the app sends the theme and takes the height.
   if (parent !== window) {
     document.documentElement.classList.add('framed');
     // The project choice is a chip at the head of the filter line, so the quick facts come right after it.
     $('filters').prepend($('rail'));
+    report = () => parent.postMessage({ bkBoardHeight: Math.ceil(Math.max(document.body.getBoundingClientRect().height, $('rail').classList.contains('open') ? $('rail-panel').getBoundingClientRect().bottom + scrollY : 0)) }, location.origin);
     addEventListener('message', (e) => { if (e.source === parent && e.origin === location.origin && ['light', 'dark'].includes(e.data?.bkTheme)) theme(e.data.bkTheme); });
-    new ResizeObserver(() => parent.postMessage({ bkBoardHeight: Math.ceil(document.body.getBoundingClientRect().height) }, location.origin)).observe(document.body);
+    new ResizeObserver(report).observe(document.body);
   }
   $('theme').addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -302,7 +304,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // folders of no known repository, comes last.
   // Framed or narrow, the rail is one button with the choice that opens the same list.
   const narrow = () => getComputedStyle($('rail-toggle')).display !== 'none';
-  const setOpen = (open) => { $('rail').classList.toggle('open', open); $('rail-toggle').setAttribute('aria-expanded', String(open)); };
+  const setOpen = (open) => { $('rail').classList.toggle('open', open); $('rail-toggle').setAttribute('aria-expanded', String(open)); report(); };
   function rail(list) {
     const by = group(list, projectKey);
     const span = [...Array(14).keys()].map((i) => iso(now - (13 - i) * DAY));
@@ -317,13 +319,12 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     const recent = iso(now - 29 * DAY);
     const entry = ({ k, rs }) => {
       const days14 = group(rs, (r) => day(r.start));
-      const tier = rs.find((r) => r.tier)?.tier.last;
-      const b = el('button', { type: 'button', class: 'card', title: k, 'aria-pressed': String(state.project === k && !state.folder) },
+      const tier = rs.find((r) => r.tier)?.tier.last, pd = `pd${gid++}`;
+      const b = el('button', { type: 'button', class: 'card', title: k, 'aria-describedby': pd, 'aria-pressed': String(state.project === k && !state.folder) },
         el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
-        el('span', { class: 'psub num' }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`),
-        sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
+        tier && el('span', { class: 'psub' }, tier), sparkline(span.map((d) => days14.get(d)?.length ?? 0), 60, 20), el('span', { class: 'pcount num' }, String(rs.length)));
       b.addEventListener('click', () => choose(k));
-      const e = el('div', { class: 'entry', 'data-find': `${name(k)} ${k}`.toLowerCase(), 'data-k': k }, b);
+      const e = el('div', { class: 'entry', 'data-find': `${name(k)} ${k}`.toLowerCase(), 'data-k': k }, b, el('span', { class: 'sr', id: pd }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`));
       const folders = [...group(rs, (r) => r.project)].sort((x, y) => (x[0] < y[0] ? -1 : 1));
       if (folders.length < 2) return el('div', { class: 'item' }, e);
       const id = `fl-${gid++}`, open = state.open.has(k);
@@ -344,7 +345,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     const older = el('details', { class: 'older', open: state.older || null }, el('summary', {}, `Show older (${old.length})`), old.map(entry));
     older.addEventListener('toggle', () => { state.older = older.open; });
     const fresh = cards.filter((c) => !old.includes(c) && !other.includes(c));
-    $('rail-list').replaceChildren(...fresh.filter((c) => owner(c.k) != null).map(entry), all, ...fresh.filter((c) => owner(c.k) == null).map(entry), ...(old.length ? [older] : []), ...other.map(entry));
+    $('rail-list').replaceChildren(...(fresh.length ? [el('div', { class: 'gh' }, 'Recent')] : []), ...fresh.filter((c) => owner(c.k) != null).map(entry), all, ...fresh.filter((c) => owner(c.k) == null).map(entry), ...(old.length ? [older] : []), ...other.map(entry));
     $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length - other.length, 'project')}`;
     find();
   }
@@ -355,6 +356,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // The search hides what does not match; a repository stays when one of its folders matches, and shows those folders.
   function find() {
     const q = state.rq;
+    for (const g of $('rail-list').querySelectorAll('.gh')) g.hidden = !!q;
     for (const item of $('rail-list').querySelectorAll('.item')) {
       const [e, ul] = item.children;
       const own = !q || e.dataset.find.includes(q);
@@ -367,6 +369,9 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     if (older) { older.hidden = ![...older.querySelectorAll('.item')].some((x) => !x.hidden); if (q && !older.hidden) older.open = true; }
   }
   $('rail-q').addEventListener('input', (e) => { state.rq = e.target.value.toLowerCase(); find(); });
+  addEventListener('click', (e) => { if (narrow() && $('rail').classList.contains('open') && !$('rail').contains(e.target)) setOpen(false); });
+  // A click on the app around the frame does not reach the click listener; the frame loses the focus instead.
+  addEventListener('blur', () => { if (narrow() && $('rail').classList.contains('open')) setOpen(false); });
   $('rail-toggle').addEventListener('click', () => { const open = !$('rail').classList.contains('open'); setOpen(open); if (open) $('rail-q').focus(); });
   // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
   $('rail').addEventListener('keydown', (ev) => {
@@ -744,21 +749,26 @@ button:hover { border-color: var(--accent); }
 #filters select { max-width: min(240px, 100%); }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
 #rail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
-#rail-list, .older { display: flex; flex-direction: column; gap: 8px; } #rail-q { width: 100%; margin-bottom: 8px; }
+#rail-list, .older { display: flex; flex-direction: column; gap: 2px; } #rail-q { width: 100%; margin-bottom: 8px; }
 #rail-toggle { display: none; width: 100%; text-align: left; font-weight: 600; }
-.entry { display: flex; gap: 4px; } .entry .card { flex: 1; min-width: 0; } .exp { padding: 0 8px; } .exp[aria-expanded="true"] span { display: inline-block; transform: rotate(90deg); }
-.folders { list-style: none; margin: 4px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.entry { display: flex; gap: 4px; } .entry .card { flex: 1; min-width: 0; } .exp { padding: 0 8px; height: 32px; background: transparent; border-color: transparent; } .exp[aria-expanded="true"] span { display: inline-block; transform: rotate(90deg); }
+.folders { list-style: none; margin: 0 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .folder { width: 100%; text-align: left; border-color: transparent; padding: 2px 8px; overflow-wrap: anywhere; } .folder[aria-pressed="true"] { border-color: var(--accent); }
 .older summary { margin: 0; }
 /* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
 .framed .layout { grid-template-columns: minmax(0, 1fr); }
-.framed #rail { position: static; max-height: none; overflow: visible; margin: 0; padding: 0; max-width: 100%; } .framed #rail.open { flex-basis: 100%; }
+.framed #rail { position: relative; max-height: none; overflow: visible; margin: 0; padding: 0; max-width: 100%; }
 .framed #rail-toggle { display: block; width: auto; max-width: 100%; overflow-wrap: anywhere; border-radius: 999px; } .framed #rail:not(.open) #rail-panel { display: none; }
-.framed #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
-.card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
-.card.all { display: block; font-weight: 600; }
-.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
-.pname { font-weight: 600; overflow-wrap: anywhere; } .psub { grid-column: 2; font-size: 12px; color: var(--ink-2); } .card .spark { grid-column: 2; }
+.framed #rail-panel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: min(340px, calc(100vw - 32px)); max-height: 360px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.framed #rail-q { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; margin: 0; padding: 8px 12px; background: var(--surface); position: sticky; top: 0; } .framed #rail-q:focus-visible { outline-offset: -2px; }
+.framed #rail-list { padding: 4px 0; }
+.card { display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; height: 32px; padding: 0 12px; background: transparent; border-color: transparent; border-radius: var(--radius-sm); }
+.card:hover { background: var(--glow); }
+.card.all { font-weight: 600; }
+.card[aria-pressed="true"] { background: var(--glow); border-color: var(--accent); }
+.gh { padding: 6px 12px 2px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.pname { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .card[aria-pressed="true"] .pname { font-weight: 600; }
+.psub, .pcount { font-size: 12px; color: var(--ink-2); } .pcount { min-width: 2ch; text-align: right; } .card .spark { width: 42px; height: 14px; flex: none; }
 .dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--glow); }
 section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin: 0 0 16px; overflow-x: auto; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
@@ -800,9 +810,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); } dialog .f, #x-options { dis
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
-  #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
+  #rail { position: relative; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
   #rail-toggle { display: block; } #rail:not(.open) #rail-panel { display: none; }
-  #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; } .card .spark { display: none; }
+  #rail-panel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: min(340px, 100%); max-height: 360px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  #rail-q { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; margin: 0; padding: 8px 12px; background: var(--surface); position: sticky; top: 0; } #rail-q:focus-visible { outline-offset: -2px; } #rail-list { padding: 4px 0; }
   .bars { grid-template-columns: minmax(0, 1fr); } .bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; } .bar-track { grid-column: 1 / -1; order: 3; }
 }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }

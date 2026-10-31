@@ -197,15 +197,25 @@ test.describe('views', () => {
     await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
   });
 
+  test('Sessions board: a click on the app outside the frame closes the open project list', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const toggle = page.frameLocator('iframe[title="Sessions board"]').locator('#rail-toggle');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('heading', { name: 'Sessions' }).first().click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('Sessions board: one entry per repository with its worktree sessions folded in, a folder of no repository under Other; Registered only keeps the registered project and is remembered', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     const cards = board.locator('#rail button.card:not(.all)');
     await board.getByLabel('Period').selectOption('all');
-    await expect(cards.filter({ hasText: /^bk-ui-proj/ })).toContainText('2 sessions, 2 worktrees');
-    await expect(cards.filter({ hasText: /^Other/ })).toContainText('3 sessions, 2 folders');
+    await expect(cards.filter({ hasText: /^bk-ui-proj/ })).toHaveAccessibleDescription(/2 sessions, 2 worktrees/);
+    await expect(cards.filter({ hasText: /^Other/ })).toHaveAccessibleDescription(/3 sessions, 2 folders/);
     await board.getByLabel('Registered only').check();
-    await expect(cards).toHaveText([/^bk-ui-proj2 sessions, 2 worktrees/]);
+    await expect(cards).toHaveCount(1);
+    await expect(cards).toHaveAccessibleDescription(/^2 sessions, 2 worktrees/);
     await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
     await page.reload();
     await expect(board.getByLabel('Registered only')).toBeChecked();

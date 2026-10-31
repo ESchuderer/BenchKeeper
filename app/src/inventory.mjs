@@ -2,6 +2,7 @@
 // the raw global plan; plugins and host tools appear there only when missing, so an expected one absent from it is current.
 import { agent } from './agents.mjs';
 import { hashPath, readText } from './fsx.mjs';
+import { containerProjects } from './level.mjs';
 import { itemState } from './runner.mjs';
 import { RANK } from './states.mjs';
 import { PLUGINS, globalPlan } from './steps/global.mjs';
@@ -26,14 +27,15 @@ export function inventory(ctx, agents, { devcontainerCli, level = 'full' } = {})
     const key = `${step}|${title}`;
     if (!items.has(key) || RANK.indexOf(state) > RANK.indexOf(items.get(key).state)) items.set(key, { step, agent: agentOf(step), title, state });
   };
-  const plan = globalPlan({ ctx, agents, devcontainerCli, options: { level } });
+  const containers = containerProjects(ctx);
+  const plan = globalPlan({ ctx, agents, devcontainerCli, options: { level, containers } });
   classify(ctx, plan, put);
   const planned = new Set(plan.map((c) => c.step));
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
     for (const p of PLUGINS[a].filter((x) => !x.pack && (level === 'full' || x.id.startsWith('benchkeeper@')))) if (!planned.has(`plugin:${a}:${p.id}`)) put(`plugin:${a}:${p.id}`, `${agent(a).name} plugin ${p.id}`, 'current');
   }
   if (level !== 'full') return [...items.values()];
-  if (!planned.has('tools:devcontainer')) put('tools:devcontainer', 'Dev Containers CLI', ctx.run(['devcontainer', '--version']).code === 0 ? 'current' : 'missing');
+  if (containers && !planned.has('tools:devcontainer')) put('tools:devcontainer', 'Dev Containers CLI', ctx.run(['devcontainer', '--version']).code === 0 ? 'current' : 'missing');
   if (!planned.has('tools:skill:find-skills')) put('tools:skill:find-skills', 'global skill find-skills from vercel-labs/skills', 'current');
   return [...items.values()];
 }

@@ -67,6 +67,8 @@ const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli
 export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
 export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
+// The envs whose project commands run in the dev container.
+export const usesContainer = (env) => ['container', 'host-agent'].includes(env);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 // Per call: the cooldown date moves with the clock, and a server runs for days.
 export const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
@@ -257,7 +259,9 @@ export function suggest(dir) {
   ];
   const own = handWritten(dir);
   const place = agentPlace(own);
-  const env = !place ? null : { id: place === 'host' ? (has('.devcontainer') && COMMANDS_IN_CONTAINER.test(own) ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
+  // Without a statement the agent runs on the host, unless the project has a dev container.
+  const stated = place && { id: place === 'host' ? (has('.devcontainer') && COMMANDS_IN_CONTAINER.test(own) ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
+  const env = stated || (has('.devcontainer') ? null : { id: 'host', reason: 'the project has no .devcontainer/' });
   return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 
@@ -412,7 +416,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Shared: the project's settings file; local: Claude Code's personal one, which wins over it.
   const settings = a.share ? '.claude/settings.json' : LOCAL_SETTINGS;
   if (a.sandbox && a.agents.includes('claude')) {
-    add('sandbox', 'Claude Code sandbox on; devcontainer and podman run outside it (they cannot start inside)', { kind: 'write', path: at(settings), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, { path: ['sandbox', 'excludedCommands'], append: SANDBOX_OUT }]) });
+    // The exclusions only where the project's commands run in the dev container.
+    const container = usesContainer(a.env);
+    add('sandbox', `Claude Code sandbox on${container ? '; devcontainer and podman run outside it (they cannot start inside)' : ''}`, { kind: 'write', path: at(settings), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, ...(container ? [{ path: ['sandbox', 'excludedCommands'], append: SANDBOX_OUT }] : [])]) });
   } else if (tryJson(readText(at(settings)))?.sandbox?.enabled === true) {
     // Preselected only when the state file shows this setup turned it on.
     add('sandbox', `Claude Code sandbox off${prev?.sandbox ? '' : ' (not turned on by BenchKeeper)'}`, { kind: 'write', path: at(settings), selected: !!prev?.sandbox,

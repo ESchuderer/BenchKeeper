@@ -41,7 +41,7 @@ import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel, levelFor } from './level.mjs';
+import { containerProjects, detectLevel, levelFor } from './level.mjs';
 import { resolvePins } from './params.mjs';
 import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
 import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
@@ -655,7 +655,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const level = o.level ?? found.level ?? 'full';
     if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
     for (const id of agents) for (const m of unavailable(id)) out.write(`${m}\n`);
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));
@@ -1227,7 +1227,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const broken = registryFail();
     if (broken !== undefined) return broken;
     const level = o.level ?? detectLevel(ctx, agents, process.cwd()).level ?? 'full';
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
   }
   if (cmd === 'projects' && arg === 'plan') {

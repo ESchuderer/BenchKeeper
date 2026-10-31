@@ -5,7 +5,7 @@ import { agent } from './agents.mjs';
 import { exists, readText } from './fsx.mjs';
 import { listProjects } from './projects.mjs';
 import { pluginState } from './steps/global.mjs';
-import { tryState } from './steps/project.mjs';
+import { tryState, usesContainer } from './steps/project.mjs';
 
 // A line of the global rules that every version of the file carries: the file is the app's, so its text says it is there.
 const ID = 'benchkeeper@benchkeeper';
@@ -26,3 +26,7 @@ export function detectLevel(ctx, agents, dir) {
 
 // The level a plan or fix uses when none is named: the one found, so a lite machine is not grown to full by accident.
 export const levelFor = (ctx, agents, dir) => detectLevel(ctx, agents, dir).level ?? 'full';
+
+// Whether a registered project runs its commands in a dev container: only then the global setup installs the Dev Containers CLI
+// and Doctor asks for a container engine.
+export const containerProjects = (ctx) => listProjects(ctx).some((p) => usesContainer(tryState(p.path)?.env));

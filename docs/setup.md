@@ -85,7 +85,7 @@ What a full `apply` writes (`--level lite` or `--level standard` plans the Bench
 - optional, off unless chosen, only when Ponytail's band and the status band would both show (`doctor` says so): two writes that hide Ponytail's band, see [The status band](#the-status-band)
 - optional, off unless chosen, only with Orca installed (its CLI answers `--version` as `orca`, as `orca-ide`, which is the name on the `PATH` on Linux outside Orca's own terminals, or as the shim `$HOME/.config/orca/linux-orca-cli-shim/orca`; the first that answers runs every Orca command): a worker-spec template for Orca orchestration and samples of `orca.yaml` and `.worktreeinclude` for new worktrees, written to the `orca` folder of the app config folder (never into a project)
 - everything else installed globally, as removals that are off unless chosen: other rules files (`$HOME/.claude/CLAUDE.md`, other files in `$HOME/.claude/rules/`, `$HOME/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks (Orca's own entries stay)
-- the Dev Containers CLI at the newest release that is at least 7 days old (`npm i -g`, into your npm prefix), and the `find-skills` skill (with Orca: `orca-cli` and `orchestration`)
+- the Dev Containers CLI at the newest release that is at least 7 days old (`npm i -g`, into your npm prefix), only while a registered project runs its commands in a dev container (env `container` or `host-agent`; Doctor asks for a container engine only then), and the `find-skills` skill (with Orca: `orca-cli` and `orchestration`)
 
 Settings files are merged: JSON by key with comments kept, Codex TOML by key, checked by parsing the result. A form the app cannot merge is reported for manual editing.
 
@@ -105,10 +105,10 @@ Where the agent runs (`--env`):
 
 | Env | Agent | Project commands |
 |---|---|---|
-| `container` (default, unless the project's own `AGENTS.md` says the agent runs on the host: then `host-agent`, or `host` without `.devcontainer/`) | inside the dev container, started with `devcontainer exec --workspace-folder . claude`; sign-in from the host environment (`CLAUDE_CODE_OAUTH_TOKEN` through `remoteEnv`) or kept in a named volume | in the container |
+| `container` (default when the project has `.devcontainer/`, unless the project's own `AGENTS.md` says the agent runs on the host: then `host-agent`) | inside the dev container, started with `devcontainer exec --workspace-folder . claude`; sign-in from the host environment (`CLAUDE_CODE_OAUTH_TOKEN` through `remoteEnv`) or kept in a named volume | in the container |
 | `host-agent` | on the host, with Git and file edits; `--sandbox` turns on Claude Code's sandbox with `devcontainer exec` and `podman` excluded, since rootless Podman cannot start inside it ([docs](https://code.claude.com/docs/en/sandboxing)) | through `devcontainer exec`, no host fallback |
 | `sandbox` | a Docker Sandboxes microVM ([docs](https://docs.docker.com/ai/sandboxes/agents/)), not tested with this setup | in the microVM |
-| `host` | on the host | on the host |
+| `host` (default without `.devcontainer/`, unless `AGENTS.md` says otherwise; `--sandbox` turns on the sandbox without exclusions) | on the host | on the host |
 
 Guards (`--no-guards` turns them off for the project; default on, Claude Code only): project setup adds deny rules for `--no-verify` and `-n` on `git commit` and `git push`, `git push --force` and `-f`, `sudo`, `terraform apply`, `kubectl apply` and `helm upgrade` to `permissions.deny`, and registers `.claude/hooks/benchkeeper-guard.mjs` as a `PreToolUse` hook for Bash, which denies the forms a rule cannot match (combined flags, `bash -c`, heredocs). A local setup writes them to the ignored `.claude/settings.local.json`, a shared one to `.claude/settings.json`; your own entries stay, except one identical to a rule or the hook above, which is the same entry and goes out with them when guards are turned off (`--guards` turns them on again), and undo removes only what the run added. The effect on auto mode and the sandbox is in [security](security.md#guards-in-claude-code).
 

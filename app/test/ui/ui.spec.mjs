@@ -1474,7 +1474,8 @@ test.describe('views', () => {
     await drawer.getByRole('checkbox', { name: 'Claude Code' }).check();
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Next' }).click();
-    await expect(drawer.getByRole('radio', { name: /^Agent in the dev container/ })).toBeChecked();
+    // No .devcontainer/ and no statement in AGENTS.md: the host.
+    await expect(drawer.getByRole('radio', { name: /^Everything on the host/ })).toBeChecked();
     await drawer.getByRole('button', { name: 'Next' }).click();
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
@@ -1502,7 +1503,7 @@ test.describe('views', () => {
     await expect(drawer).toContainText('CLAUDE.local.md');
     // The summary shows every answer next to its step; Change goes back to that step and one click returns.
     const answers = drawer.getByRole('list', { name: 'Your answers' });
-    await expect(answers).toContainText('Agent in the dev container');
+    await expect(answers).toContainText('Everything on the host');
     await expect(answers).toContainText('Standard: one behavior');
     await expect(answers).toContainText('designing-technical-uis');
     await noAxe(page);

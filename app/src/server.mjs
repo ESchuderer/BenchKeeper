@@ -42,7 +42,7 @@ import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { mask, maskStream, shown } from './redact.mjs';
 import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
-import { levelFor } from './level.mjs';
+import { containerProjects, levelFor } from './level.mjs';
 import { LEVELS, declineUnselected, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
@@ -235,7 +235,7 @@ export function api(ctx) {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);
       if (!LEVELS.includes(level)) throw bad(`level must be one of ${LEVELS.join(', ')}`);
-      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level } }));
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.

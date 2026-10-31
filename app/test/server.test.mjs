@@ -203,7 +203,7 @@ function fixture(extra = () => null) {
 }
 const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
 
-test('inventory: an edited rules file is modified, enabled plugins current, a missing tool missing', () => {
+test('inventory: an edited rules file is modified, enabled plugins current, no Dev Containers CLI without a project that uses one', () => {
   const { ctx, routes } = fixture();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
@@ -212,7 +212,7 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.deepEqual(state('rules:claude'), ['modified']);
   assert.deepEqual(state('settings:claude'), ['current']);
   assert.deepEqual(state('plugin:claude:benchkeeper@benchkeeper'), ['current']);
-  assert.deepEqual(state('tools:devcontainer'), ['missing']);
+  assert.deepEqual(state('tools:devcontainer'), []);
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
 });
 

@@ -22,6 +22,15 @@ function machine({ engine = true } = {}) {
   };
   return context({ home, run });
 }
+// A registered project whose commands run in the dev container.
+function containerProject(ctx) {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-dc-'));
+  mkdirSync(join(dir, '.benchkeeper'));
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, appVersion, contentVersion, agents: ['claude'], env: 'container' }));
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: dir }] }));
+  return dir;
+}
 const levels = (found, check) => found.filter((i) => i.check === check).map((i) => i.level);
 
 test('the summary counts each level in the singular or plural, info included, and leaves a zero level out', () => {
@@ -62,7 +71,7 @@ test('the skill install preview sandbox: doctor names what is missing, from the 
   assert.equal(old.fix, 'use Node 22.12 or newer');
 });
 
-test('global drift: rules changed after apply are an error, the user\'s own items no finding, no engine a warning', () => {
+test('global drift: rules changed after apply are an error, the user\'s own items no finding, no engine a warning once a project uses a dev container', () => {
   const ctx = machine({ engine: false });
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
@@ -70,7 +79,7 @@ test('global drift: rules changed after apply are an error, the user\'s own item
   assert.ok(!found.some((i) => /status band/.test(i.message)), 'the optional status band left off is not drift');
   assert.deepEqual(levels(found, 'plugin'), ['error', 'error']);
   assert.equal(found.find((i) => i.check === 'plugin').message, 'not installed: Claude Code marketplace benchkeeper');
-  assert.ok(found.some((i) => i.message === 'no container engine (podman or docker)'));
+  assert.ok(!found.some((i) => i.message === 'no container engine (podman or docker)'), 'no project uses a dev container');
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
@@ -78,6 +87,9 @@ test('global drift: rules changed after apply are an error, the user\'s own item
   assert.ok(!found.some((i) => /\.claude\/skills\/stray/.test(i.message)), 'a global skill of the user is no finding');
   rmSync(join(ctx.home, '.claude/rules/00-global.md'));
   assert.deepEqual(levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules'), ['error'], 'a missing rules file is an error');
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
+  containerProject(ctx);
+  assert.ok(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).some((i) => i.message === 'no container engine (podman or docker)'));
 });
 
 test('a declined global change: remembered by step and content, unselected in the plan, listed apart by Doctor until shown again or changed', () => {
@@ -103,6 +115,9 @@ test('a declined global change: remembered by step and content, unselected in th
 
 test('opinions can be dismissed: a telemetry variable everywhere it is set, the AGENTS.md layout heading per project, no container engine', () => {
   const ctx = machine({ engine: false });
+  // The full level (global rules present) with a project in a dev container: the engine is asked for.
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
+  containerProject(ctx);
   const dir = mkdtempSync(join(tmpdir(), 'bk-doc-op-'));
   writeFileSync(join(dir, 'AGENTS.md'), '# P\n\n## Layout\n');
   writeFileSync(join(ctx.home, '.bashrc'), 'export DO_NOT_TRACK=1\n');

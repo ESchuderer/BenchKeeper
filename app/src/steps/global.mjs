@@ -452,9 +452,9 @@ export function globalPlan(env) {
     add('settings:codex:effort', 'Codex effort high (BenchKeeper recommendation)', { kind: 'write', path: f, edit: (t) => setToml(t ?? '', '', 'model_reasoning_effort', 'high'), settings: { agent: 'codex', keys: ['model_reasoning_effort'] } }, RECOMMENDATION);
   }
 
-  // Host tools
-  const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
-  const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
+  // Host tools. The Dev Containers CLI only where a project uses a dev container (options.containers, default on).
+  const want = options.containers !== false && (env.devcontainerCli ?? newest(ctx, '@devcontainers/cli'));
+  const have = want && (ctx.run(['devcontainer', '--version']).stdout || '').trim();
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
   if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.

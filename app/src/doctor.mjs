@@ -10,7 +10,7 @@ import { appVersion, contentDir, contentRefusal, contentVersion, library } from 
 import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { integrity } from './integrity.mjs';
-import { levelFor } from './level.mjs';
+import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
@@ -57,7 +57,7 @@ function featureVars(ctx, env) {
 // The global plan's pending changes: rules or the workflow plugin missing are errors, other drift warnings.
 export function globalDrift(ctx, agents, devcontainerCli, level) {
   let plan;
-  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
+  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level, containers: containerProjects(ctx) } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
   // Below full, the fix names the level: a plain apply would grow the setup.
   const apply = level && level !== 'full' ? `benchkeeper apply --level ${level}` : 'benchkeeper apply';
   // An optional step left off is not drift, and what the user installed is theirs: a removal offer is no finding.
@@ -146,7 +146,7 @@ export function doctorReport(ctx, { agents, dir, env = process.env, devcontainer
   if (level === 'full') {
     out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     const engine = containerEngine(ctx);
-    if (!engine) out.push(opinion('container-engine', issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers')));
+    if (!engine) { if (containerProjects(ctx)) out.push(opinion('container-engine', issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'))); }
     else out.push(...containerChecks(ctx, engine, ctx.containerFacts));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);

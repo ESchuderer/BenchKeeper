@@ -22,7 +22,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     alt: 'The One-run setup drawer: the Global setup checkbox, the install level, the projects to set up with their state, and the Start button.',
     text: [
       'Set up everything prepares the global setup at the chosen level and each project you pick without questions in between, then shows all changes on one page. Nothing is written until you apply.',
-      'A project with a shared setup is left to Update all, which opens its pull request.',
+      'A project with a shared setup is left to Update all, which commits it on a local branch for you to push.',
     ],
     cli: [`${V} apply --level full`, `${V} projects apply <dir>`],
   },
@@ -71,10 +71,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'setup', view: 'projects', title: 'Project setup', shot: 'setup',
-    alt: 'The Set up project drawer on its last step: the choice between a setup on this machine and one in the repository as a pull request, then the files it writes, CLAUDE.local.md and .benchkeeper/state.json, as diffs.',
+    alt: 'The Set up project drawer on its last step: the choice between a setup on this machine and one in the repository on a branch, then the files it writes, CLAUDE.local.md and .benchkeeper/state.json, as diffs.',
     text: [
       'Five steps: agents, where the agent runs, skills, default tier and a review. The review shows every file as a diff before anything is written.',
-      'The setup stays on this machine by default, in files Git ignores. The other choice commits it on a branch and opens a pull request.',
+      'The setup stays on this machine by default, in files Git ignores. The other choice commits it on a local branch, which you push.',
     ],
     cli: [`${V} projects plan <dir>`, `${V} projects apply <dir>`],
   },

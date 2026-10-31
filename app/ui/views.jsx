@@ -595,11 +595,12 @@ function EditorSetting({ overview, refresh }) {
   );
 }
 
-// Three tabs; the one destructive button (Clear the sessions cache) sits last in Advanced.
+// Three tabs; the one destructive button (Clear the sessions cache) sits last in Advanced. display-none keeps the effects
+// of a hidden tab running: a profile preview or a plan being applied goes on while another tab is open.
 export function Settings({ overview, refresh, keys }) {
   const cache = useApi('/api/sessions-cache');
   return (
-    <Tabs defaultValue="views">
+    <Tabs defaultValue="views" keepMountedMode="display-none">
       <Tabs.List aria-label="Preferences">
         <Tabs.Tab value="views">Views</Tabs.Tab>
         <Tabs.Tab value="history">Sessions history</Tabs.Tab>

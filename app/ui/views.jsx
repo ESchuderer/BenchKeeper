@@ -245,7 +245,7 @@ function UserSkillEditor({ op, name: start = '', text: startText = null, onDone,
     setFailed(null);
     try { setPlan(await api('/api/user-skill-plan', { op, name, text: body })); } catch (e) { setFailed(e.message); }
   };
-  useEffect(() => { if (op === 'remove') save(); }, []);
+  useEffect(() => { if (op === 'remove') void save(); }, []);
   const title = op === 'new' ? 'New skill' : `${op === 'edit' ? 'Edit' : 'Remove'} skill ${start}`;
   return (
     <Stack gap="sm" component="section" aria-label={title}>

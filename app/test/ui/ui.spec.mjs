@@ -1727,7 +1727,8 @@ test.describe('views', () => {
 
   test('History: a run report with numbered diffs, split or unified; undo of one step, then of the run', async ({ page }) => {
     await nav(page, 'History').click();
-    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).first().click();
+    // The fixture's global setup, the oldest global run: other tests apply global plans of their own.
+    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).last().click();
     const run = page.getByRole('region', { name: /^Run / });
     await expect(run.getByRole('article', { name: /Claude Code rules/ })).toBeVisible();
     await expect(run.getByRole('group', { name: 'Summary' })).toContainText(/\d+ done/);

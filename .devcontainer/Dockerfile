@@ -1,5 +1,5 @@
-# node:22.23.3-bookworm-slim, the same Node as CI
-FROM docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
+# node:22.23.4-bookworm-slim, the same Node as CI
+FROM docker.io/library/node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 # shortcut: exact Debian versions stop resolving after the next bookworm security release; bump them when the build fails
 RUN apt-get update \

@@ -818,7 +818,7 @@ function repoKeys(rows, registered) {
   const found = new Map(rows.filter((r) => r.project && r.repo).map((r) => [r.project, r.repo]));
   const known = [...new Set([...found.values(), ...registered.map((x) => x.path)])].sort((a, b) => b.length - a.length);
   const named = new Map();
-  for (const k of known) { const n = parts(k).at(-1).toLowerCase(); named.set(n, named.has(n) ? null : k); }
+  for (const k of known) { const b = parts(k).at(-1); if (!b) continue; const n = b.toLowerCase(); named.set(n, named.has(n) ? null : k); }
   const keys = new Map();
   for (const p of new Set(rows.map((r) => r.project).filter(Boolean))) {
     const k = found.get(p) ?? registered.find((x) => [x.path, ...x.worktrees].some((d) => inside(d, p)))?.path ?? known.find((d) => inside(d, p)) ?? named.get(parts(p).at(-2)?.toLowerCase());

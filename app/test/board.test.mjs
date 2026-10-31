@@ -87,6 +87,12 @@ test('two known repositories whose names differ only in case match no worktree f
   assert.equal('/wt/sHoP/gone' in Object.fromEntries(data.keys), false);
 });
 
+test('a repository rooted at / has no folder name to match and does not break the grouping', () => {
+  const rows = [{ ...row, id: 'a', project: '/tmp/work', repo: '/' }, { ...row, id: 'b', project: '/wt/shop/gone', repo: null }];
+  const data = JSON.parse(boardHtml(rows, '2026-10-23T00:00:00Z', []).match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]);
+  assert.equal(Object.fromEntries(data.keys)['/tmp/work'], '/');
+});
+
 test('project cards: sessions of both agents and of worktrees per day for 30 days, cost with the uncosted count, last session and tier, the change rule', () => {
   const at = (day, extra = {}) => ({ ...row, start: `2026-10-${day}T10:00:00.000Z`, end: `2026-10-${day}T10:30:00.000Z`, ...extra });
   const rows = [

@@ -453,8 +453,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // A pack switched off here takes its local-scope plugin out of this folder; a plugin for all projects stays with the global plan.
   // Preselected only when the last local install or removal of it here was a run of this app; the user's own install is offered.
   // An undo puts back what was there and says nothing about who installed it: the run it undid is marked and skipped too.
+  // Newest first by time: run ids carry whole seconds only.
   const ours = (id) => {
-    for (const run of ctx.ledger.list().filter((r) => r.kind !== 'undo')) {
+    for (const run of ctx.ledger.list().filter((r) => r.kind !== 'undo').sort((x, y) => y.time.localeCompare(x.time))) {
       const e = [...run.entries].reverse().find((x) => x.kind === 'command' && x.status === 'done' && !x.undone && x.cwd === dir && x.argv?.[0] === 'claude' && x.argv[1] === 'plugin' && x.argv.includes('local') && x.argv.at(-1) === id);
       if (e) return e.argv[2] === 'install';
     }

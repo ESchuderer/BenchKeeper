@@ -138,6 +138,10 @@ test('a plugin pack for selected projects switched off in a project leaves that 
   undo(apply([theirs], fresh, { scope: dir, select: [theirs.id] }).id, fresh);
   assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
   assert.equal(removal().find((c) => c.step === 'pack:ponytail:claude').selected, false);
+  // Two runs in one second: the newer by time decides, whatever order their ids sort in.
+  const entry = (verb, time) => ({ kind: 'apply', time, entries: [{ kind: 'command', status: 'done', cwd: dir, argv: ['claude', 'plugin', verb, '--scope', 'local', 'ponytail@ponytail'] }] });
+  const sameSecond = Object.assign(Object.create(fresh.ledger), { list: () => [entry('install', '2026-01-01T00:00:00.100Z'), entry('uninstall', '2026-01-01T00:00:00.900Z')] });
+  assert.equal(preview(projectPlan({ ctx: { ...ctx, ledger: sameSecond }, dir, answers: { packOff: ['ponytail'] } }).changes).find((c) => c.step === 'pack:ponytail:claude').selected, false);
   // A removal that fails keeps the pack in the state, so the next plan offers it again.
   const failing = { ...ctx, run: (argv, o) => (argv[2] === 'uninstall' ? { code: 1, stdout: '', stderr: 'refused' } : ctx.run(argv, o)) };
   const plan = preview(projectPlan({ ctx: failing, dir, answers: { packOff: ['ponytail'] } }).changes);

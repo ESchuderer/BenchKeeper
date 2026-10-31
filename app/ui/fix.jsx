@@ -24,6 +24,32 @@ export const LEVEL_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
+const levelBadge = (i) => <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+const actionButton = (action, onAction) => <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>;
+
+// The worst findings first (errors, then warnings, then info, in the doctor's order within a level), one line each: the
+// level, the finding cut to one line (in full on hover; below sm it wraps, as touch has no hover) and the action that fixes it.
+export function DoctorWorst({ found, n = 3 }) {
+  const phone = useMediaQuery('(max-width: 47.99em)');
+  const worst = Object.keys(LEVEL_COLOR).flatMap((l) => found.filter((i) => i.level === l)).slice(0, n);
+  return (
+    <List listStyleType="none" aria-label="Worst doctor findings" spacing="xs">
+      {worst.map((i, k) => {
+        const action = fixAction(i);
+        return (
+          <List.Item key={k} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
+            <Group gap="sm" wrap="nowrap">
+              {levelBadge(i)}
+              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.message}</Text>
+              {action && actionButton(action)}
+            </Group>
+          </List.Item>
+        );
+      })}
+    </List>
+  );
+}
+
 export function DoctorTable({ found, onAction }) {
   // Below sm each finding is one cell (level, finding, fix stacked), so the fix action needs no sideways scroll.
   const phone = useMediaQuery('(max-width: 47.99em)');
@@ -35,11 +61,11 @@ export function DoctorTable({ found, onAction }) {
         <Table.Tbody>
           {found.map((i, n) => {
             const action = fixAction(i), { text, source } = splitSource(i.fix);
-            const level = <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+            const level = levelBadge(i);
             const finding = <>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</>;
             const fix = (
               <Stack gap={4} align="flex-start">
-                {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
+                {action ? actionButton(action, onAction) : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                 {i.start && <StartBlock start={i.start} />}
               </Stack>

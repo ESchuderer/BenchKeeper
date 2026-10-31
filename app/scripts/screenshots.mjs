@@ -43,10 +43,15 @@ const VIEWS = [
     await page.getByRole('group', { name: 'One-run setup' }).getByRole('button', { name: 'Set up everything' }).click();
     await expect(page.getByRole('dialog', { name: 'One-run setup' })).toBeVisible();
   }],
-  // Scrolled to Health: the ring of item states and the scopes beside it, the doctor table below.
+  // Scrolled to Health: the ring of item states and the scopes beside it, the worst doctor findings below.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
-  // A taller window: the table is longer than 900 pixels and the sticky header would cover its title.
-  ['doctor', async (page) => { await page.setViewportSize({ width: 1600, height: 1400 }); await page.getByRole('region', { name: 'Doctor' }).scrollIntoViewIfNeeded(); }, (page) => page.getByRole('region', { name: 'Doctor' })],
+  // The table unfolded, as a link to the Doctor section opens it. A window taller than the table: the sticky header would
+  // cover its first rows.
+  ['doctor', async (page) => {
+    await page.setViewportSize({ width: 1600, height: 2600 });
+    await page.goto('/#/dashboard?panel=doctor');
+    await page.getByRole('table', { name: 'Doctor findings' }).scrollIntoViewIfNeeded();
+  }, (page) => page.getByRole('table', { name: 'Doctor findings' })],
   ['fix', async (page) => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     await expect(page.getByRole('dialog', { name: 'Fix everything' }).getByRole('checkbox').first()).toBeVisible();

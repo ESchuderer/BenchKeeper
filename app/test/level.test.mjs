@@ -101,7 +101,7 @@ test('doctor below full expects the plugin only: missing global rules and tools 
   const m = machine();
   m.s.installed = true;
   const found = doctor(m.ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
-  assert.deepEqual(found.filter((i) => ['rules', 'settings', 'tools', 'pins'].includes(i.check)), []);
+  assert.deepEqual(found.filter((i) => ['rules', 'settings', 'tools'].includes(i.check)), []);
 });
 
 function cli(ctx) {

@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "presets": [
-    { "tier": "quick", "changeType": "docs", "review": "none", "gates": ["links"] },
-    { "tier": "standard", "changeType": "bug", "review": "required", "effort": "medium", "gates": ["tests", "review"], "limits": { "maxRetries": 2, "maxMinutes": 60 } },
-    { "tier": "full", "review": "independent", "effort": "high", "//": "no change type: the tier's default" }
-  ]
-}

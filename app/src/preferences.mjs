@@ -1,5 +1,5 @@
-// The app's own preferences, kept in the BenchKeeper config folder: editors turns on the editor view for presets, pins
-// and the orchestrator policy (off by default); dismissed lists the Agent settings notes the user accepted, by note id,
+// The app's own preferences, kept in the BenchKeeper config folder: editors turns on the editor view for the
+// orchestrator policy (off by default); dismissed lists the Agent settings notes the user accepted, by note id,
 // the settings the user decided to keep, as setting:<agent>:<key>, and the global changes the user left unselected, as
 // change:<step>:<hash of what the change writes or runs>.
 // Written directly, without a plan.

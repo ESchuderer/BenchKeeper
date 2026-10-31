@@ -111,7 +111,7 @@ test('hygiene and freshness: the doctor findings are split, each fact appears on
   const doctorFindings = [
     { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in the environment', fix: 'unset it' },
     { level: 'error', check: 'instructions', message: 'x imports gone.md', fix: 'fix the import', file: 'CLAUDE.md', line: 2 },
-    { level: 'warning', check: 'pins', message: '.benchkeeper/pins.local.json is not ignored by git', fix: 'add it to .gitignore' },
+    { level: 'warning', check: 'project', message: '.benchkeeper/runs is not ignored by git', fix: 'add it to .gitignore' },
     { level: 'warning', check: 'plugin', tag: 'outdated', message: 'plugin x 1 -> 2', fix: 'benchkeeper apply' },
   ];
   const r = insights({ doctorFindings });

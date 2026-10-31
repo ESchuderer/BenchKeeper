@@ -590,7 +590,7 @@ function EditorSetting({ overview, refresh }) {
   const set = (editors) => { setError(null); api('/api/preferences', { editors }).then(refresh, (e) => setError(e.message)); };
   return (
     <Section title="Advanced">
-      <Switch label="Editors" description="Presets, pins and policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
+      <Switch label="Editors" description="Orchestrator policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
       {error && <Note color="red" title="Not saved">{error}</Note>}
     </Section>
   );

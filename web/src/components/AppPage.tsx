@@ -49,8 +49,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     text: [
       'Each registered project is a card with its health, setup, packs and sessions of the last 30 days. A project is behind when its setup version differs from the one of the app.',
       'The Installs tab of a project lists the packs in use or suggested first, then the others, each with a switch and what it is for. A switch is a plan with a diff, and History undoes it.',
+      'New from preset starts a new folder from a saved preset, shows the plan, registers the folder and then recommends skills to turn off and packs to add.',
     ],
-    cli: [`${V} projects list`, `${V} packs enable <id> --project <dir>`],
+    cli: [`${V} projects list`, `${V} packs enable <id> --project <dir>`, `${V} projects create <dir> --preset <id>`],
   },
   {
     id: 'skills', view: 'skills', title: 'Skills', shot: 'skills',

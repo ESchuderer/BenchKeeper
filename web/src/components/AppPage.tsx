@@ -81,7 +81,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'runs', view: 'runs', title: 'Runs', shot: 'runs',
-    alt: 'The Runs view: the orchestrated runs table with run, task, worktree, branch, sessions, cost and tokens, the last setup change of each registered project, and the section of the multi-agent IDE, here not installed.',
+    alt: 'The Runs view: the orchestrated runs table with run, task, worktree, branch, sessions, cost and tokens, the last setup change of each registered project, one line saying the multi-agent IDE is not installed, and the folded command.',
     text: [
       'Orchestrated runs and their tasks in the registered projects and their worktrees, with sessions, cost (Claude Code) and tokens (Codex), each project\'s last setup change, and the runs of the multi-agent IDE when it is installed.',
       'The view reads when it opens and on Refresh, with no timer. The rows hold ids, states and counts, never a prompt or worker output.',

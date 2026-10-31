@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { NAME as IDE } from '../../src/orca/index.mjs';
 import { TOKENS } from '../../src/tokens.mjs';
 import { nav, ready } from './views.mjs';
 
@@ -2584,6 +2585,25 @@ test.describe('views', () => {
     await expect(hook).toContainText('AUDIT_TOKEN=***');
     await expect(hook).toContainText('scope local');
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
+    await noAxe(page);
+  });
+
+  // Before the Automations test: without its runner the multi-agent IDE is not installed.
+  test('Runs: a one-sentence intro, a section without data is one line with its reason, the command folded; no axe violations', async ({ page }) => {
+    await nav(page, 'Runs').click();
+    await expect(page.getByText('Orchestrated runs and tasks in the registered projects and their worktrees with cost and tokens, each project\'s last setup change and the runs of the multi-agent IDE when it is installed, read when the view opens and on Refresh: nothing runs while it is closed.', { exact: true })).toBeVisible();
+    const runs = page.getByRole('region', { name: 'Orchestrated runs', exact: true });
+    await expect(runs).toContainText(/^Orchestrated runs: no orchestrated sessions in a registered project or its worktrees, from the sessions read \d{4}-\d\d-\d\d \d\d:\d\d UTC\. Codex records tokens, not cost\.$/);
+    await expect(runs.getByRole('heading', { level: 3, name: 'Orchestrated runs' })).toBeVisible();
+    await expect(runs.getByRole('table')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: IDE, exact: true })).toHaveText(`${IDE}: not installed, or its run list could not be read.`);
+    // Projects are registered: their section keeps its heading and list.
+    await expect(page.getByRole('region', { name: 'Last setup change' }).getByRole('heading', { name: 'Last setup change' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
+    const cli = page.getByText('benchkeeper sessions list --run <id>', { exact: true });
+    await expect(cli).toBeHidden();
+    await page.locator('summary').getByText('Command', { exact: true }).click();
+    await expect(cli).toBeVisible();
     await noAxe(page);
   });
 

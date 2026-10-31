@@ -5,7 +5,7 @@ import { stringify as tomlStringify } from 'smol-toml';
 import { parse as parseYaml } from 'yaml';
 import { agent } from './agents.mjs';
 import { library } from './content.mjs';
-import { exists, hashPath } from './fsx.mjs';
+import { exists, hashPath, readText } from './fsx.mjs';
 import { unit } from './units.mjs';
 
 export const sources = (lib = library()) => lib.sources ?? [];
@@ -74,10 +74,12 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
     const installUnit = unitOf(dir, f);
     for (const { id, path, key, target } of copiesOf(dir, f)) {
       // Only a file this setup fetched (agentOwned) is refreshed or taken out again: one that was there before is the project's.
-      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && refetch(prev, f, key);
+      const convert = agent(id).project[f.install.dest].format === 'toml';
+      // A Codex file still in Markdown is a fetch whose conversion failed: fetched again, not taken for the project's own.
+      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && (refetch(prev, f, key) || (convert && /^---\r?\n/.test(readText(target) ?? '')));
       const step = `framework:${f.id}`, name = `${stemOf(path)}${id === 'claude' ? '' : ` for ${agent(id).name}`}`;
       if (picked && (!exists(target) || outdated)) {
-        const convert = agent(id).project[f.install.dest].format === 'toml', title = `agent ${name} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`;
+        const title = `agent ${name} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`;
         // Codex: the fetched Markdown becomes TOML in place; the fetch and the conversion go together, under one title so a
         // state count sees one item.
         out.push({ ...(convert ? { unit: `agent-file:${key}` } : { key: `file:${key}` }), step, title, kind: 'command', cwd: dir, snapshot: [target], installUnit, outdated,
@@ -97,7 +99,9 @@ export function frameworkState({ a, dir, prev, ran, lib = library() }) {
   const was = new Set(prev?.agentOwned ?? []), refs = prev?.frameworkRefs ?? {};
   const files = cat.flatMap((f) => f.install.files.map((x) => x.path)).filter((p) => a.agentFiles.includes(p));
   const copies = cat.flatMap((f) => copiesOf(dir, f, a.agents).filter((x) => files.includes(x.path)).map((x) => ({ ...x, f })));
-  const fetched = (f) => copies.some((x) => x.f === f && ran(`file:${x.key}`) === true);
+  // The source's ref moves on only when every fetch planned for it ran: a copy left at the old pin is fetched again.
+  const planned = (f) => copies.filter((x) => x.f === f && ran(`file:${x.key}`) !== null);
+  const fetched = (f) => planned(f).length > 0 && planned(f).every((x) => ran(`file:${x.key}`) === true);
   const frameworkRefs = Object.fromEntries(cat.filter((f) => fetched(f) || refs[f.id]).map((f) => [f.id, fetched(f) ? f.install.ref : refs[f.id]]));
   const mine = copies.filter((x) => ran(`file:${x.key}`) === true || was.has(x.key));
   const agentHashes = Object.fromEntries(mine.flatMap((x) => {

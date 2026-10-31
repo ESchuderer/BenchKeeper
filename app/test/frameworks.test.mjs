@@ -252,4 +252,18 @@ test('Codex only: a file the project had in .codex/agents stays its own, and a f
   assert.equal(result.status, 'failed');
   assert.match(result.entries.find((e) => e.status === 'failed').error, /no name or description/);
   assert.deepEqual(readState(s.dir).agentOwned, []);
+  // The Markdown left at the TOML path is fetched again on the next plan, not kept as the project's file.
+  assert.deepEqual(frameworkSteps(plan(s, {})).map((c) => c.kind), ['command', 'write']);
+});
+
+test('a new pin: the source ref moves on only when every copy was fetched again', () => {
+  const r = repo();
+  run(r, { ...base, agents: ['claude', 'copilot'], agentFiles: [FILE] });
+  const at = join(r.dir, '.benchkeeper/state.json'), old = '0'.repeat(40);
+  writeFileSync(at, JSON.stringify({ ...readState(r.dir), frameworkRefs: { 'agency-agents': old } }));
+  const changes = preview(plan(r, {}).changes);
+  const copilot = changes.find((c) => c.argv?.[0] === 'curl' && c.argv.at(-2).endsWith(COPILOT));
+  apply(changes, r.ctx, { scope: r.dir, select: changes.filter((c) => c.selected && c !== copilot).map((c) => c.id) });
+  assert.equal(readState(r.dir).frameworkRefs['agency-agents'], old);
+  assert.equal(frameworkSteps(plan(r, {})).length, 2, 'both copies are fetched again');
 });

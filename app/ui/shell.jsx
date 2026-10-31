@@ -106,8 +106,8 @@ const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };
 export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} styles={TITLE[color]} {...props} />;
 
 // A change's diff (or another detail) behind a button: a long page stays short until one is opened.
-export function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
-  const [open, setOpen] = useState(false);
+export function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}`, initial = false }) {
+  const [open, setOpen] = useState(initial);
   return (
     <Stack gap={4}>
       <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${name}`} onClick={() => setOpen(!open)}>{label[open ? 1 : 0]}</Button></Group>

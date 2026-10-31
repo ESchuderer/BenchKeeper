@@ -209,7 +209,8 @@ Usage: benchkeeper <command> [options]
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
   sessions list [--run id]          orchestrated runs with cost (API-equivalent USD; Codex estimated from its tokens and
-                                    OpenAI API prices) and tokens from the sessions scan; --run: that run per task
+                                    OpenAI API prices, unpriced models left out) and tokens from the sessions scan;
+                                    --run: that run per task
   sessions cache show|clear|set [--keep-days N|none] [--yes]
                                     the summaries the scan keeps after an agent deletes a transcript: show counts them with
                                     the retention; set --keep-days (1 to 3650, none: for good) changes it, the next scan

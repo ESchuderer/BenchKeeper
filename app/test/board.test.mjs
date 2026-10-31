@@ -77,6 +77,16 @@ test('worktrees of two repositories count as their repository, also a removed on
   assert.deepEqual(rows, before);
 });
 
+test('two known repositories whose names differ only in case match no worktree folder of a removed worktree', () => {
+  const rows = [
+    { ...row, id: 'a', project: '/src/shop', repo: '/src/shop' },
+    { ...row, id: 'b', project: '/src/Shop', repo: '/src/Shop' },
+    { ...row, id: 'c', project: '/wt/sHoP/gone', repo: null },
+  ];
+  const data = JSON.parse(boardHtml(rows, '2026-10-23T00:00:00Z', []).match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]);
+  assert.equal('/wt/sHoP/gone' in Object.fromEntries(data.keys), false);
+});
+
 test('project cards: sessions of both agents and of worktrees per day for 30 days, cost with the uncosted count, last session and tier, the change rule', () => {
   const at = (day, extra = {}) => ({ ...row, start: `2026-10-${day}T10:00:00.000Z`, end: `2026-10-${day}T10:30:00.000Z`, ...extra });
   const rows = [

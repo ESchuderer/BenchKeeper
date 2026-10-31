@@ -1,11 +1,13 @@
-// The Projects view's tools: cards, totals, search, sort and filter chips, bulk actions, name and notes, relocate, and the two removals.
-import { Anchor, Badge, Button, Checkbox, Chip, Code, Group, List, Loader, Modal, Paper, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
-import { IconFolderSearch, IconPencil, IconRefresh, IconRoute, IconSearch, IconTrash } from '@tabler/icons-react';
+// The Projects view's tools: cards, totals, search, sort and filter chips, bulk actions, name and notes, relocate, the two
+// removals, and a new project from a preset.
+import { Anchor, Badge, Button, Checkbox, Chip, Code, Group, List, Loader, Modal, NativeSelect, Paper, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { IconFileText, IconFolderSearch, IconPencil, IconRefresh, IconRoute, IconSearch, IconTrash } from '@tabler/icons-react';
 import { useEffect, useId, useState } from 'react';
 import { api } from './api.js';
 import { CHIPS, HEALTH, SORT_OPTIONS, costText, health, label, lags, plural, sparkText, totals } from './cards.js';
 import { Swatch } from './dashboard.jsx';
 import { UpdateResults } from './fix.jsx';
+import { Plan } from './parts.jsx';
 import { Note, go, icon, projectHref } from './shell.jsx';
 
 // The filter row: search, chips (needs attention, no setup, missing folder, each pack and agent in use) and the sort.
@@ -276,6 +278,64 @@ export function AddNotices({ inside, worktree, onAddWorktree, onDismiss }) {
         </Note>
       )}
     </>
+  );
+}
+
+// A new folder from a preset: its plan; after the apply the folder is registered and the check's recommendations come as a
+// second plan with no change selected.
+export function CreateFromPreset({ onDone, onClose }) {
+  const [presets, setPresets] = useState(null);
+  const [preset, setPreset] = useState('');
+  const [dir, setDir] = useState('');
+  const [plan, setPlan] = useState(null);
+  const [rec, setRec] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => { api('/api/presets').then((l) => { setPresets(l); setPreset(l[0]?.id ?? ''); }, (e) => setError(e.message)); }, []);
+  const show = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try { setPlan(await api(`/api/create-plan?${new URLSearchParams({ dir, preset })}`)); } catch (x) { setError(x.message); }
+  };
+  const created = async (run) => {
+    // No run: an undo in the run's view; the list reloads and the recommendations no longer apply.
+    if (!run) { setRec(null); onDone(); return; }
+    // A failed or cancelled run is not registered; the server refuses a folder without its state file.
+    if (run.status !== 'done') return;
+    try {
+      await api('/api/projects', { action: 'add', path: plan.dir, setup: true });
+      onDone();
+      setRec(await api(`/api/recommendations?${new URLSearchParams({ dir: plan.dir })}`));
+    } catch (x) { setError(x.message); }
+  };
+  if (presets && !presets.length) {
+    return <Text size="sm">No presets yet. Save the setup of a project as one: <Code>benchkeeper presets save &lt;id&gt; --project &lt;dir&gt;</Code> <Button size="xs" variant="default" onClick={onClose}>Close</Button></Text>;
+  }
+  return (
+    <Stack gap="sm">
+      {!plan ? (
+        <form onSubmit={show}>
+          <Group align="flex-end">
+            <NativeSelect label="Preset" data={(presets ?? []).map((p) => ({ value: p.id, label: `${p.title} (${p.answers.agents.join(', ')}; packs: ${p.answers.packs?.join(', ') || 'none'})` }))} value={preset} onChange={(e) => setPreset(e.currentTarget.value)} />
+            <TextInput label="New folder" description="Must not exist yet" placeholder="/home/me/code/new-app" value={dir} onChange={(e) => setDir(e.currentTarget.value)} w={{ base: '100%', sm: 420 }} />
+            <Button type="submit" leftSection={icon(IconFileText)} disabled={!dir || !preset}>Show the plan</Button>
+            <Button variant="default" onClick={onClose}>Cancel</Button>
+          </Group>
+        </form>
+      ) : (
+        <>
+          <Text size="sm">The folder <Code>{plan.dir}</Code> from the preset <Code>{preset}</Code>, registered after the apply:</Text>
+          <Plan plan={plan} scope="project" onDone={created} onCancel={(on) => on && onClose()} />
+        </>
+      )}
+      {error && <Note color="red" title="Failed">{error}</Note>}
+      {rec && (rec.items.length ? (
+        <Stack gap="xs" component="section" aria-label="Recommendations">
+          <Title order={4}>Recommendations</Title>
+          <List size="sm">{rec.items.map((r) => <List.Item key={r.name}>{r.action === 'add' ? 'Add the pack' : 'Turn off the skill'} <Code>{r.name}</Code>: {r.reason}</List.Item>)}</List>
+          <Plan plan={rec} scope="project" why="Recommended by the check after creation; nothing is selected" />
+        </Stack>
+      ) : <Text size="sm" role="status">No recommendations: the new project matches what BenchKeeper knows.</Text>)}
+    </Stack>
   );
 }
 

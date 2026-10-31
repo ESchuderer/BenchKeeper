@@ -24,6 +24,7 @@ import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
+import { createPlan, listPresets, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
@@ -130,6 +131,14 @@ Usage: benchkeeper <command> [options]
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
+  projects create <dir> --preset <id> [--yes] [--all]
+                                    a new folder set up from a preset, as a plan with a diff, then registered; refused for a
+                                    folder that exists. Then a check recommends skills to turn off and packs to add, each with
+                                    its reason, as a second plan with no change selected (--yes takes none, --all all)
+  presets [list|save <id> --project dir|remove <id>]
+                                    presets: the setup answers of a project (agents, environment, packs, skills, tier) saved
+                                    under a name (presets/ of the config folder) to start new projects with; a pack is a set
+                                    of skills switched on in a project, a preset starts a project with its packs
   packs [list|show <id>|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); show: one
                                     pack with the registered projects that use it; remove refuses a pack a registered
@@ -313,7 +322,7 @@ const OPTIONS = {
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
-  origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
+  origins: { type: 'boolean' }, 'clone-into': { type: 'string' }, preset: { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
@@ -551,6 +560,7 @@ const FLAGS = {
   'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
   'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
   ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
+  'projects create': 'preset yes all', 'presets list': '', 'presets save': 'project', 'presets remove': '',
   'projects status': '', 'projects advise': 'agent', 'projects list': '', 'projects add': 'worktree', 'projects scan': '',
   'projects remove': 'setup yes', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
   'projects unshare': 'yes', 'projects confirm-git': '', 'projects update': 'yes dry-run unattended baseline baseline-ref',
@@ -565,7 +575,7 @@ const FLAGS = {
   'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
-const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'containers reconcile': 2 };
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'projects create': 3, 'presets save': 3, 'presets remove': 3, 'skills cli': 2, 'containers reconcile': 2 };
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
@@ -709,6 +719,13 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     out.write('Then, in an agent session the app records:\n');
     for (const p of prompts) out.write(`  ${p.command}   (${p.why})\n`);
+    return 0;
+  }
+  if (cmd === 'projects' && arg === 'create') return createProject(ctx, { o, positionals, out, ask });
+  if (cmd === 'presets') {
+    if (arg === 'save') out.write(`saved ${savePreset(ctx, positionals[2], resolve(o.project ?? '.')).id}\n`);
+    else if (arg === 'remove') { removePreset(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
+    else for (const p of listPresets(ctx)) out.write(`${p.id.padEnd(16)} ${p.answers.agents.join(',')}  packs: ${p.answers.packs?.join(', ') || 'none'}\n`);
     return 0;
   }
   if (cmd === 'projects' && arg === 'status') {
@@ -1033,6 +1050,23 @@ async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
   for (const w of warnings) out.write(`warning: ${w}\n`);
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   return applyAnswered(plan, pctx, dir, { o, ask, out });
+}
+
+// projects create: the preset's plan in a new folder, then the check's recommendations as a plan with no change selected.
+async function createProject(ctx, { o, positionals, out, ask }) {
+  if (!positionals[2] || !o.preset) { out.write('projects create needs a directory and --preset <id> (benchkeeper presets list)\n'); return 2; }
+  let planned;
+  try { planned = createPlan(ctx, resolve(positionals[2]), o.preset); } catch (e) { out.write(`${e.message}\n`); return 2; }
+  const { dir } = planned;
+  const code = await runProjectPlan(ctx, dir, { o, out, ask }, planned);
+  if (code || !existsSync(dir)) return code;
+  // A selection without the state file leaves a folder that is not set up: it is not registered.
+  if (!tryState(dir)) { out.write(`${dir} has no setup state (the state file change was not chosen): not registered\n`); return 1; }
+  out.write(`added ${addProject(ctx, dir)}\n`);
+  const rec = recommend(ctx, dir);
+  if (!rec.items.length) { out.write('no recommendations\n'); return 0; }
+  for (const r of rec.items) out.write(`recommended: ${r.action} ${r.kind} ${r.name}: ${r.reason}\n`);
+  return applyAnswered(rec.plan, rec.pctx, dir, { o, ask, out });
 }
 
 // packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.

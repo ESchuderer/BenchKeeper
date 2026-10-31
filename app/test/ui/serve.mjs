@@ -6,6 +6,7 @@ import { basename, join, resolve } from 'node:path';
 import { doctor } from '../../src/doctor.mjs';
 import { undoableAutomation } from '../../src/orca/index.mjs';
 import { insights } from '../../src/insights.mjs';
+import { savePreset } from '../../src/presets.mjs';
 import { addProject } from '../../src/projects.mjs';
 import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
@@ -134,6 +135,8 @@ writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
 registered = addProject(ctx, dir);
+// A preset of its answers, for a new project from a preset.
+savePreset(ctx, 'web-shop', dir);
 mkdirSync(join(dir, '.claude'), { recursive: true });
 writeFileSync(join(dir, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'AUDIT_TOKEN=dummy-hook-secret ./audit.sh' }] }] } }));
 {

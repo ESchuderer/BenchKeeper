@@ -280,7 +280,9 @@ test('tests: a long chain of variable assignments is matched in linear time, quo
   const start = performance.now();
   assert.equal(TEST.test(';a=b'.repeat(20000)), false);
   assert.equal(TEST.test(';a="b"'.repeat(20000)), false);
+  assert.equal(TEST.test(`sh -c${' '.repeat(50000)}x`), false);
   assert.ok(performance.now() - start < 200);
   assert.equal(TEST.test(`${';a=b'.repeat(20000)};A=1 B=2 npm test`), true);
   assert.equal(TEST.test(`NODE_OPTIONS="--trace-warnings --no-deprecation" A='x y' npm test`), true);
+  assert.deepEqual(['sh -c npm test', "bash -lc  'npm test'", 'sh -c " npm test"'].map((c) => TEST.test(c)), [true, true, true]);
 });

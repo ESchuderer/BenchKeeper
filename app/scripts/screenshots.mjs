@@ -84,7 +84,8 @@ const VIEWS = [
   show('evals', 'Evals', 'table', 'Eval targets'),
   show('global', 'Global setup', 'table', 'Agents'),
   show('extensions', 'Extensions', 'table', 'Claude Code extensions'),
-  show('automations', 'Automations', 'table', 'Automations'),
+  // Demo mode has no runner: its setup panel, the templates folded.
+  show('automations', 'Automations', 'button', 'Check again'),
   // Scrolled to Views and their cost: the status line select of the tracked account work.
   ['preferences', async (page) => {
     await nav(page, 'Preferences').click();

@@ -66,5 +66,8 @@ test('without the runner the templates still show and install refuses', skip, as
   addProject(w.ctx, dir);
   const view = await routes['GET /api/automations']();
   assert.deepEqual([view.runner.installed, view.automations.filter((a) => a.template.tier === 'user').length], [false, 1]);
+  // Kept for 15 seconds; Check again (fresh=1) reads it anew.
+  assert.equal(await routes['GET /api/automations'](), view);
+  assert.notEqual(await routes['GET /api/automations'](new URLSearchParams('fresh=1')), view);
   await assert.rejects(async () => routes['POST /api/automations-plan']({ op: 'install', id: 'alpha', values: { repository: 'o/r' }, dir }), { status: 400, message: /Orca is not installed/ });
 });

@@ -156,7 +156,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'automations', view: 'automations', title: 'Automations', shot: 'automations',
-    alt: 'The Automations view: what a template is, a note that the runner is not installed, then the templates table with each automation\'s name, id and tier, its schedule, whether it is installed, its last run and an Install button.',
+    alt: 'The Automations view without the runner: one panel with the single setup step and a Check again button, a Show templates button for the templates table, then the CLI commands.',
     text: [
       'A template is one scheduled agent run: a schedule, a precheck that skips the run when there is nothing to do, and the prompt. The generic templates come with the app; your own go in automations/ of the config folder.',
       'Install creates the automation on the runner, disabled and report only, in a registered project. Update sets it back to the template, Remove deletes it with its run history. Undo of a removal restores the local record only: the runner keeps no copy, so install it again to create a new automation. Each is a plan with a diff and an undo in History, and the table shows whether the runner\'s copy still matches the template.',

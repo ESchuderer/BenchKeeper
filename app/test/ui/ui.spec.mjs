@@ -487,6 +487,16 @@ test.describe('views', () => {
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
+  test('Dashboard: Dismiss moves a doctor finding under Dismissed, Show again brings it back', async ({ page }) => {
+    const doctor = page.getByRole('region', { name: 'Doctor' });
+    const rules = doctor.getByRole('table', { name: 'Doctor findings' }).getByRole('row', { name: /Claude Code rules/ });
+    await rules.getByRole('button', { name: /^Dismiss: Claude Code rules/ }).click();
+    await expect(rules).toHaveCount(0);
+    await doctor.getByRole('button', { name: /^Dismissed \(\d+\)$/ }).click();
+    await doctor.getByRole('list', { name: 'Dismissed doctor findings' }).getByRole('button', { name: /^Show again: Claude Code rules/ }).click();
+    await expect(rules).toHaveCount(1);
+  });
+
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
     const table = page.getByRole('region', { name: 'Doctor' }).getByRole('table', { name: 'Doctor findings' });
     await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Open settings' })).toBeVisible();

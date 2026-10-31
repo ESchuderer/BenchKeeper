@@ -4,7 +4,7 @@ import { IconAdjustments, IconFolderOpen, IconListCheck, IconListNumbers, IconPe
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { label, lags } from './cards.js';
-import { DoctorTable } from './fix.jsx';
+import { DoctorFindings } from './fix.jsx';
 import { Plan, Section } from './parts.jsx';
 import { EditProject, HealthBadge, ProjectFacts, Relocate, RemoveFromList, RemoveSetup } from './projects.jsx';
 import { RunPanel } from './run.jsx';
@@ -112,7 +112,7 @@ function Overview({ p, card, names }) {
       {!p.missing && (
         <Section title="Project doctor">
           <Group><Button size="xs" variant="default" onClick={found.reload} loading={found.loading}>Check again</Button></Group>
-          <Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: p.path }))} />}</Loading>
+          <DoctorFindings state={found} path={`/api/doctor?dir=${encodeURIComponent(p.path)}`} dir={p.path} />
         </Section>
       )}
     </Stack>

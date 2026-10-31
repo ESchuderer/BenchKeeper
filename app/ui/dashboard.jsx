@@ -2,7 +2,7 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton } from './fix.jsx';
+import { DoctorFindings, FixEverythingButton } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
@@ -312,7 +312,7 @@ export function Dashboard({ overview, doctor, history, params }) {
       </Grid>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => <DoctorTable found={found} />}</Loading></Section>
+          <Section title="Doctor" id="doctor"><DoctorFindings state={doctor} path="/api/doctor" /></Section>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">

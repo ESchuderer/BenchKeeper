@@ -43,7 +43,7 @@ import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrat
 import { writeBoard } from './board.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { resolvePins } from './params.mjs';
-import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
+import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
 import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
@@ -1132,6 +1132,7 @@ function nothingChosen(plan, select, o, out) {
 // The changes chosen from a plan applied as one run.
 async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
   const select = await choose(plan, o, ask, out);
+  if (scope === 'global') declineUnselected(ctx, plan, select);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 

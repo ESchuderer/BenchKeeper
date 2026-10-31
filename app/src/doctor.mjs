@@ -21,7 +21,8 @@ import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { skillFiles } from './skills.mjs';
-import { globalPlan, installedRefusal } from './steps/global.mjs';
+import { declineId, globalPlan, installedRefusal } from './steps/global.mjs';
+import { dismissedNotes } from './preferences.mjs';
 import { promptAgent, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
@@ -58,7 +59,12 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
   // Below full, the fix names the level: a plain apply would grow the setup.
   const apply = level && level !== 'full' ? `benchkeeper apply --level ${level}` : 'benchkeeper apply';
   // An optional step left off is not drift, and what the user installed is theirs: a removal offer is no finding.
-  const found = plan.filter((c) => !c.optional && !c.destructive).map((c) => {
+  // Each finding can be declined like its change: the same id in the dismissed list.
+  const found = plan.filter((c) => !c.optional && !c.destructive).map((c) => ({ ...finding(c), dismissId: declineId(c) }));
+  // A step of several commands (marketplace refresh, then update) is one finding.
+  return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
+
+  function finding(c) {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
     // An older version is drift, not a missing part.
     // A warning shown as outdated: the version change says the rest.
@@ -67,9 +73,13 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
     if (/^rules:/.test(c.step) && readText(c.path) != null) return issue('warning', 'rules', `${c.title} differs from setup ${appVersion}`, `benchkeeper apply restores them; the optional "keep your edits" change of benchkeeper plan stops this warning`);
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
     return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, apply);
-  });
-  // A step of several commands (marketplace refresh, then update) is one finding.
-  return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
+  }
+}
+
+// Findings split into those shown and those the user dismissed or declined (by dismissId), which Doctor lists apart.
+export function splitDismissed(ctx, list) {
+  const off = dismissedNotes(ctx);
+  return { found: list.filter((i) => !off.has(i.dismissId)), dismissed: list.filter((i) => off.has(i.dismissId)) };
 }
 
 const description = (text) => skillDescription(text).text;
@@ -116,8 +126,11 @@ export function projectChecks(ctx, dir, agents) {
   return out;
 }
 
+// The findings shown; doctorReport also lists the dismissed ones.
+export const doctor = (ctx, o) => doctorReport(ctx, o).found;
+
 // baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
-export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
+export function doctorReport(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);
   const tooNew = contentRefusal(contentDir, appVersion) ?? installedRefusal(ctx, agents);
@@ -140,5 +153,5 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   }
   if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini', 'docs/agents/orchestration.json'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
-  return out;
+  return splitDismissed(ctx, out);
 }

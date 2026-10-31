@@ -12,6 +12,7 @@ import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.m
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { globalSkillPacks, libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
+import { dismissAll, dismissedNotes } from '../preferences.mjs';
 import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
 import { checkPlan, unit } from '../units.mjs';
@@ -241,6 +242,16 @@ export function skillsCli(ctx) {
 export const skillsSpec = (ctx) => `skills@npm:skills@${skillsCli(ctx)}`;
 export const skillsVerify = (ctx) => verifyArgv(`skills@${skillsCli(ctx)}`);
 
+// A declined change is known by its step and what it writes or runs (a write's edit applied to an empty file, so other
+// lines of the user's file do not count): a new value, version or rules text offers it again.
+export function declineId(c) {
+  let what = c.argv ?? c.after ?? null;
+  if (c.edit) try { what = c.edit(null); } catch { what = null; }
+  return `change:${c.step}:${hashText(JSON.stringify([c.title, what]))}`;
+}
+// After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made.
+export const declineUnselected = (ctx, plan, select) => dismissAll(ctx, plan.filter((c) => !select.includes(c.id) && !c.optional && !c.destructive && !c.error).map(declineId));
+
 export function globalPlan(env) {
   const { ctx, options = {} } = env;
   const level = options.level ?? 'full';
@@ -376,7 +387,7 @@ export function globalPlan(env) {
   // Offered, not preselected, at every level: Ponytail's band next to BenchKeeper's tier band. Both writes go together.
   if (agents.includes('claude') && bandStacks(ctx)) for (const c of hideBandChanges(ctx)) add('settings:ponytail:band', c.title, c, { selected: false, optional: true, unit: 'settings:ponytail:band' });
 
-  if (!full) return checkPlan(changes);
+  if (!full) return declinedOff(ctx, changes);
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
@@ -457,7 +468,13 @@ export function globalPlan(env) {
     }
   }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });
-  return checkPlan(changes);
+  return declinedOff(ctx, changes);
+}
+
+// A change the user declined stays in the plan, unselected.
+function declinedOff(ctx, changes) {
+  const off = dismissedNotes(ctx);
+  return checkPlan(changes.map((c) => (off.has(declineId(c)) ? { ...c, selected: false } : c)));
 }
 
 function parseJsonSafe(text) { try { return parseJson(text ?? '{}'); } catch { return {}; } }

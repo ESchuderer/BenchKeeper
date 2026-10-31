@@ -6,10 +6,11 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { doctor } from '../src/doctor.mjs';
+import { doctor, doctorReport } from '../src/doctor.mjs';
 import { levelCounts } from '../src/levels.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
-import { globalPlan } from '../src/steps/global.mjs';
+import { declineUnselected, globalPlan } from '../src/steps/global.mjs';
+import { dismissNote, dismissedNotes } from '../src/preferences.mjs';
 
 const SECRET = 'value-not-for-reports';
 function machine({ engine = true } = {}) {
@@ -77,6 +78,27 @@ test('global drift: rules changed after apply are an error, the user\'s own item
   assert.ok(!found.some((i) => /\.claude\/skills\/stray/.test(i.message)), 'a global skill of the user is no finding');
   rmSync(join(ctx.home, '.claude/rules/00-global.md'));
   assert.deepEqual(levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules'), ['error'], 'a missing rules file is an error');
+});
+
+test('a declined global change: remembered by step and content, unselected in the plan, listed apart by Doctor until shown again or changed', () => {
+  const ctx = machine({ engine: false });
+  const plan = () => preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' }));
+  const first = plan();
+  const settings = first.find((c) => c.step === 'settings:claude');
+  declineUnselected(ctx, first, first.filter((c) => c.selected && c !== settings).map((c) => c.id));
+  assert.deepEqual([...dismissedNotes(ctx)].filter((x) => x.startsWith('change:')).map((x) => x.split(':').slice(0, 3).join(':')), ['change:settings:claude'], 'only the unselected change, not the optional ones');
+  assert.equal(plan().find((c) => c.step === 'settings:claude').selected, false);
+  const report = () => doctorReport(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
+  assert.ok(!report().found.some((i) => i.check === 'settings' && /^Claude settings/.test(i.message)));
+  const [declined] = report().dismissed.filter((i) => /^Claude settings/.test(i.message));
+  assert.equal(declined.dismissId, [...dismissedNotes(ctx)].find((x) => x.startsWith('change:settings:claude:')));
+  // Another version of the tool is other content: it is offered again.
+  const tool = (v) => preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: v })).find((c) => c.step === 'tools:devcontainer');
+  declineUnselected(ctx, [tool('2.0.0')], []);
+  assert.equal(tool('2.0.0').selected, false);
+  assert.equal(tool('3.0.0').selected, true, 'a new version shows again');
+  dismissNote(ctx, declined.dismissId, false);
+  assert.ok(report().found.some((i) => i.dismissId === declined.dismissId), 'Show again');
 });
 
 test('keep your edits: an optional change that silences the rules warning until the file or the setup version changes', () => {
@@ -177,7 +199,9 @@ test('global drift: the fix names the level below full, plain apply at full; mis
   const ctx = machine();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   const found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
-  assert.deepEqual(found.find((i) => i.check === 'plugin'), { level: 'error', check: 'plugin', message: 'not installed: Claude Code marketplace benchkeeper', fix: 'benchkeeper apply' });
+  const { dismissId, ...plugin } = found.find((i) => i.check === 'plugin');
+  assert.deepEqual(plugin, { level: 'error', check: 'plugin', message: 'not installed: Claude Code marketplace benchkeeper', fix: 'benchkeeper apply' });
+  assert.match(dismissId, /^change:plugin:claude:benchkeeper@benchkeeper:[0-9a-f]{64}$/);
   assert.equal(found.filter((i) => i.message === 'not installed: Claude Code marketplace benchkeeper').length, 1, 'one finding per step');
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   const rules = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).find((i) => i.check === 'rules');

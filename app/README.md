@@ -250,7 +250,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/undo` | `undo` | |
 | `GET /api/catalog` | `skills list --library`, `packs show` | library skills and packs with their users |
 | `GET /api/skill` | `skills show` | |
-| `GET /api/doctor` | `doctor` | |
+| `GET /api/doctor` | `doctor` | `?dismissed=1`: the findings dismissed or declined in `preferences.json` |
 | `POST /api/pick-folder` | `UI internal` | |
 | `POST /api/reveal` | `UI internal` | |
 | `GET /api/evals` | `evals results` | |
@@ -277,7 +277,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/rule-check` | `rules check` | the size and findings of a rule file with the text being edited, nothing written |
 | `POST /api/rule-edit-plan` | `UI internal` | a plan that writes the edited text of a rule file of yours |
 | `POST /api/preferences` | `UI internal` | the app's own preferences (`editors`) |
-| `POST /api/settings-dismiss` | `UI internal` | dismiss an Agent settings note, or keep a setting as decided (`setting:<agent>:<key>`), or show it again (`dismissed` in `preferences.json`); Doctor leaves out a dismissed note and a note whose settings are all decided |
+| `POST /api/settings-dismiss` | `UI internal` | dismiss an Agent settings note, or keep a setting as decided (`setting:<agent>:<key>`), a declined global change (`change:<step>:<hash>`) or a Doctor finding, or show it again (`dismissed` in `preferences.json`); Doctor leaves out a dismissed note and a note whose settings are all decided |
 | `GET /api/params` | `pins list` | presets, pins and policy files with their errors; 404 while `editors` is off |
 | `POST /api/params-check` | `doctor` | 404 while `editors` is off |
 | `POST /api/params-plan` | `UI internal` | 404 while `editors` is off |

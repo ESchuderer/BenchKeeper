@@ -23,7 +23,7 @@ export const LEVEL_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
-export function DoctorTable({ found, onAction }) {
+function DoctorTable({ found, onAction, onDismiss }) {
   // Below sm each finding is one cell (level, finding, fix stacked), so the fix action needs no sideways scroll.
   const phone = useMediaQuery('(max-width: 47.99em)');
   if (!found.length) return <Text>No findings.</Text>;
@@ -41,6 +41,7 @@ export function DoctorTable({ found, onAction }) {
                 {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                 {i.start && <StartBlock start={i.start} />}
+                {onDismiss && i.dismissId && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
               </Stack>
             );
             return (
@@ -54,6 +55,28 @@ export function DoctorTable({ found, onAction }) {
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
+  );
+}
+
+// Doctor findings with Dismiss on each that can be dismissed or declined, and the dismissed ones under a fold with Show again.
+// path: the doctor route; dir marks the findings of a project.
+export function DoctorFindings({ state, path, dir }) {
+  const off = useApi(`${path}${path.includes('?') ? '&' : '?'}dismissed=1`);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState(null);
+  const dismiss = (id, on) => { setError(null); api('/api/settings-dismiss', { id, dismissed: on }).then(() => { state.reload(); off.reload(); }, (e) => setError(e.message)); };
+  const dismissed = off.data ?? [];
+  return (
+    <Stack gap="sm">
+      {error && <Note color="red" title="Not saved">{error}</Note>}
+      <Loading state={state} label="doctor">{(found) => <DoctorTable found={dir ? found.map((i) => ({ ...i, dir })) : found} onDismiss={(i) => dismiss(i.dismissId, true)} />}</Loading>
+      {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={open} onClick={() => setOpen(!open)}>{`Dismissed (${dismissed.length})`}</Button></Group>}
+      {open && dismissed.length > 0 && (
+        <List size="sm" aria-label="Dismissed doctor findings">
+          {dismissed.map((i) => <List.Item key={i.dismissId}>{i.message} <Button size="compact-xs" variant="default" aria-label={`Show again: ${i.message}`} onClick={() => dismiss(i.dismissId, false)}>Show again</Button></List.Item>)}
+        </List>
+      )}
+    </Stack>
   );
 }
 

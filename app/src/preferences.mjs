@@ -1,6 +1,7 @@
 // The app's own preferences, kept in the BenchKeeper config folder: editors turns on the editor view for presets, pins
 // and the orchestrator policy (off by default); dismissed lists the Agent settings notes the user accepted, by note id,
-// and the settings the user decided to keep, as setting:<agent>:<key>.
+// the settings the user decided to keep, as setting:<agent>:<key>, and the global changes the user left unselected, as
+// change:<step>:<hash of what the change writes or runs>.
 // Written directly, without a plan.
 import { join } from 'node:path';
 import { readText, writeAtomic } from './fsx.mjs';
@@ -25,6 +26,12 @@ export function setPreference(ctx, key, value) {
 
 // The dismissed note ids; a hand-edited list that is not one reads as empty, entries that are no string are skipped.
 export const dismissedNotes = (ctx) => { const d = readPreferences(ctx).dismissed; return new Set(Array.isArray(d) ? d.filter((x) => typeof x === 'string') : []); };
+
+// Adds ids to the list at once (one write).
+export function dismissAll(ctx, ids) {
+  const off = dismissedNotes(ctx), add = ids.filter((x) => !off.has(x));
+  if (add.length) setPreference(ctx, 'dismissed', [...off, ...new Set(add)]);
+}
 
 // Dismisses a note (on) or shows it again.
 export function dismissNote(ctx, id, on = true) {

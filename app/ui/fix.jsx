@@ -205,7 +205,8 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
-    if (!select?.length) { projects(); return; }
+    // Nothing chosen of the global plan: the apply records the declines and starts no run.
+    if (!select?.length) { (select && plan?.changes.length ? api('/api/apply', { planId: plan.planId, select: [] }) : Promise.resolve()).catch(() => {}).then(projects); return; }
     api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (

@@ -248,6 +248,8 @@ export function api(ctx) {
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
       if (p.declines && b.select) declineUnselected(ctx, p.changes, b.select);
+      // Nothing chosen: the declines are recorded, no run starts.
+      if (b.select?.length === 0) return { job: null, total: 0 };
       // Output is masked as it arrives and kept per change, its last 64 kB; GET /api/job cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;

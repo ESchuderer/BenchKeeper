@@ -13,6 +13,7 @@ import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
+import { dismissedNotes } from '../src/preferences.mjs';
 import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
 import { dashboard } from '../src/dashboard.mjs';
@@ -225,6 +226,16 @@ test('level: the overview names the level found, the global plan takes a level a
   const lite = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=lite'));
   assert.ok(lite.changes.every((c) => c.kind === 'command' && c.step.endsWith('benchkeeper@benchkeeper')));
   assert.equal(status(() => routes['GET /api/global-plan'](new URLSearchParams('level=tiny'))), 400);
+});
+
+test('apply of the global plan with nothing chosen: its changes are declined, no run starts; another global plan declines nothing', async () => {
+  const { ctx, routes } = fixture();
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  assert.deepEqual(routes['POST /api/apply']({ planId: plan.planId, select: [] }), { job: null, total: 0 });
+  const declined = [...dismissedNotes(ctx)].filter((x) => x.startsWith('change:'));
+  assert.ok(declined.length > 0 && declined.length <= plan.changes.filter((c) => !c.optional && !c.destructive).length);
+  assert.ok(routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full')).changes.filter((c) => !c.optional && !c.destructive).every((c) => !c.selected));
+  assert.equal(ctx.ledger.list().length, 0, 'no run');
 });
 
 test('prerun: the global skill install is rehearsed in a job, its file diff per change id; the real home stays as it is', async () => {

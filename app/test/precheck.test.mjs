@@ -5,7 +5,7 @@ import { check, pickable } from '../../plugins/benchkeeper/skills/orchestrating-
 const POLICY = { startLabel: 'agent-ready', trustedAuthors: ['helper[bot]'] };
 const issue = (number, extra = {}) => ({ number, author_association: 'OWNER', user: { login: 'owner' }, labels: [{ name: 'agent-ready' }], ...extra });
 
-test('precheck: picks labeled issues by trusted authors that have no open pull request', () => {
+test('precheck: picks labeled issues by trusted authors that have no open or merged pull request', () => {
   const issues = [
     issue(1),
     issue(2, { author_association: 'NONE', user: { login: 'stranger' } }),
@@ -26,8 +26,8 @@ test('precheck: reads the policy from the default branch and skips a project wit
     if (args[0] === 'symbolic-ref') return 'origin/main\n';
     if (args[0] === 'fetch') return '';
     if (args[0] === 'show') { if (!policy) throw new Error('no file'); return JSON.stringify(policy); }
-    if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)]]);
-    return JSON.stringify([{ headRefName: 'feat/8-x' }]);
+    if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
+    return JSON.stringify([{ headRefName: 'feat/8-x', state: 'OPEN' }, { headRefName: 'feat/7-x', state: 'CLOSED' }, { headRefName: 'fix/9-y', state: 'MERGED' }]);
   };
   assert.deepEqual(check('/p', stub(POLICY)), [7]);
   assert.ok(calls.includes('git show origin/main:docs/agents/orchestration.json'));

@@ -44,7 +44,7 @@ gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,me
 
 Claude Code runs the `check --wait` as a background command and is woken when it exits; an agent that cannot (wake mode `unsupported`) runs it in the foreground. Never loop it faster than once a minute. Rolling waits stop at the run's deadline (55 minutes unless the owner named another).
 
-At each wake-up, including an empty one: `worker-list` for state, then `gh pr list` for merged PRs, then the stall check. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
+At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
 Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof. A worker blocked by a hook or waiting at a prompt stays `ready`, so a state watcher never fires for it. For the stall check, compare the time of the last commit on its branch, its PR and its last message with `stallMinutes`; when exceeded, `worker-read` its last output. Proof that it stopped without a report is a final agent turn that ended with no `worker_done`. Then:
 
@@ -70,6 +70,8 @@ Release only a settled worker, so stop an idle worker that sent no report before
 ```text
 gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>
 ```
+
+Before the coordinator turn ends, `ORCA orchestration worker-list --run <run id> --terminal-state reclaimable --json` returns no worker: each settled one is released, retained or removed above. `worker-release` removes no worktree, so a worktree still listed by `ORCA worktree list` after its worker settled is the step above not run.
 
 ## Host limit
 

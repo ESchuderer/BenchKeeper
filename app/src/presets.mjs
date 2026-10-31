@@ -8,6 +8,7 @@ import { planAnswers, savedAnswers } from './profile.mjs';
 import { canon, listProjects } from './projects.mjs';
 import { preview } from './runner.mjs';
 import { skillFiles } from './skills.mjs';
+import { installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
 
 const PRESET_SCHEMA = 1;
@@ -56,7 +57,7 @@ export function createPlan(ctx, path, id) {
   const inside = listProjects(ctx).find((x) => target.startsWith(x.path + sep));
   if (inside) throw new Error(`${target} is inside the registered project ${inside.path}`);
   const pctx = projectCtx(ctx, target);
-  const { changes, skills, warnings } = projectPlan({ ctx: pctx, dir: target, answers: planAnswers(p.answers) });
+  const { changes, skills, warnings } = projectPlan({ ctx: pctx, dir: target, answers: planAnswers(p.answers), plugins: installedPlugins(ctx) });
   return { dir: target, pctx, plan: preview(changes), skills, warnings };
 }
 
@@ -86,6 +87,6 @@ export function recommend(ctx, path) {
   }
   const pctx = projectCtx(ctx, path);
   const answers = { packOn: items.filter((r) => r.kind === 'pack').map((r) => r.name), disable: items.filter((r) => r.kind === 'skill').map((r) => r.name) };
-  const plan = items.length ? preview(projectPlan({ ctx: pctx, dir: path, answers }).changes).map((c) => ({ ...c, selected: false })) : [];
+  const plan = items.length ? preview(projectPlan({ ctx: pctx, dir: path, answers, plugins: installedPlugins(ctx) }).changes).map((c) => ({ ...c, selected: false })) : [];
   return { items, pctx, plan };
 }

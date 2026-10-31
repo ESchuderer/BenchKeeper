@@ -929,6 +929,31 @@ test.describe('views', () => {
     await unregister(page, ['found']);
   });
 
+  test('Projects: a new folder from a preset is a plan, then registered; the check after it lists each recommendation with its reason', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await page.getByRole('button', { name: 'New from preset' }).click();
+    const form = page.getByRole('region', { name: 'New project from a preset' });
+    await expect(form.getByLabel('Preset')).toHaveValue('web-shop');
+    await form.getByLabel('New folder').fill(tmpdir());
+    await form.getByRole('button', { name: 'Show the plan' }).click();
+    await expect(form).toContainText('exists already');
+    await form.getByLabel('New folder').fill(join(mkdtempSync(join(tmpdir(), 'bk-ui-new-')), 'fresh'));
+    await form.getByRole('button', { name: 'Show the plan' }).click();
+    await expect(form.getByRole('button', { name: /^Apply \d+ changes$/ })).toBeEnabled();
+    await noAxe(page);
+    // The fixture has no other project with the same agents and no global skill: one recommendation is added to the real answer.
+    await page.route(/\/api\/recommendations\?/, async (route) => {
+      const r = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...r, items: [...r.items, { action: 'add', kind: 'pack', name: 'docs', reason: 'on in 2 of 2 registered projects with the same agents' }] } });
+    });
+    await form.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    const rec = form.getByRole('region', { name: 'Recommendations' });
+    await expect(rec.getByRole('listitem')).toHaveText('Add the pack docs: on in 2 of 2 registered projects with the same agents');
+    await noAxe(page);
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row', { name: /fresh/ })).toBeVisible();
+    await unregister(page, ['fresh']);
+  });
+
   test('Projects: one line for name and tree state, one for path and branch; one status per column; no mid-word break at phone width', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);

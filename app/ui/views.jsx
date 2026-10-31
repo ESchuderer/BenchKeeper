@@ -11,7 +11,7 @@ import { ProjectSetup } from './setup.jsx';
 import { SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
-import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
+import { AddNotices, BulkBar, CreateFromPreset, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
 import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
 import { Dot, Folded, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
 
@@ -380,6 +380,7 @@ export function ProjectList({ params, overview, refresh }) {
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
+  const [creating, setCreating] = useState(false);
   const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const all = projects.data ?? [];
   const live = all.filter((p) => !p.missing);
@@ -435,8 +436,10 @@ export function ProjectList({ params, overview, refresh }) {
           <Button leftSection={icon(IconFolderSearch)} variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>
           <Button leftSection={icon(IconPlus)} type="submit" disabled={!path} loading={busy === 'add'}>Add project</Button>
           <Button leftSection={icon(IconFolders)} variant="default" loading={busy === 'scan'} onClick={scanRoot}>Scan for projects</Button>
+          <Button leftSection={icon(IconPlus)} variant="default" onClick={() => setCreating(true)} disabled={creating}>New from preset</Button>
         </Group>
       </form>
+      {creating && <Section title="New project from a preset"><CreateFromPreset onDone={reload} onClose={() => setCreating(false)} /></Section>}
       {error && <Note color="red" title="Failed">{error}</Note>}
       <AddNotices {...notices} onAddWorktree={act('add', async () => { if (await add(notices.worktree.path, true)) reload(); })} onDismiss={() => setNotices({})} />
       {found && (

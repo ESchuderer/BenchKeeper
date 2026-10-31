@@ -28,6 +28,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { createPlan, listPresets, recommend } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
@@ -44,7 +45,7 @@ import { mask, maskStream, shown } from './redact.mjs';
 import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { containerProjects, levelFor } from './level.mjs';
 import { LEVELS, declineUnselected, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, tryState } from './steps/project.mjs';
 
 const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -375,6 +376,18 @@ export function api(ctx) {
       idle();
       const paths = [b.paths ?? []].flat().filter((x) => typeof x === 'string' && registered(x));
       return paths.map((x) => removeSetup(ctx, canon(x)));
+    },
+    // A new folder from a preset: its plan; the page registers the folder after the apply, then asks for the recommendations.
+    'GET /api/presets': () => listPresets(ctx),
+    'GET /api/create-plan': (q) => {
+      const p = input(() => createPlan(ctx, resolve(q.get('dir') || '.'), q.get('preset') ?? ''));
+      return { dir: p.dir, planId: keep(p.plan, p.pctx, p.dir), changes: serialize(p.plan, p.pctx), skills: p.skills, warnings: p.warnings };
+    },
+    'GET /api/recommendations': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir) || !tryState(dir)) throw bad('register the project and set it up first');
+      const r = recommend(ctx, dir);
+      return { items: r.items, planId: keep(r.plan, r.pctx, dir), changes: serialize(r.plan, r.pctx) };
     },
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {

@@ -219,6 +219,9 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `GET /api/eval-plan` | `evals plan` | the plan, then the question |
 | `POST /api/eval` | `evals run` | |
 | `GET /api/projects` | `projects status` | setup state per project; the page also gets the skills each agent sees and the diffs of the pending changes |
+| `GET /api/presets` | `presets list` | |
+| `GET /api/create-plan` | `projects create` | the plan of the new folder; the page registers it with `POST /api/projects` after the apply |
+| `GET /api/recommendations` | `projects create` | the check after creation: the recommendations with their reasons and their plan, no change selected |
 | `GET /api/project-check` | `projects add` | `add` refuses what the check reports |
 | `POST /api/projects` | `projects add`, `projects remove`, `projects rename`, `projects relocate` | |
 | `GET /api/remove-setup-plan` | `projects remove --setup` | the files are listed before the question |

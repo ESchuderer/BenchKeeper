@@ -9,6 +9,7 @@ import { savePack } from '../src/packs.mjs';
 import { createPlan, listPresets, recommend, removePreset, savePreset } from '../src/presets.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
+import { api } from '../src/server.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -109,4 +110,25 @@ test('CLI: projects create applies the plan, registers the folder and offers the
   assert.match(o.text, /^web +claude {2}packs: ui\n$/);
   assert.equal((await cli(ctx, ['presets', 'save', 'copy', '--project', dir])).code, 0);
   assert.equal((await cli(ctx, ['presets', 'remove', 'copy'])).code, 0);
+});
+
+test('server: presets, the plan of a new folder, and the recommendations of a registered project', () => {
+  const { ctx, h, setUp } = home();
+  for (const n of ['a', 'b']) addProject(ctx, setUp(n, { agents: ['claude'], env: 'host', packs: ['ui', 'docs'] }));
+  const routes = api(ctx);
+  const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
+  assert.deepEqual(routes['GET /api/presets']().map((p) => p.id), ['web']);
+  const dir = join(h, 'new');
+  const p = routes['GET /api/create-plan'](new URLSearchParams({ dir, preset: 'web' }));
+  assert.equal(p.dir, dir);
+  assert.ok(p.planId && p.changes.length);
+  assert.equal(status(() => routes['GET /api/create-plan'](new URLSearchParams({ dir, preset: 'nope' }))), 404);
+  assert.equal(status(() => routes['GET /api/create-plan'](new URLSearchParams({ dir: h, preset: 'web' }))), 400);
+  assert.equal(status(() => routes['GET /api/recommendations'](new URLSearchParams({ dir }))), 400);
+  const { plan, pctx } = createPlan(ctx, dir, 'web');
+  apply(plan, pctx, { scope: dir, select: plan.map((c) => c.id) });
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  const r = routes['GET /api/recommendations'](new URLSearchParams({ dir }));
+  assert.deepEqual(r.items.map((x) => x.name), ['docs']);
+  assert.ok(r.planId && r.changes.every((c) => c.selected === false));
 });

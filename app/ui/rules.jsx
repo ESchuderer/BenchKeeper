@@ -1,5 +1,5 @@
-import { Badge, Button, Code, Drawer, Group, List, Paper, Progress, Select, SimpleGrid, Stack, Table, Tabs, Text, Textarea, Title } from '@mantine/core';
-import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
+import { ActionIcon, Badge, Box, Button, Code, Drawer, Group, List, Paper, Popover, Progress, Select, Stack, Table, Tabs, Text, Textarea, Title } from '@mantine/core';
+import { IconEye, IconInfoCircle, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
@@ -64,12 +64,18 @@ function useSwitch(dir, onPlan) {
   return { busy, error, toggle };
 }
 
+// The result of the checks as one chip beside the budget count; the findings themselves follow in Findings.
+const ChecksChip = ({ findings }) => (
+  <Badge variant="default" h="auto" py={4} styles={{ label: { whiteSpace: 'normal' } }} leftSection={<Dot color={findings.some((f) => f.level === 'error') ? 'red' : findings.length ? 'yellow' : 'teal'} />}>
+    {findings.length ? `${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}` : 'No rule file is over a limit or broken'}
+  </Badge>
+);
+
 // Findings of the checks: severity, file and line in the message, the fix, and a switch-off plan where that is safe.
 // A busy control here and in Files ignores clicks but keeps the keyboard focus (a disabled one loses it).
 // locked: an apply runs, and a new plan would drop its view.
 function Findings({ findings, dir, onPlan, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
-  if (!findings.length) return <Badge variant="default" h="auto" py={4} styles={{ label: { whiteSpace: 'normal' } }} leftSection={<Dot color="teal" />}>No rule file is over a limit or broken</Badge>;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Not planned">{error}</Note>}
@@ -170,30 +176,38 @@ function Preview({ row, dir, onClose, onSaved }) {
   );
 }
 
-// The top strip: per agent what loads at the start of every session against BenchKeeper's limit, as one bar split by source
-// with its legend, beside the checks on a wide screen.
-const Summary = ({ agents, children }) => (
+// The top panel: per agent what loads at the start of every session against BenchKeeper's limit, as one bar split by source
+// with its legend, and the result of the checks as a chip beside the count. detail: the findings, when there are any.
+const Summary = ({ agents, chip, detail }) => (
   <Paper withBorder p="md" component="section" aria-label="Summary">
-    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
-      <Stack gap="md">
-        {agents.map(({ id, name, budget: { total, items, over, threshold, limits: [start] } }) => {
-          const parts = partsOf(items);
-          // Codex counts only what fits its size limit; the sources stay as found.
-          const unloaded = items.reduce((n, i) => n + i.tokens, 0) - total;
-          return (
-            <Stack key={id} gap="xs">
-              <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
-              <Limit {...start} parts={parts.length ? parts : undefined} />
-              {parts.length > 0 && <Legend parts={parts} name={name} />}
-              {unloaded > 0 && <Text size="sm">About {number(unloaded)} tokens of these sources may not load: {name} stops adding files at its size limit.</Text>}
-              {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
-            </Stack>
-          );
-        })}
-        <Text size="sm">A token is counted as four bytes: an estimate.</Text>
-      </Stack>
-      {children}
-    </SimpleGrid>
+    <Stack gap="md">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <Stack gap="md" style={{ flex: '1 1 360px', minWidth: 0 }}>
+          {agents.map(({ id, name, budget: { total, items, over, threshold, limits: [start] } }) => {
+            const parts = partsOf(items);
+            // Codex counts only what fits its size limit; the sources stay as found.
+            const unloaded = items.reduce((n, i) => n + i.tokens, 0) - total;
+            return (
+              <Stack key={id} gap="xs">
+                <Group gap={4} wrap="nowrap" align="flex-start">
+                  <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
+                  <Popover width={240} withArrow withinPortal={false} position="bottom-start">
+                    <Popover.Target><ActionIcon variant="subtle" color="gray" size="sm" aria-label={`How ${name} tokens are counted`}>{icon(IconInfoCircle, 16)}</ActionIcon></Popover.Target>
+                    <Popover.Dropdown><Text size="sm">A token is counted as four bytes: an estimate.</Text></Popover.Dropdown>
+                  </Popover>
+                </Group>
+                <Limit {...start} parts={parts.length ? parts : undefined} />
+                {parts.length > 0 && <Legend parts={parts} name={name} />}
+                {unloaded > 0 && <Text size="sm">About {number(unloaded)} tokens of these sources may not load: {name} stops adding files at its size limit.</Text>}
+                {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
+              </Stack>
+            );
+          })}
+        </Stack>
+        <Box component="section" aria-label="Checks">{chip}</Box>
+      </Group>
+      {detail}
+    </Stack>
   </Paper>
 );
 
@@ -235,40 +249,44 @@ const Memory = ({ memory: { folders } }) => (
   </Table.ScrollContainer>
 );
 
-// pending: the open plan; its row's switch shows it (PlanSwitch).
+// One row per file: switch, path with its state, a bar against the limit with the token count, the text. pending: the open
+// plan; its row's switch shows it (PlanSwitch).
 function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      <Text size="sm">A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Text>
-      <Table.ScrollContainer minWidth={700} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${agent.name} instruction files, scrollable` } }}>
-        <Table aria-label={`${agent.name} instruction files`} verticalSpacing="sm">
-          <Table.Thead><Table.Tr><Table.Th>Switch</Table.Th><Table.Th>File</Table.Th><Table.Th>State</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>Text</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {agent.rows.map((r) => { const wait = pending?.row.path === r.path, off = locked || busy === r.path; return (
-              <Table.Tr key={r.path}>
-                <Table.Td w={80}>
-                  {r.switch.by
-                    ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
-                      onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
-                    : '-'}
-                </Table.Td>
-                <Table.Td>
-                  <Stack gap={2}>
-                    <Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code>
-                    <Group gap={6}><Text size="sm">{r.scope}{r.order != null ? `, load order ${r.order}` : ''}</Text><Badge variant="default" miw="max-content">{r.owner}</Badge></Group>
-                  </Stack>
-                </Table.Td>
-                <Table.Td><Stack gap={2}><Loads row={r} />{r.by && <Text size="sm">{r.by}</Text>}{!r.switch.by && <Text size="sm">No switch: {r.switch.why}.</Text>}</Stack></Table.Td>
-                <Table.Td ta="right"><span className="bk-num">{number(r.tokens)}</span> tokens<Text size="sm">{number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Table.Td>
-                <Table.Td><Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button></Table.Td>
-              </Table.Tr>
-            ); })}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+      <Text size="sm">A file that is not BenchKeeper's is yours: nothing here deletes it.</Text>
+      <List listStyleType="none" aria-label={`${agent.name} instruction files`} styles={{ item: { borderTop: '1px solid var(--mantine-color-default-border)' }, itemWrapper: { display: 'block', width: '100%' } }}>
+        {agent.rows.map((r) => { const wait = pending?.row.path === r.path, off = locked || busy === r.path; return (
+          <List.Item key={r.path}>
+            <Box style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px', padding: '10px 0' }}>
+              <Box style={{ flex: '0 0 72px' }}>
+                {r.switch.by
+                  ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
+                    onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
+                  : '-'}
+              </Box>
+              <Stack gap={4} style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <Code style={{ overflowWrap: 'anywhere', alignSelf: 'flex-start' }}>{r.shown}</Code>
+                <Group gap={6}>
+                  <Loads row={r} />
+                  <Badge variant="default" miw="max-content">{r.owner}</Badge>
+                  <Text size="sm">{r.scope}{r.order != null ? `, load order ${r.order}` : ''}, {number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text>
+                </Group>
+                {r.by && <Text size="sm">{r.by}</Text>}
+                {!r.switch.by && <Text size="sm">No switch: {r.switch.why}.</Text>}
+              </Stack>
+              <Group gap="sm" wrap="nowrap" style={{ flex: '0 1 240px', minWidth: 160 }}>
+                <Box style={{ flex: 1, minWidth: 0 }}><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Box>
+                <Text className="bk-num" ta="right" miw={64}>{number(r.tokens)}</Text>
+              </Group>
+              <ActionIcon variant="default" size="sm" aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>{icon(IconEye, 16)}</ActionIcon>
+            </Box>
+          </List.Item>
+        ); })}
+      </List>
     </Stack>
   );
 }
@@ -294,7 +312,7 @@ export function Rules({ overview, params, refresh, project }) {
       <Loading state={state} label="instruction files">
         {(data) => (
           <Stack gap="xl">
-            <Summary agents={data.agents}><Section title="Checks"><Findings findings={data.findings} dir={chosen} onPlan={onPlan} locked={running} /></Section></Summary>
+            <Summary agents={data.agents} chip={<ChecksChip findings={data.findings} />} detail={data.findings.length > 0 && <Findings findings={data.findings} dir={chosen} onPlan={onPlan} locked={running} />} />
             {data.agents.length > 0 && (
               <Tabs defaultValue={data.agents[0].id}>
                 <Tabs.List aria-label="Agents">{data.agents.map((a) => <Tabs.Tab key={a.id} value={a.id}>{a.name}</Tabs.Tab>)}</Tabs.List>

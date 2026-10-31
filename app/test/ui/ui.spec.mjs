@@ -998,14 +998,14 @@ test.describe('views', () => {
     await table.getByRole('link', { name: 'mv-app', exact: true }).click();
     await page.getByRole('button', { name: 'Edit name and notes' }).click();
     await page.getByLabel('Display name').fill('Marketing site');
-    await page.getByLabel('Notes').fill('owner: ana');
+    await page.getByLabel('Notes').fill('owner: qzv');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('heading', { name: 'Marketing site' })).toBeVisible();
-    await expect(page.getByRole('region', { name: /^Project \// })).toContainText('owner: ana');
+    await expect(page.getByRole('region', { name: /^Project \// })).toContainText('owner: qzv');
     await page.getByRole('link', { name: 'All projects' }).click();
     await expect(table.getByRole('link', { name: 'Marketing site', exact: true })).toBeVisible();
     // The name and the notes are searched; the filter and the sort narrow and order the rows.
-    await page.getByLabel('Search projects').fill('ana');
+    await page.getByLabel('Search projects').fill('qzv');
     await expect(table.getByRole('row')).toHaveCount(2);
     await page.getByLabel('Search projects').fill('zzz');
     await expect(page.getByText('No project matches the search and filters.')).toBeVisible();

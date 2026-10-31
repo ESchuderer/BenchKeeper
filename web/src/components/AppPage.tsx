@@ -225,7 +225,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
                 <Code block tabIndex={0} role="group" aria-label={`${v.title} on the command line`}>{v.cli.join('\n')}</Code>
               </Stack>
               {(['light', 'dark'] as const).map((scheme) => (
-                <img key={scheme} className={`shot shot-${scheme}`} src={`${base}/app/${v.shot}-${scheme}.png`} alt={v.alt}
+                <img key={scheme} className={`shot shot-${scheme}`} src={`${base}/app/${v.shot}-${scheme}.webp`} alt={v.alt}
                   width={shots[`${v.shot}-${scheme}`].width} height={shots[`${v.shot}-${scheme}`].height} loading="lazy" />
               ))}
             </Stack>

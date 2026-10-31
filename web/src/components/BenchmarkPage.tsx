@@ -3,7 +3,7 @@ import { SiteShell } from './SiteShell';
 
 const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const FILE = `${RESEARCH}/blob/main`;
-// What a column of a recorded result means and how to compare it, from bench/results/2026-10-18-mistreevous.md and the research README.
+// What a column of a recorded result means and how to compare it, from research bench/results/2026-10-18-mistreevous.md and the research README.
 const READING: [string, string, string][] = [
   ['Score', 'Brownfield score from 0 to 100: hidden checks 35, test suite green 10, static checks 15, process checks 15, model review 25.', 'Medians of 3 rounds per arm; descriptive only, no significance tests.'],
   ['Score vs A', 'Difference of the median to plain Claude Code (arm A).', 'One arm varies by up to about 8 points between rounds, so with 3 rounds a median difference below about 3 points is not measurable.'],
@@ -12,7 +12,7 @@ const READING: [string, string, string][] = [
   ['Review', 'A blinded code review: Claude Opus 5.5 rates 8 criteria from 1 to 5, twice per trial.', 'A model rating is noisy and a Claude reviewer may favor Claude-written code: keep the review model fixed and read the bug list before the number.'],
 ];
 
-// Statements come only from files in BenchKeeper-research and bench/; each names its source in a comment.
+// Statements come only from files in BenchKeeper-research; each names its source in a comment.
 export default function BenchmarkPage({ base }: { base: string }) {
   return (
     <SiteShell base={base}>
@@ -38,9 +38,9 @@ export default function BenchmarkPage({ base }: { base: string }) {
         </Table.ScrollContainer>
 
         <Title order={2} fz={{ base: 24, md: 30 }}>Where the results and the method live</Title>
-        {/* research README.md "Recorded results", research bench/ORIGIN.md "Not moved yet", bench/README.md */}
-        <Text>The reports of the mistreevous brief, <Anchor href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Anchor> and <Anchor href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Anchor>, with the per-trial files they rest on next to them, except a few review files still in this repository that <Anchor href={`${FILE}/bench/ORIGIN.md#not-moved-yet`}><Code>bench/ORIGIN.md</Code></Anchor> lists. The raw trial data was removed, so these tables cannot be recomputed.</Text>
-        <Text>The compared arms are in <Anchor href={`${FILE}/bench/SCENARIOS.md`}><Code>bench/SCENARIOS.md</Code></Anchor>, the source of every file in <Anchor href={`${FILE}/bench/ORIGIN.md`}><Code>bench/ORIGIN.md</Code></Anchor>, and the protocol in <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/bench/PROTOCOL.md"><Code>bench/PROTOCOL.md</Code></Anchor> of this repository. New runs go into the research repository.</Text>
+        {/* research README.md "Recorded results", research bench/ORIGIN.md and bench/PROTOCOL.md */}
+        <Text>The reports of the mistreevous brief, <Anchor href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Anchor> and <Anchor href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Anchor>, with the per-trial files they rest on next to them. The raw trial data was removed, so these tables cannot be recomputed.</Text>
+        <Text>The compared arms are in <Anchor href={`${FILE}/bench/SCENARIOS.md`}><Code>bench/SCENARIOS.md</Code></Anchor>, the source of every file in <Anchor href={`${FILE}/bench/ORIGIN.md`}><Code>bench/ORIGIN.md</Code></Anchor>, and the protocol in <Anchor href={`${FILE}/bench/PROTOCOL.md`}><Code>bench/PROTOCOL.md</Code></Anchor>. New runs go into the research repository.</Text>
       </Stack>
     </SiteShell>
   );

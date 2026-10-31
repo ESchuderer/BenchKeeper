@@ -22,7 +22,7 @@ Not installed by BenchKeeper.
 
 ## Levels
 
-Three levels, from the smallest: the BenchKeeper plugin ships no always-on instructions (no rule file, no hook that injects workflow context; the optional `tierBand` hook is off by default), so lite relies on the `workflow` skill description to trigger (trigger rate unverified: [evaluation](../evaluations/practices/lite-install.md)). Each level contains the one before.
+Three levels, from the smallest: the BenchKeeper plugin ships no always-on instructions (no rule file, no hook that injects workflow context; the optional `tierBand` hook is off by default), so lite relies on the `workflow` skill description to trigger (trigger rate unverified: [evaluation](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/practices/lite-install.md)). Each level contains the one before.
 
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |

@@ -386,10 +386,16 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     const setFilters = (open) => { $('filters').classList.toggle('open', open); filtersToggle.setAttribute('aria-expanded', String(open)); report(); };
     const isOpen = () => narrowFilters() && $('filters').classList.contains('open');
     filtersToggle.addEventListener('click', () => setFilters(!$('filters').classList.contains('open')));
-    addEventListener('click', (e) => { if (isOpen() && !$('side').contains(e.target)) setFilters(false); });
+    // A click on nothing focusable would leave the focus on the page body, so it goes back to the button.
+    addEventListener('click', (e) => {
+      if (!isOpen() || $('side').contains(e.target)) return;
+      const focusable = e.target.closest?.('button, a[href], input, select, textarea, summary, [tabindex]');
+      setFilters(false);
+      if (!focusable && document.activeElement === document.body) filtersToggle.focus();
+    });
     addEventListener('blur', () => { if (isOpen()) setFilters(false); });
     // The rail's own Escape (clear the search, close the list) calls preventDefault first, so one press closes one thing.
-    $('side').addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !ev.defaultPrevented && isOpen()) { setFilters(false); filtersToggle.focus(); } });
+    addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !ev.defaultPrevented && isOpen()) { setFilters(false); filtersToggle.focus(); } });
   }
   // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
   $('rail').addEventListener('keydown', (ev) => {

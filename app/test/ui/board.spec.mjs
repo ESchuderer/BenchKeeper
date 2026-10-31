@@ -202,6 +202,12 @@ test('framed, the filters stand in a column beside the figures; at phone width o
   await toggle.click();
   await board.locator('#tiles').click();
   await expect(filters).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await board.locator('#tiles summary').focus();
+  await page.keyboard.press('Escape');
+  await expect(filters).toBeHidden();
+  await expect(toggle).toBeFocused();
 });
 
 test('the last choice is remembered, chosen with the keyboard, and named on the project page after a reload', async ({ page }) => {

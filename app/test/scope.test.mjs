@@ -129,6 +129,9 @@ test('a plugin pack for selected projects switched off in a project leaves that 
   assert.deepEqual(installs(), []);
   undo(run.id, ctx);
   assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  // An install no run of this app made is the user's: offered, not preselected.
+  const theirs = preview(projectPlan({ ctx: { ...ctx, ledger: context({ home: mkdtempSync(join(TMP, 'bk-scope-')) }).ledger }, dir, answers: { packOff: ['ponytail'] } }).changes).find((c) => c.step === 'pack:ponytail:claude');
+  assert.deepEqual([theirs.selected, theirs.foreign, /did not install it/.test(theirs.title)], [false, true, true]);
   // For all projects the plugin stays: other projects use it, and the global plan owns it.
   apply(preview(scopePlan(ctx, 'ponytail', 'global', ['claude'])), ctx);
   assert.ok(!projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes.some((c) => c.step.startsWith('pack:ponytail')));

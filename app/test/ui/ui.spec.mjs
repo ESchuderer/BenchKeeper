@@ -331,13 +331,14 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects$/);
   });
 
-  test('sidebar: five groups in order, and Preferences lists the nine view keys by name', async ({ page }) => {
+  test('sidebar: six groups in order, and Preferences lists the nine view keys by name', async ({ page }) => {
     const sidebar = page.getByRole('navigation', { name: 'Views' });
-    await expect(sidebar.getByRole('group')).toHaveText([/^Overview/, /^Projects/, /^Analysis/, /^Agent configuration/, /^Machine/]);
+    await expect(sidebar.getByRole('group')).toHaveText([/^Overview/, /^Projects/, /^Catalog/, /^Analysis/, /^Agent configuration/, /^Machine/]);
+    await expect(sidebar.getByRole('group', { name: 'Catalog' }).getByRole('link')).toHaveText([/^Skills/, /^Packs/]);
     await expect(sidebar.getByRole('group', { name: 'Machine' }).getByRole('link')).toHaveText([/^Automations/, /^Preferences/]);
     await nav(page, 'Preferences').click();
     const keys = page.getByRole('table', { name: 'Keyboard shortcuts' });
-    for (const [n, view] of [[1, 'Dashboard'], [3, 'Projects'], [9, 'Global setup']]) await expect(keys.getByRole('row', { name: new RegExp(`^(Ctrl|Cmd)\\+${n} ${view}$`) })).toBeVisible();
+    for (const [n, view] of [[1, 'Dashboard'], [3, 'Projects'], [4, 'Skills'], [9, 'Evals']]) await expect(keys.getByRole('row', { name: new RegExp(`^(Ctrl|Cmd)\\+${n} ${view}$`) })).toBeVisible();
   });
 
   test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
@@ -460,6 +461,8 @@ test.describe('views', () => {
     await expect(packRows.first()).toBeVisible();
     await expect(packRows.filter({ has: page.getByRole('link', { name: / for .*: \d+ projects?$/ }) })).toHaveCount(await packRows.count());
     await expect(coverage.getByText(/^In no project: /).getByRole('link', { name: 'Testing' })).toHaveAttribute('href', '#/skills?pack=testing');
+    // A plugin pack has no skills to filter by: it opens Packs.
+    await expect(coverage.getByText(/^In no project: /).getByRole('link', { name: 'Ponytail' })).toHaveAttribute('href', '#/packs');
     // A cell of the coverage matrix: reached with Tab-order focus and opened with Enter, the projects with that pack and agent.
     const cell = page.getByRole('table', { name: 'Pack coverage' }).getByRole('link', { name: 'Frontend for Claude Code: 1 project' });
     await cell.focus();

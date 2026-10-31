@@ -451,11 +451,19 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
   }
   // A pack switched off here takes its local-scope plugin out of this folder; a plugin for all projects stays with the global plan.
+  // Preselected only when the last local install or removal of it here was a run of this app; the user's own install is offered.
+  const ours = (id) => {
+    for (const run of ctx.ledger.list()) {
+      const e = [...run.entries].reverse().find((x) => x.kind === 'command' && x.status === 'done' && !x.undone && x.cwd === dir && x.argv?.[0] === 'claude' && x.argv[1] === 'plugin' && x.argv.includes('local') && x.argv.at(-1) === id);
+      if (e) return e.argv[2] === 'install';
+    }
+    return false;
+  };
   for (const id of (prev?.packs ?? []).filter((x) => !a.packs.includes(x))) {
     const p = PLUGINS.claude.find((x) => x.pack === id);
     if (p && pluginScope(ctx, p, 'claude') === 'projects' && localPlugins(ctx, dir).includes(p.id)) {
-      const argv = ['claude', 'plugin', 'uninstall', '--scope', 'local', p.id];
-      add(`pack:${id}:claude`, `remove Claude Code plugin ${p.id} from this project (pack ${id} switched off)`, { kind: 'command', argv, undoArgv: ['claude', 'plugin', 'install', '--scope', 'local', p.id], cwd: dir, machine: true, destructive: true, selected: true,
+      const argv = ['claude', 'plugin', 'uninstall', '--scope', 'local', p.id], own = ours(p.id);
+      add(`pack:${id}:claude`, `remove Claude Code plugin ${p.id} from this project (pack ${id} switched off${own ? '' : '; BenchKeeper did not install it'})`, { kind: 'command', argv, undoArgv: ['claude', 'plugin', 'install', '--scope', 'local', p.id], cwd: dir, machine: true, destructive: true, selected: own, foreign: !own,
         impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from this project; the undo installs it again` });
     }
   }

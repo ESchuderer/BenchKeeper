@@ -79,11 +79,9 @@ const VIEWS = [
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Fix the cart total');
   }],
-  // Scrolled to Skill states: the library list above it is the same on every machine.
-  ['skills', async (page) => {
-    await nav(page, 'Catalog').click();
-    await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
-  }],
+  // The Catalog's Skills page: the library list is the same on every machine.
+  show('skills', 'Skills', 'table', 'Skills'),
+  show('packs', 'Packs', 'table', 'Packs'),
   show('runs', 'Runs', 'table', 'Orchestrated runs and tasks'),
   show('insights', 'Insights', 'heading', 'Findings'),
   show('evals', 'Evals', 'table', 'Eval targets'),

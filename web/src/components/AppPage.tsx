@@ -53,13 +53,21 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     cli: [`${V} projects list`, `${V} packs enable <id> --project <dir>`],
   },
   {
-    id: 'skills', view: 'catalog', title: 'Skill management', shot: 'skills',
-    alt: 'The Catalog view scrolled to Skill states: per project and skill its state, installed and current source, an Active switch and the Update, Reset and Remove buttons, then the packs table.',
+    id: 'skills', view: 'skills', title: 'Skills', shot: 'skills',
+    alt: 'The Skills page of the Catalog: search, the filters for pack, agent and install state and the Build pack button, then the library skills, each with a checkbox for the pack and the number of projects that have it.',
     text: [
-      'Skill states lists each skill of each registered project as current, outdated, modified, removed or disabled, with an Active switch and Update, Reset and Remove. A skill that comes from a pack goes by switching the pack off.',
-      'The Catalog above it lists the library skills with the number of projects that use each, and builds own packs from them.',
+      'The Catalog has two pages. Skills lists the library skills with the number of projects that have each and the source, pin and eval results of the one you open, and builds own packs from them.',
+      'The state of each skill in a project (current, outdated, modified, removed or disabled), with an Active switch and Update, Reset and Remove, is on the project\'s Installs tab.',
     ],
-    cli: [`${V} skills list --project <dir>`, `${V} skills update <name> --project <dir>`],
+    cli: [`${V} skills list --library`, `${V} skills update <name> --project <dir>`],
+  },
+  {
+    id: 'packs', view: 'packs', title: 'Packs', shot: 'packs',
+    alt: 'The Packs page of the Catalog: the library packs and the own ones, each with its skills or plugin and whether it is a library or own pack, the projects that use it, Export, and Remove for an own pack.',
+    text: [
+      'Packs lists the library packs and your own with the projects that use them, and exports, imports and removes own packs. A pack is defined once and switched on per project, on the project\'s Installs tab.',
+    ],
+    cli: [`${V} packs list`, `${V} packs enable <id> --project <dir>`],
   },
   {
     id: 'setup', view: 'projects', title: 'Project setup', shot: 'setup',

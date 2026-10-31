@@ -32,7 +32,7 @@ function Evidence({ finding: { evidence: e } }) {
   );
 }
 
-// A skill proposal opens the plan of its project with the same switches as the Catalog; nothing is written before that plan is applied.
+// A skill proposal opens the plan of its project with the same switches as the project's page; nothing is written before that plan is applied.
 const proposal = (f) => f.evidence.action && { dir: f.evidence.dir, title: f.message, params: f.evidence.skills.flatMap((s) => [[f.evidence.action, s.name], ['focus', s.name]]) };
 
 // What the setup can do about a finding: the doctor's finding shape decides whether the setup can fix it, as in the Dashboard.

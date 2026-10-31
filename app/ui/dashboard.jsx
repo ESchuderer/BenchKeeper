@@ -26,9 +26,12 @@ function target(state, projects) {
   return href('projects', { show: 'changes' });
 }
 
+// A pack with skills opens the Skills page filtered to it; a plugin pack has no skills to filter, so it opens Packs.
+const packHref = (data, id) => (data.catalog.some((p) => p.id === id) ? href('skills', { pack: id }) : href('packs'));
+
 function Installed({ data, names }) {
   const skills = (counts, to) => Object.entries(counts).map(([id, n]) => <Anchor key={id} href={to(id)} mr="sm">{names[id] ?? id} {n}</Anchor>);
-  const packs = (ids) => (ids.length ? ids.map((id) => <Anchor key={id} href={href('catalog', { pack: id })} mr="sm">{id}</Anchor>) : 'none');
+  const packs = (ids) => (ids.length ? ids.map((id) => <Anchor key={id} href={packHref(data, id)} mr="sm">{id}</Anchor>) : 'none');
   const globalPacks = [...new Set(Object.values(data.global.packs).flat())];
   return (
     <Table.ScrollContainer minWidth={420}>
@@ -111,7 +114,7 @@ function Where({ data }) {
                 <Text size="sm">{r.note || shown.map((s) => `${r.states[s]} ${s}`).join(', ') || 'no items'}</Text>
               </Group>
               {!!all && <div className="bk-stack" aria-hidden>{shown.map((s) => <span key={s} style={{ width: `${(r.states[s] / all) * 100}%`, backgroundColor: `var(--bk-h-${s})` }} />)}</div>}
-              {!!r.packs?.length && <Text size="xs">Packs: {r.packs.map((id, n) => <span key={id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: id })}>{id}</Anchor></span>)}</Text>}
+              {!!r.packs?.length && <Text size="xs">Packs: {r.packs.map((id, n) => <span key={id}>{n ? ', ' : ''}<Anchor href={packHref(data, id)}>{id}</Anchor></span>)}</Text>}
             </Stack>
           </List.Item>
         );
@@ -157,7 +160,7 @@ function PackCoverage({ data, names }) {
             {packs.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Th scope="row">
-                  <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
+                  <Anchor href={packHref(data, p.id)}>{p.title}</Anchor>
                   {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
                   {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
                 </Table.Th>
@@ -169,8 +172,8 @@ function PackCoverage({ data, names }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>}
-      {!!all.length && <Text size="sm">Global, in every project: {all.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
-      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
+      {!!all.length && <Text size="sm">Global, in every project: {all.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={packHref(data, p.id)}>{p.title}</Anchor></span>)}</Text>}
+      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={packHref(data, p.id)}>{p.title}</Anchor></span>)}</Text>}
     </Stack>
   );
 }
@@ -182,7 +185,7 @@ function CatalogByPack({ data }) {
     <Stack gap="xs">
       <ul className="bk-bars" aria-label="Skills per pack">
         {data.catalog.map((p) => (
-          <li key={p.id}><Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right" className="bk-num">{p.skills}</Text></li>
+          <li key={p.id}><Anchor href={href('skills', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right" className="bk-num">{p.skills}</Text></li>
         ))}
       </ul>
       {data.coverage.packs.some((p) => p.skills === null) && <Text size="sm">Packs that are plugins have no skill list: {data.coverage.packs.filter((p) => p.skills === null).map((p) => p.title).join(', ')}.</Text>}

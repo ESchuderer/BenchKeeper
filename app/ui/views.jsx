@@ -8,7 +8,6 @@ import { UpdateResults } from './fix.jsx';
 import { ATTENTION } from './dashboard.jsx';
 import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
-import { SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
 import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
@@ -68,7 +67,7 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
 // Files in the packs folder that are no pack: the library leaves them out, so they are listed here to be removed (the file goes to the backups).
 function InvalidPacks({ files, onChange, announce }) {
   const [error, setError] = useState(null);
-  // This section goes with its last file: focus then moves to the Packs heading.
+  // This section goes with its last file: focus then moves to the packs heading.
   const remove = async (file) => {
     setError(null);
     try { await api('/api/packs', { action: 'remove', id: file }); onChange(); announce(files.length > 1 ? 'invalid-packs-title' : 'packs-title', `Removed: ${file}`); } catch (e) { setError(e.message); }
@@ -94,7 +93,7 @@ function Packs({ packs, onChange, announce }) {
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
   const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
   return (
-    <Section title="Packs" id="packs">
+    <Section title="Library and own packs" id="packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
@@ -144,7 +143,9 @@ function Packs({ packs, onChange, announce }) {
   );
 }
 
-export function Catalog({ catalog, params, refresh }) {
+// The Catalog's first page: the library skills to browse, each with its detail, and the pack builder. A skill's state in a
+// project is on that project's page.
+export function CatalogSkills({ catalog, params, refresh }) {
   const evals = useApi('/api/evals');
   const [q, setQ] = useState('');
   const [pack, setPack] = useState(params.get('pack'));
@@ -152,8 +153,6 @@ export function Catalog({ catalog, params, refresh }) {
   const [used, setUsed] = useState(null);
   const [picked, setPicked] = useState([]);
   const [builder, setBuilder] = useState(false);
-  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
-  const [status, announce] = useAnnounce();
   const open = params.get('skill');
   const flip = (n) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
   return (
@@ -179,22 +178,36 @@ export function Catalog({ catalog, params, refresh }) {
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
                     <Table.Td><Checkbox size="md" aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
-                    <Table.Td><Anchor href={href('catalog', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
+                    <Table.Td><Anchor href={href('skills', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
-          <SkillStates refresh={refresh} />
-          <Packs packs={c.packs} onChange={refresh} announce={announce} />
-          {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
-          {status}
+          <Text size="sm">A skill's state in a project, with Update, Reset and Remove, is on the project's page: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper packs list\nbenchkeeper projects apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt|enable|disable <name> --project <dir>`}</Cli>
+          <Cli>{`benchkeeper skills list --library\nbenchkeeper skills show ${open ?? '<name>'}\nbenchkeeper packs save <id> --skill <name>`}</Cli>
         </Stack>
       );
     }}</Loading>
+  );
+}
+
+// The Catalog's second page: the library packs and the own ones, defined once; a project switches them on its Installs tab.
+export function CatalogPacks({ catalog, refresh }) {
+  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
+  const [status, announce] = useAnnounce();
+  return (
+    <Loading state={catalog} label="catalog">{(c) => (
+      <Stack gap="lg">
+        <Packs packs={c.packs} onChange={refresh} announce={announce} />
+        {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
+        {status}
+        <Text size="sm">A pack is switched on or off per project, on the project's Installs tab: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
+        <Cli>{'benchkeeper packs list\nbenchkeeper packs show|export|remove <id>\nbenchkeeper packs import <file>\nbenchkeeper packs enable|disable <id> --project <dir>'}</Cli>
+      </Stack>
+    )}</Loading>
   );
 }
 
@@ -202,7 +215,7 @@ function SkillDetail({ skill, results }) {
   const text = useApi(skill.source === 'own' ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
   return (
     <Stack gap="xs" component="section" aria-label={`Skill ${skill.name}`}>
-      <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('catalog')} variant="subtle">Close</Button></Group>
+      <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('skills')} variant="subtle">Close</Button></Group>
       <Text>{skill.pickWhen}</Text>
       <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}

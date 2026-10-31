@@ -40,7 +40,7 @@ export function DoctorWorst({ found, n = 3 }) {
           <List.Item key={k} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
             <Group gap="sm" wrap="nowrap">
               {levelBadge(i)}
-              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0 }}>{i.message}</Text>
+              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.message}</Text>
               {action && actionButton(action)}
             </Group>
           </List.Item>

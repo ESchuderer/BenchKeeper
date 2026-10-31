@@ -16,4 +16,6 @@ test('workflow: a quick-tier software change needs only SKILL.md', () => {
   const linking = skill.split('\n').filter((l) => /\]\((software|full-tier)\.md/.test(l));
   assert.ok(linking.length > 0);
   for (const line of linking) assert.match(line, /Standard and full tier|^ *\| full \|/, line);
+  // A risky change keeps the review before pushing in software.md, whatever tier the user picked.
+  assert.match(skill, /Standard and full tier, and any risky change: also \[software\.md\]/);
 });

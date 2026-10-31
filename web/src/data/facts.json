@@ -434,6 +434,7 @@
         "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Pull request when the project uses them, checks. You merge.",
         "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. When the project uses pull requests, one with the key decisions, then its checks. Merge only on your instruction. Several tasks on one branch get one review at the end.",
         "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/software.md#steps"
         ]
       },

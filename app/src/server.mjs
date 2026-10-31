@@ -218,7 +218,8 @@ export function api(ctx) {
   const routes = {
     'GET /api/overview': async () => ({ ...(await overview(ctx, agentsNow(), cached)), editors: editorsOn() }),
     'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
-    // Dismiss an Agent settings note by id ({ id, dismissed: false } shows it again): hidden there and in Doctor.
+    // Dismiss an Agent settings note by id, or decide a setting (id setting:<agent>:<key>; { id, dismissed: false } shows
+    // it again): hidden there and in Doctor.
     'POST /api/settings-dismiss': (b) => ({ dismissed: input(() => dismissNote(ctx, b.id, b.dismissed !== false)).dismissed }),
     // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
     // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.

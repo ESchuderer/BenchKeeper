@@ -2,6 +2,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { boardHtml } from '../../src/board.mjs';
+import { CODEX_PRICES } from '../../src/sessions.mjs';
 
 const NOW = '2026-10-28T12:00:00.000Z';
 const ago = (days, hour = 10) => `${new Date(Date.parse(NOW) - days * 864e5).toISOString().slice(0, 10)}T${String(hour).padStart(2, '0')}:00:00.000Z`;
@@ -319,6 +320,14 @@ test('Stack by switches the chart between projects and agents and the legend fol
   await expect(page.locator('#tiles .tile').filter({ hasText: 'Cost' })).toContainText('1 Codex session without a cost');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await expect(page.locator('#legend button.chip')).toHaveText(['shop', 'blog', 'api']);
+});
+
+test('an estimated Codex cost is summed, marked in its row and named in the cost note with the price date', async ({ page }) => {
+  await load(page, [row({ costUSD: 2 }), row({ agent: 'codex', title: 'Estimated', costUSD: 0.5, costEstimated: true }), row({ agent: 'codex', costUSD: null })]);
+  const cost = page.locator('#tiles .tile').filter({ hasText: 'Cost' });
+  await expect(cost).toContainText('$2.50');
+  await expect(cost).toContainText(`Codex estimated at OpenAI API prices of ${CODEX_PRICES.date}, priced models only; 1 Codex session without a cost`);
+  await expect(page.locator('#sessions tr').filter({ hasText: 'Estimated' })).toContainText('$0.50 (estimated)');
 });
 
 test('no session before the period: no change text on any card and one History starts line under the header', async ({ page }) => {

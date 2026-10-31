@@ -6,7 +6,7 @@ import { readText, writeAtomic } from './fsx.mjs';
 import { repoEnv } from './git.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
 import { canon, listProjects } from './projects.mjs';
-import { byRun } from './sessions.mjs';
+import { byRun, CODEX_PRICES } from './sessions.mjs';
 import { TOKENS, cssVars } from './tokens.mjs';
 
 // The pure parts of the page script: their source goes into it as draw()'s argument, so the unit tests run the same code.
@@ -273,10 +273,11 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     const cur = periodFacts(list, span), old = prev?.length ? periodFacts(prev, prevSpan) : null;
     const delta = (k, fmt) => changeText(cur[k], old?.[k] ?? null, len, { fmt });
     const missing = cur.uncosted.map(([a, n]) => `${plural(n, `${agentName(a)} session`)} without a cost`).join(', ');
+    const estimated = list.some((r) => r.costEstimated) ? `; Codex estimated at OpenAI API prices of ${D.priceDate}, priced models only` : '';
     facts = [
       ['Sessions', String(cur.sessions), delta('sessions')],
       ['Agent time', dur(cur.time), delta('time', dur), 'API and tool time'],
-      ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${missing ? `; ${missing}` : ''}`],
+      ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${estimated}${missing ? `; ${missing}` : ''}`],
       ['Tokens', compact(cur.tokens), delta('tokens', compact), 'input, cache and output'],
       ['Agents at once', cur.atOnce == null ? 'not recorded' : cur.atOnce.toFixed(1), delta('atOnce', (x) => x.toFixed(1)), cur.atOnce == null ? null : `on average while any turn ran, peak ${cur.peak}`],
       ['Busiest day', cur.busiest?.[0] ?? '-', cur.busiest && plural(cur.busiest[1], 'session')],
@@ -634,7 +635,7 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
       r.start.slice(0, 16).replace('T', ' '), short(r.project ?? ''), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
       `${patternKey(r)}${r.subagents ? `, ${r.subagents} subagent${r.subagents > 1 ? 's' : ''}` : ''}${r.run ? `, run ${r.run}` : ''}`,
-      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, money(r.costUSD), dur(r.busyMs), r.tests ?? '-',
+      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, `${money(r.costUSD)}${r.costEstimated ? ' (estimated)' : ''}`, dur(r.busyMs), r.tests ?? '-',
       r.prs.length ? r.prs.map((u) => `#${u.split('/').pop()}`).join(', ') : '-',
       ...(pony ? [r.source ?? 'transcript', ledgerCell(r.ponytail)] : []),
     ])));
@@ -858,7 +859,7 @@ export function projectActivity(rows, registered, now, days = 30) {
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = [], keepDays = 30) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), priceDate: CODEX_PRICES.date, now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -888,7 +889,7 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [],
 <section aria-labelledby="h-model"><h2 id="h-model">Model mix</h2><div id="by-model"></div></section>
 <section aria-labelledby="h-dist"><h2 id="h-dist">Distribution</h2><div class="cmps"><div id="dist-time"></div><div id="dist-turns"></div></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
-<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex records tokens, not cost.</p><div id="by-run"></div></section>
+<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex costs are estimated from tokens and OpenAI API prices.</p><div id="by-run"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
 <section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </div>

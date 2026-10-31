@@ -27,7 +27,7 @@ export function Runs() {
         <Stack gap="lg">
           {d.runs.length ? (
             <Section title="Orchestrated runs">
-              <Text size="sm">From the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC in the registered projects and their worktrees. Codex records tokens, not cost.</Text>
+              <Text size="sm">From the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC in the registered projects and their worktrees. Codex costs are estimated from tokens and OpenAI API prices.</Text>
               <Scroll label="Orchestrated runs and tasks">
                 <Table.Thead><Table.Tr><Table.Th>Run</Table.Th><Table.Th>Task</Table.Th><Table.Th>Worktree</Table.Th><Table.Th>Branch</Table.Th><Table.Th>Sessions</Table.Th><Table.Th>Cost</Table.Th><Table.Th>Tokens</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
@@ -45,7 +45,7 @@ export function Runs() {
                 </Table.Tbody>
               </Scroll>
             </Section>
-          ) : <Empty title="Orchestrated runs">no orchestrated sessions in a registered project or its worktrees, from the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC. Codex records tokens, not cost.</Empty>}
+          ) : <Empty title="Orchestrated runs">no orchestrated sessions in a registered project or its worktrees, from the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC. Codex costs are estimated from tokens and OpenAI API prices.</Empty>}
           {d.setup.length ? (
             <Section title="Last setup change">
               <List spacing={4} size="sm">

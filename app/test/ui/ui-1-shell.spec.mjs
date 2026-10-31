@@ -197,6 +197,15 @@ test.describe('views', () => {
     await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
   });
 
+  test('Sessions board: a click on the app outside the frame closes the open project list', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const toggle = page.frameLocator('iframe[title="Sessions board"]').locator('#rail-toggle');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('heading', { name: 'Sessions' }).first().click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('Sessions board: one entry per repository with its worktree sessions folded in, a folder of no repository under Other; Registered only keeps the registered project and is remembered', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');

@@ -370,6 +370,8 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   }
   $('rail-q').addEventListener('input', (e) => { state.rq = e.target.value.toLowerCase(); find(); });
   addEventListener('click', (e) => { if (narrow() && $('rail').classList.contains('open') && !$('rail').contains(e.target)) setOpen(false); });
+  // A click on the app around the frame does not reach the click listener; the frame loses the focus instead.
+  addEventListener('blur', () => { if (narrow() && $('rail').classList.contains('open')) setOpen(false); });
   $('rail-toggle').addEventListener('click', () => { const open = !$('rail').classList.contains('open'); setOpen(open); if (open) $('rail-q').focus(); });
   // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
   $('rail').addEventListener('keydown', (ev) => {

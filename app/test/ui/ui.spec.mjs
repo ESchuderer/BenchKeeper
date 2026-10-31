@@ -302,7 +302,7 @@ test.describe('views', () => {
     // Nothing selected: one sentence per section, no empty axis.
     await board.getByLabel('Agent', { exact: true }).selectOption('codex');
     await board.getByLabel('Tier', { exact: true }).selectOption('full');
-    await expect(board.getByText('No sessions match these filters.')).toHaveCount(11);
+    await expect(board.getByText('No sessions match these filters.')).toHaveCount(10);
     await expect(board.locator('#chart svg')).toHaveCount(0);
     await noAxe(page);
   });

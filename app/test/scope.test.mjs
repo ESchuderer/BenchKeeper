@@ -119,6 +119,21 @@ test('a plugin pack moves to selected projects and back, each as one plan with b
   assert.equal(packScope(ctx, pack(ctx, 'ponytail')), 'projects');
 });
 
+test('a plugin pack for selected projects switched off in a project leaves that project; undo installs it again', () => {
+  const { ctx, dir, installs } = machine();
+  apply(preview(scopePlan(ctx, 'ponytail', 'projects', ['claude'])), ctx);
+  const off = preview(projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes).filter((c) => c.step === 'pack:ponytail:claude');
+  assert.deepEqual(off.map((c) => [c.argv.join(' '), c.cwd, c.selected]), [['claude plugin uninstall --scope local ponytail@ponytail', dir, true]]);
+  const run = apply(off, ctx, { scope: dir });
+  assert.equal(run.status, 'done');
+  assert.deepEqual(installs(), []);
+  undo(run.id, ctx);
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  // For all projects the plugin stays: other projects use it, and the global plan owns it.
+  apply(preview(scopePlan(ctx, 'ponytail', 'global', ['claude'])), ctx);
+  assert.ok(!projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes.some((c) => c.step.startsWith('pack:ponytail')));
+});
+
 test('a skill pack for all projects: global copies instead of the project ones, kept by the cleanup and the doctor, and back', () => {
   const { ctx, home, dir } = machine();
   const skills = pack(ctx, 'frontend').skills;

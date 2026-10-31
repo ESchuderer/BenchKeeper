@@ -220,6 +220,28 @@ test('skill actions: remove takes a single pick and names the pack for the other
   assert.throws(() => skillAction(rows, 'update', ['typo']), /not a skill of this project/);
 });
 
+test('applying a pack to one project changes only that project: not another project, not the global skill folders', () => {
+  const a = repo(), b = { ...a, dir: mkdtempSync(join(TMP, 'bk-sw-')) };
+  initRepo(b.dir);
+  const ctx = context({ home: a.home, roots: [a.home, a.dir, b.dir], appVersion: '6.0.0' });
+  a.ctx = ctx; b.ctx = ctx;
+  for (const r of [a, b]) run(r, { agents: ['claude', 'codex'], env: 'host', packs: [] });
+  const global = () => ['.claude/skills', '.agents/skills', '.codex/skills'].map((d) => existsSync(join(a.home, d)) && tree(join(a.home, d)));
+  const [other, machine] = [tree(b.dir), global()];
+  const inA = (p) => p.changes.every((c) => !c.path || c.path.startsWith(`${a.dir}/`));
+  // On and off in the chosen project: its skill comes and goes, nothing else moves.
+  let p = run(a, { packOn: ['ui-a'] });
+  assert.ok(inA(p) && existsSync(a.skill), p.changes.map((c) => c.path).join());
+  p = run(a, { packOff: ['ui-a'] });
+  assert.ok(inA(p) && !existsSync(a.skill));
+  assert.deepEqual([tree(b.dir), global()], [other, machine]);
+  // A pack whose scope is all projects: the project records it and copies none of its skills; the global plan installs them.
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { 'ui-a': 'global' } }));
+  p = run(a, { packOn: ['ui-a'] });
+  assert.ok(inA(p) && !existsSync(a.skill));
+  assert.deepEqual([readState(a.dir).packs, readState(b.dir).packs, tree(b.dir), global()], [['ui-a'], [], other, machine]);
+});
+
 test('an own pack a project names cannot be removed; the message names the project', () => {
   const r = repo();
   run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
@@ -280,7 +302,7 @@ test('CLI: packs enable and disable are a plan with a diff, in the project or fo
     [['packs', 'enable'], 2, /needs a pack id/],
     [['packs', 'enable', 'nope', '--project', r.dir], 2, /unknown pack nope/],
     [['packs', 'enable', 'ui-b', '--project', r.dir, '--global'], 2, /exclude each other/],
-    [['packs', 'enable', 'frontend', '--global'], 1, /per project, not on the machine/],
+    [['packs', 'enable', 'frontend', '--global'], 1, /in one project with --project <dir>, or for all projects with benchkeeper packs scope frontend global/],
     [['packs', 'enable', 'frontend', '--project', mkdtempSync(join(TMP, 'bk-none-'))], 2, /has no setup yet/],
   ]) { o = await cli(r, args); assert.deepEqual([o.code, text.test(o.text)], [code, true], `${args.join(' ')}: ${o.text}`); }
 });
@@ -338,6 +360,8 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   const all = routes['GET /api/skills']();
   assert.deepEqual(all.projects.map((x) => [x.path, x.skills.find((s) => s.name === SKILL).state, x.untracked.map((u) => u.name)]), [[realpathSync(r.dir), 'modified', ['mine']]]);
   assert.deepEqual(all.global.map((x) => x.name), ['theirs']);
+  // A project's page asks for its own skills only.
+  assert.deepEqual([realpathSync(r.dir), r.home].map((dir) => routes['GET /api/skills'](new URLSearchParams({ dir })).projects.length), [1, 0]);
   assert.deepEqual(globalUntracked(r.ctx, ['claude']).map((x) => x.name), ['theirs']);
   // A pack a project names: the catalog says by whom, and removal is refused with a 400.
   assert.deepEqual(routes['GET /api/catalog']().packs.find((x) => x.id === 'ui-a').usedBy, [realpathSync(r.dir)]);

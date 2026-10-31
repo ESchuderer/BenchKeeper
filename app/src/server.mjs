@@ -376,7 +376,7 @@ export function api(ctx) {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
-      // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
+      // Pack switches and single-skill actions of a project's page, on top of the saved answers.
       const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only. A toggle of a skill whose pack is switched off in the same plan is
       // dropped, so skill and pack switches work in any order; a name outside the library is still an error.
@@ -405,10 +405,10 @@ export function api(ctx) {
           suggested: hints.find((h) => h.id === x.id)?.reason ?? null, ...rows.packs[x.id] })),
         files: rows.files, global: rows.global };
     },
-    // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
-    // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
+    // The registered projects' skills with their state, and the folders no setup installed, for a project's page: ?dir= keeps
+    // one project. ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
     'GET /api/skills': (q = new URLSearchParams()) => ({
-      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path) && (!q.get('dir') || p.path === q.get('dir'))).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
       global: globalUntracked(ctx, installed()),
     }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the

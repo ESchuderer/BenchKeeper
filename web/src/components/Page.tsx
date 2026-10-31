@@ -18,7 +18,7 @@ const MORE_FEATURES: [string, string, string][] = [
   ['Local by default', '/overview/#defaults', 'Keep the app and each project setup on your machine: the app opens on 127.0.0.1 behind a one-time link and sends no telemetry, and a project setup stays out of the repository until you share it.'],
   ['Plan, diff and undo', '/app/#history', 'See every change as a diff or command before it runs, then undo a whole run or a single step.'],
   ['Dashboard', '/app/#dashboard', 'See which items of the global setup and of each project need attention, and fix them in one plan.'],
-  ['Catalog', '/app/#skills', 'Browse the library skills with how many projects use each, and build your own packs from them.'],
+  ['Catalog', '/app/#skills', 'Browse the library skills and the packs on two pages, and build your own packs from the skills.'],
   ['Agent settings', '/app/#settings', 'Compare each agent setting with the value in effect and the suggested value with its reason, and change it through a plan.'],
   ['Rules', '/app/#rules', 'See which instruction files each agent loads, in load order, with their owner and the tokens they add to every session.'],
   ['Doctor', '/app/#doctor', 'Find rules that differ from the setup, missing plugins and skills and environment variables that turn features off, each with a planned fix or the step to do by hand.'],

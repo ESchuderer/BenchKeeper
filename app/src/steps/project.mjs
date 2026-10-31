@@ -440,6 +440,15 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       }
     }
   }
+  // A pack switched off here takes its local-scope plugin out of this folder; a plugin for all projects stays with the global plan.
+  for (const id of (prev?.packs ?? []).filter((x) => !a.packs.includes(x))) {
+    const p = PLUGINS.claude.find((x) => x.pack === id);
+    if (p && pluginScope(ctx, p, 'claude') === 'projects' && localPlugins(ctx, dir).includes(p.id)) {
+      const argv = ['claude', 'plugin', 'uninstall', '--scope', 'local', p.id];
+      add(`pack:${id}:claude`, `remove Claude Code plugin ${p.id} from this project (pack ${id} switched off)`, { kind: 'command', argv, undoArgv: ['claude', 'plugin', 'install', '--scope', 'local', p.id], cwd: dir, machine: true, destructive: true, selected: true,
+        impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from this project; the undo installs it again` });
+    }
+  }
 
   // Agent files fetched at a pinned commit.
   const fwIds = new Map();

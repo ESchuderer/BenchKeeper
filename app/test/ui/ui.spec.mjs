@@ -450,7 +450,7 @@ test.describe('views', () => {
     await page.getByText('More about the setup').click();
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
     await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
-    await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/catalog?pack=frontend');
+    await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/skills?pack=frontend');
     // The rows beside the ring count what it draws.
     const health = page.getByRole('region', { name: 'Health' });
     await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
@@ -459,7 +459,7 @@ test.describe('views', () => {
     const packRows = coverage.getByRole('table', { name: 'Pack coverage' }).locator('tbody tr');
     await expect(packRows.first()).toBeVisible();
     await expect(packRows.filter({ has: page.getByRole('link', { name: / for .*: \d+ projects?$/ }) })).toHaveCount(await packRows.count());
-    await expect(coverage.getByText(/^In no project: /).getByRole('link', { name: 'Testing' })).toHaveAttribute('href', '#/catalog?pack=testing');
+    await expect(coverage.getByText(/^In no project: /).getByRole('link', { name: 'Testing' })).toHaveAttribute('href', '#/skills?pack=testing');
     // A cell of the coverage matrix: reached with Tab-order focus and opened with Enter, the projects with that pack and agent.
     const cell = page.getByRole('table', { name: 'Pack coverage' }).getByRole('link', { name: 'Frontend for Claude Code: 1 project' });
     await cell.focus();
@@ -475,8 +475,8 @@ test.describe('views', () => {
     expect([...counts].sort((a, b) => b - a)).toEqual(counts);
   });
 
-  test('Catalog opens with the pack and agent a link names', async ({ page }) => {
-    await page.goto('/#/catalog?pack=frontend&agent=codex');
+  test('Skills opens with the pack and agent a link names', async ({ page }) => {
+    await page.goto('/#/skills?pack=frontend&agent=codex');
     await expect(page.getByRole('combobox', { name: 'Pack' })).toHaveValue('Frontend');
     await expect(page.getByRole('combobox', { name: 'Agent' })).toHaveValue('Codex');
   });
@@ -783,8 +783,8 @@ test.describe('views', () => {
     await expect(html).not.toHaveAttribute('data-mantine-color-scheme', first);
   });
 
-  test('Catalog: search, then the detail panel with the skill text and its eval results', async ({ page }) => {
-    await nav(page, 'Catalog').click();
+  test('Skills: search, then the detail panel with the skill text and its eval results', async ({ page }) => {
+    await nav(page, 'Skills').click();
     await page.getByRole('textbox', { name: 'Search' }).fill('technical-uis');
     await page.getByRole('table', { name: 'Skills' }).getByRole('link', { name: 'designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Skill designing-technical-uis' });
@@ -793,8 +793,8 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Catalog: the pack builder removes a skill with focus kept, finds no overlapping descriptions in the library and saves an own pack; export downloads it', async ({ page }) => {
-    await nav(page, 'Catalog').click();
+  test('Skills: the pack builder removes a skill with focus kept, finds no overlapping descriptions in the library and saves an own pack; Packs exports it', async ({ page }) => {
+    await nav(page, 'Skills').click();
     const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
     for (let i = 0; i < 6; i++) await boxes.nth(i).check();
     await page.getByRole('button', { name: 'Build pack (6)' }).click();
@@ -810,6 +810,7 @@ test.describe('views', () => {
     await drawer.getByLabel(/^Pack id/).fill('my-pack');
     await drawer.getByRole('button', { name: 'Save pack' }).click();
     await expect(drawer).toBeHidden();
+    await nav(page, 'Packs').click();
     const packs = page.getByRole('table', { name: 'Packs' });
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toBeVisible();
     const download = page.waitForEvent('download');
@@ -834,14 +835,14 @@ test.describe('views', () => {
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
   });
 
-  test('Catalog: a pack file that is not a pack is listed with its reason and can be removed with focus kept; no axe violations', async ({ page }) => {
+  test('Packs: a pack file that is not a pack is listed with its reason and can be removed with focus kept; no axe violations', async ({ page }) => {
     await page.route(/\/api\/catalog(\?|$)/, async (route) => {
       const r = await route.fetch();
       await route.fulfill({ response: r, json: { ...(await r.json()), invalidPacks: [{ file: 'broken.json', reason: 'not valid JSON' }] } });
     });
     await page.route(/\/api\/packs$/, (route) => route.fulfill({ json: { removed: 'broken.json' } }));
     await page.reload();
-    await nav(page, 'Catalog').click();
+    await nav(page, 'Packs').click();
     const bad = page.getByRole('region', { name: 'Pack files that are not packs' });
     await expect(bad).toContainText('broken.json');
     await expect(bad).toContainText('not valid JSON');
@@ -850,8 +851,8 @@ test.describe('views', () => {
     await bad.getByRole('button', { name: 'Remove broken.json' }).focus();
     await page.keyboard.press('Enter');
     expect((await sent).postDataJSON()).toEqual({ action: 'remove', id: 'broken.json' });
-    // Its last file takes the section with it: focus moves to the Packs heading.
-    await expect(page.getByRole('heading', { level: 3, name: 'Packs', exact: true })).toBeFocused();
+    // Its last file takes the section with it: focus moves to the packs heading.
+    await expect(page.getByRole('heading', { level: 3, name: 'Library and own packs', exact: true })).toBeFocused();
     await expect(page.getByRole('status').filter({ hasText: 'Removed: broken.json' })).toHaveCount(1);
     // The removal reloads the catalog: wait for that stubbed answer.
     await page.unrouteAll({ behavior: 'wait' });
@@ -1402,7 +1403,7 @@ test.describe('views', () => {
     await unregister(page, ['uno']);
   });
 
-  test('Catalog: skill states, activate and deactivate, reset a modified skill with its diff, adopt and remove; untracked folders stay; no axe violations', async ({ page }) => {
+  test('Project page: skill states, activate and deactivate, reset a modified skill with its diff, adopt and remove; untracked folders stay; no axe violations', async ({ page }) => {
     test.slow();
     const dir = folder('sk-proj');
     const skills = join(dir, '.claude/skills');
@@ -1415,11 +1416,10 @@ test.describe('views', () => {
     }
     await nav(page, 'Projects').click();
     await addFolder(page, dir);
-    // The Catalog reads the projects once as it opens: the project must be registered before that.
-    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'sk-proj', exact: true })).toBeVisible();
-    await nav(page, 'Catalog').click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'sk-proj', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     const states = page.getByRole('table', { name: 'Skill states' });
-    const mine = states.getByRole('row').filter({ hasText: 'sk-proj' });
+    const mine = states.getByRole('row');
     const own = mine.filter({ hasText: 'designing-technical-uis' });
     // The folder is gone: Update writes it again through a run (undoable), which also makes a later edit visible as modified.
     await expect(own).toContainText('removed');
@@ -1427,7 +1427,7 @@ test.describe('views', () => {
     // Check for updates keeps the button focused and the table while it loads; the check is answered without it, offline.
     let answer;
     const held = new Promise((r) => { answer = r; });
-    await page.route(/\/api\/skills\?check=1$/, async (route) => { await held; await route.fulfill({ response: await route.fetch({ url: route.request().url().replace('?check=1', '') }) }); });
+    await page.route(/\/api\/skills\?.*&check=1$/, async (route) => { await held; await route.fulfill({ response: await route.fetch({ url: route.request().url().replace('&check=1', '') }) }); });
     const check = page.getByRole('button', { name: 'Check for updates' });
     await check.focus();
     await page.keyboard.press('Enter');
@@ -1444,8 +1444,7 @@ test.describe('views', () => {
     await update.getByRole('button', { name: 'Close' }).click();
     await expect(own).toContainText('current');
     writeFileSync(join(skills, 'designing-technical-uis/SKILL.md'), 'edited here\n');
-    await nav(page, 'Projects').click();
-    await nav(page, 'Catalog').click();
+    await check.click();
     await expect(own).toContainText('modified');
     const untracked = page.getByRole('table', { name: 'Untracked folders' });
     await expect(untracked.getByRole('row').filter({ hasText: 'mine' })).toContainText('left alone');
@@ -1478,6 +1477,9 @@ test.describe('views', () => {
     await adopt.getByRole('button', { name: 'Close' }).click();
     const adopted = mine.filter({ hasText: 'mermaid-diagrams' });
     await expect(adopted).toBeVisible();
+    // The switches above reload with it.
+    const switches = page.getByRole('region', { name: 'Skills', exact: true });
+    await expect(switches.getByRole('switch', { name: 'mermaid-diagrams' })).toBeVisible();
     expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
     // Remove takes the single pick out of the project; the untracked folder is still there.
     await adopted.getByRole('button', { name: /^Remove/ }).click();
@@ -1487,6 +1489,7 @@ test.describe('views', () => {
     await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await remove.getByRole('button', { name: 'Close' }).click();
     await expect(mine.filter({ hasText: 'mermaid-diagrams' })).toHaveCount(0);
+    await expect(switches.getByRole('switch', { name: 'mermaid-diagrams' })).toHaveCount(0);
     expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
     await nav(page, 'Projects').click();
     await unregister(page, ['sk-proj']);

@@ -1063,7 +1063,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
     return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
   }
   const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
-  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills per project, not on the machine: use --project <dir>\n`); return 1; }
+  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills: in one project with --project <dir>, or for all projects with benchkeeper packs scope ${skillsOnly[0]} global\n`); return 1; }
   const agents = selectedAgents(ctx, o.agents), have = installedPacks(ctx);
   const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
   // The other installed packs stay as they are; the pack asked for is the only one on or off.
@@ -1129,7 +1129,7 @@ async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
 }
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
-// skills list|update|reset|remove|adopt|add|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
+// skills list|update|reset|remove|adopt|add|enable|disable: the skill management of a project's page, through the same plan, diff and undo.
 async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');

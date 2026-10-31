@@ -131,7 +131,7 @@ A test name refers to the file named in the same row.
 | Plugin ids, marketplace names and MCP server names read from agent files must match `^[A-Za-z0-9][\w.@:-]*$` before they become an argument or a path; others are skipped | `SAFE_NAME` in `steps/global.mjs` | `global.test.mjs` "names from agent files that start with a dash" |
 | A copy to a path that does not exist yet (backups, undo restores, `from` writes) is written beside it and renamed in, so a failed or interrupted copy leaves no half-written path | `copy` in `fsx.mjs` | `bounds.test.mjs` "a copy that fails midway leaves no half-written path ..." |
 | A `skills-lock.json` that is not a lock file is a problem line of `benchkeeper verify`, not an exception | `projectCheck` in `harness.mjs` | `harness.test.mjs` "a skills-lock.json that is not a lock file ..." |
-| Files in the packs folder that are no pack are listed with the reason, in the CLI (`packs list`), `doctor` and the Catalog, and removed by file name | `invalidPacks` in `packs.mjs`, `InvalidPacks` in `ui/views.jsx` | `server.test.mjs` "packs: a file that is no pack ...", `ui.spec.mjs` "Catalog: a pack file that is not a pack ..." |
+| Files in the packs folder that are no pack are listed with the reason, in the CLI (`packs list`), `doctor` and the Catalog's Packs page, and removed by file name | `invalidPacks` in `packs.mjs`, `InvalidPacks` in `ui/views.jsx` | `server.test.mjs` "packs: a file that is no pack ...", `ui.spec.mjs` "Packs: a pack file that is not a pack ..." |
 
 ### Local server
 

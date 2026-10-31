@@ -236,7 +236,7 @@ test('Codex and Copilot: a copy per chosen agent in its folder and format, secon
   assert.deepEqual([AGENT, CODEX, COPILOT].map((x) => existsSync(join(r.dir, x))), [false, false, false]);
 });
 
-test('Codex only: a file the project had in .codex/agents stays its own, and a failed conversion fails the step and records nothing', () => {
+test('Codex only: a file the project had in .codex/agents stays its own, and a failed conversion fails the step and is fetched again', () => {
   const r = repo();
   mkdirSync(join(r.dir, '.codex/agents'), { recursive: true });
   writeFileSync(join(r.dir, CODEX), 'name = "mine"\n');
@@ -251,9 +251,15 @@ test('Codex only: a file the project had in .codex/agents stays its own, and a f
   const result = apply(changes, bad, { scope: s.dir, select: changes.filter((c) => c.selected).map((c) => c.id) });
   assert.equal(result.status, 'failed');
   assert.match(result.entries.find((e) => e.status === 'failed').error, /no name or description/);
-  assert.deepEqual(readState(s.dir).agentOwned, []);
-  // The Markdown left at the TOML path is fetched again on the next plan, not kept as the project's file.
+  // The Markdown left at the TOML path is the setup's, with no hash and no ref: fetched again on the next plan.
+  const st = readState(s.dir);
+  assert.deepEqual([st.agentOwned, st.agentHashes, st.frameworkRefs], [[`codex:${FILE}`], undefined, undefined]);
   assert.deepEqual(frameworkSteps(plan(s, {})).map((c) => c.kind), ['command', 'write']);
+  // A Markdown file the project had there itself stays its own.
+  const t = repo();
+  mkdirSync(join(t.dir, '.codex/agents'), { recursive: true });
+  writeFileSync(join(t.dir, CODEX), '---\nname: mine\n---\n');
+  assert.deepEqual(frameworkSteps(plan(t, { ...base, agents: ['codex'], agentFiles: [FILE] })), []);
 });
 
 test('a new pin: the source ref moves on only when every copy was fetched again', () => {

@@ -75,14 +75,14 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
     for (const { id, path, key, target } of copiesOf(dir, f)) {
       // Only a file this setup fetched (agentOwned) is refreshed or taken out again: one that was there before is the project's.
       const convert = agent(id).project[f.install.dest].format === 'toml';
-      // A Codex file still in Markdown is a fetch whose conversion failed: fetched again, not taken for the project's own.
-      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && (refetch(prev, f, key) || (convert && /^---\r?\n/.test(readText(target) ?? '')));
+      // A Codex file of the setup still in Markdown is a fetch whose conversion failed: fetched again.
+      const picked = a.agentFiles.includes(path) && a.agents.includes(id), mine = owned.has(key), outdated = exists(target) && (refetch(prev, f, key) || (convert && mine && /^---\r?\n/.test(readText(target) ?? '')));
       const step = `framework:${f.id}`, name = `${stemOf(path)}${id === 'claude' ? '' : ` for ${agent(id).name}`}`;
       if (picked && (!exists(target) || outdated)) {
         const title = `agent ${name} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`;
         // Codex: the fetched Markdown becomes TOML in place; the fetch and the conversion go together, under one title so a
         // state count sees one item.
-        out.push({ ...(convert ? { unit: `agent-file:${key}` } : { key: `file:${key}` }), step, title, kind: 'command', cwd: dir, snapshot: [target], installUnit, outdated,
+        out.push({ ...(convert ? { key: `fetch:${key}`, unit: `agent-file:${key}` } : { key: `file:${key}` }), step, title, kind: 'command', cwd: dir, snapshot: [target], installUnit, outdated,
           argv: ['curl', '-fsSL', '--remove-on-error', '--proto', '=https', '--proto-redir', '=https', '--create-dirs', '-o', target, rawUrl(f, path)] });
         if (convert) out.push({ key: `file:${key}`, unit: `agent-file:${key}`, step, title, kind: 'write', path: target, edit: codexAgent, always: true, installUnit });
       } else if (!picked && mine && exists(target)) out.push({ step, title: `remove agent ${name} (${a.agentFiles.includes(path) ? 'agent not chosen' : 'not picked'})`, kind: 'remove', path: target, selected: true, installUnit });
@@ -103,7 +103,8 @@ export function frameworkState({ a, dir, prev, ran, lib = library() }) {
   const planned = (f) => copies.filter((x) => x.f === f && ran(`file:${x.key}`) !== null);
   const fetched = (f) => planned(f).length > 0 && planned(f).every((x) => ran(`file:${x.key}`) === true);
   const frameworkRefs = Object.fromEntries(cat.filter((f) => fetched(f) || refs[f.id]).map((f) => [f.id, fetched(f) ? f.install.ref : refs[f.id]]));
-  const mine = copies.filter((x) => ran(`file:${x.key}`) === true || was.has(x.key));
+  // A Codex fetch whose conversion failed is the setup's too: the next plan fetches it again, a dropped pick removes it.
+  const mine = copies.filter((x) => ran(`file:${x.key}`) === true || ran(`fetch:${x.key}`) === true || was.has(x.key));
   const agentHashes = Object.fromEntries(mine.flatMap((x) => {
     const hash = ran(`file:${x.key}`) === true ? hashPath(x.target) : prev?.agentHashes?.[x.key];
     return hash ? [[x.key, hash]] : [];

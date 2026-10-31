@@ -1,7 +1,7 @@
 // Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. Read only.
 // Usage: node precheck.mjs <project paths...>
-// Pickable: open, carries the policy's startLabel, written by a trusted author, and no open pull request has a head branch
-// <type>/<number>-<slug>. The policy is read from origin's default branch, never from a checked-out branch.
+// Pickable: open, carries the policy's startLabel, written by a trusted author, and no open or merged pull request has a head
+// branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy is read from origin's default branch, never from a checked-out branch.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
@@ -9,13 +9,13 @@ const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
 const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
-export function pickable(policy, issues, openHeads) {
+export function pickable(policy, issues, heads) {
   if (!policy?.startLabel) return [];
   const trusted = new Set(policy.trustedAuthors ?? []);
   return issues
     .filter((i) => !i.pull_request && (TRUSTED.includes(i.author_association) || trusted.has(i.user?.login)))
     .filter((i) => i.labels.some((l) => l.name === policy.startLabel))
-    .filter((i) => !openHeads.some((h) => h.includes(`/${i.number}-`)))
+    .filter((i) => !heads.some((h) => h.includes(`/${i.number}-`)))
     .map((i) => i.number);
 }
 
@@ -26,7 +26,7 @@ export function check(dir, run = sh) {
   try { policy = JSON.parse(run(dir, 'git', ['show', `${head}:docs/agents/orchestration.json`])); } catch { return []; }
   if (!policy.startLabel) return [];
   const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/issues?state=open&per_page=100&labels=${encodeURIComponent(policy.startLabel)}`])).flat();
-  const heads = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'open', '--limit', '1000', '--json', 'headRefName'])).map((p) => p.headRefName);
+  const heads = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'all', '--limit', '1000', '--json', 'headRefName,state'])).filter((p) => p.state !== 'CLOSED').map((p) => p.headRefName);
   return pickable(policy, issues, heads);
 }
 

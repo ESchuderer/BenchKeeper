@@ -114,11 +114,13 @@ function Row({ row, layer, edits, setEdit, stage, decide, running, phone, cols }
       </Group>
     </Stack>
   ) : <Text size="sm">{phone && 'Suggested: '}none</Text>;
+  // Offered unselected by the global plan; nothing writes it unless the user picks it there or here.
+  const recommendation = row.recommended !== undefined && <Text size="sm" style={{ overflowWrap: 'anywhere' }}>BenchKeeper recommendation: {text(row.recommended)}</Text>;
   return (
     <>
       <Table.Tr>
-        {phone ? <Table.Td><Stack gap="sm">{setting}{value}{dflt}{suggestion}</Stack></Table.Td>
-          : <><Table.Td>{setting}</Table.Td><Table.Td miw={200}>{value}</Table.Td><Table.Td>{dflt}</Table.Td><Table.Td>{suggestion}</Table.Td></>}
+        {phone ? <Table.Td><Stack gap="sm">{setting}{value}{dflt}{suggestion}{recommendation}</Stack></Table.Td>
+          : <><Table.Td>{setting}</Table.Td><Table.Td miw={200}>{value}</Table.Td><Table.Td>{dflt}</Table.Td><Table.Td><Stack gap={4}>{suggestion}{recommendation}</Stack></Table.Td></>}
       </Table.Tr>
       {open && (
         <Table.Tr>

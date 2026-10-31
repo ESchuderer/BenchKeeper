@@ -120,7 +120,8 @@ ctx.runAsync = async (argv, o) => {
   return wrapped(argv, o);
 };
 const first = preview(globalPlan({ ctx, agents: ['claude'], options: { packs: ['ponytail'] }, devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
-apply(first, ctx);
+// A user who accepted BenchKeeper's model and effort recommendations, so later steps edit settings.json.
+apply(first, ctx, { select: first.filter((c) => c.selected || /BenchKeeper recommendation/.test(c.title)).map((c) => c.id) });
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
 // A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.
 writeFileSync(join(home, '.claude/rules/20-team.md'), '# Team notes\n\nKeep answers short.\n');

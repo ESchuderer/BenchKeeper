@@ -1881,9 +1881,9 @@ test.describe('views', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
     await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
-    // The fixture home holds the setup's advisor model: its details say what it is, and BenchKeeper's setup writes it too.
-    await page.getByRole('button', { name: 'Details of advisorModel' }).click();
-    await expect(page.getByRole('group', { name: 'About advisorModel' })).toContainText('The model that answers when Claude calls the advisor tool');
+    // The fixture home holds the setup's transcript days: its details say what it is, and BenchKeeper's setup writes it too.
+    await page.getByRole('button', { name: 'Details of cleanupPeriodDays' }).click();
+    await expect(page.getByRole('group', { name: 'About cleanupPeriodDays' })).toContainText('Days Claude Code keeps session transcripts');
     await expect(page.getByText("BenchKeeper's setup writes this key too").first()).toBeVisible();
     await noAxe(page);
     // A change is a plan with a diff and an undo.
@@ -1899,7 +1899,7 @@ test.describe('views', () => {
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
-    // An environment switch is set or removed; the advisor with a telemetry switch shows the note on both rows.
+    // An environment switch is set or removed.
     await showMatching(page);
     await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
     await page.getByRole('button', { name: 'Review 1 change' }).click();
@@ -2055,11 +2055,11 @@ test.describe('views', () => {
       await expect(box.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', /^https:\/\//);
     };
     await nav(page, 'Agent settings').click();
-    // The fixture home holds the global setup's settings: the advisor and the retention come from the user file.
-    await page.getByRole('button', { name: 'Details of advisorModel' }).click();
-    const advisor = about(page, 'advisorModel');
-    await facts(advisor);
-    await expect(advisor).toContainText('from the user file');
+    // The fixture home holds the global setup's settings: the retention comes from the user file.
+    await page.getByRole('button', { name: 'Details of cleanupPeriodDays' }).click();
+    const retention = about(page, 'cleanupPeriodDays');
+    await facts(retention);
+    await expect(retention).toContainText('from the user file');
     // A catalog key that is not basic is listed in its group with every key.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
     await page.getByLabel('Search settings').fill('includeGitInstructions');
@@ -2094,6 +2094,8 @@ test.describe('views', () => {
     await nav(page, 'Dashboard').click();
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
+    // The recommendations make the Settings card long: it starts folded.
+    await fix.getByRole('button', { name: 'Show Settings' }).click();
     await facts(about(fix, 'cleanupPeriodDays'));
     await noAxe(page);
     await page.keyboard.press('Escape');

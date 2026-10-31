@@ -175,7 +175,7 @@ test('listSettings: basic and advanced rows, the app value, what is editable, ke
   const row = (k) => l.settings.find((s) => s.key === k);
   assert.equal(row('promptCacheTtl').basic, false);
   assert.equal(row('model').basic, true);
-  assert.deepEqual([row('model').layer, row('model').file, row('model').changed, row('model').setByApp, 'appValue' in row('model')], ['user', join(home, '.claude/settings.json'), true, true, false]);
+  assert.deepEqual([row('model').layer, row('model').file, row('model').changed, row('model').setByApp, 'appValue' in row('model'), row('model').recommended], ['user', join(home, '.claude/settings.json'), true, false, false, 'opusplan']);
   assert.deepEqual([row('cleanupPeriodDays').layer, row('cleanupPeriodDays').file, row('cleanupPeriodDays').changed, row('cleanupPeriodDays').appValue, row('cleanupPeriodDays').from], [null, null, false, 14, 'default']);
   assert.equal(row('remoteControlAtStartup').setByApp, false);
   const adv = (k) => l.advanced.find((s) => s.key === k);

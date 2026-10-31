@@ -74,6 +74,7 @@ test('the graph has a text alternative; the cost counts the sessions without one
   assert.equal(sparkText({ ...a, perDay: [0, 0, 0, 0], sessions: 0 }), 'No sessions from 2026-10-26 to 2026-10-29');
   assert.equal(costText(a), '$1.50, 1 session without a cost');
   assert.equal(costText({ ...a, uncosted: 0 }), '$1.50');
+  assert.equal(costText({ ...a, estimated: 2 }), '$1.50, 2 sessions estimated, 1 session without a cost');
   assert.equal(costText({ ...a, cost: null, uncosted: 3 }), 'no cost recorded (3 sessions without a cost)');
   assert.equal(costText({ ...a, cost: null, sessions: 0, uncosted: 0 }), 'no sessions');
 });

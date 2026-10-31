@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { byRun, clearSessionCache, codexCost, keepSessionsFor, MIGRATE, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, MIGRATE, scanSessions, sessionCache, TEST } from '../src/sessions.mjs';
 import { TITLE, writeActivitySessions, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
@@ -236,7 +236,7 @@ test('Codex cost: estimated per model from the growth of the token totals, subag
   const dir = join(home, '.codex/sessions/2026/10/22');
   mkdirSync(dir, { recursive: true });
   const at = '2026-10-22T10:00:00.000Z';
-  const usage = (input_tokens, cached_input_tokens, output_tokens, cache_write_input_tokens) => ({ timestamp: at, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens, cached_input_tokens, cache_write_input_tokens, output_tokens, total_tokens: input_tokens + output_tokens } } } });
+  const usage = (input_tokens, cached_input_tokens, output_tokens, cache_write_input_tokens, last = 1000) => ({ timestamp: at, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens, cached_input_tokens, cache_write_input_tokens, output_tokens, total_tokens: input_tokens + output_tokens }, last_token_usage: { input_tokens: last } } } });
   const model = (m) => ({ timestamp: at, type: 'turn_context', payload: { model: m } });
   const rollout = (id, meta, lines) => writeFileSync(join(dir, `rollout-2026-10-22T10-00-00-${id}.jsonl`), [{ timestamp: at, type: 'session_meta', payload: { id, cwd: '/work/shop', model_provider: 'openai', ...meta } }, ...lines].map((l) => JSON.stringify(l)).join('\n'));
   rollout('two', {}, [
@@ -248,6 +248,8 @@ test('Codex cost: estimated per model from the growth of the token totals, subag
   ]);
   rollout('review', { parent_thread_id: 'two' }, [model('codex-auto-review'), usage(1_000_000, 0, 1000, 0)]);
   rollout('child', { parent_thread_id: 'two' }, [model('gpt-5.6-terra'), usage(10_000, 0, 0, 0)]);
+  // Growth above 272K over several requests is short context; a last request above it is long context.
+  rollout('long', {}, [model('gpt-6.1-terra'), usage(400_000, 0, 0, 0), usage(800_000, 0, 0, 0, 300_000)]);
   rollout('unpriced', {}, [model('gpt-daybreak-blue-latest'), usage(1000, 0, 10, 0)]);
   rollout('other', { model_provider: 'ollama' }, [model('gpt-5'), usage(1000, 0, 10, 0)]);
   rollout('old', {}, [model('gpt-5'), { timestamp: at, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { total_tokens: 900 } } } }]);
@@ -256,7 +258,7 @@ test('Codex cost: estimated per model from the growth of the token totals, subag
   // gpt-5.5: 40,000 input at $5, 10,000 cached at $0.50, 5,000 output at $30: 0.355. The child's 10,000 input at $2: 0.02.
   assert.equal(rows.two.costUSD.toFixed(6), '0.633000');
   assert.equal(rows.two.costEstimated, true);
-  assert.equal(codexCost({ 'gpt-5.6-terra': [[0, 0, 0, 0], [400_000, 0, 0, 0]] }), 1.6, 'long-context rate above 272K input');
+  assert.equal(rows.long.costUSD.toFixed(6), '1.200000', '400,000 input at $1, then 400,000 at the long-context $2');
   for (const id of ['unpriced', 'other', 'old']) assert.deepEqual([id, rows[id].costUSD, rows[id].costEstimated], [id, null, false]);
 });
 

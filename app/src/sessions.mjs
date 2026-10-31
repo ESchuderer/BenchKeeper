@@ -124,7 +124,7 @@ async function claudeFile(file) {
 
 // API-equivalent USD of Codex token counts ({ model: [short, long] }, each [input, cached, cache write, output]), or null when
 // no model has a published price. Input includes the cached and written tokens; a model without a write price bills them as input.
-export function codexCost(usage) {
+function codexCost(usage) {
   let usd = null;
   for (const [model, parts] of Object.entries(usage ?? {})) {
     const p = CODEX_PRICES.models[model];
@@ -162,8 +162,8 @@ async function codexFile(file) {
       const add = now.map((n, k) => Math.max(0, n - last[k]));
       last = now;
       if (!model || (d.provider && d.provider !== 'openai')) return;
-      // shortcut: the long-context rate applies per request; one token_count is taken as one request.
-      const slot = (d.usage[model] ??= [[0, 0, 0, 0], [0, 0, 0, 0]])[add[0] > CODEX_PRICES.longAbove ? 1 : 0];
+      // The long-context rate goes by the input of the last request, not by the growth, which can span several.
+      const slot = (d.usage[model] ??= [[0, 0, 0, 0], [0, 0, 0, 0]])[(p.info.last_token_usage?.input_tokens ?? 0) > CODEX_PRICES.longAbove ? 1 : 0];
       add.forEach((n, k) => { slot[k] += n; });
     }
     else if (p.type === 'task_started' && p.turn_attribution?.turn_trigger === 'user') d.turns++;

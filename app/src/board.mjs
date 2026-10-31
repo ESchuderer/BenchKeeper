@@ -834,7 +834,7 @@ export function projectRows(rows, registered, path, keys = repoKeys(rows, regist
 
 // The Projects view's cards: per registered project, its sessions of the last `days` days up to now, all agents merged and
 // worktrees counted under their repository as on the board. perDay: sessions per day, oldest first; uncosted: sessions
-// without a cost; change: the sessions against the previous period, by the cards' rule.
+// without a cost; estimated: sessions with an estimated cost; change: the sessions against the previous period, by the cards' rule.
 export function projectActivity(rows, registered, now, days = 30) {
   const keys = repoKeys(rows, registered);
   const today = Date.parse(now.slice(0, 10));
@@ -848,7 +848,7 @@ export function projectActivity(rows, registered, now, days = 30) {
     const last = mine.reduce((a, r) => (!a || r.start > a.start ? r : a), null);
     return [path, {
       perDay: cur.map((d) => now30.filter((r) => r.start.startsWith(d)).length), from: cur[0], to: cur.at(-1),
-      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length,
+      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length, estimated: now30.filter((r) => r.costEstimated).length,
       change: changeText(f.sessions, before.length ? before.length : null, days),
       last: last && { time: last.end ?? last.start, tier: last.tier?.last ?? null },
     }];

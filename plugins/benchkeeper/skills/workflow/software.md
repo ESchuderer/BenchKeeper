@@ -2,41 +2,8 @@
 
 ## Steps
 
-The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [full-tier.md](full-tier.md). Standard: for a refactor the suite passes before and after with tests unchanged. Detail:
+Standard and full tier. The order per tier is the checklist in [SKILL.md](SKILL.md), and its change-type table and Verify apply; full tier also [full-tier.md](full-tier.md). Standard: for a refactor the suite passes before and after with tests unchanged. Detail:
 
 - **Installed skills** that match a step run it: tests first, bug diagnosis, interface design, prototypes, domain docs, spec review, pull request text. A skill only the user starts is suggested, then wait. None installed: do the step directly.
-- **Branches, commits and pull requests** follow the project's own convention (`AGENTS.md`, a contributing guide, the history).
 - **Review before pushing** standard, full or risky work. First a scope line: the branch or diff range and the issue it implements, when one exists. Depth: standard one correctness pass, fixes made once; full the rounds in [full-tier.md](full-tier.md), plus a security pass when risky; quick none. Claude Code: the built-in `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over the changed assets, trust boundaries and failure modes (authentication, permissions, secrets and input handling among them). Docs-only changes skip this unless risky.
 - **Pull request**, when the project uses them: body with the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert. After pushing, wait for the checks (step 5 of [SKILL.md](SKILL.md)). Review comments and failing checks: fixes on the same branch, committed by the project's convention.
-
-## Change types
-
-Sets the tier when the user named none, and the check before done. Never run a check that changes shared or production systems (`terraform apply`, `kubectl apply`, `helm upgrade`, migrations against shared databases).
-
-| Change | Tier | Check before done |
-|---|---|---|
-| Docs, typo | quick | docs build, link check |
-| Config value | quick, full for production, deploy or security config | tests, schema or lint |
-| Tests only, log line | quick (standard when it logs user data) | |
-| Dependency patch or minor | quick | full suite, package audit |
-| UI tweak | quick | browser check, screenshot baselines updated only for intended changes |
-| UI behavior in an existing flow | standard, full for a new page or flow | end-to-end and accessibility tests |
-| Bug | standard | known cause: a failing test first. Unknown: diagnose the cause first (a diagnosis skill, when installed) |
-| Refactor | standard in one module, full across modules or with a changed interface | suite unchanged and passing |
-| Dependency major or security advisory | standard | changelog read, full suite, package audit |
-| CI workflow | standard, full for deploy steps | `actionlint` |
-| Feature, performance | full | performance: benchmark before and after on the same machine |
-| Infrastructure as code | full | `fmt -check`, `validate`, `plan`; `ansible-lint --check --diff`; `kubeconform`, `kubectl diff`; `helm lint`, `helm template` |
-| Schema migration | full | expand and contract, migrate a throwaway database |
-| Production data fix | full | dry run on a copy, the user runs it |
-| Auth, permissions, secrets, input validation | full | tests for denied paths |
-| Review-thread follow-up on an open pull request | standard | the fix verified, each thread answered |
-| CI fix | quick | the failing check rerun |
-| Merge conflict | quick | resolved the way the repository's conventions say, checks rerun |
-| Live-system change or incident | full when secrets, data or production configuration are touched, else by the table | backup first, verify live, record in the repository docs |
-
-A follow-up commit on an open pull request keeps its tier and needs no workflow reload or new tier line.
-
-## Verify
-
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.

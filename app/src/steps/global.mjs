@@ -10,8 +10,9 @@ import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
-import { globalSkillPacks, libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
+import { copied, globalSkillPacks, libraryWith, ownSkillFiles, packScope, packScopes, scopeText, skillFolder } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
+import { dismissAll, dismissedNotes } from '../preferences.mjs';
 import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
 import { checkPlan, unit } from '../units.mjs';
@@ -95,12 +96,20 @@ const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropi
 const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
 const CODEX_OWN_RULES = ['default.rules'];
 export const CLAUDE_KEYS = [
-  [['advisorModel'], 'opus'], [['showClearContextOnPlanAccept'], true],
+  [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
   [['attribution'], { commit: '', pr: '', sessionUrl: false }],
   [['env', 'DISABLE_ERROR_REPORTING'], '1'], [['env', 'CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY'], '1'],
-  [['env', 'DISABLE_FEEDBACK_COMMAND'], '1'], [['env', 'CLAUDE_CODE_SUBAGENT_MODEL'], 'sonnet'],
+  [['env', 'DISABLE_FEEDBACK_COMMAND'], '1'],
 ];
+// Model and effort values: offered unselected at the full level, never preselected, and shown in Agent settings as BenchKeeper's
+// recommendation. The values per model (effort per model, auto-compact per model) are written with them.
+const ADVISOR_KEYS = [[['advisorModel'], 'opus'], [['env', 'CLAUDE_CODE_SUBAGENT_MODEL'], 'sonnet']];
+export const RECOMMENDED = {
+  claude: [...ADVISOR_KEYS, [['model'], 'opusplan'], [['effortLevel'], 'high'], [['autoCompactWindow'], 400000]],
+  codex: [[['model_reasoning_effort'], 'high']],
+};
+const RECOMMENDATION = { selected: false, optional: true };
 const EFFORT_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 
 const json = (list, fallback) => { try { return JSON.parse(list); } catch { return fallback; } };
@@ -241,6 +250,20 @@ export function skillsCli(ctx) {
 export const skillsSpec = (ctx) => `skills@npm:skills@${skillsCli(ctx)}`;
 export const skillsVerify = (ctx) => verifyArgv(`skills@${skillsCli(ctx)}`);
 
+// A declined change is known by its step and what it writes or runs (a write's edit applied to an empty file, so other
+// lines of the user's file do not count): a new value, version or rules text offers it again.
+export function declineId(c) {
+  let what = c.argv ?? c.after ?? null;
+  if (c.edit) try { what = c.edit(null); } catch { what = null; }
+  return `change:${c.step}:${hashText(JSON.stringify([c.title, what]))}`;
+}
+// After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made;
+// a declined change the user selected again is no longer declined.
+export function declineUnselected(ctx, plan, select) {
+  const eligible = plan.filter((c) => !c.optional && !c.destructive && !c.error);
+  dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+}
+
 export function globalPlan(env) {
   const { ctx, options = {} } = env;
   const level = options.level ?? 'full';
@@ -376,7 +399,7 @@ export function globalPlan(env) {
   // Offered, not preselected, at every level: Ponytail's band next to BenchKeeper's tier band. Both writes go together.
   if (agents.includes('claude') && bandStacks(ctx)) for (const c of hideBandChanges(ctx)) add('settings:ponytail:band', c.title, c, { selected: false, optional: true, unit: 'settings:ponytail:band' });
 
-  if (!full) return checkPlan(changes);
+  if (!full) return declinedOff(ctx, changes);
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
@@ -409,12 +432,13 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    add('settings:claude', 'Claude settings: advisor Opus, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS), settings: { agent: 'claude', keys: CLAUDE_KEYS.map(([k]) => k.join('.')) } });
-    add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]), settings: { agent: 'claude', keys: ['model'] } });
-    add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]), settings: { agent: 'claude', keys: ['effortLevel', 'modelSettings'] } });
+    add('settings:claude', 'Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS), settings: { agent: 'claude', keys: CLAUDE_KEYS.map(([k]) => k.join('.')) } });
+    add('settings:claude:advisor', 'Claude advisor Opus, subagents on Sonnet (BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets(ADVISOR_KEYS), settings: { agent: 'claude', keys: ADVISOR_KEYS.map(([k]) => k.join('.')) } }, RECOMMENDATION);
+    add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]), settings: { agent: 'claude', keys: ['model'] } }, RECOMMENDATION);
+    add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]), settings: { agent: 'claude', keys: ['effortLevel', 'modelSettings'] } }, RECOMMENDATION);
     // Offered, not preselected: Haiku 5.5 came after Opus 5.5 and its level is saved per model the same way (inferred from the docs wording).
     add('settings:claude:effort-haiku', 'Claude effort high for Haiku 5.5 (optional; its own default is medium)', { kind: 'write', path: f, edit: sets([[['modelSettings', 'claude-haiku-5-5', 'effortLevel'], 'high']]), settings: { agent: 'claude', keys: ['modelSettings'] } }, { selected: false, optional: true });
-    add('settings:claude:compact', 'Claude auto-compact window 400000 tokens, per-model values removed', {
+    add('settings:claude:compact', 'Claude auto-compact window 400000 tokens, per-model values removed (BenchKeeper recommendation)', {
       kind: 'write', path: f, edit: (t) => {
         const ms = parseJson(t ?? '{}').modelSettings ?? {};
         const edits = [{ path: ['autoCompactWindow'], value: 400000 }];
@@ -422,18 +446,19 @@ export function globalPlan(env) {
         return mergeJson(t, edits);
       },
       settings: { agent: 'claude', keys: ['autoCompactWindow', 'modelSettings'] },
-    });
+    }, RECOMMENDATION);
     // Offered, not preselected: the band is a choice, and a plugin's options live under its id.
     add('settings:claude:tier-band', 'BenchKeeper status band above the prompt (optional, terminal and desktop app): project, branch, last test run, the tier of the last answer and buttons to set it for the session', { kind: 'write', path: f, edit: sets([[['pluginConfigs', 'benchkeeper@benchkeeper', 'options', 'tierBand'], true]]), settings: { agent: 'claude', keys: ['pluginConfigs.benchkeeper@benchkeeper.options.tierBand'] } }, { selected: false, optional: true });
   }
   if (agents.includes('codex')) {
     const f = at('.codex/config.toml');
-    add('settings:codex', 'Codex effort high, analytics and feedback off', { kind: 'write', path: f, edit: (t) => [['', 'model_reasoning_effort', 'high'], ['analytics', 'enabled', false], ['feedback', 'enabled', false]].reduce((x, [tbl, k, v]) => setToml(x, tbl, k, v), t ?? ''), settings: { agent: 'codex', keys: ['model_reasoning_effort', 'analytics.enabled', 'feedback.enabled'] } });
+    add('settings:codex', 'Codex analytics and feedback off', { kind: 'write', path: f, edit: (t) => [['analytics', 'enabled', false], ['feedback', 'enabled', false]].reduce((x, [tbl, k, v]) => setToml(x, tbl, k, v), t ?? ''), settings: { agent: 'codex', keys: ['analytics.enabled', 'feedback.enabled'] } });
+    add('settings:codex:effort', 'Codex effort high (BenchKeeper recommendation)', { kind: 'write', path: f, edit: (t) => setToml(t ?? '', '', 'model_reasoning_effort', 'high'), settings: { agent: 'codex', keys: ['model_reasoning_effort'] } }, RECOMMENDATION);
   }
 
-  // Host tools
-  const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
-  const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
+  // Host tools. The Dev Containers CLI only where a project uses a dev container (options.containers, default on).
+  const want = options.containers !== false && (env.devcontainerCli ?? newest(ctx, '@devcontainers/cli'));
+  const have = want && (ctx.run(['devcontainer', '--version']).stdout || '').trim();
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
   if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
@@ -446,18 +471,26 @@ export function globalPlan(env) {
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f, `tools:skill:${name}`, `global skill ${name} from ${repo}`); }
-  // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the library.
+  // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the
+  // library and a user skill from the user's folder.
   for (const p of globalPacks) {
     for (const s of lib.skills.filter((x) => p.skills.includes(x.name))) {
       const title = `global skill ${s.name} (pack ${p.id}, ${scopeText('global')})`;
-      if (s.source !== 'own') { const f = flagsFor(s.name); if (f.length) skill(`https://github.com/${s.source}`, s.name, f, `pack:${p.id}`, title); continue; }
+      if (!copied(s)) { const f = flagsFor(s.name); if (f.length) skill(`https://github.com/${s.source}`, s.name, f, `pack:${p.id}`, title); continue; }
       const dirs = Object.keys(skillDirs).filter((a) => agents.includes(a)).map((a) => join(at(skillDirs[a]), s.name));
-      const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
-      for (const d of dirs) for (const f of listFiles(join(contentDir, 'library', s.name))) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, f), after: readFileSync(join(contentDir, 'library', s.name, f), 'utf8'), installUnit });
+      const src = skillFolder(ctx, s);
+      const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: s.source === 'user' ? 'user' : 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
+      for (const d of dirs) for (const { file, text, from } of ownSkillFiles(src)) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, file), ...(from ? { from } : { after: text }), installUnit });
     }
   }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });
-  return checkPlan(changes);
+  return declinedOff(ctx, changes);
+}
+
+// A change the user declined stays in the plan, unselected.
+function declinedOff(ctx, changes) {
+  const off = dismissedNotes(ctx);
+  return checkPlan(changes.map((c) => (off.has(declineId(c)) ? { ...c, selected: false, declined: true } : c)));
 }
 
 function parseJsonSafe(text) { try { return parseJson(text ?? '{}'); } catch { return {}; } }

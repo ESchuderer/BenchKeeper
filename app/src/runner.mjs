@@ -460,12 +460,12 @@ function undoRun(id, ctx, { step, unit } = {}) {
 }
 
 // current: matches the setup; outdated: as installed, the setup has changed; modified: edited after install;
-// removed: installed, now missing; foreign: present, not installed by the app; absent: neither.
+// removed: installed, now missing; foreign: present, not installed by the app; absent: neither. desired: the text or bytes, or a hash.
 export function itemState(path, desired, ctx) {
   const now = hashPath(real(path));
   const last = ctx.ledger.last(path);
   if (now == null) return last ? 'removed' : 'absent';
-  if (now === (typeof desired === 'string' ? hashText(desired) : desired)) return 'current';
+  if (now === (typeof desired === 'string' || Buffer.isBuffer(desired) ? hashText(desired) : desired)) return 'current';
   if (!last) return 'foreign';
   return now === last.hashAfter ? 'outdated' : 'modified';
 }

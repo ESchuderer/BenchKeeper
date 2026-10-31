@@ -4,12 +4,12 @@ import { IconAdjustments, IconFolderOpen, IconListCheck, IconListNumbers, IconPe
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { label, lags } from './cards.js';
-import { DoctorTable } from './fix.jsx';
+import { DoctorFindings } from './fix.jsx';
 import { Plan, Section } from './parts.jsx';
 import { EditProject, HealthBadge, ProjectFacts, Relocate, RemoveFromList, RemoveSetup } from './projects.jsx';
 import { RunPanel } from './run.jsx';
 import { ProjectSetup } from './setup.jsx';
-import { InstallRow, PackSwitches } from './skillstates.jsx';
+import { InstallRow, PackSwitches, SkillStates } from './skillstates.jsx';
 import { AgentSettings } from './agentsettings.jsx';
 import { Rules } from './rules.jsx';
 import { History, ProjectList, Sessions } from './views.jsx';
@@ -90,8 +90,8 @@ function ProjectPage({ rest, params, overview, history, refresh }) {
             </Tabs.Panel>
           </Tabs>
           {dialog === 'list' && <RemoveFromList paths={[p.path]} onClose={() => setDialog(null)} onDone={() => { setDialog(null); go('projects'); reload(); }} />}
-          {dialog === 'setup' && <RemoveSetup paths={[p.path]} push onClose={() => setDialog(null)} onDone={() => { setDialog(null); reload(); }} />}
-          {dialog === 'setup-run' && <ProjectSetup paths={[p.path]} change={!!p.setupVersion} push onClose={() => { setDialog(null); reload(); }} />}
+          {dialog === 'setup' && <RemoveSetup paths={[p.path]} onClose={() => setDialog(null)} onDone={() => { setDialog(null); reload(); }} />}
+          {dialog === 'setup-run' && <ProjectSetup paths={[p.path]} change={!!p.setupVersion} onClose={() => { setDialog(null); reload(); }} />}
         </Stack>
       );
     }}</Loading>
@@ -112,7 +112,7 @@ function Overview({ p, card, names }) {
       {!p.missing && (
         <Section title="Project doctor">
           <Group><Button size="xs" variant="default" onClick={found.reload} loading={found.loading}>Check again</Button></Group>
-          <Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: p.path }))} />}</Loading>
+          <DoctorFindings state={found} path={`/api/doctor?dir=${encodeURIComponent(p.path)}`} dir={p.path} />
         </Section>
       )}
     </Stack>
@@ -120,13 +120,15 @@ function Overview({ p, card, names }) {
 }
 
 // The per-project install controls: packs, workflow owner, skills and agent files, one switch each with its scope hint; what
-// the global setup makes active here; the plan and its result.
+// the global setup makes active here; the plan and its result; the skill states with their actions.
 const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [], fileOn: [], fileOff: [] };
 function Installs({ project, others, onDone, onSetup }) {
   const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
   const [applied, setApplied] = useState(null);
   const [running, setRunning] = useState(false);
+  // An apply on either side reloads the other: the plan's switches and the skill states read the same files.
+  const [tick, setTick] = useState(0);
   const q = new URLSearchParams({ dir: project.path });
   for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off'], ['fileOn', 'file-on'], ['fileOff', 'file-off']]) for (const n of toggles[k]) q.append(name, n);
   const plan = useApi(!project.missing && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
@@ -184,13 +186,14 @@ function Installs({ project, others, onDone, onSetup }) {
               <Loading state={plan} label="project plan">{(fresh) => (
                 <>
                   {fresh.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                  <Plan key={fresh.planId} plan={fresh} why={Object.values(toggles).some((x) => x.length) ? 'You flipped the switches above in Projects.' : undefined} scope="project" onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onDone(); }} />
+                  <Plan key={fresh.planId} plan={fresh} why={Object.values(toggles).some((x) => x.length) ? 'You flipped the switches above in Projects.' : undefined} scope="project" onRunning={setRunning} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); setTick((n) => n + 1); onDone(); }} />
                 </>
               )}</Loading>
             </Section>
           </>
         )}</Loading>
       )}
+      <SkillStates key={tick} dir={project.path} refresh={() => { plan.reload(); onDone(); }} />
     </Stack>
   );
 }

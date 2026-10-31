@@ -100,7 +100,7 @@ test('project cards: sessions of both agents and of worktrees per day for 30 day
   assert.deepEqual(shop.last, { time: '2026-10-29T10:30:00.000Z', tier: 'standard' });
   // No session in the previous period: no change text, never "none".
   assert.equal(cards['/src/blog'].change, null);
-  assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, change: null, last: null });
+  assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, estimated: 0, change: null, last: null });
 });
 
 test('a project\'s sessions: its folder and its worktrees, not another project nor a folder of none', () => {
@@ -177,9 +177,7 @@ test('no transcript text reaches the page: a marker in a prompt, a reply, a tool
     line('2026-10-21T10:00:02.000Z', { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k1', content: `out ${MARK}`, is_error: false }] } }),
     line('2026-10-21T10:00:03.000Z', { type: 'attachment', attachment: { type: 'queued_command', prompt: `later ${MARK}`, origin: { kind: 'human' }, humanTurn: true } }),
   ].join('\n') + '\n');
-  // The fixture's pull request link must not reach the host's gh.
-  const run = () => ({ code: 127, stdout: '', stderr: 'not installed' });
-  const rows = await scanSessions(context({ home, run }));
+  const rows = await scanSessions(context({ home }));
   assert.ok(rows.some((r) => r.id === 'm1'));
   assert.ok(!JSON.stringify(rows).includes(MARK));
   assert.ok(!boardHtml(rows, '2026-10-23T00:00:00Z').includes(MARK));

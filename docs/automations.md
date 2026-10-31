@@ -118,6 +118,26 @@ The view shows per installed automation its state, whether it is enabled, its mo
 | a template of either tier without a precheck | add a precheck that exits 0 only when there is work |
 | two installed automations with the same schedule in one project checkout (workspace `project`): their sessions would run side by side in one folder | remove one of them, then install it in another project, or from a private copy of its template with another schedule. The schedules are compared as text, so `hourly` and `0 * * * *` are not matched |
 
+## Without Orca
+
+`benchkeeper automations export <id> --param name=value --project <dir> > ~/bin/<id>.sh` writes one sh script per template for cron or a systemd timer. The script unpacks the template's helpers into a temporary folder, runs the precheck in the project folder and starts the agent only when the precheck exits 0. It removes the folder when it ends. The app writes no crontab and no systemd unit, and it keeps no record, so `status`, `update` and `doctor` do not see an exported automation.
+
+1. Export, make the script executable (`chmod +x`) and run it once by hand in mode `report`.
+2. Add the line from the script's header to `crontab -e`, with the script's absolute path. Cron starts with a short PATH, so put a `PATH=` line above it that includes the folders of `claude` or `codex` and `gh` (`command -v claude`); the script exits 127 when it does not find the agent. A systemd timer: a service with `ExecStart=` the script and a timer with `OnCalendar=` the same time ([systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)).
+3. A changed template needs a new export.
+
+| Agent | Command in the script | What the run may do |
+|---|---|---|
+| `claude` | `claude -p "$prompt" --permission-mode dontAsk --allowedTools "Bash(<folder>/<helper> *)"..` | file reads in the folder, the template's helpers (the script allows each one, since their folder changes per run) and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the other commands the prompt runs, such as `gh`, to the project's settings |
+| `codex` | `codex exec --sandbox workspace-write "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
+
+Limits:
+
+- The script runs the agent as the account that runs cron, with its login, settings, hooks and MCP servers. A `claude -p` run starts the project's hooks and `.mcp.json` servers without the trust dialog ([headless mode](https://code.claude.com/docs/en/headless.md)), so export only for a project you trust.
+- The marker check of a precheck (`pgrep -f automation-<id>`) matches every process whose arguments carry the marker. Do not put `automation-<id>` in the script's file name, or the precheck sees the script itself and never starts a run.
+- Exporting a template that is also installed on the runner runs it twice. Remove one of them.
+- `missed_run_grace_minutes` and `reuse_session` have no effect: cron skips a time the machine was off.
+
 ## Catalogue
 
 The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
@@ -134,6 +154,6 @@ The generic templates, ranked by what the projects need. Every row is shipped as
 | `code-findings`: Code findings to fix workers: open findings of the default branch from the adapter (`code-scanning`, a `linter` script that prints ESLint JSON or SARIF, or a `quality-gate` service read with the token in `token_var`), grouped by rule and file; a worker removes the cause, and the check step (`code-findings/check.sh`) rejects a fix that adds a suppression comment or changes the tool configuration; a finding that cannot be fixed is listed for the owner to accept in the tool | weekly | `list.sh`: an open finding of the adapter (`quality-gate`: the token variable is set) | in act mode: branches and pull requests, at most `max_workers` workers at once | template, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
 | `release-watch`: Release watch: the package at the version in the registry (`registry`), the version pins in the README and docs, the release notes and an install in a clean container (`install_command`, empty: an npm install); never publishes, tags or edits a release | hourly | a valid release tag without a recorded pass, or a failure older than a day | one issue per failing tag, updated by the next check and closed after a pass (act mode) | template, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
 | `provider-changelog`: Provider changelog scan: what the installed agent CLIs changed that affects the setup (settings, hooks, deprecations, new events), with proposals for the settings catalog and Insights; reads only the official release notes in `sources` (install refuses a page outside its `allow` list), uses a subscription session | weekly | an installed agent version the last report does not name | one local report (`file`) | template, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
-| `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits, pushes and pull requests in act mode (push off by default) | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
+| `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits on local branches in act mode, never pushed; the report names each push command | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
 
 Not offered: merging external pull requests, applying the agent label, changing settings or rulesets, switching accounts automatically.

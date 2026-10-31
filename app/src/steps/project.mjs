@@ -8,12 +8,12 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
-import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
+import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
 import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { libraryWith, packScope, scopeText, warnings } from '../packs.mjs';
+import { copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -67,6 +67,10 @@ const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli
 export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
 export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
+// The env of a project without a state file: what its AGENTS.md states, else the dev container where .devcontainer/ exists.
+export const defaultEnv = (dir) => suggest(dir).env?.id ?? 'container';
+// The envs whose project commands run in the dev container.
+export const usesContainer = (env) => ['container', 'host-agent'].includes(env);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 // Per call: the cooldown date moves with the clock, and a server runs for days.
 export const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
@@ -196,11 +200,12 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), fileOn, fileOff (agent files switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
+// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), workflowLoad (default true: the
+// rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -211,6 +216,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.guards = a.guards !== false;
+  a.workflowLoad = a.workflowLoad !== false;
   a.agentFiles = [...new Set([...[a.agentFiles].flat(), ...fileOn])].filter((p) => !fileOff.includes(p));
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
@@ -255,7 +261,9 @@ export function suggest(dir) {
   ];
   const own = handWritten(dir);
   const place = agentPlace(own);
-  const env = !place ? null : { id: place === 'host' ? (has('.devcontainer') && COMMANDS_IN_CONTAINER.test(own) ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
+  // Without a statement the agent runs on the host, unless the project has a dev container.
+  const stated = place && { id: place === 'host' ? (has('.devcontainer') && COMMANDS_IN_CONTAINER.test(own) ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
+  const env = stated || (has('.devcontainer') ? null : { id: 'host', reason: 'the project has no .devcontainer/' });
   return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 
@@ -314,15 +322,6 @@ export function chosenSkills(a, lib = library()) {
   return lib.skills.filter((s) => names.has(s.name) && (s.agents !== 'codex' || a.agents.includes('codex')));
 }
 
-// A library skill's own files as a project gets them: with the path globs of the setup in the front matter.
-export function ownSkillFiles(name, paths) {
-  const src = join(contentDir, 'library', name);
-  return listFiles(src).map((file) => {
-    const text = readFileSync(join(src, file), 'utf8');
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
-  });
-}
-
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
@@ -357,8 +356,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
-  const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
-  const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, ''));
+  const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
+  const ruleLines = forAgent(rules, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]).split('\n').map((l) => l.replace(/^- /, ''));
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
   const lines = (run) => [...ruleLines, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
@@ -400,7 +399,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });
   }
-  // repo-baseline's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
+  // repo-standards's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
   for (const m of a.callers) {
     const f = callerFile(m), have = readText(at(f.path));
     add(`caller:${m}`, `${f.path}: ${BASELINE_REPO} ${m} caller${have != null && have !== f.text ? ' (replaces your own file)' : ''}`, { kind: 'write', path: at(f.path), after: f.text, selected: have == null || have === f.text });
@@ -410,7 +409,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Shared: the project's settings file; local: Claude Code's personal one, which wins over it.
   const settings = a.share ? '.claude/settings.json' : LOCAL_SETTINGS;
   if (a.sandbox && a.agents.includes('claude')) {
-    add('sandbox', 'Claude Code sandbox on; devcontainer and podman run outside it (they cannot start inside)', { kind: 'write', path: at(settings), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, { path: ['sandbox', 'excludedCommands'], append: SANDBOX_OUT }]) });
+    // The exclusions only where the project's commands run in the dev container; on the host the ones an earlier setup
+    // with the sandbox wrote come out again (other exclusions stay).
+    const container = usesContainer(a.env);
+    const out = container ? [{ path: ['sandbox', 'excludedCommands'], append: SANDBOX_OUT }] : prev?.sandbox ? [{ path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox', 'excludedCommands'], prune: true }] : [];
+    add('sandbox', `Claude Code sandbox on${container ? '; devcontainer and podman run outside it (they cannot start inside)' : ''}`, { kind: 'write', path: at(settings), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, ...out]) });
   } else if (tryJson(readText(at(settings)))?.sandbox?.enabled === true) {
     // Preselected only when the state file shows this setup turned it on.
     add('sandbox', `Claude Code sandbox off${prev?.sandbox ? '' : ' (not turned on by BenchKeeper)'}`, { kind: 'write', path: at(settings), selected: !!prev?.sandbox,
@@ -436,6 +439,28 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', marketSource(p, ag)], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}`, installUnit, ...where });
         add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id} (${scopeText(scope)})`, { unit: `pack:${id}:${ag}`, installUnit, ...where, ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', ...(local ? ['--scope', 'local'] : []), p.id], undoArgv: ['claude', 'plugin', 'uninstall', ...(local ? ['--scope', 'local'] : []), p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
       }
+    }
+  }
+  // A pack switched off here takes its local-scope plugin out of this folder; a plugin for all projects stays with the global plan.
+  // Preselected only when the last local install or removal of it here was a run of this app; the user's own install is offered.
+  // An undo puts back what was there and says nothing about who installed it: the run it undid is marked and skipped too.
+  // Newest first by time: run ids carry whole seconds only.
+  const ours = (id) => {
+    for (const run of ctx.ledger.list().filter((r) => r.kind !== 'undo').sort((x, y) => y.time.localeCompare(x.time))) {
+      const e = [...run.entries].reverse().find((x) => x.kind === 'command' && x.status === 'done' && !x.undone && x.cwd === dir && x.argv?.[0] === 'claude' && x.argv[1] === 'plugin' && x.argv.includes('local') && x.argv.at(-1) === id);
+      if (e) return e.argv[2] === 'install';
+    }
+    return false;
+  };
+  // A removal that ran and did not finish keeps the pack in the state, so the next plan offers it again.
+  const offIds = new Map();
+  for (const id of (prev?.packs ?? []).filter((x) => !a.packs.includes(x))) {
+    const p = PLUGINS.claude.find((x) => x.pack === id);
+    if (p && pluginScope(ctx, p, 'claude') === 'projects' && localPlugins(ctx, dir).includes(p.id)) {
+      const argv = ['claude', 'plugin', 'uninstall', '--scope', 'local', p.id], own = ours(p.id);
+      add(`pack:${id}:claude`, `remove Claude Code plugin ${p.id} from this project (pack ${id} switched off${own ? '' : '; BenchKeeper did not install it'})`, { kind: 'command', argv, undoArgv: ['claude', 'plugin', 'install', '--scope', 'local', p.id], cwd: dir, machine: true, destructive: true, selected: own, foreign: !own,
+        impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from this project; the undo installs it again` });
+      offIds.set(id, changes.at(-1).id);
     }
   }
 
@@ -470,9 +495,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from, unit: `move:${from}`, installUnit });
     add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true, unit: `move:${from}`, installUnit });
   };
-  // An own skill is copied from the library, a community skill comes through the skills CLI from its source's default branch.
-  const skillUnit = (s, ids) => unit({ id: `skill:${s.name}`, kind: 'skill', source: s.source === 'own' ? { type: 'library' } : { type: 'git', repo: s.source }, agents: ids, scope: 'project',
-    files: skillDirs(ids, 'project', dir).map(({ dir: d }) => join(d, s.name)), removal: s.source === 'own' ? 'files' : 'skills-cli' });
+  // An own skill is copied from the library and a user skill from the user's folder, a community skill comes through the skills
+  // CLI from its source's default branch.
+  const skillUnit = (s, ids) => unit({ id: `skill:${s.name}`, kind: 'skill', source: s.source === 'own' ? { type: 'library' } : s.source === 'user' ? { type: 'user' } : { type: 'git', repo: s.source }, agents: ids, scope: 'project',
+    files: skillDirs(ids, 'project', dir).map(({ dir: d }) => join(d, s.name)), removal: copied(s) ? 'files' : 'skills-cli' });
 
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI from the default branch of their source
 // (undo puts back the copies of their folders and the lockfile taken before the command).
@@ -497,13 +523,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     // A copy edited here (it differs from what a run of this machine left), or a folder of that name being adopted, is replaced only
     // when asked for (reset): the plan shows its diff.
     const reseat = a.reset.includes(s.name);
-    if (s.source === 'own') {
+    if (copied(s)) {
       for (const { dir: d } of rest) {
-        for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
+        for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          const found = itemState(path, text ?? bytes, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
           if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
-          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
+          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {
@@ -534,7 +560,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const installUnit = s && skillUnit(s, dirs.flatMap((x) => x.agents));
     for (const { dir: d } of dirs) if (exists(parked(d, name))) add(`remove:${name}`, `remove ${rel(parked(d, name))}${why}`, { kind: 'remove', path: parked(d, name), selected: true, installUnit });
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
-    if (s && s.source !== 'own' && present.length) {
+    if (s && !copied(s) && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', installUnit, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
         argv: ['npx', '-y', skillsSpec(ctx), 'remove', name, ...flags, '-y'] });
@@ -552,7 +578,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // install was not chosen or failed in the run that writes this file (apply passes the run to edit).
   // Its hash is the folder as the install left it (a later edit shows as a difference); kept while no install ran.
   const recorded = (s, run, runCtx) => {
-    if (s.source === 'own') return {};
+    if (copied(s)) return {};
     const id = installs.get(s.name);
     const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
     const fresh = id && run && ran && !a.disabled.includes(s.name);
@@ -563,7 +589,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
@@ -606,7 +632,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, dir, prev })] };
 }
 
-const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 // The line the user pastes in their own terminal: the app shows it and never runs it.
 export const recordCommand = (dir, agent, prompt) => `benchkeeper sessions record --project ${quote(dir)} -- ${agent} ${quote(prompt)}`;
 // The agent a user-started step names: Claude Code when chosen, else the first agent.

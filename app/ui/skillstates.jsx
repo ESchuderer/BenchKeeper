@@ -115,12 +115,12 @@ export function ActionPlan({ act, why, onClose, onDone }) {
   );
 }
 
-// Every skill of every registered project with its state against the library, the commit installed and the one the
+// The skills of one project (the path in dir) with their state against the library, the commit installed and the one the
 // library offers, and the folders no setup installed (never touched by an update or an apply).
-export function SkillStates({ refresh }) {
+export function SkillStates({ dir, refresh }) {
   // Whether each skill source is asked for its default branch (the one network call): only on a click.
   const [checked, setChecked] = useState(false);
-  const data = useApi(checked ? '/api/skills?check=1' : '/api/skills');
+  const data = useApi(`/api/skills?${new URLSearchParams([['dir', dir], ...(checked ? [['check', '1']] : [])])}`);
   const [act, setAct] = useState(null);
   const [state, setState] = useState(null);
   const start = (dir, title, params) => setAct({ dir, title, params: [...params] });
@@ -141,16 +141,15 @@ export function SkillStates({ refresh }) {
         return (
           <>
             {rows.length ? (
-              <Table.ScrollContainer minWidth={820}>
+              <Table.ScrollContainer minWidth={720}>
                 <Table aria-label="Skill states">
-                  <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Skill</Table.Th><Table.Th>State</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Source now</Table.Th><Table.Th>Active</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Thead><Table.Tr><Table.Th>Skill</Table.Th><Table.Th>State</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Source now</Table.Th><Table.Th>Active</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
                     {rows.map(({ p, s }) => {
                       const where = `${s.name} in ${label(p)}`;
                       const off = s.state === 'disabled';
                       return (
-                        <Table.Tr key={`${p.path}:${s.name}`}>
-                          <Table.Td>{label(p)}</Table.Td>
+                        <Table.Tr key={s.name}>
                           <Table.Td>{s.name}{!!s.packs.length && <Text size="xs">pack {s.packs.join(', ')}</Text>}</Table.Td>
                           <Table.Td><StateBadge state={s.state} /></Table.Td>
                           <Table.Td>{s.own ? 'BenchKeeper' : short(s.pinned) ?? 'not recorded'}</Table.Td>
@@ -169,19 +168,18 @@ export function SkillStates({ refresh }) {
                   </Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
-            ) : <Text size="sm" role="status">{state ? `No skill is ${state}.` : 'No registered project has a setup with skills.'}</Text>}
+            ) : <Text size="sm" role="status">{state ? `No skill is ${state}.` : 'This project has no skills from its setup.'}</Text>}
             {(!!untracked.length || !!d.global.length) && (
               <Stack gap="xs" component="section" aria-label="Untracked skill folders">
                 <Title order={4} size="h5">Untracked skill folders</Title>
                 <Text size="sm">No BenchKeeper setup installed these. A skill action, a projects apply and Update all never touch them.</Text>
                 {!!untracked.length && (
-                  <Table.ScrollContainer minWidth={520}>
+                  <Table.ScrollContainer minWidth={420}>
                     <Table aria-label="Untracked folders">
-                      <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Folder</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+                      <Table.Thead><Table.Tr><Table.Th>Skill</Table.Th><Table.Th>Folder</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                       <Table.Tbody>
                         {untracked.map(({ p, u }) => (
-                          <Table.Tr key={`${p.path}:${u.name}`}>
-                            <Table.Td>{label(p)}</Table.Td>
+                          <Table.Tr key={u.name}>
                             <Table.Td>{u.name}</Table.Td>
                             <Table.Td>{u.folders.join(', ')}</Table.Td>
                             <Table.Td>{u.library
@@ -199,7 +197,7 @@ export function SkillStates({ refresh }) {
           </>
         );
       }}</Loading>
-      <ActionPlan act={act} why={act && `You asked for it in Catalog: ${act.title}.`} onClose={close} onDone={() => data.reload()} />
+      <ActionPlan act={act} why={act && `You asked for it in Projects: ${act.title}.`} onClose={close} onDone={() => data.reload()} />
     </Section>
   );
 }

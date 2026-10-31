@@ -2,7 +2,7 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton } from './fix.jsx';
+import { DoctorFindings, DoctorWorst, FixEverythingButton } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
@@ -26,9 +26,12 @@ function target(state, projects) {
   return href('projects', { show: 'changes' });
 }
 
+// A pack with skills opens the Skills page filtered to it; a plugin pack has no skills to filter, so it opens Packs.
+const packHref = (data, id) => (data.catalog.some((p) => p.id === id) ? href('skills', { pack: id }) : href('packs'));
+
 function Installed({ data, names }) {
   const skills = (counts, to) => Object.entries(counts).map(([id, n]) => <Anchor key={id} href={to(id)} mr="sm">{names[id] ?? id} {n}</Anchor>);
-  const packs = (ids) => (ids.length ? ids.map((id) => <Anchor key={id} href={href('catalog', { pack: id })} mr="sm">{id}</Anchor>) : 'none');
+  const packs = (ids) => (ids.length ? ids.map((id) => <Anchor key={id} href={packHref(data, id)} mr="sm">{id}</Anchor>) : 'none');
   const globalPacks = [...new Set(Object.values(data.global.packs).flat())];
   return (
     <Table.ScrollContainer minWidth={420}>
@@ -111,7 +114,7 @@ function Where({ data }) {
                 <Text size="sm">{r.note || shown.map((s) => `${r.states[s]} ${s}`).join(', ') || 'no items'}</Text>
               </Group>
               {!!all && <div className="bk-stack" aria-hidden>{shown.map((s) => <span key={s} style={{ width: `${(r.states[s] / all) * 100}%`, backgroundColor: `var(--bk-h-${s})` }} />)}</div>}
-              {!!r.packs?.length && <Text size="xs">Packs: {r.packs.map((id, n) => <span key={id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: id })}>{id}</Anchor></span>)}</Text>}
+              {!!r.packs?.length && <Text size="xs">Packs: {r.packs.map((id, n) => <span key={id}>{n ? ', ' : ''}<Anchor href={packHref(data, id)}>{id}</Anchor></span>)}</Text>}
             </Stack>
           </List.Item>
         );
@@ -120,8 +123,8 @@ function Where({ data }) {
   );
 }
 
-// A card of the top row: its title, one big number that links to what it counts, a line of detail.
-const Card = ({ title, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text>{children}</Stack></Paper>;
+// A card of the top row: its title, what its number counts, one big number that links to it, a line of detail.
+const Card = ({ title, counts, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text><Text size="sm">{counts}</Text>{children}</Stack></Paper>;
 // No link (to null): a count that no one view shows, so the line under it links each part.
 const Big = ({ n, to, name }) => (to ? <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={40} fw={650} lh={1.1}>{n}</Text>);
 
@@ -157,7 +160,7 @@ function PackCoverage({ data, names }) {
             {packs.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Th scope="row">
-                  <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
+                  <Anchor href={packHref(data, p.id)}>{p.title}</Anchor>
                   {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
                   {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
                 </Table.Th>
@@ -169,8 +172,8 @@ function PackCoverage({ data, names }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>}
-      {!!all.length && <Text size="sm">Global, in every project: {all.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
-      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
+      {!!all.length && <Text size="sm">Global, in every project: {all.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={packHref(data, p.id)}>{p.title}</Anchor></span>)}</Text>}
+      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={packHref(data, p.id)}>{p.title}</Anchor></span>)}</Text>}
     </Stack>
   );
 }
@@ -182,7 +185,7 @@ function CatalogByPack({ data }) {
     <Stack gap="xs">
       <ul className="bk-bars" aria-label="Skills per pack">
         {data.catalog.map((p) => (
-          <li key={p.id}><Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right" className="bk-num">{p.skills}</Text></li>
+          <li key={p.id}><Anchor href={href('skills', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right" className="bk-num">{p.skills}</Text></li>
         ))}
       </ul>
       {data.coverage.packs.some((p) => p.skills === null) && <Text size="sm">Packs that are plugins have no skill list: {data.coverage.packs.filter((p) => p.skills === null).map((p) => p.title).join(', ')}.</Text>}
@@ -289,14 +292,14 @@ export function Dashboard({ overview, doctor, history, params }) {
         <OneRunButtons />
       </Stack>
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
-        <Card title="Need attention">
+        <Card title="Need attention" counts="Counts setup items, in the global setup and the projects, that differ from the setup.">
           {fromDash((d) => <Attention data={d} />)}
           <FixEverythingButton />
         </Card>
-        <Card title="Doctor findings">
+        <Card title="Doctor findings" counts="Counts doctor findings: problems its checks found in the setup and the agent settings.">
           <Loading state={doctor} label="doctor">{(found) => (
             <>
-              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the table`} />
+              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the Doctor section`} />
               <Text size="sm">{levels.text || 'No findings'}</Text>
             </>
           )}</Loading>
@@ -312,7 +315,18 @@ export function Dashboard({ overview, doctor, history, params }) {
       </Grid>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => <DoctorTable found={found} />}</Loading></Section>
+          {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section.
+              Closing it drops the panel from the hash, so the same link opens it again. */}
+          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => (found.length ? (
+            <Stack gap="sm">
+              <DoctorWorst found={found} />
+              <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
+              <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
+                <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
+                <Box mt="sm"><DoctorFindings state={doctor} path="/api/doctor" /></Box>
+              </details>
+            </Stack>
+          ) : <DoctorFindings state={doctor} path="/api/doctor" />)}</Loading></Section>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">

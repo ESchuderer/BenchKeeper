@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { keptFrom } from './frameworks.mjs';
+import { containerProjects } from './level.mjs';
 import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, storedScopes } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { ruleStates } from './rules.mjs';
@@ -14,7 +15,9 @@ import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState } from './steps/project.mjs';
 
 const PROFILE_SCHEMA = 1;
-const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'agentFiles'];
+const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'workflowLoad', 'agentFiles'];
+// The answers of a state file that a profile or a preset keeps.
+export const savedAnswers = (s) => Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]]));
 
 // The optional packs whose plugin is installed: the profile's global packs.
 export function installedPacks(ctx) {
@@ -29,7 +32,7 @@ export function exportProfile(ctx, { agents, packs = [], origins = [], warn = ()
     let s = null;
     try { s = readState(path); } catch (e) { warn(`exported without answers: ${e.message}`); }
     const origin = origins.find((o) => o.path === path)?.url;
-    return { path, ...(origin ? { origin } : {}), ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
+    return { path, ...(origin ? { origin } : {}), ...(s ? { answers: savedAnswers(s) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
   });
   const own = ownPacks(ctx).map(({ id, title, skills }) => ({ id, title, skills }));
   return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs: [...new Set([...packs, ...globalSkillPacks(ctx).map((p) => p.id)])], scopes: storedScopes(ctx), rules: ruleStates(ctx, { agents }) }, packs: own, projects }, null, 2)}\n`;
@@ -51,6 +54,9 @@ export function readProfile(text) {
   return p;
 }
 
+// Saved answers (a profile's, a preset's) as projectPlan takes them.
+export const planAnswers = (answers) => ({ ...answers, skills: answers.singles, singles: undefined, agentFiles: keptFrom(answers).agentFiles });
+
 // The import plan: the global changes for the profile's agents and packs, plus the project setup of registered paths that
 // exist here and have no state file yet, both against the pack scopes saved here. Paths missing here are listed and skipped,
 // and so are projects whose plan fails (a state file this app cannot read): skipped holds their messages.
@@ -62,7 +68,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
     const pack = lib.packs.find((x) => x.id === id), here = pack && packScope(ctx, pack);
     return pack && s !== here ? [`pack ${id}: ${scopeText(here)} here, ${scopeText(s)} in the profile; to change it: benchkeeper packs scope ${id} ${s}`] : [];
   });
-  const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }));
+  const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [], containers: containerProjects(ctx) }, devcontainerCli }));
   const projects = [], missing = [], skipped = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
@@ -70,7 +76,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
     if (unfit(ctx, x.path)) continue;
     try {
       const pctx = projectCtx(ctx, x.path);
-      const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined, agentFiles: keptFrom(x.answers).agentFiles } }).changes);
+      const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: planAnswers(x.answers) }).changes);
       projects.push({ path: x.path, ctx: pctx, changes });
     } catch (e) { skipped.push(`${x.path}: ${e.message}`); }
   }

@@ -1,18 +1,18 @@
-// Drift of a repository's GitHub settings and caller workflows against a repo-baseline profile (the shared desired
-// state in ESchuderer/repo-baseline). Reads only: GET requests through gh, files of the checkout. Applying a profile is
-// repo-baseline's script (dry run, snapshot, restore), never this app. Without gh, a login or the network the check says
+// Drift of a repository's GitHub settings and caller workflows against a repo-standards profile (the shared desired
+// state in ESchuderer/repo-standards). Reads only: GET requests through gh, files of the checkout. Applying a profile is
+// repo-standards's script (dry run, snapshot, restore), never this app. Without gh, a login or the network the check says
 // so and nothing else fails.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { exists, readText } from './fsx.mjs';
 import { git } from './git.mjs';
 
-export const BASELINE_REPO = 'ESchuderer/repo-baseline';
-// The repo-baseline commit the bundled copy in ./baseline/ and the caller files come from (scripts/baseline-sync.mjs).
-export const REF = '83cc82ccd57649c8791d644ed6ffc03b26bcaf31';
+export const BASELINE_REPO = 'ESchuderer/repo-standards';
+// The repo-standards commit the bundled copy in ./baseline/ and the caller files come from (scripts/baseline-sync.mjs).
+export const REF = 'c252959a101a1623ee46b0f8d980e59273e7ecfb';
 export const PROFILES = ['oss', 'private-advisory'];
 export const CALLERS = ['lint-js', 'lint-python', 'sonar'];
-// The copy-in files of repo-baseline (templates/), kept next to the profiles and callers; nothing here reads them.
+// The copy-in files of repo-standards (templates/), kept next to the profiles and callers; nothing here reads them.
 export const TEMPLATES = ['ci/ci.yml', 'ci/dependabot.yml', 'ci/pr-title.yml', 'ci/scorecard.yml', 'lint-js/.jscpd.json', 'lint-js/biome-quality.jsonc', 'lint-js/knip.json', 'lint-js/tsc-baseline.sh', 'lint-js/tsconfig.strict.json', 'lint-python/pyproject-quality.toml', 'sonar/sonar-project.properties'];
 const REF_OK = /^[\w][\w./-]*$/;
 const GH_ENV = { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' };
@@ -24,8 +24,8 @@ const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const show = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
 const valid = (p, name) => p?.schemaVersion === 1 && p.name === name && typeof p.advisory === 'boolean' && (p.rulesets === undefined || Array.isArray(p.rulesets));
 
-// The profile at ref (default: the pinned commit), read from repo-baseline. The pinned commit falls back to the bundled
-// copy, which is that commit's file, when repo-baseline cannot be reached; another ref has no fallback.
+// The profile at ref (default: the pinned commit), read from repo-standards. The pinned commit falls back to the bundled
+// copy, which is that commit's file, when repo-standards cannot be reached; another ref has no fallback.
 export function loadProfile(ctx, name, ref = REF) {
   if (!PROFILES.includes(name)) throw new Error(`profile must be one of ${PROFILES.join(', ')}`);
   if (!REF_OK.test(ref)) throw new Error(`not a ref: ${ref}`);
@@ -39,10 +39,10 @@ export function loadProfile(ctx, name, ref = REF) {
     why = 'not a valid profile file (a newer schema?)';
   }
   if (ref !== REF) throw new Error(`cannot read profile ${name} at ${BASELINE_REPO}@${ref}: ${why}`);
-  return { profile: JSON.parse(bundled(`profiles/${name}.json`)), source: `bundled copy of ${BASELINE_REPO}@${REF.slice(0, 7)} (repo-baseline: ${why})` };
+  return { profile: JSON.parse(bundled(`profiles/${name}.json`)), source: `bundled copy of ${BASELINE_REPO}@${REF.slice(0, 7)} (repo-standards: ${why})` };
 }
 
-// A caller workflow of repo-baseline, pinned to the bundled commit: { path, text }.
+// A caller workflow of repo-standards, pinned to the bundled commit: { path, text }.
 export function callerFile(module) {
   if (!CALLERS.includes(module)) throw new Error(`unknown caller ${module} (${CALLERS.join(', ')})`);
   return { path: `.github/workflows/${module}.yml`, text: bundled(`callers/${module}.yml`).replaceAll('{{ref}}', REF) };
@@ -144,7 +144,7 @@ function compare(profile, live) {
   return out;
 }
 
-// The refs the workflow files of the checkout give repo-baseline's caller m (a line of its own, so a comment does not
+// The refs the workflow files of the checkout give repo-standards's caller m (a line of its own, so a comment does not
 // count; quotes around the value are allowed).
 function callerUses(dir, m) {
   const wf = join(dir, '.github/workflows');

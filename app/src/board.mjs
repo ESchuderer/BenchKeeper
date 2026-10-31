@@ -6,7 +6,7 @@ import { readText, writeAtomic } from './fsx.mjs';
 import { repoEnv } from './git.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
 import { canon, listProjects } from './projects.mjs';
-import { byRun } from './sessions.mjs';
+import { byRun, CODEX_PRICES } from './sessions.mjs';
 import { TOKENS, cssVars } from './tokens.mjs';
 
 // The pure parts of the page script: their source goes into it as draw()'s argument, so the unit tests run the same code.
@@ -143,12 +143,6 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   const group = (list, key) => { const by = new Map(); for (const r of list) { const k = key(r); if (k == null) continue; const g = by.get(k); if (g) g.push(r); else by.set(k, [r]); } return by; };
   const passRate = (rs) => { const t = rs.filter((r) => r.tests); return { v: t.length ? (t.filter((r) => r.tests === 'pass').length / t.length) * 100 : null, n: t.length }; };
   const medianOf = (f) => (rs) => { const xs = rs.map(f).filter((x) => x != null); return { v: median(xs), n: xs.length }; };
-  // A merged pull request counts once, on the day of its first session.
-  const mergedPrs = (list) => {
-    const m = new Map();
-    for (const r of list) for (const p of r.prs) if (p.state === 'merged' && (!m.has(p.url) || day(r.start) < m.get(p.url))) m.set(p.url, day(r.start));
-    return m;
-  };
 
   // Theme: the query (the app passes its own), else the stored choice, else the system's.
   let stored = null;
@@ -279,24 +273,24 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     const cur = periodFacts(list, span), old = prev?.length ? periodFacts(prev, prevSpan) : null;
     const delta = (k, fmt) => changeText(cur[k], old?.[k] ?? null, len, { fmt });
     const missing = cur.uncosted.map(([a, n]) => `${plural(n, `${agentName(a)} session`)} without a cost`).join(', ');
+    const estimated = list.some((r) => r.costEstimated) ? `; Codex estimated at OpenAI API prices of ${D.priceDate}, priced models only` : '';
     facts = [
       ['Sessions', String(cur.sessions), delta('sessions')],
       ['Agent time', dur(cur.time), delta('time', dur), 'API and tool time'],
-      ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${missing ? `; ${missing}` : ''}`],
+      ['Cost', usd(cur.cost), delta('cost', usd), `API-equivalent${estimated}${missing ? `; ${missing}` : ''}`],
       ['Tokens', compact(cur.tokens), delta('tokens', compact), 'input, cache and output'],
       ['Agents at once', cur.atOnce == null ? 'not recorded' : cur.atOnce.toFixed(1), delta('atOnce', (x) => x.toFixed(1)), cur.atOnce == null ? null : `on average while any turn ran, peak ${cur.peak}`],
       ['Busiest day', cur.busiest?.[0] ?? '-', cur.busiest && plural(cur.busiest[1], 'session')],
       ['Active days', String(cur.active), delta('active'), `of ${plural(span.length, 'day')}`],
       ['Blocked by limits', dur(cur.blocked), delta('blocked', dur), cur.waits == null ? null : `${plural(cur.waits, 'usage limit wait')} across sessions, Claude Code only`],
     ];
-    // Under the quick facts, smaller: the most used agent, the longest streak, test runs and merged pull requests, with the same change rule.
-    const stats = (l) => l && { pass: passRate(l).v, merged: mergedPrs(l).size };
+    // Under the quick facts, smaller: the most used agent, the longest streak and test runs, with the same change rule.
+    const stats = (l) => l && { pass: passRate(l).v };
     const is = stats(list), was = stats(old && prev);
     const more = [
       ['Most used agent', cur.agent ? agentName(cur.agent[0]) : '-', cur.agent && `${cur.agent[1]} of ${plural(cur.sessions, 'session')}`],
       ['Longest streak', plural(cur.streak, 'day'), delta('streak')],
       ['Tests passed', is.pass == null ? '-' : `${Math.round(is.pass)}%`, changeText(is.pass, was?.pass ?? null, len, { points: true }), `of ${plural(list.filter((r) => r.tests).length, 'session')} with a test run`],
-      ['Merged pull requests', String(is.merged), changeText(is.merged, was?.merged ?? null, len), 'by first session'],
     ];
     const tile = ([label, value, line, note]) => el('div', { class: 'tile' }, el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value),
       line && el('div', { class: 'delta num' }, line), note && el('div', { class: 'note' }, note));
@@ -524,25 +518,19 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
   // A table's caption, head and body, for a visible table or a chart's text alternative.
   function groups(list, key, caption, label) {
     const by = group(list, key);
-    return [caption, [label, 'Sessions', 'Median cost', 'Median time', 'Tests passed', 'PRs merged', 'Moved up'],
+    return [caption, [label, 'Sessions', 'Median cost', 'Median time', 'Tests passed', 'Moved up'],
       [...by].sort((a, b) => b[1].length - a[1].length).map(([k, rs]) => {
-        const tested = rs.filter((r) => r.tests), withPr = rs.filter((r) => r.prs.length), tiered = rs.filter((r) => r.tier);
+        const tested = rs.filter((r) => r.tests), tiered = rs.filter((r) => r.tier);
         return [k, rs.length, money(median(rs.map((r) => r.costUSD))), dur(median(rs.map((r) => r.busyMs))), pct(tested.filter((r) => r.tests === 'pass').length, tested.length),
-          pct(withPr.filter((r) => r.prs.some((p) => p.state === 'merged')).length, withPr.length), pct(tiered.filter((r) => r.tier.movedUp).length, tiered.length)];
+          pct(tiered.filter((r) => r.tier.movedUp).length, tiered.length)];
       })];
   }
 
-  // Weeks counted back from today, the oldest first; cost and merged pull requests over time.
+  // Weeks counted back from today, the oldest first; the model mix over time.
   const week = (r) => Math.floor((dayStart(now) - dayStart(Date.parse(r.start))) / (7 * DAY));
   const weekLabel = (w) => `week of ${iso(dayStart(now) - (w * 7 + 6) * DAY)}`;
   function weekly(list) {
     const by = group(list, week), order = [...by.keys()].sort((a, b) => b - a).slice(-26);
-    const merged = mergedPrs(list);
-    const wk = new Map(); for (const [, d] of merged) { const w = Math.floor((dayStart(now) - Date.parse(d)) / (7 * DAY)); wk.set(w, (wk.get(w) ?? 0) + 1); }
-    const prs = order.map((w) => { const rs = by.get(w), n = wk.get(w) ?? 0, c = sum(rs.map((r) => r.costUSD)); return { w, rs, n, v: n ? c / n : null }; });
-    const max = Math.max(...prs.map((p) => p.v ?? 0), 1e-9);
-    $('by-prpr').replaceChildren(bars(prs.map((p) => ({ label: weekLabel(p.w), n: p.rs.length, frac: (p.v ?? 0) / max, text: p.v == null ? 'no merged pull request' : `${money(p.v)} (${p.n} merged)`, low: p.rs.length < MIN }))),
-      ...alt('cost-per-merged-pr', 'Cost per merged pull request by week', ['Week', 'Sessions', 'Merged pull requests', 'Cost', 'Cost per merged pull request'], prs.map((p) => [weekLabel(p.w), p.rs.length, p.n, usd(sum(p.rs.map((r) => r.costUSD))), p.v == null ? '-' : money(p.v)])));
     // Model mix: the share of each week's sessions, a session with several models split evenly.
     const total = new Map();
     for (const r of list) for (const m of r.models.length ? r.models : ['unknown']) total.set(m, (total.get(m) ?? 0) + 1);
@@ -599,19 +587,17 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
       ...alt('activity', 'Days with sessions in the last 12 weeks', ['Day', 'Sessions', 'Agent time'], lines.reverse()));
   }
 
-  // One project: its branches and the states of its pull requests (every period).
+  // One project: its branches and their pull request links (every period).
   function projectPage(list) {
     const s = $('project-page'), k = state.project;
     s.hidden = !k;
     if (s.hidden) return;
-    const prs = new Map();
-    for (const r of list) for (const p of r.prs) prs.set(p.url, p.state);
-    const states = [...group([...prs].map(([url, st]) => ({ st })), (x) => x.st)].map(([st, xs]) => `${xs.length} ${st}`).join(', ');
+    const prs = new Set(list.flatMap((r) => r.prs));
     $('project-title').textContent = `Project ${name(k)}`;
-    $('project-body').replaceChildren(el('p', { class: 'note num' }, `${list.length} sessions, ${prs.size} pull requests${states ? `: ${states}` : ''}`),
+    $('project-body').replaceChildren(el('p', { class: 'note num' }, `${list.length} sessions, ${prs.size} pull requests`),
       list.length ? table('Branches, newest first', ['Branch', 'Sessions', 'Last session', 'Pull requests'], [...group(list, (r) => r.branch ?? '-')].map(([b, rs]) => {
-        const ps = new Map(); for (const r of rs) for (const p of r.prs) ps.set(p.url, p.state);
-        return [b, rs.length, rs.reduce((a, r) => (r.start > a ? r.start : a), '').slice(0, 10), [...ps].map(([u, st]) => `#${u.split('/').pop()} ${st}`).join(', ') || '-'];
+        const ps = new Set(rs.flatMap((r) => r.prs));
+        return [b, rs.length, rs.reduce((a, r) => (r.start > a ? r.start : a), '').slice(0, 10), [...ps].map((u) => `#${u.split('/').pop()}`).join(', ') || '-'];
       }).sort((a, b) => (a[2] < b[2] ? 1 : -1))) : el('p', { class: 'muted' }, 'No sessions match these filters.'));
   }
 
@@ -649,14 +635,14 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
       r.start.slice(0, 16).replace('T', ' '), short(r.project ?? ''), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
       `${patternKey(r)}${r.subagents ? `, ${r.subagents} subagent${r.subagents > 1 ? 's' : ''}` : ''}${r.run ? `, run ${r.run}` : ''}`,
-      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, money(r.costUSD), dur(r.busyMs), r.tests ?? '-',
-      r.prs.length ? r.prs.map((p) => `#${p.url.split('/').pop()} ${p.state}`).join(', ') : '-',
+      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, `${money(r.costUSD)}${r.costEstimated ? ' (estimated)' : ''}`, dur(r.busyMs), r.tests ?? '-',
+      r.prs.length ? r.prs.map((u) => `#${u.split('/').pop()}`).join(', ') : '-',
       ...(pony ? [r.source ?? 'transcript', ledgerCell(r.ponytail)] : []),
     ])));
     scrollStops();
   }
 
-  const CHARTS = ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar', 'by-change', 'skills'];
+  const CHARTS = ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-model', 'dist-time', 'dist-turns', 'calendar', 'by-change', 'skills'];
   function render() {
     try { localStorage.setItem('bk-board-project', JSON.stringify([state.project, state.folder])); } catch { /* storage blocked */ }
     // Whole UTC days, the same ones the chart draws: today and the days before it.
@@ -848,7 +834,7 @@ export function projectRows(rows, registered, path, keys = repoKeys(rows, regist
 
 // The Projects view's cards: per registered project, its sessions of the last `days` days up to now, all agents merged and
 // worktrees counted under their repository as on the board. perDay: sessions per day, oldest first; uncosted: sessions
-// without a cost; change: the sessions against the previous period, by the cards' rule.
+// without a cost; estimated: sessions with an estimated cost; change: the sessions against the previous period, by the cards' rule.
 export function projectActivity(rows, registered, now, days = 30) {
   const keys = repoKeys(rows, registered);
   const today = Date.parse(now.slice(0, 10));
@@ -862,7 +848,7 @@ export function projectActivity(rows, registered, now, days = 30) {
     const last = mine.reduce((a, r) => (!a || r.start > a.start ? r : a), null);
     return [path, {
       perDay: cur.map((d) => now30.filter((r) => r.start.startsWith(d)).length), from: cur[0], to: cur.at(-1),
-      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length,
+      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length, estimated: now30.filter((r) => r.costEstimated).length,
       change: changeText(f.sessions, before.length ? before.length : null, days),
       last: last && { time: last.end ?? last.start, tier: last.tier?.last ?? null },
     }];
@@ -873,7 +859,7 @@ export function projectActivity(rows, registered, now, days = 30) {
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = [], keepDays = 30) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), priceDate: CODEX_PRICES.date, now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -900,11 +886,10 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [],
 <section aria-labelledby="h-tier"><h2 id="h-tier">Tier against outcome</h2><p class="note">n is the sessions a bar rests on. A bar under ${MIN_SAMPLES} is hatched and left out of the highest and lowest line.</p><div id="by-tier"></div></section>
 <section aria-labelledby="h-pattern"><h2 id="h-pattern">By pattern</h2><div id="by-pattern"></div></section>
 <section aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
-<section aria-labelledby="h-prpr"><h2 id="h-prpr">Cost per merged pull request</h2><p class="note">Cost of the week's sessions divided by the pull requests merged that week (by first session); n is the week's sessions.</p><div id="by-prpr"></div></section>
 <section aria-labelledby="h-model"><h2 id="h-model">Model mix</h2><div id="by-model"></div></section>
 <section aria-labelledby="h-dist"><h2 id="h-dist">Distribution</h2><div class="cmps"><div id="dist-time"></div><div id="dist-turns"></div></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
-<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex records tokens, not cost.</p><div id="by-run"></div></section>
+<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex costs are estimated from tokens and OpenAI API prices.</p><div id="by-run"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
 <section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </div>

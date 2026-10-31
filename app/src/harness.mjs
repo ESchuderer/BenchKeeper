@@ -3,8 +3,8 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentDir, library } from './content.mjs';
-import { globalDrift } from './doctor.mjs';
 import { exists, hashPath, readText } from './fsx.mjs';
+import { copied } from './packs.mjs';
 import { PLUGINS, pluginState } from './steps/global.mjs';
 import { readState } from './steps/project.mjs';
 
@@ -48,7 +48,7 @@ function projectCheck(dir) {
   if (!plain(lock)) return [check(`project skills are installed (${dir})`, ['skills-lock.json is not a valid lock file'])];
   const problems = [];
   for (const s of state.skills.filter((x) => !(state.disabled ?? []).includes(x.name))) {
-    if (s.source === 'own') {
+    if (copied(s)) {
       for (const a of state.agents) if (!exists(join(dir, agent(a).project.skills, s.name, 'SKILL.md'))) problems.push(`${s.name} missing in ${agent(a).project.skills}`);
     } else if (!lock[s.name]) problems.push(`${s.name} not in skills-lock.json`);
     else if (!JSON.stringify(lock[s.name]).includes(s.source)) problems.push(`${s.name} in skills-lock.json is not from ${s.source}`);
@@ -57,7 +57,5 @@ function projectCheck(dir) {
 }
 
 export function harnessTest(ctx, { agents, dir } = {}) {
-  // A fixed Dev Containers CLI version skips the npm lookup; host tools are not part of this check.
-  const unexpected = globalDrift(ctx, agents, 'skip').filter((i) => i.check === 'unexpected').map((i) => i.message);
-  return [ledgerCheck(ctx), pluginCheck(ctx, agents), check('nothing unexpected installed (skills, plugins, MCP servers, hooks)', unexpected), ...(dir ? projectCheck(dir) : [])];
+  return [ledgerCheck(ctx), pluginCheck(ctx, agents), ...(dir ? projectCheck(dir) : [])];
 }

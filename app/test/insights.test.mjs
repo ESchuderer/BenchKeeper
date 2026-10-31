@@ -39,15 +39,15 @@ test('unused skills: nothing below the threshold, for another agent or when ever
 // n sessions of one project folder; `over` sets the fields of each by index.
 const project = (n, over = () => ({}), cwd = '/work/shop') => Array.from({ length: n }, (_, i) => ({ agent: i % 2 ? 'codex' : 'claude', id: `p${i}`, skills: [], project: cwd, tests: 'pass', prs: [], pattern: 'single', tier: { last: 'standard' }, title: SECRET, ...over(i) }));
 
-test('friction: a project from the sample threshold, with the failed sessions without a pull request, counts and folder name only', () => {
-  const failing = (i) => (i < 3 ? { tests: 'fail' } : i === 3 ? { tests: 'fail', prs: [{ url: 'u', state: 'merged' }] } : {});
+test('friction: a project from the sample threshold, with the failed sessions (a pull request does not matter), counts and folder name only', () => {
+  const failing = (i) => (i < 3 ? { tests: 'fail' } : i === 3 ? { tests: 'fail', prs: ['https://github.com/acme/shop/pull/7'] } : {});
   const r = insights({ sessions: project(MIN_SAMPLES, failing) });
   assert.deepEqual(ids(r), [r.findings[0].id]);
   const [f] = r.findings;
   assert.match(f.id, /^friction:[0-9a-f]{8}$/);
   assert.equal(f.signal, 'friction');
-  assert.deepEqual(f.evidence, { project: 'shop', sessions: 20, failed: 3, rate: 15, sessionIds: ['p0', 'p1', 'p2'] });
-  assert.match(f.message, /^3 of 20 sessions in shop \(15%\)/);
+  assert.deepEqual(f.evidence, { project: 'shop', sessions: 20, failed: 4, rate: 20, sessionIds: ['p0', 'p1', 'p2', 'p3'] });
+  assert.equal(f.message, '4 of 20 sessions in shop (20%) ended on a failed test run');
   const other = insights({ sessions: project(MIN_SAMPLES, failing, '/clients/acme/shop') }).findings[0];
   assert.equal(other.evidence.project, 'shop');
   assert.notEqual(other.id, f.id, 'the path decides, not the folder name');
@@ -111,7 +111,7 @@ test('hygiene and freshness: the doctor findings are split, each fact appears on
   const doctorFindings = [
     { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in the environment', fix: 'unset it' },
     { level: 'error', check: 'instructions', message: 'x imports gone.md', fix: 'fix the import', file: 'CLAUDE.md', line: 2 },
-    { level: 'warning', check: 'pins', message: '.benchkeeper/pins.local.json is not ignored by git', fix: 'add it to .gitignore' },
+    { level: 'warning', check: 'project', message: '.benchkeeper/runs is not ignored by git', fix: 'add it to .gitignore' },
     { level: 'warning', check: 'plugin', tag: 'outdated', message: 'plugin x 1 -> 2', fix: 'benchkeeper apply' },
   ];
   const r = insights({ doctorFindings });

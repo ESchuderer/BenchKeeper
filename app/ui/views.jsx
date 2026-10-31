@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -8,10 +8,9 @@ import { UpdateResults } from './fix.jsx';
 import { ATTENTION } from './dashboard.jsx';
 import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
-import { SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
-import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
+import { AddNotices, BulkBar, CreateFromPreset, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
 import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
 import { Dot, Folded, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
 
@@ -68,7 +67,7 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
 // Files in the packs folder that are no pack: the library leaves them out, so they are listed here to be removed (the file goes to the backups).
 function InvalidPacks({ files, onChange, announce }) {
   const [error, setError] = useState(null);
-  // This section goes with its last file: focus then moves to the Packs heading.
+  // This section goes with its last file: focus then moves to the packs heading.
   const remove = async (file) => {
     setError(null);
     try { await api('/api/packs', { action: 'remove', id: file }); onChange(); announce(files.length > 1 ? 'invalid-packs-title' : 'packs-title', `Removed: ${file}`); } catch (e) { setError(e.message); }
@@ -94,7 +93,7 @@ function Packs({ packs, onChange, announce }) {
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
   const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
   return (
-    <Section title="Packs" id="packs">
+    <Section title="Library and own packs" id="packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
@@ -144,7 +143,9 @@ function Packs({ packs, onChange, announce }) {
   );
 }
 
-export function Catalog({ catalog, params, refresh }) {
+// The Catalog's first page: the library skills and the user's own to browse, each with its detail, the editor of the user's
+// skills, and the pack builder. A skill's state in a project is on that project's page.
+export function CatalogSkills({ catalog, params, refresh }) {
   const evals = useApi('/api/evals');
   const [q, setQ] = useState('');
   const [pack, setPack] = useState(params.get('pack'));
@@ -152,8 +153,7 @@ export function Catalog({ catalog, params, refresh }) {
   const [used, setUsed] = useState(null);
   const [picked, setPicked] = useState([]);
   const [builder, setBuilder] = useState(false);
-  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
-  const [status, announce] = useAnnounce();
+  const [editor, setEditor] = useState(null);
   const open = params.get('skill');
   const flip = (n) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
   return (
@@ -172,42 +172,92 @@ export function Catalog({ catalog, params, refresh }) {
             <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
             <Button leftSection={icon(IconPackage)} variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>
           </Group>
-          <SplitView empty="Choose a skill for its source, pin and eval results." list={
+          <SplitView list={
             <Table aria-label="Skills">
               <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
                     <Table.Td><Checkbox size="md" aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
-                    <Table.Td><Anchor href={href('catalog', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
+                    <Table.Td><Anchor href={href('skills', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor>{s.source === 'user' && <Badge ml="xs" variant="default">yours</Badge>}</Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
-          } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
-          <SkillStates refresh={refresh} />
-          <Packs packs={c.packs} onChange={refresh} announce={announce} />
-          {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
-          {status}
+          } detail={editor ? <UserSkillEditor key={`${editor.op}:${editor.name}`} {...editor} onDone={refresh} onClose={() => setEditor(null)} />
+            : skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} onEdit={(text) => setEditor({ op: 'edit', name: skill.name, text })} onRemove={() => setEditor({ op: 'remove', name: skill.name })} />
+            : <Stack gap="sm" align="flex-start"><Text>Choose a skill for its source, pin and eval results, or add one of your own.</Text><Button leftSection={icon(IconPlus)} variant="default" onClick={() => setEditor({ op: 'new' })}>New skill</Button></Stack>} />
+          <Text size="sm">A skill's state in a project, with Update, Reset and Remove, is on the project's page: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper packs list\nbenchkeeper projects apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt|enable|disable <name> --project <dir>`}</Cli>
+          <Cli>{`benchkeeper skills list --library\nbenchkeeper skills show ${open ?? '<name>'}\nbenchkeeper skills new|edit|delete <name>\nbenchkeeper packs save <id> --skill <name>`}</Cli>
         </Stack>
       );
     }}</Loading>
   );
 }
 
-function SkillDetail({ skill, results }) {
-  const text = useApi(skill.source === 'own' ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
+// The Catalog's second page: the library packs and the own ones, defined once; a project switches them on its Installs tab.
+export function CatalogPacks({ catalog, refresh }) {
+  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
+  const [status, announce] = useAnnounce();
+  return (
+    <Loading state={catalog} label="catalog">{(c) => (
+      <Stack gap="lg">
+        <Packs packs={c.packs} onChange={refresh} announce={announce} />
+        {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
+        {status}
+        <Text size="sm">A pack is switched on or off per project, on the project's Installs tab: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
+        <Cli>{'benchkeeper packs list\nbenchkeeper packs show|export|remove <id>\nbenchkeeper packs import <file>\nbenchkeeper packs enable|disable <id> --project <dir>'}</Cli>
+      </Stack>
+    )}</Loading>
+  );
+}
+
+function SkillDetail({ skill, results, onEdit, onRemove }) {
+  const copied = ['own', 'user'].includes(skill.source);
+  const text = useApi(copied ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
   return (
     <Stack gap="xs" component="section" aria-label={`Skill ${skill.name}`}>
-      <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('catalog')} variant="subtle">Close</Button></Group>
+      <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('skills')} variant="subtle">Close</Button></Group>
       <Text>{skill.pickWhen}</Text>
-      <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
+      <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : skill.source === 'user' ? 'your skills' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
       {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
-      {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
+      {skill.source === 'user' && <Group gap="xs"><Button size="xs" variant="default" disabled={!text.data} onClick={() => onEdit(text.data.text)}>Edit</Button><Button size="xs" variant="default" color="red" leftSection={icon(IconTrash)} onClick={onRemove}>Remove</Button></Group>}
+      {copied && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
+    </Stack>
+  );
+}
+
+const skillTemplate = (name) => `---\nname: ${name}\ndescription: "What this skill does and when to use it."\n---\n\n# ${name}\n`;
+
+// One of the user's skills: a new one (name and SKILL.md), an edit of its SKILL.md, or its removal, each shown as a plan
+// with the diff. The text of a new skill follows its name until it is edited.
+function UserSkillEditor({ op, name: start = '', text: startText = null, onDone, onClose }) {
+  const [name, setName] = useState(start);
+  const [text, setText] = useState(startText);
+  const [plan, setPlan] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const [running, setRunning] = useState(false);
+  const body = text ?? skillTemplate(name);
+  const save = async () => {
+    setFailed(null);
+    try { setPlan(await api('/api/user-skill-plan', { op, name, text: body })); } catch (e) { setFailed(e.message); }
+  };
+  useEffect(() => { if (op === 'remove') void save(); }, []);
+  const title = op === 'new' ? 'New skill' : `${op === 'edit' ? 'Edit' : 'Remove'} skill ${start}`;
+  return (
+    <Stack gap="sm" component="section" aria-label={title}>
+      <Title order={3} size="h3">{title}</Title>
+      {op === 'new' && <TextInput label="Name" description="1 to 64 lowercase letters, digits and single hyphens" value={name} readOnly={!!plan} onChange={(e) => setName(e.currentTarget.value)} />}
+      {op !== 'remove' && <Textarea label="SKILL.md" value={body} readOnly={!!plan} onChange={(e) => setText(e.currentTarget.value)} autosize minRows={8} maxRows={24} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />}
+      {failed && <Note color="red" title="Not planned">{failed}</Note>}
+      {plan && <Plan key={plan.planId} plan={plan} why={`You asked for this in Skills: ${title}.`} scope="global" onRunning={setRunning} onDone={onDone} />}
+      <Group>
+        {!plan && op !== 'remove' && <Button onClick={save} disabled={op === 'new' ? !name : body === startText}>Save</Button>}
+        <Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && onClose()}>{plan || op === 'remove' ? 'Close editor' : 'Discard'}</Button>
+      </Group>
     </Stack>
   );
 }
@@ -216,7 +266,7 @@ function SkillDetail({ skill, results }) {
 const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'Extensions'], [['skills'], 'Skills'], [['rules'], 'Rules', 'rules', 'Rules'],
   [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
 
-// What the global setup installs, by part, with its state on disk; a part's items open on a button.
+// What the global setup installs, by part, with its state on disk; a part's items open on a button, open from the start when some need attention.
 function GlobalItems({ items }) {
   const parts = GLOBAL_PARTS.map(([steps, title, view, viewName]) => ({ title, view, viewName, rows: items.filter((i) => steps.includes(i.step.split(':')[0])) })).filter((p) => p.rows.length);
   if (!parts.length) return <Text size="sm">Nothing is installed globally yet: plan the setup below.</Text>;
@@ -228,7 +278,7 @@ function GlobalItems({ items }) {
           <Text fw={600}>{p.title} ({p.rows.length}{attention ? `, ${attention} need attention` : ''})</Text>
           {p.view && <Anchor href={href(p.view)} size="sm">Open {p.viewName}</Anchor>}
         </Group>
-        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`}>
+        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`} initial={attention > 0}>
           <List size="sm" listStyleType="none" spacing={4}>
             {p.rows.map((i) => <List.Item key={`${i.step}|${i.title}`}><Group gap="xs" wrap="nowrap"><StateBadge state={i.state} /><Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text></Group></List.Item>)}
           </List>
@@ -236,6 +286,35 @@ function GlobalItems({ items }) {
       </Stack>
     );
   });
+}
+
+// One row per agent. An installed agent shows a short chip per missing feature with the sentence as its tooltip;
+// the agents that are not installed show the sentences.
+function AgentTable({ label, agents, chosen, onCheck }) {
+  return (
+    <Table.ScrollContainer minWidth={640} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+      <Table aria-label={label}>
+        <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {agents.map((a) => (
+            <Table.Tr key={a.id}>
+              <Table.Td><Checkbox label={a.name} disabled={!a.installed} checked={chosen.includes(a.id)} onChange={() => onCheck(chosen.includes(a.id) ? chosen.filter((x) => x !== a.id) : [...chosen, a.id])} /></Table.Td>
+              <Table.Td>{a.version ?? 'not installed'}</Table.Td>
+              <Table.Td><Code>~/{a.rules}</Code></Table.Td>
+              <Table.Td><Code>~/{a.skills}</Code></Table.Td>
+              <Table.Td>{a.tested ? 'tested' : 'untested'}</Table.Td>
+              <Table.Td>{!a.unavailable.length ? 'nothing' : a.installed ? (
+                <Group gap={4}>
+                  {/* shortcut: the chip is the sentence up to "is not available", fine while every sentence has that form. */}
+                  {a.unavailable.map((m) => { const [short, rest] = m.split(/(?= is not available)/); return <Tooltip key={m} label={m} events={{ hover: true, focus: true, touch: true }} transitionProps={{ duration: 0 }}><Badge variant="default" tabIndex={0}>{short}<VisuallyHidden>{rest}</VisuallyHidden></Badge></Tooltip>; })}
+                </Group>
+              ) : <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List>}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
 }
 
 // Only global things: per-project setup lives on each project's page.
@@ -260,23 +339,13 @@ export function Agents({ overview, params, refresh }) {
       return (
         <Stack gap="lg">
           <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
-          <Table.ScrollContainer minWidth={640}>
-          <Table aria-label="Agents">
-            <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
-            <Table.Tbody>
-              {o.agents.map((a) => (
-                <Table.Tr key={a.id}>
-                  <Table.Td><Checkbox label={a.name} disabled={!a.installed} checked={chosen.includes(a.id)} onChange={() => setSelect(chosen.includes(a.id) ? chosen.filter((x) => x !== a.id) : [...chosen, a.id])} /></Table.Td>
-                  <Table.Td>{a.version ?? 'not installed'}</Table.Td>
-                  <Table.Td><Code>~/{a.rules}</Code></Table.Td>
-                  <Table.Td><Code>~/{a.skills}</Code></Table.Td>
-                  <Table.Td>{a.tested ? 'tested' : 'untested'}</Table.Td>
-                  <Table.Td>{a.unavailable.length ? <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List> : 'nothing'}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-          </Table.ScrollContainer>
+          {o.agents.some((a) => a.installed) ? <AgentTable label="Agents" agents={o.agents.filter((a) => a.installed)} chosen={chosen} onCheck={setSelect} /> : <Text size="sm">No agent is installed on this machine.</Text>}
+          {o.agents.some((a) => !a.installed) && (
+            <details>
+              <summary><Text component="span" fw={600}>{plural(o.agents.filter((a) => !a.installed).length, 'agent')} not installed</Text></summary>
+              <AgentTable label="Agents not installed" agents={o.agents.filter((a) => !a.installed)} chosen={chosen} onCheck={setSelect} />
+            </details>
+          )}
           <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
           <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
@@ -291,7 +360,7 @@ export function Agents({ overview, params, refresh }) {
 }
 
 // One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
-// all opens the pull request that removes it.
+// all commits its removal on a branch.
 const SetupBadge = ({ p }) => {
   if (p.missing) return <MissingBadge />;
   const where = p.share ? 'shared' : p.committed ? 'local, still committed' : 'local';
@@ -353,7 +422,6 @@ export function ProjectList({ params, overview, refresh }) {
   const [path, setPath] = useState('');
   const [found, setFound] = useState(null);
   const [pick, setPick] = useState([]);
-  const [push, setPush] = useState(true);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -362,6 +430,7 @@ export function ProjectList({ params, overview, refresh }) {
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
+  const [creating, setCreating] = useState(false);
   const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const all = projects.data ?? [];
   const live = all.filter((p) => !p.missing);
@@ -400,13 +469,7 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project the list marks willPush (a shared or still
-  // committed setup whose origin is on GitHub); any other shared or committed project gets a local branch only.
-  const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && p.willPush).length : 0);
-  const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
-  const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
-  const prs = prsOf(confirmPrs ?? []);
+  const startUpdate = (paths) => act('update', async () => { await updateProjects(paths, setProgress); reload(); })();
   const rows = visibleProjects(all, view, cards);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
@@ -423,8 +486,10 @@ export function ProjectList({ params, overview, refresh }) {
           <Button leftSection={icon(IconFolderSearch)} variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>
           <Button leftSection={icon(IconPlus)} type="submit" disabled={!path} loading={busy === 'add'}>Add project</Button>
           <Button leftSection={icon(IconFolders)} variant="default" loading={busy === 'scan'} onClick={scanRoot}>Scan for projects</Button>
+          <Button leftSection={icon(IconPlus)} variant="default" onClick={() => setCreating(true)} disabled={creating}>New from preset</Button>
         </Group>
       </form>
+      {creating && <Section title="New project from a preset"><CreateFromPreset onDone={reload} onClose={() => setCreating(false)} /></Section>}
       {error && <Note color="red" title="Failed">{error}</Note>}
       <AddNotices {...notices} onAddWorktree={act('add', async () => { if (await add(notices.worktree.path, true)) reload(); })} onDismiss={() => setNotices({})} />
       {found && (
@@ -474,28 +539,17 @@ export function ProjectList({ params, overview, refresh }) {
         </Stack>
       ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit, which you push. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
-          <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!live.length} onClick={() => startUpdate(live.map((p) => p.path))}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
-      <Modal opened={!!confirmPrs} onClose={() => setConfirmPrs(null)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} on GitHub with a shared setup or a local one still committed get a branch pushed to origin and a pull request (the second kind removes the committed setup); without a GitHub origin the branch stays local. Projects with uncommitted changes are skipped.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setConfirmPrs(null)}>Cancel</Button>
-            <Button leftSection={icon(IconRefresh)} onClick={() => runUpdate(confirmPrs)}>Update all and open up to {plural(prs, 'pull request')}</Button>
-          </Group>
-        </Stack>
-      </Modal>
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
-      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
-      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
+      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} onClose={() => { setSetupPaths(null); reload(); }} />}
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
@@ -589,16 +643,25 @@ function EditorSetting({ overview, refresh }) {
   const set = (editors) => { setError(null); api('/api/preferences', { editors }).then(refresh, (e) => setError(e.message)); };
   return (
     <Section title="Advanced">
-      <Switch label="Editors" description="Presets, pins and policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
+      <Switch label="Editors" description="Orchestrator policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
       {error && <Note color="red" title="Not saved">{error}</Note>}
     </Section>
   );
 }
 
+// Three tabs; the one destructive button (Clear the sessions cache) sits last in Advanced. display-none keeps the effects
+// of a hidden tab running: a profile preview or a plan being applied goes on while another tab is open.
 export function Settings({ overview, refresh, keys }) {
+  const cache = useApi('/api/sessions-cache');
   return (
-    <Stack gap="xl">
-      <Profile overview={overview} refresh={refresh} />
+    <Tabs defaultValue="views" keepMountedMode="display-none">
+      <Tabs.List aria-label="Preferences">
+        <Tabs.Tab value="views">Views</Tabs.Tab>
+        <Tabs.Tab value="history">Sessions history</Tabs.Tab>
+        <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="views" pt="md"><Stack gap="xl">
+      <Surfaces />
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
@@ -606,15 +669,17 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
-      <Surfaces />
-      <SessionsHistory />
+      </Stack></Tabs.Panel>
+      <Tabs.Panel value="history" pt="md"><SessionsHistory cache={cache} /></Tabs.Panel>
+      <Tabs.Panel value="advanced" pt="md"><Stack gap="xl">
+      <Profile overview={overview} refresh={refresh} />
       <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors)</List.Item>
+          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors) and what you dismissed or declined (Agent settings notes, global changes, Doctor findings)</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
           <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>
@@ -622,7 +687,10 @@ export function Settings({ overview, refresh, keys }) {
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
-    </Stack>
+      <Divider />
+      <SessionsHistory cache={cache} clear />
+      </Stack></Tabs.Panel>
+    </Tabs>
   );
 }
 

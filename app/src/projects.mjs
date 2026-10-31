@@ -4,15 +4,15 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentVersion } from './content.mjs';
-import { PACK_SCOPES, libraryWith, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
+import { PACK_SCOPES, libraryWith, ownPacks, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
-import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
+import { blob, clean, defaultBranch, git, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
 import { agentFileRows } from './frameworks.mjs';
 import { projectSkills, skillFiles } from './skills.mjs';
 import { PLUGINS, globalPlan, globalSkills, localPlugins, pluginScope, pluginState } from './steps/global.mjs';
-import { STATE, chosenSkills, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { STATE, chosenSkills, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -48,6 +48,9 @@ export function packsInUse(ctx) {
 }
 // The registered projects whose setup names the pack.
 export const projectsUsing = (ctx, id) => usersByPack(ctx).get(id) ?? [];
+// The registered projects whose setup has the skill, and the own packs that name it.
+export const skillUsers = (ctx, name) => [...listProjects(ctx).filter((p) => projectState(ctx, p.path)?.skills?.some((s) => s.name === name)).map((p) => p.path),
+  ...ownPacks(ctx).filter((p) => p.skills?.includes(name)).map((p) => `pack ${p.id}`)];
 // Pack id to the registered projects whose setup names it, read once for all packs.
 export function usersByPack(ctx) {
   const users = new Map();
@@ -293,9 +296,9 @@ export function scan(ctx, root, depth = 3) {
 // projects apply in the checkout the ones at local scope (a run in a worktree would record them for the worktree's folder).
 const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || (c.cwd && !c.machine));
 
-// Commands run synchronously, so each has a time limit: a push that waits for a passphrase or a commit that waits for a
-// signing prompt would freeze a server for good (Stop cannot reach it). Local steps and network steps get their own limit.
-const LOCAL = 300e3, NET = 120e3;
+// Commands run synchronously, so each has a time limit: a commit that waits for a signing prompt would freeze a server
+// for good (Stop cannot reach it).
+const LOCAL = 300e3;
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
   const env = { ...repoEnv(), GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
@@ -303,12 +306,11 @@ function quiet(ctx, path) {
   return env;
 }
 // Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
-// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network. fresh skips the
-// cache: a run that pushes must see the current origin (it may be unreachable or another repository by now).
+// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network.
 const fetched = new Map();
-function fetchBase(ctx, path, base, fresh = false) {
+function fetchBase(ctx, path, base) {
   const key = `${path}\0${base}`;
-  if (!fresh && Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
+  if (Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
   const ok = git(ctx, path, ['fetch', '-q', 'origin', base], { env: quiet(ctx, path), timeout: 20e3 }).code === 0;
   if (ok) fetched.set(key, Date.now());
   return ok;
@@ -380,7 +382,7 @@ export function setupOf(ctx, path, checkout = tryState(path)) {
 // the changes Update all would make, from the checkout's state file only when that is the one that counts.
 export function status(ctx, path) {
   // A moved or deleted folder: nothing to read, Relocate and Remove are what is left.
-  if (!isDir(path)) return { path, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, github: false, agents: [], packs: [], tier: null };
+  if (!isDir(path)) return { path, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, agents: [], packs: [], tier: null };
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
   const own = local;
@@ -392,8 +394,6 @@ export function status(ctx, path) {
   // committed: git tracks the state file of a setup this machine keeps local; Update all opens the pull request
   // that removes it, and plans no local changes until then.
   const committed = !!repo && !share && tracksState(ctx, path);
-  // github: Update all opens a pull request for a shared or committed setup only where origin is on GitHub.
-  const github = !!repo && githubRemote(ctx, path);
   let changes = null;
   if (state && state === local && !committed) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
@@ -402,7 +402,7 @@ export function status(ctx, path) {
   // Per chosen agent, the skills in the project folder it reads.
   const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
-    share, committed, github, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
+    share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
 // Repository git config that runs code or sends git elsewhere during Update all (local and worktree scope, include files
@@ -443,26 +443,13 @@ export function confirmGit(ctx, path) {
   return gitConfirmed;
 }
 
-// One run pushes to at most this many repositories (max raises it): a registry that grew by an import or a scan does not
-// publish to every repository at once.
-export const MAX_PROJECTS = 25;
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
 // answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
-// checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
+// checkout; a shared one lands on the local branch chore/agent-setup-<version> with one commit, for the user to push.
 // The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
 // or origin's.
 const setupFor = (ctx, path, local = readState(path)) => local ?? keptStrict(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
-// The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
-// A local setup is applied in the checkout and pushes nothing.
-export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {
-  try {
-    if (!githubRemote(ctx, p)) return false;
-    return (answers[p]?.share ?? setupFor(ctx, p)?.share ?? false) || (!answers[p] && tracksState(ctx, p));
-  } catch { return false; }
-});
-export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {}, max = MAX_PROJECTS } = {}) {
-  const targets = push ? pushTargets(ctx, paths, answers).length : 0;
-  if (targets > max) throw new Error(`${targets} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)`);
+export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), answers = {} } = {}) {
   return paths.map((path) => {
     const result = { path };
     try {
@@ -474,7 +461,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       if (!answers[path] && !setup) throw new Error(`no ${STATE}: set the project up first`);
       if (!(answers[path]?.share ?? setup?.share ?? false)) {
         // Still committed: a local apply would change tracked files, and pulling the removal later would fail on them.
-        if (!answers[path] && repo && tracksState(ctx, path)) return unshare(ctx, path, { push });
+        if (!answers[path] && repo && tracksState(ctx, path)) return unshare(ctx, path);
         const run = apply(projectChanges(ctx, path, answers[path] ?? (local ? undefined : localAnswers(setup))), projectCtx(ctx, path), { scope: path, note: { updateAll: path } });
         result.run = run.id;
         if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
@@ -482,8 +469,8 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         result.status = run.entries.length ? 'applied' : 'current';
         return result;
       }
-      viaPullRequest(ctx, path, result, {
-        branch: `chore/agent-setup-${contentVersion}`, push,
+      onBranch(ctx, path, result, {
+        branch: `chore/agent-setup-${contentVersion}`,
         // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
         check: (start) => { if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`); },
         work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${contentVersion}` } }),
@@ -498,17 +485,17 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
   });
 }
 
-// A committed setup made local: one pull request takes it out of the repository (committedSetup). The checkout keeps the
-// committed copies until the merge is pulled (changing them would make that pull fail), and the registry keeps its state
+// A committed setup made local: one commit on a local branch takes it out of the repository (committedSetup), for the user
+// to push and merge. The checkout keeps the committed copies until the merge is pulled (changing them would make that pull fail), and the registry keeps its state
 // file, so Update all writes the local setup after the pull deleted them.
-export function unshare(ctx, path, { push = true } = {}) {
+export function unshare(ctx, path) {
   const result = { path };
   try {
-    // Kept first: once the pull request is merged and pulled, the state file is gone, whatever this run ends with.
+    // Kept first: once the branch is merged and pulled, the state file is gone, whatever this run ends with.
     const state = readState(path);
     if (state) keepState(ctx, path, state);
-    viaPullRequest(ctx, path, result, {
-      branch: 'chore/agent-setup-local', push,
+    onBranch(ctx, path, result, {
+      branch: 'chore/agent-setup-local',
       work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: 'chore/agent-setup-local' } }),
       title: 'chore: keep the agent setup local',
       body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper projects update`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper projects apply --agents ...` once.',
@@ -521,14 +508,14 @@ export function unshare(ctx, path, { push = true } = {}) {
 }
 
 // What "Remove BenchKeeper setup" would do: the files of a local setup in the checkout, or, for a shared setup (and a
-// local one git still tracks), the committed copies as a pull request. The state file kept in the registry counts as a
+// local one git still tracks), the committed copies as a commit on a local branch. The state file kept in the registry counts as a
 // setup too.
 export function setupRemoval(ctx, path) {
   registeredEntry(ctx, path);
   // A state file this app cannot read stops the plan: without it the removal would miss what only the file names.
   const state = readState(path);
   const shared = state?.share === true;
-  // A local setup git still tracks leaves with a pull request too, next to the local files git ignores.
+  // A local setup git still tracks leaves with a commit too, next to the local files git ignores.
   const pr = shared || (isRepo(ctx, path) && tracksState(ctx, path));
   const key = repoKey(ctx, path);
   const keepExclude = !!key && listProjects(ctx).some((x) => x.path !== canon(path) && repoKey(ctx, x.path) === key);
@@ -538,9 +525,9 @@ export function setupRemoval(ctx, path) {
 }
 const REMOVAL_BRANCH = 'chore/remove-agent-setup';
 // Takes the BenchKeeper setup out of a project and leaves it registered, as "not set up". A local setup is one run in the
-// checkout (undo in History); a shared one is a pull request, which is undone by closing it. The project's own AGENTS.md
+// checkout (undo in History); a shared one is a commit on a local branch, which is undone by deleting the branch. The project's own AGENTS.md
 // text, docs/agents/ and .devcontainer/ stay.
-export function removeSetup(ctx, path, { push = true } = {}) {
+export function removeSetup(ctx, path) {
   const result = { path };
   try {
     const { shared, local, changes, kept: keptState } = setupRemoval(ctx, path);
@@ -551,8 +538,8 @@ export function removeSetup(ctx, path, { push = true } = {}) {
       if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
     }
     if (shared) {
-      viaPullRequest(ctx, path, result, {
-        branch: REMOVAL_BRANCH, push,
+      onBranch(ctx, path, result, {
+        branch: REMOVAL_BRANCH,
         work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: REMOVAL_BRANCH } }),
         title: 'chore: remove the BenchKeeper agent setup',
         body: 'Removes the BenchKeeper setup of this repository: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.',
@@ -567,22 +554,19 @@ export function removeSetup(ctx, path, { push = true } = {}) {
   return result;
 }
 
-// One change as a pull request: a worktree on origin's default branch (or the local one), work(tree) returns the run
-// that changed it, then one commit, push and gh pr create. Fills result (branch, run, status, pr, a kept worktree) and
-// throws with the reason.
-function viaPullRequest(ctx, path, result, { branch, push = true, check = () => {}, work, title, body }) {
+// One change as a commit on a local branch: a worktree on origin's default branch (or the local one), work(tree) returns
+// the run that changed it, then one commit. Nothing is pushed: result.push is the command that pushes the branch, while it
+// holds commits its start does not. Fills result (branch, run, status, push, a kept worktree) and throws with the reason.
+function onBranch(ctx, path, result, { branch, check = () => {}, work, title, body }) {
   result.branch = branch;
   if (!isRepo(ctx, path)) throw new Error('not a git repository');
   // The pull request is built from the repository root: a project in a subfolder would get the root's files.
-  if (canon(repoRoot(ctx, path)) !== canon(path)) throw new Error('the project is a subfolder of a repository: Update all by pull request needs the repository root');
+  if (canon(repoRoot(ctx, path)) !== canon(path)) throw new Error('the project is a subfolder of a repository: Update all on a branch needs the repository root');
   if (!clean(ctx, path)) throw new Error('working tree has changes');
   const base = defaultBranch(ctx, path);
   if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
-  // The branch starts at the remote's default branch when it can be fetched. The local one may hold commits that were
-  // never pushed: it starts a branch only when nothing is pushed.
-  const fetchedOk = fetchBase(ctx, path, base, push);
-  if (!fetchedOk && push && githubRemote(ctx, path)) throw new Error(`could not fetch origin/${base}: the local ${base} may hold unpushed commits (try again, or --no-push)`);
-  const start = fetchedOk ? `origin/${base}` : base;
+  // The branch starts at the remote's default branch when it can be fetched, else at the local one.
+  const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
   check(start);
   // Per project path, so two projects with one folder name never share (and delete) a worktree.
   const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${branch.split('/').pop()}`);
@@ -594,7 +578,7 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
   // A worktree left by a failed run holds its partial work: it stays until the user removes it.
   if (existsSync(tree)) throw new Error(`an earlier failed run left ${tree}: look at it, then git worktree remove --force ${tree}`);
   const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
-  // An unmerged branch from earlier runs gets new commits on top, so its pushes stay fast-forward; it may hold
+  // An unmerged branch from earlier runs gets new commits on top, so a push stays fast-forward; it may hold
   // only the commits those runs made (by id, from the ledger). A merged one starts again at the default branch.
   const open = previous && git(ctx, path, ['merge-base', '--is-ancestor', previous, start]).code !== 0;
   if (open) {
@@ -614,30 +598,17 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     result.run = run.id;
     if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
     inTree(['add', '-A']);
-    // Nothing new on an unmerged branch from an earlier run: its commits still go out (that run's push or pull
-    // request may have failed).
-    if (clean(ctx, tree, hooks) && !(open && push && githubRemote(ctx, path))) { result.status = 'current'; keep = false; return result; }
-    if (!clean(ctx, tree, hooks)) {
+    if (clean(ctx, tree, hooks)) result.status = 'current';
+    else {
       const commit = inTree(['commit', '-q', '-m', title, '-m', body.replace(/`/g, '')], { timeout: LOCAL });
       if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
       ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: inTree(['rev-parse', 'HEAD']).stdout.trim() } });
+      result.status = 'committed';
     }
-    // The commit is on the branch: the worktree is not needed for pushing.
+    // The commit is on the branch: the worktree is not needed for pushing. Nothing new on an unmerged branch from an
+    // earlier run still leaves that run's commits to push.
     keep = false;
-    result.status = 'committed';
-    if (push && githubRemote(ctx, path)) {
-      const head = inTree(['rev-parse', 'HEAD']).stdout.trim();
-      const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`], { env: quiet(ctx, path), timeout: NET }).stdout.split(/\s/)[0];
-      if (remote !== head) {
-        const p = inTree(['push', '-q', '-u', 'origin', branch], { env: quiet(ctx, path), timeout: NET });
-        if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
-      }
-      const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body], { cwd: tree, timeout: NET });
-      const url = `${pr.stdout}\n${pr.stderr}`.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
-      if (pr.code !== 0 && !(url && /already exists/.test(pr.stderr))) throw new Error(`gh pr create: ${pr.stderr.trim()}`);
-      result.pr = url;
-      result.status = 'pull request';
-    }
+    if (open || result.status === 'committed') result.push = `git -C ${quote(path)} push -u origin ${branch}`;
   } finally {
     if (keep) result.worktree = tree;
     else git(ctx, path, ['worktree', 'remove', '--force', tree]);

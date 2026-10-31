@@ -287,7 +287,7 @@ test('the state file records a community skill\'s commit only when its install r
 
 test('suggestions name the packs the files of a project point to, with the reason', () => {
   const r = repo();
-  assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false, env: null });
+  assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false, env: { id: 'host', reason: 'the project has no .devcontainer/' } });
   writeFileSync(join(r.dir, 'package.json'), JSON.stringify({ dependencies: { react: '19' }, devDependencies: { '@playwright/test': '1' } }));
   writeFileSync(join(r.dir, 'requirements.txt'), 'pandas==2\nnumpy\n');
   mkdirSync(join(r.dir, '.github/workflows'), { recursive: true });
@@ -309,6 +309,21 @@ test('a second plan reads the answers from the state file', () => {
   apply(preview(plan(r, { tier: '' }).changes), r.ctx, { scope: r.dir });
   assert.doesNotMatch(readFileSync(join(r.dir, 'AGENTS.md'), 'utf8'), /Default tier/);
   assert.equal(readState(r.dir).tier, '');
+});
+
+test('the workflow load line: on by default, off per project and kept off, on again', () => {
+  const r = repo();
+  const block = () => readFileSync(join(r.dir, 'AGENTS.md'), 'utf8');
+  apply(preview(plan(r, { agents: ['claude'], share: true }).changes), r.ctx, { scope: r.dir });
+  assert.match(block(), /load the `benchkeeper:workflow` skill/);
+  assert.equal(readState(r.dir).workflowLoad, undefined);
+  apply(preview(plan(r, { workflowLoad: false }).changes), r.ctx, { scope: r.dir });
+  assert.doesNotMatch(block(), /workflow` skill/);
+  assert.match(block(), /fix the cause/, 'the other rule lines stay');
+  assert.equal(readState(r.dir).workflowLoad, false);
+  assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), [], 'a later plan keeps it off');
+  apply(preview(plan(r, { workflowLoad: true }).changes), r.ctx, { scope: r.dir });
+  assert.match(block(), /load the `benchkeeper:workflow` skill/);
 });
 
 test('packs with plugins install them and list their prompts', () => {
@@ -361,6 +376,24 @@ test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and p
   const st = JSON.parse(read(join(r.dir, '.claude/settings.json')));
   assert.deepEqual(st.permissions.allow, ['Bash(npm test)']);
   assert.deepEqual(st.sandbox, { enabled: true, excludedCommands: ['devcontainer exec *', 'podman *'] });
+});
+
+test('no state file and no statement in AGENTS.md: the host, unless .devcontainer/ exists; the sandbox excludes devcontainer and podman only with a dev container', () => {
+  const r = repo();
+  const env = () => JSON.parse(preview([plan(r, { agents: ['claude'] }).changes.find((c) => c.step === 'state')])[0].after).env;
+  const sandbox = (e) => { const c = plan(r, { agents: ['claude'], env: e, sandbox: true }).changes.find((x) => x.step === 'sandbox'); return JSON.parse(c.edit('{}')).sandbox; };
+  assert.equal(env(), 'host');
+  assert.deepEqual(sandbox('host'), { enabled: true });
+  mkdirSync(join(r.dir, '.devcontainer'));
+  assert.equal(env(), 'container');
+  assert.deepEqual(sandbox('host-agent'), { enabled: true, excludedCommands: ['devcontainer exec *', 'podman *'] });
+  // Set up with them, then moved to the host: they come out, another exclusion stays.
+  apply(preview(plan(r, { agents: ['claude'], env: 'host-agent', sandbox: true }).changes).filter((c) => c.kind !== 'command'), r.ctx, { scope: r.dir });
+  const local = join(r.dir, '.claude/settings.local.json');
+  const st = JSON.parse(read(local));
+  writeFileSync(local, JSON.stringify({ ...st, sandbox: { ...st.sandbox, excludedCommands: [...st.sandbox.excludedCommands, 'docker *'] } }));
+  apply(preview(plan(r, { agents: ['claude'], env: 'host', sandbox: true }).changes.filter((c) => c.step === 'sandbox')), r.ctx, { scope: r.dir });
+  assert.deepEqual(JSON.parse(read(local)).sandbox, { enabled: true, excludedCommands: ['docker *'] });
 });
 
 test('a choice taken back cleans up: sandbox off, dropped agents lose their files, folders other agents share stay', () => {

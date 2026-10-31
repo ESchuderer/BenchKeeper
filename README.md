@@ -47,8 +47,8 @@ If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.
 ## Every change is shown first
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="web/public/app/fix-dark.png">
-  <img src="web/public/app/fix-light.png" alt="Fix everything in the BenchKeeper app: a diff of a rules file and the plugin install commands, each with a checkbox, before the Apply step">
+  <source media="(prefers-color-scheme: dark)" srcset="web/public/app/fix-dark.webp">
+  <img src="web/public/app/fix-light.webp" alt="Fix everything in the BenchKeeper app: a diff of a rules file and the plugin install commands, each with a checkbox, before the Apply step">
 </picture>
 
 Fix everything shows each file change as a diff and each command as its command line, and writes nothing until you press Apply. The screenshot uses example data. [Every view of the app](https://eschuderer.github.io/BenchKeeper/app/).
@@ -57,7 +57,6 @@ Fix everything shows each file change as a diff and each command as its command 
 
 - [Project site](https://eschuderer.github.io/BenchKeeper/): the workflow, the install levels and the app
 - [Setup guide](docs/setup.md): prerequisites, levels, what a full `apply` writes, per-repository setup, updates, undo
-- [Upgrading to 7.0](docs/upgrading-to-7.md): clean uninstall of 6.x and clean install of 7, what undo leaves, renamed commands
 - [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI

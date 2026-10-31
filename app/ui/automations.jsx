@@ -3,7 +3,7 @@ import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, Section, usePlanRunning } from './parts.jsx';
-import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, icon, useAnnounce, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
 const STATE = { current: ['teal', 'matches the template'], outdated: ['yellow', 'template changed'], modified: ['yellow', 'changed on the runner'], removed: ['red', 'gone from the runner'], unknown: ['gray', 'unknown'] };
@@ -78,49 +78,73 @@ export function Automations({ overview, refresh }) {
     try { const p = await api('/api/automations-plan', body); if (idle()) { setPending({ plan: p, why: `You asked to ${body.op} this automation in Automations.` }); setForm(null); } } catch (e) { setError(e.message); }
   };
   const done = () => { state.reload(); refresh(); };
+  const [checking, setChecking] = useState(false);
+  const [found, setFound] = useState(null);
+  const [status, announce] = useAnnounce();
+  // The server keeps the view for 15 seconds; Check again reads the runner anew.
+  const check = () => {
+    setChecking(true);
+    api('/api/automations?fresh=1').then((d) => d.runner.installed && setFound(d.runner.name), () => {}).finally(() => { setChecking(false); state.reload(); });
+  };
+  // Check again found the runner and its button is gone: focus goes to the templates once they show.
+  useEffect(() => {
+    if (found && state.data?.runner.installed) { announce('automations-templates-title', `${found} found`); setFound(null); }
+  }, [found, state.data, announce]);
+  const intro = <Note>A template is one scheduled agent run: a schedule, a precheck that skips the run when there is nothing to do, and the prompt. Install creates it on the runner, disabled and report only. Update sets it back to the template, remove deletes it with its run history. Each is a plan with a diff and an undo in History.</Note>;
   return (
     <Stack gap="lg">
-      <Note>A template is one scheduled agent run: a schedule, a precheck that skips the run when there is nothing to do, and the prompt. Install creates it on the runner, disabled and report only. Update sets it back to the template, remove deletes it with its run history. Each is a plan with a diff and an undo in History.</Note>
+      {status}
       {error && <Note color="red" title="Not planned">{error}</Note>}
       <Loading state={state} label="automations">
         {(data) => {
           const open = data.automations.find((a) => a.id === form);
+          const templates = (
+            <Section title="Templates" id="automations-templates">
+              {data.automations.length === 0
+                ? <Text>No template yet. Put your own in <Code>automations/</Code> of the config folder.</Text>
+                : (
+                  <Table.ScrollContainer minWidth={760} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Automations, scrollable' } }}>
+                    <Table aria-label="Automations" verticalSpacing="sm">
+                      <Table.Thead><Table.Tr><Table.Th>Automation</Table.Th><Table.Th>Schedule</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Last run</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+                      <Table.Tbody>
+                        {data.automations.map((a) => {
+                          const name = a.template?.title ?? a.installed?.name ?? a.id;
+                          return (
+                            <Table.Tr key={a.id}>
+                              <Table.Td><Stack gap={2}><Text fw={600}>{name}</Text><Text size="sm">{a.id}</Text>{a.template ? <Badge variant="default" miw="max-content">{TIER[a.template.tier]}</Badge> : <Badge variant="default" miw="max-content">template missing</Badge>}</Stack></Table.Td>
+                              <Table.Td>{a.template ? <Code>{a.template.schedule || 'on demand'}</Code> : null}</Table.Td>
+                              <Table.Td miw={220}>{a.installed ? <Installed i={a.installed} /> : <Text size="sm">Not installed</Text>}</Table.Td>
+                              <Table.Td miw={160}>{a.installed ? <LastRun runs={a.installed.runs} /> : null}</Table.Td>
+                              <Table.Td miw={220}>
+                                <Group gap="xs">
+                                  {!a.installed && a.template && <Button size="compact-xs" leftSection={icon(IconDownload)} aria-label={`Install ${name}`} disabled={!data.runner.installed || !a.template.schedule || !a.template.precheck.trim()} onClick={() => setForm(a.id)}>Install</Button>}
+                                  {a.installed?.state === 'removed' && a.template && <Button size="compact-xs" leftSection={icon(IconDownload)} aria-label={`Install ${name} again`} disabled={!data.runner.installed} onClick={() => setForm(a.id)}>Install again</Button>}
+                                  {a.installed && a.installed.state !== 'removed' && <Button size="compact-xs" variant="default" leftSection={icon(IconRefresh)} aria-label={`Update ${name}`} disabled={!data.runner.installed || !a.template} onClick={() => plan({ op: 'update', id: a.id })}>Update</Button>}
+                                  {a.installed && <Button size="compact-xs" variant="default" color="red" leftSection={icon(IconTrash)} aria-label={`Remove ${name}`} disabled={!data.runner.installed} onClick={() => plan({ op: 'remove', id: a.id })}>Remove</Button>}
+                                </Group>
+                              </Table.Td>
+                            </Table.Tr>
+                          );
+                        })}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                )}
+            </Section>
+          );
           return (
             <Stack gap="lg">
-              {!data.runner.installed && <Note color="yellow">{data.runner.note}. The templates show, and install, update and remove need its CLI.</Note>}
+              {/* Without the runner its one setup step leads; the templates and what they are wait behind Show templates. */}
+              {data.runner.installed ? intro : (
+                <Note color="yellow" title={`Set up ${data.runner.name}`} styles={{ title: { color: 'var(--mantine-color-text)' } }}>
+                  <Stack gap="sm">
+                    <Text size="sm">{data.runner.note}. Install, update and remove need its CLI; the templates show without it. A PATH changed after BenchKeeper started counts once BenchKeeper restarts.</Text>
+                    <Group><Button size="xs" variant="default" onClick={check} loading={checking || state.loading}>Check again</Button></Group>
+                  </Stack>
+                </Note>
+              )}
               {data.errors.map((e) => <Note color="red" title="Template not loaded" key={e.file}><Code style={{ overflowWrap: 'anywhere' }}>{e.file}</Code>: {e.message}</Note>)}
-              <Section title="Templates">
-                {data.automations.length === 0
-                  ? <Text>No template yet. Put your own in <Code>automations/</Code> of the config folder.</Text>
-                  : (
-                    <Table.ScrollContainer minWidth={760} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Automations, scrollable' } }}>
-                      <Table aria-label="Automations" verticalSpacing="sm">
-                        <Table.Thead><Table.Tr><Table.Th>Automation</Table.Th><Table.Th>Schedule</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Last run</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
-                        <Table.Tbody>
-                          {data.automations.map((a) => {
-                            const name = a.template?.title ?? a.installed?.name ?? a.id;
-                            return (
-                              <Table.Tr key={a.id}>
-                                <Table.Td><Stack gap={2}><Text fw={600}>{name}</Text><Text size="sm">{a.id}</Text>{a.template ? <Badge variant="default" miw="max-content">{TIER[a.template.tier]}</Badge> : <Badge variant="default" miw="max-content">template missing</Badge>}</Stack></Table.Td>
-                                <Table.Td>{a.template ? <Code>{a.template.schedule || 'on demand'}</Code> : null}</Table.Td>
-                                <Table.Td miw={220}>{a.installed ? <Installed i={a.installed} /> : <Text size="sm">Not installed</Text>}</Table.Td>
-                                <Table.Td miw={160}>{a.installed ? <LastRun runs={a.installed.runs} /> : null}</Table.Td>
-                                <Table.Td miw={220}>
-                                  <Group gap="xs">
-                                    {!a.installed && a.template && <Button size="compact-xs" leftSection={icon(IconDownload)} aria-label={`Install ${name}`} disabled={!data.runner.installed || !a.template.schedule || !a.template.precheck.trim()} onClick={() => setForm(a.id)}>Install</Button>}
-                                    {a.installed?.state === 'removed' && a.template && <Button size="compact-xs" leftSection={icon(IconDownload)} aria-label={`Install ${name} again`} disabled={!data.runner.installed} onClick={() => setForm(a.id)}>Install again</Button>}
-                                    {a.installed && a.installed.state !== 'removed' && <Button size="compact-xs" variant="default" leftSection={icon(IconRefresh)} aria-label={`Update ${name}`} disabled={!data.runner.installed || !a.template} onClick={() => plan({ op: 'update', id: a.id })}>Update</Button>}
-                                    {a.installed && <Button size="compact-xs" variant="default" color="red" leftSection={icon(IconTrash)} aria-label={`Remove ${name}`} disabled={!data.runner.installed} onClick={() => plan({ op: 'remove', id: a.id })}>Remove</Button>}
-                                  </Group>
-                                </Table.Td>
-                              </Table.Tr>
-                            );
-                          })}
-                        </Table.Tbody>
-                      </Table>
-                    </Table.ScrollContainer>
-                  )}
-              </Section>
+              {data.runner.installed ? templates : <Folded title="Templates" label={['Show templates', 'Hide templates']} name="templates"><Stack gap="lg">{intro}{templates}</Stack></Folded>}
               {open && (
                 <Section title={`Install ${open.template.title}`}>
                   {projects.length

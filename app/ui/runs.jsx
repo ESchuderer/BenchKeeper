@@ -1,4 +1,4 @@
-import { Button, Code, Group, List, Select, Stack, Table, Text } from '@mantine/core';
+import { Button, Code, Group, List, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
@@ -11,6 +11,8 @@ const Scroll = ({ label, children }) => (
     <Table aria-label={label}>{children}</Table>
   </Table.ScrollContainer>
 );
+// A section without data: one line with its title and the reason.
+const Empty = ({ title, children }) => <Text size="sm" component="section" aria-label={title}><Title order={3} fz="sm" lh="inherit" display="inline">{title}</Title>: {children}</Text>;
 
 // Runs and tasks, read when the view opens and on Refresh; no timer. The rows hold ids, states and counts, never a prompt or worker output.
 export function Runs() {
@@ -18,14 +20,14 @@ export function Runs() {
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Orchestrated runs and tasks in the registered projects and their worktrees, with cost and tokens, each project's last setup change, and the runs of the multi-agent IDE when it is installed. Read when the view opens and on Refresh; nothing runs while it is closed.</Text>
+        <Text maw={720}>Orchestrated runs and tasks in the registered projects and their worktrees with cost and tokens, each project's last setup change and the runs of the multi-agent IDE when it is installed, read when the view opens and on Refresh: nothing runs while it is closed.</Text>
         <Button leftSection={icon(IconRefresh)} variant="default" loading={runs.loading} onClick={runs.reload}>Refresh</Button>
       </Group>
       <Loading state={runs} label="runs">{(d) => (
         <Stack gap="lg">
-          <Section title="Orchestrated runs">
-            <Text size="sm">From the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC in the registered projects and their worktrees. Codex records tokens, not cost.</Text>
-            {d.runs.length ? (
+          {d.runs.length ? (
+            <Section title="Orchestrated runs">
+              <Text size="sm">From the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC in the registered projects and their worktrees. Codex costs are estimated from tokens and OpenAI API prices.</Text>
               <Scroll label="Orchestrated runs and tasks">
                 <Table.Thead><Table.Tr><Table.Th>Run</Table.Th><Table.Th>Task</Table.Th><Table.Th>Worktree</Table.Th><Table.Th>Branch</Table.Th><Table.Th>Sessions</Table.Th><Table.Th>Cost</Table.Th><Table.Th>Tokens</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
@@ -42,17 +44,17 @@ export function Runs() {
                   )))}
                 </Table.Tbody>
               </Scroll>
-            ) : <Text size="sm">No orchestrated sessions in a registered project.</Text>}
-          </Section>
-          <Section title="Last setup change">
-            {d.setup.length ? (
+            </Section>
+          ) : <Empty title="Orchestrated runs">no orchestrated sessions in a registered project or its worktrees, from the sessions read {d.scanned.slice(0, 16).replace('T', ' ')} UTC. Codex costs are estimated from tokens and OpenAI API prices.</Empty>}
+          {d.setup.length ? (
+            <Section title="Last setup change">
               <List spacing={4} size="sm">
                 {d.setup.map((p) => <List.Item key={p.project}><Code>{p.project}</Code>: {p.lastChange ? `${p.lastChange.kind} ${p.lastChange.status}, ${p.lastChange.time.slice(0, 16).replace('T', ' ')} UTC` : 'none'}</List.Item>)}
               </List>
-            ) : <Text size="sm">No project is registered.</Text>}
-          </Section>
-          <Section title={d.ide.name}>
-            {d.ide.runs === null ? <Text size="sm">Not installed, or its run list could not be read.</Text> : !d.ide.runs.length ? <Text size="sm">No runs.</Text> : (
+            </Section>
+          ) : <Empty title="Last setup change">no project is registered.</Empty>}
+          {d.ide.runs === null ? <Empty title={d.ide.name}>not installed, or its run list could not be read.</Empty> : !d.ide.runs.length ? <Empty title={d.ide.name}>no runs.</Empty> : (
+            <Section title={d.ide.name}>
               <Scroll label={`${d.ide.name} runs`}>
                 <Table.Thead><Table.Tr><Table.Th>Run</Table.Th><Table.Th>Updated</Table.Th><Table.Th>Tasks</Table.Th><Table.Th>States</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
@@ -66,11 +68,15 @@ export function Runs() {
                   ))}
                 </Table.Tbody>
               </Scroll>
-            )}
-          </Section>
+            </Section>
+          )}
         </Stack>
       )}</Loading>
-      <Cli>benchkeeper sessions list --run &lt;id&gt;</Cli>
+      {/* Reference, not status: folded until opened. */}
+      <details>
+        <summary><Text component="span" fw={600}>Command</Text></summary>
+        <Stack mt="md"><Cli>benchkeeper sessions list --run &lt;id&gt;</Cli></Stack>
+      </details>
     </Stack>
   );
 }

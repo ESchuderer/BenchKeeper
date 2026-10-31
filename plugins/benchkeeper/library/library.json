@@ -705,7 +705,9 @@
         "source": "msitarzewski/agency-agents",
         "ref": "b37b5bb33b78f2c1d6567d98e25ca818e3259219",
         "agents": [
-          "claude"
+          "claude",
+          "codex",
+          "copilot"
         ],
         "dest": "subagents",
         "files": [
@@ -735,7 +737,7 @@
           }
         ]
       },
-      "limits": "Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run."
+      "limits": "Claude Code, Codex (converted to TOML) and GitHub Copilot CLI: Gemini CLI agent files need the project's converter, which this setup does not run."
     }
   ]
 }

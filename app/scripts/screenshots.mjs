@@ -1,8 +1,9 @@
-// Saves the app screenshots of the site's /app/ page (web/public/app/<view>-<light|dark>.png) from the UI test server in
+// Saves the app screenshots of the site's /app/ page (web/public/app/<view>-<light|dark>.webp) from the UI test server in
 // demo mode: a fixture home and fixture projects under one temporary root, stubbed agent commands, never the real machine.
-// Run in the dev container: `cd app && npm run build && node scripts/screenshots.mjs`.
+// Run in the dev container: `cd web && npm ci && cd ../app && npm ci && npm run build && node scripts/screenshots.mjs` (sharp comes from web/).
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,6 +14,10 @@ import { openBrowser } from '../src/server.mjs';
 const PORT = 4410, TOKEN = 'ui-test-token-0123456789';
 const app = resolve(fileURLToPath(import.meta.url), '../..');
 const out = resolve(app, '../web/public/app');
+// Chromium writes PNG only; sharp, which the site installs with Astro, writes the same pixels as lossless WebP in about
+// a third of the bytes.
+let sharp;
+try { sharp = createRequire(resolve(out, '../../package.json'))('sharp'); } catch { throw new Error('sharp is missing: run npm ci in web/ first'); }
 // A fixed name: the paths in the screenshots read /tmp/demo/projects/shop.
 const root = join(tmpdir(), 'demo');
 rmSync(root, { recursive: true, force: true });
@@ -43,10 +48,15 @@ const VIEWS = [
     await page.getByRole('group', { name: 'One-run setup' }).getByRole('button', { name: 'Set up everything' }).click();
     await expect(page.getByRole('dialog', { name: 'One-run setup' })).toBeVisible();
   }],
-  // Scrolled to Health: the ring of item states and the scopes beside it, the doctor table below.
+  // Scrolled to Health: the ring of item states and the scopes beside it, the worst doctor findings below.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
-  // A taller window: the table is longer than 900 pixels and the sticky header would cover its title.
-  ['doctor', async (page) => { await page.setViewportSize({ width: 1600, height: 1400 }); await page.getByRole('region', { name: 'Doctor' }).scrollIntoViewIfNeeded(); }, (page) => page.getByRole('region', { name: 'Doctor' })],
+  // The table unfolded, as a link to the Doctor section opens it. A window taller than the table: the sticky header would
+  // cover its first rows.
+  ['doctor', async (page) => {
+    await page.setViewportSize({ width: 1600, height: 2600 });
+    await page.goto('/#/dashboard?panel=doctor');
+    await page.getByRole('table', { name: 'Doctor findings' }).scrollIntoViewIfNeeded();
+  }, (page) => page.getByRole('table', { name: 'Doctor findings' })],
   ['fix', async (page) => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     await expect(page.getByRole('dialog', { name: 'Fix everything' }).getByRole('checkbox').first()).toBeVisible();
@@ -74,23 +84,18 @@ const VIEWS = [
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Fix the cart total');
   }],
-  // Scrolled to Skill states: the library list above it is the same on every machine.
-  ['skills', async (page) => {
-    await nav(page, 'Catalog').click();
-    await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
-  }],
+  // The Catalog's Skills page: the library list is the same on every machine.
+  show('skills', 'Skills', 'table', 'Skills'),
+  show('packs', 'Packs', 'table', 'Packs'),
   show('runs', 'Runs', 'table', 'Orchestrated runs and tasks'),
   show('insights', 'Insights', 'heading', 'Findings'),
   show('evals', 'Evals', 'table', 'Eval targets'),
   show('global', 'Global setup', 'table', 'Agents'),
-  show('extensions', 'Extensions', 'table', 'Claude Code extensions'),
-  show('automations', 'Automations', 'table', 'Automations'),
-  // Scrolled to Views and their cost: the status line select of the tracked account work.
-  ['preferences', async (page) => {
-    await nav(page, 'Preferences').click();
-    await expect(page.getByRole('combobox', { name: 'Status line of account work' })).toBeVisible();
-    await page.getByRole('region', { name: 'Views and their cost' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
-  }],
+  show('extensions', 'Extensions', 'list', 'Claude Code extensions'),
+  // Demo mode has no runner: its setup panel, the templates folded.
+  show('automations', 'Automations', 'button', 'Check again'),
+  // The Views tab as it opens: the status line select of the tracked account work.
+  show('preferences', 'Preferences', 'combobox', 'Status line of account work'),
   // Scrolled to the auto memory of shop, below the context budget.
   ['rules', async (page) => {
     await nav(page, 'Rules').click();
@@ -141,8 +146,9 @@ try {
       // The board is a frame of its own.
       for (const f of page.frames()) await f.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
       await assertFixtureOnly(page, `${name}-${scheme}`);
-      await (cut ? cut(page) : page).screenshot({ path: join(out, `${name}-${scheme}.png`) });
-      console.log(`${name}-${scheme}.png`);
+      const png = await (cut ? cut(page) : page).screenshot();
+      await sharp(png).webp({ lossless: true, effort: 6 }).toFile(join(out, `${name}-${scheme}.webp`));
+      console.log(`${name}-${scheme}.webp`);
     }
     await context.close();
   }

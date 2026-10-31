@@ -19,7 +19,7 @@ import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { boardFile as ponytailBoard, STATUS_STYLES, styleOf, trackedStyles } from './ponytail.mjs';
 import { contentDir } from './content.mjs';
-import { doctor, projectChecks } from './doctor.mjs';
+import { doctorReport, projectChecks, splitDismissed } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
 import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
@@ -27,9 +27,10 @@ import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { copied, exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
+import { createPlan, listPresets, recommend } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, pushTargets, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, skillUsers, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
@@ -42,9 +43,9 @@ import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { mask, maskStream, shown } from './redact.mjs';
 import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
-import { levelFor } from './level.mjs';
-import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
+import { containerProjects, levelFor } from './level.mjs';
+import { LEVELS, declineUnselected, globalPlan, globalSkills } from './steps/global.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, tryState } from './steps/project.mjs';
 
 const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -160,9 +161,10 @@ export function api(ctx) {
     return evalPlan(ctx, { agents: agents.length ? agents : ['claude'], all: get('all') === '1' || get('all') === true, only: only.length ? only : undefined });
   };
   // Plans wait for Apply 30 minutes; the newest 50 are kept.
-  const keep = (changes, pctx, scope) => {
+  // declines: the global plan of the setup, whose unselected changes an apply records as declined.
+  const keep = (changes, pctx, scope, declines = false) => {
     const id = randomBytes(8).toString('hex');
-    plans.set(id, { changes, ctx: pctx, scope, at: Date.now() });
+    plans.set(id, { changes, ctx: pctx, scope, declines, at: Date.now() });
     for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
     return id;
   };
@@ -218,10 +220,11 @@ export function api(ctx) {
   const routes = {
     'GET /api/overview': async () => ({ ...(await overview(ctx, agentsNow(), cached)), editors: editorsOn() }),
     'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
-    // Dismiss an Agent settings note by id ({ id, dismissed: false } shows it again): hidden there and in Doctor.
+    // Dismiss an Agent settings note by id, or decide a setting (id setting:<agent>:<key>; { id, dismissed: false } shows
+    // it again): hidden there and in Doctor.
     'POST /api/settings-dismiss': (b) => ({ dismissed: input(() => dismissNote(ctx, b.id, b.dismissed !== false)).dismissed }),
-    // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
-    // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
+    // The editor view (preference editors): the orchestrator policy of a registered project, checked by the loader;
+    // a save is a plan applied through /api/apply and undone in History.
     'GET /api/params': (q) => paramsView(editorsDir(q.get('dir'))),
     'POST /api/params-check': (b) => (editorsDir(b.dir), { errors: input(() => checkText(b.file, b.text)) }),
     'POST /api/params-plan': (b) => {
@@ -234,8 +237,8 @@ export function api(ctx) {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);
       if (!LEVELS.includes(level)) throw bad(`level must be one of ${LEVELS.join(', ')}`);
-      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level } }));
-      return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
+      return { planId: keep(changes, ctx, 'global', true), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
     'POST /api/apply': (b) => {
@@ -245,6 +248,9 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
+      if (p.declines && b.select) declineUnselected(ctx, p.changes, b.select);
+      // Nothing chosen: the declines are recorded, no run starts.
+      if (b.select?.length === 0) return { job: null, total: 0 };
       // Output is masked as it arrives and kept per change, its last 64 kB; GET /api/job cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
@@ -266,6 +272,7 @@ export function api(ctx) {
       if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
       for (const { p, select } of list) confirmed(p, select, b.confirmDestructive);
       for (const { id } of list) plans.delete(id);
+      for (const { p, select } of list) if (p.declines && select) declineUnselected(ctx, p.changes, select);
       return start(list.length, async (job) => {
         job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
         for (const [i, { p, select }] of list.entries()) {
@@ -339,8 +346,7 @@ export function api(ctx) {
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-        // willPush: the rule Update all pushes by, so its confirmation counts what the run opens.
-        return { ...s, seen, willPush: pushTargets(ctx, [p.path]).length === 1, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
       });
     },
     // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
@@ -349,6 +355,8 @@ export function api(ctx) {
       const paths = [b.paths ?? b.path].flat();
       if (!paths.length || !paths.every((x) => typeof x === 'string' && isAbsolute(x))) throw bad('path must be an absolute path');
       const action = b.action ?? 'add';
+      // setup: a folder created from a preset is registered only with its state file.
+      if (action === 'add' && b.setup === true && !paths.every((x) => tryState(x))) throw bad('the folder has no setup state: not registered');
       if (action === 'add') paths.forEach((x) => addProject(ctx, x, { worktree: b.worktree === true }));
       else if (action === 'remove') removeProject(ctx, paths);
       else if (action === 'rename') renameProject(ctx, paths[0], { name: b.name, notes: b.notes });
@@ -359,7 +367,7 @@ export function api(ctx) {
       } else throw bad('action must be add, remove, rename or relocate');
       return listProjects(ctx);
     }),
-    // The files "Remove BenchKeeper setup" would change in a project, before it runs; shared: it becomes a pull request.
+    // The files "Remove BenchKeeper setup" would change in a project, before it runs; shared: it becomes a commit on a local branch.
     'GET /api/remove-setup-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
@@ -369,14 +377,26 @@ export function api(ctx) {
     'POST /api/remove-setup': (b) => {
       idle();
       const paths = [b.paths ?? []].flat().filter((x) => typeof x === 'string' && registered(x));
-      return paths.map((x) => removeSetup(ctx, canon(x), { push: b.push !== false }));
+      return paths.map((x) => removeSetup(ctx, canon(x)));
+    },
+    // A new folder from a preset: its plan; the page registers the folder after the apply, then asks for the recommendations.
+    'GET /api/presets': () => listPresets(ctx),
+    'GET /api/create-plan': (q) => {
+      const p = input(() => createPlan(ctx, resolve(q.get('dir') || '.'), q.get('preset') ?? ''));
+      return { dir: p.dir, planId: keep(p.plan, p.pctx, p.dir), changes: serialize(p.plan, p.pctx), skills: p.skills, warnings: p.warnings };
+    },
+    'GET /api/recommendations': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir) || !tryState(dir)) throw bad('register the project and set it up first');
+      const r = recommend(ctx, dir);
+      return { items: r.items, planId: keep(r.plan, r.pctx, dir), changes: serialize(r.plan, r.pctx) };
     },
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
-      // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
+      // Pack switches and single-skill actions of a project's page, on top of the saved answers.
       const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only. A toggle of a skill whose pack is switched off in the same plan is
       // dropped, so skill and pack switches work in any order; a name outside the library is still an error.
@@ -405,10 +425,10 @@ export function api(ctx) {
           suggested: hints.find((h) => h.id === x.id)?.reason ?? null, ...rows.packs[x.id] })),
         files: rows.files, global: rows.global };
     },
-    // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
-    // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
+    // The registered projects' skills with their state, and the folders no setup installed, for a project's page: ?dir= keeps
+    // one project. ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
     'GET /api/skills': (q = new URLSearchParams()) => ({
-      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path) && (!q.get('dir') || p.path === q.get('dir'))).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
       global: globalUntracked(ctx, installed()),
     }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
@@ -423,13 +443,13 @@ export function api(ctx) {
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a
-    // folder without a repository, a shared setup (a pull request) or one still committed (a pull request removes it).
+    // folder without a repository, a shared setup (a commit on a branch) or one still committed (a commit removes it).
     'GET /api/one-run': async () => {
       await originsOfProjects();
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, level: levelFor(ctx, agents.map((a) => a.id)), advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
-        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all opens its pull request' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
+        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
         return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
       }) };
     },
@@ -543,7 +563,7 @@ export function api(ctx) {
       const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
       // dryRun: what each project would get (setup version, changes, whether it is clean), nothing changed.
       if (b.dryRun === true) return paths.map((p) => { const s = status(ctx, p); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(ctx, p)) }; });
-      return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
+      return input(() => updateAll(ctx, { paths, answers }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
     'GET /api/run': (q) => runReport(ctx, q.get('id') ?? ''),
@@ -554,15 +574,27 @@ export function api(ctx) {
     },
     'GET /api/catalog': () => catalog(ctx),
     'GET /api/skill': (q) => {
-      const name = q.get('name');
-      if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
-      return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
+      const skill = libraryWith(ctx).skills.find((s) => s.name === q.get('name'));
+      if (!skill) throw Object.assign(new Error('unknown skill'), { status: 404 });
+      return { name: skill.name, text: copied(skill) ? readText(join(skillFolder(ctx, skill), 'SKILL.md')) : null };
     },
+    // A plan that adds (new), edits or removes one of the user's skills; applied through /api/apply, undone in History.
+    'POST /api/user-skill-plan': (b) => {
+      const name = String(b.name ?? '');
+      const changes = preview([input(() => {
+        if (b.op === 'remove') return userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+        if (!['new', 'edit'].includes(b.op)) throw new Error('op must be new, edit or remove');
+        return userSkillWrite(ctx, name, String(b.text ?? ''), { isNew: b.op === 'new' });
+      })]);
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
+    },
+    // The findings shown; ?dismissed=1 the ones the user dismissed or declined, which "Show again" brings back.
     'GET /api/doctor': (q) => {
-      if (!q.has('dir')) return cached('doctor', () => doctor(ctx, { agents: installed() }));
+      const part = q.get('dismissed') === '1' ? 'dismissed' : 'found';
+      if (!q.has('dir')) return cached('doctor', () => doctorReport(ctx, { agents: installed() }))[part];
       const dir = resolve(q.get('dir'));
       if (!registered(dir)) throw bad('register the project first');
-      return projectChecks(ctx, dir);
+      return splitDismissed(ctx, projectChecks(ctx, dir))[part];
     },
     // The findings of `insights --json` with their triage (dismissed, snoozed until a date); a triage click does not scan again.
     'GET /api/insights': async () => {
@@ -599,7 +631,7 @@ export function api(ctx) {
       return { opened: dir };
     },
     'GET /api/evals': () => evalResults(ctx),
-    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
+    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean), libraryWith(ctx)),
     'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
     'POST /api/packs': (b) => input(() => {
       if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });
@@ -618,7 +650,7 @@ export function api(ctx) {
       if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
       const done = input(() => importChoices(ctx, p));
       const plan = importPlan(ctx, p);
-      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global', true), changes: serialize(plan.global, ctx) },
         plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
     },
     'POST /api/scan': (b) => {
@@ -754,7 +786,10 @@ export function api(ctx) {
     },
     // Automations: the templates and the installed ones with their state and runs, read from the runner (cached like the
     // other reads that start commands); install, update and remove are plans applied through /api/apply, undone in History.
-    'GET /api/automations': () => cached('automations', () => automationsView(ctx)),
+    'GET /api/automations': (q) => {
+      if (q?.get('fresh') === '1') memo.delete('automations'); // Check again: the runner may have been installed meanwhile
+      return cached('automations', () => automationsView(ctx));
+    },
     'POST /api/automations-plan': (b) => {
       const id = String(b.id ?? '');
       const changes = preview(input(() => {

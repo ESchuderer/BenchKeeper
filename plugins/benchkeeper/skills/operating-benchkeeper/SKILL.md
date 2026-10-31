@@ -6,7 +6,7 @@ writes: "What the `benchkeeper` commands you approve write: rules, skills, setti
 
 # Operating BenchKeeper through the CLI
 
-`npx benchkeeper@6 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan with a diff and is recorded as a run that `undo` reverses. Three actions are not undone by it: `packs remove` (the file goes to `backup/packs/` in the config folder), the pull request and branch that `projects update`, `projects remove --setup` and `projects unshare` push for a shared setup (close them on GitHub), and a token removed by `accounts remove`. Say which of these a plan contains before asking for approval. Every view of the web UI has a command except the UI's own controls; the Routes and commands table in the app README maps each route to its command.
+`npx benchkeeper@6 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan with a diff and is recorded as a run that `undo` reverses. Three actions are not undone by it: `packs remove` (the file goes to `backup/packs/` in the config folder), the commit on a local branch that `projects update`, `projects remove --setup` and `projects unshare` make for a shared setup (delete the branch), and a token removed by `accounts remove`. Say which of these a plan contains before asking for approval. Every view of the web UI has a command except the UI's own controls; the Routes and commands table in the app README maps each route to its command.
 
 ## Safe order
 
@@ -32,8 +32,9 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--guards\|--no-guards`, `--agent-file`, `--caller lint-js\|lint-python\|sonar`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `projects plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
+| New project from a preset | `presets list`, `presets save <id> --project dir` (the answers of a set-up project), `presets remove <id>` (moves the file to the backup); `projects create <dir> --preset <id>` with no input prints the plan, then after approval `--yes` applies it and registers the folder (only when the plan wrote `.benchkeeper/state.json`; without it the command exits 1); it then prints recommended skills to turn off and packs to add as a second plan, which `--yes` leaves unselected and `--all` takes whole |
 | Update one project | `projects plan [dir]`, then `projects apply [dir] --yes` (the answers default to its state file) |
-| Update every project | `projects update [dir..]` with no input first: it prints each project's changes and the push and pull-request summary, then exits 2 without applying (`--dry-run` omits the summary). After approval, `projects update [dir..] --yes` (`--no-push` keeps a shared setup from pushing) |
+| Update every project | `projects update [dir..]` with no input first: it prints each project's changes and the summary, then exits 2 without applying (`--dry-run` omits the summary). After approval, `projects update [dir..] --yes`; it pushes nothing, and each result line names the `push` command of a committed branch for the user to run |
 | Take the setup out of a project | `projects remove <dir> --setup` (lists the files; ask, then `--yes`) |
 | Skills of a project | `skills list --json`, `skills show <name> --json` (a library skill's text); `skills update\|reset\|adopt\|enable\|disable [name..] --yes` |
 | Packs | `packs list --json`, `packs show <id> --json`, `packs enable\|disable <id> --project dir --yes` |

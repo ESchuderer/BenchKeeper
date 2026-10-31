@@ -1,7 +1,8 @@
-// The sessions board page on its own, with generated rows (the app's frame is covered in ui.spec.mjs).
+// The sessions board page on its own, with generated rows (the app's frame is covered in ui-1-shell.spec.mjs).
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { boardHtml } from '../../src/board.mjs';
+import { CODEX_PRICES } from '../../src/sessions.mjs';
 
 const NOW = '2026-10-28T12:00:00.000Z';
 const ago = (days, hour = 10) => `${new Date(Date.parse(NOW) - days * 864e5).toISOString().slice(0, 10)}T${String(hour).padStart(2, '0')}:00:00.000Z`;
@@ -14,7 +15,7 @@ const many = (n, o, spread = 25) => Array.from({ length: n }, (_, i) => row({ ..
 const T = Date.parse(ago(0, 11)) / 1000;
 const data = () => [
   ...many(20, { project: '/work/shop', pattern: 'single' }),
-  ...many(19, (i) => ({ project: '/work/blog', pattern: 'group', tests: i % 2 ? 'pass' : 'fail', prs: i === 0 ? [{ url: 'https://github.com/acme/blog/pull/9', state: 'merged' }] : [], branch: i < 5 ? 'feat/x' : 'main', ...(i === 0 && { active: [[T + 300, T + 900]], limits: [] }) })),
+  ...many(19, (i) => ({ project: '/work/blog', pattern: 'group', tests: i % 2 ? 'pass' : 'fail', prs: i === 0 ? ['https://github.com/acme/blog/pull/9'] : [], branch: i < 5 ? 'feat/x' : 'main', ...(i === 0 && { active: [[T + 300, T + 900]], limits: [] }) })),
   row({ project: '/work/api', pattern: 'loop', start: ago(0, 11), active: [[T, T + 600]], limits: [[T, T + 1200, null]] }),
   ...Array.from({ length: 10 }, (_, i) => row({ project: '/work/shop', start: ago(31 + i) })),
 ];
@@ -36,10 +37,11 @@ test('the rail lists projects newest first with count and last tier; a click fil
   await expect(cards.filter({ hasText: 'blog' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#count')).toHaveText('19 of 19 sessions');
   await expect(page.locator('#tiles .tile').first()).toContainText('19');
-  // The project page: branches and pull request states.
+  // The project page: branches and their pull requests.
   await expect(page.getByRole('heading', { level: 2, name: 'Project blog' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Branches, newest first' })).toContainText('feat/x');
-  await expect(page.locator('#project-body')).toContainText('1 pull requests: 1 merged');
+  await expect(page.locator('#project-body')).toContainText('1 pull requests');
+  await expect(page.getByRole('table', { name: 'Branches, newest first' })).toContainText('#9');
   await cards.filter({ hasText: 'blog' }).click();
   await expect(page.locator('#count')).toHaveText('40 of 40 sessions');
   await expect(page.locator('#project-page')).toBeHidden();
@@ -205,11 +207,11 @@ test('at phone width the rail is one button with the choice that opens the list;
   await expect(page.locator('#count')).toHaveText('19 of 19 sessions');
 });
 
-test('quick facts first, then test runs and merged pull requests; each shows the change against the previous period of the same length; All time has none', async ({ page }) => {
+test('quick facts first, then test runs; each shows the change against the previous period of the same length; All time has none', async ({ page }) => {
   await load(page, data());
   const tile = (name) => page.locator('#tiles .tile').filter({ has: page.locator('.label', { hasText: new RegExp(`^${name}$`) }) });
   await expect(page.locator('#tiles .facts').first().locator('.label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens', 'Agents at once', 'Busiest day', 'Active days', 'Blocked by limits']);
-  await expect(page.locator('#tiles .small .label')).toHaveText(['Most used agent', 'Longest streak', 'Tests passed', 'Merged pull requests']);
+  await expect(page.locator('#tiles .small .label')).toHaveText(['Most used agent', 'Longest streak', 'Tests passed']);
   await expect(tile('Sessions')).toContainText('+300% vs previous 30 days');
   await expect(tile('Sessions')).toContainText('40');
   await expect(tile('Most used agent')).toContainText('Claude Code40 of 40 sessions');
@@ -266,7 +268,7 @@ test('a setup comparison and the tier chart show n per bar; empty and one-projec
   await expect(page.locator('#by-tier li').first()).toContainText(/n=\d+/);
   await page.getByLabel('Agent', { exact: true }).selectOption('codex');
   await page.getByLabel('Tier', { exact: true }).selectOption('standard');
-  await expect(page.getByText('No sessions match these filters.')).toHaveCount(11);
+  await expect(page.getByText('No sessions match these filters.')).toHaveCount(10);
   await expect(page.locator('#chart svg')).toHaveCount(0);
   // One project, one session.
   await load(page, [row()]);
@@ -281,13 +283,12 @@ test('the calendar counts active days and the longest streak', async ({ page }) 
   await expect(page.locator('#calendar')).toContainText('6 active days of 84, longest streak 3 days');
 });
 
-test('a title stays text; the cost per merged pull request counts a pull request once', async ({ page }) => {
-  const pr = { url: 'https://github.com/acme/shop/pull/7', state: 'merged' };
+test('a title stays text; a pull request shows as its number', async ({ page }) => {
+  const pr = 'https://github.com/acme/shop/pull/7';
   await load(page, [row({ title: 'x </script><img src=x onerror=alert(1)>', prs: [pr], costUSD: 3 }), row({ prs: [pr], costUSD: 5, start: ago(2) })]);
   await expect(page.locator('#sessions')).toContainText('</script><img src=x');
   await expect(page.locator('img')).toHaveCount(0);
-  await expect(page.locator('#by-prpr')).toContainText('$8.00 (1 merged)');
-  await expect(page.locator('#tiles .tile').filter({ hasText: 'Merged pull requests' })).toContainText('1');
+  await expect(page.locator('#sessions')).toContainText('#7');
 });
 
 test('more than 6 repositories: 6 series and Other, which the legend explains; the legend and the Show select work with the keyboard', async ({ page }) => {
@@ -319,6 +320,14 @@ test('Stack by switches the chart between projects and agents and the legend fol
   await expect(page.locator('#tiles .tile').filter({ hasText: 'Cost' })).toContainText('1 Codex session without a cost');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await expect(page.locator('#legend button.chip')).toHaveText(['shop', 'blog', 'api']);
+});
+
+test('an estimated Codex cost is summed, marked in its row and named in the cost note with the price date', async ({ page }) => {
+  await load(page, [row({ costUSD: 2 }), row({ agent: 'codex', title: 'Estimated', costUSD: 0.5, costEstimated: true }), row({ agent: 'codex', costUSD: null })]);
+  const cost = page.locator('#tiles .tile').filter({ hasText: 'Cost' });
+  await expect(cost).toContainText('$2.50');
+  await expect(cost).toContainText(`Codex estimated at OpenAI API prices of ${CODEX_PRICES.date}, priced models only; 1 Codex session without a cost`);
+  await expect(page.locator('#sessions tr').filter({ hasText: 'Estimated' })).toContainText('$0.50 (estimated)');
 });
 
 test('no session before the period: no change text on any card and one History starts line under the header', async ({ page }) => {
@@ -386,7 +395,7 @@ test('every chart has a table for screen readers and a CSV download of the same 
   const order = await page.locator('section h2').allTextContents();
   expect(order.indexOf('Activity, last 12 weeks')).toBeLessThan(order.indexOf('Per day by project'));
   await expect(page.locator('#calendar .tick')).toContainText(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Aug', 'Sep', 'Oct']);
-  for (const id of ['chart-table', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar']) {
+  for (const id of ['chart-table', 'by-tier', 'by-pattern', 'by-setup', 'by-model', 'dist-time', 'dist-turns', 'calendar']) {
     const box = page.locator(`#${id}`);
     for (const [i, t] of (await box.locator('.sr table').all()).entries()) {
       const rows = await t.locator('tr').evaluateAll((trs) => trs.map((tr) => [...tr.children].map((c) => c.textContent)));

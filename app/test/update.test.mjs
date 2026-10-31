@@ -11,7 +11,7 @@ const answer = (paths) => async (url, init) => {
 test('Update all in the app: one request per project, each row reports on its own', async () => {
   const seen = [], steps = [];
   globalThis.fetch = answer(seen);
-  const rows = await updateProjects(['/a', '/b'], true, (r) => steps.push(r.map((x) => x.status).join()));
+  const rows = await updateProjects(['/a', '/b'], (r) => steps.push(r.map((x) => x.status).join()));
   assert.deepEqual(seen, ['/a', '/b']);
   assert.deepEqual(rows.map((r) => r.status), ['applied', 'applied']);
   assert.deepEqual(steps, ['pending,pending', 'running,pending', 'applied,pending', 'applied,running', 'applied,applied']);
@@ -20,7 +20,7 @@ test('Update all in the app: one request per project, each row reports on its ow
 test('stop after this project: the running one finishes, the rest are skipped and never requested', async () => {
   const seen = [], control = { stop: false };
   globalThis.fetch = async (url, init) => { control.stop = true; return answer(seen)(url, init); };
-  const rows = await updateProjects(['/a', '/b', '/c'], true, () => {}, control);
+  const rows = await updateProjects(['/a', '/b', '/c'], () => {}, control);
   assert.deepEqual(seen, ['/a']);
   assert.deepEqual(rows, [{ path: '/a', status: 'applied' }, { path: '/b', status: 'skipped', reason: 'stopped by you' }, { path: '/c', status: 'skipped', reason: 'stopped by you' }]);
 });

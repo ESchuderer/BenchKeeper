@@ -17,7 +17,8 @@ export default {
   mutate: name === undefined ? [] : [`src/${name}.mjs`],
   coverageAnalysis: 'off',
   concurrency: 4,
-  timeoutMS: 6000,
+  // The floors were measured with 30 s; a shorter timeout counts slow surviving mutants as killed.
+  timeoutMS: 30000,
   thresholds: { high: 80, low: 60, break: mod.floor },
   reporters: ['clear-text', 'progress', 'json'],
   jsonReporter: { fileName: `reports/mutation/${name}.json` },

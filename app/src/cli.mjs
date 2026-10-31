@@ -24,10 +24,11 @@ import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
+import { createPlan, listPresets, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { copied, exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
+import { addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, skillUsers, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -41,13 +42,12 @@ import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel, levelFor } from './level.mjs';
-import { resolvePins } from './params.mjs';
-import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
+import { containerProjects, detectLevel, levelFor } from './level.mjs';
+import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
 import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
-import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
+import { automationDiff, automationStatus, exportScript, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
 import { undoableAutomation } from './orca/index.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
@@ -74,7 +74,7 @@ Usage: benchkeeper <command> [options]
   doctor [dir] [--project dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
-                                    repo-baseline profile (read-only gh api; auto: advisory for private repositories)
+                                    repo-standards profile (read-only gh api; auto: advisory for private repositories)
   containers reconcile [--dry-run]  stops and removes dev containers whose workspace folder (devcontainer.local_folder
                                     label), inside the home folder, no longer exists while its parent folder does; never
                                     one without the label, whose folder exists or cannot be read, or whose label is not an
@@ -116,21 +116,29 @@ Usage: benchkeeper <command> [options]
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--project dir] [--agents a,b]
                                     deterministic checks: files match the ledger, expected plugins and skills,
-                                    nothing unexpected installed, project skills present; exit 1 on a failure
+                                    project skills present; exit 1 on a failure
   history                           runs, newest first
   history show <run>                one run: each change with its status and the diff of each file it wrote (settings
                                     values masked; a recorded session's files between its snapshots, the first 50)
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --caller writes that repo-baseline workflow file (never GitHub settings);
+                                    --caller writes that repo-standards workflow file (never GitHub settings);
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
+  projects create <dir> --preset <id> [--yes] [--all]
+                                    a new folder set up from a preset, as a plan with a diff, then registered; refused for a
+                                    folder that exists. Then a check recommends skills to turn off and packs to add, each with
+                                    its reason, as a second plan with no change selected (--yes takes none, --all all)
+  presets [list|save <id> --project dir|remove <id>]
+                                    presets: the setup answers of a project (agents, environment, packs, skills, tier) saved
+                                    under a name (presets/ of the config folder) to start new projects with; a pack is a set
+                                    of skills switched on in a project, a preset starts a project with its packs
   packs [list|show <id>|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); show: one
                                     pack with the registered projects that use it; remove refuses a pack a registered
@@ -154,7 +162,14 @@ Usage: benchkeeper <command> [options]
                                     add: a library skill the project lacks becomes a pick (names required);
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
   skills list --library             the library's skills with the number of registered projects that have each
-  skills show <name>                the SKILL.md of a library skill BenchKeeper ships; any other names its source
+  skills show <name>                the SKILL.md of a library skill BenchKeeper ships or of yours; any other names its source
+  skills new <name> [--file path | --description text] [--yes]
+                                    a skill of your own in ~/.config/benchkeeper/skills/<name>/, picked in a project or own
+                                    pack like a library skill and copied there: from --file, or a SKILL.md with the name and
+                                    --description. A plan with a diff (undo restores it), as are edit and delete
+  skills edit <name> --file path [--yes]
+                                    replaces the SKILL.md of your skill; projects with a copy get it on their next apply
+  skills delete <name> [--yes]      removes your skill; refused while a project or own pack names it
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
                                     prints the environment and npx command to start every skills CLI command with
@@ -177,31 +192,32 @@ Usage: benchkeeper <command> [options]
   projects rename <dir> [name] [--notes text]
                                     display name and notes (in projects.json only; an empty one clears it)
   projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it
-  projects remove <dir>.. --setup [--yes] [--no-push]
+  projects remove <dir>.. --setup [--yes]
                                     takes BenchKeeper's setup out of each project and keeps it registered: a local setup in the
-                                    checkout (one run, undo with benchkeeper undo <run>), a shared one as a pull request
-                                    (branch chore/remove-agent-setup); lists the files, then asks
-  projects unshare [dir..] [--yes] [--no-push]
-                                    per project whose repository still carries a setup kept local: a pull request
-                                    that removes it (branch chore/agent-setup-local); default: every such project
+                                    checkout (one run, undo with benchkeeper undo <run>), a shared one as a commit on the local
+                                    branch chore/remove-agent-setup, for you to push; lists the files, then asks
+  projects unshare [dir..] [--yes]
+                                    per project whose repository still carries a setup kept local: a commit that removes it
+                                    on the local branch chore/agent-setup-local, for you to push; default: every such project
   projects confirm-git <dir>..      shows the project's git config that runs code or sends git elsewhere (hooks, ssh
                                     command, credential helper, push URL, URL rewrites and the like) and, after a yes
                                     typed in a terminal, records it as confirmed for projects update --unattended (key
                                     and a hash of each value)
-  projects update [dir..] [--yes] [--no-push] [--dry-run] [--unattended] [--max N] [--baseline auto|oss|private-advisory]
+  projects update [dir..] [--yes] [--dry-run] [--unattended] [--baseline auto|oss|private-advisory]
                                     dir..: only these registered projects (default: all); per project: local setup (the
                                     default) applied in the checkout; shared setup
                                     (projects apply --share) on branch chore/agent-setup-<version> in a worktree,
-                                    one commit, push and pull request when origin is on GitHub;
-                                    --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
+                                    one commit, nothing pushed (the output names the push command);
+                                    --dry-run stops after the plan;
                                     --baseline also reports each project's GitHub settings drift, changing none
                                     --unattended skips a project whose git config that runs code differs from the
                                     one confirmed with projects confirm-git
   sessions board [--no-open]        sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
-  sessions list [--run id]          orchestrated runs with cost (Claude Code, API-equivalent USD) and tokens (Codex: tokens
-                                    only) from the sessions scan; --run: that run per task
+  sessions list [--run id]          orchestrated runs with cost (API-equivalent USD; Codex estimated from its tokens and
+                                    OpenAI API prices, unpriced models left out) and tokens from the sessions scan;
+                                    --run: that run per task
   sessions cache show|clear|set [--keep-days N|none] [--yes]
                                     the summaries the scan keeps after an agent deletes a transcript: show counts them with
                                     the retention; set --keep-days (1 to 3650, none: for good) changes it, the next scan
@@ -275,6 +291,9 @@ Usage: benchkeeper <command> [options]
   automations remove <id> [--yes]   removes it from the runner with its run history and from the record; undo restores
                                     the record only, install creates it again
   automations diff <id>             the installed automation as the runner holds it against the template now
+  automations export <id> [--param name=value..] [--project dir]
+                                    prints a sh script that runs the precheck and then the agent without the runner,
+                                    with a crontab line in its header; writes nothing
   automations status                each installed one: current, outdated (template changed), modified (changed on
                                     the runner), removed (gone from the runner) or unknown; nothing is written
   webhook set|remove|status         the webhook a run calls when it finishes or needs a person, off until set: set reads
@@ -285,16 +304,13 @@ Usage: benchkeeper <command> [options]
                                     one POST of these ids and the state, started detached with a 5 second limit and no
                                     retry; without a webhook nothing happens; a failure is one line in
                                     ~/.cache/benchkeeper/webhook.log, without the URL
-  pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
-                                    to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
-                                    then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
-        automations list|show|diff|status, packs list|show|warnings, skills list|show|sources,
+        automations list|show|diff|status|export, packs list|show|warnings, skills list|show|sources,
         rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
         profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
-        packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
+        packs enable|disable|scope, skills update|new|edit|delete, automations install|update|remove, undo, evals run,
         sessions cache set|clear)
                                     one JSON document on stdout, logs on stderr; keys in app/README.md. A changing
                                     command that would ask needs --yes: without it exit 2 and nothing changes
@@ -310,14 +326,14 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
-  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
+  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, 'workflow-load': { type: 'boolean' }, 'no-workflow-load': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
-  only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  only: { type: 'string' }, file: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
-  origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
+  origins: { type: 'boolean' }, 'clone-into': { type: 'string' }, preset: { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
@@ -430,14 +446,14 @@ async function removeSetups(ctx, dirs, { o, out, ask }) {
   if (!dirs.length) { out.write('projects remove --setup needs at least one directory\n'); return 2; }
   const plans = dirs.map((d) => ({ path: canon(d), ...setupRemoval(ctx, d) }));
   for (const p of plans) {
-    out.write(`${p.path}  ${p.shared ? 'shared setup: a pull request on branch chore/remove-agent-setup' : 'local setup: removed in the checkout'}\n`);
+    out.write(`${p.path}  ${p.shared ? 'shared setup: a commit on the local branch chore/remove-agent-setup' : 'local setup: removed in the checkout'}\n`);
     for (const c of p.changes) out.write(`  ${c.title}\n`);
     if (!p.changes.length) out.write('  nothing to remove\n');
   }
   if (!o.yes && !(await ask(`Remove the BenchKeeper setup of ${plans.length} ${plans.length === 1 ? 'project' : 'projects'} (they stay registered)?`))) return 1;
-  const results = plans.map((p) => removeSetup(ctx, p.path, { push: !o['no-push'] }));
+  const results = plans.map((p) => removeSetup(ctx, p.path));
   out.projects?.push(...results);
-  for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+  for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
   return results.some((r) => r.status === 'stopped') ? 1 : 0;
 }
 
@@ -491,14 +507,14 @@ async function readDoc(ctx, { cmd, o, positionals, err }) {
     if (!target) return { error: 'skills show needs a skill name, see benchkeeper skills list --library', code: 2 };
     const skill = libraryWith(ctx).skills.find((s) => s.name === target);
     if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 2 };
-    // Only the skills BenchKeeper ships have their text in the app; the others live at their source.
-    return { doc: { name: skill.name, source: skill.source, text: skill.source === 'own' ? readText(join(contentDir, 'library', skill.name, 'SKILL.md')) : null } };
+    // Only the skills BenchKeeper ships and the user's own have their text here; the others live at their source.
+    return { doc: { name: skill.name, source: skill.source, text: copied(skill) ? readText(join(skillFolder(ctx, skill), 'SKILL.md')) : null } };
   }
   if (cmd === 'packs') {
     if (!target) return { error: 'packs warnings needs a pack, see benchkeeper packs list', code: 2 };
     const pack = libraryWith(ctx).packs.find((p) => p.id === target);
     if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 2 };
-    return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? []) } };
+    return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? [], libraryWith(ctx)) } };
   }
   const dir = canon(target ?? '.');
   if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 2 };
@@ -538,7 +554,7 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
-const PLAN_FLAGS = 'agents env sandbox guards no-guards share local pack skill tier agent-file caller';
+const PLAN_FLAGS = 'agents env sandbox guards no-guards workflow-load no-workflow-load share local pack skill tier agent-file caller';
 // The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
 const FLAGS = {
   ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
@@ -554,10 +570,12 @@ const FLAGS = {
   'packs list': '', 'packs show': '', 'packs save': 'skill', 'packs export': '', 'packs import': 'id', 'packs remove': '', 'packs warnings': '',
   'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
   'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
+  'skills new': 'file description yes all', 'skills edit': 'file yes all', 'skills delete': 'yes all',
   ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
+  'projects create': 'preset yes all', 'presets list': '', 'presets save': 'project', 'presets remove': '',
   'projects status': '', 'projects advise': 'agent', 'projects list': '', 'projects add': 'worktree', 'projects scan': '',
-  'projects remove': 'setup yes no-push', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
-  'projects unshare': 'yes no-push max', 'projects confirm-git': '', 'projects update': 'yes no-push dry-run unattended max baseline baseline-ref',
+  'projects remove': 'setup yes', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
+  'projects unshare': 'yes', 'projects confirm-git': '', 'projects update': 'yes dry-run unattended baseline baseline-ref',
   'sessions board': 'no-open', 'sessions list': 'run', 'sessions cache': 'keep-days yes', 'sessions record': 'project',
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
@@ -565,11 +583,11 @@ const FLAGS = {
   'accounts login': 'token email no-browser project', run: 'account project token yes',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
-  'automations remove': 'yes all', 'automations diff': '', 'automations status': '',
-  'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
+  'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations export': 'param project',
+  'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
-const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3, 'containers reconcile': 2 };
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'projects create': 3, 'presets list': 2, 'presets save': 3, 'presets remove': 3, 'skills cli': 2, 'containers reconcile': 2 };
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
@@ -603,7 +621,7 @@ export function helpFor([noun, verb] = []) {
   return lines.length ? `${lines.join('\n')}\n${HELP.slice(at)}` : HELP;
 }
 
-// The new command of each name the noun-first rename removed (docs/upgrading-to-7.md).
+// The new command of each name the noun-first rename removed.
 const RENAMED = { project: 'projects', 'update-all': 'projects update', test: 'verify', board: 'sessions board', record: 'sessions record', eval: 'evals plan', case: 'evals cases', maintain: 'knowledge' };
 const known = (cmd) => Object.keys(FLAGS).some((k) => k.split(' ')[0] === cmd);
 // The one line for a command or subcommand that does not exist; an old name names its new command.
@@ -655,14 +673,14 @@ async function command(argv, { out, err, ask, ctx }) {
     const level = o.level ?? found.level ?? 'full';
     if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
     for (const id of agents) for (const m of unavailable(id)) out.write(`${m}\n`);
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return applyAnswered(plan, ctx, 'global', { o, ask, out });
+    return applyAnswered(plan, ctx, 'global', { o, ask, out, declines: true });
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
@@ -680,6 +698,7 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ')} npx -y ${skillsSpec(ctx)}\n`);
     return 0;
   }
+  if (cmd === 'skills' && ['new', 'edit', 'delete'].includes(arg)) return userSkillCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
@@ -715,6 +734,15 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of prompts) out.write(`  ${p.command}   (${p.why})\n`);
     return 0;
   }
+  if (cmd === 'projects' && arg === 'create') return createProject(ctx, { o, positionals, out, ask });
+  if (cmd === 'presets') {
+    if (arg && !['list', 'save', 'remove'].includes(arg)) { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
+    if (arg !== 'list' && arg !== undefined && !positionals[2]) { out.write(`presets ${arg} needs an id\n`); return 2; }
+    if (arg === 'save') out.write(`saved ${savePreset(ctx, positionals[2], resolve(o.project ?? '.')).id}\n`);
+    else if (arg === 'remove') { removePreset(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
+    else for (const p of listPresets(ctx)) out.write(`${p.id.padEnd(16)} ${p.answers.agents.join(',')}  packs: ${p.answers.packs?.join(', ') || 'none'}\n`);
+    return 0;
+  }
   if (cmd === 'projects' && arg === 'status') {
     const r = await projectsStatus(ctx, positionals);
     if (r.error) { out.write(`${r.error}\n`); return 2; }
@@ -730,8 +758,6 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'projects' && arg === 'update') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
-    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
-    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
     const asked = positionals.slice(2).map(canon), registered = listProjects(ctx);
     const unknown = positionals.slice(2).filter((_, i) => !registered.some((p) => p.path === asked[i]));
     if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
@@ -757,16 +783,14 @@ async function command(argv, { out, err, ask, ctx }) {
     const ready = projects.filter(isReady);
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
-    const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
-    if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
     const shared = ready.filter((p) => p.share).length;
-    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
+    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit, not pushed` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     let results;
-    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { results = updateAll(ctx, { paths: ready.map((p) => p.path) }); } catch (e) { out.write(`${e.message}\n`); return 1; }
     out.projects?.push(...results);
     out.runs?.push(...results.map((r) => r.run && ctx.ledger.get(r.run)).filter(Boolean));
-    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
   if (cmd === 'projects') {
@@ -810,17 +834,14 @@ async function command(argv, { out, err, ask, ctx }) {
       dirs.map(canon).forEach((path) => { out.projects?.push({ path, status: 'removed' }); out.write(`removed ${path}\n`); });
     }
     else if (arg === 'unshare') {
-      const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
-      if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
       const due = (dirs.length ? dirs.map((d) => registeredEntry(ctx, d).path) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);
       if (!ready.length) return 1;
-      if (!o['no-push'] && ready.length > max) { out.write(`${ready.length} pull requests: at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
-      if (!o.yes && !(await ask(`Open ${ready.length} pull requests (branch chore/agent-setup-local)${o['no-push'] ? ' without pushing' : ''}?`))) return 1;
-      const results = ready.map((p) => unshare(ctx, p.path, { push: !o['no-push'] }));
-      for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+      if (!o.yes && !(await ask(`Commit the removal in ${ready.length} projects (local branch chore/agent-setup-local)?`))) return 1;
+      const results = ready.map((p) => unshare(ctx, p.path));
+      for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
       return results.some((r) => r.status === 'stopped') ? 1 : 0;
     }
     else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
@@ -897,7 +918,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     for (const m of plan.notes) out.write(`note: ${m}\n`);
-    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out });
+    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out, declines: true });
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
       code |= await applyAnswered(x.changes, x.ctx, x.path, { o, ask, out });
@@ -926,16 +947,6 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
-  if (cmd === 'pins') {
-    if (arg !== undefined && arg !== 'list') { err.write('pins needs list\n'); return 2; }
-    const dir = resolve(positionals[2] ?? '.');
-    if (!isDir(dir)) { out.write(`${dir} is not a folder\n`); return 2; }
-    const { pins, errors } = resolvePins(dir);
-    for (const e of errors) out.write(`${e.file}: ${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}\n`);
-    if (errors.length) return 1;
-    for (const p of pins) out.write(`${p.phase.padEnd(10)} ${(p.agent ?? 'session').padEnd(8)} ${(p.model ?? 'default').padEnd(24)} ${(p.effort ?? 'default').padEnd(8)} ${p.source}\n`);
-    return 0;
-  }
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
@@ -1042,7 +1053,7 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
@@ -1054,6 +1065,23 @@ async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
   for (const w of warnings) out.write(`warning: ${w}\n`);
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   return applyAnswered(plan, pctx, dir, { o, ask, out });
+}
+
+// projects create: the preset's plan in a new folder, then the check's recommendations as a plan with no change selected.
+async function createProject(ctx, { o, positionals, out, ask }) {
+  if (!positionals[2] || !o.preset) { out.write('projects create needs a directory and --preset <id> (benchkeeper presets list)\n'); return 2; }
+  let planned;
+  try { planned = createPlan(ctx, resolve(positionals[2]), o.preset); } catch (e) { out.write(`${e.message}\n`); return 2; }
+  const { dir } = planned;
+  const code = await runProjectPlan(ctx, dir, { o, out, ask }, planned);
+  if (code || !existsSync(dir)) return code;
+  // A selection without the state file leaves a folder that is not set up: it is not registered.
+  if (!tryState(dir)) { out.write(`${dir} has no setup state (the state file change was not chosen): not registered\n`); return 1; }
+  out.write(`added ${addProject(ctx, dir)}\n`);
+  const rec = recommend(ctx, dir);
+  if (!rec.items.length) { out.write('no recommendations\n'); return 0; }
+  for (const r of rec.items) out.write(`recommended: ${r.action} ${r.kind} ${r.name}: ${r.reason}\n`);
+  return applyAnswered(rec.plan, rec.pctx, dir, { o, ask, out });
 }
 
 // packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.
@@ -1070,7 +1098,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
     return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
   }
   const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
-  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills per project, not on the machine: use --project <dir>\n`); return 1; }
+  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills: in one project with --project <dir>, or for all projects with benchkeeper packs scope ${skillsOnly[0]} global\n`); return 1; }
   const agents = selectedAgents(ctx, o.agents), have = installedPacks(ctx);
   const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
   // The other installed packs stay as they are; the pack asked for is the only one on or off.
@@ -1130,17 +1158,20 @@ function nothingChosen(plan, select, o, out) {
 }
 
 // The changes chosen from a plan applied as one run.
-async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
+// declines: the global plan of the setup, whose unselected changes are recorded as declined.
+async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
+  // --all asks once for the whole plan: a no cancels it and declines nothing.
+  if (declines && !o.all) declineUnselected(ctx, plan, select);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 
 const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
-// skills list|update|reset|remove|adopt|add|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
+// skills list|update|reset|remove|adopt|add|enable|disable: the skill management of a project's page, through the same plan, diff and undo.
 async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
-  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}, new, edit, delete\n`); return 2; }
   // list --check and update without names ask each source's default branch; update with names re-adds those skills.
   const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
@@ -1156,6 +1187,22 @@ async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
+}
+
+// skills new|edit|delete <name>: the user's own skills, each change a plan with a diff (undo restores it).
+async function userSkillCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub, name, extra] = positionals;
+  if (!name || extra !== undefined) { out.write(`skills ${sub} needs one skill name\n`); return 2; }
+  if (sub === 'edit' && !o.file) { out.write('skills edit needs --file <path> with the new SKILL.md\n'); return 2; }
+  let change;
+  try {
+    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+    else {
+      const text = o.file ? readFileSync(resolve(o.file), 'utf8') : `---\nname: ${name}\ndescription: ${JSON.stringify(o.description ?? 'What this skill does and when to use it.')}\n---\n\n# ${name}\n`;
+      change = userSkillWrite(ctx, name, text, { isNew: sub === 'new' });
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 2; }
+  return applyChosen(preview([change]), ctx, { o, ask, out });
 }
 
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.
@@ -1177,7 +1224,7 @@ const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'confirm-git', 'remove', 'rename', 'relocate', 'update'].includes(arg))
-  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'packs' && arg === 'scope') || (cmd === 'skills' && arg === 'update')
+  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'packs' && arg === 'scope') || (cmd === 'skills' && ['update', 'new', 'edit', 'delete'].includes(arg))
   || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
 const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.installUnit ? { unit: e.installUnit } : {}), ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });
@@ -1226,7 +1273,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const broken = registryFail();
     if (broken !== undefined) return broken;
     const level = o.level ?? detectLevel(ctx, agents, process.cwd()).level ?? 'full';
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
   }
   if (cmd === 'projects' && arg === 'plan') {
@@ -1552,8 +1599,8 @@ function paramValues(list = []) {
 // list, show, diff and status as a document, or { error, code } (the terminal prints it; 2: usage).
 async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
   const id = positionals[2];
-  if (positionals.length > (['show', 'diff'].includes(sub) ? 3 : 2)) return { error: `unexpected argument ${positionals.at(-1)}`, code: 2 };
-  if (['show', 'diff'].includes(sub) && !id) return { error: `automations ${sub} needs a template id, see benchkeeper automations list`, code: 2 };
+  if (positionals.length > (['show', 'diff', 'export'].includes(sub) ? 3 : 2)) return { error: `unexpected argument ${positionals.at(-1)}`, code: 2 };
+  if (['show', 'diff', 'export'].includes(sub) && !id) return { error: `automations ${sub} needs a template id, see benchkeeper automations list`, code: 2 };
   try {
     if (sub === 'list') {
       const { templates, errors } = loadAutomations(ctx), installed = readRegistry(ctx);
@@ -1565,13 +1612,18 @@ async function automationsDoc(ctx, sub = 'list', positionals, o = {}) {
       const keys = ['id', 'tier', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers', 'prompt'];
       return { doc: { template: Object.fromEntries(keys.map((k) => [k, t[k]])) } };
     }
+    if (sub === 'export') {
+      const { values, error } = paramValues(o.param);
+      if (error) return { error, code: 2 };
+      return { doc: { id, script: exportScript(ctx, id, { values, dir: o.project ?? '.' }) } };
+    }
     if (sub === 'diff') { const d = automationDiff(ctx, id); return { doc: { id, diff: d.diff, note: d.note } }; }
     if (sub === 'status') {
       const rows = automationStatus(ctx);
       return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
     }
   } catch (e) { return { error: e.message, code: lookupCode(e) }; }
-  return { error: 'automations needs list, show, install, update, remove, diff or status', code: 2 };
+  return { error: 'automations needs list, show, install, update, remove, diff, status or export', code: 2 };
 }
 
 async function automationsCommand(ctx, { o, positionals, out, ask }) {
@@ -1597,7 +1649,8 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     out.write(`${t.id} (${t.tier}): ${t.title}\nagent ${t.agent}, schedule ${t.schedule || 'none'}, workspace ${t.workspace}, mode ${t.mode}\nprecheck: ${t.precheck}\n`);
     for (const [k, p] of Object.entries(t.parameters)) out.write(`--param ${k}=${p.default ?? '(required)'}  ${p.description}\n`);
     out.write(`\n${t.prompt}\n`);
-  } else if (sub === 'diff') out.write(`${d.note ? `${d.note}\n` : ''}${d.diff || 'the installed automation matches the template\n'}`);
+  } else if (sub === 'export') out.write(d.script);
+  else if (sub === 'diff') out.write(`${d.note ? `${d.note}\n` : ''}${d.diff || 'the installed automation matches the template\n'}`);
   else {
     for (const a of d.automations) out.write(`${a.id.padEnd(24)} ${a.state.padEnd(9)} ${a.enabled === null ? '' : a.enabled ? 'enabled ' : 'disabled'} ${a.changed.length ? `changed: ${a.changed.join(', ')}` : ''}${a.note ? ` ${a.note}` : ''}\n`);
     if (!d.automations.length) out.write('no automation installed\n');

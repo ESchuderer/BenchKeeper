@@ -1,1 +1,0 @@
-{ "schemaVersion": 1, "presets": [{ "tier": "full", "gates": ["tests", "tests"] }] }

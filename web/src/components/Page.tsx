@@ -18,7 +18,7 @@ const MORE_FEATURES: [string, string, string][] = [
   ['Local by default', '/overview/#defaults', 'Keep the app and each project setup on your machine: the app opens on 127.0.0.1 behind a one-time link and sends no telemetry, and a project setup stays out of the repository until you share it.'],
   ['Plan, diff and undo', '/app/#history', 'See every change as a diff or command before it runs, then undo a whole run or a single step.'],
   ['Dashboard', '/app/#dashboard', 'See which items of the global setup and of each project need attention, and fix them in one plan.'],
-  ['Catalog', '/app/#skills', 'Browse the library skills with how many projects use each, and build your own packs from them.'],
+  ['Catalog', '/app/#skills', 'Browse the library skills and the packs on two pages, and build your own packs from the skills.'],
   ['Agent settings', '/app/#settings', 'Compare each agent setting with the value in effect and the suggested value with its reason, and change it through a plan.'],
   ['Rules', '/app/#rules', 'See which instruction files each agent loads, in load order, with their owner and the tokens they add to every session.'],
   ['Doctor', '/app/#doctor', 'Find rules that differ from the setup, missing plugins and skills and environment variables that turn features off, each with a planned fix or the step to do by hand.'],
@@ -84,8 +84,8 @@ export function StepList({ from, className }: { from: number; className?: string
 const repoSteps: [string, string, string][] = [
   ['Project setup, in each repository root', 'npx benchkeeper@6.25.0 projects apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. projects plan shows the changes first.'],
   ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.25.0 sessions record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.25.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.25.0 projects update, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
-  ['Track sessions', 'npx benchkeeper@6.25.0 sessions board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost (Claude Code), time and pull request state. The Sessions view in the browser app shows the same board.'],
+  ['Update later', 'npx benchkeeper@6.25.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.25.0 projects update, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a commit on a local branch for you to push.'],
+  ['Track sessions', 'npx benchkeeper@6.25.0 sessions board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices, unpriced models left out), time and pull request links. The Sessions view in the browser app shows the same board.'],
 ];
 
 function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {

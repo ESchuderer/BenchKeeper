@@ -31,7 +31,7 @@ test('update check: shown when newer, silent when off, offline or older', async 
   assert.equal(asked, false);
 });
 
-test('content.json: content version is the plugin version, minApp is not above the app, skill text names the major', () => {
+test('content.json: content version is the plugin version, minApp is not above the app, skill and automation text names the major', () => {
   const c = json('../../plugins/benchkeeper/content.json');
   assert.equal(c.schemaVersion, 1);
   for (const agent of ['claude', 'codex']) assert.equal(c.contentVersion, json(`../../plugins/benchkeeper/.${agent}-plugin/plugin.json`).version);
@@ -40,9 +40,9 @@ test('content.json: content version is the plugin version, minApp is not above t
   const [major, minor, patch] = appVersion.split('.').map(Number);
   assert.match(c.minApp, /^\d+\.\d+\.\d+$/);
   for (const v of [appVersion, `${major}.${minor}.${patch + 1}`]) assert.equal(contentRefusal(fileURLToPath(root), v), null, v);
-  for (const dir of ['skills', 'library']) {
+  for (const dir of ['skills', 'library', 'automations']) {
     for (const f of readdirSync(new URL(`${dir}/`, root), { recursive: true }).filter((x) => x.endsWith('.md'))) {
-      for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, appVersion.split('.')[0], `${dir}/${f}`);
+      for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx (?:-y )?benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, appVersion.split('.')[0], `${dir}/${f}`);
     }
   }
 });

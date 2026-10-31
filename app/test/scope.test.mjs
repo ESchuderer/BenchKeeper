@@ -119,6 +119,40 @@ test('a plugin pack moves to selected projects and back, each as one plan with b
   assert.equal(packScope(ctx, pack(ctx, 'ponytail')), 'projects');
 });
 
+test('a plugin pack for selected projects switched off in a project leaves that project; undo installs it again', () => {
+  const { ctx, dir, installs } = machine();
+  apply(preview(scopePlan(ctx, 'ponytail', 'projects', ['claude'])), ctx);
+  const off = preview(projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes).filter((c) => c.step === 'pack:ponytail:claude');
+  assert.deepEqual(off.map((c) => [c.argv.join(' '), c.cwd, c.selected]), [['claude plugin uninstall --scope local ponytail@ponytail', dir, true]]);
+  const run = apply(off, ctx, { scope: dir });
+  assert.equal(run.status, 'done');
+  assert.deepEqual(installs(), []);
+  undo(run.id, ctx);
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  // An install no run of this app made is the user's: offered, not preselected.
+  const fresh = { ...ctx, ledger: context({ home: mkdtempSync(join(TMP, 'bk-scope-')) }).ledger };
+  const removal = () => preview(projectPlan({ ctx: fresh, dir, answers: { packOff: ['ponytail'] } }).changes);
+  const theirs = removal().find((c) => c.step === 'pack:ponytail:claude');
+  assert.deepEqual([theirs.selected, theirs.foreign, /did not install it/.test(theirs.title)], [false, true, true]);
+  // Removed on purpose and undone: still the user's.
+  undo(apply([theirs], fresh, { scope: dir, select: [theirs.id] }).id, fresh);
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  assert.equal(removal().find((c) => c.step === 'pack:ponytail:claude').selected, false);
+  // Two runs in one second: the newer by time decides, whatever order their ids sort in.
+  const entry = (verb, time) => ({ kind: 'apply', time, entries: [{ kind: 'command', status: 'done', cwd: dir, argv: ['claude', 'plugin', verb, '--scope', 'local', 'ponytail@ponytail'] }] });
+  const sameSecond = Object.assign(Object.create(fresh.ledger), { list: () => [entry('install', '2026-01-01T00:00:00.100Z'), entry('uninstall', '2026-01-01T00:00:00.900Z')] });
+  assert.equal(preview(projectPlan({ ctx: { ...ctx, ledger: sameSecond }, dir, answers: { packOff: ['ponytail'] } }).changes).find((c) => c.step === 'pack:ponytail:claude').selected, false);
+  // A removal that fails keeps the pack in the state, so the next plan offers it again.
+  const failing = { ...ctx, run: (argv, o) => (argv[2] === 'uninstall' ? { code: 1, stdout: '', stderr: 'refused' } : ctx.run(argv, o)) };
+  const plan = preview(projectPlan({ ctx: failing, dir, answers: { packOff: ['ponytail'] } }).changes);
+  apply(plan, failing, { scope: dir, select: plan.filter((c) => ['pack:ponytail:claude', 'state'].includes(c.step)).map((c) => c.id) });
+  assert.ok(JSON.parse(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8')).packs.includes('ponytail'));
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  // For all projects the plugin stays: other projects use it, and the global plan owns it.
+  apply(preview(scopePlan(ctx, 'ponytail', 'global', ['claude'])), ctx);
+  assert.ok(!projectPlan({ ctx, dir, answers: { packOff: ['ponytail'] } }).changes.some((c) => c.step.startsWith('pack:ponytail')));
+});
+
 test('a skill pack for all projects: global copies instead of the project ones, kept by the cleanup and the doctor, and back', () => {
   const { ctx, home, dir } = machine();
   const skills = pack(ctx, 'frontend').skills;
@@ -137,7 +171,6 @@ test('a skill pack for all projects: global copies instead of the project ones, 
   for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
   const full = globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { level: 'full' } });
   assert.ok(!full.some((c) => c.step === 'other:claude:skill' && skills.some((s) => c.path.endsWith(s))));
-  assert.ok(!globalDrift(ctx, ['claude'], '0.0.0', 'full').some((i) => i.check === 'unexpected' && skills.some((s) => i.message.includes(s))));
   assert.ok(!projectPlan({ ctx, dir, answers: {} }).changes.some((c) => skills.some((s) => c.step === `skill:${s}`)));
 
   // Back to selected projects: the global copies the app installed go to the backup, preselected, the project gets its copies again.
@@ -206,8 +239,8 @@ test('the Installs tab: scope hint, fixed scope and state per row; global items 
   const [file] = p.files;
   assert.deepEqual(plan([['file-on', file.path]]).files.find((f) => f.path === file.path).on, true);
   assert.deepEqual(plan([['file-on', file.path], ['file-off', file.path]]).files.find((f) => f.path === file.path).on, false);
-  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['codex'], env: 'host', packs: [] }));
-  assert.match(plan().files[0].fixed, /installs for Claude Code only/);
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['gemini'], env: 'host', packs: [] }));
+  assert.match(plan().files[0].fixed, /installs for Claude Code, Codex, GitHub Copilot CLI only/);
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {

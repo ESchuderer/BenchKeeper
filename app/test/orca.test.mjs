@@ -119,7 +119,7 @@ test('doctor warns on a major version the adapter was not observed with, and onl
   assert.equal(unobserved(at('1.9.0\n')), null);
   assert.equal(unobserved(at('not a version')), null);
   assert.equal(unobserved(at('2.0.1', 1)), null);
-  assert.match(unobserved(at('2.0.1\n')).message, /2\.0\.1 is a major version this app was not checked with \(1\.4\.243\)/);
+  assert.match(unobserved(at('2.0.1\n')).message, /2\.0\.1 is a major version this app was not checked with \(1\.4\.245\)/);
 });
 
 test('doctor reports the unobserved major version as a tools warning', guard, () => {

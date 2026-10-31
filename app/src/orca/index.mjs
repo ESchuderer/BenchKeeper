@@ -31,7 +31,7 @@ export const installed = (ctx) => probe(ctx) !== null;
 export const notInstalled = (ctx) => `${NAME} is not installed: none of ${tried(ctx).join(', ')} answered --version; put orca-ide on the PATH`;
 // The version the adapter and its recorded test fixtures were observed with. On another major version the owner runs the
 // manual checks first; doctor warns until then. Unknown output is no warning.
-export const OBSERVED = '1.4.243';
+export const OBSERVED = '1.4.245';
 const major = (v) => /^\s*v?(\d+)\.\d+/.exec(v)?.[1] ?? null;
 export function unobserved(ctx) {
   const v = probe(ctx)?.version;

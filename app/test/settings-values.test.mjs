@@ -175,13 +175,14 @@ test('listSettings: basic and advanced rows, the app value, what is editable, ke
   const row = (k) => l.settings.find((s) => s.key === k);
   assert.equal(row('promptCacheTtl').basic, false);
   assert.equal(row('model').basic, true);
-  assert.deepEqual([row('model').layer, row('model').file, row('model').changed, row('model').setByApp, 'appValue' in row('model')], ['user', join(home, '.claude/settings.json'), true, true, false]);
+  assert.deepEqual([row('model').layer, row('model').file, row('model').changed, row('model').setByApp, 'appValue' in row('model'), row('model').recommended], ['user', join(home, '.claude/settings.json'), true, false, false, 'opusplan']);
   assert.deepEqual([row('cleanupPeriodDays').layer, row('cleanupPeriodDays').file, row('cleanupPeriodDays').changed, row('cleanupPeriodDays').appValue, row('cleanupPeriodDays').from], [null, null, false, 14, 'default']);
   assert.equal(row('remoteControlAtStartup').setByApp, false);
   const adv = (k) => l.advanced.find((s) => s.key === k);
   assert.deepEqual([adv('teammateMode').editable, adv('teammateMode').inSchema, adv('teammateMode').layer, adv('teammateMode').changed, adv('teammateMode').scope], [true, true, 'user', true, 'Any file']);
   assert.deepEqual([adv('copyOnSelect').editable, adv('copyOnSelect').inSchema, adv('copyOnSelect').layer, adv('copyOnSelect').changed], [false, false, null, false]);
   assert.equal(adv('pluginConfigs').editable, true);
+  assert.equal(adv('autoCompactWindow').recommended, 400000, 'a recommendation shows on an advanced row too');
   // The layers a key's scope refuses: the project and local files for a user key, the project file for a user or local one.
   for (const [k, scope, refusedIn] of [['worktree.location', 'User', ['project', 'local']], ['appendPlugins', 'User or managed', ['project', 'local']], ['syncClaudeAiPlugins', 'User, local, or managed', ['project']], ['teammateMode', 'Any file', []]]) assert.deepEqual([adv(k).scope, adv(k).editable, adv(k).refusedIn], [scope, true, refusedIn], k);
   assert.equal(adv('feedbackSurveyRate').scope, 'Any file');

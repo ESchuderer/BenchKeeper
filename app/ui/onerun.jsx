@@ -1,5 +1,5 @@
-import { Anchor, Button, Checkbox, Code, Drawer, Group, NativeSelect, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core';
-import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
+import { Anchor, Button, Checkbox, Code, Drawer, Group, Menu, NativeSelect, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { IconChevronDown, IconPlayerPlay } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, ChangeList, confirms, defaultSelect, useJob, usePrerun } from './parts.jsx';
@@ -49,14 +49,17 @@ const OneRunContext = createContext(() => {});
 const useOneRun = () => useContext(OneRunContext);
 export const OneRunProvider = OneRunContext.Provider;
 
-export function OneRunButtons() {
+export function OneRunMenu() {
   const open = useOneRun();
   return (
-    <Group gap="xs" role="group" aria-label="One-run setup">
-      <Button leftSection={icon(IconWand)} onClick={() => open('everything')}>Set up everything</Button>
-      <Button variant="default" onClick={() => open('global')}>Set up global only</Button>
-      <Button variant="default" onClick={() => open('projects')}>Set up projects</Button>
-    </Group>
+    <Menu position="bottom-end" withinPortal={false} withInitialFocusPlaceholder={false}>
+      <Menu.Target><Button variant="default" rightSection={icon(IconChevronDown)}>Set up</Button></Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item onClick={() => open('everything')}>Set up everything</Menu.Item>
+        <Menu.Item onClick={() => open('global')}>Set up global only</Menu.Item>
+        <Menu.Item onClick={() => open('projects')}>Set up projects</Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 

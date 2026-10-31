@@ -2,18 +2,18 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorFindings, DoctorWorst, FixEverythingButton } from './fix.jsx';
+import { DoctorFindings, DoctorWorst, FixEverythingButton, LEVEL_COLOR } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
-import { OneRunButtons } from './onerun.jsx';
+import { OneRunMenu } from './onerun.jsx';
 import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
-import { Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
+import { Dot, Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
 
 export const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 
-// The health ring and the bars per scope (.bk-stack in theme.css) never rely on the hue: each segment is named with its
+// The health bar and the bars per scope (.bk-stack in theme.css) never rely on the hue: each segment is named with its
 // number beside it. Their colors (--bk-h-*) are board tokens.
 const STYLE = `.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
 .bk-bar{display:block;height:10px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--bk-s1) 75%,var(--bk-accent)),var(--bk-s1))}`;
@@ -58,43 +58,23 @@ const scopes = (data) => [{ key: 'global', label: 'Global', states: data.global.
   ...data.projects.map((p) => ({ key: p.path, label: label(p), states: p.states && { ...p.states, untracked: p.untracked }, to: projectHref(p.path, 'installs'), packs: p.packs, note: p.error ?? (!p.setup && 'not set up') }))];
 const needs = (states) => ATTENTION.reduce((n, s) => n + (states?.[s] ?? 0), 0);
 
-// A ring of one stroke per state on a circle of length 100, starting at the top; the count in the centre.
-function Donut({ parts, total, name }) {
-  let at = 0;
-  const gap = parts.length > 1 ? 0.8 : 0;
-  return (
-    <svg viewBox="0 0 42 42" width={150} height={150} role="img" aria-label={name} style={{ flexShrink: 0 }}>
-      <circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--bk-grid)" strokeWidth="5" />
-      {parts.map(([s, n]) => {
-        const len = Math.max((n / total) * 100 - gap, 0.5);
-        const arc = <circle key={s} cx="21" cy="21" r="15.915" fill="none" stroke={`var(--bk-h-${s})`} strokeWidth="5" strokeDasharray={`${len} ${100 - len}`} strokeDashoffset={25 - at} />;
-        at += (n / total) * 100;
-        return arc;
-      })}
-      <text x="21" y="22" textAnchor="middle" fontSize="8" fontWeight="650" fill="currentColor" className="bk-num">{total}</text>
-      <text x="21" y="28.5" textAnchor="middle" fontSize="3.5" fill="currentColor">items</text>
-    </svg>
-  );
-}
-
 function Health({ data }) {
   const rows = scopes(data).filter((r) => r.states);
   const total = (s, from = rows) => from.reduce((n, r) => n + (r.states[s] ?? 0), 0);
   const shown = HEALTH.filter((s) => total(s) > 0);
   const all = shown.reduce((n, s) => n + total(s), 0);
   const summary = shown.map((s) => `${total(s)} ${s}`).join(', ');
-  if (!all) return <Text size="sm">No items yet. Set up everything installs the global setup and the projects you pick.</Text>;
+  if (!all) return <Text size="sm">No items yet. Set up installs the global setup and the projects you pick.</Text>;
   return (
     <Stack gap="sm">
-      <Group gap="xl" align="center">
-        <Donut parts={shown.map((s) => [s, total(s)])} total={all} name={`Items by state: ${summary}`} />
-        <List listStyleType="none" aria-label="Items by state, all scopes" spacing={4}>
-          {shown.map((s) => (
-            <List.Item key={s}><Group gap={8} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}><span className="bk-num">{total(s)}</span> {s}</Anchor></Group></List.Item>
-          ))}
-        </List>
-      </Group>
-      <Text size="sm">Untracked is a skill folder in a project that BenchKeeper did not install.</Text>
+      <Text size="sm"><span className="bk-num">{all}</span> items</Text>
+      <div className="bk-stack" role="img" aria-label={`Items by state: ${summary}`}>{shown.map((s) => <span key={s} style={{ flex: total(s), backgroundColor: `var(--bk-h-${s})` }} />)}</div>
+      <List listStyleType="none" aria-label="Items by state, all scopes" styles={{ root: { display: 'flex', flexWrap: 'wrap', gap: '4px 16px' } }}>
+        {shown.map((s) => (
+          <List.Item key={s}><Group gap={8} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}><span className="bk-num">{total(s)}</span> {s}</Anchor></Group></List.Item>
+        ))}
+      </List>
+      {shown.includes('untracked') && <Text size="sm">Untracked is a skill folder in a project that BenchKeeper did not install.</Text>}
     </Stack>
   );
 }
@@ -123,24 +103,25 @@ function Where({ data }) {
   );
 }
 
-// A card of the top row: its title, what its number counts, one big number that links to it, a line of detail.
-const Card = ({ title, counts, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text><Text size="sm">{counts}</Text>{children}</Stack></Paper>;
-// No link (to null): a count that no one view shows, so the line under it links each part.
-const Big = ({ n, to, name }) => (to ? <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={40} fw={650} lh={1.1}>{n}</Text>);
+// One big number that links to what it counts. No link (to null): a count that no one view shows, so the line under it links each part.
+const Big = ({ n, to, name, fz = 32 }) => (to ? <Anchor href={to} className="bk-num" fz={fz} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={fz} fw={650} lh={1.1}>{n}</Text>);
 
-// A project that cannot be read has no states: it is listed here, not counted as clean.
+// The count of items that differ from the setup and the scopes it counts. A project that cannot be read has no states: it is listed here, not counted as clean.
 function Attention({ data }) {
   const where = scopes(data).filter((r) => needs(r.states));
   const n = where.reduce((t, r) => t + needs(r.states), 0);
   const unread = data.projects.filter((p) => p.error && !p.states);
   const projects = where.some((r) => r.key !== 'global');
   return (
-    <>
-      {!n && !unread.length && <Text size="sm">Nothing needs attention.</Text>}
+    <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0 }}>
       {!!n && <Big n={n} to={projects && where.some((r) => r.key === 'global') ? null : target('attention', projects)} name={`${n} items need attention, open what it counts`} />}
-      {!!n && <Text size="sm">items, in {where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.key === 'global' ? 'the global setup' : r.label}</Anchor> {needs(r.states)}</span>)}</Text>}
-      {!!unread.length && <Text size="sm">Cannot be read: {unread.map((p, i) => <span key={p.path}>{i ? ', ' : ''}<Anchor href={projectHref(p.path)}>{label(p)}</Anchor></span>)}</Text>}
-    </>
+      <Stack gap={2} style={{ minWidth: 0 }}>
+        {!n && !unread.length && <Text fw={600}>Nothing needs attention.</Text>}
+        {!!n && <Text fw={600}>items need attention</Text>}
+        {!!n && <Text size="sm">{where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.label}</Anchor> {needs(r.states)}</span>)}</Text>}
+        {!!unread.length && <Text size="sm">Cannot be read: {unread.map((p, i) => <span key={p.path}>{i ? ', ' : ''}<Anchor href={projectHref(p.path)}>{label(p)}</Anchor></span>)}</Text>}
+      </Stack>
+    </Group>
   );
 }
 
@@ -284,65 +265,56 @@ export function Dashboard({ overview, doctor, history, params }) {
   // One request feeds six panels: its error shows once, above them, and each panel says only that it is not loaded.
   const fromDash = (render) => (dash.error ? <Text size="sm">Not loaded.</Text> : <Loading state={dash} label="dashboard data">{render}</Loading>);
   return (
-    <Stack gap="xl" className="bk-dash">
+    <Stack gap="md" className="bk-dash">
       <style>{STYLE}</style>
       {dash.error && <Loading state={dash} label="dashboard data" />}
-      <Stack gap="xs">
-        <Text size="sm" maw={560}>One-run setup prepares the global setup and the projects you pick without questions in between, then shows every change on one page to check before it applies them.</Text>
-        <OneRunButtons />
-      </Stack>
-      <SimpleGrid cols={{ base: 1, sm: 2 }}>
-        <Card title="Need attention" counts="Counts setup items, in the global setup and the projects, that differ from the setup.">
+      <Paper withBorder p="md">
+        <Group justify="space-between" align="center" gap="md">
           {fromDash((d) => <Attention data={d} />)}
-          <FixEverythingButton />
-        </Card>
-        <Card title="Doctor findings" counts="Counts doctor findings: problems its checks found in the setup and the agent settings.">
-          <Loading state={doctor} label="doctor">{(found) => (
-            <>
-              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the Doctor section`} />
-              <Text size="sm">{levels.text || 'No findings'}</Text>
-            </>
-          )}</Loading>
-        </Card>
+          <Group gap="xs"><FixEverythingButton /><OneRunMenu /></Group>
+        </Group>
+      </Paper>
+      <Paper withBorder p="md">
+        <Loading state={doctor} label="doctor">{(found) => (
+          <Group gap="md" align="center">
+            <Text fw={600}>Doctor findings</Text>
+            <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the Doctor section`} fz={24} />
+            <Group gap={8} wrap="nowrap"><Dot color={LEVEL_COLOR[Object.keys(LEVEL_COLOR).find((l) => levels[l])] ?? 'teal'} /><Text size="sm">{levels.text || 'No findings'}</Text></Group>
+          </Group>
+        )}</Loading>
+      </Paper>
+      <SimpleGrid cols={{ base: 1, md: 2 }}>
+        <Paper withBorder p="md"><Section title="Health">{fromDash((d) => <Health data={d} />)}</Section></Paper>
+        <Paper withBorder p="md"><Section title="Where">{fromDash((d) => <Where data={d} />)}</Section></Paper>
       </SimpleGrid>
-      <Grid gutter="xl">
-        <Grid.Col span={{ base: 12, md: 5 }}>
-          <Section title="Health">{fromDash((d) => <Health data={d} />)}</Section>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 7 }}>
-          <Section title="Where">{fromDash((d) => <Where data={d} />)}</Section>
-        </Grid.Col>
-      </Grid>
-      <Grid gutter="xl">
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section.
-              Closing it drops the panel from the hash, so the same link opens it again. */}
-          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => (found.length ? (
-            <Stack gap="sm">
-              <DoctorWorst found={found} />
-              <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
-              <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
-                <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
-                <Box mt="sm"><DoctorFindings state={doctor} path="/api/doctor" /></Box>
-              </details>
-            </Stack>
-          ) : <DoctorFindings state={doctor} path="/api/doctor" />)}</Loading></Section>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Section title="Recent runs">
-            <Loading state={history} label="history">{(list) => (list.length ? (
-              <Timeline bulletSize={14} lineWidth={2}>
-                {list.slice(0, 6).map((r) => (
-                  <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })}>{runTitle(r)}</Anchor>}>
-                    <Text size="sm">{r.status ?? 'interrupted'}, {when(r.time)}</Text>
-                    {note(r) && <Text size="xs">{note(r)}</Text>}
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-            ) : <Text>No runs yet.</Text>)}</Loading>
-          </Section>
-        </Grid.Col>
-      </Grid>
+      {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section.
+          Closing it drops the panel from the hash, so the same link opens it again. */}
+      <Paper withBorder p="md">
+        <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => (found.length ? (
+          <Stack gap="sm">
+            <DoctorWorst found={found} />
+            <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
+            <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
+              <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
+              <Box mt="sm"><DoctorFindings state={doctor} path="/api/doctor" /></Box>
+            </details>
+          </Stack>
+        ) : <DoctorFindings state={doctor} path="/api/doctor" />)}</Loading></Section>
+      </Paper>
+      <Paper withBorder p="md">
+        <Section title="Recent runs">
+          <Loading state={history} label="history">{(list) => (list.length ? (
+            <Timeline bulletSize={14} lineWidth={2}>
+              {list.slice(0, 6).map((r) => (
+                <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })}>{runTitle(r)}</Anchor>}>
+                  <Text size="sm">{r.status ?? 'interrupted'}, {when(r.time)}</Text>
+                  {note(r) && <Text size="xs">{note(r)}</Text>}
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          ) : <Text>No runs yet.</Text>)}</Loading>
+        </Section>
+      </Paper>
       {/* Reference, not status: folded until opened. */}
       <details>
         <summary><Text component="span" fw={600}>More about the setup</Text></summary>

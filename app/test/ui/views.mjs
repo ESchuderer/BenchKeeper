@@ -11,3 +11,8 @@ export const ready = (page) => page.getByText('CLI', { exact: true }).or(page.ge
   .or(page.getByRole('region', { name: 'Claude Code extensions', exact: true })).or(page.getByRole('region', { name: 'Orchestrated runs', exact: true }))
   .or(page.getByRole('switch', { name: /^Terminal tier strip: / })).filter({ visible: true });
 export const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
+// The Dashboard's Set up menu: open it, then choose one of its items (Set up everything, Set up global only, Set up projects).
+export const setUp = async (page, item) => {
+  await page.getByRole('button', { name: 'Set up', exact: true }).click();
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
+};

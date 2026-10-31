@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentVersion } from './content.mjs';
-import { PACK_SCOPES, libraryWith, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
+import { PACK_SCOPES, libraryWith, ownPacks, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { blob, clean, defaultBranch, git, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
@@ -48,6 +48,9 @@ export function packsInUse(ctx) {
 }
 // The registered projects whose setup names the pack.
 export const projectsUsing = (ctx, id) => usersByPack(ctx).get(id) ?? [];
+// The registered projects whose setup has the skill, and the own packs that name it.
+export const skillUsers = (ctx, name) => [...listProjects(ctx).filter((p) => projectState(ctx, p.path)?.skills?.some((s) => s.name === name)).map((p) => p.path),
+  ...ownPacks(ctx).filter((p) => p.skills?.includes(name)).map((p) => `pack ${p.id}`)];
 // Pack id to the registered projects whose setup names it, read once for all packs.
 export function usersByPack(ctx) {
   const users = new Map();

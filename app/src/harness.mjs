@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentDir, library } from './content.mjs';
 import { exists, hashPath, readText } from './fsx.mjs';
+import { copied } from './packs.mjs';
 import { PLUGINS, pluginState } from './steps/global.mjs';
 import { readState } from './steps/project.mjs';
 
@@ -47,7 +48,7 @@ function projectCheck(dir) {
   if (!plain(lock)) return [check(`project skills are installed (${dir})`, ['skills-lock.json is not a valid lock file'])];
   const problems = [];
   for (const s of state.skills.filter((x) => !(state.disabled ?? []).includes(x.name))) {
-    if (s.source === 'own') {
+    if (copied(s)) {
       for (const a of state.agents) if (!exists(join(dir, agent(a).project.skills, s.name, 'SKILL.md'))) problems.push(`${s.name} missing in ${agent(a).project.skills}`);
     } else if (!lock[s.name]) problems.push(`${s.name} not in skills-lock.json`);
     else if (!JSON.stringify(lock[s.name]).includes(s.source)) problems.push(`${s.name} in skills-lock.json is not from ${s.source}`);

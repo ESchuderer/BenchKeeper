@@ -852,6 +852,62 @@ test.describe('views', () => {
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
   });
 
+  test('Skills: a skill of your own is created, edited, picked into an own pack that is not exported, and removed once no pack names it', async ({ page }) => {
+    await nav(page, 'Skills').click();
+    const table = page.getByRole('table', { name: 'Skills' });
+    const apply = async (region) => {
+      await region.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
+      await expect(region.getByRole('button', { name: 'Undo run' })).toBeVisible();
+      await region.getByRole('button', { name: 'Close editor' }).click();
+    };
+    await page.getByRole('button', { name: 'New skill' }).click();
+    const create = page.getByRole('region', { name: 'New skill' });
+    await create.getByRole('textbox', { name: 'Name' }).fill('Bad--name');
+    await create.getByRole('button', { name: 'Save' }).click();
+    await expect(create.getByText(/^skill name: 1 to 64/)).toBeVisible();
+    await create.getByRole('textbox', { name: 'Name' }).fill('ui-own-skill');
+    await expect(create.getByRole('textbox', { name: 'SKILL.md' })).toHaveValue(/^---\nname: ui-own-skill\n/);
+    await create.getByRole('button', { name: 'Save' }).click();
+    await expect(create.getByText('your skill ui-own-skill: new SKILL.md')).toBeVisible();
+    await noAxe(page);
+    await apply(create);
+    await table.getByRole('link', { name: 'ui-own-skill' }).click();
+    const detail = page.getByRole('region', { name: 'Skill ui-own-skill' });
+    await expect(table.getByRole('row', { name: /ui-own-skill/ })).toContainText('yours');
+    await expect(detail).toContainText('Source: your skills');
+    await detail.getByRole('button', { name: 'Edit' }).click();
+    const edit = page.getByRole('region', { name: 'Edit skill ui-own-skill' });
+    const body = edit.getByRole('textbox', { name: 'SKILL.md' });
+    await body.fill((await body.inputValue()).replace('What this skill does', 'Edited in the UI. What it does'));
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await apply(edit);
+    await expect(page.getByRole('region', { name: 'Skill ui-own-skill' })).toContainText('Edited in the UI');
+    // Picked into an own pack: the pack file is not exported, and the skill cannot be removed while the pack names it.
+    await table.getByRole('checkbox', { name: 'Add ui-own-skill to the pack' }).check();
+    await page.getByRole('button', { name: 'Build pack (1)' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Build a pack' });
+    await drawer.getByLabel(/^Pack id/).fill('with-own');
+    await drawer.getByRole('button', { name: 'Save pack' }).click();
+    await expect(drawer).toBeHidden();
+    await page.getByRole('region', { name: 'Skill ui-own-skill' }).getByRole('button', { name: 'Remove' }).click();
+    const remove = page.getByRole('region', { name: 'Remove skill ui-own-skill' });
+    await expect(remove.getByText(/in use by pack with-own/)).toBeVisible();
+    await remove.getByRole('button', { name: 'Close editor' }).click();
+    await nav(page, 'Packs').click();
+    const packs = page.getByRole('table', { name: 'Packs' });
+    await packs.getByRole('button', { name: 'Export with-own' }).click();
+    await expect(page.getByText('with-own names your own skills (ui-own-skill): a pack file carries library skills only, so this pack stays on this machine')).toBeVisible();
+    await packs.getByRole('button', { name: 'Remove with-own' }).click();
+    await expect(packs.getByRole('button', { name: 'Remove with-own' })).toHaveCount(0);
+    await nav(page, 'Skills').click();
+    await table.getByRole('link', { name: 'ui-own-skill' }).click();
+    await page.getByRole('region', { name: 'Skill ui-own-skill' }).getByRole('button', { name: 'Remove' }).click();
+    const removing = page.getByRole('region', { name: 'Remove skill ui-own-skill' });
+    await expect(removing.getByText('remove your skill ui-own-skill')).toBeVisible();
+    await apply(removing);
+    await expect(table.getByRole('link', { name: 'ui-own-skill' })).toHaveCount(0);
+  });
+
   test('Packs: a pack file that is not a pack is listed with its reason and can be removed with focus kept; no axe violations', async ({ page }) => {
     await page.route(/\/api\/catalog(\?|$)/, async (route) => {
       const r = await route.fetch();
@@ -1671,7 +1727,8 @@ test.describe('views', () => {
 
   test('History: a run report with numbered diffs, split or unified; undo of one step, then of the run', async ({ page }) => {
     await nav(page, 'History').click();
-    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).first().click();
+    // The fixture's global setup, the oldest global run: other tests apply global plans of their own.
+    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).last().click();
     const run = page.getByRole('region', { name: /^Run / });
     await expect(run.getByRole('article', { name: /Claude Code rules/ })).toBeVisible();
     await expect(run.getByRole('group', { name: 'Summary' })).toContainText(/\d+ done/);

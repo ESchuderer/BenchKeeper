@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -143,8 +143,8 @@ function Packs({ packs, onChange, announce }) {
   );
 }
 
-// The Catalog's first page: the library skills to browse, each with its detail, and the pack builder. A skill's state in a
-// project is on that project's page.
+// The Catalog's first page: the library skills and the user's own to browse, each with its detail, the editor of the user's
+// skills, and the pack builder. A skill's state in a project is on that project's page.
 export function CatalogSkills({ catalog, params, refresh }) {
   const evals = useApi('/api/evals');
   const [q, setQ] = useState('');
@@ -153,6 +153,7 @@ export function CatalogSkills({ catalog, params, refresh }) {
   const [used, setUsed] = useState(null);
   const [picked, setPicked] = useState([]);
   const [builder, setBuilder] = useState(false);
+  const [editor, setEditor] = useState(null);
   const open = params.get('skill');
   const flip = (n) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
   return (
@@ -171,23 +172,25 @@ export function CatalogSkills({ catalog, params, refresh }) {
             <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
             <Button leftSection={icon(IconPackage)} variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>
           </Group>
-          <SplitView empty="Choose a skill for its source, pin and eval results." list={
+          <SplitView list={
             <Table aria-label="Skills">
               <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
                     <Table.Td><Checkbox size="md" aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
-                    <Table.Td><Anchor href={href('skills', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
+                    <Table.Td><Anchor href={href('skills', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor>{s.source === 'user' && <Badge ml="xs" variant="default">yours</Badge>}</Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
-          } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
+          } detail={editor ? <UserSkillEditor key={`${editor.op}:${editor.name}`} {...editor} onDone={refresh} onClose={() => setEditor(null)} />
+            : skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} onEdit={(text) => setEditor({ op: 'edit', name: skill.name, text })} onRemove={() => setEditor({ op: 'remove', name: skill.name })} />
+            : <Stack gap="sm" align="flex-start"><Text>Choose a skill for its source, pin and eval results, or add one of your own.</Text><Button leftSection={icon(IconPlus)} variant="default" onClick={() => setEditor({ op: 'new' })}>New skill</Button></Stack>} />
           <Text size="sm">A skill's state in a project, with Update, Reset and Remove, is on the project's page: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper skills list --library\nbenchkeeper skills show ${open ?? '<name>'}\nbenchkeeper packs save <id> --skill <name>`}</Cli>
+          <Cli>{`benchkeeper skills list --library\nbenchkeeper skills show ${open ?? '<name>'}\nbenchkeeper skills new|edit|delete <name>\nbenchkeeper packs save <id> --skill <name>`}</Cli>
         </Stack>
       );
     }}</Loading>
@@ -211,16 +214,50 @@ export function CatalogPacks({ catalog, refresh }) {
   );
 }
 
-function SkillDetail({ skill, results }) {
-  const text = useApi(skill.source === 'own' ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
+function SkillDetail({ skill, results, onEdit, onRemove }) {
+  const copied = ['own', 'user'].includes(skill.source);
+  const text = useApi(copied ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
   return (
     <Stack gap="xs" component="section" aria-label={`Skill ${skill.name}`}>
       <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('skills')} variant="subtle">Close</Button></Group>
       <Text>{skill.pickWhen}</Text>
-      <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
+      <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : skill.source === 'user' ? 'your skills' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
       {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
-      {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
+      {skill.source === 'user' && <Group gap="xs"><Button size="xs" variant="default" disabled={!text.data} onClick={() => onEdit(text.data.text)}>Edit</Button><Button size="xs" variant="default" color="red" leftSection={icon(IconTrash)} onClick={onRemove}>Remove</Button></Group>}
+      {copied && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
+    </Stack>
+  );
+}
+
+const skillTemplate = (name) => `---\nname: ${name}\ndescription: "What this skill does and when to use it."\n---\n\n# ${name}\n`;
+
+// One of the user's skills: a new one (name and SKILL.md), an edit of its SKILL.md, or its removal, each shown as a plan
+// with the diff. The text of a new skill follows its name until it is edited.
+function UserSkillEditor({ op, name: start = '', text: startText = null, onDone, onClose }) {
+  const [name, setName] = useState(start);
+  const [text, setText] = useState(startText);
+  const [plan, setPlan] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const [running, setRunning] = useState(false);
+  const body = text ?? skillTemplate(name);
+  const save = async () => {
+    setFailed(null);
+    try { setPlan(await api('/api/user-skill-plan', { op, name, text: body })); } catch (e) { setFailed(e.message); }
+  };
+  useEffect(() => { if (op === 'remove') void save(); }, []);
+  const title = op === 'new' ? 'New skill' : `${op === 'edit' ? 'Edit' : 'Remove'} skill ${start}`;
+  return (
+    <Stack gap="sm" component="section" aria-label={title}>
+      <Title order={3} size="h3">{title}</Title>
+      {op === 'new' && <TextInput label="Name" description="1 to 64 lowercase letters, digits and single hyphens" value={name} readOnly={!!plan} onChange={(e) => setName(e.currentTarget.value)} />}
+      {op !== 'remove' && <Textarea label="SKILL.md" value={body} readOnly={!!plan} onChange={(e) => setText(e.currentTarget.value)} autosize minRows={8} maxRows={24} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />}
+      {failed && <Note color="red" title="Not planned">{failed}</Note>}
+      {plan && <Plan key={plan.planId} plan={plan} why={`You asked for this in Skills: ${title}.`} scope="global" onRunning={setRunning} onDone={onDone} />}
+      <Group>
+        {!plan && op !== 'remove' && <Button onClick={save} disabled={op === 'new' ? !name : body === startText}>Save</Button>}
+        <Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && onClose()}>{plan || op === 'remove' ? 'Close editor' : 'Discard'}</Button>
+      </Group>
     </Stack>
   );
 }

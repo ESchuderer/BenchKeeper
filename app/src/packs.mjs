@@ -1,10 +1,13 @@
-// Packs: the library's presets plus the user's own, saved in ~/.config/benchkeeper/packs/<id>.json.
-// A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin.
+// Packs: the library's presets plus the user's own, saved in ~/.config/benchkeeper/packs/<id>.json. The user's own skills
+// (source 'user'), saved in ~/.config/benchkeeper/skills/<name>/, join the library's skills.
+// A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin; an own
+// pack may name the user's skills too, and is not exported then.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { library } from './content.mjs';
-import { move, readText, writeAtomic } from './fsx.mjs';
+import { parse as parseYaml } from 'yaml';
+import { contentDir, library } from './content.mjs';
+import { exists, listFiles, move, readText, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -28,10 +31,64 @@ function scan(ctx) {
 export const ownPacks = (ctx) => scan(ctx).packs;
 export const invalidPacks = (ctx) => scan(ctx).invalid;
 
-// The library with the user's packs added to its presets.
+// The user's skills: one folder each, SKILL.md and any other files, copied into the projects and global folders that pick
+// them like a library skill BenchKeeper ships (source 'own'). In code their source is 'user'.
+export const userSkillDir = (ctx, name) => join(ctx.config, 'skills', name);
+// A skill copied from a folder, not added through the skills CLI, and the folder it is copied from.
+export const copied = (s) => s?.source === 'own' || s?.source === 'user';
+export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, s.name) : join(contentDir, 'library', s.name));
+// A copied skill's files (src: its folder) as they are written: text with the path globs of the setup in SKILL.md's front matter,
+// and a file that is not UTF-8 text (an image of a user skill) as a byte copy, from, with its bytes.
+export function ownSkillFiles(src, paths) {
+  return listFiles(src).map((file) => {
+    const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
+    if (!Buffer.from(text).equals(bytes)) return { file, from: join(src, file), bytes };
+    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
+  });
+}
+
+// The Agent Skills rules (agentskills.io/specification): a name of 1 to 64 lowercase letters, digits and single hyphens, not
+// at the start or end, that the front matter repeats, and a description of 1 to 1024 characters. Returns the description.
+const SKILL_NAME = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
+function checkSkill(name, text) {
+  if (!SKILL_NAME.test(name ?? '')) throw new Error('skill name: 1 to 64 lowercase letters, digits and single hyphens, not at the start or end');
+  let front;
+  try { front = parseYaml(String(text).replaceAll('\r\n', '\n').match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''); } catch (e) { throw new Error(`SKILL.md front matter: ${e.message}`); }
+  if (front?.name !== name) throw new Error(`SKILL.md front matter: name must be ${name}`);
+  if (typeof front.description !== 'string' || !front.description.trim() || front.description.length > 1024) throw new Error('SKILL.md front matter: a description of 1 to 1024 characters');
+  return front.description.trim();
+}
+
+// The user's skills in the library's shape. A folder that breaks the rules or has a library skill's name is left out.
+export function userSkills(ctx, lib = library()) {
+  let names = [];
+  try { names = readdirSync(join(ctx.config, 'skills')); } catch { return []; }
+  return names.filter((n) => !lib.skills.some((s) => s.name === n)).flatMap((name) => {
+    try { return [{ name, source: 'user', agents: 'both', pickWhen: checkSkill(name, readText(join(userSkillDir(ctx, name), 'SKILL.md')) ?? '') }]; } catch { return []; }
+  });
+}
+
+// The plan change that writes a user skill's SKILL.md, new or edited; undo puts the earlier file back.
+export function userSkillWrite(ctx, name, text, { isNew }) {
+  if (library().skills.some((s) => s.name === name)) throw new Error(`${name} is a library skill`);
+  checkSkill(name, text);
+  const have = exists(userSkillDir(ctx, name));
+  if (isNew && have) throw new Error(`you have a skill ${name}: benchkeeper skills edit ${name} --file <path>`);
+  if (!isNew && !have) throw new Error(`you have no skill ${name}`);
+  return { id: `user-skill:${name}`, step: `user-skill:${name}`, title: `your skill ${name}: ${isNew ? 'new' : 'edited'} SKILL.md`, kind: 'write', path: join(userSkillDir(ctx, name), 'SKILL.md'), after: text, selected: true };
+}
+
+// The plan change that removes a user skill's folder; usedBy: the projects and own packs that still name it.
+export function userSkillRemove(ctx, name, { usedBy = [] } = {}) {
+  if (!SKILL_NAME.test(name ?? '') || !exists(userSkillDir(ctx, name))) throw new Error(`you have no skill ${name}`);
+  if (usedBy.length) throw new Error(`skill ${name} is in use by ${usedBy.join(', ')}: take it out there first`);
+  return { id: `user-skill:${name}`, step: `user-skill:${name}`, title: `remove your skill ${name}`, kind: 'remove', path: userSkillDir(ctx, name), selected: true };
+}
+
+// The library with the user's packs added to its presets and the user's skills to its skills.
 export function libraryWith(ctx) {
   const lib = library();
-  return { ...lib, packs: [...lib.packs, ...ownPacks(ctx)] };
+  return { ...lib, skills: [...lib.skills, ...userSkills(ctx, lib)], packs: [...lib.packs, ...ownPacks(ctx)] };
 }
 
 // Install scope per pack: global (installed once on the machine, for every project) or projects (in each project whose setup
@@ -76,7 +133,8 @@ function validate(pack, lib) {
 
 export function savePack(ctx, { id, title, skills }) {
   const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title: title || id, skills: [...new Set(skills)] };
-  validate(pack, library());
+  const lib = library();
+  validate(pack, { ...lib, skills: [...lib.skills, ...userSkills(ctx, lib)] });
   const file = join(dir(ctx), `${id}.json`);
   // A pack saved or imported over an own pack of the same id keeps the old file in the backup.
   // Copied, not moved: a failed write leaves the old pack in place.
@@ -103,6 +161,8 @@ export function exportPack(ctx, id) {
   const p = libraryWith(ctx).packs.find((x) => x.id === id);
   if (!p) throw new Error(`unknown pack ${id}`);
   if (!p.skills?.length) throw new Error(`${id} installs a plugin, not library skills`);
+  const mine = userSkills(ctx).filter((s) => p.skills.includes(s.name)).map((s) => s.name);
+  if (mine.length) throw new Error(`${id} names your own skills (${mine.join(', ')}): a pack file carries library skills only, so this pack stays on this machine`);
   return `${JSON.stringify({ kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id: p.id, title: p.title, skills: p.skills }, null, 2)}\n`;
 }
 

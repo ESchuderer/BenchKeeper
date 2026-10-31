@@ -245,6 +245,8 @@ test.describe('views', () => {
   const choose = async (page, label, option) => { await page.getByRole('combobox', { name: label }).click(); await page.getByRole('option', { name: option, exact: true }).click(); };
   const chip = (page, name) => page.getByRole('group', { name: 'Filters' }).getByText(name, { exact: true });
   const bar = (page) => page.getByRole('group', { name: 'Selected projects' });
+  // The project page keeps its secondary actions in the More menu.
+  const more = async (page, item) => { await page.getByRole('region', { name: /^Project \// }).getByRole('button', { name: 'More', exact: true }).click(); await page.getByRole('menuitem', { name: item, exact: true }).click(); };
   const unregister = async (page, names) => {
     const table = page.getByRole('table', { name: 'Projects' });
     for (const n of names) await table.getByRole('checkbox', { name: `Select ${n}` }).check();
@@ -261,7 +263,7 @@ test.describe('views', () => {
     const table = page.getByRole('table', { name: 'Projects' });
     await addFolder(page, folder('mv-app'));
     await table.getByRole('link', { name: 'mv-app', exact: true }).click();
-    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await more(page, 'Edit name and notes');
     await page.getByLabel('Display name').fill('Marketing site');
     await page.getByLabel('Notes').fill('owner: qzv');
     await page.getByRole('button', { name: 'Save' }).click();
@@ -434,6 +436,39 @@ test.describe('views', () => {
     await expect(file).not.toBeChecked();
   });
 
+  test('Project page: Change setup is the one button and the other actions sit in the More menu, by keyboard; the packs not in use are a grid of cards, one column at 390 px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await nav(page, 'Projects').click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /^bk-ui-proj/ }).click();
+    const head = page.getByRole('region', { name: /^Project \// });
+    await expect(head.getByRole('button', { name: 'Change setup' })).toBeVisible();
+    for (const name of ['Open folder', 'Edit name and notes', 'Relocate', 'Remove from list']) await expect(head.getByRole('button', { name })).toHaveCount(0);
+    const menu = head.getByRole('button', { name: 'More', exact: true });
+    await menu.focus();
+    await page.keyboard.press('Enter');
+    for (const name of ['Open folder', 'Edit name and notes', 'Relocate', 'Remove from list']) await expect(head.getByRole('menuitem', { name })).toBeVisible();
+    await noAxe(page);
+    await page.keyboard.press('Escape');
+    await expect(head.getByRole('menuitem')).toHaveCount(0);
+    await expect(menu).toBeFocused();
+    await page.getByRole('tab', { name: 'Installs' }).click();
+    const rest = page.getByRole('region', { name: 'Packs' }).getByRole('group', { name: /^More packs, \d+$/ });
+    const switches = rest.getByRole('switch');
+    await expect(switches.nth(1)).toBeVisible();
+    const pair = async () => [await switches.nth(0).boundingBox(), await switches.nth(1).boundingBox()];
+    let [a, b] = await pair();
+    expect(Math.abs(a.y - b.y) < 8 && b.x > a.x).toBe(true);
+    // The scope and the state wait under Details of a card.
+    await expect(rest).not.toContainText(/only this project|also global/);
+    await rest.getByRole('button', { name: /^Details of / }).first().click();
+    await expect(rest).toContainText(/only this project|also global/);
+    await page.setViewportSize({ width: 390, height: 900 });
+    // The layout follows the new width a frame later.
+    await expect.poll(async () => { [a, b] = await pair(); return Math.abs(a.x - b.x) < 8 && b.y > a.y; }).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+  });
+
   test('Project Installs tab: the switches wait while the plan loads and while an apply runs', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /^bk-ui-proj/ }).click();
@@ -545,7 +580,7 @@ test.describe('views', () => {
     const table = page.getByRole('table', { name: 'Projects' });
     await addFolder(page, dir);
     await table.getByRole('link', { name: 'mv-gone', exact: true }).click();
-    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await more(page, 'Edit name and notes');
     await page.getByLabel('Display name').fill('Docs site');
     await page.getByRole('button', { name: 'Save' }).click();
     await page.getByRole('link', { name: 'All projects' }).click();
@@ -557,8 +592,13 @@ test.describe('views', () => {
     await expect(table.getByRole('row').nth(1)).toContainText('Folder not found');
     await table.getByRole('link', { name: 'Docs site', exact: true }).click();
     const detail = page.getByRole('region', { name: /^Project \// });
-    await expect(detail.getByRole('button', { name: 'Remove from list' })).toBeVisible();
-    await expect(detail.getByRole('button', { name: 'Open folder' })).toHaveCount(0);
+    // A missing folder: Open folder and Remove BenchKeeper setup are not offered, and Change setup waits for Relocate.
+    await detail.getByRole('button', { name: 'More', exact: true }).click();
+    await expect(detail.getByRole('menuitem', { name: 'Remove from list' })).toBeVisible();
+    await expect(detail.getByRole('menuitem', { name: 'Open folder' })).toHaveCount(0);
+    await expect(detail.getByRole('menuitem', { name: 'Remove BenchKeeper setup' })).toHaveCount(0);
+    await expect(detail.getByRole('button', { name: 'Change setup' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(detail.getByRole('region', { name: 'Project doctor' })).toHaveCount(0);
     await noAxe(page);
     await detail.getByLabel('New folder').fill(join(moved, 'nope'));
@@ -581,13 +621,13 @@ test.describe('views', () => {
     await expect(table.getByRole('link', { name: 'mv-pal-a', exact: true })).toBeVisible();
     await addFolder(page, b);
     await table.getByRole('link', { name: 'mv-pal-b', exact: true }).click();
-    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await more(page, 'Edit name and notes');
     await page.getByLabel('Display name').fill('Beta');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('heading', { name: 'Beta' })).toBeVisible();
     await page.getByRole('link', { name: 'All projects' }).click();
     await table.getByRole('link', { name: 'mv-pal-a', exact: true }).click();
-    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await more(page, 'Edit name and notes');
     await page.getByLabel('Display name').fill('Alpha');
     await page.getByRole('button', { name: /^Search/ }).click();
     const palette = page.getByRole('dialog', { name: 'Command palette' });
@@ -596,7 +636,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Beta' })).toBeVisible();
     await expect(page.getByLabel('Display name')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await more(page, 'Edit name and notes');
     await expect(page.getByLabel('Display name')).toHaveValue('Beta');
     await page.getByRole('link', { name: 'All projects' }).click();
     await unregister(page, ['mv-pal-a', 'Beta']);

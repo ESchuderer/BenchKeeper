@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Loader, Modal, Paper, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { Badge, Button, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { useId, useRef, useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
@@ -12,7 +12,7 @@ const short = (ref) => ref?.slice(0, 12);
 // and the five facts of the explainer (summary, plain words, impact, default, current). A row with `details` (a pack: the
 // accessible name of its Details button) is one line, the summary beside the switch, the other facts shown on Details. A
 // busy switch ignores clicks but stays focusable (a disabled input loses the keyboard focus).
-export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why, details }) {
+export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why, details, card }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const toggle = <Switch checked={checked} onChange={busy ? () => {} : onChange} disabled={disabled} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />;
@@ -27,7 +27,15 @@ export function InstallRow({ label, checked, onChange, disabled, busy, hint, sta
   return (
     <Paper withBorder p="xs">
       <Stack gap={4}>
-        {details ? (
+        {details && card ? (
+          <>
+            <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
+              <div style={{ overflowWrap: 'anywhere' }}>{toggle}</div>
+              <Button size="compact-xs" variant="subtle" aria-label={details} aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>Details</Button>
+            </Group>
+            <Text size="sm">{facts.summary}</Text>
+          </>
+        ) : details ? (
           <Group justify="space-between" gap="xs">
             <Group gap="sm" style={{ flex: '1 1 320px', overflowWrap: 'anywhere' }}>{toggle}<Text size="sm" style={{ flex: '1 1 260px' }}>{facts.summary}</Text></Group>
             <Group gap={4}>{chips}<Button size="compact-xs" variant="subtle" aria-label={details} aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>Details</Button></Group>
@@ -38,7 +46,7 @@ export function InstallRow({ label, checked, onChange, disabled, busy, hint, sta
         {why && <Text size="xs">Fixed: {why}.</Text>}
         {fixed.map((f) => <Text key={f.agent} size="xs">{f.agent}: {f.scope === 'global' ? 'also global' : 'only this project'}, fixed: {f.reason}.</Text>)}
         {details ? (
-          open && <Stack id={id} gap={0} style={{ overflowWrap: 'anywhere' }}>{more}</Stack>
+          open && <Stack id={id} gap={4} style={{ overflowWrap: 'anywhere' }}>{card && chips}{more}</Stack>
         ) : (
           <Stack gap={0} style={{ overflowWrap: 'anywhere' }}>
             <Text size="xs">{facts.summary}</Text>
@@ -73,18 +81,19 @@ export function PackSwitches({ packs, project, others, toggles, setToggles, busy
   // Grouped by the saved setup and the repository's hints, not by the switch, so a switch never moves on a click.
   const near = (p) => (project.packs ?? []).includes(p.id) || p.suggested;
   const rest = packs.filter((p) => !p.owner), owners = packs.filter((p) => p.owner);
-  const groups = [['In use or suggested', rest.filter(near)], ['More packs', rest.filter((p) => !near(p))]].filter(([, list]) => list.length);
-  const row = (p, eli5) => (
-    <InstallRow key={p.id} details={`Details of ${p.title}`} checked={p.enabled} onChange={() => flip(p)} busy={busy} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
+  const more = rest.filter((p) => !near(p));
+  const groups = [['In use or suggested', rest.filter(near), false], [`More packs, ${more.length}`, more, true]].filter(([, list]) => list.length);
+  const row = (p, eli5, card) => (
+    <InstallRow key={p.id} card={card} details={`Details of ${p.title}`} checked={p.enabled} onChange={() => flip(p)} busy={busy} hint={p.hint} state={p.state} fixed={p.fixed} facts={packFacts(p, eli5)}
       label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested</Badge>}</Group>} />
   );
   return (
     <>
       <Section title="Packs">
-        {groups.map(([group, list], g) => (
-          <div key={group} role="group" aria-labelledby={`packs-${g}`}>
+        {groups.map(([group, list, grid], g) => (
+          <div key={g} role="group" aria-labelledby={`packs-${g}`}>
             <Text id={`packs-${g}`} size="sm" fw={600} mb="xs">{group}</Text>
-            <Stack gap="xs">{list.map((p) => row(p))}</Stack>
+            {grid ? <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">{list.map((p) => row(p, undefined, true))}</SimpleGrid> : <Stack gap="xs">{list.map((p) => row(p))}</Stack>}
           </div>
         ))}
         {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable disabled={busy} maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}

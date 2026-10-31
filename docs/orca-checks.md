@@ -2,7 +2,7 @@
 
 What the app's Orca adapter (`app/src/orca/index.mjs`) relies on that only a real Orca can confirm. CI tests the adapter against a fake Orca CLI (`app/test/fakes/orca.mjs`) that answers with output recorded from the real CLI (`app/test/fixtures/orca/`). Run this checklist when the Orca version changes, before the adapter is said to work with it.
 
-Observed version: 1.4.243 (`OBSERVED` in `app/src/orca/index.mjs`, `app/test/fixtures/orca/version.txt`). `benchkeeper doctor` warns on another major version.
+Observed version: 1.4.245 (`OBSERVED` in `app/src/orca/index.mjs`, `app/test/fixtures/orca/version.txt`). `benchkeeper doctor` warns on another major version.
 
 ## Steps on a new version
 

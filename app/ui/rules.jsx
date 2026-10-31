@@ -7,13 +7,44 @@ import { when } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
-const KINDS = { rules: 'Rule files', imports: 'Imports', skills: 'Skill descriptions', memory: 'Auto memory' };
 const LOAD = { always: ['teal', 'loads'], 'path-scoped': ['blue', 'loads for matching files'], off: ['gray', 'off'], shadowed: ['yellow', 'not read'] };
 const number = (n) => n.toLocaleString('en-US');
 
-// A value against its limit, with who sets the limit.
-const Limit = ({ label, value, max, unit, by }) => (
-  <Progress size="sm" value={Math.min(100, (value / max) * 100)} color={value > max ? 'red' : 'teal'} aria-label={`${label}: ${number(value)} of ${number(max)} ${unit}, limit set by ${by}`} />
+// The five largest sources of a budget and the rest as one, each with the color of its segment (the board's series).
+const SERIES = ['s1', 's2', 's3', 's4', 's5'];
+const partsOf = (items) => {
+  const sorted = items.filter((i) => i.tokens > 0).sort((a, b) => b.tokens - a.tokens);
+  const top = sorted.slice(0, SERIES.length).map((i, n) => ({ label: i.label, tokens: i.tokens, color: `var(--bk-${SERIES[n]})` }));
+  const rest = sorted.slice(SERIES.length);
+  return rest.length ? [...top, { label: `${rest.length} more sources`, tokens: rest.reduce((n, i) => n + i.tokens, 0), color: 'var(--bk-other)' }] : top;
+};
+
+// A value against its limit, with who sets the limit; with parts, one segment per source and a tick at the limit when it is passed.
+const Limit = ({ label, value, max, unit, by, parts }) => {
+  const name = `${label}: ${number(value)} of ${number(max)} ${unit}, limit set by ${by}`;
+  if (!parts) return <Progress size="sm" value={Math.min(100, (value / max) * 100)} color={value > max ? 'red' : 'teal'} aria-label={name} />;
+  const scale = Math.max(max, parts.reduce((n, p) => n + p.tokens, 0));
+  return (
+    <Progress.Root size="lg" role="progressbar" aria-label={name} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} styles={{ root: { gap: 2 } }}>
+      {parts.map((p) => <Progress.Section key={p.label} value={(p.tokens / scale) * 100} color={p.color} withAria={false} />)}
+      {scale > max && <span aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, left: `${(max / scale) * 100}%`, width: 2, background: 'var(--bk-ink)' }} />}
+    </Progress.Root>
+  );
+};
+
+// What each segment of the bar is, largest first.
+const Legend = ({ parts, name }) => (
+  <List listStyleType="none" aria-label={`${name} sources`} styles={{ root: { display: 'flex', flexWrap: 'wrap', gap: '4px 16px' } }}>
+    {parts.map((p) => (
+      <List.Item key={p.label}>
+        <Group gap={8} wrap="nowrap">
+          <span aria-hidden className="bk-dot" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: 'currentColor', color: p.color, flex: 'none' }} />
+          <Code style={{ overflowWrap: 'anywhere' }}>{p.label}</Code>
+          <span className="bk-num">{number(p.tokens)}</span>
+        </Group>
+      </List.Item>
+    ))}
+  </List>
 );
 
 // A switch request: the plan comes back through onPlan, a refusal shows as an error.
@@ -38,7 +69,7 @@ function useSwitch(dir, onPlan) {
 // locked: an apply runs, and a new plan would drop its view.
 function Findings({ findings, dir, onPlan, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
-  if (!findings.length) return <Text>No rule file is over a limit or broken.</Text>;
+  if (!findings.length) return <Badge variant="default" h="auto" py={4} styles={{ label: { whiteSpace: 'normal' } }} leftSection={<Dot color="teal" />}>No rule file is over a limit or broken</Badge>;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Not planned">{error}</Note>}
@@ -139,19 +170,23 @@ function Preview({ row, dir, onClose, onSaved }) {
   );
 }
 
-// The top strip: per agent what loads at the start of every session against BenchKeeper's limit and the largest source,
-// beside the checks on a wide screen.
+// The top strip: per agent what loads at the start of every session against BenchKeeper's limit, as one bar split by source
+// with its legend, beside the checks on a wide screen.
 const Summary = ({ agents, children }) => (
   <Paper withBorder p="md" component="section" aria-label="Summary">
     <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
       <Stack gap="md">
-        {agents.map(({ id, name, budget: { total, largest, over, threshold, limits: [start] } }) => (
-          <Stack key={id} gap={4}>
-            <Text><Text span fw={700}>{name}:</Text> about <Text span fw={700}>{number(total)} tokens</Text> load at the start of every session, of {number(start.max)} (limit set by {start.by}){largest ? <>; the largest source is <Code>{largest.label}</Code> with {number(largest.tokens)}</> : null}.</Text>
-            <Limit {...start} />
-            {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
-          </Stack>
-        ))}
+        {agents.map(({ id, name, budget: { total, items, over, threshold, limits: [start] } }) => {
+          const parts = partsOf(items);
+          return (
+            <Stack key={id} gap="xs">
+              <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
+              <Limit {...start} parts={parts} />
+              <Legend parts={parts} name={name} />
+              {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
+            </Stack>
+          );
+        })}
         <Text size="sm">A token is counted as four bytes: an estimate.</Text>
       </Stack>
       {children}
@@ -159,7 +194,8 @@ const Summary = ({ agents, children }) => (
   </Paper>
 );
 
-// The rest of an agent's budget: the other limits, what loads on demand and the tokens per source.
+// The rest of an agent's budget: the other limits and what loads on demand; the sources are the bar and the file rows.
+const hasBudget = (b) => b.onDemand > 0 || b.notes.length > 0 || b.limits.length > 1;
 function Budget({ budget }) {
   return (
     <Stack gap="xs">
@@ -171,14 +207,6 @@ function Budget({ budget }) {
           <Limit {...l} />
         </Stack>
       ))}
-      <Table.ScrollContainer minWidth={480} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Context budget, scrollable' } }}>
-        <Table aria-label="Context budget" verticalSpacing="xs">
-          <Table.Thead><Table.Tr><Table.Th>Source</Table.Th><Table.Th>Counts as</Table.Th><Table.Th ta="right">Tokens</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {budget.items.map((i) => <Table.Tr key={`${i.kind}-${i.label}`}><Table.Td><Code>{i.label}</Code></Table.Td><Table.Td>{KINDS[i.kind]}</Table.Td><Table.Td ta="right">{number(i.tokens)}</Table.Td></Table.Tr>)}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
     </Stack>
   );
 }
@@ -211,26 +239,28 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked 
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      <Table.ScrollContainer minWidth={760} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${agent.name} instruction files, scrollable` } }}>
+      <Text size="sm">A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Text>
+      <Table.ScrollContainer minWidth={700} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${agent.name} instruction files, scrollable` } }}>
         <Table aria-label={`${agent.name} instruction files`} verticalSpacing="sm">
-          <Table.Thead><Table.Tr><Table.Th>Load order</Table.Th><Table.Th>File</Table.Th><Table.Th>Owner</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>State</Table.Th><Table.Th>Switch</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Switch</Table.Th><Table.Th>File</Table.Th><Table.Th>State</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>Text</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {agent.rows.map((r) => { const wait = pending?.row.path === r.path, off = locked || busy === r.path; return (
               <Table.Tr key={r.path}>
-                <Table.Td>{r.order ?? '-'}</Table.Td>
-                <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code><Text size="sm">{r.scope}</Text></Stack></Table.Td>
-                <Table.Td><Badge variant="default" miw="max-content">{r.owner}</Badge></Table.Td>
-                <Table.Td ta="right">{number(r.tokens)} tokens<Text size="sm">{number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Table.Td>
-                <Table.Td><Stack gap={2}><Loads row={r} />{r.by && <Text size="sm">{r.by}</Text>}</Stack></Table.Td>
-                <Table.Td miw={220}>
-                  <Group gap="xs" wrap="nowrap" align="flex-start">
-                    {r.switch.by
-                      ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
-                        onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
-                      : <Text size="sm">No switch: {r.switch.why}.</Text>}
-                    <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
-                  </Group>
+                <Table.Td w={80}>
+                  {r.switch.by
+                    ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
+                      onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
+                    : '-'}
                 </Table.Td>
+                <Table.Td>
+                  <Stack gap={2}>
+                    <Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code>
+                    <Group gap={6}><Text size="sm">{r.scope}{r.order != null ? `, load order ${r.order}` : ''}</Text><Badge variant="default" miw="max-content">{r.owner}</Badge></Group>
+                  </Stack>
+                </Table.Td>
+                <Table.Td><Stack gap={2}><Loads row={r} />{r.by && <Text size="sm">{r.by}</Text>}{!r.switch.by && <Text size="sm">No switch: {r.switch.why}.</Text>}</Stack></Table.Td>
+                <Table.Td ta="right"><span className="bk-num">{number(r.tokens)}</span> tokens<Text size="sm">{number(r.bytes)} bytes{r.lines ? `, ${r.lines} lines` : ''}</Text><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Table.Td>
+                <Table.Td><Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button></Table.Td>
               </Table.Tr>
             ); })}
           </Table.Tbody>
@@ -257,7 +287,6 @@ export function Rules({ overview, params, refresh, project }) {
   const onPlan = (p) => { if (p.dir === shown.current && idle()) setPending(p); };
   return (
     <Stack gap="lg">
-      <Note>A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
       {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} readOnly={running} aria-disabled={running || undefined} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
       <Loading state={state} label="instruction files">
         {(data) => (
@@ -269,7 +298,10 @@ export function Rules({ overview, params, refresh, project }) {
                 {data.agents.map((a) => (
                   <Tabs.Panel key={a.id} value={a.id} pt="md">
                     <Stack gap="xl">
-                      <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
+                      {hasBudget(a.budget) && <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>}
+                      <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
+                        <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
+                      </Section>
                       {a.memory?.folders.length > 0 && (
                         <Section title={`${a.name} auto memory`}>
                           <Text size="sm">{a.memory.folders.some((m) => m.enabled)
@@ -278,9 +310,6 @@ export function Rules({ overview, params, refresh, project }) {
                           <Memory memory={a.memory} />
                         </Section>
                       )}
-                      <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                        <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} pending={pending && !pending.done ? pending : null} onClear={() => setPending(null)} locked={running} />
-                      </Section>
                     </Stack>
                   </Tabs.Panel>
                 ))}

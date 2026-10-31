@@ -25,7 +25,7 @@ const Limit = ({ label, value, max, unit, by, parts }) => {
   if (!parts) return <Progress size="sm" value={Math.min(100, (value / max) * 100)} color={value > max ? 'red' : 'teal'} aria-label={name} />;
   const scale = Math.max(max, parts.reduce((n, p) => n + p.tokens, 0));
   return (
-    <Progress.Root size="lg" role="progressbar" aria-label={name} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} styles={{ root: { gap: 2 } }}>
+    <Progress.Root size="lg" role="progressbar" aria-label={name} aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.min(value, max)} aria-valuetext={`${number(value)} of ${number(max)} ${unit}`} styles={{ root: { gap: 2 } }}>
       {parts.map((p) => <Progress.Section key={p.label} value={(p.tokens / scale) * 100} color={p.color} withAria={false} />)}
       {scale > max && <span aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, left: `${(max / scale) * 100}%`, width: 2, background: 'var(--bk-ink)' }} />}
     </Progress.Root>
@@ -178,11 +178,14 @@ const Summary = ({ agents, children }) => (
       <Stack gap="md">
         {agents.map(({ id, name, budget: { total, items, over, threshold, limits: [start] } }) => {
           const parts = partsOf(items);
+          // Codex counts only what fits its size limit; the sources stay as found.
+          const unloaded = items.reduce((n, i) => n + i.tokens, 0) - total;
           return (
             <Stack key={id} gap="xs">
               <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
               <Limit {...start} parts={parts} />
               <Legend parts={parts} name={name} />
+              {unloaded > 0 && <Text size="sm">About {number(unloaded)} tokens of these sources may not load: {name} stops adding files at its size limit.</Text>}
               {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
             </Stack>
           );

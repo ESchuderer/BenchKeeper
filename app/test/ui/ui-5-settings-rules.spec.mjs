@@ -364,7 +364,7 @@ test.describe('views', () => {
       const r = await route.fetch();
       const body = await r.json();
       const [claude] = body.agents;
-      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }, { kind: 'rules', label: '~/.codex/extra.md', tokens: 3000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
       await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
     });
     await nav(page, 'Rules').click();
@@ -376,6 +376,10 @@ test.describe('views', () => {
     await expect(strip.getByRole('progressbar')).toHaveCount(2);
     await expect(strip.getByRole('progressbar', { name: 'At the start of a session: 12,000 of 10,000 tokens, limit set by BenchKeeper' })).toBeVisible();
     await expect(strip).toContainText('More than 10,000 tokens');
+    const over = strip.getByRole('progressbar', { name: /^At the start of a session: 12,000/ });
+    await expect(over).toHaveAttribute('aria-valuenow', '10000');
+    await expect(over).toHaveAttribute('aria-valuetext', '12,000 of 10,000 tokens');
+    await expect(strip).toContainText('About 2,000 tokens of these sources may not load: Codex stops adding files at its size limit.');
     await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
     const tabs = page.getByRole('tablist', { name: 'Agents' });
     await expect(tabs.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
@@ -397,9 +401,9 @@ test.describe('views', () => {
     await nav(page, 'Rules').click();
     const [files, notes] = await Promise.all([page.getByRole('region', { name: 'Claude Code files' }).boundingBox(), page.getByRole('region', { name: 'Claude Code auto memory' }).boundingBox()]);
     expect(files.y).toBeLessThan(notes.y);
-    const total = Number(await page.getByRole('region', { name: 'Summary' }).getByRole('progressbar', { name: /^At the start of a session/ }).getAttribute('aria-valuenow'));
+    const total = Number((await page.getByRole('region', { name: 'Summary' }).getByRole('progressbar', { name: /^At the start of a session/ }).getAttribute('aria-valuetext')).match(/^[\d,]+/)[0].replace(/,/g, ''));
     const legend = await page.getByRole('list', { name: 'Claude Code sources' }).getByRole('listitem').allInnerTexts();
-    expect(legend.reduce((n, t) => n + Number(t.match(/([\d,]+)\s*$/)[1].replace(/,/g, '')), 0)).toBeGreaterThanOrEqual(total);
+    expect(legend.reduce((n, t) => n + Number(t.match(/([\d,]+)\s*$/)[1].replace(/,/g, '')), 0)).toBe(total);
     await noAxe(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await noAxe(page);

@@ -1,6 +1,6 @@
 // Saves the app screenshots of the site's /app/ page (web/public/app/<view>-<light|dark>.webp) from the UI test server in
 // demo mode: a fixture home and fixture projects under one temporary root, stubbed agent commands, never the real machine.
-// Run in the dev container after `npm ci` in web/: `cd app && npm run build && node scripts/screenshots.mjs`.
+// Run in the dev container: `cd web && npm ci && cd ../app && npm ci && npm run build && node scripts/screenshots.mjs` (sharp comes from web/).
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';

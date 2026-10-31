@@ -1,6 +1,6 @@
 # Development
 
-How the checks, the workflows and the local agent setup of this repository work. The rules every change follows are in [AGENTS.md](../AGENTS.md).
+How the checks, the workflows and the local agent setup of this repository work.
 
 ## Workflows
 

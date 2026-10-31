@@ -1,15 +1,15 @@
 import { Button, Group, List, Select, Stack, Text, Textarea } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Plan, Section } from './parts.jsx';
 import { Loading, Note, useApi } from './shell.jsx';
 
-// A file that does not exist yet starts as the smallest valid document of its family.
-const START = { pins: '{\n  "schemaVersion": 1,\n  "phases": {}\n}\n', preset: '{\n  "schemaVersion": 1,\n  "presets": []\n}\n', policy: '{\n  "schemaVersion": 1\n}\n' };
+// A file that does not exist yet starts as the smallest valid document.
+const START = '{\n  "schemaVersion": 1\n}\n';
 const errorLine = (e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`;
 
 function FileEditor({ dir, entry, onDone }) {
-  const [text, setText] = useState(entry.text ?? START[entry.family]);
+  const [text, setText] = useState(entry.text ?? START);
   const [errors, setErrors] = useState(entry.errors);
   const [plan, setPlan] = useState(null);
   const [failed, setFailed] = useState(null);
@@ -39,7 +39,7 @@ function FileEditor({ dir, entry, onDone }) {
   );
 }
 
-// Presets, pins and the orchestrator policy of a registered project, as JSON checked by the loader doctor and CI use.
+// The orchestrator policy of a registered project, as JSON checked by the loader.
 export function Editors({ overview, params, refresh }) {
   const projects = overview.data?.projects ?? [];
   const [dir, setDir] = useState(params.get('path') ?? projects[0]?.path ?? null);
@@ -62,7 +62,7 @@ export function Editors({ overview, params, refresh }) {
           }}
         </Loading>
       )}
-      <Cli>{'benchkeeper pins list [dir]\nbenchkeeper doctor'}</Cli>
+      
     </Stack>
   );
 }

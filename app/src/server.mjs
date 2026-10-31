@@ -222,8 +222,8 @@ export function api(ctx) {
     // Dismiss an Agent settings note by id, or decide a setting (id setting:<agent>:<key>; { id, dismissed: false } shows
     // it again): hidden there and in Doctor.
     'POST /api/settings-dismiss': (b) => ({ dismissed: input(() => dismissNote(ctx, b.id, b.dismissed !== false)).dismissed }),
-    // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
-    // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
+    // The editor view (preference editors): the orchestrator policy of a registered project, checked by the loader;
+    // a save is a plan applied through /api/apply and undone in History.
     'GET /api/params': (q) => paramsView(editorsDir(q.get('dir'))),
     'POST /api/params-check': (b) => (editorsDir(b.dir), { errors: input(() => checkText(b.file, b.text)) }),
     'POST /api/params-plan': (b) => {

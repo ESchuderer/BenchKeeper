@@ -14,7 +14,6 @@ import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
-import { paramChecks } from './params.mjs';
 import { bandChecks, styleChecks } from './ponytail.mjs';
 import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
@@ -119,7 +118,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && !upToDate(state)) out.push(issue('warning', 'project', `project setup: app ${state.appVersion}, content ${state.contentVersion}; this app ${appVersion}, content ${contentVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   out.push(...packSetupChecks(dir, state), ...guardChecks(dir, state));
-  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }), ...paramChecks(ctx, dir));
+  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // The global files are reported once, by the global checks; imports that point nowhere by instructionChecks.
   out.push(...rulesChecks(ctx, { agents, dir }).filter((f) => f.scope !== 'global' && f.kind !== 'import'));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.

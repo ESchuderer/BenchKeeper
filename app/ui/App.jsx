@@ -60,7 +60,7 @@ const GROUPS = [
 ];
 const VIEWS = GROUPS.flatMap(([, views]) => views);
 // The "Advanced" group: only while its setting is on, else the route does not exist.
-const ADVANCED = [['editors', 'Presets, pins and policy', Editors, IconCode]];
+const ADVANCED = [['editors', 'Orchestrator policy', Editors, IconCode]];
 
 // The "/" key opens the palette unless turned off in Preferences (WCAG 2.1.4: a character-key shortcut must be switchable).
 const SLASH = 'bk-slash';

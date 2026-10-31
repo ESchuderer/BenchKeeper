@@ -575,6 +575,43 @@ test.describe('views', () => {
     await page.unroute(/\/api\/overview(\?|$)/);
   });
 
+  test('Global setup: an item that needs attention has a box, a removal starts unticked, the button counts the ticked items and the plan starts with them; a tick drops an open plan; no axe violations; 390 px', async ({ page }) => {
+    const item = (step, title, state) => ({ step, agent: 'claude', title, state });
+    const items = [item('plugin:claude:demo@demo', 'Claude Code plugin demo@demo', 'missing'), item('rules:claude', 'Claude Code rules', 'modified'),
+      item('other:claude:mcp', 'remove the Claude user MCP server demo', 'foreign'), item('settings:claude', 'Claude default model opusplan', 'current')];
+    const change = (id, c) => ({ id, kind: 'command', argv: ['demo'], state: null, selected: true, ...c });
+    const changes = [change('plugin', { step: 'plugin:claude:demo@demo', title: 'Claude Code plugin demo@demo' }), change('rules', { step: 'rules:claude', title: 'Claude Code rules', state: 'modified' }),
+      change('mcp', { step: 'other:claude:mcp', title: 'remove the Claude user MCP server demo', destructive: true, state: 'foreign', selected: false }), change('extra', { step: 'tools:extra', title: 'Install the extra tool' })];
+    await page.route(/\/api\/inventory$/, (route) => route.fulfill({ json: items }));
+    await page.route(/\/api\/global-plan(\?|$)/, (route) => route.fulfill({ json: { planId: 'ticks-test', agents: ['claude'], changes } }));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/#/agents');
+    const main = page.getByRole('main');
+    const box = (name) => main.getByRole('checkbox', { name, exact: true });
+    await expect(box('Claude Code plugin demo@demo')).toBeChecked();
+    await expect(box('Claude Code rules')).toBeChecked();
+    await expect(box('remove the Claude user MCP server demo')).not.toBeChecked();
+    await expect(box('Claude default model opusplan')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: 'Plan 2 items' })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+    // Unticked: the rules change is off, the change the list does not name keeps its default.
+    await box('Claude Code rules').uncheck();
+    await main.getByRole('button', { name: 'Plan 1 item' }).click();
+    const changesRegion = main.getByRole('region', { name: 'Changes' });
+    await expect(changesRegion.getByRole('group', { name: 'Selected changes' })).toContainText('2 changes selected');
+    // A tick asks for a new plan: the open one goes, the button shows the new count; the removal is its own choice.
+    await box('remove the Claude user MCP server demo').check();
+    await expect(changesRegion).toHaveCount(0);
+    await main.getByRole('button', { name: 'Plan 2 items' }).click();
+    await expect(changesRegion.getByRole('group', { name: 'Selected changes' })).toContainText('3 changes selected');
+    await box('Claude Code plugin demo@demo').uncheck();
+    await box('remove the Claude user MCP server demo').uncheck();
+    await expect(main.getByRole('button', { name: 'Plan 0 items' })).toBeDisabled();
+    await page.unroute(/\/api\/inventory$/);
+    await page.unroute(/\/api\/global-plan(\?|$)/);
+  });
+
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
     const dir = folder('mv-gone');
     await nav(page, 'Projects').click();

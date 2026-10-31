@@ -100,7 +100,7 @@ test.describe('views', () => {
     await expect(runs.first()).toBeVisible();
     const before = await runs.count();
     await nav(page, 'Global setup').click();
-    await page.getByRole('button', { name: /^Plan setup for/ }).click();
+    await page.getByRole('button', { name: /^Plan (setup for \d+ agents?|\d+ items?)$/ }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
     const footer = changes.getByRole('group', { name: 'Selected changes' });
     await expect(footer).toContainText(/[1-9]\d* changes? selected/);
@@ -130,7 +130,7 @@ test.describe('views', () => {
     ];
     await page.route(/\/api\/global-plan(\?|$)/, (route) => route.fulfill({ json: { planId: 'preview-test', agents: ['claude'], changes } }));
     await nav(page, 'Global setup').click();
-    await page.getByRole('button', { name: /^Plan setup for/ }).click();
+    await page.getByRole('button', { name: /^Plan (setup for \d+ agents?|\d+ items?)$/ }).click();
     const view = page.getByRole('region', { name: 'Changes' });
     const card = (name) => view.getByRole('group', { name, exact: true });
     await expect(card('Install')).toBeVisible();

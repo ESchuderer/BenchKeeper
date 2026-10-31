@@ -2607,6 +2607,32 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Automations without the runner: one setup panel with Check again, the templates behind Show templates', async ({ page }) => {
+    await nav(page, 'Automations').click();
+    const panel = page.getByRole('alert').filter({ hasText: 'Set up Orca' });
+    await expect(panel).toContainText('put orca-ide on the PATH. Install, update and remove need its CLI');
+    await expect(page.getByText('A template is one scheduled agent run')).toBeHidden();
+    const table = page.getByRole('table', { name: 'Automations' });
+    await expect(table).toBeHidden();
+    await page.getByRole('button', { name: 'Show templates' }).click();
+    await expect(page.getByText('A template is one scheduled agent run')).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Install Pull request watch' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Hide templates' })).toHaveAttribute('aria-expanded', 'true');
+    // The runner appears: Check again shows the view as it is with the runner.
+    writeFileSync(RUNNER, '');
+    try {
+      await panel.getByRole('button', { name: 'Check again' }).focus();
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeHidden();
+      await expect(page.getByRole('heading', { name: 'Templates' })).toBeFocused();
+      await expect(page.getByRole('status').filter({ hasText: 'Orca found' })).toBeAttached();
+      await expect(page.getByRole('button', { name: /^(Show|Hide) templates$/ })).toBeHidden();
+      await expect(table.getByRole('button', { name: 'Install Pull request watch' })).toBeEnabled();
+    } finally {
+      rmSync(RUNNER, { force: true });
+    }
+  });
+
   test('Automations: install and remove by keyboard against the fake runner, the last run and skipped runs; no axe violations at desktop and phone width', async ({ page }) => {
     writeFileSync(RUNNER, '');
     try {

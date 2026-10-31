@@ -755,7 +755,10 @@ export function api(ctx) {
     },
     // Automations: the templates and the installed ones with their state and runs, read from the runner (cached like the
     // other reads that start commands); install, update and remove are plans applied through /api/apply, undone in History.
-    'GET /api/automations': () => cached('automations', () => automationsView(ctx)),
+    'GET /api/automations': (q) => {
+      if (q?.get('fresh') === '1') memo.delete('automations'); // Check again: the runner may have been installed meanwhile
+      return cached('automations', () => automationsView(ctx));
+    },
     'POST /api/automations-plan': (b) => {
       const id = String(b.id ?? '');
       const changes = preview(input(() => {

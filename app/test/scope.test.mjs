@@ -239,8 +239,8 @@ test('the Installs tab: scope hint, fixed scope and state per row; global items 
   const [file] = p.files;
   assert.deepEqual(plan([['file-on', file.path]]).files.find((f) => f.path === file.path).on, true);
   assert.deepEqual(plan([['file-on', file.path], ['file-off', file.path]]).files.find((f) => f.path === file.path).on, false);
-  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['codex'], env: 'host', packs: [] }));
-  assert.match(plan().files[0].fixed, /installs for Claude Code only/);
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['gemini'], env: 'host', packs: [] }));
+  assert.match(plan().files[0].fixed, /installs for Claude Code, Codex, GitHub Copilot CLI only/);
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {

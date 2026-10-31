@@ -7,7 +7,8 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { library } from '../src/content.mjs';
-import { frameworkRemovals, sourceRows, sources } from '../src/frameworks.mjs';
+import { parse as parseToml } from 'smol-toml';
+import { codexAgent, frameworkRemovals, sourceRows, sources } from '../src/frameworks.mjs';
 import { classify } from '../src/inventory.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
@@ -26,7 +27,7 @@ function repo() {
   const calls = [];
   const run = (argv, o = {}) => {
     if (['claude', 'curl'].includes(argv[0])) calls.push({ argv, cwd: o.cwd });
-    if (argv[0] === 'curl') { mkdirSync(dirname(argv.at(-2)), { recursive: true }); writeFileSync(argv.at(-2), `---\nname: Frontend Developer\n---\nfrom ${argv.at(-1)}\n`); }
+    if (argv[0] === 'curl') { mkdirSync(dirname(argv.at(-2)), { recursive: true }); writeFileSync(argv.at(-2), `---\nname: Frontend Developer\ndescription: Builds web UIs\n---\nfrom ${argv.at(-1)}\n`); }
     return ['claude', 'curl'].includes(argv[0]) ? { code: 0, stdout: '', stderr: '' } : runCommand(argv, o);
   };
   return { dir, home, git, calls, ctx: context({ home, roots: [home, dir], appVersion: '6.0.0', run }) };
@@ -97,8 +98,9 @@ test('a state file from a clone: paths the catalog lacks are ignored, never plan
   assert.throws(() => plan(r, { ...base, agentFiles: ['../../etc/passwd'] }), /not an agent file of the catalog/);
   assert.throws(() => plan(r, { ...base, agentFiles: ['engineering/../../x.md'] }), /not an agent file/);
   // The owned list never reaches a removal: only catalog paths do.
-  state({ agentFiles: [FILE], agentOwned: ['../../etc/passwd'] });
+  state({ agentFiles: [FILE], agentOwned: ['../../etc/passwd', 'codex:../../etc/passwd', `gemini:${FILE}`, `evil:${FILE}`] });
   assert.deepEqual(frameworkRemovals(r.dir, readState(r.dir)), []);
+  assert.deepEqual(resolveAnswers(r.dir).agentOwned, []);
 });
 
 test('an agent file that was there before is the project\'s: kept, not fetched, not removed when unpicked', () => {
@@ -135,7 +137,7 @@ test('answers without --agent-file keep the agent files picked; an empty pick dr
 
 test('agency-agents: a pick of agent files fetched at the pinned commit, second plan empty, a dropped pick removed, undo restores', () => {
   const r = repo();
-  assert.throws(() => plan(r, { ...base, agents: ['codex'], agentFiles: [FILE] }), /installs for Claude Code only/);
+  assert.throws(() => plan(r, { ...base, agents: ['gemini'], agentFiles: [FILE] }), /installs for Claude Code, Codex, GitHub Copilot CLI only/);
   const p = run(r, { ...base, agentFiles: [FILE] });
   assert.equal(p.run.status, 'done');
   const curl = r.calls.find((c) => c.argv[0] === 'curl');
@@ -199,4 +201,55 @@ test('a state file that still has frameworks (a 6.x setup): read and applied, th
   assert.equal(run(r, {}).run.status, 'done');
   const written = JSON.parse(readFileSync(join(r.dir, '.benchkeeper/state.json'), 'utf8'));
   assert.deepEqual([written.frameworks, written.agentFiles], [undefined, [FILE]]);
+});
+
+const toml = (t) => ({ ...parseToml(t) });
+const CODEX = '.codex/agents/engineering-frontend-developer.toml', COPILOT = '.github/agents/engineering-frontend-developer.agent.md';
+
+test('Codex agent file: name, description and the Markdown body as TOML; text without front matter stays', () => {
+  const md = '---\nname: "Frontend \\"Dev\\""\ndescription: Builds UIs \u{1F5A5}\ncolor: "#0077B6"\nemoji: \u{1F5A5}\n---\n\n# Body\nquotes " and \"\"\" and a back\\slash\n';
+  assert.deepEqual(toml(codexAgent(md)), { name: 'Frontend "Dev"', description: 'Builds UIs \u{1F5A5}', developer_instructions: '\n# Body\nquotes " and \"\"\" and a back\\slash\n' });
+  assert.equal(codexAgent(''), '');
+  assert.equal(codexAgent('name = "x"\n'), 'name = "x"\n');
+  assert.throws(() => codexAgent('---\nname: x\n---\nbody\n'), /no name or description/);
+});
+
+test('Codex and Copilot: a copy per chosen agent in its folder and format, second plan empty, a dropped agent loses only its copies, undo restores', () => {
+  const r = repo();
+  const p = run(r, { ...base, agents: ['claude', 'codex', 'copilot'], agentFiles: [FILE] });
+  assert.equal(p.run.status, 'done');
+  assert.deepEqual(r.calls.filter((c) => c.argv[0] === 'curl').map((c) => c.argv.at(-2)).sort(), [AGENT, CODEX, COPILOT].map((x) => join(r.dir, x)).sort());
+  assert.deepEqual(toml(readFileSync(join(r.dir, CODEX), 'utf8')), { name: 'Frontend Developer', description: 'Builds web UIs', developer_instructions: `from ${r.calls[0].argv.at(-1)}\n` });
+  assert.match(readFileSync(join(r.dir, COPILOT), 'utf8'), /^---\nname: Frontend Developer\n/);
+  const state = readState(r.dir);
+  assert.deepEqual(state.agentOwned, [FILE, `codex:${FILE}`, `copilot:${FILE}`]);
+  assert.deepEqual(Object.keys(state.agentHashes), state.agentOwned);
+  const exclude = readFileSync(join(r.dir, '.git/info/exclude'), 'utf8');
+  for (const x of [AGENT, CODEX, COPILOT]) assert.ok(exclude.includes(`/${x}`), x);
+  assert.deepEqual(frameworkSteps(plan(r, {})), []);
+  const drop = run(r, { agents: ['claude', 'copilot'] });
+  assert.equal(drop.run.status, 'done');
+  assert.deepEqual([AGENT, CODEX, COPILOT].map((x) => existsSync(join(r.dir, x))), [true, false, true]);
+  assert.deepEqual(readState(r.dir).agentOwned, [FILE, `copilot:${FILE}`]);
+  assert.equal(undo(drop.run.id, r.ctx).status, 'done');
+  assert.equal(undo(p.run.id, r.ctx).status, 'done');
+  assert.deepEqual([AGENT, CODEX, COPILOT].map((x) => existsSync(join(r.dir, x))), [false, false, false]);
+});
+
+test('Codex only: a file the project had in .codex/agents stays its own, and a failed conversion fails the step and records nothing', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.codex/agents'), { recursive: true });
+  writeFileSync(join(r.dir, CODEX), 'name = "mine"\n');
+  run(r, { ...base, agents: ['codex'], agentFiles: [FILE] });
+  assert.equal(r.calls.filter((c) => c.argv[0] === 'curl').length, 0);
+  assert.deepEqual(readState(r.dir).agentOwned, []);
+  run(r, { agentFiles: [] });
+  assert.equal(readFileSync(join(r.dir, CODEX), 'utf8'), 'name = "mine"\n');
+  const s = repo();
+  const bad = { ...s.ctx, run: (argv, o) => { if (argv[0] !== 'curl') return s.ctx.run(argv, o); mkdirSync(dirname(argv.at(-2)), { recursive: true }); writeFileSync(argv.at(-2), '---\nname: x\n---\nbody\n'); return { code: 0, stdout: '', stderr: '' }; } };
+  const changes = preview(projectPlan({ ctx: bad, dir: s.dir, answers: { ...base, agents: ['codex'], agentFiles: [FILE] }, plugins: {} }).changes);
+  const result = apply(changes, bad, { scope: s.dir, select: changes.filter((c) => c.selected).map((c) => c.id) });
+  assert.equal(result.status, 'failed');
+  assert.match(result.entries.find((e) => e.status === 'failed').error, /no name or description/);
+  assert.deepEqual(readState(s.dir).agentOwned, []);
 });

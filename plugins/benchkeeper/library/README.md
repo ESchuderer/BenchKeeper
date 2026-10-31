@@ -122,5 +122,5 @@ Agent files a project picks one by one (`--agent-file <path>`), fetched at a pin
 
 | Source | Agent files | Evaluation |
 | --- | --- | --- |
-| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
+| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code, Codex (converted to TOML) and GitHub Copilot CLI: Gemini CLI agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

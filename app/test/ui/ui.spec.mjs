@@ -322,7 +322,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
-    await expect(page.getByRole('row', { name: /^Codex/ })).toContainText('the usage feed is not available for Codex');
+    await expect(page.getByText(/^\d+ agents? not installed$/)).toBeVisible();
     await page.keyboard.press('ControlOrMeta+2');
     await expect(page).toHaveURL(/#\/history$/);
     await page.keyboard.press('ControlOrMeta+3');
@@ -1159,7 +1159,7 @@ test.describe('views', () => {
     await page.unroute(/\/api\/job\?id=stub-job$/);
   });
 
-  test('Global setup: only global items, the pointer to Projects and the Accounts link; each per-project control is in the Installs tab; a part opens by keyboard; 390 px', async ({ page }) => {
+  test('Global setup: installed agents as rows, the others folded with every sentence; parts that need attention open; only global items, the pointer to Projects and the Accounts link; each per-project control is in the Installs tab; a part opens by keyboard; 390 px', async ({ page }) => {
     // The per-project controls, each a region of switches in a project's Installs tab and none on the global page.
     const MOVED = ['Packs', 'Workflow owner', 'Skills', 'Agent files'];
     await page.setViewportSize({ width: 390, height: 900 });
@@ -1168,7 +1168,21 @@ test.describe('views', () => {
     await expect(main).toContainText('Per-project setup lives in each project');
     await expect(main.getByRole('link', { name: 'Projects', exact: true })).toHaveAttribute('href', '#/projects');
     await expect(main.getByRole('link', { name: 'Accounts', exact: true })).toHaveAttribute('href', '#/accounts');
+    // The test server has Claude Code only: one row, the other agents behind one closed fold.
+    await expect(main.getByRole('table', { name: 'Agents', exact: true }).getByRole('row', { name: /^Claude Code/ })).toBeVisible();
+    await expect(main.getByRole('table', { name: 'Agents', exact: true }).getByRole('row')).toHaveCount(2);
+    const missing = main.getByRole('table', { name: 'Agents not installed' });
+    await expect(missing).toBeHidden();
+    await main.getByText(/^\d+ agents not installed$/).click();
+    await expect(missing.getByRole('row', { name: /^Codex/ })).toContainText('the usage feed is not available for Codex');
+    await expect(missing.getByRole('row', { name: /^Codex/ })).toContainText('not installed');
+    // A part with items that need attention is open; the others are closed.
     const global = main.getByRole('region', { name: 'Installed globally' });
+    for (const part of await global.getByRole('region').all()) {
+      const name = await part.getAttribute('aria-label');
+      const attention = /need attention\)$/.test(await part.getByText(new RegExp(`^${name} \\(`)).textContent());
+      await expect(part.getByRole('button', { name: `${attention ? 'Hide' : 'Show'} items of ${name}` })).toHaveAttribute('aria-expanded', String(attention));
+    }
     const show = global.getByRole('button', { name: /^Show items of / }).first();
     const part = (await show.getAttribute('aria-label')).replace(/^Show /, '');
     await show.focus();
@@ -1185,6 +1199,21 @@ test.describe('views', () => {
     await page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ }).getByRole('link', { name: /^bk-ui-proj/ }).click();
     await page.getByRole('tab', { name: 'Installs' }).click();
     for (const name of MOVED) await expect(page.getByRole('region', { name }).getByRole('switch').first()).toBeVisible();
+  });
+
+  test('Global setup: an installed agent shows a short chip per missing feature, the sentence as its tooltip and text', async ({ page }) => {
+    await page.route(/\/api\/overview(\?|$)/, async (route) => {
+      const r = await route.fetch();
+      const d = await r.json();
+      for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
+      await route.fulfill({ response: r, json: d });
+    });
+    await page.goto('/#/agents');
+    await page.reload();
+    const codex = page.getByRole('table', { name: 'Agents', exact: true }).getByRole('row', { name: /^Codex/ });
+    const chip = codex.getByTitle('the usage feed is not available for Codex');
+    await expect(chip).toHaveText('the usage feed is not available for Codex');
+    await page.unroute(/\/api\/overview(\?|$)/);
   });
 
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {

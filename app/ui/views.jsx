@@ -216,7 +216,7 @@ function SkillDetail({ skill, results }) {
 const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'Extensions'], [['skills'], 'Skills'], [['rules'], 'Rules', 'rules', 'Rules'],
   [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
 
-// What the global setup installs, by part, with its state on disk; a part's items open on a button.
+// What the global setup installs, by part, with its state on disk; a part's items open on a button, open from the start when some need attention.
 function GlobalItems({ items }) {
   const parts = GLOBAL_PARTS.map(([steps, title, view, viewName]) => ({ title, view, viewName, rows: items.filter((i) => steps.includes(i.step.split(':')[0])) })).filter((p) => p.rows.length);
   if (!parts.length) return <Text size="sm">Nothing is installed globally yet: plan the setup below.</Text>;
@@ -228,7 +228,7 @@ function GlobalItems({ items }) {
           <Text fw={600}>{p.title} ({p.rows.length}{attention ? `, ${attention} need attention` : ''})</Text>
           {p.view && <Anchor href={href(p.view)} size="sm">Open {p.viewName}</Anchor>}
         </Group>
-        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`}>
+        <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`} initial={attention > 0}>
           <List size="sm" listStyleType="none" spacing={4}>
             {p.rows.map((i) => <List.Item key={`${i.step}|${i.title}`}><Group gap="xs" wrap="nowrap"><StateBadge state={i.state} /><Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text></Group></List.Item>)}
           </List>
@@ -236,6 +236,35 @@ function GlobalItems({ items }) {
       </Stack>
     );
   });
+}
+
+// One row per agent. An installed agent shows a short chip per missing feature with the sentence as its tooltip;
+// the agents that are not installed show the sentences.
+function AgentTable({ label, agents, chosen, onCheck }) {
+  return (
+    <Table.ScrollContainer minWidth={640} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+      <Table aria-label={label}>
+        <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {agents.map((a) => (
+            <Table.Tr key={a.id}>
+              <Table.Td><Checkbox label={a.name} disabled={!a.installed} checked={chosen.includes(a.id)} onChange={() => onCheck(chosen.includes(a.id) ? chosen.filter((x) => x !== a.id) : [...chosen, a.id])} /></Table.Td>
+              <Table.Td>{a.version ?? 'not installed'}</Table.Td>
+              <Table.Td><Code>~/{a.rules}</Code></Table.Td>
+              <Table.Td><Code>~/{a.skills}</Code></Table.Td>
+              <Table.Td>{a.tested ? 'tested' : 'untested'}</Table.Td>
+              <Table.Td>{!a.unavailable.length ? 'nothing' : a.installed ? (
+                <Group gap={4}>
+                  {/* shortcut: the chip is the sentence up to "is not available", fine while every sentence has that form. */}
+                  {a.unavailable.map((m) => { const [short, rest] = m.split(/(?= is not available)/); return <Badge key={m} variant="default" title={m}>{short}<VisuallyHidden>{rest}</VisuallyHidden></Badge>; })}
+                </Group>
+              ) : <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List>}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
 }
 
 // Only global things: per-project setup lives on each project's page.
@@ -260,23 +289,13 @@ export function Agents({ overview, params, refresh }) {
       return (
         <Stack gap="lg">
           <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
-          <Table.ScrollContainer minWidth={640}>
-          <Table aria-label="Agents">
-            <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
-            <Table.Tbody>
-              {o.agents.map((a) => (
-                <Table.Tr key={a.id}>
-                  <Table.Td><Checkbox label={a.name} disabled={!a.installed} checked={chosen.includes(a.id)} onChange={() => setSelect(chosen.includes(a.id) ? chosen.filter((x) => x !== a.id) : [...chosen, a.id])} /></Table.Td>
-                  <Table.Td>{a.version ?? 'not installed'}</Table.Td>
-                  <Table.Td><Code>~/{a.rules}</Code></Table.Td>
-                  <Table.Td><Code>~/{a.skills}</Code></Table.Td>
-                  <Table.Td>{a.tested ? 'tested' : 'untested'}</Table.Td>
-                  <Table.Td>{a.unavailable.length ? <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List> : 'nothing'}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-          </Table.ScrollContainer>
+          {o.agents.some((a) => a.installed) ? <AgentTable label="Agents" agents={o.agents.filter((a) => a.installed)} chosen={chosen} onCheck={setSelect} /> : <Text size="sm">No agent is installed on this machine.</Text>}
+          {o.agents.some((a) => !a.installed) && (
+            <details>
+              <summary><Text component="span" fw={600}>{plural(o.agents.filter((a) => !a.installed).length, 'agent')} not installed</Text></summary>
+              <AgentTable label="Agents not installed" agents={o.agents.filter((a) => !a.installed)} chosen={chosen} onCheck={setSelect} />
+            </details>
+          )}
           <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
           <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>

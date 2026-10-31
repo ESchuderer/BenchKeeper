@@ -82,7 +82,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     id: 'sessions', view: 'sessions', title: 'Sessions board', shot: 'sessions',
     alt: 'The Sessions view with the board in a frame: the project choice closed as a chip in one line with the filters for agent, tier, pattern, setup and period, then tiles for sessions, agent time, cost, tokens and tests passed.',
     text: [
-      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code), time and pull request links.',
+      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices), time and pull request links.',
       'The project list puts registered repositories first, one entry per repository with its worktrees folded in, and has a search. Comparison charts by tier, pattern and setup show how many sessions each bar rests on and mark the ones under 20. Each chart has its table behind a button.',
     ],
     cli: [`${V} sessions board`],
@@ -91,7 +91,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     id: 'runs', view: 'runs', title: 'Runs', shot: 'runs',
     alt: 'The Runs view: the orchestrated runs table with run, task, worktree, branch, sessions, cost and tokens, the last setup change of each registered project, one line saying the multi-agent IDE is not installed, and the folded command.',
     text: [
-      'Orchestrated runs and their tasks in the registered projects and their worktrees, with sessions, cost (Claude Code) and tokens (Codex), each project\'s last setup change, and the runs of the multi-agent IDE when it is installed.',
+      'Orchestrated runs and their tasks in the registered projects and their worktrees, with sessions, tokens and cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices), each project\'s last setup change, and the runs of the multi-agent IDE when it is installed.',
       'The view reads when it opens and on Refresh, with no timer. The rows hold ids, states and counts, never a prompt or worker output.',
     ],
     cli: [`${V} sessions list`, `${V} sessions list --run <id>`],

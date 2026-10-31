@@ -216,7 +216,7 @@
       {
         "id": "sessions",
         "title": "Sessions board",
-        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost (Claude Code) and pull request links. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
+        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices) and pull request links. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
         "evidence": "app/README.md#commands"
       },
       {

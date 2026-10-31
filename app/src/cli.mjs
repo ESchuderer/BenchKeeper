@@ -575,7 +575,7 @@ const FLAGS = {
   'containers reconcile': 'dry-run', 'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task',
 };
 // The most positionals of the commands that take a fixed number and do not check it themselves.
-const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'projects create': 3, 'presets save': 3, 'presets remove': 3, 'skills cli': 2, 'containers reconcile': 2 };
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'projects create': 3, 'presets list': 2, 'presets save': 3, 'presets remove': 3, 'skills cli': 2, 'containers reconcile': 2 };
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
@@ -723,6 +723,8 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'projects' && arg === 'create') return createProject(ctx, { o, positionals, out, ask });
   if (cmd === 'presets') {
+    if (arg && !['list', 'save', 'remove'].includes(arg)) { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }
+    if (arg !== 'list' && arg !== undefined && !positionals[2]) { out.write(`presets ${arg} needs an id\n`); return 2; }
     if (arg === 'save') out.write(`saved ${savePreset(ctx, positionals[2], resolve(o.project ?? '.')).id}\n`);
     else if (arg === 'remove') { removePreset(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
     else for (const p of listPresets(ctx)) out.write(`${p.id.padEnd(16)} ${p.answers.agents.join(',')}  packs: ${p.answers.packs?.join(', ') || 'none'}\n`);

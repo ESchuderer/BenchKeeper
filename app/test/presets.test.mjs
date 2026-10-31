@@ -34,7 +34,7 @@ function sink() {
   let text = '';
   return { out: new Writable({ write(c, _, done) { text += c; done(); } }), text: () => text };
 }
-const cli = (ctx, args, answers = '') => { const s = sink(); return main(args, { out: s.out, ctx, input: Readable.from([answers]) }).then((code) => ({ code, text: s.text() })); };
+const cli = (ctx, args, answers = '') => { const s = sink(); return main(args, { out: s.out, err: s.out, ctx, input: Readable.from([answers]) }).then((code) => ({ code, text: s.text() })); };
 
 test('presets: saved from a project with a setup, listed, never replaced, removed into the backup', () => {
   const { ctx, h } = home();
@@ -119,6 +119,12 @@ test('CLI: projects create applies the plan, registers the folder and offers the
   assert.match(o.text, /^web +claude {2}packs: ui\n$/);
   assert.equal((await cli(ctx, ['presets', 'save', 'copy', '--project', dir])).code, 0);
   assert.equal((await cli(ctx, ['presets', 'remove', 'copy'])).code, 0);
+  for (const [args, text] of [
+    [['presets', 'bogus'], /^unknown command presets bogus: see benchkeeper help presets\n$/],
+    [['presets', 'list', 'extra'], /^unexpected argument extra\n$/],
+    [['presets', 'save'], /^presets save needs an id\n$/],
+    [['presets', 'remove'], /^presets remove needs an id\n$/],
+  ]) { o = await cli(ctx, args); assert.deepEqual([o.code, text.test(o.text)], [2, true], `${args.join(' ')}: ${o.text}`); }
 });
 
 test('server: presets, the plan of a new folder, and the recommendations of a registered project', () => {

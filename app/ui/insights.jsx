@@ -1,11 +1,12 @@
-import { Anchor, Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Code, Group, List, Loader, Menu, Modal, Paper, Radio, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { splitSource } from './fixsource.js';
 import { LEVEL_COLOR, fixAction } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
-import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';
 
 const SEVERITIES = [['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
@@ -34,21 +35,45 @@ function Evidence({ finding: { evidence: e } }) {
 // A skill proposal opens the plan of its project with the same switches as the Catalog; nothing is written before that plan is applied.
 const proposal = (f) => f.evidence.action && { dir: f.evidence.dir, title: f.message, params: f.evidence.skills.flatMap((s) => [[f.evidence.action, s.name], ['focus', s.name]]) };
 
+// What the setup can do about a finding: the doctor's finding shape decides whether the setup can fix it, as in the Dashboard.
+const fixOf = (f) => ({ action: fixAction({ ...f.evidence, message: f.message, fix: f.fix }), plan: proposal(f), ...splitSource(f.fix) });
+
+function Details({ finding: f, fix: { action, plan, text, source } }) {
+  return (
+    <>
+      {f.settings && <SettingFactsOf settings={f.settings} />}
+      <Evidence finding={f} />
+      {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">Fix: {text}</Text>}
+      {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source} w="fit-content">Documentation</Anchor>}
+    </>
+  );
+}
+
+function FixButtons({ fix: { action, plan }, onPlan }) {
+  return (
+    <>
+      {action && <Button component="a" href={action[0]} size="xs">{action[1]}</Button>}
+      {plan && <Button size="xs" onClick={() => onPlan(plan)}>Plan</Button>}
+    </>
+  );
+}
+
+// A path of four or more parts shows its last two in a row's title; the title's hover and the opened row show it in full.
+// A folder name may hold spaces; the last part may not, as the words after a path are not part of it.
+const PATH = /(?<![\w:/.~-])(?:[~.]|[A-Za-z]:)?(?:[\\/][^\s\\/:,;()'"]+(?: [^\s\\/:,;()'"]+)*(?=[\\/])){3,}[\\/][^\s\\/:,;()'"]+/g;
+const shortPaths = (text) => text.replace(PATH, (p) => `\u2026/${p.split(/[\\/]/).slice(-2).join('/')}`);
+// Errors are full cards; warnings and info are rows, so the summary names a finding as its card or row does.
+const titleOf = (f) => (f.severity === 'error' ? f.message : shortPaths(f.message));
+
 function Card({ finding: f, busy, onTriage, onPlan }) {
-  // The doctor's finding shape decides whether the setup can fix it, as in the Dashboard.
-  const action = fixAction({ ...f.evidence, message: f.message, fix: f.fix });
-  const plan = proposal(f), { text, source } = splitSource(f.fix);
+  const fix = fixOf(f);
   return (
     <Paper component="article" withBorder p="md" aria-labelledby={`finding-${f.key}`}>
       <Stack gap="sm">
         <Title order={4} size="h5" id={`finding-${f.key}`} tabIndex={-1} style={{ overflowWrap: 'anywhere' }}>{f.message}</Title>
-        {f.settings && <SettingFactsOf settings={f.settings} />}
-        <Evidence finding={f} />
-        {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">Fix: {text}</Text>}
-        {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source} w="fit-content">Documentation</Anchor>}
+        <Details finding={f} fix={fix} />
         <Group gap="xs">
-          {action && <Button component="a" href={action[0]} size="xs">{action[1]}</Button>}
-          {plan && <Button size="xs" onClick={() => onPlan(plan)}>Plan</Button>}
+          <FixButtons fix={fix} onPlan={onPlan} />
           <Group gap="xs" ml="auto">
             <Button size="xs" variant="default" disabled={busy} onClick={() => onTriage(f, 'dismiss')}>Dismiss</Button>
             <Button size="xs" variant="default" disabled={busy} onClick={() => onTriage(f, 'snooze')}>Snooze 7 days</Button>
@@ -56,6 +81,39 @@ function Card({ finding: f, busy, onTriage, onPlan }) {
         </Group>
       </Stack>
     </Paper>
+  );
+}
+
+// One line: the title opens the evidence and the fix hint, Dismiss and Snooze wait under More. The rows of an area share one surface.
+function Row({ finding: f, first, busy, onTriage, onPlan }) {
+  const [open, setOpen] = useState(false);
+  const fix = fixOf(f), title = shortPaths(f.message);
+  return (
+    <Box component="article" px="md" py="xs" aria-labelledby={`finding-${f.key}`} style={first ? undefined : { borderTop: '1px solid var(--mantine-color-default-border)' }}>
+      <Group gap="xs">
+        <Title order={4} size="h6" id={`finding-${f.key}`} tabIndex={-1} style={{ flex: '1 1 16rem', minWidth: 0 }}>
+          <UnstyledButton aria-expanded={open} aria-controls={open ? `finding-more-${f.key}` : undefined} title={f.message} onClick={() => setOpen(!open)} fz="inherit" fw="inherit" ta="left" style={{ display: 'flex', gap: 6, alignItems: 'center', overflowWrap: 'anywhere' }}>
+            <span style={{ display: 'flex', flexShrink: 0 }}>{icon(open ? IconChevronDown : IconChevronRight)}</span>{title}
+          </UnstyledButton>
+        </Title>
+        <Group gap="xs" ml="auto">
+          <FixButtons fix={fix} onPlan={onPlan} />
+          <Menu withinPortal={false} position="bottom-end">
+            <Menu.Target><Button size="xs" variant="default" disabled={busy}>More</Button></Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item disabled={busy} onClick={() => onTriage(f, 'dismiss')}>Dismiss</Menu.Item>
+              <Menu.Item disabled={busy} onClick={() => onTriage(f, 'snooze')}>Snooze 7 days</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </Group>
+      {open && (
+        <Stack gap="sm" mt="xs" id={`finding-more-${f.key}`}>
+          {title !== f.message && <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{f.message}</Text>}
+          <Details finding={f} fix={fix} />
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -190,7 +248,7 @@ export function Insights() {
             <>
               {error && <Note color="red" title="Not saved">{error}</Note>}
               <Text>
-                {order.length ? <>{plural(order.length, 'finding')}: {counts}. Do first: <Anchor component="button" fw={600} ta="left" onClick={() => goTo(order[0])}>{order[0].message}</Anchor></>
+                {order.length ? <>{plural(order.length, 'finding')}: {counts}. Do first: <Anchor component="button" fw={600} ta="left" onClick={() => goTo(order[0])}>{titleOf(order[0])}</Anchor></>
                   : hidden.length ? `No findings shown: ${hidden.length} dismissed or snoozed.` : 'No findings.'}
               </Text>
               <Text size="sm">
@@ -207,7 +265,9 @@ export function Insights() {
                     {areas.map(([area, list]) => (
                       <Stack key={area} gap="sm">
                         <Title order={3} size="h6">{area}</Title>
-                        {list.map((f) => <Card key={f.key} finding={f} busy={busy != null} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />)}
+                        {sev === 'error'
+                          ? list.map((f) => <Card key={f.key} finding={f} busy={busy != null} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />)
+                          : <Paper withBorder>{list.map((f, i) => <Row key={f.key} finding={f} first={!i} busy={busy != null} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />)}</Paper>}
                       </Stack>
                     ))}
                   </Stack>

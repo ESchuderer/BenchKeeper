@@ -603,7 +603,7 @@ export function helpFor([noun, verb] = []) {
   return lines.length ? `${lines.join('\n')}\n${HELP.slice(at)}` : HELP;
 }
 
-// The new command of each name the noun-first rename removed (docs/upgrading-to-7.md).
+// The new command of each name the noun-first rename removed.
 const RENAMED = { project: 'projects', 'update-all': 'projects update', test: 'verify', board: 'sessions board', record: 'sessions record', eval: 'evals plan', case: 'evals cases', maintain: 'knowledge' };
 const known = (cmd) => Object.keys(FLAGS).some((k) => k.split(' ')[0] === cmd);
 // The one line for a command or subcommand that does not exist; an old name names its new command.

@@ -42,13 +42,14 @@ const show = (file, view, role, name) => [file, async (page) => {
 }];
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
-  // The Dashboard as the app opens: the one-run buttons, what needs attention and the doctor count.
+  // The Dashboard as the app opens: what needs attention with Fix everything and the Set up menu, then the doctor count.
   ['start', async () => {}],
   ['onerun', async (page) => {
-    await page.getByRole('group', { name: 'One-run setup' }).getByRole('button', { name: 'Set up everything' }).click();
+    await page.getByRole('button', { name: 'Set up', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Set up everything' }).click();
     await expect(page.getByRole('dialog', { name: 'One-run setup' })).toBeVisible();
   }],
-  // Scrolled to Health: the ring of item states and the scopes beside it, the worst doctor findings below.
+  // Scrolled to Health: the bar of item states and the scopes beside it, the worst doctor findings below.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
   // The table unfolded, as a link to the Doctor section opens it. A window taller than the table: the sticky header would
   // cover its first rows.

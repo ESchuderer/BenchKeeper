@@ -10,9 +10,9 @@ const V = 'npx benchkeeper@6.25.0';
 export const VIEWS: { id: string; view: string; title: string; shot: string; alt: string; text: string[]; cli: string[] }[] = [
   {
     id: 'start', view: 'dashboard', title: 'Starting screen', shot: 'start',
-    alt: 'The Dashboard as the app opens: the one-run setup buttons, the number of items that need attention with where they are and the Fix everything button, the number of doctor findings, each with what it counts, then the ring of item states and the list of scopes.',
+    alt: 'The Dashboard as the app opens: the number of items that need attention with where they are, the Fix everything button and the Set up menu, the number of doctor findings by level, then the bar of item states and the list of scopes.',
     text: [
-      'The app opens on the Dashboard. The top row counts the items of the global setup and the projects that need attention, with a link to each place and the Fix everything button, and the doctor findings, which open the Doctor section. Each card says what its number counts: setup items or doctor findings.',
+      'The app opens on the Dashboard. The first panel counts the items of the global setup and the projects that need attention, with a link to each place, the Fix everything button and the Set up menu for the one-run setup. The doctor findings follow with their count by level; the count opens the Doctor section.',
       'The setup flow, install level, BenchKeeper plugin, installed skills, pack coverage, catalog by pack and global setup by part are folded under More about the setup.',
     ],
     cli: [`${V}`, `${V} projects status`],
@@ -28,9 +28,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'dashboard', view: 'dashboard', title: 'Dashboard health', shot: 'dashboard',
-    alt: 'The Dashboard scrolled to Health: a ring of item states with the total in the centre and the numbers as links beside it, the global setup and each project with its own state bar, then the three worst doctor findings, one line each, and the recent runs.',
+    alt: 'The Dashboard scrolled to Health: one bar of item states with the total above it and the numbers as links below it, the global setup and each project with its own state bar, then the three worst doctor findings, one line each, and the recent runs.',
     text: [
-      'Health counts the items of the global setup and of each registered project as current, modified, outdated, missing, removed, foreign or untracked, as one ring with the numbers as text. Where shows the same states per scope, with the packs of each project. Coverage, folded below, counts the projects that chose each pack, per agent. Every figure links to the view it counts.',
+      'Health counts the items of the global setup and of each registered project as current, modified, outdated, missing, removed, foreign or untracked, as one bar with the numbers as text. Where shows the same states per scope, with the packs of each project. Coverage, folded below, counts the projects that chose each pack, per agent. Every figure links to the view it counts.',
     ],
     cli: [`${V} dashboard`],
   },

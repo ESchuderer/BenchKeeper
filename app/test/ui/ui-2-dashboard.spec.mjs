@@ -55,10 +55,10 @@ test.describe('views', () => {
     await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
-  test('Dashboard: the top row counts what needs attention and where, the health ring and the scopes; the flow folds away', async ({ page }) => {
+  test('Dashboard: the status panel counts what needs attention and where, the health bar and the scopes follow; the flow folds away', async ({ page }) => {
     // The fixture has items in the global setup and a project: no one view shows both, so only the parts link.
     await expect(page.getByRole('link', { name: /items need attention/ })).toHaveCount(0);
-    await expect(page.getByText(/^items, in the global setup \d+, /).getByRole('link', { name: 'the global setup' })).toHaveAttribute('href', '#/agents?plan=1');
+    await expect(page.getByText(/^Global \d+, /).getByRole('link', { name: 'Global' })).toHaveAttribute('href', '#/agents?plan=1');
     await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the Doctor section$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
@@ -78,7 +78,25 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/history\?run=/);
   });
 
-  test('Dashboard: a project that cannot be read is named in the attention card, also when nothing else needs attention', async ({ page }) => {
+  test('Dashboard: the Set up menu holds the three one-run setups; no axe violations with it open, light and dark', async ({ page }) => {
+    await page.getByRole('button', { name: 'Set up', exact: true }).click();
+    const menu = page.getByRole('menu');
+    await expect(menu.getByRole('menuitem')).toHaveText(['Set up everything', 'Set up global only', 'Set up projects']);
+    await noAxe(page);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    // By keyboard: Enter opens the menu on its first item, the arrow keys move on, Enter opens that one-run mode (the third, Set up projects, has no global setup).
+    await page.getByRole('button', { name: 'Set up', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(menu.getByRole('menuitem', { name: 'Set up everything' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog', { name: 'One-run setup' }).getByRole('checkbox', { name: 'Global setup' })).not.toBeChecked();
+    await page.keyboard.press('Escape');
+  });
+
+  test('Dashboard: a project that cannot be read is named in the status panel, also when nothing else needs attention', async ({ page }) => {
     let clean = false;
     await page.route(/\/api\/dashboard(\?|$)/, async (route) => {
       const d = await (await route.fetch()).json();
@@ -116,7 +134,7 @@ test.describe('views', () => {
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
     await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
     await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/skills?pack=frontend');
-    // The rows beside the ring count what it draws.
+    // The rows under the bar count what it draws.
     const health = page.getByRole('region', { name: 'Health' });
     await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
     // Coverage rows are the packs a project chose; the others are one line of links under the table.
@@ -163,8 +181,8 @@ test.describe('views', () => {
     for (const line of await worst.all()) expect(await line.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThan(40);
     const count = (await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).textContent()).match(/\d+/g).map(Number).reduce((a, b) => a + b);
     await expect(doctor.getByRole('link', { name: `All ${count} in Insights` })).toHaveAttribute('href', '#/insights');
-    await expect(page.getByText('Counts setup items, in the global setup and the projects, that differ from the setup.')).toBeVisible();
-    await expect(page.getByText(/^Counts doctor findings: /)).toBeVisible();
+    await expect(page.getByText('items need attention', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Counts /)).toHaveCount(0);
     await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
     // A link to the section (the header's doctor count) opens the table.
     await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();

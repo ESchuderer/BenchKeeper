@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NAME as IDE } from '../../src/orca/index.mjs';
-import { nav } from './views.mjs';
+import { nav, setUp } from './views.mjs';
 import { ONE, GATE, RUNNER, noAxe, openDiffs, opened } from './chain.mjs';
 
 test.describe('views', () => {
@@ -370,7 +370,7 @@ test.describe('views', () => {
   const oneRun = (page) => page.getByRole('dialog', { name: 'One-run setup' });
 
   test('One-run, Global only: the start form, then a review page with only the global plan', async ({ page }) => {
-    await page.getByRole('button', { name: 'Set up global only' }).click();
+    await setUp(page, 'Set up global only');
     const drawer = oneRun(page);
     await expect(drawer.getByRole('checkbox', { name: 'Global setup' })).toBeChecked();
     // A shared setup is left to Update all.
@@ -388,7 +388,7 @@ test.describe('views', () => {
   });
 
   test('One-run: the level choice sets the global plan, lite plans the plugin alone', async ({ page }) => {
-    await page.getByRole('button', { name: 'Set up global only' }).click();
+    await setUp(page, 'Set up global only');
     const drawer = oneRun(page);
     await drawer.getByLabel('Level').selectOption('lite');
     const asked = page.waitForRequest((r) => r.url().includes('/api/global-plan?level=lite'));
@@ -405,7 +405,7 @@ test.describe('views', () => {
     const drawer = oneRun(page);
     writeFileSync(GATE, '');
     try {
-      await page.getByRole('button', { name: 'Set up everything', exact: true }).click();
+      await setUp(page, 'Set up everything');
       // Everything preselects every project the run can set up; serve.mjs registered other, the earlier tests broken and alpha.
       for (const name of ['uno', 'duo', 'broken', 'alpha', 'other']) await expect(drawer.getByRole('checkbox', { name, exact: true })).toBeChecked();
       for (const name of ['alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
@@ -461,7 +461,7 @@ test.describe('views', () => {
 
   test('One-run, Projects with one picked: no global plan, one consent for one session, one section', async ({ page }) => {
     await addProjects(page, ['tres']);
-    await page.getByRole('button', { name: 'Set up projects' }).click();
+    await setUp(page, 'Set up projects');
     const drawer = oneRun(page);
     await expect(drawer.getByRole('checkbox', { name: 'Global setup' })).not.toBeChecked();
     // Set up by the run before: not preselected. Without a setup: preselected.
@@ -484,7 +484,7 @@ test.describe('views', () => {
     const drawer = oneRun(page);
     writeFileSync(GATE, '');
     try {
-      await page.getByRole('button', { name: 'Set up projects' }).click();
+      await setUp(page, 'Set up projects');
       await drawer.getByRole('checkbox', { name: 'Global setup' }).check();
       for (const name of ['broken', 'alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
       await drawer.getByRole('button', { name: 'Start', exact: true }).click();
@@ -506,7 +506,7 @@ test.describe('views', () => {
     const drawer = oneRun(page);
     writeFileSync(GATE, '');
     try {
-      await page.getByRole('button', { name: 'Set up projects' }).click();
+      await setUp(page, 'Set up projects');
       await drawer.getByRole('checkbox', { name: 'Global setup' }).check();
       for (const name of ['broken', 'alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
       await drawer.getByRole('button', { name: 'Start', exact: true }).click();

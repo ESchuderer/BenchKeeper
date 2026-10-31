@@ -4,9 +4,9 @@
 import { sep } from 'node:path';
 
 const UNIT_KINDS = ['skill', 'pack', 'plugin', 'rules', 'agent-files'];
-// library: shipped with the app; git: a repository (at a ref when the unit names one, else its default branch);
+// library: shipped with the app; user: the user's own skill (packs.mjs); git: a repository (at a ref when the unit names one, else its default branch);
 // marketplace: a plugin marketplace entry.
-const UNIT_SOURCES = ['library', 'git', 'marketplace'];
+const UNIT_SOURCES = ['library', 'user', 'git', 'marketplace'];
 // files: removed with their backups (undo); skills-cli: the skills CLI's remove; plugin: the agent's plugin uninstall;
 // block: BenchKeeper's block comes out of a file that stays.
 const REMOVALS = ['files', 'skills-cli', 'plugin', 'block'];

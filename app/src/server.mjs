@@ -27,10 +27,10 @@ import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { copied, exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
 import { createPlan, listPresets, recommend } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, skillUsers, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
@@ -574,9 +574,19 @@ export function api(ctx) {
     },
     'GET /api/catalog': () => catalog(ctx),
     'GET /api/skill': (q) => {
-      const name = q.get('name');
-      if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
-      return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
+      const skill = libraryWith(ctx).skills.find((s) => s.name === q.get('name'));
+      if (!skill) throw Object.assign(new Error('unknown skill'), { status: 404 });
+      return { name: skill.name, text: copied(skill) ? readText(join(skillFolder(ctx, skill), 'SKILL.md')) : null };
+    },
+    // A plan that adds (new), edits or removes one of the user's skills; applied through /api/apply, undone in History.
+    'POST /api/user-skill-plan': (b) => {
+      const name = String(b.name ?? '');
+      const changes = preview([input(() => {
+        if (b.op === 'remove') return userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+        if (!['new', 'edit'].includes(b.op)) throw new Error('op must be new, edit or remove');
+        return userSkillWrite(ctx, name, String(b.text ?? ''), { isNew: b.op === 'new' });
+      })]);
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
     },
     // The findings shown; ?dismissed=1 the ones the user dismissed or declined, which "Show again" brings back.
     'GET /api/doctor': (q) => {
@@ -621,7 +631,7 @@ export function api(ctx) {
       return { opened: dir };
     },
     'GET /api/evals': () => evalResults(ctx),
-    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
+    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean), libraryWith(ctx)),
     'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
     'POST /api/packs': (b) => input(() => {
       if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });

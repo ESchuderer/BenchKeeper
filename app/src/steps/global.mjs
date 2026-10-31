@@ -10,7 +10,7 @@ import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
-import { globalSkillPacks, libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
+import { copied, globalSkillPacks, libraryWith, packScope, packScopes, scopeText, skillFolder } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import { dismissAll, dismissedNotes } from '../preferences.mjs';
 import * as orca from '../orca/index.mjs';
@@ -471,14 +471,16 @@ export function globalPlan(env) {
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f, `tools:skill:${name}`, `global skill ${name} from ${repo}`); }
-  // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the library.
+  // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the
+  // library and a user skill from the user's folder.
   for (const p of globalPacks) {
     for (const s of lib.skills.filter((x) => p.skills.includes(x.name))) {
       const title = `global skill ${s.name} (pack ${p.id}, ${scopeText('global')})`;
-      if (s.source !== 'own') { const f = flagsFor(s.name); if (f.length) skill(`https://github.com/${s.source}`, s.name, f, `pack:${p.id}`, title); continue; }
+      if (!copied(s)) { const f = flagsFor(s.name); if (f.length) skill(`https://github.com/${s.source}`, s.name, f, `pack:${p.id}`, title); continue; }
       const dirs = Object.keys(skillDirs).filter((a) => agents.includes(a)).map((a) => join(at(skillDirs[a]), s.name));
-      const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
-      for (const d of dirs) for (const f of listFiles(join(contentDir, 'library', s.name))) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, f), after: readFileSync(join(contentDir, 'library', s.name, f), 'utf8'), installUnit });
+      const src = skillFolder(ctx, s);
+      const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: s.source === 'user' ? 'user' : 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
+      for (const d of dirs) for (const f of listFiles(src)) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, f), after: readFileSync(join(src, f), 'utf8'), installUnit });
     }
   }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });

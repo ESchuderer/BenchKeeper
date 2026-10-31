@@ -27,8 +27,8 @@ import { projectOrigins } from './origin.mjs';
 import { createPlan, listPresets, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
-import { addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { copied, exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
+import { addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, skillUsers, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -162,7 +162,14 @@ Usage: benchkeeper <command> [options]
                                     add: a library skill the project lacks becomes a pick (names required);
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
   skills list --library             the library's skills with the number of registered projects that have each
-  skills show <name>                the SKILL.md of a library skill BenchKeeper ships; any other names its source
+  skills show <name>                the SKILL.md of a library skill BenchKeeper ships or of yours; any other names its source
+  skills new <name> [--file path | --description text] [--yes]
+                                    a skill of your own in ~/.config/benchkeeper/skills/<name>/, picked in a project or own
+                                    pack like a library skill and copied there: from --file, or a SKILL.md with the name and
+                                    --description. A plan with a diff (undo restores it), as are edit and delete
+  skills edit <name> --file path [--yes]
+                                    replaces the SKILL.md of your skill; projects with a copy get it on their next apply
+  skills delete <name> [--yes]      removes your skill; refused while a project or own pack names it
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
                                     prints the environment and npx command to start every skills CLI command with
@@ -300,7 +307,7 @@ Usage: benchkeeper <command> [options]
         rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
         profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
-        packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
+        packs enable|disable|scope, skills update|new|edit|delete, automations install|update|remove, undo, evals run,
         sessions cache set|clear)
                                     one JSON document on stdout, logs on stderr; keys in app/README.md. A changing
                                     command that would ask needs --yes: without it exit 2 and nothing changes
@@ -321,7 +328,7 @@ const OPTIONS = {
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
-  only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  only: { type: 'string' }, file: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   origins: { type: 'boolean' }, 'clone-into': { type: 'string' }, preset: { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
@@ -497,14 +504,14 @@ async function readDoc(ctx, { cmd, o, positionals, err }) {
     if (!target) return { error: 'skills show needs a skill name, see benchkeeper skills list --library', code: 2 };
     const skill = libraryWith(ctx).skills.find((s) => s.name === target);
     if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 2 };
-    // Only the skills BenchKeeper ships have their text in the app; the others live at their source.
-    return { doc: { name: skill.name, source: skill.source, text: skill.source === 'own' ? readText(join(contentDir, 'library', skill.name, 'SKILL.md')) : null } };
+    // Only the skills BenchKeeper ships and the user's own have their text here; the others live at their source.
+    return { doc: { name: skill.name, source: skill.source, text: copied(skill) ? readText(join(skillFolder(ctx, skill), 'SKILL.md')) : null } };
   }
   if (cmd === 'packs') {
     if (!target) return { error: 'packs warnings needs a pack, see benchkeeper packs list', code: 2 };
     const pack = libraryWith(ctx).packs.find((p) => p.id === target);
     if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 2 };
-    return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? []) } };
+    return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? [], libraryWith(ctx)) } };
   }
   const dir = canon(target ?? '.');
   if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 2 };
@@ -560,6 +567,7 @@ const FLAGS = {
   'packs list': '', 'packs show': '', 'packs save': 'skill', 'packs export': '', 'packs import': 'id', 'packs remove': '', 'packs warnings': '',
   'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
   'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
+  'skills new': 'file description yes all', 'skills edit': 'file yes all', 'skills delete': 'yes all',
   ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
   'projects create': 'preset yes all', 'presets list': '', 'presets save': 'project', 'presets remove': '',
   'projects status': '', 'projects advise': 'agent', 'projects list': '', 'projects add': 'worktree', 'projects scan': '',
@@ -687,6 +695,7 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ')} npx -y ${skillsSpec(ctx)}\n`);
     return 0;
   }
+  if (cmd === 'skills' && ['new', 'edit', 'delete'].includes(arg)) return userSkillCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
@@ -1159,7 +1168,7 @@ const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'd
 async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
-  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { err.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}, new, edit, delete\n`); return 2; }
   // list --check and update without names ask each source's default branch; update with names re-adds those skills.
   const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
@@ -1175,6 +1184,22 @@ async function skillsCommand(ctx, { o, positionals, out, err, ask }) {
   try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return lookupCode(e); }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
+}
+
+// skills new|edit|delete <name>: the user's own skills, each change a plan with a diff (undo restores it).
+async function userSkillCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub, name, extra] = positionals;
+  if (!name || extra !== undefined) { out.write(`skills ${sub} needs one skill name\n`); return 2; }
+  if (sub === 'edit' && !o.file) { out.write('skills edit needs --file <path> with the new SKILL.md\n'); return 2; }
+  let change;
+  try {
+    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+    else {
+      const text = o.file ? readFileSync(resolve(o.file), 'utf8') : `---\nname: ${name}\ndescription: ${JSON.stringify(o.description ?? 'What this skill does and when to use it.')}\n---\n\n# ${name}\n`;
+      change = userSkillWrite(ctx, name, text, { isNew: sub === 'new' });
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 2; }
+  return applyChosen(preview([change]), ctx, { o, ask, out });
 }
 
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.
@@ -1196,7 +1221,7 @@ const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'confirm-git', 'remove', 'rename', 'relocate', 'update'].includes(arg))
-  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'packs' && arg === 'scope') || (cmd === 'skills' && arg === 'update')
+  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'packs' && arg === 'scope') || (cmd === 'skills' && ['update', 'new', 'edit', 'delete'].includes(arg))
   || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
 const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.installUnit ? { unit: e.installUnit } : {}), ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });

@@ -1,6 +1,6 @@
 import { ActionIcon, Badge, Box, Button, Code, Drawer, Group, List, Paper, Popover, Progress, Select, Stack, Table, Tabs, Text, Textarea, Title } from '@mantine/core';
 import { IconEye, IconInfoCircle, IconPencil, IconPlayerStop } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
 import { when } from './run.jsx';
@@ -179,12 +179,13 @@ function Preview({ row, dir, onClose, onSaved }) {
 // The estimate behind an info button; Escape on the button closes it too (Mantine closes on Escape only inside the dropdown).
 function TokenNote({ name }) {
   const [opened, setOpened] = useState(false);
+  const note = useId();
   return (
     <Popover opened={opened} onChange={setOpened} width={240} withArrow withinPortal={false} position="bottom-start">
       <Popover.Target>
-        <ActionIcon variant="subtle" color="gray" size="sm" aria-label={`How ${name} tokens are counted`} onClick={() => setOpened((o) => !o)} onKeyDown={(e) => e.key === 'Escape' && setOpened(false)}>{icon(IconInfoCircle, 16)}</ActionIcon>
+        <ActionIcon variant="subtle" color="gray" size="sm" aria-label={`How ${name} tokens are counted`} aria-describedby={opened ? note : undefined} onClick={() => setOpened((o) => !o)} onKeyDown={(e) => e.key === 'Escape' && setOpened(false)}>{icon(IconInfoCircle, 16)}</ActionIcon>
       </Popover.Target>
-      <Popover.Dropdown><Text size="sm">A token is counted as four bytes: an estimate.</Text></Popover.Dropdown>
+      <Popover.Dropdown maw="calc(100vw - 32px)"><Text size="sm" id={note}>A token is counted as four bytes: an estimate.</Text></Popover.Dropdown>
     </Popover>
   );
 }

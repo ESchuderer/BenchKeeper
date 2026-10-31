@@ -308,6 +308,7 @@ test.describe('views', () => {
     // The estimate note is behind an info control, not a paragraph.
     await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeHidden();
     await page.getByRole('button', { name: 'How Claude Code tokens are counted' }).click();
+    await expect(page.getByRole('button', { name: 'How Claude Code tokens are counted' })).toHaveAccessibleDescription('A token is counted as four bytes: an estimate.');
     await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeHidden();

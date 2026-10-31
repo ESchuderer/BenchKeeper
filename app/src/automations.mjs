@@ -236,6 +236,51 @@ function runnerResult(r) {
 }
 const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.notInstalled(ctx)} (the automations runner is its CLI)`); };
 
+// ---- export: one sh script for cron or a systemd timer, without the runner
+
+const CRON = /^(@(hourly|daily|weekly|monthly|yearly|annually)|(\S+\s+){4}\S+)$/;
+// dontAsk denies every tool call no allow rule covers: nobody answers a prompt in a cron run. The helpers' folder
+// changes per run, so the script allows each helper itself ("$@").
+const HEADLESS = { claude: 'claude -p "$prompt" --permission-mode dontAsk "$@"', codex: 'codex exec --sandbox workspace-write -- "$prompt" </dev/null' };
+
+// Each helper path in s as "$helpers"/'<file>'; literal: s is text, not sh, so its other parts are single-quoted.
+const withHelpers = (t, s, literal) => t.helpers.reduce((parts, h) => parts.flatMap((p) => typeof p === 'string'
+  ? p.split(h).flatMap((x, i) => (i ? [{ helper: h.slice(t.id.length + 1) }, x] : [x])) : [p]), [s])
+  .map((p) => (typeof p !== 'string' ? `"$helpers"/${quote(p.helper)}` : literal && p !== '' ? quote(p) : p)).join('');
+
+// The script: unpacks the helpers into a temporary folder, runs the precheck in dir and the agent only when it exits 0.
+export function exportScript(ctx, id, { values = {}, dir }) {
+  const t = template(ctx, id);
+  if (!HEADLESS[t.agent]) throw new Error(`${id}: export runs claude or codex, not ${t.agent}`);
+  if (!CRON.test(t.schedule)) throw new Error(`${id}: the schedule "${t.schedule}" is not a cron line (five fields or @daily and the like)`);
+  if (t.workspace !== 'project') throw new Error(`${id}: workspace ${t.workspace} needs the runner`);
+  const filled = fill(t, values);
+  if (filled.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
+  const helpers = t.helper_files.map((h) => {
+    if (h.text == null) throw new Error(`${h.path} is missing`);
+    let end = 'HELPER';
+    while (h.text.split('\n').includes(end)) end += '_';
+    const rel = h.path.slice(t.id.length + 1), file = `"$helpers"/${quote(rel)}`;
+    const dir = rel.includes('/') ? `mkdir -p "$helpers"/${quote(rel.slice(0, rel.lastIndexOf('/')))}\n` : '';
+    return `${dir}cat > ${file} <<'${end}'\n${h.text.endsWith('\n') ? h.text : `${h.text}\n`}${end}\nchmod +x ${file}\n`;
+  }).join('');
+  const allow = t.agent === 'claude' && t.helpers.length
+    ? `set -- --allowedTools ${t.helpers.map((h) => `"Bash($helpers/${h.slice(t.id.length + 1)} *)"`).join(' ')}\n` : '';
+  return `#!/bin/sh
+# ${t.title} (${t.id}), from benchkeeper automations export. Runs the precheck in the project folder and
+# ${t.agent} only when it exits 0. A crontab line (crontab -e), with the absolute path of this file:
+# ${t.schedule} /path/to/${t.id}.sh
+command -v ${t.agent} >/dev/null || { echo "${t.agent} is not in PATH ($PATH): set PATH in the crontab" >&2; exit 127; }
+helpers=$(mktemp -d) || exit 1
+trap 'rm -rf "$helpers"' EXIT
+trap 'exit 1' HUP INT TERM
+${helpers}cd ${quote(resolve(dir))} || exit 1
+(${withHelpers(t, filled.precheck)}) || exit 0
+prompt=${withHelpers(t, filled.prompt, true)}
+${allow}${HEADLESS[t.agent]}
+`;
+}
+
 // Install: the runner creates it disabled, then the registry records its id. A record whose automation the runner no
 // longer has is replaced.
 export function installChanges(ctx, id, { values = {}, dir }) {

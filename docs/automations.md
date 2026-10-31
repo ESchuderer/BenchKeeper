@@ -118,6 +118,26 @@ The view shows per installed automation its state, whether it is enabled, its mo
 | a template of either tier without a precheck | add a precheck that exits 0 only when there is work |
 | two installed automations with the same schedule in one project checkout (workspace `project`): their sessions would run side by side in one folder | remove one of them, then install it in another project, or from a private copy of its template with another schedule. The schedules are compared as text, so `hourly` and `0 * * * *` are not matched |
 
+## Without Orca
+
+`benchkeeper automations export <id> --param name=value --project <dir> > ~/bin/<id>.sh` writes one sh script per template for cron or a systemd timer. The script unpacks the template's helpers into a temporary folder, runs the precheck in the project folder and starts the agent only when the precheck exits 0. It removes the folder when it ends. The app writes no crontab and no systemd unit, and it keeps no record, so `status`, `update` and `doctor` do not see an exported automation.
+
+1. Export, make the script executable (`chmod +x`) and run it once by hand in mode `report`.
+2. Add the line from the script's header to `crontab -e`, with the script's absolute path. Cron starts with a short PATH, so put a `PATH=` line above it that includes the folders of `claude` or `codex` and `gh` (`command -v claude`); the script exits 127 when it does not find the agent. A systemd timer: a service with `ExecStart=` the script and a timer with `OnCalendar=` the same time ([systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)).
+3. A changed template needs a new export.
+
+| Agent | Command in the script | What the run may do |
+|---|---|---|
+| `claude` | `claude -p "$prompt" --permission-mode dontAsk --allowedTools "Bash(<folder>/<helper> *)"..` | file reads in the folder, the template's helpers (the script allows each one, since their folder changes per run) and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the other commands the prompt runs, such as `gh`, to the project's settings |
+| `codex` | `codex exec --sandbox workspace-write "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
+
+Limits:
+
+- The script runs the agent as the account that runs cron, with its login, settings, hooks and MCP servers. A `claude -p` run starts the project's hooks and `.mcp.json` servers without the trust dialog ([headless mode](https://code.claude.com/docs/en/headless.md)), so export only for a project you trust.
+- The marker check of a precheck (`pgrep -f automation-<id>`) matches every process whose arguments carry the marker. Do not put `automation-<id>` in the script's file name, or the precheck sees the script itself and never starts a run.
+- Exporting a template that is also installed on the runner runs it twice. Remove one of them.
+- `missed_run_grace_minutes` and `reuse_session` have no effect: cron skips a time the machine was off.
+
 ## Catalogue
 
 The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).

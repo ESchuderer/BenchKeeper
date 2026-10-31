@@ -130,7 +130,7 @@ export function projectChecks(ctx, dir, agents) {
 // The findings shown; doctorReport also lists the dismissed ones.
 export const doctor = (ctx, o) => doctorReport(ctx, o).found;
 
-// baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
+// baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-standards profile (reads only).
 export function doctorReport(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);

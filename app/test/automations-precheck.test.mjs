@@ -22,7 +22,7 @@ test('automations precheck is not a command: exit 2 with the subcommands', async
   const lines = [];
   const cli = (argv) => main(argv, { out: { write: (s) => { lines.push(s); } }, err: { write: () => {} }, ctx: ctx() });
   assert.equal(await cli(['automations', 'precheck']), 2);
-  assert.equal(lines.pop(), 'automations needs list, show, install, update, remove, diff or status\n');
+  assert.equal(lines.pop(), 'automations needs list, show, install, update, remove, diff, status or export\n');
   assert.equal(await cli(['automations', 'precheck', 'pr-watcher', '--json']), 2);
   assert.match(JSON.parse(lines.pop()).error, /unexpected argument pr-watcher/);
   assert.equal(await cli(['automations', 'list', '--param', 'a=b']), 2);

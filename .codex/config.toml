@@ -1,5 +1,0 @@
-# Playwright MCP runs in the dev container (started if needed, at the repository root); this overrides the global host
-# entry for this repository.
-[mcp_servers.playwright]
-command = "sh"
-args = ["-c", "root=$(git rev-parse --show-toplevel) && devcontainer up --docker-path podman --workspace-folder \"$root\" < /dev/null > /dev/null 2>&1 && exec devcontainer exec --docker-path podman --workspace-folder \"$root\" playwright-mcp --browser chromium --headless"]

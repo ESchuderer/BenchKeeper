@@ -220,7 +220,7 @@ test('Codex and Copilot: a copy per chosen agent in its folder and format, secon
   assert.equal(p.run.status, 'done');
   assert.deepEqual(r.calls.filter((c) => c.argv[0] === 'curl').map((c) => c.argv.at(-2)).sort(), [AGENT, CODEX, COPILOT].map((x) => join(r.dir, x)).sort());
   assert.deepEqual(toml(readFileSync(join(r.dir, CODEX), 'utf8')), { name: 'Frontend Developer', description: 'Builds web UIs', developer_instructions: `from ${r.calls[0].argv.at(-1)}\n` });
-  assert.match(readFileSync(join(r.dir, COPILOT), 'utf8'), /^---\nname: Frontend Developer\n/);
+  assert.equal(readFileSync(join(r.dir, COPILOT), 'utf8'), `---\nname: Frontend Developer\ndescription: Builds web UIs\n---\nfrom ${r.calls[0].argv.at(-1)}\n`);
   const state = readState(r.dir);
   assert.deepEqual(state.agentOwned, [FILE, `codex:${FILE}`, `copilot:${FILE}`]);
   assert.deepEqual(Object.keys(state.agentHashes), state.agentOwned);

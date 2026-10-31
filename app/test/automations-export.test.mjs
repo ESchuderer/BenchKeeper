@@ -12,7 +12,7 @@ const PROMPT = `Check it's "quoted" $HOME \`date\` automation-probe.
 Run \`probe/list.sh {{flag}}\` and read its lines.`;
 
 // A user template whose precheck helper exits with the code in the file go, so a test picks whether the agent starts.
-function setup({ agent = 'claude', schedule = '0 7 * * 1' } = {}) {
+function setup({ agent = 'claude', schedule = '0 7 * * 1', precheck = 'probe/precheck.sh "{{flag}}"', list = 'list.sh' } = {}) {
   const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-export-')) });
   const dir = join(userDir(ctx), 'probe');
   mkdirSync(dir, { recursive: true });
@@ -21,8 +21,8 @@ id = "probe"
 title = "Probe"
 agent = "${agent}"
 schedule = "${schedule}"
-precheck = 'probe/precheck.sh "{{flag}}"'
-helpers = ["probe/precheck.sh", "probe/list.sh"]
+precheck = '${precheck}'
+helpers = ["probe/precheck.sh", "probe/${list}"]
 
 [parameters.flag]
 default = "x"
@@ -31,7 +31,8 @@ description = "passed through"
 ${PROMPT}
 `);
   writeFileSync(join(dir, 'precheck.sh'), '#!/bin/sh\necho "$1 $(dirname "$0")" > seen\nexit "$(cat go)"\nHELPER\n', { mode: 0o755 });
-  writeFileSync(join(dir, 'list.sh'), '#!/bin/sh\necho one\n', { mode: 0o755 });
+  mkdirSync(join(dir, list, '..'), { recursive: true });
+  writeFileSync(join(dir, list), '#!/bin/sh\necho one\n', { mode: 0o755 });
   const project = mkdtempSync(join(tmpdir(), 'bk-export-project-'));
   const bin = mkdtempSync(join(tmpdir(), 'bk-export-bin-'));
   // The stand-in agent writes its arguments, each followed by a -- line.
@@ -72,8 +73,16 @@ test('export: precheck 0 runs claude headless with the prompt intact and the hel
 test('export: codex runs codex exec in a workspace-write sandbox', () => {
   const s = setup({ agent: 'codex' });
   const args = run(exportScript(s.ctx, 'probe', { dir: s.project }), s, 0);
-  assert.deepEqual(args.slice(0, 3), ['exec', '--sandbox', 'workspace-write']);
-  assert.match(args[3], /automation-probe/);
+  assert.deepEqual(args.slice(0, 4), ['exec', '--sandbox', 'workspace-write', '--']);
+  assert.match(args[4], /automation-probe/);
+});
+
+test('export: a helper in a subfolder is unpacked into the same subfolder', () => {
+  const s = setup({ list: 'sub/list.sh' });
+  const script = exportScript(s.ctx, 'probe', { dir: s.project });
+  assert.match(script, /mkdir -p "\$helpers"\/'sub'\ncat > "\$helpers"\/'sub\/list\.sh'/);
+  const [, , ...flags] = run(script, s, 0);
+  assert.match(flags.join(' '), /Bash\(\S+\/sub\/list\.sh \*\)/);
 });
 
 test('export: an agent missing from PATH fails with exit 127 before the precheck', () => {
@@ -87,6 +96,7 @@ test('export: an agent missing from PATH fails with exit 127 before the precheck
 test('export refuses a template it cannot run without the runner', () => {
   assert.throws(() => exportScript(setup({ schedule: '' }).ctx, 'probe', { dir: '.' }), /not a cron line/);
   assert.throws(() => exportScript(setup({ schedule: 'FREQ=DAILY' }).ctx, 'probe', { dir: '.' }), /not a cron line/);
+  assert.throws(() => exportScript(setup({ precheck: '' }).ctx, 'probe', { dir: '.' }), /has no precheck/);
   assert.throws(() => exportScript(setup({ agent: 'gemini' }).ctx, 'probe', { dir: '.' }), /claude or codex, not gemini/);
   assert.throws(() => exportScript(setup().ctx, 'probe', { values: { flag: 'a;b' }, dir: '.' }), /parameter flag/);
 });

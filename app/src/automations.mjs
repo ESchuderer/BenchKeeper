@@ -241,7 +241,7 @@ const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.
 const CRON = /^(@(hourly|daily|weekly|monthly|yearly|annually)|(\S+\s+){4}\S+)$/;
 // dontAsk denies every tool call no allow rule covers: nobody answers a prompt in a cron run. The helpers' folder
 // changes per run, so the script allows each helper itself ("$@").
-const HEADLESS = { claude: 'claude -p "$prompt" --permission-mode dontAsk "$@"', codex: 'codex exec --sandbox workspace-write "$prompt" </dev/null' };
+const HEADLESS = { claude: 'claude -p "$prompt" --permission-mode dontAsk "$@"', codex: 'codex exec --sandbox workspace-write -- "$prompt" </dev/null' };
 
 // Each helper path in s as "$helpers"/'<file>'; literal: s is text, not sh, so its other parts are single-quoted.
 const withHelpers = (t, s, literal) => t.helpers.reduce((parts, h) => parts.flatMap((p) => typeof p === 'string'
@@ -254,13 +254,15 @@ export function exportScript(ctx, id, { values = {}, dir }) {
   if (!HEADLESS[t.agent]) throw new Error(`${id}: export runs claude or codex, not ${t.agent}`);
   if (!CRON.test(t.schedule)) throw new Error(`${id}: the schedule "${t.schedule}" is not a cron line (five fields or @daily and the like)`);
   if (t.workspace !== 'project') throw new Error(`${id}: workspace ${t.workspace} needs the runner`);
+  if (t.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
   const filled = fill(t, values);
   const helpers = t.helper_files.map((h) => {
     if (h.text == null) throw new Error(`${h.path} is missing`);
     let end = 'HELPER';
     while (h.text.split('\n').includes(end)) end += '_';
-    const file = `"$helpers"/${quote(h.path.slice(t.id.length + 1))}`;
-    return `cat > ${file} <<'${end}'\n${h.text.endsWith('\n') ? h.text : `${h.text}\n`}${end}\nchmod +x ${file}\n`;
+    const rel = h.path.slice(t.id.length + 1), file = `"$helpers"/${quote(rel)}`;
+    const dir = rel.includes('/') ? `mkdir -p "$helpers"/${quote(rel.slice(0, rel.lastIndexOf('/')))}\n` : '';
+    return `${dir}cat > ${file} <<'${end}'\n${h.text.endsWith('\n') ? h.text : `${h.text}\n`}${end}\nchmod +x ${file}\n`;
   }).join('');
   const allow = t.agent === 'claude' && t.helpers.length
     ? `set -- --allowedTools ${t.helpers.map((h) => `"Bash($helpers/${h.slice(t.id.length + 1)} *)"`).join(' ')}\n` : '';

@@ -232,7 +232,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     // Nothing chosen of the global plan: the apply records the declines and starts no run.
-    if (!select?.length) { (select && plan?.changes.length ? api('/api/apply', { planId: plan.planId, select: [] }) : Promise.resolve()).catch(() => {}).then(projects); return; }
+    if (!select?.length) { (select && plan?.changes.length ? api('/api/apply', { planId: plan.planId, select: [] }) : Promise.resolve()).then(projects, (e) => { setError(e.message); halt('the declines were not saved'); }); return; }
     api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (

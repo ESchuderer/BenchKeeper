@@ -112,6 +112,9 @@ test('a declined global change: remembered by step and content, unselected in th
   declineUnselected(ctx, [tool('2.0.0')], []);
   assert.equal(tool('2.0.0').selected, false);
   assert.equal(tool('3.0.0').selected, true, 'a new version shows again');
+  // Selected again in a later apply: no longer declined.
+  declineUnselected(ctx, [tool('2.0.0')], [tool('2.0.0').id]);
+  assert.equal(tool('2.0.0').selected, true);
   dismissNote(ctx, declined.dismissId, false);
   assert.ok(report().found.some((i) => i.dismissId === declined.dismissId), 'Show again');
 });

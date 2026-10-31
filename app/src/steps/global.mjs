@@ -257,8 +257,12 @@ export function declineId(c) {
   if (c.edit) try { what = c.edit(null); } catch { what = null; }
   return `change:${c.step}:${hashText(JSON.stringify([c.title, what]))}`;
 }
-// After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made.
-export const declineUnselected = (ctx, plan, select) => dismissAll(ctx, plan.filter((c) => !select.includes(c.id) && !c.optional && !c.destructive && !c.error).map(declineId));
+// After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made;
+// a declined change the user selected again is no longer declined.
+export function declineUnselected(ctx, plan, select) {
+  const eligible = plan.filter((c) => !c.optional && !c.destructive && !c.error);
+  dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+}
 
 export function globalPlan(env) {
   const { ctx, options = {} } = env;

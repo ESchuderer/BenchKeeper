@@ -27,10 +27,10 @@ export function setPreference(ctx, key, value) {
 // The dismissed note ids; a hand-edited list that is not one reads as empty, entries that are no string are skipped.
 export const dismissedNotes = (ctx) => { const d = readPreferences(ctx).dismissed; return new Set(Array.isArray(d) ? d.filter((x) => typeof x === 'string') : []); };
 
-// Adds ids to the list at once (one write).
-export function dismissAll(ctx, ids) {
-  const off = dismissedNotes(ctx), add = ids.filter((x) => !off.has(x));
-  if (add.length) setPreference(ctx, 'dismissed', [...off, ...new Set(add)]);
+// Adds ids to the list and takes others out, in one write.
+export function dismissAll(ctx, ids, shown = []) {
+  const off = dismissedNotes(ctx), add = ids.filter((x) => !off.has(x)), drop = shown.filter((x) => off.has(x));
+  if (add.length || drop.length) setPreference(ctx, 'dismissed', [...[...off].filter((x) => !drop.includes(x)), ...new Set(add)]);
 }
 
 // Dismisses a note (on) or shows it again.

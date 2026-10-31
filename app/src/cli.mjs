@@ -1126,7 +1126,8 @@ function nothingChosen(plan, select, o, out) {
 // declines: the global plan of the setup, whose unselected changes are recorded as declined.
 async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
-  if (declines) declineUnselected(ctx, plan, select);
+  // --all asks once for the whole plan: a no cancels it and declines nothing.
+  if (declines && !o.all) declineUnselected(ctx, plan, select);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 

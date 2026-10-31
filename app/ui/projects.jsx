@@ -297,9 +297,10 @@ export function CreateFromPreset({ onDone, onClose }) {
     try { setPlan(await api(`/api/create-plan?${new URLSearchParams({ dir, preset })}`)); } catch (x) { setError(x.message); }
   };
   const created = async (run) => {
-    if (!run) return;
+    // A failed or cancelled run is not registered; the server refuses a folder without its state file.
+    if (run?.status !== 'done') return;
     try {
-      await api('/api/projects', { action: 'add', path: plan.dir });
+      await api('/api/projects', { action: 'add', path: plan.dir, setup: true });
       onDone();
       setRec(await api(`/api/recommendations?${new URLSearchParams({ dir: plan.dir })}`));
     } catch (x) { setError(x.message); }

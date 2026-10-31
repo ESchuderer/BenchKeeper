@@ -45,7 +45,10 @@ test('presets: saved from a project with a setup, listed, never replaced, remove
   assert.throws(() => savePreset(ctx, 'none', h), /has no setup yet/);
   writeFileSync(join(ctx.config, 'presets', 'broken.json'), '{');
   writeFileSync(join(ctx.config, 'presets', 'other.json'), JSON.stringify({ ...p, id: 'renamed' }));
+  writeFileSync(join(ctx.config, 'presets', 'flat.json'), JSON.stringify({ ...p, id: 'flat', answers: { agents: 'claude' } }));
+  writeFileSync(join(ctx.config, 'presets', 'odd.json'), JSON.stringify({ ...p, id: 'odd', answers: { agents: ['claude'], packs: 'ui' } }));
   assert.deepEqual(listPresets(ctx).map((x) => x.id), ['web']);
+  assert.throws(() => savePreset(ctx, 'broken', join(h, 'first')), /preset broken exists/, 'a file that is not a valid preset is not replaced');
   removePreset(ctx, 'web');
   assert.deepEqual(listPresets(ctx), []);
   assert.equal(readdirSync(join(ctx.config, 'backup', 'presets')).length, 1);
@@ -106,6 +109,10 @@ test('CLI: projects create applies the plan, registers the folder and offers the
   ]) { o = await cli(ctx, args); assert.deepEqual([o.code, text.test(o.text)], [2, true], `${args.join(' ')}: ${o.text}`); }
   o = await cli(ctx, ['projects', 'create', join(h, 'y'), '--preset', 'web'], 'n\n'.repeat(20));
   assert.equal(existsSync(join(h, 'y')), false, 'declined: no folder');
+  // Every change but the state file: the folder exists, but it is not set up and not registered.
+  o = await cli(ctx, ['projects', 'create', join(h, 'z'), '--preset', 'web'], `${'y\n'.repeat(createPlan(ctx, join(h, 'z'), 'web').plan.length - 1)}n\n`);
+  assert.deepEqual([o.code, /has no setup state .*not registered/.test(o.text)], [1, true], o.text);
+  assert.ok(existsSync(join(h, 'z')) && !listProjects(ctx).some((x) => x.path === join(h, 'z')));
   o = await cli(ctx, ['presets']);
   assert.match(o.text, /^web +claude {2}packs: ui\n$/);
   assert.equal((await cli(ctx, ['presets', 'save', 'copy', '--project', dir])).code, 0);
@@ -127,7 +134,9 @@ test('server: presets, the plan of a new folder, and the recommendations of a re
   assert.equal(status(() => routes['GET /api/recommendations'](new URLSearchParams({ dir }))), 400);
   const { plan, pctx } = createPlan(ctx, dir, 'web');
   apply(plan, pctx, { scope: dir, select: plan.map((c) => c.id) });
-  routes['POST /api/projects']({ action: 'add', path: dir });
+  mkdirSync(join(h, 'bare'));
+  assert.equal(status(() => routes['POST /api/projects']({ action: 'add', path: join(h, 'bare'), setup: true })), 400);
+  routes['POST /api/projects']({ action: 'add', path: dir, setup: true });
   const r = routes['GET /api/recommendations'](new URLSearchParams({ dir }));
   assert.deepEqual(r.items.map((x) => x.name), ['docs']);
   assert.ok(r.planId && r.changes.every((c) => c.selected === false));

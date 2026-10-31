@@ -16,11 +16,15 @@ const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const dir = (ctx) => join(ctx.config, 'presets');
 const lookup = (message) => Object.assign(new Error(message), { status: 404 });
 
+const list = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
+// The answers the list and the form read: agents, and packs and single skills when present, as lists of names.
+const valid = (a) => list(a?.agents) && a.agents.length > 0 && ['packs', 'singles'].every((k) => a[k] === undefined || list(a[k]));
+
 // A file that is not a preset of this schema, named like its id, is left out.
 export const listPresets = (ctx) => listDir(dir(ctx)).flatMap((file) => {
   try {
     const p = JSON.parse(readText(join(dir(ctx), file)));
-    return p.kind === 'benchkeeper-preset' && p.schemaVersion === PRESET_SCHEMA && file === `${p.id}.json` && ID.test(p.id) && p.answers?.agents?.length ? [p] : [];
+    return p.kind === 'benchkeeper-preset' && p.schemaVersion === PRESET_SCHEMA && file === `${p.id}.json` && ID.test(p.id) && valid(p.answers) ? [p] : [];
   } catch { return []; }
 });
 
@@ -33,7 +37,8 @@ function preset(ctx, id) {
 // The answers of a project with a setup, under a new name; an existing preset is not replaced.
 export function savePreset(ctx, id, from) {
   if (!ID.test(id ?? '')) throw new Error('preset id: lowercase letters, digits and dashes');
-  if (listPresets(ctx).some((p) => p.id === id)) throw new Error(`preset ${id} exists: remove it first (benchkeeper presets remove ${id})`);
+  // Also a file that is not a valid preset stays: it may be one to repair.
+  if (exists(join(dir(ctx), `${id}.json`))) throw new Error(`preset ${id} exists: remove it first (benchkeeper presets remove ${id})`);
   const state = readState(from);
   if (!state) throw new Error(`${from} has no setup yet: benchkeeper projects apply --agents a,b`);
   const p = { kind: 'benchkeeper-preset', schemaVersion: PRESET_SCHEMA, id, title: id, answers: savedAnswers(state) };

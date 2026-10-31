@@ -1060,6 +1060,8 @@ async function createProject(ctx, { o, positionals, out, ask }) {
   const { dir } = planned;
   const code = await runProjectPlan(ctx, dir, { o, out, ask }, planned);
   if (code || !existsSync(dir)) return code;
+  // A selection without the state file leaves a folder that is not set up: it is not registered.
+  if (!tryState(dir)) { out.write(`${dir} has no setup state (the state file change was not chosen): not registered\n`); return 1; }
   out.write(`added ${addProject(ctx, dir)}\n`);
   const rec = recommend(ctx, dir);
   if (!rec.items.length) { out.write('no recommendations\n'); return 0; }

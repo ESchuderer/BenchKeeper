@@ -355,6 +355,8 @@ export function api(ctx) {
       const paths = [b.paths ?? b.path].flat();
       if (!paths.length || !paths.every((x) => typeof x === 'string' && isAbsolute(x))) throw bad('path must be an absolute path');
       const action = b.action ?? 'add';
+      // setup: a folder created from a preset is registered only with its state file.
+      if (action === 'add' && b.setup === true && !paths.every((x) => tryState(x))) throw bad('the folder has no setup state: not registered');
       if (action === 'add') paths.forEach((x) => addProject(ctx, x, { worktree: b.worktree === true }));
       else if (action === 'remove') removeProject(ctx, paths);
       else if (action === 'rename') renameProject(ctx, paths[0], { name: b.name, notes: b.notes });

@@ -183,8 +183,8 @@ const Summary = ({ agents, children }) => (
           return (
             <Stack key={id} gap="xs">
               <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
-              <Limit {...start} parts={parts} />
-              <Legend parts={parts} name={name} />
+              <Limit {...start} parts={parts.length ? parts : undefined} />
+              {parts.length > 0 && <Legend parts={parts} name={name} />}
               {unloaded > 0 && <Text size="sm">About {number(unloaded)} tokens of these sources may not load: {name} stops adding files at its size limit.</Text>}
               {over && <Note color="yellow">More than {number(threshold)} tokens (BenchKeeper's own limit, not the agent's): every turn pays for them. Turn off a file, split a long one into path-scoped rules, or shorten the largest source.</Note>}
             </Stack>

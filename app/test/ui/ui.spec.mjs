@@ -393,7 +393,7 @@ test.describe('views', () => {
     // The fixture has items in the global setup and a project: no one view shows both, so only the parts link.
     await expect(page.getByRole('link', { name: /items need attention/ })).toHaveCount(0);
     await expect(page.getByText(/^items, in the global setup \d+, /).getByRole('link', { name: 'the global setup' })).toHaveAttribute('href', '#/agents?plan=1');
-    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the table$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
+    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the Doctor section$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
     await expect(where.getByRole('listitem').first()).toContainText(/^Global\d+ current/);
@@ -480,14 +480,34 @@ test.describe('views', () => {
     await expect(page.getByRole('combobox', { name: 'Agent' })).toHaveValue('Codex');
   });
 
+  test('Dashboard: the Doctor section shows the worst three findings, errors first, one line each with its action, a link to all in Insights, and the full table folded', async ({ page }) => {
+    const doctor = page.getByRole('region', { name: 'Doctor' });
+    const worst = doctor.getByRole('list', { name: 'Worst doctor findings' }).getByRole('listitem');
+    await expect(worst).toHaveCount(3);
+    await expect(worst.nth(0)).toContainText(/^error/i);
+    await expect(worst.nth(1)).toContainText(/^error/i);
+    await expect(worst.getByRole('link', { name: /^(Plan fix|Review removal|Open settings|Plan project)$/ }).first()).toBeVisible();
+    for (const line of await worst.all()) expect(await line.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThan(40);
+    const count = (await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).textContent()).match(/\d+/g).map(Number).reduce((a, b) => a + b);
+    await expect(doctor.getByRole('link', { name: `All ${count} in Insights` })).toHaveAttribute('href', '#/insights');
+    await expect(page.getByText('Counts setup items, in the global setup and the projects, that differ from the setup.')).toBeVisible();
+    await expect(page.getByText(/^Counts doctor findings: /)).toBeVisible();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
+    // A link to the section (the header's doctor count) opens the table.
+    await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeVisible();
+  });
+
   test('Dashboard: a doctor finding opens the plan that fixes it', async ({ page }) => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
+    await doctor.getByText('Every finding with its fix').click();
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
+    await page.getByRole('region', { name: 'Doctor' }).getByText('Every finding with its fix').click();
     const table = page.getByRole('region', { name: 'Doctor' }).getByRole('table', { name: 'Doctor findings' });
     await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Open settings' })).toBeVisible();
     await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
@@ -505,7 +525,7 @@ test.describe('views', () => {
       const real = await (await route.fetch()).json();
       route.fulfill({ json: { ...real, findings: [...real.findings, { ...real.findings.at(-1), key: 'info-test', id: 'info-test', severity: 'info', message: info.message, triage: null }] } });
     });
-    await page.goto('/#/dashboard');
+    await page.goto('/#/dashboard?panel=doctor');
     await page.reload();
     const badge = page.getByRole('banner').getByRole('link', { name: /^Doctor: / });
     await expect(badge).toHaveText(/^Doctor: \d+ errors?, \d+ warnings?, 1 info$/);
@@ -2074,6 +2094,7 @@ test.describe('views', () => {
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     // The doctor and Insights name the keys of a settings finding.
     await nav(page, 'Dashboard').click();
+    await page.getByText('Every finding with its fix').click();
     await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
     await nav(page, 'Insights').click();
     const denyRow = page.getByRole('article', { name: /No Read deny rule/ });

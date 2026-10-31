@@ -813,15 +813,15 @@ const inside = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(
 // The repository each session folder counts under, the first that names one: the main worktree git gave for the folder
 // on any of its rows (kept after the folder is gone); the registered project whose folder or worktree holds it; the
 // deepest known repository it sits in; the one known repository named like its parent folder
-// (<worktrees root>/<repository>/<worktree>). A folder none of them names is left out: the board shows it under Other.
+// (<worktrees root>/<repository>/<worktree>), in any letter case. A folder none of them names is left out: the board shows it under Other.
 function repoKeys(rows, registered) {
   const found = new Map(rows.filter((r) => r.project && r.repo).map((r) => [r.project, r.repo]));
   const known = [...new Set([...found.values(), ...registered.map((x) => x.path)])].sort((a, b) => b.length - a.length);
   const named = new Map();
-  for (const k of known) named.set(parts(k).at(-1), named.has(parts(k).at(-1)) ? null : k);
+  for (const k of known) { const b = parts(k).at(-1); if (!b) continue; const n = b.toLowerCase(); named.set(n, named.has(n) ? null : k); }
   const keys = new Map();
   for (const p of new Set(rows.map((r) => r.project).filter(Boolean))) {
-    const k = found.get(p) ?? registered.find((x) => [x.path, ...x.worktrees].some((d) => inside(d, p)))?.path ?? known.find((d) => inside(d, p)) ?? named.get(parts(p).at(-2));
+    const k = found.get(p) ?? registered.find((x) => [x.path, ...x.worktrees].some((d) => inside(d, p)))?.path ?? known.find((d) => inside(d, p)) ?? named.get(parts(p).at(-2)?.toLowerCase());
     if (k) keys.set(p, k);
   }
   return keys;

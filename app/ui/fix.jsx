@@ -28,8 +28,9 @@ const levelBadge = (i) => <Badge variant="default" miw="max-content" leftSection
 const actionButton = (action, onAction) => <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>;
 
 // The worst findings first (errors, then warnings, then info, in the doctor's order within a level), one line each: the
-// level, the finding cut to one line (in full on hover) and the action that fixes it.
+// level, the finding cut to one line (in full on hover; below sm it wraps, as touch has no hover) and the action that fixes it.
 export function DoctorWorst({ found, n = 3 }) {
+  const phone = useMediaQuery('(max-width: 47.99em)');
   const worst = Object.keys(LEVEL_COLOR).flatMap((l) => found.filter((i) => i.level === l)).slice(0, n);
   return (
     <List listStyleType="none" aria-label="Worst doctor findings" spacing="xs">
@@ -39,7 +40,7 @@ export function DoctorWorst({ found, n = 3 }) {
           <List.Item key={k} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
             <Group gap="sm" wrap="nowrap">
               {levelBadge(i)}
-              <Text size="sm" truncate title={i.message} style={{ flex: 1, minWidth: 0 }}>{i.message}</Text>
+              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0 }}>{i.message}</Text>
               {action && actionButton(action)}
             </Group>
           </List.Item>

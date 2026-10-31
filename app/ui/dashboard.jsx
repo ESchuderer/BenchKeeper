@@ -293,7 +293,7 @@ export function Dashboard({ overview, doctor, history, params }) {
           {fromDash((d) => <Attention data={d} />)}
           <FixEverythingButton />
         </Card>
-        <Card title="Doctor findings" counts="Counts doctor findings: problems its checks found in the setup, agent settings and projects.">
+        <Card title="Doctor findings" counts="Counts doctor findings: problems its checks found in the setup and the agent settings.">
           <Loading state={doctor} label="doctor">{(found) => (
             <>
               <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the Doctor section`} />
@@ -312,12 +312,13 @@ export function Dashboard({ overview, doctor, history, params }) {
       </Grid>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section. */}
+          {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section.
+              Closing it drops the panel from the hash, so the same link opens it again. */}
           <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => (found.length ? (
             <Stack gap="sm">
               <DoctorWorst found={found} />
               <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
-              <details open={panel === 'doctor'}>
+              <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
                 <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
                 <Box mt="sm"><DoctorTable found={found} /></Box>
               </details>

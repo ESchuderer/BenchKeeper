@@ -481,11 +481,16 @@ test.describe('views', () => {
   });
 
   test('Dashboard: the Doctor section shows the worst three findings, errors first, one line each with its action, a link to all in Insights, and the full table folded', async ({ page }) => {
+    // An info finding: it ranks after the warnings.
+    const info = { level: 'info', check: 'allow-rules', message: 'Claude Code allows WebFetch', fix: 'information only, nothing is changed' };
+    await page.route(/\/api\/doctor(\?|$)/, async (route) => route.fulfill({ json: [...await (await route.fetch()).json(), info] }));
+    await page.reload();
     const doctor = page.getByRole('region', { name: 'Doctor' });
     const worst = doctor.getByRole('list', { name: 'Worst doctor findings' }).getByRole('listitem');
     await expect(worst).toHaveCount(3);
     await expect(worst.nth(0)).toContainText(/^error/i);
     await expect(worst.nth(1)).toContainText(/^error/i);
+    await expect(worst.nth(2)).toContainText(/^warning/i);
     await expect(worst.getByRole('link', { name: /^(Plan fix|Review removal|Open settings|Plan project)$/ }).first()).toBeVisible();
     for (const line of await worst.all()) expect(await line.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThan(40);
     const count = (await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).textContent()).match(/\d+/g).map(Number).reduce((a, b) => a + b);
@@ -494,6 +499,12 @@ test.describe('views', () => {
     await expect(page.getByText(/^Counts doctor findings: /)).toBeVisible();
     await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
     // A link to the section (the header's doctor count) opens the table.
+    await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeVisible();
+    // Closed again, the same link opens it again.
+    await doctor.getByText('Every finding with its fix').click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
+    await expect(page).toHaveURL(/#\/dashboard$/);
     await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();
     await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeVisible();
   });

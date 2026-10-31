@@ -41,7 +41,7 @@ function DoctorTable({ found, onAction, onDismiss }) {
                 {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                 {i.start && <StartBlock start={i.start} />}
-                {onDismiss && i.dismissId && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
+                {onDismiss && i.dismissId?.startsWith('doctor:') && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
               </Stack>
             );
             return (
@@ -58,7 +58,7 @@ function DoctorTable({ found, onAction, onDismiss }) {
   );
 }
 
-// Doctor findings with Dismiss on each that can be dismissed or declined, and the dismissed ones under a fold with Show again.
+// Doctor findings with Dismiss on each opinion, and the dismissed opinions and declined changes under a fold with Show again.
 // path: the doctor route; dir marks the findings of a project.
 export function DoctorFindings({ state, path, dir }) {
   const off = useApi(`${path}${path.includes('?') ? '&' : '?'}dismissed=1`);

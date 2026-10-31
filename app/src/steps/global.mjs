@@ -484,7 +484,7 @@ export function globalPlan(env) {
 // A change the user declined stays in the plan, unselected.
 function declinedOff(ctx, changes) {
   const off = dismissedNotes(ctx);
-  return checkPlan(changes.map((c) => (off.has(declineId(c)) ? { ...c, selected: false } : c)));
+  return checkPlan(changes.map((c) => (off.has(declineId(c)) ? { ...c, selected: false, declined: true } : c)));
 }
 
 function parseJsonSafe(text) { try { return parseJson(text ?? '{}'); } catch { return {}; } }

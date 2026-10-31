@@ -160,9 +160,10 @@ export function api(ctx) {
     return evalPlan(ctx, { agents: agents.length ? agents : ['claude'], all: get('all') === '1' || get('all') === true, only: only.length ? only : undefined });
   };
   // Plans wait for Apply 30 minutes; the newest 50 are kept.
-  const keep = (changes, pctx, scope) => {
+  // declines: the global plan of the setup, whose unselected changes an apply records as declined.
+  const keep = (changes, pctx, scope, declines = false) => {
     const id = randomBytes(8).toString('hex');
-    plans.set(id, { changes, ctx: pctx, scope, at: Date.now() });
+    plans.set(id, { changes, ctx: pctx, scope, declines, at: Date.now() });
     for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
     return id;
   };
@@ -236,7 +237,7 @@ export function api(ctx) {
       const level = q.get('level') ?? levelFor(ctx, agents);
       if (!LEVELS.includes(level)) throw bad(`level must be one of ${LEVELS.join(', ')}`);
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
-      return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
+      return { planId: keep(changes, ctx, 'global', true), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
     'POST /api/apply': (b) => {
@@ -246,7 +247,7 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
-      if (p.scope === 'global' && b.select) declineUnselected(ctx, p.changes, b.select);
+      if (p.declines && b.select) declineUnselected(ctx, p.changes, b.select);
       // Output is masked as it arrives and kept per change, its last 64 kB; GET /api/job cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
@@ -268,7 +269,7 @@ export function api(ctx) {
       if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
       for (const { p, select } of list) confirmed(p, select, b.confirmDestructive);
       for (const { id } of list) plans.delete(id);
-      for (const { p, select } of list) if (p.scope === 'global' && select) declineUnselected(ctx, p.changes, select);
+      for (const { p, select } of list) if (p.declines && select) declineUnselected(ctx, p.changes, select);
       return start(list.length, async (job) => {
         job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
         for (const [i, { p, select }] of list.entries()) {
@@ -623,7 +624,7 @@ export function api(ctx) {
       if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
       const done = input(() => importChoices(ctx, p));
       const plan = importPlan(ctx, p);
-      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global', true), changes: serialize(plan.global, ctx) },
         plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
     },
     'POST /api/scan': (b) => {

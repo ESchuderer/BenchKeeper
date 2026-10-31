@@ -9,8 +9,8 @@ import { PLUGINS, globalPlan } from './steps/global.mjs';
 
 // The state of each change of a plan against the files as they are, given to put(step, title, state); also for a project's plan.
 export function classify(ctx, plan, put) {
-  // An optional step left off is not drift.
-  for (const c of plan.filter((x) => !x.optional)) {
+  // An optional step left off is not drift, nor is a change the user declined.
+  for (const c of plan.filter((x) => !x.optional && !x.declined)) {
     if (c.kind === 'command' || c.kind === 'remove' || c.destructive) { put(c.step, c.title, c.outdated ? 'outdated' : c.kind === 'command' && !c.destructive ? 'missing' : 'foreign'); continue; }
     // Each edit against the file as it is, so one pending edit of settings.json does not mark the others.
     let after;

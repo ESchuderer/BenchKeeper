@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
 import { doctor, doctorReport } from '../src/doctor.mjs';
+import { inventory } from '../src/inventory.mjs';
+import { containerProjects } from '../src/level.mjs';
 import { levelCounts } from '../src/levels.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { declineUnselected, globalPlan } from '../src/steps/global.mjs';
@@ -100,6 +102,7 @@ test('a declined global change: remembered by step and content, unselected in th
   declineUnselected(ctx, first, first.filter((c) => c.selected && c !== settings).map((c) => c.id));
   assert.deepEqual([...dismissedNotes(ctx)].filter((x) => x.startsWith('change:')).map((x) => x.split(':').slice(0, 3).join(':')), ['change:settings:claude'], 'only the unselected change, not the optional ones');
   assert.equal(plan().find((c) => c.step === 'settings:claude').selected, false);
+  assert.ok(!inventory(ctx, ['claude'], { devcontainerCli: '1.0.0' }).some((i) => i.step === 'settings:claude'), 'no attention on the Dashboard');
   const report = () => doctorReport(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.ok(!report().found.some((i) => i.check === 'settings' && /^Claude settings/.test(i.message)));
   const [declined] = report().dismissed.filter((i) => /^Claude settings/.test(i.message));
@@ -128,6 +131,18 @@ test('opinions can be dismissed: a telemetry variable everywhere it is set, the 
   const { found, dismissed } = report();
   assert.ok(!found.some((i) => ids.includes(i.dismissId)));
   assert.deepEqual(dismissed.filter((i) => i.dismissId.startsWith('doctor:')).map((i) => i.check), ['env', 'env', 'tools', 'agents-md']);
+});
+
+test('a registered project not set up yet counts as a dev container project when it has .devcontainer/: the global plan installs the CLI', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-fresh-'));
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: dir }] }));
+  assert.equal(containerProjects(ctx), false, 'no .devcontainer/: the host');
+  mkdirSync(join(dir, '.devcontainer'));
+  assert.equal(containerProjects(ctx), true);
+  assert.ok(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '2.0.0', options: { containers: containerProjects(ctx) } }).some((c) => c.step === 'tools:devcontainer'));
+  assert.ok(!globalPlan({ ctx, agents: ['claude'], devcontainerCli: '2.0.0', options: { containers: false } }).some((c) => c.step === 'tools:devcontainer'));
 });
 
 test('keep your edits: an optional change that silences the rules warning until the file or the setup version changes', () => {

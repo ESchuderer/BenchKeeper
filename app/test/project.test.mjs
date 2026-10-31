@@ -387,6 +387,13 @@ test('no state file and no statement in AGENTS.md: the host, unless .devcontaine
   mkdirSync(join(r.dir, '.devcontainer'));
   assert.equal(env(), 'container');
   assert.deepEqual(sandbox('host-agent'), { enabled: true, excludedCommands: ['devcontainer exec *', 'podman *'] });
+  // Set up with them, then moved to the host: they come out, another exclusion stays.
+  apply(preview(plan(r, { agents: ['claude'], env: 'host-agent', sandbox: true }).changes).filter((c) => c.kind !== 'command'), r.ctx, { scope: r.dir });
+  const local = join(r.dir, '.claude/settings.local.json');
+  const st = JSON.parse(read(local));
+  writeFileSync(local, JSON.stringify({ ...st, sandbox: { ...st.sandbox, excludedCommands: [...st.sandbox.excludedCommands, 'docker *'] } }));
+  apply(preview(plan(r, { agents: ['claude'], env: 'host', sandbox: true }).changes.filter((c) => c.step === 'sandbox')), r.ctx, { scope: r.dir });
+  assert.deepEqual(JSON.parse(read(local)).sandbox, { enabled: true, excludedCommands: ['docker *'] });
 });
 
 test('a choice taken back cleans up: sandbox off, dropped agents lose their files, folders other agents share stay', () => {

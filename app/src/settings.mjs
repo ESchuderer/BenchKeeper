@@ -404,7 +404,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0, ...(recommended(agentId, k) !== undefined ? { recommended: recommended(agentId, k) } : {}) };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);

@@ -662,7 +662,7 @@ async function command(argv, { out, err, ask, ctx }) {
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return applyAnswered(plan, ctx, 'global', { o, ask, out });
+    return applyAnswered(plan, ctx, 'global', { o, ask, out, declines: true });
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
@@ -897,7 +897,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     for (const m of plan.notes) out.write(`note: ${m}\n`);
-    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out });
+    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out, declines: true });
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
       code |= await applyAnswered(x.changes, x.ctx, x.path, { o, ask, out });
@@ -1130,9 +1130,10 @@ function nothingChosen(plan, select, o, out) {
 }
 
 // The changes chosen from a plan applied as one run.
-async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
+// declines: the global plan of the setup, whose unselected changes are recorded as declined.
+async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
-  if (scope === 'global') declineUnselected(ctx, plan, select);
+  if (declines) declineUnselected(ctx, plan, select);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 

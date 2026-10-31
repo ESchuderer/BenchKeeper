@@ -489,12 +489,15 @@ test.describe('views', () => {
 
   test('Dashboard: Dismiss moves a doctor finding under Dismissed, Show again brings it back', async ({ page }) => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
-    const rules = doctor.getByRole('table', { name: 'Doctor findings' }).getByRole('row', { name: /Claude Code rules/ });
-    await rules.getByRole('button', { name: /^Dismiss: Claude Code rules/ }).click();
-    await expect(rules).toHaveCount(0);
+    const table = doctor.getByRole('table', { name: 'Doctor findings' });
+    // Only an opinion has Dismiss; a missing part of the setup is declined in the plan instead.
+    await expect(table.getByRole('row', { name: /Claude Code rules/ }).getByRole('button', { name: /^Dismiss: / })).toHaveCount(0);
+    const engine = table.getByRole('row', { name: /no container engine/ });
+    await engine.getByRole('button', { name: 'Dismiss: no container engine (podman or docker)' }).click();
+    await expect(engine).toHaveCount(0);
     await doctor.getByRole('button', { name: /^Dismissed \(\d+\)$/ }).click();
-    await doctor.getByRole('list', { name: 'Dismissed doctor findings' }).getByRole('button', { name: /^Show again: Claude Code rules/ }).click();
-    await expect(rules).toHaveCount(1);
+    await doctor.getByRole('list', { name: 'Dismissed doctor findings' }).getByRole('button', { name: 'Show again: no container engine (podman or docker)' }).click();
+    await expect(engine).toHaveCount(1);
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {

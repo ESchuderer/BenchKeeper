@@ -71,7 +71,7 @@
       "name": "Codex",
       "layers": { "user": ".codex/config.toml", "project": ".codex/config.toml" },
       "managed": ["/etc/codex/managed_config.toml", "/etc/codex/config.toml"],
-      "managedSource": "https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/config/src/loader/README.md",
+      "managedSource": "https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/loader/README.md",
       "precedence": ["managed", "project", "user"],
       "settings": [
         { "key": "model", "group": "Model", "type": "string", "default": "unset (unverified: the client picks)", "sentence": "The model Codex uses.", "summary": "The model Codex uses.", "eli5": "Codex can run on several models. This picks which one.", "impact": "Speed, cost and quality follow the model (unverified: the reference names no prices). Pick a model your signed-in account or workspace can use.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" },

@@ -8,12 +8,12 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
-import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
+import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
 import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { copied, libraryWith, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
+import { copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -322,14 +322,6 @@ export function chosenSkills(a, lib = library()) {
   return lib.skills.filter((s) => names.has(s.name) && (s.agents !== 'codex' || a.agents.includes('codex')));
 }
 
-// A copied skill's files (src: its folder, packs.mjs skillFolder) as a project gets them: with the path globs of the setup in the front matter.
-export function ownSkillFiles(src, paths) {
-  return listFiles(src).map((file) => {
-    const text = readFileSync(join(src, file), 'utf8');
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
-  });
-}
-
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
@@ -533,11 +525,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const reseat = a.reset.includes(s.name);
     if (copied(s)) {
       for (const { dir: d } of rest) {
-        for (const { file, text } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
+        for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          const found = itemState(path, text ?? bytes, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
           if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
-          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
+          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {

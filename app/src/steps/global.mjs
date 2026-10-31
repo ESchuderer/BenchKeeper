@@ -10,7 +10,7 @@ import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
-import { copied, globalSkillPacks, libraryWith, packScope, packScopes, scopeText, skillFolder } from '../packs.mjs';
+import { copied, globalSkillPacks, libraryWith, ownSkillFiles, packScope, packScopes, scopeText, skillFolder } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import { dismissAll, dismissedNotes } from '../preferences.mjs';
 import * as orca from '../orca/index.mjs';
@@ -480,7 +480,7 @@ export function globalPlan(env) {
       const dirs = Object.keys(skillDirs).filter((a) => agents.includes(a)).map((a) => join(at(skillDirs[a]), s.name));
       const src = skillFolder(ctx, s);
       const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: s.source === 'user' ? 'user' : 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
-      for (const d of dirs) for (const f of listFiles(src)) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, f), after: readFileSync(join(src, f), 'utf8'), installUnit });
+      for (const d of dirs) for (const { file, text, from } of ownSkillFiles(src)) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, file), ...(from ? { from } : { after: text }), installUnit });
     }
   }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });

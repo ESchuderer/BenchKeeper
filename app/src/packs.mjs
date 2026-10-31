@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { contentDir, library } from './content.mjs';
-import { exists, move, readText, writeAtomic } from './fsx.mjs';
+import { exists, listFiles, move, readText, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -37,6 +37,15 @@ export const userSkillDir = (ctx, name) => join(ctx.config, 'skills', name);
 // A skill copied from a folder, not added through the skills CLI, and the folder it is copied from.
 export const copied = (s) => s?.source === 'own' || s?.source === 'user';
 export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, s.name) : join(contentDir, 'library', s.name));
+// A copied skill's files (src: its folder) as they are written: text with the path globs of the setup in SKILL.md's front matter,
+// and a file that is not UTF-8 text (an image of a user skill) as a byte copy, from, with its bytes.
+export function ownSkillFiles(src, paths) {
+  return listFiles(src).map((file) => {
+    const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
+    if (!Buffer.from(text).equals(bytes)) return { file, from: join(src, file), bytes };
+    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
+  });
+}
 
 // The Agent Skills rules (agentskills.io/specification): a name of 1 to 64 lowercase letters, digits and single hyphens, not
 // at the start or end, that the front matter repeats, and a description of 1 to 1024 characters. Returns the description.

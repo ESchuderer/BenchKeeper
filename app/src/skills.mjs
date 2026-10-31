@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, isDir, listDir, readText } from './fsx.mjs';
-import { copied, libraryWith, skillFolder } from './packs.mjs';
+import { copied, libraryWith, ownSkillFiles, skillFolder } from './packs.mjs';
 import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
 import { KEEP_SKILLS } from './steps/global.mjs';
-import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/project.mjs';
+import { editedHere, lockedSkills, tryState } from './steps/project.mjs';
 
 // The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
 // Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
@@ -24,7 +24,7 @@ const subfolders = (dir) => listDir(dir).filter((n) => NAME.test(n) && isDir(joi
 // current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone), disabled.
 function ownState(ctx, dir, skill, a) {
   const ids = a.agents.filter((x) => skill.agents !== 'codex' || x === 'codex');
-  const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skillFolder(ctx, skill), a.paths?.[skill.name]).map(({ file, text }) => itemState(join(d, skill.name, file), text, ctx)));
+  const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skillFolder(ctx, skill), a.paths?.[skill.name]).map(({ file, text, bytes }) => itemState(join(d, skill.name, file), text ?? bytes, ctx)));
   if (seen.includes('modified')) return 'modified';
   if (seen.some((s) => ['removed', 'absent'].includes(s))) return 'removed';
   // Foreign: no run of this machine wrote it (a clone, another worktree), so the library's copy counts as the newer one.

@@ -128,6 +128,26 @@ test('a skill pack for all projects copies a user skill into the global skill fo
   ]);
 });
 
+test('a file of a user skill that is not UTF-8 text is copied byte for byte, in a project and globally', () => {
+  const ctx0 = ctxAt();
+  const dir = mkdtempSync(join(TMP, 'bk-user-skill-bin-'));
+  execFileSync('git', ['init', '-q', dir]);
+  const ctx = { ...ctx0, roots: [...ctx0.roots, dir] };
+  add(ctx, 'release-notes');
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0x00, 0xfe]);
+  writeFileSync(join(userSkillDir(ctx, 'release-notes'), 'logo.png'), bytes);
+  const plan = preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host', skills: ['release-notes'] }, plugins: {} }).changes);
+  assert.equal(apply(plan, ctx, { scope: dir }).status, 'done');
+  assert.ok(readFileSync(join(dir, '.claude/skills/release-notes/logo.png')).equals(bytes));
+  assert.ok(!preview(projectPlan({ ctx, dir, answers: {}, plugins: {} }).changes).some((c) => c.path?.endsWith('logo.png') && !c.noop));
+  assert.equal(projectSkills(ctx, dir).skills[0].state, 'current');
+  savePack(ctx, { id: 'mine', skills: ['release-notes'] });
+  apply(preview([{ id: 'scope', step: 'scope', title: 'scope', ...scopeWrite(ctx, 'mine', 'global') }]), ctx, { scope: 'global' });
+  const global = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { packs: [], containers: false } })).filter((c) => c.step === 'pack:mine');
+  assert.equal(apply(global, ctx, { scope: 'global' }).status, 'done');
+  assert.ok(readFileSync(join(ctx.home, '.claude/skills/release-notes/logo.png')).equals(bytes));
+});
+
 test('skills new, edit, delete and show on the command line, with --json and refusals', async () => {
   const ctx = ctxAt();
   let text = '';

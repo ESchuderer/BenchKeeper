@@ -98,7 +98,7 @@ test('project cards: sessions of both agents and of worktrees per day for 30 day
   assert.deepEqual(shop.last, { time: '2026-10-29T10:30:00.000Z', tier: 'standard' });
   // No session in the previous period: no change text, never "none".
   assert.equal(cards['/src/blog'].change, null);
-  assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, change: null, last: null });
+  assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, estimated: 0, change: null, last: null });
 });
 
 test('a project\'s sessions: its folder and its worktrees, not another project nor a folder of none', () => {

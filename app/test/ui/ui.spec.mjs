@@ -2712,7 +2712,7 @@ test.describe('views', () => {
     await nav(page, 'Runs').click();
     await expect(page.getByText('Orchestrated runs and tasks in the registered projects and their worktrees with cost and tokens, each project\'s last setup change and the runs of the multi-agent IDE when it is installed, read when the view opens and on Refresh: nothing runs while it is closed.', { exact: true })).toBeVisible();
     const runs = page.getByRole('region', { name: 'Orchestrated runs', exact: true });
-    await expect(runs).toContainText(/^Orchestrated runs: no orchestrated sessions in a registered project or its worktrees, from the sessions read \d{4}-\d\d-\d\d \d\d:\d\d UTC\. Codex records tokens, not cost\.$/);
+    await expect(runs).toContainText(/^Orchestrated runs: no orchestrated sessions in a registered project or its worktrees, from the sessions read \d{4}-\d\d-\d\d \d\d:\d\d UTC\. Codex costs are estimated from tokens and OpenAI API prices\.$/);
     await expect(runs.getByRole('heading', { level: 3, name: 'Orchestrated runs' })).toBeVisible();
     await expect(runs.getByRole('table')).toHaveCount(0);
     await expect(page.getByRole('region', { name: IDE, exact: true })).toHaveText(`${IDE}: not installed, or its run list could not be read.`);

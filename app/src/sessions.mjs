@@ -1,6 +1,6 @@
 // Agent sessions on this machine, read from the Claude Code and Codex transcripts: tier, setup, skills, tests, cost
 // and pull request links per session, for the board. Reads only the transcripts and the ledger; writes only its caches.
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
@@ -25,7 +25,9 @@ export const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=(?:"[^
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
-const PARSE = 4;
+const PARSE = 5;
+// OpenAI's standard API prices per 1M tokens, for the estimated cost of Codex sessions; a new price list ships with an app release.
+export const CODEX_PRICES = JSON.parse(readFileSync(new URL('./codex-prices.json', import.meta.url), 'utf8'));
 const bare = (name) => name.split(':').pop();
 
 async function lines(file, each) {
@@ -120,21 +122,50 @@ async function claudeFile(file) {
   return { ...d, usage: Object.values(d.usage).reduce((n, x) => n + x, 0), active: active.spans() };
 }
 
+// API-equivalent USD of Codex token counts ({ model: [short, long] }, each [input, cached, cache write, output]), or null when
+// no model has a published price. Input includes the cached and written tokens; a model without a write price bills them as input.
+function codexCost(usage) {
+  let usd = null;
+  for (const [model, parts] of Object.entries(usage ?? {})) {
+    const p = CODEX_PRICES.models[model];
+    if (!p) continue;
+    parts.forEach(([i, c, w, o], long) => {
+      const r = long ? p.long ?? p : p;
+      usd = (usd ?? 0) + ((i - c - w) * r.input + c * r.cached + w * (r.write ?? r.input) + o * r.output) / 1e6;
+    });
+  }
+  return usd;
+}
+
 // One Codex rollout. Compacted lines repeat earlier history and are skipped.
 // shortcut: skills used and tests come from CommandExecution items, which older rollouts lack; read exec inputs if those matter.
 async function codexFile(file) {
   // shortcut: no loop or worker detection: the rollout signature of /goal and of a dispatched prompt is not documented; read user messages if that is verified.
-  const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0, loop: false, orca: false, run: null };
+  const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0, usage: {}, loop: false, orca: false, run: null };
   const active = activity();
+  // The totals are cumulative and a token_count can repeat: each model gets the growth since the last one.
+  let model = null, last = [0, 0, 0, 0];
   await lines(file, (line) => {
     const ts = active.at(line, d);
     if (!/"(session_meta|turn_context|token_count|task_started|task_complete|CommandExecution)"|"role":"assistant"|<skills_instructions>/.test(line)) return;
     const e = parse(line);
     const p = e?.payload;
     if (!p || e.type === 'compacted') return;
-    if (e.type === 'session_meta') Object.assign(d, { id: p.id, parent: p.parent_thread_id ?? null, cwd: p.cwd, branch: p.git?.branch ?? null, agentVersion: p.cli_version ?? null, start: p.timestamp ?? d.start });
-    else if (e.type === 'turn_context' && p.model) d.models.add(p.model);
-    else if (p.type === 'token_count' && p.info?.total_token_usage) d.tokens = p.info.total_token_usage.total_tokens ?? d.tokens;
+    if (e.type === 'session_meta') Object.assign(d, { id: p.id, parent: p.parent_thread_id ?? null, cwd: p.cwd, branch: p.git?.branch ?? null, agentVersion: p.cli_version ?? null, start: p.timestamp ?? d.start, provider: p.model_provider ?? null });
+    else if (e.type === 'turn_context' && p.model) { model = p.model; d.models.add(p.model); }
+    else if (p.type === 'token_count' && p.info?.total_token_usage) {
+      const t = p.info.total_token_usage;
+      d.tokens = t.total_tokens ?? d.tokens;
+      // Older rollouts record the total only: no estimate. Another provider's model is not priced at OpenAI's rates.
+      if (!Number.isFinite(t.input_tokens)) return;
+      const now = [t.input_tokens, t.cached_input_tokens ?? 0, t.cache_write_input_tokens ?? 0, t.output_tokens ?? 0];
+      const add = now.map((n, k) => Math.max(0, n - last[k]));
+      last = now;
+      if (!model || (d.provider && d.provider !== 'openai')) return;
+      // The long-context rate goes by the input of the last request, not by the growth, which can span several.
+      const slot = (d.usage[model] ??= [[0, 0, 0, 0], [0, 0, 0, 0]])[(p.info.last_token_usage?.input_tokens ?? 0) > CODEX_PRICES.longAbove ? 1 : 0];
+      add.forEach((n, k) => { slot[k] += n; });
+    }
     else if (p.type === 'task_started' && p.turn_attribution?.turn_trigger === 'user') d.turns++;
     else if (p.type === 'task_complete') { d.busy += p.duration_ms ?? 0; if (ts && Number.isFinite(p.duration_ms)) active.turn(ts, p.duration_ms); }
     else if (p.type === 'item_completed' && p.item?.type === 'CommandExecution') {
@@ -326,7 +357,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
   const rows = [];
   for (const [file, { kind, d }] of entries) {
     if (kind === 'sub' || !d.start || (since && d.start < since)) continue;
-    let skills = d.skills, tokens, models = d.models, subagents;
+    let skills = d.skills, tokens, models = d.models, subagents, costUSD = d.cost?.usd ?? null;
     if (kind === 'codex') {
       // A Codex subagent rollout, at any depth, adds its tokens and skills to its root session's row.
       if (d.parent && codex.has(d.parent)) continue;
@@ -334,6 +365,8 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       tokens = d.tokens + children.reduce((n, c) => n + c.tokens, 0);
       skills = [...skills, ...children.flatMap((c) => c.skills)];
       subagents = children.length;
+      // Models without a published price, such as the auto-review subagent's, are left out of the estimate.
+      costUSD = [d, ...children].reduce((n, c) => { const x = codexCost(c.usage); return x == null ? n : (n ?? 0) + x; }, null);
     } else {
       skills = [...skills, ...(subSkills.get(file) ?? [])];
       subagents = subCount.get(file) ?? 0;
@@ -344,7 +377,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
     rows.push({
       agent: kind, id: kind === 'codex' ? d.id : basename(file, '.jsonl'), project: d.cwd ?? null, branch: d.branch ?? null,
       agentVersion: d.agentVersion ?? null, title: d.title ?? null, start: d.start, end: d.end, turns: d.turns, models,
-      costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
+      costUSD, costEstimated: kind === 'codex' && costUSD != null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
       pattern: patternOf(d, subagents), subagents, run: d.run ?? null, task: d.task ?? null,
       setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs, repo: d.repo ?? null,
@@ -357,7 +390,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
 }
 
 // Cost and tokens per orchestrated run and per task, matched by the ids the scan took from the worker's first prompt; a
-// worker without a run line counts under run null. A Codex row adds tokens only: cost stays null until a row has one.
+// worker without a run line counts under run null. A Codex row without an estimated cost adds tokens only: cost stays null until a row has one.
 export function byRun(rows) {
   const runs = new Map();
   const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; };

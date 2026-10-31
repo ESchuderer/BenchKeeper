@@ -231,6 +231,37 @@ test('the cache count equals the board rows, also when a Codex parent has expire
   assert.equal(sessionCache(ctx).sessions, rows.length);
 });
 
+test('Codex cost: estimated per model from the growth of the token totals, subagents added, unpriced models and old rollouts left out', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
+  const dir = join(home, '.codex/sessions/2026/10/22');
+  mkdirSync(dir, { recursive: true });
+  const at = '2026-10-22T10:00:00.000Z';
+  const usage = (input_tokens, cached_input_tokens, output_tokens, cache_write_input_tokens, last = 1000) => ({ timestamp: at, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens, cached_input_tokens, cache_write_input_tokens, output_tokens, total_tokens: input_tokens + output_tokens }, last_token_usage: { input_tokens: last } } } });
+  const model = (m) => ({ timestamp: at, type: 'turn_context', payload: { model: m } });
+  const rollout = (id, meta, lines) => writeFileSync(join(dir, `rollout-2026-10-22T10-00-00-${id}.jsonl`), [{ timestamp: at, type: 'session_meta', payload: { id, cwd: '/work/shop', model_provider: 'openai', ...meta } }, ...lines].map((l) => JSON.stringify(l)).join('\n'));
+  rollout('two', {}, [
+    model('gpt-5.6-terra'), usage(100_000, 40_000, 10_000, 20_000),
+    // The same totals again: nothing added.
+    usage(100_000, 40_000, 10_000, 20_000),
+    // Growth under gpt-5.5: 50,000 input, 10,000 cached, 5,000 output.
+    model('gpt-5.5'), usage(150_000, 50_000, 15_000, 20_000),
+  ]);
+  rollout('review', { parent_thread_id: 'two' }, [model('codex-auto-review'), usage(1_000_000, 0, 1000, 0)]);
+  rollout('child', { parent_thread_id: 'two' }, [model('gpt-5.6-terra'), usage(10_000, 0, 0, 0)]);
+  // Growth above 272K over several requests is short context; a last request above it is long context.
+  rollout('long', {}, [model('gpt-6.1-terra'), usage(400_000, 0, 0, 0), usage(800_000, 0, 0, 0, 300_000)]);
+  rollout('unpriced', {}, [model('gpt-daybreak-blue-latest'), usage(1000, 0, 10, 0)]);
+  rollout('other', { model_provider: 'ollama' }, [model('gpt-5'), usage(1000, 0, 10, 0)]);
+  rollout('old', {}, [model('gpt-5'), { timestamp: at, type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { total_tokens: 900 } } } }]);
+  const rows = byId(await scanSessions(context({ home, run: () => ({ code: 127, stdout: '', stderr: '' }) })));
+  // Per 1M tokens. gpt-5.6-terra: 40,000 input at $2, 40,000 cached at $0.20, 20,000 written at $2.50, 10,000 output at $12: 0.258.
+  // gpt-5.5: 40,000 input at $5, 10,000 cached at $0.50, 5,000 output at $30: 0.355. The child's 10,000 input at $2: 0.02.
+  assert.equal(rows.two.costUSD.toFixed(6), '0.633000');
+  assert.equal(rows.two.costEstimated, true);
+  assert.equal(rows.long.costUSD.toFixed(6), '1.200000', '400,000 input at $1, then 400,000 at the long-context $2');
+  for (const id of ['unpriced', 'other', 'old']) assert.deepEqual([id, rows[id].costUSD, rows[id].costEstimated], [id, null, false]);
+});
+
 test('tests: a test command counts in command position only, not echoed or quoted in another command', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
   const dir = join(home, '.codex/sessions/2026/10/22');

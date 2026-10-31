@@ -69,9 +69,10 @@ export function sparkText(a) {
   return `${plural(a.sessions, 'session')} on ${plural(days, 'day')} from ${a.from} to ${a.to}, at most ${top} a day`;
 }
 
-// The cost of the period: sessions without a cost are counted, never left blank.
+// The cost of the period: sessions without a cost are counted, never left blank, and estimated ones are named.
 export function costText(a) {
   const missing = a.uncosted ? `${plural(a.uncosted, 'session')} without a cost` : '';
   if (a.cost == null) return a.sessions ? `no cost recorded (${missing})` : 'no sessions';
-  return `$${a.cost.toFixed(2)}${missing ? `, ${missing}` : ''}`;
+  const estimated = a.estimated ? `${plural(a.estimated, 'session')} estimated` : '';
+  return [`$${a.cost.toFixed(2)}`, estimated, missing].filter(Boolean).join(', ');
 }

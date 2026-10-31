@@ -1,4 +1,4 @@
-// Writes src/baseline/ from repo-baseline at the commit REF names (src/baseline.mjs), or with --check reports files that differ.
+// Writes src/baseline/ from repo-standards at the commit REF names (src/baseline.mjs), or with --check reports files that differ.
 // A new REF: change it there, run this script, commit both.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -101,8 +101,8 @@ function Row({ finding: f, first, busy, onTriage, onPlan }) {
           <Menu withinPortal={false} position="bottom-end">
             <Menu.Target><Button size="xs" variant="default" disabled={busy}>More</Button></Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item onClick={() => onTriage(f, 'dismiss')}>Dismiss</Menu.Item>
-              <Menu.Item onClick={() => onTriage(f, 'snooze')}>Snooze 7 days</Menu.Item>
+              <Menu.Item disabled={busy} onClick={() => onTriage(f, 'dismiss')}>Dismiss</Menu.Item>
+              <Menu.Item disabled={busy} onClick={() => onTriage(f, 'snooze')}>Snooze 7 days</Menu.Item>
             </Menu.Dropdown>
           </Menu>
         </Group>

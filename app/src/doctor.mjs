@@ -57,10 +57,9 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
   try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
   // Below full, the fix names the level: a plain apply would grow the setup.
   const apply = level && level !== 'full' ? `benchkeeper apply --level ${level}` : 'benchkeeper apply';
-  // An optional step left off is not drift.
-  const found = plan.filter((c) => !c.optional).map((c) => {
+  // An optional step left off is not drift, and what the user installed is theirs: a removal offer is no finding.
+  const found = plan.filter((c) => !c.optional && !c.destructive).map((c) => {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
-    if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
     // An older version is drift, not a missing part.
     // A warning shown as outdated: the version change says the rest.
     if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, apply), tag: 'outdated' };

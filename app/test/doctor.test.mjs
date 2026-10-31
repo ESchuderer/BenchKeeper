@@ -61,7 +61,7 @@ test('the skill install preview sandbox: doctor names what is missing, from the 
   assert.equal(old.fix, 'use Node 22.12 or newer');
 });
 
-test('global drift: rules changed after apply are an error, unexpected items a warning, no engine a warning', () => {
+test('global drift: rules changed after apply are an error, the user\'s own items no finding, no engine a warning', () => {
   const ctx = machine({ engine: false });
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
@@ -74,7 +74,7 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(levels(found, 'rules'), ['warning'], 'edited rules are a warning');
-  assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
+  assert.ok(!found.some((i) => /\.claude\/skills\/stray/.test(i.message)), 'a global skill of the user is no finding');
   rmSync(join(ctx.home, '.claude/rules/00-global.md'));
   assert.deepEqual(levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules'), ['error'], 'a missing rules file is an error');
 });
@@ -173,16 +173,12 @@ test('feature switches: every name, every shell start file, both settings files;
   assert.deepEqual(found.at(-1), { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in ~/.claude/settings.local.json (env)', fix: 'remove the key, unless you turned that feature off on purpose' });
 });
 
-test('global drift: the fix names the level below full, plain apply at full; unexpected items and missing parts keep their text', () => {
+test('global drift: the fix names the level below full, plain apply at full; missing parts keep their text', () => {
   const ctx = machine();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
-  mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   const found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(found.find((i) => i.check === 'plugin'), { level: 'error', check: 'plugin', message: 'not installed: Claude Code marketplace benchkeeper', fix: 'benchkeeper apply' });
   assert.equal(found.filter((i) => i.message === 'not installed: Claude Code marketplace benchkeeper').length, 1, 'one finding per step');
-  const stray = found.find((i) => i.check === 'unexpected');
-  assert.match(stray.message, /^not part of the setup: .*\.claude\/skills\/stray/);
-  assert.equal(stray.fix, 'benchkeeper apply --all offers its removal');
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   const rules = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).find((i) => i.check === 'rules');
   assert.match(rules.message, / differs from setup \d+\.\d+\.\d+$/);

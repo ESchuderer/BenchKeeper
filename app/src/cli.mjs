@@ -116,7 +116,7 @@ Usage: benchkeeper <command> [options]
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--project dir] [--agents a,b]
                                     deterministic checks: files match the ledger, expected plugins and skills,
-                                    nothing unexpected installed, project skills present; exit 1 on a failure
+                                    project skills present; exit 1 on a failure
   history                           runs, newest first
   history show <run>                one run: each change with its status and the diff of each file it wrote (settings
                                     values masked; a recorded session's files between its snapshots, the first 50)

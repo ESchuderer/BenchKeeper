@@ -8,7 +8,7 @@ test('Doctor at 390 px: the level badge is not cut and the fix action is on scre
   const label = table.locator('.mantine-Badge-label').first();
   await expect(label).toBeVisible();
   expect(await label.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
-  const fix = table.getByRole('link', { name: /^(Plan fix|Review removal|Open settings|Plan project)$/ }).first();
+  const fix = table.getByRole('link', { name: /^(Plan fix|Open settings|Plan project)$/ }).first();
   await fix.scrollIntoViewIfNeeded();
   await expect(fix).toBeInViewport({ ratio: 1 });
   expect(await table.evaluate((t) => t.parentElement.scrollWidth - t.parentElement.clientWidth)).toBeLessThanOrEqual(0);

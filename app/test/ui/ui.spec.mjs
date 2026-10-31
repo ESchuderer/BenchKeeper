@@ -2560,7 +2560,7 @@ test.describe('views', () => {
     await expect(server).toContainText('owner yours');
     await expect(server).toContainText('runs code');
     await expect(server).toContainText('npx -y files-server');
-    await expect(server).toContainText('Doctor offers removal (full level)');
+    await expect(server).toContainText('The global plan offers removal (full level)');
     await expect(server.getByRole('link', { name: 'Remove files' })).toHaveAttribute('href', '#/agents?plan=1');
     const subagent = list.getByRole('listitem').filter({ hasText: 'Subagent' });
     await expect(subagent).toContainText('reviewer');

@@ -92,7 +92,7 @@ function Row({ finding: f, first, busy, onTriage, onPlan }) {
     <Box component="article" px="md" py="xs" aria-labelledby={`finding-${f.key}`} style={first ? undefined : { borderTop: '1px solid var(--mantine-color-default-border)' }}>
       <Group gap="xs">
         <Title order={4} size="h6" id={`finding-${f.key}`} tabIndex={-1} style={{ flex: '1 1 16rem', minWidth: 0 }}>
-          <UnstyledButton aria-expanded={open} aria-controls={`finding-more-${f.key}`} title={f.message} onClick={() => setOpen(!open)} fz="inherit" fw="inherit" ta="left" style={{ display: 'flex', gap: 6, alignItems: 'center', overflowWrap: 'anywhere' }}>
+          <UnstyledButton aria-expanded={open} aria-controls={open ? `finding-more-${f.key}` : undefined} title={f.message} onClick={() => setOpen(!open)} fz="inherit" fw="inherit" ta="left" style={{ display: 'flex', gap: 6, alignItems: 'center', overflowWrap: 'anywhere' }}>
             <span style={{ display: 'flex', flexShrink: 0 }}>{icon(open ? IconChevronDown : IconChevronRight)}</span>{title}
           </UnstyledButton>
         </Title>

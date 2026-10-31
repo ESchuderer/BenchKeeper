@@ -303,7 +303,7 @@ test.describe('views', () => {
     // Nothing selected: one sentence per section, no empty axis.
     await board.getByLabel('Agent', { exact: true }).selectOption('codex');
     await board.getByLabel('Tier', { exact: true }).selectOption('full');
-    await expect(board.getByText('No sessions match these filters.')).toHaveCount(11);
+    await expect(board.getByText('No sessions match these filters.')).toHaveCount(10);
     await expect(board.locator('#chart svg')).toHaveCount(0);
     await noAxe(page);
   });
@@ -393,7 +393,7 @@ test.describe('views', () => {
     // The fixture has items in the global setup and a project: no one view shows both, so only the parts link.
     await expect(page.getByRole('link', { name: /items need attention/ })).toHaveCount(0);
     await expect(page.getByText(/^items, in the global setup \d+, /).getByRole('link', { name: 'the global setup' })).toHaveAttribute('href', '#/agents?plan=1');
-    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the table$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
+    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the Doctor section$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
     await expect(where.getByRole('listitem').first()).toContainText(/^Global\d+ current/);
@@ -480,14 +480,45 @@ test.describe('views', () => {
     await expect(page.getByRole('combobox', { name: 'Agent' })).toHaveValue('Codex');
   });
 
+  test('Dashboard: the Doctor section shows the worst three findings, errors first, one line each with its action, a link to all in Insights, and the full table folded', async ({ page }) => {
+    // An info finding: it ranks after the warnings.
+    const info = { level: 'info', check: 'allow-rules', message: 'Claude Code allows WebFetch', fix: 'information only, nothing is changed' };
+    await page.route(/\/api\/doctor(\?|$)/, async (route) => route.fulfill({ json: [...await (await route.fetch()).json(), info] }));
+    await page.reload();
+    const doctor = page.getByRole('region', { name: 'Doctor' });
+    const worst = doctor.getByRole('list', { name: 'Worst doctor findings' }).getByRole('listitem');
+    await expect(worst).toHaveCount(3);
+    await expect(worst.nth(0)).toContainText(/^error/i);
+    await expect(worst.nth(1)).toContainText(/^error/i);
+    await expect(worst.nth(2)).toContainText(/^warning/i);
+    await expect(worst.getByRole('link', { name: /^(Plan fix|Review removal|Open settings|Plan project)$/ }).first()).toBeVisible();
+    for (const line of await worst.all()) expect(await line.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThan(40);
+    const count = (await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).textContent()).match(/\d+/g).map(Number).reduce((a, b) => a + b);
+    await expect(doctor.getByRole('link', { name: `All ${count} in Insights` })).toHaveAttribute('href', '#/insights');
+    await expect(page.getByText('Counts setup items, in the global setup and the projects, that differ from the setup.')).toBeVisible();
+    await expect(page.getByText(/^Counts doctor findings: /)).toBeVisible();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
+    // A link to the section (the header's doctor count) opens the table.
+    await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeVisible();
+    // Closed again, the same link opens it again.
+    await doctor.getByText('Every finding with its fix').click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeHidden();
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await page.getByRole('banner').getByRole('link', { name: /^Doctor: / }).click();
+    await expect(doctor.getByRole('table', { name: 'Doctor findings' })).toBeVisible();
+  });
+
   test('Dashboard: a doctor finding opens the plan that fixes it', async ({ page }) => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
+    await doctor.getByText('Every finding with its fix').click();
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
+    await page.getByRole('region', { name: 'Doctor' }).getByText('Every finding with its fix').click();
     const table = page.getByRole('region', { name: 'Doctor' }).getByRole('table', { name: 'Doctor findings' });
     await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Open settings' })).toBeVisible();
     await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
@@ -505,7 +536,7 @@ test.describe('views', () => {
       const real = await (await route.fetch()).json();
       route.fulfill({ json: { ...real, findings: [...real.findings, { ...real.findings.at(-1), key: 'info-test', id: 'info-test', severity: 'info', message: info.message, triage: null }] } });
     });
-    await page.goto('/#/dashboard');
+    await page.goto('/#/dashboard?panel=doctor');
     await page.reload();
     const badge = page.getByRole('banner').getByRole('link', { name: /^Doctor: / });
     await expect(badge).toHaveText(/^Doctor: \d+ errors?, \d+ warnings?, 1 info$/);
@@ -823,11 +854,6 @@ test.describe('views', () => {
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
-    // The fixture project has no origin; the list says Update all pushes the shared one so Update all asks before the pull request.
-    await page.route(/\/api\/projects(\?|$)/, async (route) => {
-      const r = await route.fetch();
-      await route.fulfill({ response: r, json: (await r.json()).map((p) => ({ ...p, github: true, willPush: p.share })) });
-    });
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
     await expect(row).toContainText('current, shared');
@@ -844,49 +870,30 @@ test.describe('views', () => {
     await expect(changes).toContainText('.benchkeeper/disabled/');
     await noAxe(page);
     await page.getByRole('link', { name: 'All projects' }).click();
-    await page.getByRole('button', { name: 'Update all', exact: true }).click();
-    // The project's setup is shared: a pull request, so Update all asks first and names the count.
-    const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
-    await noAxe(page);
-    await ask.getByRole('button', { name: 'Cancel' }).click();
-    await expect(ask).toBeHidden();
-    await expect(page.getByRole('progressbar', { name: /^Update all:/ })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Update all', exact: true }).click();
-    // After the last of the 2 projects the page reloads the list; its response means the handler's route.fetch() is done.
+    // After the last of the 2 projects the page reloads the list.
     let updated = 0;
     const reloaded = page.waitForResponse((r) => {
       if (r.url().endsWith('/api/update-all')) updated++;
       return updated === 2 && /\/api\/projects(\?|$)/.test(r.url()) && r.request().method() === 'GET';
     });
-    await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
+    // The project's setup is shared: Update all commits on a local branch and asks nothing first.
+    await page.getByRole('button', { name: 'Update all', exact: true }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 2 of 2 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
     await reloaded;
-    // Guard for any later call of the handler.
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
-  test('Projects: Update all counts a pull request only for a project the list marks willPush', async ({ page }) => {
+  test('Projects: Update all of a shared setup runs without asking and names the push command', async ({ page }) => {
     const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
-    // shared-local: status reads a newer shared setup on origin, but Update all applies the untracked local one.
-    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local'), project('shared', { share: true, github: true, willPush: true }), project('shared-local', { share: true, github: true }), project('no-github', { share: true }), project('committed', { committed: true })] }));
-    await nav(page, 'Projects').click();
-    await page.getByRole('button', { name: 'Update all', exact: true }).click();
-    const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
-    await expect(ask.getByRole('button', { name: 'Update all and open up to 1 pull request' })).toBeVisible();
-    await ask.getByRole('button', { name: 'Cancel' }).click();
-    await expect(ask).toBeHidden();
-  });
-
-  test('Projects: Update all runs without asking when no shared project has a GitHub origin', async ({ page }) => {
-    const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
-    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('no-github', { share: true })] }));
-    await page.route(/\/api\/update-all$/, (route) => route.fulfill({ json: [{ path: '/work/no-github', status: 'committed', branch: 'chore/agent-setup-0.2.0' }] }));
+    const push = "git -C '/work/shared' push -u origin chore/agent-setup-0.2.0";
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('shared', { share: true })] }));
+    await page.route(/\/api\/update-all$/, (route) => route.fulfill({ json: [{ path: '/work/shared', status: 'committed', branch: 'chore/agent-setup-0.2.0', push }] }));
     await nav(page, 'Projects').click();
     const sent = page.waitForRequest((q) => q.url().endsWith('/api/update-all'));
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
-    expect((await sent).postDataJSON()).toEqual({ paths: ['/work/no-github'], push: true });
+    expect((await sent).postDataJSON()).toEqual({ paths: ['/work/shared'] });
     await expect(page.getByRole('dialog', { name: /pull request/ })).toHaveCount(0);
+    await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(`committed, push with ${push}`);
   });
 
   test('Projects: Choose folder fills the path from the dialog; scan offers the unregistered folder', async ({ page }) => {
@@ -1327,11 +1334,11 @@ test.describe('views', () => {
     expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
     await ask.getByRole('button', { name: 'Close' }).click();
     await expect(table.getByRole('row').filter({ hasText: 'mv-local' })).toContainText('not set up');
-    // A shared setup is listed too, and becomes a pull request.
+    // A shared setup is listed too, and becomes a commit on a local branch.
     await table.getByRole('checkbox', { name: 'Select mv-local' }).uncheck();
     await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).check();
     await bar(page).getByRole('button', { name: 'Remove setup' }).click();
-    await expect(ask).toContainText('Shared setup: a pull request removes these files');
+    await expect(ask).toContainText('Shared setup: a commit on branch chore/remove-agent-setup removes these files, for you to push');
     await ask.getByRole('button', { name: 'Cancel' }).click();
     await expect(ask).toBeHidden();
     await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).uncheck();
@@ -1543,7 +1550,7 @@ test.describe('views', () => {
     await expect(drawer).toContainText('Skill designing-technical-uis (own)');
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Continue' }).click();
-    await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
+    await drawer.getByRole('button', { name: 'Create branch' }).click();
     await expect(drawer.getByRole('alert')).toContainText('committed');
     // The result step repeats what only the user can start.
     await expect(drawer).toContainText('After merging, start in the project');
@@ -1576,7 +1583,7 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
-  test('Projects: Prefill all asks once, suggests per project in turn, and a shared project lands as its own pull request', async ({ page }) => {
+  test('Projects: Prefill all asks once, suggests per project in turn, and a shared project lands as its own branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     for (const name of ['alpha', 'broken']) {
       await page.getByLabel('Project folder').fill(join(BATCH, name));
@@ -1603,8 +1610,8 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Show Install' }).click();
     await expect(drawer).toContainText('Skill designing-technical-uis (own)');
     await drawer.getByRole('button', { name: 'Continue' }).click();
-    await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
-    await expect(drawer.getByRole('link', { name: 'https://github.com/acme/alpha/pull/1' })).toBeVisible();
+    await drawer.getByRole('button', { name: 'Create branch' }).click();
+    await expect(drawer.getByRole('alert', { name: 'committed' })).toContainText(/push it with git -C '.*alpha' push -u origin chore\/agent-setup-/);
     await drawer.getByRole('button', { name: 'Next project' }).click();
     // No suggestion for broken: its form starts from the defaults.
     await expect(drawer.getByText(/^Prefilled from/)).toBeHidden();
@@ -1678,9 +1685,9 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Fix everything: the Apply step tells a project written in its checkout from one that gets a branch, and a pull request only for a project the list marks willPush', async ({ page }) => {
+  test('Fix everything: the Apply step tells a project written in its checkout from one that gets a branch', async ({ page }) => {
     const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
-    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local-a'), project('local-b'), project('shared', { share: true, github: true, willPush: true }), project('shared-local', { share: true, github: true }), project('no-github', { share: true })] }));
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local-a'), project('local-b'), project('shared', { share: true }), project('shared-local', { share: true }), project('no-github', { share: true })] }));
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
     const summary = fix.getByRole('list', { name: 'What Apply does' });
@@ -1689,13 +1696,13 @@ test.describe('views', () => {
     await fix.getByRole('button', { name: 'Next' }).click();
     await fix.getByRole('button', { name: 'Next' }).click();
     await expect(summary).toContainText('Projects: 1 written in their checkout');
-    await expect(summary).not.toContainText('pull request');
+    await expect(summary).not.toContainText('as a branch');
     await fix.getByRole('button', { name: 'Back' }).click();
     await fix.getByRole('button', { name: 'Back' }).click();
     await fix.getByRole('button', { name: 'Select all' }).click();
     await fix.getByRole('button', { name: 'Next' }).click();
     await fix.getByRole('button', { name: 'Next' }).click();
-    await expect(summary).toContainText('Projects: 2 written in their checkout, 2 as a branch, 1 as a branch and pull request');
+    await expect(summary).toContainText('Projects: 2 written in their checkout, 3 as a branch');
     await page.keyboard.press('Escape');
   });
 
@@ -1832,8 +1839,25 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Preferences: Views is the open tab; Sessions history and Advanced, with Clear last, show on their tabs', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const tabs = page.getByRole('tablist', { name: 'Preferences' });
+    await expect(tabs.getByRole('tab')).toHaveText(['Views', 'Sessions history', 'Advanced']);
+    await expect(tabs.getByRole('tab', { name: 'Views' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('region', { name: 'Views and their cost' })).toContainText('Terminal tier strip: off by default.');
+    await expect(page.getByRole('table', { name: 'Keyboard shortcuts' })).toBeVisible();
+    for (const hidden of ['Sessions history', 'Profile', 'Advanced', 'Files', 'Sessions cache']) await expect(page.getByRole('region', { name: hidden })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Clear the sessions cache' })).toBeHidden();
+    await tabs.getByRole('tab', { name: 'Advanced' }).click();
+    const panel = page.getByRole('tabpanel', { name: 'Advanced' });
+    await expect(panel.getByRole('heading', { level: 3 })).toHaveText(['Profile', 'Advanced', 'Files', 'Sessions cache']);
+    await expect(page.getByRole('region', { name: 'Views and their cost' })).toBeHidden();
+    await noAxe(page);
+  });
+
   test('Preferences: the sessions cache has a retention and Clear', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Sessions history' }).click();
     const history = page.getByRole('region', { name: 'Sessions history' });
     await expect(history).toContainText('sessions in the cache');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
@@ -1841,8 +1865,10 @@ test.describe('views', () => {
     await expect(history.getByRole('textbox', { name: 'Days since the last activity' })).toHaveValue('30');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
     await expect(history.getByText('Summaries are kept.')).toBeVisible();
-    const count = await history.getByText(/\d+ sessions in the cache/).textContent();
-    const clear = history.getByRole('button', { name: 'Clear the sessions cache' });
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    const cache = page.getByRole('region', { name: 'Sessions cache' });
+    const count = await cache.getByText(/\d+ sessions in the cache/).textContent();
+    const clear = cache.getByRole('button', { name: 'Clear the sessions cache' });
     const ask = page.getByRole('dialog', { name: 'Clear the sessions cache?' });
     await clear.focus();
     await page.keyboard.press('Enter');
@@ -1850,26 +1876,30 @@ test.describe('views', () => {
     await ask.getByRole('button', { name: 'Cancel' }).focus();
     await page.keyboard.press('Enter');
     await expect(ask).toBeHidden();
-    await expect(history.getByText(count)).toBeVisible();
-    await expect(history.getByText('Cache cleared.')).toBeHidden();
+    await expect(cache.getByText(count)).toBeVisible();
+    await expect(cache.getByText('Cache cleared.')).toBeHidden();
     await clear.click();
     await ask.getByRole('button', { name: 'Clear the cache' }).click();
-    await expect(history.getByText('Cache cleared.')).toBeVisible();
+    await expect(cache.getByText('Cache cleared.')).toBeVisible();
+    await expect(cache).toContainText('0 sessions in the cache');
+    await page.getByRole('tab', { name: 'Sessions history' }).click();
     await expect(history).toContainText('0 sessions in the cache');
   });
 
   test('Preferences: the Clear dialog reads the count again when it opens', async ({ page }) => {
     await nav(page, 'Preferences').click();
-    const history = page.getByRole('region', { name: 'Sessions history' });
-    await expect(history).toContainText('sessions in the cache');
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    const cache = page.getByRole('region', { name: 'Sessions cache' });
+    await expect(cache).toContainText('sessions in the cache');
     // Another tab scans meanwhile: the server now holds 7 summaries.
     await page.route(/\/api\/sessions-cache$/, (r) => (r.request().method() === 'GET' ? r.fulfill({ json: { sessions: 7, keepDays: null } }) : r.continue()));
-    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await cache.getByRole('button', { name: 'Clear the sessions cache' }).click();
     await expect(page.getByRole('dialog', { name: 'Clear the sessions cache?' })).toContainText('7 session summaries go');
   });
 
   test('Preferences: a profile import clears the export warnings', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await page.route(/\/api\/profile-export/, async (r) => r.fulfill({ json: { ...(await (await r.fetch()).json()), skipped: ['an export warning'] } }));
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
@@ -1884,6 +1914,7 @@ test.describe('views', () => {
 
   test('Preferences: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
     const file = await download;
@@ -2106,6 +2137,7 @@ test.describe('views', () => {
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     // The doctor and Insights name the keys of a settings finding.
     await nav(page, 'Dashboard').click();
+    await page.getByText('Every finding with its fix').click();
     await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
     await nav(page, 'Insights').click();
     const denyRow = page.getByRole('article', { name: /No Read deny rule/ });
@@ -2543,6 +2575,7 @@ test.describe('views', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
     expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).status)).toBe(404);
     await nav(page, 'Preferences').click();
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     const editors = page.getByRole('switch', { name: 'Editors' });
     await editors.click();
     await expect(page.getByRole('group', { name: 'Advanced' })).toBeVisible();
@@ -2579,6 +2612,7 @@ test.describe('views', () => {
     await noAxe(page);
     // Off again: the entry and the route are gone.
     await page.goto('/#/settings');
+    await page.getByRole('tab', { name: 'Advanced' }).click();
     await editors.click();
     await expect(editors).not.toBeChecked();
     await expect(entry).toHaveCount(0);

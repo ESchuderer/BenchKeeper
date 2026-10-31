@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -310,7 +310,7 @@ export function Agents({ overview, params, refresh }) {
 }
 
 // One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
-// all opens the pull request that removes it.
+// all commits its removal on a branch.
 const SetupBadge = ({ p }) => {
   if (p.missing) return <MissingBadge />;
   const where = p.share ? 'shared' : p.committed ? 'local, still committed' : 'local';
@@ -372,7 +372,6 @@ export function ProjectList({ params, overview, refresh }) {
   const [path, setPath] = useState('');
   const [found, setFound] = useState(null);
   const [pick, setPick] = useState([]);
-  const [push, setPush] = useState(true);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -419,13 +418,7 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project the list marks willPush (a shared or still
-  // committed setup whose origin is on GitHub); any other shared or committed project gets a local branch only.
-  const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && p.willPush).length : 0);
-  const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
-  const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
-  const prs = prsOf(confirmPrs ?? []);
+  const startUpdate = (paths) => act('update', async () => { await updateProjects(paths, setProgress); reload(); })();
   const rows = visibleProjects(all, view, cards);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
@@ -493,28 +486,17 @@ export function ProjectList({ params, overview, refresh }) {
         </Stack>
       ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit, which you push. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
-          <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!live.length} onClick={() => startUpdate(live.map((p) => p.path))}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
-      <Modal opened={!!confirmPrs} onClose={() => setConfirmPrs(null)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} on GitHub with a shared setup or a local one still committed get a branch pushed to origin and a pull request (the second kind removes the committed setup); without a GitHub origin the branch stays local. Projects with uncommitted changes are skipped.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setConfirmPrs(null)}>Cancel</Button>
-            <Button leftSection={icon(IconRefresh)} onClick={() => runUpdate(confirmPrs)}>Update all and open up to {plural(prs, 'pull request')}</Button>
-          </Group>
-        </Stack>
-      </Modal>
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
-      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
-      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
+      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} onClose={() => { setSetupPaths(null); reload(); }} />}
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename <dir> <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove <dir> [--setup]\nbenchkeeper projects plan <dir>\nbenchkeeper packs enable|disable <id> --project <dir>\nbenchkeeper projects update\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
@@ -614,10 +596,19 @@ function EditorSetting({ overview, refresh }) {
   );
 }
 
+// Three tabs; the one destructive button (Clear the sessions cache) sits last in Advanced. display-none keeps the effects
+// of a hidden tab running: a profile preview or a plan being applied goes on while another tab is open.
 export function Settings({ overview, refresh, keys }) {
+  const cache = useApi('/api/sessions-cache');
   return (
-    <Stack gap="xl">
-      <Profile overview={overview} refresh={refresh} />
+    <Tabs defaultValue="views" keepMountedMode="display-none">
+      <Tabs.List aria-label="Preferences">
+        <Tabs.Tab value="views">Views</Tabs.Tab>
+        <Tabs.Tab value="history">Sessions history</Tabs.Tab>
+        <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="views" pt="md"><Stack gap="xl">
+      <Surfaces />
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
@@ -625,8 +616,10 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
-      <Surfaces />
-      <SessionsHistory />
+      </Stack></Tabs.Panel>
+      <Tabs.Panel value="history" pt="md"><SessionsHistory cache={cache} /></Tabs.Panel>
+      <Tabs.Panel value="advanced" pt="md"><Stack gap="xl">
+      <Profile overview={overview} refresh={refresh} />
       <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
@@ -641,7 +634,10 @@ export function Settings({ overview, refresh, keys }) {
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
-    </Stack>
+      <Divider />
+      <SessionsHistory cache={cache} clear />
+      </Stack></Tabs.Panel>
+    </Tabs>
   );
 }
 

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 test('Doctor at 390 px: the level badge is not cut and the fix action is on screen without a sideways scroll', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/#/dashboard');
+  await page.goto('/#/dashboard?panel=doctor');
   const table = page.getByRole('region', { name: 'Doctor' }).getByRole('table', { name: 'Doctor findings' });
   const label = table.locator('.mantine-Badge-label').first();
   await expect(label).toBeVisible();

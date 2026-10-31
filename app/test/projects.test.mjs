@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, pushTargets, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -141,7 +141,7 @@ test('Update all runs the hooks of the checkout, not those of the fetched tree',
   writeFileSync(join(p.dir, '.git/info/exclude'), '.githooks/\n');
   p.git('config', 'core.hooksPath', '.githooks');
   addProject(ctx, p.dir);
-  const [r] = updateAll(ctx, { push: false });
+  const [r] = updateAll(ctx);
   assert.equal(r.status, 'committed', r.reason);
   assert.equal(readFileSync(`${mark}-pre-commit`, 'utf8'), 'local\n');
   // git finds a relative hook from the checkout but runs it in the new worktree: without the override, worktree add
@@ -164,7 +164,7 @@ test('Update all runs no hook of the fetched tree for add and status in the work
   p.git('reset', '-q', '--hard', 'HEAD~1');
   p.git('config', 'core.hooksPath', '.githooks');
   addProject(ctx, p.dir);
-  const [r] = updateAll(ctx, { push: false });
+  const [r] = updateAll(ctx);
   assert.equal(r.status, 'committed', r.reason);
   assert.equal(existsSync(mark), false);
 });
@@ -292,28 +292,28 @@ test('a changed setup lands on the branch with its cleanups; an empty tier clear
   assert.deepEqual(status(ctx, own).changes, []);
 });
 
-test('a GitHub origin gets a push and a pull request', () => {
+test('Update all pushes nothing and opens no pull request, also for a GitHub origin: the result names the push command', () => {
   const h = home();
   const p = project(h);
   const calls = [];
   const base = context({ home: h });
   const ctx = context({ home: h, run: (argv, o) => {
-    if (argv[0] === 'gh') { calls.push(argv); return { code: 0, stdout: 'https://github.com/o/r/pull/1\n', stderr: '' }; }
+    if (argv[0] === 'gh' || argv.includes('push')) calls.push(argv);
     if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
-    if (argv.includes('push')) calls.push(argv);
     return base.run(argv, o);
   } });
-  assert.deepEqual(pushTargets(ctx, [p.dir]), [p.dir]);
-  assert.deepEqual(pushTargets(base, [p.dir]), []);
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'pull request', r.reason);
-  assert.equal(r.pr, 'https://github.com/o/r/pull/1');
-  assert.deepEqual(calls.map((a) => a.filter((x) => ['push', 'origin', r.branch, 'gh', 'create'].includes(x)).join(' ')), [`push origin ${r.branch}`, `gh create ${r.branch}`]);
-  assert.equal(p.git('ls-remote', 'origin', r.branch).includes(r.branch), true);
-  assert.equal(updateAll(context({ home: h }), { paths: [p.dir], push: false })[0].status, 'current');
+  assert.equal(r.status, 'committed', r.reason);
+  assert.equal(r.push, `git -C '${p.dir}' push -u origin ${r.branch}`);
+  assert.equal(r.pr, undefined);
+  assert.deepEqual(calls, []);
+  assert.equal(p.git('ls-remote', 'origin', r.branch), '');
+  // Nothing new: the branch still holds the commit to push.
+  const [again] = updateAll(ctx, { paths: [p.dir] });
+  assert.deepEqual([again.status, again.push], ['current', r.push]);
 });
 
-test('an untracked local setup with a newer shared one on origin: the list promises no pull request and Update all opens none', async () => {
+test('an untracked local setup with a newer shared one on origin: Update all applies it in the checkout and runs no gh', async () => {
   const h = home();
   const p = project(h);
   const other = cloneOrigin(p);
@@ -334,14 +334,13 @@ test('an untracked local setup with a newer shared one on origin: the list promi
     return base.run(argv, o);
   } });
   const [listed] = await api(ctx)['GET /api/projects']();
-  assert.deepEqual([listed.share, listed.github, listed.willPush], [true, true, false]);
-  assert.deepEqual(pushTargets(ctx, [p.dir]), []);
+  assert.equal(listed.share, true);
   const [r] = updateAll(ctx, { paths: [p.dir] });
   assert.ok(['applied', 'current'].includes(r.status), r.reason);
   assert.deepEqual(calls, []);
 });
 
-test('projects update shows the plan, asks once, and --yes --no-push commits without pushing', async () => {
+test('projects update shows the plan, asks once, and --yes commits without pushing', async () => {
   const h = home();
   const ctx = context({ home: h });
   const p = project(h);
@@ -351,14 +350,14 @@ test('projects update shows the plan, asks once, and --yes --no-push commits wit
   assert.equal(await exec(['projects', 'add', p.dir]), 0);
   assert.equal(await exec(['projects', 'update'], 'n\n'), 1);
   assert.match(text, new RegExp(`${p.dir}  setup 5\\.0\\.0  \\d+ changes`));
-  assert.match(text, /Update 1 projects: .*git push and gh pr create/);
+  assert.match(text, /Update 1 projects: .*one commit, not pushed/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
   text = '';
   assert.equal(await exec(['projects', 'update']), 2, 'no answer at all refuses');
-  assert.match(text, /Update 1 projects: .*git push and gh pr create/);
+  assert.match(text, /Update 1 projects: .*one commit, not pushed/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
-  assert.equal(await exec(['projects', 'update', '--yes', '--no-push']), 0);
-  assert.match(text, new RegExp(`committed +${p.dir}`));
+  assert.equal(await exec(['projects', 'update', '--yes']), 0);
+  assert.match(text, new RegExp(`committed +${p.dir}  push: git -C '${p.dir}' push -u origin chore/agent-setup-`));
 });
 
 test('projects update with directories updates only those, honours --dry-run and --baseline, refuses an unregistered one', async () => {
@@ -378,7 +377,7 @@ test('projects update with directories updates only those, honours --dry-run and
   assert.equal(await exec(['projects', 'update', other.dir]), 2);
   assert.equal(text, `${other.dir}: not a registered project (benchkeeper projects add <dir>)\n`);
   text = '';
-  assert.equal(await exec(['projects', 'update', '--yes', '--no-push', a.dir]), 0);
+  assert.equal(await exec(['projects', 'update', '--yes', a.dir]), 0);
   assert.match(text, new RegExp(`committed +${a.dir}`));
   assert.doesNotMatch(text, new RegExp(b.dir));
   assert.equal(a.git('branch', '--list', 'chore/*').trim() !== '', true);
@@ -411,7 +410,7 @@ test('status and Update all read the state file on the fetched default branch wh
   p.git('rm', '-q', STATE);
   p.git('commit', '-qm', 'drop state');
   assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).checkout], [appVersion, null]);
-  assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'committed');
+  assert.equal(updateAll(ctx, { paths: [p.dir]})[0].status, 'committed');
   // A checkout ahead of origin keeps its own setup and its pending changes.
   const ahead = project(h);
   writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, appVersion: '5.9.0', contentVersion: '5.9.0' }));
@@ -489,21 +488,25 @@ test('a state kept in the registry above schema 2 stops the project in Update al
   mkdirSync(ctx.config, { recursive: true });
   writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [{ path: canon(p.dir), added: '2026-01-01T00:00:00.000Z', state: { schemaVersion: 3, appVersion: '9.0.0', contentVersion: '9.0.0', agents: ['claude'] } }, { path: canon(other.dir), added: '2026-01-01T00:00:00.000Z' }] }));
   assert.match(status(ctx, p.dir).error, /schemaVersion 3, this benchkeeper reads up to 2/);
-  const [bad, good] = updateAll(ctx, { paths: [p.dir, other.dir], push: false });
+  const [bad, good] = updateAll(ctx, { paths: [p.dir, other.dir]});
   assert.equal(bad.status, 'stopped');
   assert.match(bad.reason, /schemaVersion 3/);
   assert.notEqual(good.status, 'stopped', good.reason);
   assert.ok(!existsSync(join(p.dir, STATE)));
 });
 
-test('projects unshare: a pull request without the committed setup; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {
-  const h = home();
-  const p = project(h);
-  // A setup from before 6.3, committed and pushed: its state file has no share key.
+// A setup from before 6.3, committed and pushed: its state file has no share key.
+function oldSetup(p) {
   const { share, ...old } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
   writeFileSync(join(p.dir, STATE), JSON.stringify(old));
   p.git('commit', '-qam', 'old setup');
   p.git('push', '-q', 'origin', 'main');
+  return p;
+}
+
+test('projects unshare: a commit without the committed setup on a local branch; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {
+  const h = home();
+  const p = oldSetup(project(h));
   const ctx = context({ home: h });
   addProject(ctx, p.dir);
   assert.equal(status(ctx, p.dir).committed, true);
@@ -513,21 +516,21 @@ test('projects unshare: a pull request without the committed setup; the checkout
   const w = new Writable({ write(c, _, done) { out += c; done(); } });
   // A folder that is not registered, or does not exist, is refused before anything runs.
   const missing = join(TMP, 'bk-unshare-missing');
-  await assert.rejects(main(['projects', 'unshare', p.dir, missing, '--yes', '--no-push'], { out: w, ctx, input: Readable.from(['']) }), { message: `${canon(missing)} is not a registered project` });
+  await assert.rejects(main(['projects', 'unshare', p.dir, missing, '--yes'], { out: w, ctx, input: Readable.from(['']) }), { message: `${canon(missing)} is not a registered project` });
   assert.equal(out, '');
-  assert.equal(await main(['projects', 'unshare', '--yes', '--no-push'], { out: w, ctx, input: Readable.from(['']) }), 0, out);
-  assert.match(out, /^committed\s/m);
+  assert.equal(await main(['projects', 'unshare', '--yes'], { out: w, ctx, input: Readable.from(['']) }), 0, out);
+  assert.match(out, new RegExp(`^committed +${p.dir}  push: git -C '${p.dir}' push -u origin chore/agent-setup-local$`, 'm'));
   assert.equal(p.git('ls-tree', '-r', '--name-only', 'chore/agent-setup-local'), 'README.md\n');
   // The checkout keeps the committed copies until the merge is pulled; the registry keeps the state file.
   assert.equal(p.git('status', '--porcelain'), '');
   assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');
-  // Update all before the merge: the pull request is there already.
-  assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'current');
+  // Update all before the merge: the branch is there already.
+  assert.equal(updateAll(ctx, { paths: [p.dir]})[0].status, 'current');
   // Merged and pulled: the committed copies are gone; Update all writes the local setup from the kept answers.
   p.git('merge', '-q', '--ff-only', 'chore/agent-setup-local');
   assert.ok(!existsSync(join(p.dir, STATE)));
   assert.equal(status(ctx, p.dir).changes.length > 0, true);
-  const [r] = updateAll(ctx, { paths: [p.dir], push: false });
+  const [r] = updateAll(ctx, { paths: [p.dir]});
   assert.equal(r.status, 'applied', r.reason);
   assert.equal(JSON.parse(readFileSync(join(p.dir, STATE), 'utf8')).share, false);
   assert.match(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8'), /benchkeeper:project start/);
@@ -540,51 +543,16 @@ test('projects unshare: a pull request without the committed setup; the checkout
   assert.ok(!existsSync(join(p.dir, 'CLAUDE.local.md')));
 });
 
-test('a pushed run fetches origin again even when status fetched it a moment ago', () => {
+test('unshare keeps the answers first, and a run whose commit fails keeps them too', () => {
   const h = home();
-  const p = project(h);
-  let offline = false;
+  const p = oldSetup(project(h));
   const base = context({ home: h });
-  const ctx = context({ home: h, run: (argv, o) => {
-    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
-    if (argv.includes('fetch') && offline) return { code: 128, stdout: '', stderr: 'Could not resolve host: github.com' };
-    return base.run(argv, o);
-  } });
-  // status fetches and caches it for a minute; origin is unreachable afterwards.
-  assert.equal(status(ctx, p.dir).origin, 'origin/main');
-  offline = true;
-  const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'stopped');
-  assert.match(r.reason, /could not fetch origin\/main/);
-  assert.equal(p.git('branch', '--list', r.branch).trim(), '');
-});
-
-test('unshare keeps the answers first; after a failed push, the next run pushes the commit and opens the pull request', () => {
-  const h = home();
-  const p = project(h);
-  const { share, ...old } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
-  writeFileSync(join(p.dir, STATE), JSON.stringify(old));
-  p.git('commit', '-qam', 'old setup');
-  p.git('push', '-q', 'origin', 'main');
-  let offline = true;
-  const calls = [];
-  const base = context({ home: h });
-  const ctx = context({ home: h, run: (argv, o) => {
-    if (argv[0] === 'gh') { calls.push('gh'); return { code: 0, stdout: 'https://github.com/o/r/pull/2\n', stderr: '' }; }
-    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
-    if (argv.includes('push') && offline) return { code: 128, stdout: '', stderr: 'Could not resolve host: github.com' };
-    return base.run(argv, o);
-  } });
+  const ctx = context({ home: h, run: (argv, o) => (argv.includes('commit') ? { code: 1, stdout: '', stderr: 'signing failed' } : base.run(argv, o)) });
   addProject(ctx, p.dir);
   const [first] = updateAll(ctx, { paths: [p.dir] });
   assert.equal(first.status, 'stopped');
-  assert.match(first.reason, /git push/);
+  assert.match(first.reason, /git commit: signing failed/);
   assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');
-  offline = false;
-  const [second] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(second.status, 'pull request', second.reason);
-  assert.equal(second.pr, 'https://github.com/o/r/pull/2');
-  assert.deepEqual(calls, ['gh']);
 });
 
 test('projects update --unattended skips and lists a project whose own hooks or git config are not confirmed', async () => {
@@ -648,11 +616,11 @@ test('projects update --json: --dry-run lists the pending changes per project, -
   assert.deepEqual([row.path, row.setupVersion, row.ready], [p.dir, '5.0.0', true]);
   assert.match(row.reason, /\d+ changes/);
   assert.ok(row.changes.length > 0 && row.changes.every((c) => c.title && !('diff' in c)));
-  const asked = await json(['projects', 'update', '--no-push']);
+  const asked = await json(['projects', 'update']);
   assert.deepEqual([asked.code, Object.keys(asked.doc).slice(2)], [2, ['error']]);
   assert.match(asked.doc.error, /add --yes/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '', 'the dry run and the refusal change nothing');
-  const done = await json(['projects', 'update', '--yes', '--no-push']);
+  const done = await json(['projects', 'update', '--yes']);
   assert.deepEqual([done.code, Object.keys(done.doc).slice(2)], [0, ['runs', 'projects']]);
   const [result] = done.doc.projects;
   assert.deepEqual([result.path, result.status], [p.dir, 'committed']);

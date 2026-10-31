@@ -175,9 +175,7 @@ test('no transcript text reaches the page: a marker in a prompt, a reply, a tool
     line('2026-10-21T10:00:02.000Z', { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k1', content: `out ${MARK}`, is_error: false }] } }),
     line('2026-10-21T10:00:03.000Z', { type: 'attachment', attachment: { type: 'queued_command', prompt: `later ${MARK}`, origin: { kind: 'human' }, humanTurn: true } }),
   ].join('\n') + '\n');
-  // The fixture's pull request link must not reach the host's gh.
-  const run = () => ({ code: 127, stdout: '', stderr: 'not installed' });
-  const rows = await scanSessions(context({ home, run }));
+  const rows = await scanSessions(context({ home }));
   assert.ok(rows.some((r) => r.id === 'm1'));
   assert.ok(!JSON.stringify(rows).includes(MARK));
   assert.ok(!boardHtml(rows, '2026-10-23T00:00:00Z').includes(MARK));

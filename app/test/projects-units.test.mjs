@@ -255,7 +255,7 @@ test('projectInstalls: a pack at global scope reads the user\'s skill folder; a 
 
 test('status: a folder that is gone has no setup, branch or changes', () => {
   const dir = join(folder(), 'gone');
-  assert.deepEqual(status(context({ home: home() }), dir), { path: dir, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, github: false, agents: [], packs: [], tier: null });
+  assert.deepEqual(status(context({ home: home() }), dir), { path: dir, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, agents: [], packs: [], tier: null });
 });
 
 test('prefetchOrigins: asks origin for its default branch, fetches it without prompts, and keeps both a minute', async () => {
@@ -294,7 +294,7 @@ test('Update all names each failed step of a local setup with its error', () => 
   const ctx = context({ home: h, roots: [h, dir] });
   apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent' } }).changes), ctx, { scope: dir });
   const offline = { ...ctx, run: (argv, o) => (argv[0] === 'npx' ? { code: 1, stdout: '', stderr: 'offline' } : ctx.run(argv, o)) };
-  const [r] = updateAll(offline, { paths: [dir], push: false, answers: { [dir]: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } } });
+  const [r] = updateAll(offline, { paths: [dir], answers: { [dir]: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } } });
   assert.equal(r.status, 'stopped');
   const failed = ctx.ledger.get(r.run).entries.filter((e) => e.status === 'failed');
   assert.ok(failed.length);

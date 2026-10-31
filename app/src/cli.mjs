@@ -27,7 +27,7 @@ import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -177,23 +177,23 @@ Usage: benchkeeper <command> [options]
   projects rename <dir> [name] [--notes text]
                                     display name and notes (in projects.json only; an empty one clears it)
   projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it
-  projects remove <dir>.. --setup [--yes] [--no-push]
+  projects remove <dir>.. --setup [--yes]
                                     takes BenchKeeper's setup out of each project and keeps it registered: a local setup in the
-                                    checkout (one run, undo with benchkeeper undo <run>), a shared one as a pull request
-                                    (branch chore/remove-agent-setup); lists the files, then asks
-  projects unshare [dir..] [--yes] [--no-push]
-                                    per project whose repository still carries a setup kept local: a pull request
-                                    that removes it (branch chore/agent-setup-local); default: every such project
+                                    checkout (one run, undo with benchkeeper undo <run>), a shared one as a commit on the local
+                                    branch chore/remove-agent-setup, for you to push; lists the files, then asks
+  projects unshare [dir..] [--yes]
+                                    per project whose repository still carries a setup kept local: a commit that removes it
+                                    on the local branch chore/agent-setup-local, for you to push; default: every such project
   projects confirm-git <dir>..      shows the project's git config that runs code or sends git elsewhere (hooks, ssh
                                     command, credential helper, push URL, URL rewrites and the like) and, after a yes
                                     typed in a terminal, records it as confirmed for projects update --unattended (key
                                     and a hash of each value)
-  projects update [dir..] [--yes] [--no-push] [--dry-run] [--unattended] [--max N] [--baseline auto|oss|private-advisory]
+  projects update [dir..] [--yes] [--dry-run] [--unattended] [--baseline auto|oss|private-advisory]
                                     dir..: only these registered projects (default: all); per project: local setup (the
                                     default) applied in the checkout; shared setup
                                     (projects apply --share) on branch chore/agent-setup-<version> in a worktree,
-                                    one commit, push and pull request when origin is on GitHub;
-                                    --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
+                                    one commit, nothing pushed (the output names the push command);
+                                    --dry-run stops after the plan;
                                     --baseline also reports each project's GitHub settings drift, changing none
                                     --unattended skips a project whose git config that runs code differs from the
                                     one confirmed with projects confirm-git
@@ -311,7 +311,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, 'workflow-load': { type: 'boolean' }, 'no-workflow-load': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
+  narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
@@ -430,14 +430,14 @@ async function removeSetups(ctx, dirs, { o, out, ask }) {
   if (!dirs.length) { out.write('projects remove --setup needs at least one directory\n'); return 2; }
   const plans = dirs.map((d) => ({ path: canon(d), ...setupRemoval(ctx, d) }));
   for (const p of plans) {
-    out.write(`${p.path}  ${p.shared ? 'shared setup: a pull request on branch chore/remove-agent-setup' : 'local setup: removed in the checkout'}\n`);
+    out.write(`${p.path}  ${p.shared ? 'shared setup: a commit on the local branch chore/remove-agent-setup' : 'local setup: removed in the checkout'}\n`);
     for (const c of p.changes) out.write(`  ${c.title}\n`);
     if (!p.changes.length) out.write('  nothing to remove\n');
   }
   if (!o.yes && !(await ask(`Remove the BenchKeeper setup of ${plans.length} ${plans.length === 1 ? 'project' : 'projects'} (they stay registered)?`))) return 1;
-  const results = plans.map((p) => removeSetup(ctx, p.path, { push: !o['no-push'] }));
+  const results = plans.map((p) => removeSetup(ctx, p.path));
   out.projects?.push(...results);
-  for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+  for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
   return results.some((r) => r.status === 'stopped') ? 1 : 0;
 }
 
@@ -556,8 +556,8 @@ const FLAGS = {
   'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
   ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
   'projects status': '', 'projects advise': 'agent', 'projects list': '', 'projects add': 'worktree', 'projects scan': '',
-  'projects remove': 'setup yes no-push', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
-  'projects unshare': 'yes no-push max', 'projects confirm-git': '', 'projects update': 'yes no-push dry-run unattended max baseline baseline-ref',
+  'projects remove': 'setup yes', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
+  'projects unshare': 'yes', 'projects confirm-git': '', 'projects update': 'yes dry-run unattended baseline baseline-ref',
   'sessions board': 'no-open', 'sessions list': 'run', 'sessions cache': 'keep-days yes', 'sessions record': 'project',
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
@@ -603,7 +603,7 @@ export function helpFor([noun, verb] = []) {
   return lines.length ? `${lines.join('\n')}\n${HELP.slice(at)}` : HELP;
 }
 
-// The new command of each name the noun-first rename removed (docs/upgrading-to-7.md).
+// The new command of each name the noun-first rename removed.
 const RENAMED = { project: 'projects', 'update-all': 'projects update', test: 'verify', board: 'sessions board', record: 'sessions record', eval: 'evals plan', case: 'evals cases', maintain: 'knowledge' };
 const known = (cmd) => Object.keys(FLAGS).some((k) => k.split(' ')[0] === cmd);
 // The one line for a command or subcommand that does not exist; an old name names its new command.
@@ -730,8 +730,6 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'projects' && arg === 'update') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
-    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
-    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
     const asked = positionals.slice(2).map(canon), registered = listProjects(ctx);
     const unknown = positionals.slice(2).filter((_, i) => !registered.some((p) => p.path === asked[i]));
     if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
@@ -757,16 +755,14 @@ async function command(argv, { out, err, ask, ctx }) {
     const ready = projects.filter(isReady);
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
-    const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
-    if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
     const shared = ready.filter((p) => p.share).length;
-    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
+    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit, not pushed` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     let results;
-    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    try { results = updateAll(ctx, { paths: ready.map((p) => p.path) }); } catch (e) { out.write(`${e.message}\n`); return 1; }
     out.projects?.push(...results);
     out.runs?.push(...results.map((r) => r.run && ctx.ledger.get(r.run)).filter(Boolean));
-    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
   if (cmd === 'projects') {
@@ -810,17 +806,14 @@ async function command(argv, { out, err, ask, ctx }) {
       dirs.map(canon).forEach((path) => { out.projects?.push({ path, status: 'removed' }); out.write(`removed ${path}\n`); });
     }
     else if (arg === 'unshare') {
-      const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
-      if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
       const due = (dirs.length ? dirs.map((d) => registeredEntry(ctx, d).path) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);
       if (!ready.length) return 1;
-      if (!o['no-push'] && ready.length > max) { out.write(`${ready.length} pull requests: at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
-      if (!o.yes && !(await ask(`Open ${ready.length} pull requests (branch chore/agent-setup-local)${o['no-push'] ? ' without pushing' : ''}?`))) return 1;
-      const results = ready.map((p) => unshare(ctx, p.path, { push: !o['no-push'] }));
-      for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+      if (!o.yes && !(await ask(`Commit the removal in ${ready.length} projects (local branch chore/agent-setup-local)?`))) return 1;
+      const results = ready.map((p) => unshare(ctx, p.path));
+      for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.push ? `  push: ${r.push}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
       return results.some((r) => r.status === 'stopped') ? 1 : 0;
     }
     else if (arg && arg !== 'list') { err.write(`${unknownCommand(cmd, arg)}\n`); return 2; }

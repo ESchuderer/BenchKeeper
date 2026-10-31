@@ -19,7 +19,7 @@ import { scanSessions } from '../src/sessions.mjs';
 import { copy, hashPath, hashText } from '../src/fsx.mjs';
 import { clean, git as runGit, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
 import { importChoices, importPlan, readProfile } from '../src/profile.mjs';
-import { MAX_PROJECTS, addProject, scan, updateAll } from '../src/projects.mjs';
+import { addProject, scan, updateAll } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { STATE, projectCtx, projectPlan, scopeCtx } from '../src/steps/project.mjs';
@@ -211,65 +211,42 @@ test('undo takes the scope of a run from a folder that could be a project only',
   assert.throws(() => scopeCtx(c, { path: '/' }), /not a folder here/);
 });
 
-test('Update all pushes to a bounded number of repositories and a project in a subfolder stops', () => {
+test('a project in a subfolder of a repository stops Update all', () => {
   const h = home();
   const c = context({ home: h });
-  assert.equal(MAX_PROJECTS, 25);
-  // The cap counts the repositories a run pushes to (a GitHub origin and a pull request): local setups and a --no-push run are not bounded by it.
-  const hub = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : c.run(argv, o)) });
-  const paths = ['/a', '/b', '/c'];
-  const answers = (share) => Object.fromEntries(paths.map((p) => [p, { share }]));
-  assert.throws(() => updateAll(hub, { paths, max: 2, answers: answers(true) }), /3 repositories to push to: .* at most 2/);
-  assert.equal(updateAll(hub, { paths, max: 2, push: false, answers: answers(true) }).length, 3);
-  assert.equal(updateAll(hub, { paths, max: 2, answers: answers(false) }).length, 3);
-  assert.equal(updateAll(c, { paths: ['/a', '/b', '/c'], max: 2 }).length, 3);
   const p = project(h, 'sub');
   addProject(c, p.dir);
-  const [r] = updateAll(c, { paths: [p.dir], push: false });
+  const [r] = updateAll(c, { paths: [p.dir] });
   assert.equal(r.status, 'stopped');
   assert.match(r.reason, /subfolder of a repository/);
 });
 
-test('a failed fetch never starts a pushed branch at the local default branch', () => {
+test('a failed fetch starts the branch at the local default branch', () => {
   const h = home();
   const p = project(h);
   writeFileSync(join(p.dir, 'unpushed.txt'), 'local only\n');
   git(p.dir, 'add', '-A');
   git(p.dir, 'commit', '-qm', 'unpushed');
   const base = context({ home: h });
-  const calls = [];
-  const ctx = context({ home: h, run: (argv, o) => {
-    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
-    if (argv.includes('fetch')) return { code: 128, stdout: '', stderr: 'could not resolve host' };
-    if (argv.includes('push') || argv[0] === 'gh') calls.push(argv);
-    return base.run(argv, o);
-  } });
+  const ctx = context({ home: h, run: (argv, o) => (argv.includes('fetch') ? { code: 128, stdout: '', stderr: 'could not resolve host' } : base.run(argv, o)) });
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'stopped');
-  assert.match(r.reason, /could not fetch origin\/main/);
-  assert.deepEqual(calls, []);
-  assert.equal(git(p.dir, 'branch', '--list', 'chore/*').trim(), '');
-  // Nothing is pushed: the local start is as before.
-  const [local] = updateAll(ctx, { paths: [p.dir], push: false });
-  assert.equal(local.status, 'committed', local.reason);
+  assert.equal(r.status, 'committed', r.reason);
+  assert.equal(git(p.dir, 'log', '--format=%s', '-1', `${r.branch}~1`).trim(), 'unpushed');
 });
 
-test('git push, ls-remote, commit, worktree add and gh pr create run with a time limit and no prompt', () => {
+test('commit and worktree add run with a time limit', () => {
   const h = home();
   const p = project(h);
   const base = context({ home: h });
   const seen = {};
   const ctx = context({ home: h, run: (argv, o) => {
-    if (argv[0] === 'gh') { seen.gh = o; return { code: 0, stdout: 'https://github.com/o/r/pull/1\n', stderr: '' }; }
-    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
-    for (const k of ['push', 'ls-remote', 'commit']) if (argv.includes(k)) seen[k] = o;
+    if (argv.includes('commit')) seen.commit = o;
     if (argv.includes('worktree') && argv.includes('add')) seen.worktree = o;
     return base.run(argv, o);
   } });
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'pull request', r.reason);
-  for (const k of ['push', 'ls-remote', 'commit', 'worktree', 'gh']) assert.ok(seen[k]?.timeout > 0, `${k} has a timeout`);
-  for (const k of ['push', 'ls-remote']) assert.equal(seen[k].env.GIT_TERMINAL_PROMPT, '0', `${k} never prompts`);
+  assert.equal(r.status, 'committed', r.reason);
+  for (const k of ['commit', 'worktree']) assert.ok(seen[k]?.timeout > 0, `${k} has a timeout`);
 });
 
 test('Update all clears only its own stale worktree record, never the records of the user\'s other worktrees', () => {
@@ -284,12 +261,12 @@ test('Update all clears only its own stale worktree record, never the records of
   const tree = join(h, '.cache/benchkeeper/worktrees', `${p.dir.split('/').pop()}-${hashText(p.dir).slice(0, 8)}-agent-setup-${appVersion}`);
   git(p.dir, 'worktree', 'add', '-q', '-B', `chore/agent-setup-${appVersion}`, tree);
   execFileSync('rm', ['-rf', tree]);
-  const [r] = updateAll(c, { paths: [p.dir], push: false });
+  const [r] = updateAll(c, { paths: [p.dir] });
   assert.equal(r.status, 'committed', r.reason + r.worktree);
   assert.match(git(p.dir, 'worktree', 'list', '--porcelain'), new RegExp(`worktree ${other}[\\s\\S]*prunable`));
 });
 
-test('projects update --dry-run stops after the plan, --max must be a number, a cap stops the run', async () => {
+test('projects update --dry-run stops after the plan; --max and --no-push are refused', async () => {
   const h = home();
   const base = context({ home: h });
   const ctx = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : base.run(argv, o)) });
@@ -301,10 +278,9 @@ test('projects update --dry-run stops after the plan, --max must be a number, a 
   assert.equal(await exec(['projects', 'update', '--dry-run']), 0);
   assert.match(text, /dry run: 2 projects would be updated, nothing changed/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
-  assert.equal(await exec(['projects', 'update', '--max', 'x']), 2);
-  assert.equal(await exec(['projects', 'unshare', '--max', '0']), 2);
-  assert.equal(await exec(['projects', 'update', '--yes', '--max', '1']), 1);
-  assert.match(text, /2 repositories to push to: Update all pushes to at most 1 per run/);
+  for (const args of [['projects', 'update', '--yes', '--max', '1'], ['projects', 'update', '--yes', '--no-push'], ['projects', 'unshare', '--yes', '--no-push'], ['projects', 'remove', a.dir, '--setup', '--yes', '--no-push']]) {
+    await assert.rejects(exec(args), /unknown option --(max|no-push) for projects/, args.join(' '));
+  }
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
 });
 

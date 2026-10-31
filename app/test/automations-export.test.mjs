@@ -97,6 +97,7 @@ test('export refuses a template it cannot run without the runner', () => {
   assert.throws(() => exportScript(setup({ schedule: '' }).ctx, 'probe', { dir: '.' }), /not a cron line/);
   assert.throws(() => exportScript(setup({ schedule: 'FREQ=DAILY' }).ctx, 'probe', { dir: '.' }), /not a cron line/);
   assert.throws(() => exportScript(setup({ precheck: '' }).ctx, 'probe', { dir: '.' }), /has no precheck/);
+  assert.throws(() => exportScript(setup({ precheck: '{{flag}}' }).ctx, 'probe', { values: { flag: '' }, dir: '.' }), /has no precheck/);
   assert.throws(() => exportScript(setup({ agent: 'gemini' }).ctx, 'probe', { dir: '.' }), /claude or codex, not gemini/);
   assert.throws(() => exportScript(setup().ctx, 'probe', { values: { flag: 'a;b' }, dir: '.' }), /parameter flag/);
 });

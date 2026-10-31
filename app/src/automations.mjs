@@ -254,8 +254,8 @@ export function exportScript(ctx, id, { values = {}, dir }) {
   if (!HEADLESS[t.agent]) throw new Error(`${id}: export runs claude or codex, not ${t.agent}`);
   if (!CRON.test(t.schedule)) throw new Error(`${id}: the schedule "${t.schedule}" is not a cron line (five fields or @daily and the like)`);
   if (t.workspace !== 'project') throw new Error(`${id}: workspace ${t.workspace} needs the runner`);
-  if (t.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
   const filled = fill(t, values);
+  if (filled.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
   const helpers = t.helper_files.map((h) => {
     if (h.text == null) throw new Error(`${h.path} is missing`);
     let end = 'HELPER';

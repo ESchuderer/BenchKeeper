@@ -5,7 +5,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree: file 
 Workflows, quality gates, the hand-bumped pins and the local agent config (`.mcp.json`, project skills, `.worktreeinclude`): [docs/development.md](docs/development.md).
 
 ## Checks
-- App: `DC sh -lc 'cd app && npm ci && npm run check:imports && npm run check:baselines && npm run test:coverage'`, and for a UI change `DC sh -lc 'cd app && npm ci && npm run build && npm run test:ui'`. Coverage floors (`app/package.json`, `app/quality.json` `coverage`) sit a little under the measured values: raise them when coverage rises. Baselines (`app/quality.json` `baselines`) only shrink.
+- App: `DC sh -lc 'cd app && npm ci && npm run check:imports && npm run check:baselines && npm run test:coverage && npm run smoke'`, and for a UI change `DC sh -lc 'cd app && npm ci && npm run build && npm run test:ui'`. Coverage floors (`app/package.json`, `app/quality.json` `coverage`) sit a little under the measured values: raise them when coverage rises. Baselines (`app/quality.json` `baselines`) only shrink.
 - App imports: a new file under `app/src/` belongs to the `engine` module unless a pattern in `app/.dependency-cruiser.cjs` names it. Everything Orca-specific goes through `app/src/orca/index.mjs`; the Orca name (`Orca`, `ORCA_`, a quoted `orca`) appears nowhere else.
 - Site: `DC sh -lc 'cd web && npm ci && npm run build && npm test'`.
 - Repository scripts: `DC node --test '.github/scripts/*.test.mjs'` and the `--check` runs of the generators below.

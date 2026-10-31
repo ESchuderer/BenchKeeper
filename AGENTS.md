@@ -5,7 +5,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree: file 
 Workflows, quality gates, the hand-bumped pins and the local agent config (`.mcp.json`, project skills, `.worktreeinclude`): [docs/development.md](docs/development.md).
 
 ## Checks
-- App: `DC sh -lc 'cd app && npm ci && npm run check:imports && npm run check:baselines && npm run test:coverage'`, and for a UI change `npm run build && npm run test:ui`. Coverage floors (`app/package.json`, `app/quality.json` `coverage`) sit a little under the measured values: raise them when coverage rises. Baselines (`app/quality.json` `baselines`) only shrink.
+- App: `DC sh -lc 'cd app && npm ci && npm run check:imports && npm run check:baselines && npm run test:coverage'`, and for a UI change `DC sh -lc 'cd app && npm ci && npm run build && npm run test:ui'`. Coverage floors (`app/package.json`, `app/quality.json` `coverage`) sit a little under the measured values: raise them when coverage rises. Baselines (`app/quality.json` `baselines`) only shrink.
 - App imports: a new file under `app/src/` belongs to the `engine` module unless a pattern in `app/.dependency-cruiser.cjs` names it. Everything Orca-specific goes through `app/src/orca/index.mjs`; the Orca name (`Orca`, `ORCA_`, a quoted `orca`) appears nowhere else.
 - Site: `DC sh -lc 'cd web && npm ci && npm run build && npm test'`.
 - Repository scripts: `DC node --test '.github/scripts/*.test.mjs'` and the `--check` runs of the generators below.
@@ -29,7 +29,7 @@ Workflows, quality gates, the hand-bumped pins and the local agent config (`.mcp
   | README blocks, agent support tables in `docs/setup.md`, site facts | `web/src/data/facts.json`, `app/src/agents.json` | `DC node web/scripts/readme.mjs` |
   | `app/src/baseline/` | `ESchuderer/repo-baseline` at `REF` in `app/src/baseline.mjs` | `DC node app/scripts/baseline-sync.mjs` |
   | `web/public/app/*.png`, when a pull request changes a pictured view | the UI test server in demo mode | `DC sh -lc 'cd app && npm run build && npm run screenshots'` |
-  | `web/public/og.png` | `web/scripts/og.svg` | `rsvg-convert -w 1200 -h 630` |
+  | `web/public/og.png` | `web/scripts/og.svg` | `rsvg-convert -w 1200 -h 630 web/scripts/og.svg -o web/public/og.png` |
 
 - `facts.json`: every claim names its `evidence` (a repository file or test, a Markdown `#heading`, a BenchKeeper-research result; for another product its official page; string claims in the top-level `evidence` map), checked by `.github/scripts/claims.mjs`. A new top-level key goes into its lists. A claim of effect (faster, cheaper, better, safer) without evidence becomes a statement of what the product does.
 - Skills: SKILL.md `description` in double quotes (`.github/scripts/skill-lint.mjs`). Plugin skills also carry `writes` and, when no sentence after the first says when the skill runs, `when`. Each skill has `agents/openai.yaml` for Codex; user-invoked skills set `allow_implicit_invocation: false`. Before editing `plugins/benchkeeper/skills/`, `plugins/benchkeeper/rules/` or this file, call the Skill tool with `mattpocock-skills:writing-for-agents`.

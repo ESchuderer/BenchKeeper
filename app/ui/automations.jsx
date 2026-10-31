@@ -3,7 +3,7 @@ import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, Section, usePlanRunning } from './parts.jsx';
-import { Dot, Folded, Loading, Note, icon, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, icon, useAnnounce, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
 const STATE = { current: ['teal', 'matches the template'], outdated: ['yellow', 'template changed'], modified: ['yellow', 'changed on the runner'], removed: ['red', 'gone from the runner'], unknown: ['gray', 'unknown'] };
@@ -79,17 +79,27 @@ export function Automations({ overview, refresh }) {
   };
   const done = () => { state.reload(); refresh(); };
   const [checking, setChecking] = useState(false);
+  const [found, setFound] = useState(null);
+  const [status, announce] = useAnnounce();
   // The server keeps the view for 15 seconds; Check again reads the runner anew.
-  const check = () => { setChecking(true); api('/api/automations?fresh=1').catch(() => {}).finally(() => { setChecking(false); state.reload(); }); };
+  const check = () => {
+    setChecking(true);
+    api('/api/automations?fresh=1').then((d) => d.runner.installed && setFound(d.runner.name), () => {}).finally(() => { setChecking(false); state.reload(); });
+  };
+  // Check again found the runner and its button is gone: focus goes to the templates once they show.
+  useEffect(() => {
+    if (found && state.data?.runner.installed) { announce('automations-templates-title', `${found} found`); setFound(null); }
+  }, [found, state.data, announce]);
   const intro = <Note>A template is one scheduled agent run: a schedule, a precheck that skips the run when there is nothing to do, and the prompt. Install creates it on the runner, disabled and report only. Update sets it back to the template, remove deletes it with its run history. Each is a plan with a diff and an undo in History.</Note>;
   return (
     <Stack gap="lg">
+      {status}
       {error && <Note color="red" title="Not planned">{error}</Note>}
       <Loading state={state} label="automations">
         {(data) => {
           const open = data.automations.find((a) => a.id === form);
           const templates = (
-            <Section title="Templates">
+            <Section title="Templates" id="automations-templates">
               {data.automations.length === 0
                 ? <Text>No template yet. Put your own in <Code>automations/</Code> of the config folder.</Text>
                 : (
@@ -128,7 +138,7 @@ export function Automations({ overview, refresh }) {
               {data.runner.installed ? intro : (
                 <Note color="yellow" title={`Set up ${data.runner.name}`} styles={{ title: { color: 'var(--mantine-color-text)' } }}>
                   <Stack gap="sm">
-                    <Text size="sm">{data.runner.note}. Install, update and remove need its CLI; the templates show without it.</Text>
+                    <Text size="sm">{data.runner.note}. Install, update and remove need its CLI; the templates show without it. A PATH changed after BenchKeeper started counts once BenchKeeper restarts.</Text>
                     <Group><Button size="xs" variant="default" onClick={check} loading={checking || state.loading}>Check again</Button></Group>
                   </Stack>
                 </Note>

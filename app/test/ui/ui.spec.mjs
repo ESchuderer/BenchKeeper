@@ -2574,8 +2574,11 @@ test.describe('views', () => {
     // The runner appears: Check again shows the view as it is with the runner.
     writeFileSync(RUNNER, '');
     try {
-      await panel.getByRole('button', { name: 'Check again' }).click();
+      await panel.getByRole('button', { name: 'Check again' }).focus();
+      await page.keyboard.press('Enter');
       await expect(panel).toBeHidden();
+      await expect(page.getByRole('heading', { name: 'Templates' })).toBeFocused();
+      await expect(page.getByRole('status').filter({ hasText: 'Orca found' })).toBeAttached();
       await expect(page.getByRole('button', { name: /^(Show|Hide) templates$/ })).toBeHidden();
       await expect(table.getByRole('button', { name: 'Install Pull request watch' })).toBeEnabled();
     } finally {

@@ -228,7 +228,7 @@
       {
         "id": "installs",
         "title": "Installs",
-        "text": "One `apply` installs the global setup for the agents it finds: the rules, the BenchKeeper plugin, the chosen packs, agent settings and the Dev Containers CLI, at three levels from the plugin alone to the full setup. A skills CLI install runs first in a scratch folder inside an OS sandbox (not on Windows), so the plan lists the files it would write. Settings files are merged by key, and other keys and hooks stay.",
+        "text": "One `apply` installs the global setup for the agents it finds: the rules, the BenchKeeper plugin, the chosen packs, agent settings and, once a project uses a dev container, the Dev Containers CLI, at three levels from the plugin alone to the full setup. A skills CLI install runs first in a scratch folder inside an OS sandbox (not on Windows), so the plan lists the files it would write. Settings files are merged by key, and other keys and hooks stay.",
         "evidence": "docs/setup.md#setup-details"
       },
       {

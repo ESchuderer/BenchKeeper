@@ -10,7 +10,7 @@ import { appVersion, contentDir, contentRefusal, contentVersion, library } from 
 import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { integrity } from './integrity.mjs';
-import { levelFor } from './level.mjs';
+import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
@@ -21,7 +21,8 @@ import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { skillFiles } from './skills.mjs';
-import { globalPlan, installedRefusal } from './steps/global.mjs';
+import { declineId, globalPlan, installedRefusal } from './steps/global.mjs';
+import { dismissedNotes } from './preferences.mjs';
 import { promptAgent, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
@@ -29,24 +30,26 @@ const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zsh
 const SUMMARY = /^#{1,6}\s*(overview|summary|about( this)?( project| repository)?|project (structure|layout|overview)|(repository|directory|folder|code) (structure|layout|map)|layout|structure|architecture)\s*$/im;
 
 const issue = (level, check, message, fix) => ({ level, check, message, fix });
+// An opinion, not a fault: the user can dismiss it in Doctor (the same list as declined changes).
+const opinion = (id, i) => ({ ...i, dismissId: `doctor:${id}` });
 
 // Where FEATURE_VARS are set: the process environment, shell start files, agent settings. Names and places only.
 function featureVars(ctx, env) {
   const out = [];
-  for (const v of FEATURE_VARS) if (env[v] !== undefined) out.push(issue('warning', 'env', `${v} is set in the environment`, `unset it where it is exported, unless you turned that feature off on purpose`));
+  for (const v of FEATURE_VARS) if (env[v] !== undefined) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in the environment`, `unset it where it is exported, unless you turned that feature off on purpose`)));
   const fish = join(ctx.home, '.config/fish/conf.d');
   const files = [...RC, ...(exists(fish) ? readdirSync(fish).filter((f) => f.endsWith('.fish')).map((f) => `.config/fish/conf.d/${f}`) : [])];
   for (const f of files) {
     const lines = (readText(join(ctx.home, f)) ?? '').split('\n');
     lines.forEach((l, i) => {
       if (/^\s*#/.test(l)) return;
-      for (const v of FEATURE_VARS) if (new RegExp(`\\b${v}\\b`).test(l)) out.push(issue('warning', 'env', `${v} is set in ~/${f}:${i + 1}`, 'remove that line, unless you turned that feature off on purpose'));
+      for (const v of FEATURE_VARS) if (new RegExp(`\\b${v}\\b`).test(l)) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in ~/${f}:${i + 1}`, 'remove that line, unless you turned that feature off on purpose')));
     });
   }
   for (const f of ['.claude/settings.json', '.claude/settings.local.json']) {
     let keys = [];
     try { keys = Object.keys(JSON.parse(readText(join(ctx.home, f)) ?? '{}').env ?? {}); } catch { /* the global plan reports unreadable settings */ }
-    for (const v of keys.filter((k) => FEATURE_VARS.includes(k))) out.push(issue('warning', 'env', `${v} is set in ~/${f} (env)`, 'remove the key, unless you turned that feature off on purpose'));
+    for (const v of keys.filter((k) => FEATURE_VARS.includes(k))) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in ~/${f} (env)`, 'remove the key, unless you turned that feature off on purpose')));
   }
   return out;
 }
@@ -54,13 +57,17 @@ function featureVars(ctx, env) {
 // The global plan's pending changes: rules or the workflow plugin missing are errors, other drift warnings.
 export function globalDrift(ctx, agents, devcontainerCli, level) {
   let plan;
-  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
+  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level, containers: containerProjects(ctx) } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
   // Below full, the fix names the level: a plain apply would grow the setup.
   const apply = level && level !== 'full' ? `benchkeeper apply --level ${level}` : 'benchkeeper apply';
-  // An optional step left off is not drift.
-  const found = plan.filter((c) => !c.optional).map((c) => {
+  // An optional step left off is not drift, and what the user installed is theirs: a removal offer is no finding.
+  // Each finding can be declined like its change: the same id in the dismissed list.
+  const found = plan.filter((c) => !c.optional && !c.destructive).map((c) => ({ ...finding(c), dismissId: declineId(c) }));
+  // A step of several commands (marketplace refresh, then update) is one finding.
+  return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
+
+  function finding(c) {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
-    if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
     // An older version is drift, not a missing part.
     // A warning shown as outdated: the version change says the rest.
     if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, apply), tag: 'outdated' };
@@ -68,9 +75,13 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
     if (/^rules:/.test(c.step) && readText(c.path) != null) return issue('warning', 'rules', `${c.title} differs from setup ${appVersion}`, `benchkeeper apply restores them; the optional "keep your edits" change of benchkeeper plan stops this warning`);
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
     return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, apply);
-  });
-  // A step of several commands (marketplace refresh, then update) is one finding.
-  return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
+  }
+}
+
+// Findings split into those shown and those the user dismissed or declined (by dismissId), which Doctor lists apart.
+export function splitDismissed(ctx, list) {
+  const off = dismissedNotes(ctx);
+  return { found: list.filter((i) => !off.has(i.dismissId)), dismissed: list.filter((i) => off.has(i.dismissId)) };
 }
 
 const description = (text) => skillDescription(text).text;
@@ -93,7 +104,7 @@ export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];
-  if (heading) out.push(issue('warning', 'agents-md', `AGENTS.md has a summary or layout section (${heading.trim()})`, 'remove it: agents read the code, and the section goes stale'));
+  if (heading) out.push(opinion(`agents-md:${dir}`, issue('warning', 'agents-md', `AGENTS.md has a summary or layout section (${heading.trim()})`, 'remove it: agents read the code, and the section goes stale')));
   const skills = new Map();
   for (const { name, file, text } of skillFiles(dir)) {
     skills.set(name, description(text));
@@ -117,8 +128,11 @@ export function projectChecks(ctx, dir, agents) {
   return out;
 }
 
+// The findings shown; doctorReport also lists the dismissed ones.
+export const doctor = (ctx, o) => doctorReport(ctx, o).found;
+
 // baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
-export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
+export function doctorReport(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);
   const tooNew = contentRefusal(contentDir, appVersion) ?? installedRefusal(ctx, agents);
@@ -132,7 +146,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   if (level === 'full') {
     out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     const engine = containerEngine(ctx);
-    if (!engine) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
+    if (!engine) { if (containerProjects(ctx)) out.push(opinion('container-engine', issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'))); }
     else out.push(...containerChecks(ctx, engine, ctx.containerFacts));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);
@@ -141,5 +155,5 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   }
   if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini', 'docs/agents/orchestration.json'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
-  return out;
+  return splitDismissed(ctx, out);
 }

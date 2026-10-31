@@ -626,7 +626,7 @@ export function Settings({ overview, refresh, keys }) {
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors)</List.Item>
+          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors) and what you dismissed or declined (Agent settings notes, global changes, Doctor findings)</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
           <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>

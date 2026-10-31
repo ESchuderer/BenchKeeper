@@ -6,10 +6,13 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { doctor } from '../src/doctor.mjs';
+import { doctor, doctorReport } from '../src/doctor.mjs';
+import { inventory } from '../src/inventory.mjs';
+import { containerProjects } from '../src/level.mjs';
 import { levelCounts } from '../src/levels.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
-import { globalPlan } from '../src/steps/global.mjs';
+import { declineUnselected, globalPlan } from '../src/steps/global.mjs';
+import { dismissNote, dismissedNotes } from '../src/preferences.mjs';
 
 const SECRET = 'value-not-for-reports';
 function machine({ engine = true } = {}) {
@@ -20,6 +23,15 @@ function machine({ engine = true } = {}) {
     return { code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' };
   };
   return context({ home, run });
+}
+// A registered project whose commands run in the dev container.
+function containerProject(ctx) {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-dc-'));
+  mkdirSync(join(dir, '.benchkeeper'));
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, appVersion, contentVersion, agents: ['claude'], env: 'container' }));
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: dir }] }));
+  return dir;
 }
 const levels = (found, check) => found.filter((i) => i.check === check).map((i) => i.level);
 
@@ -61,7 +73,7 @@ test('the skill install preview sandbox: doctor names what is missing, from the 
   assert.equal(old.fix, 'use Node 22.12 or newer');
 });
 
-test('global drift: rules changed after apply are an error, unexpected items a warning, no engine a warning', () => {
+test('global drift: rules changed after apply are an error, the user\'s own items no finding, no engine a warning once a project uses a dev container', () => {
   const ctx = machine({ engine: false });
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
@@ -69,14 +81,71 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   assert.ok(!found.some((i) => /status band/.test(i.message)), 'the optional status band left off is not drift');
   assert.deepEqual(levels(found, 'plugin'), ['error', 'error']);
   assert.equal(found.find((i) => i.check === 'plugin').message, 'not installed: Claude Code marketplace benchkeeper');
-  assert.ok(found.some((i) => i.message === 'no container engine (podman or docker)'));
+  assert.ok(!found.some((i) => i.message === 'no container engine (podman or docker)'), 'no project uses a dev container');
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(levels(found, 'rules'), ['warning'], 'edited rules are a warning');
-  assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
+  assert.ok(!found.some((i) => /\.claude\/skills\/stray/.test(i.message)), 'a global skill of the user is no finding');
   rmSync(join(ctx.home, '.claude/rules/00-global.md'));
   assert.deepEqual(levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules'), ['error'], 'a missing rules file is an error');
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
+  containerProject(ctx);
+  assert.ok(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).some((i) => i.message === 'no container engine (podman or docker)'));
+});
+
+test('a declined global change: remembered by step and content, unselected in the plan, listed apart by Doctor until shown again or changed', () => {
+  const ctx = machine({ engine: false });
+  const plan = () => preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' }));
+  const first = plan();
+  const settings = first.find((c) => c.step === 'settings:claude');
+  declineUnselected(ctx, first, first.filter((c) => c.selected && c !== settings).map((c) => c.id));
+  assert.deepEqual([...dismissedNotes(ctx)].filter((x) => x.startsWith('change:')).map((x) => x.split(':').slice(0, 3).join(':')), ['change:settings:claude'], 'only the unselected change, not the optional ones');
+  assert.equal(plan().find((c) => c.step === 'settings:claude').selected, false);
+  assert.ok(!inventory(ctx, ['claude'], { devcontainerCli: '1.0.0' }).some((i) => i.step === 'settings:claude'), 'no attention on the Dashboard');
+  const report = () => doctorReport(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
+  assert.ok(!report().found.some((i) => i.check === 'settings' && /^Claude settings/.test(i.message)));
+  const [declined] = report().dismissed.filter((i) => /^Claude settings/.test(i.message));
+  assert.equal(declined.dismissId, [...dismissedNotes(ctx)].find((x) => x.startsWith('change:settings:claude:')));
+  // Another version of the tool is other content: it is offered again.
+  const tool = (v) => preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: v })).find((c) => c.step === 'tools:devcontainer');
+  declineUnselected(ctx, [tool('2.0.0')], []);
+  assert.equal(tool('2.0.0').selected, false);
+  assert.equal(tool('3.0.0').selected, true, 'a new version shows again');
+  // Selected again in a later apply: no longer declined.
+  declineUnselected(ctx, [tool('2.0.0')], [tool('2.0.0').id]);
+  assert.equal(tool('2.0.0').selected, true);
+  dismissNote(ctx, declined.dismissId, false);
+  assert.ok(report().found.some((i) => i.dismissId === declined.dismissId), 'Show again');
+});
+
+test('opinions can be dismissed: a telemetry variable everywhere it is set, the AGENTS.md layout heading per project, no container engine', () => {
+  const ctx = machine({ engine: false });
+  // The full level (global rules present) with a project in a dev container: the engine is asked for.
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
+  containerProject(ctx);
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-op-'));
+  writeFileSync(join(dir, 'AGENTS.md'), '# P\n\n## Layout\n');
+  writeFileSync(join(ctx.home, '.bashrc'), 'export DO_NOT_TRACK=1\n');
+  const report = () => doctorReport(ctx, { agents: ['claude'], dir, env: { DO_NOT_TRACK: '1' }, devcontainerCli: '1.0.0' });
+  const ids = ['doctor:env:DO_NOT_TRACK', `doctor:agents-md:${dir}`, 'doctor:container-engine'];
+  assert.deepEqual(ids.map((id) => report().found.filter((i) => i.dismissId === id).length), [2, 1, 1]);
+  for (const id of ids) dismissNote(ctx, id);
+  const { found, dismissed } = report();
+  assert.ok(!found.some((i) => ids.includes(i.dismissId)));
+  assert.deepEqual(dismissed.filter((i) => i.dismissId.startsWith('doctor:')).map((i) => i.check), ['env', 'env', 'tools', 'agents-md']);
+});
+
+test('a registered project not set up yet counts as a dev container project when it has .devcontainer/: the global plan installs the CLI', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-fresh-'));
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: dir }] }));
+  assert.equal(containerProjects(ctx), false, 'no .devcontainer/: the host');
+  mkdirSync(join(dir, '.devcontainer'));
+  assert.equal(containerProjects(ctx), true);
+  assert.ok(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '2.0.0', options: { containers: containerProjects(ctx) } }).some((c) => c.step === 'tools:devcontainer'));
+  assert.ok(!globalPlan({ ctx, agents: ['claude'], devcontainerCli: '2.0.0', options: { containers: false } }).some((c) => c.step === 'tools:devcontainer'));
 });
 
 test('keep your edits: an optional change that silences the rules warning until the file or the setup version changes', () => {
@@ -170,19 +239,17 @@ test('feature switches: every name, every shell start file, both settings files;
   assert.equal(found[0].fix, 'unset it where it is exported, unless you turned that feature off on purpose');
   assert.deepEqual(found.slice(5, -1).map((i) => i.message), rc.map((f, i) => `${vars[i % vars.length]} is set in ~/${f}:2`));
   assert.equal(found[5].fix, 'remove that line, unless you turned that feature off on purpose');
-  assert.deepEqual(found.at(-1), { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in ~/.claude/settings.local.json (env)', fix: 'remove the key, unless you turned that feature off on purpose' });
+  assert.deepEqual(found.at(-1), { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in ~/.claude/settings.local.json (env)', fix: 'remove the key, unless you turned that feature off on purpose', dismissId: 'doctor:env:DO_NOT_TRACK' });
 });
 
-test('global drift: the fix names the level below full, plain apply at full; unexpected items and missing parts keep their text', () => {
+test('global drift: the fix names the level below full, plain apply at full; missing parts keep their text', () => {
   const ctx = machine();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
-  mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   const found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
-  assert.deepEqual(found.find((i) => i.check === 'plugin'), { level: 'error', check: 'plugin', message: 'not installed: Claude Code marketplace benchkeeper', fix: 'benchkeeper apply' });
+  const { dismissId, ...plugin } = found.find((i) => i.check === 'plugin');
+  assert.deepEqual(plugin, { level: 'error', check: 'plugin', message: 'not installed: Claude Code marketplace benchkeeper', fix: 'benchkeeper apply' });
+  assert.match(dismissId, /^change:plugin:claude:benchkeeper@benchkeeper:[0-9a-f]{64}$/);
   assert.equal(found.filter((i) => i.message === 'not installed: Claude Code marketplace benchkeeper').length, 1, 'one finding per step');
-  const stray = found.find((i) => i.check === 'unexpected');
-  assert.match(stray.message, /^not part of the setup: .*\.claude\/skills\/stray/);
-  assert.equal(stray.fix, 'benchkeeper apply --all offers its removal');
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   const rules = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).find((i) => i.check === 'rules');
   assert.match(rules.message, / differs from setup \d+\.\d+\.\d+$/);

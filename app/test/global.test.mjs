@@ -99,6 +99,18 @@ test('a failed install does not stop the other steps', () => {
   assert.equal(settings(m.home).advisorModel, 'opus');
 });
 
+test('model and effort values are recommendations at the full level: offered unselected, values set before stay', () => {
+  const m = machine();
+  const recs = m.plan().filter((c) => /BenchKeeper recommendation/.test(c.title));
+  assert.deepEqual(recs.map((c) => c.step), ['settings:claude:advisor', 'settings:claude:model', 'settings:claude:effort', 'settings:claude:compact', 'settings:codex:effort']);
+  assert.ok(recs.every((c) => c.selected === false && c.optional === true));
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ model: 'opus' }));
+  assert.equal(apply(m.plan(), m.ctx).status, 'done');
+  const st = settings(m.home);
+  assert.ok(st.model === 'opus' && st.advisorModel === undefined && st.effortLevel === undefined && st.autoCompactWindow === undefined && st.env.CLAUDE_CODE_SUBAGENT_MODEL === undefined);
+  assert.ok(!readFileSync(join(m.home, '.codex/config.toml'), 'utf8').includes('model_reasoning_effort'));
+});
+
 test('full apply: rules, removals, plugins, settings, tools; a second plan is empty', () => {
   const m = machine();
   // "Keep your edits" is left out: chosen with the rules write, it wins and the write is not applied.

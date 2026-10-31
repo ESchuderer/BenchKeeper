@@ -41,9 +41,9 @@ import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel, levelFor } from './level.mjs';
+import { containerProjects, detectLevel, levelFor } from './level.mjs';
 import { resolvePins } from './params.mjs';
-import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
+import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
 import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
@@ -116,7 +116,7 @@ Usage: benchkeeper <command> [options]
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--project dir] [--agents a,b]
                                     deterministic checks: files match the ledger, expected plugins and skills,
-                                    nothing unexpected installed, project skills present; exit 1 on a failure
+                                    project skills present; exit 1 on a failure
   history                           runs, newest first
   history show <run>                one run: each change with its status and the diff of each file it wrote (settings
                                     values masked; a recorded session's files between its snapshots, the first 50)
@@ -655,14 +655,14 @@ async function command(argv, { out, err, ask, ctx }) {
     const level = o.level ?? found.level ?? 'full';
     if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
     for (const id of agents) for (const m of unavailable(id)) out.write(`${m}\n`);
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return applyAnswered(plan, ctx, 'global', { o, ask, out });
+    return applyAnswered(plan, ctx, 'global', { o, ask, out, declines: true });
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
@@ -890,7 +890,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     for (const m of plan.notes) out.write(`note: ${m}\n`);
-    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out });
+    if (plan.global.length) code |= await applyAnswered(plan.global, ctx, 'global', { o, ask, out, declines: true });
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
       code |= await applyAnswered(x.changes, x.ctx, x.path, { o, ask, out });
@@ -1123,8 +1123,11 @@ function nothingChosen(plan, select, o, out) {
 }
 
 // The changes chosen from a plan applied as one run.
-async function applyAnswered(plan, ctx, scope, { o, ask, out }) {
+// declines: the global plan of the setup, whose unselected changes are recorded as declined.
+async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
+  // --all asks once for the whole plan: a no cancels it and declines nothing.
+  if (declines && !o.all) declineUnselected(ctx, plan, select);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 
@@ -1219,7 +1222,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const broken = registryFail();
     if (broken !== undefined) return broken;
     const level = o.level ?? detectLevel(ctx, agents, process.cwd()).level ?? 'full';
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level, containers: containerProjects(ctx) } }));
     return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
   }
   if (cmd === 'projects' && arg === 'plan') {

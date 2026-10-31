@@ -44,7 +44,7 @@ function Rows({ agent, chosen }) {
             </Stack>
             {r.removal && (
               <Group gap="xs">
-                <Text size="xs">Doctor offers removal (full level)</Text>
+                <Text size="xs">The global plan offers removal (full level)</Text>
                 <Button component="a" href={href('agents', { plan: '1' })} size="compact-sm" variant="default" aria-label={`Remove ${r.name}`}>Remove</Button>
               </Group>
             )}

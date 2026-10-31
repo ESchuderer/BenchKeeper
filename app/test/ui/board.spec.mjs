@@ -32,7 +32,11 @@ test('the rail lists projects newest first with count and last tier; a click fil
   // No project is older than 30 days: no Show older and no stray text in its place.
   await expect(page.locator('#rail-list')).not.toContainText(/null|Show older/);
   await expect(cards.first()).toContainText('api');
-  await expect(cards.nth(1)).toContainText('20 sessions, last tier standard');
+  await expect(cards.nth(1)).toHaveAccessibleDescription(/20 sessions, last tier standard/);
+  // One line: dot, name, last tier, sparkline and the session count.
+  await expect(cards.nth(1).locator('.psub')).toHaveText('standard');
+  await expect(cards.nth(1).locator('.pcount')).toHaveText('20');
+  expect((await cards.nth(1).boundingBox()).height).toBeLessThanOrEqual(34);
   await cards.filter({ hasText: 'blog' }).click();
   await expect(cards.filter({ hasText: 'blog' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#count')).toHaveText('19 of 19 sessions');
@@ -62,12 +66,15 @@ test('one entry per repository: worktrees fold in, also a removed one, the same 
   const cards = page.locator('#rail button.card:not(.all)');
   const sessions = page.locator('#tiles .tile').first().locator('.value');
   await expect(page.locator('#f-project')).toHaveCount(0);
-  await expect(cards).toHaveText([/^src\/shop3 sessions, 2 worktrees, last tier/, /^old\/shop1 session, last tier/, /^Other1 session, 1 folder, last tier/]);
-  await expect(page.locator('#rail-list > *').nth(1)).toHaveClass('card all');
+  expect(await cards.evaluateAll((els) => els.map((e) => [e.querySelector('.pname').textContent, document.getElementById(e.getAttribute('aria-describedby')).textContent]))).toEqual([
+    ['src/shop', expect.stringMatching(/^3 sessions, 2 worktrees, last tier/)], ['old/shop', expect.stringMatching(/^1 session, last tier/)], ['Other', expect.stringMatching(/^1 session, 1 folder, last tier/)]]);
+  await expect(page.locator('#rail-list > *').first()).toHaveText('Recent');
+  await expect(page.locator('#rail-list > *').nth(2)).toHaveClass('card all');
   // A choice the switch hides falls back to All.
   await cards.filter({ hasText: 'old/shop' }).click();
   await page.getByLabel('Registered only').check();
-  await expect(cards).toHaveText([/^src\/shop3 sessions, 2 worktrees/]);
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveAccessibleDescription(/^3 sessions, 2 worktrees/);
   await expect(page.locator('#rail button.all')).toHaveText('All registered projects');
   await expect(page.locator('#rail button.all')).toHaveAttribute('aria-pressed', 'true');
   await expect(sessions).toHaveText('3');
@@ -94,7 +101,7 @@ test('300 folders over 12 repositories: registered first, All, one entry per rep
   await expect(page.locator('#rail-list > .item .card')).toHaveText([/^r3/, /^r7/, /^r0/, /^r1/, /^r2/, /^r4/, /^r5/, /^r6/, /^r8/, /^r9/, /^r10/]);
   await expect(page.locator('#rail-list > .item').nth(2).locator('xpath=preceding-sibling::*[1]')).toHaveClass('card all');
   await expect(cards.first()).toHaveAttribute('title', '/src/r3');
-  await expect(cards.first()).toContainText('25 sessions, 25 worktrees');
+  await expect(cards.first()).toHaveAccessibleDescription(/25 sessions, 25 worktrees/);
   // Under Show older: r11, its newest session 40 days old.
   await expect(page.locator('.older summary')).toHaveText('Show older (1)');
   await expect(page.locator('.older .card')).toHaveText(/^r11/);
@@ -128,7 +135,7 @@ test('no side scroll with 300 folders over 12 repositories, folders of no reposi
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
   await load(page, rows, reg('/src/r3', '/src/r7'));
   await page.getByLabel('Period').selectOption('all');
-  await expect(page.locator('#rail button.card:not(.all)').last()).toHaveText(/^Other6 sessions, 6 folders/);
+  await expect(page.locator('#rail button.card:not(.all)').last()).toHaveAccessibleDescription(/^6 sessions, 6 folders/);
   await page.getByRole('button', { name: 'Folders of r0' }).click();
   await page.getByRole('button', { name: 'Folders of Other' }).click();
   expect(await fits()).toBe(true);
@@ -136,6 +143,21 @@ test('no side scroll with 300 folders over 12 repositories, folders of no reposi
   await page.locator('#rail-toggle').click();
   await expect(page.locator('#rail-toggle')).toHaveText(/^All projects, 12 projects/);
   expect(await fits()).toBe(true);
+});
+
+test('at phone width the list opens as a popover with the search first and Recent above the entries; the search hides Recent and a click outside closes it', async ({ page }) => {
+  await load(page, data());
+  await page.setViewportSize({ width: 390, height: 844 });
+  const toggle = page.locator('#rail-toggle');
+  await toggle.click();
+  await expect(page.getByLabel('Find a project')).toBeFocused();
+  expect(await page.locator('#rail-panel').evaluate((n) => getComputedStyle(n).position)).toBe('absolute');
+  await expect(page.locator('#rail-list .gh')).toHaveText('Recent');
+  await page.getByLabel('Find a project').fill('blog');
+  await expect(page.locator('#rail-list .gh')).toBeHidden();
+  await page.mouse.click(380, 830);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#rail-panel')).toBeHidden();
 });
 
 test('framed at phone width, the project chip with a long chosen name wraps inside the frame', async ({ page }) => {
@@ -171,7 +193,7 @@ test('the last choice is remembered, chosen with the keyboard, and named on the 
 test('a repository with one folder has no count of worktrees and nothing to expand; the keyboard moves through the list and opens a repository', async ({ page }) => {
   await load(page, [row({ repo: '/src/one', project: '/src/one', start: ago(0) }), row({ repo: '/src/two', project: '/wt/a' }), row({ repo: '/src/two', project: '/wt/b' })], []);
   const one = page.locator('.item').filter({ has: page.locator('.card[title="/src/one"]') });
-  await expect(one.locator('.card')).toHaveText(/^one1 session, last tier/);
+  await expect(one.locator('.card')).toHaveAccessibleDescription(/^1 session, last tier/);
   await expect(one.locator('.exp')).toHaveCount(0);
   await page.getByLabel('Find a project').focus();
   await page.keyboard.press('ArrowDown');

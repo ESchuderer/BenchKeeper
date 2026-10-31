@@ -41,8 +41,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     stale.push(f);
     if (process.argv[2] !== '--check') writeFileSync(`${root}/${f}`, next);
   }
-  // Written only: on main the app version may move ahead of minApp (app/test/package.test.mjs allows it), so --check leaves it.
-  if (process.argv[2] !== '--check') {
+  // The release branch only (--release from release.yml): on main the app version may move ahead of minApp
+  // (app/test/package.test.mjs allows it), so neither --check nor a plain run changes it.
+  if (process.argv[2] === '--release') {
     const f = `${root}/plugins/benchkeeper/content.json`;
     const text = readFileSync(f, 'utf8');
     const next = minAppPin(text, version);

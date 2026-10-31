@@ -1181,8 +1181,9 @@ test.describe('views', () => {
     const missing = main.getByRole('table', { name: 'Agents not installed' });
     await expect(missing).toBeHidden();
     await main.getByText(/^\d+ agents not installed$/).click();
-    await expect(missing.getByRole('row', { name: /^Codex/ })).toContainText('the usage feed is not available for Codex');
-    await expect(missing.getByRole('row', { name: /^Codex/ })).toContainText('not installed');
+    const codex = missing.getByRole('row', { name: /^Codex/ });
+    await expect(codex.getByRole('listitem')).toHaveText(['the usage feed is not available for Codex', 'the tier strip is not available for Codex']);
+    await expect(codex.getByRole('cell', { name: 'not installed', exact: true })).toBeVisible();
     // A part with items that need attention is open; the others are closed.
     const global = main.getByRole('region', { name: 'Installed globally' });
     for (const part of await global.getByRole('region').all()) {

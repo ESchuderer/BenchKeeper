@@ -101,6 +101,20 @@ test('a declined global change: remembered by step and content, unselected in th
   assert.ok(report().found.some((i) => i.dismissId === declined.dismissId), 'Show again');
 });
 
+test('opinions can be dismissed: a telemetry variable everywhere it is set, the AGENTS.md layout heading per project, no container engine', () => {
+  const ctx = machine({ engine: false });
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-op-'));
+  writeFileSync(join(dir, 'AGENTS.md'), '# P\n\n## Layout\n');
+  writeFileSync(join(ctx.home, '.bashrc'), 'export DO_NOT_TRACK=1\n');
+  const report = () => doctorReport(ctx, { agents: ['claude'], dir, env: { DO_NOT_TRACK: '1' }, devcontainerCli: '1.0.0' });
+  const ids = ['doctor:env:DO_NOT_TRACK', `doctor:agents-md:${dir}`, 'doctor:container-engine'];
+  assert.deepEqual(ids.map((id) => report().found.filter((i) => i.dismissId === id).length), [2, 1, 1]);
+  for (const id of ids) dismissNote(ctx, id);
+  const { found, dismissed } = report();
+  assert.ok(!found.some((i) => ids.includes(i.dismissId)));
+  assert.deepEqual(dismissed.filter((i) => i.dismissId.startsWith('doctor:')).map((i) => i.check), ['env', 'env', 'tools', 'agents-md']);
+});
+
 test('keep your edits: an optional change that silences the rules warning until the file or the setup version changes', () => {
   const ctx = { ...machine({ engine: false }), appVersion: '6.0.0' };
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
@@ -192,7 +206,7 @@ test('feature switches: every name, every shell start file, both settings files;
   assert.equal(found[0].fix, 'unset it where it is exported, unless you turned that feature off on purpose');
   assert.deepEqual(found.slice(5, -1).map((i) => i.message), rc.map((f, i) => `${vars[i % vars.length]} is set in ~/${f}:2`));
   assert.equal(found[5].fix, 'remove that line, unless you turned that feature off on purpose');
-  assert.deepEqual(found.at(-1), { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in ~/.claude/settings.local.json (env)', fix: 'remove the key, unless you turned that feature off on purpose' });
+  assert.deepEqual(found.at(-1), { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in ~/.claude/settings.local.json (env)', fix: 'remove the key, unless you turned that feature off on purpose', dismissId: 'doctor:env:DO_NOT_TRACK' });
 });
 
 test('global drift: the fix names the level below full, plain apply at full; missing parts keep their text', () => {

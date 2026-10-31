@@ -30,24 +30,26 @@ const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zsh
 const SUMMARY = /^#{1,6}\s*(overview|summary|about( this)?( project| repository)?|project (structure|layout|overview)|(repository|directory|folder|code) (structure|layout|map)|layout|structure|architecture)\s*$/im;
 
 const issue = (level, check, message, fix) => ({ level, check, message, fix });
+// An opinion, not a fault: the user can dismiss it in Doctor (the same list as declined changes).
+const opinion = (id, i) => ({ ...i, dismissId: `doctor:${id}` });
 
 // Where FEATURE_VARS are set: the process environment, shell start files, agent settings. Names and places only.
 function featureVars(ctx, env) {
   const out = [];
-  for (const v of FEATURE_VARS) if (env[v] !== undefined) out.push(issue('warning', 'env', `${v} is set in the environment`, `unset it where it is exported, unless you turned that feature off on purpose`));
+  for (const v of FEATURE_VARS) if (env[v] !== undefined) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in the environment`, `unset it where it is exported, unless you turned that feature off on purpose`)));
   const fish = join(ctx.home, '.config/fish/conf.d');
   const files = [...RC, ...(exists(fish) ? readdirSync(fish).filter((f) => f.endsWith('.fish')).map((f) => `.config/fish/conf.d/${f}`) : [])];
   for (const f of files) {
     const lines = (readText(join(ctx.home, f)) ?? '').split('\n');
     lines.forEach((l, i) => {
       if (/^\s*#/.test(l)) return;
-      for (const v of FEATURE_VARS) if (new RegExp(`\\b${v}\\b`).test(l)) out.push(issue('warning', 'env', `${v} is set in ~/${f}:${i + 1}`, 'remove that line, unless you turned that feature off on purpose'));
+      for (const v of FEATURE_VARS) if (new RegExp(`\\b${v}\\b`).test(l)) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in ~/${f}:${i + 1}`, 'remove that line, unless you turned that feature off on purpose')));
     });
   }
   for (const f of ['.claude/settings.json', '.claude/settings.local.json']) {
     let keys = [];
     try { keys = Object.keys(JSON.parse(readText(join(ctx.home, f)) ?? '{}').env ?? {}); } catch { /* the global plan reports unreadable settings */ }
-    for (const v of keys.filter((k) => FEATURE_VARS.includes(k))) out.push(issue('warning', 'env', `${v} is set in ~/${f} (env)`, 'remove the key, unless you turned that feature off on purpose'));
+    for (const v of keys.filter((k) => FEATURE_VARS.includes(k))) out.push(opinion(`env:${v}`, issue('warning', 'env', `${v} is set in ~/${f} (env)`, 'remove the key, unless you turned that feature off on purpose')));
   }
   return out;
 }
@@ -102,7 +104,7 @@ export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];
-  if (heading) out.push(issue('warning', 'agents-md', `AGENTS.md has a summary or layout section (${heading.trim()})`, 'remove it: agents read the code, and the section goes stale'));
+  if (heading) out.push(opinion(`agents-md:${dir}`, issue('warning', 'agents-md', `AGENTS.md has a summary or layout section (${heading.trim()})`, 'remove it: agents read the code, and the section goes stale')));
   const skills = new Map();
   for (const { name, file, text } of skillFiles(dir)) {
     skills.set(name, description(text));
@@ -144,7 +146,7 @@ export function doctorReport(ctx, { agents, dir, env = process.env, devcontainer
   if (level === 'full') {
     out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     const engine = containerEngine(ctx);
-    if (!engine) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
+    if (!engine) out.push(opinion('container-engine', issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers')));
     else out.push(...containerChecks(ctx, engine, ctx.containerFacts));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);

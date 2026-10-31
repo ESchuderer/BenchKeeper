@@ -10,9 +10,9 @@ const V = 'npx benchkeeper@6.25.0';
 export const VIEWS: { id: string; view: string; title: string; shot: string; alt: string; text: string[]; cli: string[] }[] = [
   {
     id: 'start', view: 'dashboard', title: 'Starting screen', shot: 'start',
-    alt: 'The Dashboard as the app opens: the one-run setup buttons, the number of items that need attention with where they are and the Fix everything button, the number of doctor findings, then the ring of item states and the list of scopes.',
+    alt: 'The Dashboard as the app opens: the one-run setup buttons, the number of items that need attention with where they are and the Fix everything button, the number of doctor findings, each with what it counts, then the ring of item states and the list of scopes.',
     text: [
-      'The app opens on the Dashboard. The top row counts the items of the global setup and the projects that need attention, with a link to each place and the Fix everything button, and the doctor findings, which open the doctor table.',
+      'The app opens on the Dashboard. The top row counts the items of the global setup and the projects that need attention, with a link to each place and the Fix everything button, and the doctor findings, which open the Doctor section. Each card says what its number counts: setup items or doctor findings.',
       'The setup flow, install level, BenchKeeper plugin, installed skills, pack coverage, catalog by pack and global setup by part are folded under More about the setup.',
     ],
     cli: [`${V}`, `${V} projects status`],
@@ -28,7 +28,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'dashboard', view: 'dashboard', title: 'Dashboard health', shot: 'dashboard',
-    alt: 'The Dashboard scrolled to Health: a ring of item states with the total in the centre and the numbers as links beside it, the global setup and each project with its own state bar, then the doctor table and the recent runs.',
+    alt: 'The Dashboard scrolled to Health: a ring of item states with the total in the centre and the numbers as links beside it, the global setup and each project with its own state bar, then the three worst doctor findings, one line each, and the recent runs.',
     text: [
       'Health counts the items of the global setup and of each registered project as current, modified, outdated, missing, removed, foreign or untracked, as one ring with the numbers as text. Where shows the same states per scope, with the packs of each project. Coverage, folded below, counts the projects that chose each pack, per agent. Every figure links to the view it counts.',
     ],
@@ -72,9 +72,9 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'sessions', view: 'sessions', title: 'Sessions board', shot: 'sessions',
-    alt: 'The Sessions view with the board in a frame: the project choice closed as a chip in one line with the filters for agent, tier, pattern, setup and period, then tiles for sessions, agent time, cost, tokens, tests passed and merged pull requests.',
+    alt: 'The Sessions view with the board in a frame: the project choice closed as a chip in one line with the filters for agent, tier, pattern, setup and period, then tiles for sessions, agent time, cost, tokens and tests passed.',
     text: [
-      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code), time and pull request state.',
+      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code), time and pull request links.',
       'The project list puts registered repositories first, one entry per repository with its worktrees folded in, and has a search. Comparison charts by tier, pattern and setup show how many sessions each bar rests on and mark the ones under 20. Each chart has its table behind a button.',
     ],
     cli: [`${V} sessions board`],
@@ -165,10 +165,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'preferences', view: 'settings', title: 'Preferences', shot: 'preferences',
-    alt: 'The Preferences view: Views and their cost with the terminal tier strip switch and the status line select of the tracked account work, then the sessions history, the Advanced switch for editors and the config files.',
+    alt: 'The Preferences view on its Views tab, beside the tabs Sessions history and Advanced: Views and their cost with the terminal tier strip switch and the status line select of the tracked account work, then the keyboard shortcuts.',
     text: [
       'Export profile writes the agents, packs, own packs and registered projects with their answers as one file, without file contents, environment values or tokens; Import profile shows the changes it would make on this machine first.',
-      'The keyboard shortcuts, the switch for the / key that opens the command palette, the terminal tier strip, how long the sessions cache keeps summaries, the Advanced editors and the files the app keeps in its config folder.',
+      'The Views tab holds the terminal tier strip with what each view costs, the keyboard shortcuts and the switch for the / key that opens the command palette; Sessions history, how long the sessions cache keeps summaries; Advanced, the profile, the editors, the files the app keeps in its config folder and, last, Clear the sessions cache.',
       'Each account that accounts track set up has a status line select: usage windows and Ponytail level, one of them, or nothing. It changes that account\'s settings.json as a plan with undo.',
     ],
     cli: [`${V} profile export <file>`, `${V} profile import <file>`, `${V} sessions cache show`, `${V} accounts track <name>`],
@@ -187,6 +187,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     alt: 'The Doctor table: a level (error, warning or info), the problem, and a fix column that holds a Plan fix button or the step to do by hand.',
     text: [
       'The doctor checks the setup against what is installed: rules that differ from the setup, missing plugins and skills, a missing container engine, environment variables that turn features off. On Linux it counts dev containers whose folder was removed, which containers reconcile stops and removes. Each finding has a level: error, warning or info.',
+      'The Dashboard shows the three worst findings, errors first, one line each with its action, and a link to all of them in Insights. The full table with every fix is folded below them; the doctor count in the header opens it.',
       'A finding the setup can fix has a Plan fix button that opens the plan, a settings finding opens Agent settings with its documentation link. The others carry the step to do by hand.',
     ],
     cli: [`${V} doctor`, `${V} containers reconcile --dry-run`, `${V} containers reconcile`],

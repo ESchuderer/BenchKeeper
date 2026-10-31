@@ -105,9 +105,8 @@ function Answers({ rows, onChange }) {
 }
 
 // One project's setup, step by step: agents, where commands run, packs and skills, tier, summary. Local (the default):
-// written in the checkout, in files git ignores. Shared: a branch with one commit (and a pull request when origin is on
-// GitHub), as Update all makes them.
-function SetupSteps({ dir, push, onFinish, prefill }) {
+// written in the checkout, in files git ignores. Shared: a local branch with one commit, as Update all makes them.
+function SetupSteps({ dir, onFinish, prefill }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
   const [step, setStepTo] = useState(0);
@@ -150,7 +149,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
     setBusy(true); setError(null);
-    try { setResult((await api('/api/update-all', { paths: [dir], push, answers: { [dir]: a } }))[0]); } catch (e) { setError(e.message); }
+    try { setResult((await api('/api/update-all', { paths: [dir], answers: { [dir]: a } }))[0]); } catch (e) { setError(e.message); }
     setBusy(false);
   };
   return (
@@ -175,7 +174,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             <Radio.Group mt="md" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
               <Stack gap="xs" mt="xs">
                 <Radio value="local" label="On this machine (recommended)" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository." />
-                <Radio value="share" label="In the repository, as a pull request" description="The AGENTS.md block, CLAUDE.md and the skills on a branch with one commit, for everyone who clones it." />
+                <Radio value="share" label="In the repository, on a branch" description="The AGENTS.md block, CLAUDE.md and the skills on a local branch with one commit, which you push, for everyone who clones it." />
               </Stack>
             </Radio.Group>
           </Stepper.Step>
@@ -228,7 +227,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             <Stack gap="md">
               <Answers onChange={(n) => { setStepTo(n); setFromSummary(true); }} rows={[
                 { label: 'Agents', step: 0, value: a.agents.map((id) => { const x = s.agents.find((y) => y.id === id); return x ? x.name : `${id} (not installed here)`; }).join(', ') || 'None' },
-                { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
+                { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, on a branch' : 'On this machine' },
                 { label: 'Environment', step: 1, value: `${(ENV_TITLE[a.env] ?? a.env).replace(/ \(recommended\)$/, '')}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
                 { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
                 { label: 'Agent files', step: 2, value: a.agentFiles.length ? `${a.agentFiles.length} agent files` : 'None' },
@@ -252,7 +251,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
           <Stepper.Completed>
             {result && (
               <Note color={result.status === 'stopped' ? 'red' : 'teal'} title={result.status}>
-                {result.reason ?? (result.branch ? <>Branch <Code>{result.branch}</Code>{result.pr && <>, pull request <Anchor href={result.pr} target="_blank" rel="noreferrer">{result.pr}</Anchor></>}</> : 'Written in this checkout; git ignores it.')}
+                {result.reason ?? (result.branch ? <>Branch <Code>{result.branch}</Code>{result.push && <>, push it with <Code>{result.push}</Code></>}</> : 'Written in this checkout; git ignores it.')}
               </Note>
             )}
             {result?.run && <RunPanel id={result.run} order={3} />}
@@ -268,7 +267,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
                   : <Text size="sm" role="status">Doctor finds no pack setup step left to run.</Text>)}
               </Stack>
             )}
-            {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>
+            {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit, which you push.</Text>
               : <Text>Writes the setup in this checkout and adds its files to <Code>.git/info/exclude</Code>.</Text>)}
           </Stepper.Completed>
         </Stepper>
@@ -277,7 +276,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
           {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(fromSummary && step < 4 ? 4 : step + 1)}>{step === 4 ? 'Continue' : fromSummary ? 'Back to summary' : 'Next'}</Button>}
-          {step === 5 && !result && <Button loading={busy} onClick={create}>{!a.share ? 'Apply' : push ? 'Create branch and pull request' : 'Create branch'}</Button>}
+          {step === 5 && !result && <Button loading={busy} onClick={create}>{!a.share ? 'Apply' : 'Create branch'}</Button>}
           {result && <Button onClick={() => onFinish(result)}>Next project</Button>}
         </Group>
       </Stack>
@@ -297,7 +296,7 @@ function BatchJob({ job, onDone }) {
 // Prefill all: one read-only suggestion session per project, one at a time; each project's form starts from its
 // suggestion once it is ready. Nothing is applied until the user does so per project.
 // shortcut: suggestions live in this page's memory, a reload loses them; keep them on the server if that matters.
-export function ProjectSetup({ paths, push, onClose, change = false }) {
+export function ProjectSetup({ paths, onClose, change = false }) {
   const [i, setI] = useState(0);
   const [batch, setBatch] = useState(null);
   const [ask, setAsk] = useState(false);
@@ -368,7 +367,7 @@ export function ProjectSetup({ paths, push, onClose, change = false }) {
             </Stack>
           )}
           <AdviceConsent opened={ask} onClose={() => setAsk(false)} advisers={advisers} count={paths.length} onStart={start} />
-          <SetupSteps key={dir} dir={dir} push={push} onFinish={next} prefill={item?.status === 'ready' ? { result: item.result, name: batch.name } : null} />
+          <SetupSteps key={dir} dir={dir} onFinish={next} prefill={item?.status === 'ready' ? { result: item.result, name: batch.name } : null} />
         </Stack>
       )}
     </Drawer>

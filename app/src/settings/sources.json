@@ -15,9 +15,9 @@
     },
     {
       "file": "codex-config.schema.json",
-      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.164.0/codex-rs/core/config.schema.json",
-      "fetched": "2026-10-25",
-      "tag": "rust-v0.164.0",
+      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/config.schema.json",
+      "fetched": "2026-10-31",
+      "tag": "rust-v0.166.0",
       "note": "Draft-07, 103 top-level keys, additionalProperties false. Tracks main upstream, so pinned to a release tag."
     }
   ]

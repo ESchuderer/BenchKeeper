@@ -188,7 +188,7 @@ test('an untracked skill survives projects apply, a pack switch and Update all; 
   const state = JSON.parse(readFileSync(join(r.dir, STATE), 'utf8'));
   writeFileSync(join(r.dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion: '5.0.0' }));
   addProject(r.ctx, r.dir);
-  const [u] = updateAll(r.ctx, { push: false });
+  const [u] = updateAll(r.ctx);
   assert.notEqual(u.status, 'stopped', u.reason);
   for (const f of Object.keys(before).filter((x) => !x.startsWith(SKILL))) assert.equal(readFileSync(join(r.dir, '.claude/skills', f), 'utf8'), before[f], f);
   // Adopt: only a library name; the pick is recorded and the folder is kept.

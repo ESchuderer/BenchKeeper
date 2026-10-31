@@ -23,6 +23,32 @@ export const LEVEL_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
+const levelBadge = (i) => <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+const actionButton = (action, onAction) => <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>;
+
+// The worst findings first (errors, then warnings, then info, in the doctor's order within a level), one line each: the
+// level, the finding cut to one line (in full on hover; below sm it wraps, as touch has no hover) and the action that fixes it.
+export function DoctorWorst({ found, n = 3 }) {
+  const phone = useMediaQuery('(max-width: 47.99em)');
+  const worst = Object.keys(LEVEL_COLOR).flatMap((l) => found.filter((i) => i.level === l)).slice(0, n);
+  return (
+    <List listStyleType="none" aria-label="Worst doctor findings" spacing="xs">
+      {worst.map((i, k) => {
+        const action = fixAction(i);
+        return (
+          <List.Item key={k} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
+            <Group gap="sm" wrap="nowrap">
+              {levelBadge(i)}
+              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.message}</Text>
+              {action && actionButton(action)}
+            </Group>
+          </List.Item>
+        );
+      })}
+    </List>
+  );
+}
+
 function DoctorTable({ found, onAction, onDismiss }) {
   // Below sm each finding is one cell (level, finding, fix stacked), so the fix action needs no sideways scroll.
   const phone = useMediaQuery('(max-width: 47.99em)');
@@ -34,11 +60,11 @@ function DoctorTable({ found, onAction, onDismiss }) {
         <Table.Tbody>
           {found.map((i, n) => {
             const action = fixAction(i), { text, source } = splitSource(i.fix);
-            const level = <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+            const level = levelBadge(i);
             const finding = <>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</>;
             const fix = (
               <Stack gap={4} align="flex-start">
-                {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
+                {action ? actionButton(action, onAction) : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                 {i.start && <StartBlock start={i.start} />}
                 {onDismiss && i.dismissId?.startsWith('doctor:') && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
@@ -93,7 +119,7 @@ export function UpdateResults({ progress, extra, what = 'Update all' }) {
           <Table.Tr key={r.path}>
             <Table.Td><Code>{r.path}</Code></Table.Td>
             <Table.Td>
-              {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
+              {r.status}{r.reason ? `: ${r.reason}` : ''}{r.push && <>, push with <Code>{r.push}</Code></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
               {extra?.(r)}
             </Table.Td>
           </Table.Tr>
@@ -125,7 +151,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
   const branched = list.filter((p) => picked.includes(p.path) && (p.share || p.committed));
-  const viaPr = branched.filter((p) => p.willPush).length, onBranch = branched.length - viaPr, inPlace = picked.length - branched.length;
+  const onBranch = branched.length, inPlace = picked.length - branched.length;
   return (
     <Stack gap="md">
       <Stepper active={running ? 4 : step} onStepClick={running ? undefined : setStep} size="sm">
@@ -140,7 +166,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Projects">
           <Loading state={projects} label="projects">{() => (
             <Stack gap="sm">
-              <Text size="sm">A shared setup, or one still committed in the repository, gets a branch and a pull request when origin is on GitHub; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
+              <Text size="sm">A shared setup, or one still committed in the repository, gets a local branch with one commit, which you push; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
               {list.length ? (
                 <>
                   <Group gap="xs">
@@ -171,7 +197,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Apply">
           <List spacing={4} aria-label="What Apply does">
             <List.Item>Global setup: {select?.length ? `${select.length} of ${global.data.changes.length} changes` : 'nothing'}</List.Item>
-            <List.Item>Projects: {picked.length ? [inPlace && `${inPlace} written in their checkout`, onBranch && `${onBranch} as a branch`, viaPr && `${viaPr} as a branch and pull request`].filter(Boolean).join(', ') : 'none'}</List.Item>
+            <List.Item>Projects: {picked.length ? [inPlace && `${inPlace} written in their checkout`, onBranch && `${onBranch} as a branch`].filter(Boolean).join(', ') : 'none'}</List.Item>
             <List.Item>By hand: {manual.length ? `${manual.length} left to you` : 'nothing'}; the doctor runs again after the run</List.Item>
           </List>
         </Stepper.Step>
@@ -202,7 +228,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const control = useRef({ stop: false });
   const after = useApi(finished ? '/api/doctor' : null);
   const finish = () => { setFinished(true); setBusy(false); };
-  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
+  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     // Nothing chosen of the global plan: the apply records the declines and starts no run.

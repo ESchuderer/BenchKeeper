@@ -618,7 +618,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, dir, prev })] };
 }
 
-const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 // The line the user pastes in their own terminal: the app shows it and never runs it.
 export const recordCommand = (dir, agent, prompt) => `benchkeeper sessions record --project ${quote(dir)} -- ${agent} ${quote(prompt)}`;
 // The agent a user-started step names: Claude Code when chosen, else the first agent.

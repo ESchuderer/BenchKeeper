@@ -2,7 +2,7 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorFindings, FixEverythingButton } from './fix.jsx';
+import { DoctorFindings, DoctorWorst, FixEverythingButton } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
@@ -120,8 +120,8 @@ function Where({ data }) {
   );
 }
 
-// A card of the top row: its title, one big number that links to what it counts, a line of detail.
-const Card = ({ title, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text>{children}</Stack></Paper>;
+// A card of the top row: its title, what its number counts, one big number that links to it, a line of detail.
+const Card = ({ title, counts, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text><Text size="sm">{counts}</Text>{children}</Stack></Paper>;
 // No link (to null): a count that no one view shows, so the line under it links each part.
 const Big = ({ n, to, name }) => (to ? <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={40} fw={650} lh={1.1}>{n}</Text>);
 
@@ -289,14 +289,14 @@ export function Dashboard({ overview, doctor, history, params }) {
         <OneRunButtons />
       </Stack>
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
-        <Card title="Need attention">
+        <Card title="Need attention" counts="Counts setup items, in the global setup and the projects, that differ from the setup.">
           {fromDash((d) => <Attention data={d} />)}
           <FixEverythingButton />
         </Card>
-        <Card title="Doctor findings">
+        <Card title="Doctor findings" counts="Counts doctor findings: problems its checks found in the setup and the agent settings.">
           <Loading state={doctor} label="doctor">{(found) => (
             <>
-              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the table`} />
+              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the Doctor section`} />
               <Text size="sm">{levels.text || 'No findings'}</Text>
             </>
           )}</Loading>
@@ -312,7 +312,18 @@ export function Dashboard({ overview, doctor, history, params }) {
       </Grid>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Doctor" id="doctor"><DoctorFindings state={doctor} path="/api/doctor" /></Section>
+          {/* The worst three by default; the full table with every fix stays folded below, opened by a link to this section.
+              Closing it drops the panel from the hash, so the same link opens it again. */}
+          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => (found.length ? (
+            <Stack gap="sm">
+              <DoctorWorst found={found} />
+              <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
+              <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
+                <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
+                <Box mt="sm"><DoctorFindings state={doctor} path="/api/doctor" /></Box>
+              </details>
+            </Stack>
+          ) : <DoctorFindings state={doctor} path="/api/doctor" />)}</Loading></Section>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">

@@ -1201,7 +1201,7 @@ test.describe('views', () => {
     for (const name of MOVED) await expect(page.getByRole('region', { name }).getByRole('switch').first()).toBeVisible();
   });
 
-  test('Global setup: an installed agent shows a short chip per missing feature, the sentence as its tooltip and text', async ({ page }) => {
+  test('Global setup: an installed agent shows a short chip per missing feature, the sentence as its tooltip on hover and focus and as text', async ({ page }) => {
     await page.route(/\/api\/overview(\?|$)/, async (route) => {
       const r = await route.fetch();
       const d = await r.json();
@@ -1211,8 +1211,11 @@ test.describe('views', () => {
     await page.goto('/#/agents');
     await page.reload();
     const codex = page.getByRole('table', { name: 'Agents', exact: true }).getByRole('row', { name: /^Codex/ });
-    const chip = codex.getByTitle('the usage feed is not available for Codex');
+    const chip = codex.locator('[tabindex="0"]', { hasText: 'the usage feed is not available for Codex' });
     await expect(chip).toHaveText('the usage feed is not available for Codex');
+    // The sentence opens as a tooltip on keyboard focus too, not only on hover.
+    await chip.focus();
+    await expect(page.getByRole('tooltip')).toHaveText('the usage feed is not available for Codex');
     await page.unroute(/\/api\/overview(\?|$)/);
   });
 

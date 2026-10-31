@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -256,7 +256,7 @@ function AgentTable({ label, agents, chosen, onCheck }) {
               <Table.Td>{!a.unavailable.length ? 'nothing' : a.installed ? (
                 <Group gap={4}>
                   {/* shortcut: the chip is the sentence up to "is not available", fine while every sentence has that form. */}
-                  {a.unavailable.map((m) => { const [short, rest] = m.split(/(?= is not available)/); return <Badge key={m} variant="default" title={m}>{short}<VisuallyHidden>{rest}</VisuallyHidden></Badge>; })}
+                  {a.unavailable.map((m) => { const [short, rest] = m.split(/(?= is not available)/); return <Tooltip key={m} label={m} events={{ hover: true, focus: true, touch: true }} transitionProps={{ duration: 0 }}><Badge variant="default" tabIndex={0}>{short}<VisuallyHidden>{rest}</VisuallyHidden></Badge></Tooltip>; })}
                 </Group>
               ) : <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List>}</Table.Td>
             </Table.Tr>

@@ -201,7 +201,7 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
 // paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), workflowLoad (default true: the
-// rule line that loads the workflow skill), callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
+// rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
@@ -399,7 +399,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });
   }
-  // repo-baseline's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
+  // repo-standards's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
   for (const m of a.callers) {
     const f = callerFile(m), have = readText(at(f.path));
     add(`caller:${m}`, `${f.path}: ${BASELINE_REPO} ${m} caller${have != null && have !== f.text ? ' (replaces your own file)' : ''}`, { kind: 'write', path: at(f.path), after: f.text, selected: have == null || have === f.text });

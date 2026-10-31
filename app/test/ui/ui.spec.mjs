@@ -2591,7 +2591,7 @@ test.describe('views', () => {
   });
 
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
-    const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Presets, pins and policy' });
+    const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Orchestrator policy' });
     await expect(entry).toHaveCount(0);
     await page.goto('/#/editors');
     await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
@@ -2602,23 +2602,23 @@ test.describe('views', () => {
     await editors.click();
     await expect(page.getByRole('group', { name: 'Advanced' })).toBeVisible();
     await entry.click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Presets, pins and policy' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Orchestrator policy' })).toBeVisible();
     await page.getByRole('combobox', { name: 'File' }).click();
-    await page.getByRole('option', { name: '.benchkeeper/pins.json', exact: true }).click();
-    const text = page.getByRole('textbox', { name: '.benchkeeper/pins.json' });
+    await page.getByRole('option', { name: 'docs/agents/orchestration.json', exact: true }).click();
+    const text = page.getByRole('textbox', { name: 'docs/agents/orchestration.json' });
     await expect(text).toHaveValue(/"schemaVersion": 1/);
     await noAxe(page);
     // The loader's errors show while typing, and Review waits for a valid text.
-    await text.fill('{ "schemaVersion": 1, "phases": { "review": { "effort": "high" } } }');
-    const errors = page.getByRole('list', { name: 'Errors in .benchkeeper/pins.json' });
-    await expect(errors).toContainText('effort-without-model at phases.review.effort');
+    await text.fill('{ "schemaVersion": 1, "workersPerProject": 0 }');
+    const errors = page.getByRole('list', { name: 'Errors in docs/agents/orchestration.json' });
+    await expect(errors).toContainText('range at workersPerProject');
     await expect(page.getByRole('button', { name: 'Review change' })).toBeDisabled();
     await noAxe(page);
-    await text.fill('{ "schemaVersion": 1, "// why": "kept", "phases": { "review": { "agent": "claude", "model": "opus", "effort": "high" } } }\n');
+    await text.fill('{ "schemaVersion": 1, "// why": "kept", "workersPerProject": 2 }\n');
     await expect(errors).toBeHidden();
     await page.getByRole('button', { name: 'Review change' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
-    await expect(changes).toContainText('Write .benchkeeper/pins.json');
+    await expect(changes).toContainText('Write docs/agents/orchestration.json');
     await expect(changes).toContainText('Why: You edited this file here.');
     await openDiffs(changes);
     await expect(changes).toContainText('"// why": "kept"');
@@ -2630,7 +2630,7 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/#/editors');
-    await expect(page.getByRole('heading', { level: 2, name: 'Presets, pins and policy' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Orchestrator policy' })).toBeVisible();
     await noAxe(page);
     // Off again: the entry and the route are gone.
     await page.goto('/#/settings');

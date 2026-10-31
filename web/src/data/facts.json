@@ -100,7 +100,7 @@
       "for": "clone, branches, commits",
       "evidence": [
         "https://git-scm.com/downloads",
-        "plugins/benchkeeper/skills/workflow/software.md#steps"
+        "plugins/benchkeeper/skills/workflow/SKILL.md"
       ]
     },
     {
@@ -423,7 +423,7 @@
         "tip": "Every tier: build, types, lint and tests where AGENTS.md says, each with its command and result. UI changes also in a browser. Full: the branch reviewed against the spec.",
         "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also get a browser check, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills).",
         "evidence": [
-          "plugins/benchkeeper/skills/workflow/software.md#verify"
+          "plugins/benchkeeper/skills/workflow/SKILL.md#verify"
         ]
       },
       {
@@ -434,6 +434,7 @@
         "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Pull request when the project uses them, checks. You merge.",
         "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. When the project uses pull requests, one with the key decisions, then its checks. Merge only on your instruction. Several tasks on one branch get one review at the end.",
         "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/software.md#steps"
         ]
       },

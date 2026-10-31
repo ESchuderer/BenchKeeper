@@ -17,9 +17,10 @@ export const TOKENS = { light: LIGHT, dark: DARK };
 // pairs pass the lightness, chroma and color-vision checks in both schemes). "modified" is the board's first series;
 // "missing" is a wine outside the series, as the series aqua read as a second green next to current.
 export const HEALTH = ['current', 'modified', 'outdated', 'missing', 'foreign', 'untracked', 'removed', 'error', 'absent'];
+const [CURRENT, ABSENT] = ['#0ca30c', '#8b8a85'];
 const HEALTH_COLORS = {
-  light: ['#0ca30c', LIGHT.s1, '#eb6834', '#882255', '#eda100', '#e87ba4', '#6250d6', '#e34948', '#8b8a85'],
-  dark: ['#0ca30c', DARK.s1, '#d95926', '#cc00aa', '#c98500', '#d55181', '#9085e9', '#e66767', '#8b8a85'],
+  light: [CURRENT, LIGHT.s1, '#eb6834', '#882255', '#eda100', '#e87ba4', '#6250d6', '#e34948', ABSENT],
+  dark: [CURRENT, DARK.s1, DARK.s2, '#cc00aa', DARK.s4, '#d55181', '#9085e9', '#e66767', ABSENT],
 };
 
 // Shape, type and motion every panel shares.

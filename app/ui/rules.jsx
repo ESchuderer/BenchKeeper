@@ -176,6 +176,19 @@ function Preview({ row, dir, onClose, onSaved }) {
   );
 }
 
+// The estimate behind an info button; Escape on the button closes it too (Mantine closes on Escape only inside the dropdown).
+function TokenNote({ name }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <Popover opened={opened} onChange={setOpened} width={240} withArrow withinPortal={false} position="bottom-start">
+      <Popover.Target>
+        <ActionIcon variant="subtle" color="gray" size="sm" aria-label={`How ${name} tokens are counted`} onClick={() => setOpened((o) => !o)} onKeyDown={(e) => e.key === 'Escape' && setOpened(false)}>{icon(IconInfoCircle, 16)}</ActionIcon>
+      </Popover.Target>
+      <Popover.Dropdown><Text size="sm">A token is counted as four bytes: an estimate.</Text></Popover.Dropdown>
+    </Popover>
+  );
+}
+
 // The top panel: per agent what loads at the start of every session against BenchKeeper's limit, as one bar split by source
 // with its legend, and the result of the checks as a chip beside the count. detail: the findings, when there are any.
 const Summary = ({ agents, chip, detail }) => (
@@ -191,10 +204,7 @@ const Summary = ({ agents, chip, detail }) => (
               <Stack key={id} gap="xs">
                 <Group gap={4} wrap="nowrap" align="flex-start">
                   <Text><Text span fw={700}>{name}:</Text> <Text span fw={700} fz={22} className="bk-num">{number(total)}</Text> of {number(start.max)} tokens at the start of a session (limit set by {start.by})</Text>
-                  <Popover width={240} withArrow withinPortal={false} position="bottom-start">
-                    <Popover.Target><ActionIcon variant="subtle" color="gray" size="sm" aria-label={`How ${name} tokens are counted`}>{icon(IconInfoCircle, 16)}</ActionIcon></Popover.Target>
-                    <Popover.Dropdown><Text size="sm">A token is counted as four bytes: an estimate.</Text></Popover.Dropdown>
-                  </Popover>
+                  <TokenNote name={name} />
                 </Group>
                 <Limit {...start} parts={parts.length ? parts : undefined} />
                 {parts.length > 0 && <Legend parts={parts} name={name} />}
@@ -204,9 +214,12 @@ const Summary = ({ agents, chip, detail }) => (
             );
           })}
         </Stack>
-        <Box component="section" aria-label="Checks">{chip}</Box>
+        {/* contents: the region keeps the chip and the findings together while they sit in the panel's own rows. */}
+        <Box component="section" aria-label="Checks" style={{ display: 'contents' }}>
+          {chip}
+          {detail && <Box style={{ flex: '1 1 100%', minWidth: 0 }}>{detail}</Box>}
+        </Box>
       </Group>
-      {detail}
     </Stack>
   </Paper>
 );
@@ -278,7 +291,7 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked 
                 {r.by && <Text size="sm">{r.by}</Text>}
                 {!r.switch.by && <Text size="sm">No switch: {r.switch.why}.</Text>}
               </Stack>
-              <Group gap="sm" wrap="nowrap" style={{ flex: '0 1 240px', minWidth: 160 }}>
+              <Group gap="sm" wrap="nowrap" style={{ flex: '0 1 240px', minWidth: 0 }}>
                 <Box style={{ flex: 1, minWidth: 0 }}><Limit label={r.shown} value={r.tokens} max={limit} unit="tokens" by="BenchKeeper" /></Box>
                 <Text className="bk-num" ta="right" miw={64}>{number(r.tokens)}</Text>
               </Group>

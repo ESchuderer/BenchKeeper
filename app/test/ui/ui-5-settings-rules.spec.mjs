@@ -310,6 +310,7 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'How Claude Code tokens are counted' }).click();
     await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(page.getByText('A token is counted as four bytes: an estimate.')).toBeHidden();
     await noAxe(page);
     // The text opens on this machine only.
     await team.getByRole('button', { name: /Show text of/ }).click();
@@ -484,6 +485,8 @@ test.describe('views', () => {
     await page.route(/\/api\/rules-plan$/, async (route) => { await held; await route.continue(); });
     await nav(page, 'Rules').click();
     await expect(page.getByRole('region', { name: 'Checks' })).toContainText('1 finding');
+    await expect(page.getByRole('region', { name: 'Checks' }).getByRole('table', { name: 'Rule findings' })).toBeVisible();
+    await noAxe(page);
     const off = page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / });
     await off.focus();
     await page.keyboard.press('Enter');

@@ -1,8 +1,9 @@
-// Saves the app screenshots of the site's /app/ page (web/public/app/<view>-<light|dark>.png) from the UI test server in
+// Saves the app screenshots of the site's /app/ page (web/public/app/<view>-<light|dark>.webp) from the UI test server in
 // demo mode: a fixture home and fixture projects under one temporary root, stubbed agent commands, never the real machine.
-// Run in the dev container: `cd app && npm run build && node scripts/screenshots.mjs`.
+// Run in the dev container: `cd web && npm ci && cd ../app && npm ci && npm run build && node scripts/screenshots.mjs` (sharp comes from web/).
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,6 +14,10 @@ import { openBrowser } from '../src/server.mjs';
 const PORT = 4410, TOKEN = 'ui-test-token-0123456789';
 const app = resolve(fileURLToPath(import.meta.url), '../..');
 const out = resolve(app, '../web/public/app');
+// Chromium writes PNG only; sharp, which the site installs with Astro, writes the same pixels as lossless WebP in about
+// a third of the bytes.
+let sharp;
+try { sharp = createRequire(resolve(out, '../../package.json'))('sharp'); } catch { throw new Error('sharp is missing: run npm ci in web/ first'); }
 // A fixed name: the paths in the screenshots read /tmp/demo/projects/shop.
 const root = join(tmpdir(), 'demo');
 rmSync(root, { recursive: true, force: true });
@@ -141,8 +146,9 @@ try {
       // The board is a frame of its own.
       for (const f of page.frames()) await f.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
       await assertFixtureOnly(page, `${name}-${scheme}`);
-      await (cut ? cut(page) : page).screenshot({ path: join(out, `${name}-${scheme}.png`) });
-      console.log(`${name}-${scheme}.png`);
+      const png = await (cut ? cut(page) : page).screenshot();
+      await sharp(png).webp({ lossless: true, effort: 6 }).toFile(join(out, `${name}-${scheme}.webp`));
+      console.log(`${name}-${scheme}.webp`);
     }
     await context.close();
   }

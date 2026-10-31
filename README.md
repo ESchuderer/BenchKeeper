@@ -47,8 +47,8 @@ If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.
 ## Every change is shown first
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="web/public/app/fix-dark.png">
-  <img src="web/public/app/fix-light.png" alt="Fix everything in the BenchKeeper app: a diff of a rules file and the plugin install commands, each with a checkbox, before the Apply step">
+  <source media="(prefers-color-scheme: dark)" srcset="web/public/app/fix-dark.webp">
+  <img src="web/public/app/fix-light.webp" alt="Fix everything in the BenchKeeper app: a diff of a rules file and the plugin install commands, each with a checkbox, before the Apply step">
 </picture>
 
 Fix everything shows each file change as a diff and each command as its command line, and writes nothing until you press Apply. The screenshot uses example data. [Every view of the app](https://eschuderer.github.io/BenchKeeper/app/).

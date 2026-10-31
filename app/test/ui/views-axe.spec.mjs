@@ -1,11 +1,11 @@
 // axe on every view as it first opens, in both schemes and at phone width. Read-only, so not part of the serial chain
-// of ui.spec.mjs: these run in parallel with it on the same server.
+// (ui-<n>-*.spec.mjs): these run in parallel with it on the same server.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { VIEWS, nav, ready } from './views.mjs';
 
 test.describe.configure({ mode: 'parallel' });
-// Projects as a table, as in ui.spec.mjs.
+// Projects as a table, as in the serial chain.
 test.beforeEach(({ context }) => context.addInitScript(() => { if (localStorage.getItem('bk-projects-layout') === null) localStorage.setItem('bk-projects-layout', 'table'); }));
 
 const noViolations = async (page, scheme) => {

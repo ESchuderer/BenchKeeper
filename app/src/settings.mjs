@@ -9,7 +9,7 @@ import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge
 import { exists, readText } from './fsx.mjs';
 import { dismissedNotes } from './preferences.mjs';
 import { onPath } from './sandbox.mjs';
-import { CLAUDE_KEYS } from './steps/global.mjs';
+import { CLAUDE_KEYS, RECOMMENDED } from './steps/global.mjs';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`./settings/${f}`, import.meta.url), 'utf8'));
 const CATALOG = load('catalog.json').agents;
@@ -310,8 +310,11 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   return out;
 }
 
-// What the setup writes for a key; null when it does not write it.
-const setupValue = (key) => CLAUDE_KEYS.find(([p]) => p.join('.') === key)?.[1];
+// What the setup writes for a key; null when it does not write it. setupValue adds what it recommends: a recommendation the user
+// accepted stays quiet too.
+const written = (key) => CLAUDE_KEYS.find(([p]) => p.join('.') === key)?.[1];
+const recommended = (agentId, key) => RECOMMENDED[agentId]?.find(([p]) => p.join('.') === key)?.[1];
+const setupValue = (key) => written(key) ?? recommended('claude', key);
 
 // ---- the list for the editor and the CLI ----
 
@@ -383,9 +386,9 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
-    const dflt = setupValue(def.key);
+    const dflt = written(def.key);
     return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, decideId: decideId(agentId, def.key), decided: off.has(decideId(agentId, def.key)), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
+      changed: vals.length > 0, setByApp: !!def.setup, decideId: decideId(agentId, def.key), decided: off.has(decideId(agentId, def.key)), ...(recommended(agentId, def.key) !== undefined ? { recommended: recommended(agentId, def.key) } : {}), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
   const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), precedence: a.precedence, settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
@@ -401,7 +404,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0, ...(recommended(agentId, k) !== undefined ? { recommended: recommended(agentId, k) } : {}) };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);

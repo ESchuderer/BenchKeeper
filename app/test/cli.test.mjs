@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { HELP, helpFor, main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
+import { dismissedNotes } from '../src/preferences.mjs';
 import { context } from '../src/runner.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { initRepo } from './helpers.mjs';
@@ -55,8 +56,12 @@ test('a changing command with no answer refuses before any change; every change 
   await refused(['apply', '--agents', 'claude'], 'apply');
   await refused(['projects', 'apply', dir, '--agents', 'claude'], 'projects apply');
   await refused(['settings', 'set', 'model', 'opus'], 'settings set');
+  // apply --all answered no: cancelled, nothing declined.
+  let r = await exec(['apply', '--agents', 'claude', '--all'], 'n\n');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(![...dismissedNotes(ctx)].some((x) => x.startsWith('change:')), 'no decline');
   // Every change declined: no run.
-  let r = await exec(['projects', 'apply', dir, '--agents', 'claude'], 'n\n'.repeat(200));
+  r = await exec(['projects', 'apply', dir, '--agents', 'claude'], 'n\n'.repeat(200));
   assert.equal(r.code, 0, r.err);
   assert.match(r.text, /\[y\/N\] nothing applied\n/);
   assert.doesNotMatch(r.text, /undo with/);

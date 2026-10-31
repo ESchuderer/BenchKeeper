@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { keptFrom } from './frameworks.mjs';
+import { containerProjects } from './level.mjs';
 import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, storedScopes } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { ruleStates } from './rules.mjs';
@@ -62,7 +63,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
     const pack = lib.packs.find((x) => x.id === id), here = pack && packScope(ctx, pack);
     return pack && s !== here ? [`pack ${id}: ${scopeText(here)} here, ${scopeText(s)} in the profile; to change it: benchkeeper packs scope ${id} ${s}`] : [];
   });
-  const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }));
+  const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [], containers: containerProjects(ctx) }, devcontainerCli }));
   const projects = [], missing = [], skipped = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }

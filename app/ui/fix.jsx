@@ -10,7 +10,6 @@ import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
 export function fixAction(i) {
-  if (i.check === 'unexpected') return [href('agents', { plan: '1' }), 'Review removal'];
   if (['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'global', 'ponytail'].includes(i.check) && i.fix.startsWith('benchkeeper apply')) return [href('agents', { plan: '1' }), 'Plan fix'];
   if (i.check === 'agent-settings') return [href('agent-settings', { ...(/^Codex/.test(i.message) ? { agent: 'codex' } : {}), ...(i.dir ? { layer: 'project', path: i.dir } : {}) }), 'Open settings'];
   if (i.check === 'project') return [href('projects', i.dir ? { path: i.dir } : {}), 'Plan project'];
@@ -50,7 +49,7 @@ export function DoctorWorst({ found, n = 3 }) {
   );
 }
 
-export function DoctorTable({ found, onAction }) {
+function DoctorTable({ found, onAction, onDismiss }) {
   // Below sm each finding is one cell (level, finding, fix stacked), so the fix action needs no sideways scroll.
   const phone = useMediaQuery('(max-width: 47.99em)');
   if (!found.length) return <Text>No findings.</Text>;
@@ -68,6 +67,7 @@ export function DoctorTable({ found, onAction }) {
                 {action ? actionButton(action, onAction) : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                 {i.start && <StartBlock start={i.start} />}
+                {onDismiss && i.dismissId?.startsWith('doctor:') && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
               </Stack>
             );
             return (
@@ -81,6 +81,28 @@ export function DoctorTable({ found, onAction }) {
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
+  );
+}
+
+// Doctor findings with Dismiss on each opinion, and the dismissed opinions and declined changes under a fold with Show again.
+// path: the doctor route; dir marks the findings of a project.
+export function DoctorFindings({ state, path, dir }) {
+  const off = useApi(`${path}${path.includes('?') ? '&' : '?'}dismissed=1`);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState(null);
+  const dismiss = (id, on) => { setError(null); api('/api/settings-dismiss', { id, dismissed: on }).then(() => { state.reload(); off.reload(); }, (e) => setError(e.message)); };
+  const dismissed = off.data ?? [];
+  return (
+    <Stack gap="sm">
+      {error && <Note color="red" title="Not saved">{error}</Note>}
+      <Loading state={state} label="doctor">{(found) => <DoctorTable found={dir ? found.map((i) => ({ ...i, dir })) : found} onDismiss={(i) => dismiss(i.dismissId, true)} />}</Loading>
+      {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={open} onClick={() => setOpen(!open)}>{`Dismissed (${dismissed.length})`}</Button></Group>}
+      {open && dismissed.length > 0 && (
+        <List size="sm" aria-label="Dismissed doctor findings">
+          {dismissed.map((i) => <List.Item key={i.dismissId}>{i.message} <Button size="compact-xs" variant="default" aria-label={`Show again: ${i.message}`} onClick={() => dismiss(i.dismissId, false)}>Show again</Button></List.Item>)}
+        </List>
+      )}
+    </Stack>
   );
 }
 
@@ -209,7 +231,8 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
-    if (!select?.length) { projects(); return; }
+    // Nothing chosen of the global plan: the apply records the declines and starts no run.
+    if (!select?.length) { (select && plan?.changes.length ? api('/api/apply', { planId: plan.planId, select: [] }) : Promise.resolve()).then(projects, (e) => { setError(e.message); halt('the declines were not saved'); }); return; }
     api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (

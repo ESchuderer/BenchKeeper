@@ -152,7 +152,6 @@ test('a skill pack for all projects: global copies instead of the project ones, 
   for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
   const full = globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { level: 'full' } });
   assert.ok(!full.some((c) => c.step === 'other:claude:skill' && skills.some((s) => c.path.endsWith(s))));
-  assert.ok(!globalDrift(ctx, ['claude'], '0.0.0', 'full').some((i) => i.check === 'unexpected' && skills.some((s) => i.message.includes(s))));
   assert.ok(!projectPlan({ ctx, dir, answers: {} }).changes.some((c) => skills.some((s) => c.step === `skill:${s}`)));
 
   // Back to selected projects: the global copies the app installed go to the backup, preselected, the project gets its copies again.

@@ -2,7 +2,7 @@ import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, 
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
-import { DoctorTable, DoctorWorst, FixEverythingButton } from './fix.jsx';
+import { DoctorFindings, DoctorWorst, FixEverythingButton } from './fix.jsx';
 import { levelCounts } from '../src/levels.mjs';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
@@ -320,10 +320,10 @@ export function Dashboard({ overview, doctor, history, params }) {
               <Anchor href={href('insights')} size="sm">All {found.length} in Insights</Anchor>
               <details open={panel === 'doctor'} onToggle={(e) => { if (!e.currentTarget.open && panel === 'doctor') window.location.replace(href('dashboard')); }}>
                 <summary><Text component="span" size="sm" fw={600}>Every finding with its fix</Text></summary>
-                <Box mt="sm"><DoctorTable found={found} /></Box>
+                <Box mt="sm"><DoctorFindings state={doctor} path="/api/doctor" /></Box>
               </details>
             </Stack>
-          ) : <Text>No findings.</Text>)}</Loading></Section>
+          ) : <DoctorFindings state={doctor} path="/api/doctor" />)}</Loading></Section>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">

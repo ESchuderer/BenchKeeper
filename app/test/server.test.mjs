@@ -13,6 +13,7 @@ import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
+import { dismissedNotes } from '../src/preferences.mjs';
 import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
 import { dashboard } from '../src/dashboard.mjs';
@@ -203,7 +204,7 @@ function fixture(extra = () => null) {
 }
 const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
 
-test('inventory: an edited rules file is modified, enabled plugins current, a missing tool missing', () => {
+test('inventory: an edited rules file is modified, enabled plugins current, no Dev Containers CLI without a project that uses one', () => {
   const { ctx, routes } = fixture();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
@@ -212,7 +213,7 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.deepEqual(state('rules:claude'), ['modified']);
   assert.deepEqual(state('settings:claude'), ['current']);
   assert.deepEqual(state('plugin:claude:benchkeeper@benchkeeper'), ['current']);
-  assert.deepEqual(state('tools:devcontainer'), ['missing']);
+  assert.deepEqual(state('tools:devcontainer'), []);
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
 });
 
@@ -225,6 +226,16 @@ test('level: the overview names the level found, the global plan takes a level a
   const lite = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=lite'));
   assert.ok(lite.changes.every((c) => c.kind === 'command' && c.step.endsWith('benchkeeper@benchkeeper')));
   assert.equal(status(() => routes['GET /api/global-plan'](new URLSearchParams('level=tiny'))), 400);
+});
+
+test('apply of the global plan with nothing chosen: its changes are declined, no run starts; another global plan declines nothing', async () => {
+  const { ctx, routes } = fixture();
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  assert.deepEqual(routes['POST /api/apply']({ planId: plan.planId, select: [] }), { job: null, total: 0 });
+  const declined = [...dismissedNotes(ctx)].filter((x) => x.startsWith('change:'));
+  assert.ok(declined.length > 0 && declined.length <= plan.changes.filter((c) => !c.optional && !c.destructive).length);
+  assert.ok(routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full')).changes.filter((c) => !c.optional && !c.destructive).every((c) => !c.selected));
+  assert.equal(ctx.ledger.list().length, 0, 'no run');
 });
 
 test('prerun: the global skill install is rehearsed in a job, its file diff per change id; the real home stays as it is', async () => {

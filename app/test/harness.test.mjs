@@ -19,7 +19,7 @@ const machine = (extra = () => null) => context({ home: tmp('bk-harn-'), run: (a
   : { code: 0, stdout: argv.join(' ') === 'claude plugin list --json' ? PLUGINS : argv.includes('--json') ? '[]' : '1.0.0', stderr: '' }) });
 const byName = (checks) => Object.fromEntries(checks.map((c) => [c.name.replace(/ \(.*/, ''), c]));
 
-test('benchkeeper verify: files match the ledger, plugins enabled, nothing unexpected; each check can fail', () => {
+test('benchkeeper verify: files match the ledger, plugins enabled; each check can fail; the user\'s own skills pass', () => {
   const ctx = machine();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let c = byName(harnessTest(ctx, { agents: ['claude'] }));
@@ -28,7 +28,7 @@ test('benchkeeper verify: files match the ledger, plugins enabled, nothing unexp
   mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   c = byName(harnessTest(ctx, { agents: ['claude', 'gemini'] }));
   assert.match(c['installed files match the ledger'].problems[0], /00-global\.md changed since run/);
-  assert.match(c['nothing unexpected installed'].problems.join(), /\.claude\/skills\/stray/);
+  assert.ok(!JSON.stringify(c).includes('stray'), 'a global skill of the user is no problem');
   assert.match(c['each agent has the expected skills'].problems.join(), /Gemini CLI: skill workflow missing/);
 });
 

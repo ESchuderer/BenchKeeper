@@ -2,6 +2,13 @@ import { expect, test } from '@playwright/test';
 import { nav } from './views.mjs';
 import { noAxe, showMatching, stubSettings, openDiffs, opened } from './chain.mjs';
 
+// Answers the rules view with the auto memory of Claude Code from get(), read again on every request.
+const stubMemory = (page, get) => page.route(/\/api\/rules$/, async (route) => {
+  const r = await route.fetch();
+  const body = await r.json();
+  await route.fulfill({ response: r, json: { ...body, agents: body.agents.map((a) => (a.id === 'claude' ? { ...a, memory: get() } : a)) } });
+});
+
 test.describe('views', () => {
   opened(test);
 
@@ -293,10 +300,11 @@ test.describe('views', () => {
     const team = files.getByRole('row', { name: /20-team\.md/ });
     await expect(team).toContainText('yours');
     await expect(team).toContainText('loads');
-    // BenchKeeper's own rules file has no switch; the budget counts files, skill descriptions and says what is largest.
+    // BenchKeeper's own rules file has no switch; the budget bar has one segment per source, largest first, named in its legend.
     await expect(files.getByRole('row', { name: /00-global\.md/ })).toContainText('No switch: BenchKeeper wrote it');
-    await expect(page.getByRole('table', { name: 'Context budget' }).first()).toContainText('Rule files');
-    await expect(page.getByText('load at the start of every session').first()).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Claude Code sources' }).getByRole('listitem').first()).toContainText('00-global.md');
+    await expect(page.getByText('tokens at the start of a session').first()).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Checks' })).toContainText('No rule file is over a limit or broken');
     await noAxe(page);
     // The text opens on this machine only.
     await team.getByRole('button', { name: /Show text of/ }).click();
@@ -350,22 +358,28 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Rules: the summary strip shows each agent\'s budget bar and largest source above the checks; Claude Code is the open tab, Codex one click away', async ({ page }) => {
+  test('Rules: the summary strip shows each agent\'s budget bar split by source, largest first, beside the checks; Claude Code is the open tab, Codex one click away', async ({ page }) => {
     const view = /\/api\/rules$/;
     await page.route(view, async (route) => {
       const r = await route.fetch();
       const body = await r.json();
       const [claude] = body.agents;
-      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
+      const codex = { ...claude, id: 'codex', name: 'Codex', memory: undefined, rows: [{ ...claude.rows[0], agent: 'codex', path: '/home/u/.codex/AGENTS.md', shown: '~/.codex/AGENTS.md' }], budget: { ...claude.budget, items: [{ kind: 'rules', label: '~/.codex/AGENTS.md', tokens: 11000 }, { kind: 'rules', label: '~/.codex/extra.md', tokens: 3000 }], total: 12000, over: true, largest: { label: '~/.codex/AGENTS.md', tokens: 11000 }, limits: [{ ...claude.budget.limits[0], value: 12000 }] } };
       await route.fulfill({ response: r, json: { ...body, agents: [claude, codex] } });
     });
     await nav(page, 'Rules').click();
     const strip = page.getByRole('region', { name: 'Summary' });
-    await expect(strip).toContainText(/Claude Code: about [\d,]+ tokens load at the start of every session, of 10,000 \(limit set by BenchKeeper\); the largest source is ~\/\.claude\/rules\/00-global\.md with [\d,]+\./);
-    await expect(strip).toContainText('Codex: about 12,000 tokens load at the start of every session, of 10,000 (limit set by BenchKeeper); the largest source is ~/.codex/AGENTS.md with 11,000.');
+    await expect(strip).toContainText(/Claude Code: [\d,]+ of 10,000 tokens at the start of a session \(limit set by BenchKeeper\)/);
+    await expect(strip).toContainText('Codex: 12,000 of 10,000 tokens at the start of a session (limit set by BenchKeeper)');
+    await expect(strip.getByRole('list', { name: 'Claude Code sources' }).getByRole('listitem').first()).toContainText(/00-global\.md\s*[\d,]+/);
+    await expect(strip.getByRole('list', { name: 'Codex sources' }).getByRole('listitem').first()).toContainText(/~\/\.codex\/AGENTS\.md\s*11,000/);
     await expect(strip.getByRole('progressbar')).toHaveCount(2);
     await expect(strip.getByRole('progressbar', { name: 'At the start of a session: 12,000 of 10,000 tokens, limit set by BenchKeeper' })).toBeVisible();
     await expect(strip).toContainText('More than 10,000 tokens');
+    const over = strip.getByRole('progressbar', { name: /^At the start of a session: 12,000/ });
+    await expect(over).toHaveAttribute('aria-valuenow', '10000');
+    await expect(over).toHaveAttribute('aria-valuetext', '12,000 of 10,000 tokens');
+    await expect(strip).toContainText('About 2,000 tokens of these sources may not load: Codex stops adding files at its size limit.');
     await expect(strip.getByRole('region', { name: 'Checks' })).toBeVisible();
     const tabs = page.getByRole('tablist', { name: 'Agents' });
     await expect(tabs.getByRole('tab', { name: 'Claude Code' })).toHaveAttribute('aria-selected', 'true');
@@ -375,12 +389,25 @@ test.describe('views', () => {
     await tabs.getByRole('tab', { name: 'Codex' }).click();
     await expect(page.getByRole('table', { name: 'Codex instruction files' })).toContainText('~/.codex/AGENTS.md');
     await expect(page.getByRole('table', { name: 'Codex instruction files' })).not.toContainText('00-global.md');
-    const codexBudget = page.getByRole('region', { name: 'Codex context budget' }).getByRole('table', { name: 'Context budget' });
-    await expect(codexBudget).toContainText('~/.codex/AGENTS.md');
-    await expect(codexBudget).not.toContainText('00-global.md');
+    await expect(strip.getByRole('list', { name: 'Codex sources' })).not.toContainText('00-global.md');
     await expect(page.getByRole('table', { name: 'Claude Code instruction files' })).toBeHidden();
     await noAxe(page);
     await page.unroute(view);
+  });
+
+  test('Rules: the file rows come right after the budget and auto memory below them; the legend names every segment of the bar', async ({ page }) => {
+    const memory = { lines: 150, bytes: 10 * 1024, folders: [{ project: '/work/app', path: '/home/u/.claude/projects/-work-app/memory', enabled: true, notes: 3, bytes: 4096, changed: '2026-02-03T04:05:06.000Z', over: false }] };
+    await stubMemory(page, () => memory);
+    await nav(page, 'Rules').click();
+    const [files, notes] = await Promise.all([page.getByRole('region', { name: 'Claude Code files' }).boundingBox(), page.getByRole('region', { name: 'Claude Code auto memory' }).boundingBox()]);
+    expect(files.y).toBeLessThan(notes.y);
+    const total = Number((await page.getByRole('region', { name: 'Summary' }).getByRole('progressbar', { name: /^At the start of a session/ }).getAttribute('aria-valuetext')).match(/^[\d,]+/)[0].replace(/,/g, ''));
+    const legend = await page.getByRole('list', { name: 'Claude Code sources' }).getByRole('listitem').allInnerTexts();
+    expect(legend.reduce((n, t) => n + Number(t.match(/([\d,]+)\s*$/)[1].replace(/,/g, '')), 0)).toBe(total);
+    await noAxe(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
   });
 
   test('Rules: a path-scoped file costs its tokens only in the turns it loads for matching files', async ({ page }) => {
@@ -407,11 +434,7 @@ test.describe('views', () => {
       { project: '-work-old', path: '/home/u/.claude/projects/-work-old/memory', enabled: true, notes: 0, bytes: 120, changed: '2026-01-01T00:00:00.000Z', over: false },
     ];
     let memory = { lines: 150, bytes: 10 * 1024, folders };
-    await page.route(view, async (route) => {
-      const r = await route.fetch();
-      const body = await r.json();
-      await route.fulfill({ response: r, json: { ...body, agents: body.agents.map((a) => (a.id === 'claude' ? { ...a, memory } : a)) } });
-    });
+    await stubMemory(page, () => memory);
     await nav(page, 'Rules').click();
     await page.setViewportSize({ width: 390, height: 844 });
     const section = page.getByRole('region', { name: 'Claude Code auto memory' });

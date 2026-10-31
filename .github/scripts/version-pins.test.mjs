@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SKIP, pins, playwrightDrift } from './version-pins.mjs';
+import { SKIP, minAppPin, pins, playwrightDrift } from './version-pins.mjs';
 
 test('install commands get the current version, other version mentions stay', () => {
   const text = 'Run `npx benchkeeper@6.0.0 apply`, or `git clone --branch setup-v6.0 x`. setup-v3.3 took 8 minutes; benchkeeper@6.0.0 in prose.';
@@ -25,4 +25,11 @@ test('a package whose @playwright/test differs from the dev container is reporte
   assert.deepEqual(playwrightDrift('npm i -g playwright@1.64.1-beta.0', { 'web/package.json': pkg('1.64.1') }).drift, ['web/package.json']);
   assert.equal(playwrightDrift('# was playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
   assert.equal(playwrightDrift('no version', { 'web/package.json': pkg('1.64.1') }).image, undefined);
+});
+
+test('minApp follows the release app version; other versions in content.json stay', () => {
+  const text = '{\n  "schemaVersion": 1,\n  "contentVersion": "6.25.0",\n  "minApp": "6.25.0"\n}\n';
+  assert.equal(minAppPin(text, '6.26.0'), '{\n  "schemaVersion": 1,\n  "contentVersion": "6.25.0",\n  "minApp": "6.26.0"\n}\n');
+  assert.equal(minAppPin('{"minApp":"6.25.0"}', '7.0.0'), '{"minApp":"7.0.0"}');
+  assert.equal(minAppPin('{"contentVersion": "6.25.0"}', '7.0.0'), '{"contentVersion": "6.25.0"}');
 });

@@ -283,7 +283,7 @@ export function Dashboard({ overview, doctor, history, params }) {
           </Group>
         )}</Loading>
       </Paper>
-      <SimpleGrid cols={{ base: 1, md: 2 }}>
+      <SimpleGrid cols={{ base: 1, md: 2 }} style={{ alignItems: 'start' }}>
         <Paper withBorder p="md"><Section title="Health">{fromDash((d) => <Health data={d} />)}</Section></Paper>
         <Paper withBorder p="md"><Section title="Where">{fromDash((d) => <Where data={d} />)}</Section></Paper>
       </SimpleGrid>

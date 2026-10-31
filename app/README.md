@@ -305,7 +305,7 @@ Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup
 
 ## Test
 
-In the dev container (repository `AGENTS.md`):
+In the dev container:
 
 - `npm test`: unit tests against temporary home directories with stubbed agent commands
 - `npm run smoke`: start, plan, apply and ledger write

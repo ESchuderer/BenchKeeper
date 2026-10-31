@@ -2,7 +2,7 @@
 // Decisions (#273): Insights is a view of its own, not a Dashboard section. A signal that needs sessions needs at least
 // MIN_SAMPLES of them and reports nothing below that, so a thin history never produces a ranked finding.
 // Five signals: unused skills (sessions against the installed skills), friction (a project whose sessions ended on a failed
-// test run without a pull request), hygiene (the doctor's findings), freshness (the doctor's outdated items) and skills
+// test run), hygiene (the doctor's findings), freshness (the doctor's outdated items) and skills
 // (proposals per project to turn off, add or update its skills, #480). Skills behind their source need the network: `skills list --check`.
 // insights() is pure: the state in, the findings out. collectInsights() reads the state from the machine.
 import { createHash } from 'node:crypto';
@@ -58,7 +58,7 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], proj
       });
     }
   }
-  // Friction (#322): one proxy, a session whose last test run failed and that opened no pull request. Per project, among its
+  // Friction (#322): one proxy, a session whose last test run failed. Per project, among its
   // sessions without dispatched workers and research tier; Claude Code and Codex both count. Nothing below minSamples of them.
   // Grouped by the canonical path (two projects can share a folder name); the finding carries only the folder name and a hash of the path.
   const byPath = new Map();
@@ -70,13 +70,13 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], proj
     byPath.get(path).push(s);
   }
   for (const [path, list] of byPath) {
-    const failed = list.filter((s) => s.tests === 'fail' && !s.prs?.length);
+    const failed = list.filter((s) => s.tests === 'fail');
     if (list.length < minSamples || !failed.length) continue;
     const rate = Math.round((failed.length / list.length) * 100);
     const folder = folderOf(path);
     found.push({
       id: `friction:${hash(path)}`, signal: 'friction', severity: 'info',
-      message: `${failed.length} of ${list.length} sessions in ${folder} (${rate}%) ended on a failed test run and opened no pull request`,
+      message: `${failed.length} of ${list.length} sessions in ${folder} (${rate}%) ended on a failed test run`,
       evidence: { project: folder, sessions: list.length, failed: failed.length, rate, sessionIds: failed.map((s) => s.id).sort() },
       fix: 'open the listed sessions in the sessions board and look at why the tests failed: a missing check in the project, a rule the agent skipped or a task too large for one session',
     });

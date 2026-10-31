@@ -239,8 +239,9 @@ const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.
 // ---- export: one sh script for cron or a systemd timer, without the runner
 
 const CRON = /^(@(hourly|daily|weekly|monthly|yearly|annually)|(\S+\s+){4}\S+)$/;
-// dontAsk denies every tool call no allow rule covers: nobody answers a prompt in a cron run.
-const HEADLESS = { claude: 'claude -p "$prompt" --permission-mode dontAsk', codex: 'codex exec --sandbox workspace-write "$prompt" </dev/null' };
+// dontAsk denies every tool call no allow rule covers: nobody answers a prompt in a cron run. The helpers' folder
+// changes per run, so the script allows each helper itself ("$@").
+const HEADLESS = { claude: 'claude -p "$prompt" --permission-mode dontAsk "$@"', codex: 'codex exec --sandbox workspace-write "$prompt" </dev/null' };
 
 // Each helper path in s as "$helpers"/'<file>'; literal: s is text, not sh, so its other parts are single-quoted.
 const withHelpers = (t, s, literal) => t.helpers.reduce((parts, h) => parts.flatMap((p) => typeof p === 'string'
@@ -261,17 +262,20 @@ export function exportScript(ctx, id, { values = {}, dir }) {
     const file = `"$helpers"/${quote(h.path.slice(t.id.length + 1))}`;
     return `cat > ${file} <<'${end}'\n${h.text.endsWith('\n') ? h.text : `${h.text}\n`}${end}\nchmod +x ${file}\n`;
   }).join('');
+  const allow = t.agent === 'claude' && t.helpers.length
+    ? `set -- --allowedTools ${t.helpers.map((h) => `"Bash($helpers/${h.slice(t.id.length + 1)} *)"`).join(' ')}\n` : '';
   return `#!/bin/sh
 # ${t.title} (${t.id}), from benchkeeper automations export. Runs the precheck in the project folder and
 # ${t.agent} only when it exits 0. A crontab line (crontab -e), with the absolute path of this file:
 # ${t.schedule} /path/to/${t.id}.sh
+command -v ${t.agent} >/dev/null || { echo "${t.agent} is not in PATH ($PATH): set PATH in the crontab" >&2; exit 127; }
 helpers=$(mktemp -d) || exit 1
 trap 'rm -rf "$helpers"' EXIT
 trap 'exit 1' HUP INT TERM
 ${helpers}cd ${quote(resolve(dir))} || exit 1
 (${withHelpers(t, filled.precheck)}) || exit 0
 prompt=${withHelpers(t, filled.prompt, true)}
-${HEADLESS[t.agent]}
+${allow}${HEADLESS[t.agent]}
 `;
 }
 

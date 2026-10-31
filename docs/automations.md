@@ -123,12 +123,12 @@ The view shows per installed automation its state, whether it is enabled, its mo
 `benchkeeper automations export <id> --param name=value --project <dir> > ~/bin/<id>.sh` writes one sh script per template for cron or a systemd timer. The script unpacks the template's helpers into a temporary folder, runs the precheck in the project folder and starts the agent only when the precheck exits 0. It removes the folder when it ends. The app writes no crontab and no systemd unit, and it keeps no record, so `status`, `update` and `doctor` do not see an exported automation.
 
 1. Export, make the script executable (`chmod +x`) and run it once by hand in mode `report`.
-2. Add the line from the script's header to `crontab -e`, with the script's absolute path. A systemd timer: a service with `ExecStart=` the script and a timer with `OnCalendar=` the same time ([systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)).
+2. Add the line from the script's header to `crontab -e`, with the script's absolute path. Cron starts with a short PATH, so put a `PATH=` line above it that includes the folders of `claude` or `codex` and `gh` (`command -v claude`); the script exits 127 when it does not find the agent. A systemd timer: a service with `ExecStart=` the script and a timer with `OnCalendar=` the same time ([systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)).
 3. A changed template needs a new export.
 
 | Agent | Command in the script | What the run may do |
 |---|---|---|
-| `claude` | `claude -p "$prompt" --permission-mode dontAsk` | file reads in the folder and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the commands the prompt runs (`gh`, the helpers) to the project's settings |
+| `claude` | `claude -p "$prompt" --permission-mode dontAsk --allowedTools "Bash(<folder>/<helper> *)"..` | file reads in the folder, the template's helpers (the script allows each one, since their folder changes per run) and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the other commands the prompt runs, such as `gh`, to the project's settings |
 | `codex` | `codex exec --sandbox workspace-write "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
 
 Limits:

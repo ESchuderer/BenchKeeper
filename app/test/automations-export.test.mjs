@@ -61,9 +61,10 @@ test('export: the precheck runs in the project folder with its helpers, a non-ze
 test('export: precheck 0 runs claude headless with the prompt intact and the helper paths filled in', () => {
   const s = setup();
   const [p, prompt, ...flags] = run(exportScript(s.ctx, 'probe', { values: { flag: 'b' }, dir: s.project }), s, 0);
-  assert.deepEqual([p, ...flags], ['-p', '--permission-mode', 'dontAsk', '']);
-  const expected = PROMPT.replace('{{flag}}', 'b');
   const helper = prompt.match(/`(\S+)\/list\.sh b`/)[1];
+  assert.deepEqual([p, ...flags.slice(0, 3)], ['-p', '--permission-mode', 'dontAsk', '--allowedTools']);
+  assert.deepEqual(flags.slice(3, -1), ['precheck.sh', 'list.sh'].map((f) => `Bash(${helper}/${f} *)`));
+  const expected = PROMPT.replace('{{flag}}', 'b');
   assert.equal(prompt, expected.replace('probe/list.sh', `${helper}/list.sh`));
   assert.notEqual(helper, 'probe');
 });
@@ -73,6 +74,14 @@ test('export: codex runs codex exec in a workspace-write sandbox', () => {
   const args = run(exportScript(s.ctx, 'probe', { dir: s.project }), s, 0);
   assert.deepEqual(args.slice(0, 3), ['exec', '--sandbox', 'workspace-write']);
   assert.match(args[3], /automation-probe/);
+});
+
+test('export: an agent missing from PATH fails with exit 127 before the precheck', () => {
+  const s = setup();
+  const file = join(s.project, 'probe.sh');
+  writeFileSync(file, exportScript(s.ctx, 'probe', { dir: s.project }));
+  assert.throws(() => execFileSync('/bin/sh', [file], { env: { PATH: '/nonexistent' }, stdio: 'pipe' }), (e) => e.status === 127 && /claude is not in PATH/.test(e.stderr));
+  assert.equal(existsSync(join(s.project, 'seen')), false);
 });
 
 test('export refuses a template it cannot run without the runner', () => {

@@ -1,4 +1,4 @@
-import { Button, Code, Group, List, Select, Stack, Table, Text } from '@mantine/core';
+import { Button, Code, Group, List, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
@@ -12,7 +12,7 @@ const Scroll = ({ label, children }) => (
   </Table.ScrollContainer>
 );
 // A section without data: one line with its title and the reason.
-const Empty = ({ title, children }) => <Text size="sm" component="section" aria-label={title}><Text span fw={600}>{title}</Text>: {children}</Text>;
+const Empty = ({ title, children }) => <Text size="sm" component="section" aria-label={title}><Title order={3} fz="sm" lh="inherit" display="inline">{title}</Title>: {children}</Text>;
 
 // Runs and tasks, read when the view opens and on Refresh; no timer. The rows hold ids, states and counts, never a prompt or worker output.
 export function Runs() {

@@ -1,10 +1,14 @@
-# Sample .worktreeinclude for the repository root. Project setup offers it with orca.yaml.
-# One literal path per line, relative to the repository root; no wildcards, no negations.
+# Sample .worktreeinclude for the repository root. Project setup writes one itself and keeps its list between
+# "# benchkeeper:worktrees" markers; lines outside them are yours.
+# One literal path per line, relative to the repository root; no wildcards, no negations, no leading slash.
 # Orca copies the entries from the primary checkout into each new worktree, only when they exist and Git ignores them
-# (a local setup lists them in .git/info/exclude).
+# (a local setup lists them in .git/info/exclude). Claude Code reads the same file as .gitignore patterns.
 CLAUDE.local.md
 AGENTS.override.md
+.claude/settings.local.json
+.claude/hooks/benchkeeper-guard.mjs
 .benchkeeper/state.json
 skills-lock.json
 .claude/skills
 .agents/skills
+.worktreeinclude

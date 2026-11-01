@@ -13,7 +13,7 @@ import { integrity } from './integrity.mjs';
 import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import * as orca from './orca/index.mjs';
-import { warnings } from './packs.mjs';
+import { clashFix, hiddenUserSkills, warnings } from './packs.mjs';
 import { bandChecks, styleChecks } from './ponytail.mjs';
 import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
@@ -99,6 +99,9 @@ function packSetupChecks(dir, state, lib = library()) {
   }));
 }
 
+// The user's skills a library skill of the same name hides (#945).
+export const ownSkillClashes = (ctx) => hiddenUserSkills(ctx).map((n) => issue('warning', 'skills', `your skill ${n} is hidden by the library skill of that name`, clashFix(ctx, n)));
+
 export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
@@ -138,7 +141,7 @@ export function doctorReport(ctx, { agents, dir, env = process.env, devcontainer
   const tooNew = contentRefusal(contentDir, appVersion) ?? installedRefusal(ctx, agents);
   const out = [...(tooNew ? [issue('error', 'content', tooNew, 'run the newer benchkeeper command named, or update the plugin to the version this app sets up')] : []), ...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
-  out.push(...accountChecks(ctx, { dir, now }));
+  out.push(...ownSkillClashes(ctx), ...accountChecks(ctx, { dir, now }));
   const ide = orca.unobserved(ctx);
   if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
   out.push(...automationChecks(ctx));

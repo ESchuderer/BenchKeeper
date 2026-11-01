@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { contentDir, library } from './content.mjs';
-import { exists, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
+import { exists, listDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -71,6 +71,11 @@ export function userSkills(ctx, lib = library()) {
     try { return [{ name, source: 'user', agents: 'both', pickWhen: checkSkill(name, readText(join(userSkillDir(ctx, name), 'SKILL.md')) ?? '') }]; } catch { return []; }
   });
 }
+
+// The user's skill folders the library has a skill of: the library's wins, and doctor, the catalog and the project plan name
+// the clash (#945). clashFix: how to keep the user's skill under another name.
+export const hiddenUserSkills = (ctx, lib = library()) => listDir(join(ctx.config, 'skills')).filter((n) => lib.skills.some((s) => s.name === n) && exists(join(userSkillDir(ctx, n), 'SKILL.md')));
+export const clashFix = (ctx, name) => `copy ${userSkillDir(ctx, name)} to a folder of a new name, set that name in its SKILL.md, and pick the new name in your projects`;
 
 // The plan change that writes a user skill's SKILL.md, new or edited; undo puts the earlier file back.
 export function userSkillWrite(ctx, name, text, { isNew }) {

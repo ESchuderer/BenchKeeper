@@ -55,10 +55,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'skills', view: 'skills', title: 'Skills', shot: 'skills',
-    alt: 'The Skills page of the Catalog: search, the filters for pack, agent and install state, the Build pack button, then the library skills, each with a checkbox for the pack and the number of projects that have it, and beside them New skill.',
+    alt: 'The Skills page of the Catalog: search, the filters for pack, agent and install state, New skill, then the library skills, each with a checkbox for the pack, badges for the library packs that name it and the number of projects that have it.',
     text: [
       'The Catalog has two pages. Skills lists the library skills with the number of projects that have each and the source, pin and eval results of the one you open, and builds own packs from them.',
-      'New skill adds a skill of your own, marked "yours" in the list, with Edit and Remove on its detail. Each is a plan with a diff. A project or own pack picks it like a library skill and gets a copy.',
+      'New skill adds a skill of your own, marked "yours" in the list, with Edit and Remove on its row and its detail. Each opens a dialog and ends in a plan with a diff. A project or own pack picks it like a library skill and gets a copy.',
       'The state of each skill in a project (current, outdated, modified, removed or disabled), with an Active switch and Update, Reset and Remove, is on the project\'s Installs tab.',
     ],
     cli: [`${V} skills list --library`, `${V} skills new <name>`, `${V} skills update <name> --project <dir>`],

@@ -1,6 +1,6 @@
 // Structural checks for BenchKeeper's own skills (plugin skills and own library skills).
 // Usage: node .github/scripts/skill-lint.mjs [skill folders...]   (default: every own skill), exit 1 on any error.
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,8 +72,7 @@ export function ownSkills() {
   return dirs.flatMap((d) => readdirSync(d).map((n) => join(d, n)).filter((p) => statSync(p).isDirectory()));
 }
 
-// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dirs = process.argv.length > 2 ? process.argv.slice(2).map((d) => resolve(d)) : ownSkills();
   const errors = dirs.flatMap(lintSkill);
   for (const e of errors) console.log(`::error::${e.replace(root + '/', '')}`);

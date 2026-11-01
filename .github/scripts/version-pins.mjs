@@ -4,7 +4,7 @@
 // Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs, or when the dev container's Playwright differs
 // from @playwright/test in web/ or app/)
 import { execFileSync } from 'node:child_process';
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,8 +30,7 @@ export function playwrightDrift(dockerfile, packages) {
   return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 
-// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { version } = JSON.parse(readFileSync(`${root}/app/package.json`, 'utf8'));
   const files = execFileSync('/usr/bin/git', ['ls-files', '*.md', '*.json', '*.tsx'], { cwd: root, encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
   const stale = [];

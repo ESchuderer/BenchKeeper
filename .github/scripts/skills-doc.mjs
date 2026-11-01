@@ -1,6 +1,6 @@
 // Writes the skill tables of docs/skills.md from the SKILL.md front matter of the plugin's skills and from library.json.
 // Usage: node .github/scripts/skills-doc.mjs [--check]   (--check: exit 1 when the page differs)
-import { readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { frontMatter } from './skill-lint.mjs';
@@ -53,8 +53,7 @@ export function sources() {
   return [skills, JSON.parse(readFileSync(`${root}/plugins/benchkeeper/library/library.json`, 'utf8'))];
 }
 
-// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const file = `${root}/docs/skills.md`;
   const page = readFileSync(file, 'utf8');
   const next = update(page, ...sources());

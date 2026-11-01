@@ -1,9 +1,13 @@
 import { defineConfig } from '@playwright/test';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// One private folder per run for the fixtures (test/ui/serve.mjs, test/ui/chain.mjs). The workers and the web server load
+// this file again with the runner's environment, so they keep the folder the runner made.
+process.env.BK_UI_ROOT ||= mkdtempSync(join(tmpdir(), 'bk-ui-run-'));
 // The signed-in cookie and API key, written by test/ui/login.setup.mjs.
-export const STATE = join(tmpdir(), 'bk-ui-state-4410.json');
+export const STATE = join(process.env.BK_UI_ROOT, 'state.json');
 const PARTS = ['ui-1-shell', 'ui-2-dashboard', 'ui-3-catalog-projects', 'ui-4-history-apply', 'ui-5-settings-rules', 'ui-6-extensions-accounts'];
 const CHAIN = /ui-\d-[\w-]+\.spec\.mjs/;
 

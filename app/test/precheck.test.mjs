@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, realpathSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { check, pickable } from '../../plugins/benchkeeper/skills/orchestrating-projects/precheck.mjs';
 
 const POLICY = { startLabel: 'agent-ready', trustedAuthors: ['helper[bot]'] };
@@ -35,4 +40,12 @@ test('precheck: reads the policy from the default branch and skips a project wit
   calls.length = 0;
   assert.deepEqual(check('/p', stub(null)), []);
   assert.ok(!calls.some((c) => c.startsWith('gh')));
+});
+
+test('precheck: started through a symlinked folder it still runs, so no project means exit 1, not a silent 0', () => {
+  // Exit 0 means "there is an issue to pick": a guard that skipped the command line would start every scheduled run.
+  const real = realpathSync(fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects', import.meta.url)));
+  const link = join(mkdtempSync(join(tmpdir(), 'bk-precheck-')), 'link');
+  symlinkSync(real, link, 'dir');
+  for (const dir of [real, link]) assert.equal(spawnSync(process.execPath, [join(dir, 'precheck.mjs')]).status, 1, dir);
 });

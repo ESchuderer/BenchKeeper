@@ -3,7 +3,8 @@
 // Pickable: open, carries the policy's startLabel, written by a trusted author, and no open or merged pull request has a head
 // branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy is read from origin's default branch, never from a checked-out branch.
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
@@ -30,7 +31,10 @@ export function check(dir, run = sh) {
   return pickable(policy, issues, heads);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// True when this file is the script Node was started with. Node resolves symlinks for import.meta.url but keeps
+// process.argv[1] as typed, so both are compared as real paths: started through a symlinked folder, the command line still runs.
+const isMain = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (isMain()) {
   let found = false;
   for (const dir of process.argv.slice(2)) {
     try {

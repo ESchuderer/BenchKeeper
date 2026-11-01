@@ -2,7 +2,7 @@
 
 BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](../plugins/benchkeeper)), plus the [app](../app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
 
-The components BenchKeeper sets up, where each file lives and why these were chosen. Install and update steps: [setup guide](setup.md).
+Install and update steps: [setup guide](setup.md).
 
 ## Components
 
@@ -68,7 +68,7 @@ Not installed by BenchKeeper.
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input and a sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal without a separate app |
 <!-- /generated:tools -->
 
-Orca only: the app offers the `orca-cli` and `orchestration` skills. Existing Orca skills and hooks are kept ([Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
+With Orca, existing Orca skills and hooks are kept ([Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
 
 <!-- generated:openhands -->
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A self-hosted agent server with a web UI that runs work without you at the terminal.

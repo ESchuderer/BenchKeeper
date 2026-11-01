@@ -1,7 +1,5 @@
 # Development
 
-How the checks, the workflows and the local agent setup of this repository work.
-
 ## Workflows
 
 - `checks.yml` runs `checks-core`, `app-ui-tests` and `plugin-checks` in parallel; the job `checks` gates all three. `links.yml` gates its `link-check` job the same way with `lychee`.

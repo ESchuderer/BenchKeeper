@@ -43,8 +43,8 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Save pack' }).click();
     await expect(drawer).toBeHidden();
     await nav(page, 'Packs').click();
-    const packs = page.getByRole('table', { name: 'Packs' });
-    await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toBeVisible();
+    const packs = page.getByRole('region', { name: 'Library and own packs' });
+    await expect(packs.getByRole('group', { name: 'Pack my-pack' })).toContainText('own');
     const download = page.waitForEvent('download');
     await packs.getByRole('button', { name: 'Export my-pack' }).click();
     const file = await download;
@@ -64,7 +64,7 @@ test.describe('views', () => {
     await importFile();
     await ask.getByRole('button', { name: 'Replace pack my-pack' }).click();
     await expect(ask).toBeHidden();
-    await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
+    await expect(packs.getByRole('group', { name: 'Pack my-pack' })).toHaveCount(1);
   });
 
   test('Skills: a skill of your own is created, edited, picked into an own pack that is not exported, and removed once no pack names it', async ({ page }) => {
@@ -112,7 +112,7 @@ test.describe('views', () => {
     await expect(remove.getByText(/in use by pack with-own/)).toBeVisible();
     await remove.getByRole('button', { name: 'Close editor' }).click();
     await nav(page, 'Packs').click();
-    const packs = page.getByRole('table', { name: 'Packs' });
+    const packs = page.getByRole('region', { name: 'Library and own packs' });
     await packs.getByRole('button', { name: 'Export with-own' }).click();
     await expect(page.getByText('with-own names your own skills (ui-own-skill): a pack file carries library skills only, so this pack stays on this machine')).toBeVisible();
     await packs.getByRole('button', { name: 'Remove with-own' }).click();
@@ -124,6 +124,38 @@ test.describe('views', () => {
     await expect(removing.getByText('remove your skill ui-own-skill')).toBeVisible();
     await apply(removing);
     await expect(table.getByRole('link', { name: 'ui-own-skill' })).toHaveCount(0);
+  });
+
+  test('Packs: plugin packs on top and library packs as cards with three skills each, the rest on +N; one column at 390 px; no axe violations', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await nav(page, 'Packs').click();
+    const plugins = page.getByRole('region', { name: 'Plugin packs' });
+    await expect(plugins.getByRole('group', { name: /^Pack / })).toHaveCount(2);
+    await expect(plugins.getByRole('button', { name: /^Export / })).toHaveCount(0);
+    await expect(plugins.getByRole('group', { name: 'Pack ponytail' })).toContainText(/^Ponytail\s*ponytail\s*plugin: ponytail@ponytail\s*Not used$/);
+    const library = page.getByRole('region', { name: 'Library and own packs' });
+    await expect(library.getByRole('group', { name: 'Pack testing' })).toContainText('1 skill');
+    const marketing = library.getByRole('group', { name: 'Pack marketing' });
+    await expect(marketing).toContainText('5 skills');
+    await expect(marketing).toContainText('Not used');
+    await expect(marketing.getByText('Used by')).toHaveCount(0);
+    await expect(library.getByRole('group', { name: 'Pack frontend' })).toContainText(/Used by .+/);
+    await expect(marketing.getByRole('button', { name: /^Remove / })).toHaveCount(0);
+    const more = marketing.getByRole('button', { name: '+2 more skills of marketing' });
+    await expect(more).toHaveText('+2');
+    await more.focus();
+    await page.keyboard.press('Enter');
+    await expect(marketing.getByRole('button', { name: 'Fewer skills of marketing' })).toHaveText('Fewer');
+    await expect(marketing.locator('.mantine-Badge-root')).toHaveCount(5);
+    await noAxe(page);
+    const cards = library.getByRole('group', { name: /^Pack / });
+    const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+    expect(Math.abs(a.y - b.y) < 8 && b.x > a.x).toBe(true);
+    await page.setViewportSize({ width: 390, height: 900 });
+    // One column: every card spans the page width and none runs past it.
+    await expect.poll(async () => (await cards.nth(1).boundingBox()).x === (await cards.nth(0).boundingBox()).x).toBe(true);
+    await expect.poll(() => cards.last().evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+    await noAxe(page);
   });
 
   test('Packs: a pack file that is not a pack is listed with its reason and can be removed with focus kept; no axe violations', async ({ page }) => {

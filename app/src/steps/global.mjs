@@ -258,10 +258,17 @@ export function declineId(c) {
   return `change:${c.step}:${hashText(JSON.stringify([c.title, what]))}`;
 }
 // After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made;
-// a declined change the user selected again is no longer declined.
+// a declined change the user selected again is no longer declined. A preferences file that cannot be written over does
+// not stop the apply: nothing is recorded, and the warning returned says why (null when recorded).
 export function declineUnselected(ctx, plan, select) {
   const eligible = plan.filter((c) => !c.optional && !c.destructive && !c.error);
-  dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+  try {
+    dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+  } catch (e) {
+    if (!e.preferences) throw e;
+    return `the unselected changes are not remembered as declined: ${e.message}`;
+  }
+  return null;
 }
 
 export function globalPlan(env) {
@@ -467,7 +474,8 @@ export function globalPlan(env) {
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
     installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: source }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
   });
-  const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
+  // A folder without SKILL.md is what an install that did not finish left: it is installed again.
+  const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}/SKILL.md`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}/SKILL.md`)) && ['-a', 'codex']].filter(Boolean).flat();
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f, `tools:skill:${name}`, `global skill ${name} from ${repo}`); }

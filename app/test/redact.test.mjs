@@ -14,6 +14,10 @@ test('mask: every secret flag, in any case', () => {
   assert.equal(mask('run --Token abc --password def --name x'), 'run --Token *** --password *** --name x');
 });
 
+test('mask: a passphrase is masked like a password', () => {
+  assert.equal(mask('GPG_PASSPHRASE=hunter2 run --passphrase abc --name x'), 'GPG_PASSPHRASE=*** run --passphrase *** --name x');
+});
+
 test('keyed: whole extensions and file names only', () => {
   for (const p of ['a/b.json', 'b.YAML', 'b.yml', 'config', 'x/config', 'x\\.npmrc', '.env.local']) assert.equal(keyed(p), true, p);
   for (const p of ['b.json.bak', 'configure.js', 'x/myconfig', undefined]) assert.equal(keyed(p), false, String(p));

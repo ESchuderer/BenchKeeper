@@ -48,4 +48,4 @@ The five fields from `Target` to `Observable acceptance` are the task-spec contr
 
 ## New worktrees
 
-`ORCA orchestration worker-start --worktree new-child --name <name> --setup run` makes a worktree for the worker. Skills and setup files that the project keeps out of Git are not in it unless `.worktreeinclude` lists them; see `orca.yaml.sample` and `worktreeinclude.sample` in this folder. Neither is added to a project for you.
+`ORCA orchestration worker-start --worktree new-child --name <name> --setup run` makes a worktree for the worker. Skills and setup files that the project keeps out of Git are not in it unless `.worktreeinclude` lists them: BenchKeeper's project setup writes that list, and offers `orca.yaml` once workers ran in the repository; see `orca.yaml.sample` and `worktreeinclude.sample` in this folder.

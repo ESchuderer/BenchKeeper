@@ -329,8 +329,9 @@ test('limits: defaults, per-account values, the pool, and the refusals', skip, a
   // Refusals leave the file alone.
   const before = readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8');
   for (const [args, message, code] of [
-    [['--five-hour', '150'], /--five-hour is a percentage/], [['--seven-day', ''], /--seven-day is a percentage/], [['--auto-pick', 'maybe'], /--auto-pick is on or off/],
-    [['--when-none', 'sleep'], /--when-none is stop or wait/], [['work', '--auto-pick', 'on'], /settings for all accounts/], [['--pool', 'me'], /belong to one account/],
+    [['--five-hour', '150'], /--five-hour is a percentage/, 2], [['--seven-day', ''], /--seven-day is a percentage/, 2], [['--auto-pick', 'maybe'], /--auto-pick is on or off/, 2],
+    [['--when-none', 'sleep'], /--when-none is stop or wait/, 2], [['work', '--auto-pick', 'on'], /settings for all accounts/, 2], [['--pool', 'me'], /belong to one account/, 2],
+    // A pool name the plan cannot take is a change that cannot be made.
     [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/, 2]]) {
     const r = cli(m);
     assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), code ?? 1, `${args.join(' ')}: ${r.text()}`);
@@ -681,6 +682,7 @@ test('Codex: status, list and run read the app-server of the account\'s CODEX_HO
   assert.match(accountStatus(m.ctx, a).notAvailable, /^not read: codex account authentication required/);
   // No token in any argument, and the app-server gets the account's filtered environment.
   assert.ok(m.calls().every((x) => ![CLAUDE_TOKEN, CODEX_TOKEN].some((t) => JSON.stringify(x.args).includes(t))));
+  // No GH_TOKEN in an account's session; a machine account session uses gh's login of that account instead (machine.test.mjs).
   for (const x of m.calls().filter((c) => c.args[0] === 'app-server')) for (const k of ['GH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) assert.equal(x.env[k], undefined, k);
 });
 
@@ -754,7 +756,7 @@ test('handover with rotation off (the default): nothing is read, written or star
   writeFileSync(file, JSON.stringify(doc));
   for (const [args, re] of [[['--rotate-claude', 'on'], /--rotate-claude is off or handover/], [['work', '--rotate-codex', 'handover'], /settings for all accounts/]]) {
     const bad = cli(m);
-    assert.equal(await bad.exec(['accounts', 'limits', ...args, '--yes']), 1);
+    assert.equal(await bad.exec(['accounts', 'limits', ...args, '--yes']), 2);
     assert.match(bad.text(), re);
   }
 });
@@ -829,7 +831,7 @@ test('handover (Codex): rotation is not available, through the flag or a stored 
   const m = machine();
   const [dev, spare] = await pooled(m, 'codex', 'dev', 'spare');
   const on = cli(m);
-  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 1);
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 2);
   assert.match(on.text(), /--rotate-codex handover is not available: rotation is for claude only/);
   assert.doesNotMatch(on.text(), /OpenAI's Terms of Use/);
   assert.equal(await cli(m).exec(['accounts', 'limits', '--rotate-codex', 'off', '--yes']), 0);

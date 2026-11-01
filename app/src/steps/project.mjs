@@ -12,8 +12,9 @@ import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
 import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
-import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
+import { machineEnv, ownEnv, withVars } from '../machine.mjs';
+import { getBlock, marks, mergeJson, parseJson, setBlock } from '../merge.mjs';
+import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -60,9 +61,55 @@ const installCommand = (dir) => {
   const [file] = found;
   return { file, command: INSTALLS[file] ?? `yarn install ${exists(join(dir, '.yarnrc.yml')) ? '--immutable' : '--frozen-lockfile'}` };
 };
-// The offered files the setup wrote, known by their first two lines (a worktree file's list and install command vary).
-const offeredFiles = (dir) => [{ path: DC_PATH, text: DC }, ...orca.worktreeFiles(null, [])]
+// The offered files the setup wrote, known by their first two lines (the worktree file's install command varies).
+const offeredFiles = (dir) => [{ path: DC_PATH, text: DC }, orca.worktreeFile(null)]
   .filter((f) => readText(join(dir, f.path))?.startsWith(f.text.split('\n').slice(0, 2).join('\n'))).map((f) => f.path);
+// The local files a new worktree copies from this checkout, at the repository root. The multi-agent IDE of orca/ reads
+// literal paths and # comments, Claude Code .gitignore patterns (a literal path is one); both copy an entry only when it
+// exists and Git ignores it. BenchKeeper keeps a block there, so the user's own lines stay.
+const INCLUDE = '.worktreeinclude', INCLUDE_ID = 'worktrees';
+const INCLUDE_HEAD = '# Files a new worktree copies from this checkout when Git ignores them (benchkeeper projects apply)';
+// The file without BenchKeeper's lists: the block, or all of a file an earlier setup offered whole.
+const includeOut = (t) => (orca.offeredInclude(t) ? '' : setBlock(t, INCLUDE_ID, null, '#'));
+// Codex reads AGENTS.override.md instead of AGENTS.md, so BenchKeeper keeps AGENTS.md's text there with the rules block,
+// both in one marked block that every apply rebuilds from AGENTS.md. Lines outside it are the user's and stay, as in
+// CLAUDE.local.md: in a repository without a tracked AGENTS.md this file is the only per-project text Codex reads.
+const OVERRIDE_ID = 'override';
+// A file an older version wrote has no override block: AGENTS.md's text unmarked, then the rules block. That version
+// rewrote all up to the block's end on every apply, so that is its copy; what follows the block is the user's.
+const legacyOverride = (t) => getBlock(t, OVERRIDE_ID) == null && getBlock(t, 'project') != null;
+const legacyParts = (t) => {
+  const [start, end] = marks('project');
+  return { copy: t.slice(0, t.indexOf(start)), own: t.slice(t.indexOf(end) + end.length).replace(/^\n+/, '') };
+};
+const overrideOurs = (t) => getBlock(t, OVERRIDE_ID) != null || getBlock(t, 'project') != null;
+// The file without BenchKeeper's part: the user's own lines, '' when there are none.
+const overrideOwn = (t) => (legacyOverride(t) ? legacyParts(t).own : setBlock(t, OVERRIDE_ID, null));
+// The file with BenchKeeper's part as body, in place. A file without the block (new, hand-written or an older version's)
+// gets it first: the user's lines follow AGENTS.md's text, as an override of it reads.
+function overrideWith(t, body) {
+  if (getBlock(t, OVERRIDE_ID) != null) return setBlock(t, OVERRIDE_ID, body);
+  const own = overrideOwn(t ?? ''), block = setBlock('', OVERRIDE_ID, body);
+  return own.trim() ? `${block}\n${own.replace(/^\n+/, '')}` : block;
+}
+// BenchKeeper's part of the file as a removal: the file when nothing else is in it. selected only when that part is
+// known exactly: an older version's copy that differs from AGENTS.md may hold text the user put before the block.
+function overrideRemoval(dir, add, why = '') {
+  const path = join(dir, OVERRIDE), t = readText(path);
+  if (!overrideOurs(t)) return;
+  const agentsMd = setBlock(readText(join(dir, 'AGENTS.md')) ?? '', 'project', null);
+  const exact = !legacyOverride(t) || legacyParts(t).copy.trim() === agentsMd.trim();
+  const note = `${exact ? '' : 'the text before the BenchKeeper block differs from AGENTS.md'}${!exact && why ? '; ' : ''}${why}`;
+  if (overrideOwn(t).trim()) add('local-codex', `${OVERRIDE} without BenchKeeper's part${note ? ` (${note})` : ''}`, { kind: 'write', path, edit: overrideOwn, selected: exact });
+  else add('local-codex', `remove ${OVERRIDE} (only BenchKeeper's part${note ? `; ${note}` : ''})`, { kind: 'remove', path, selected: exact });
+}
+// BenchKeeper's lists in the worktree include file as a removal (the file when nothing else is in it).
+function includeRemoval(dir, add) {
+  const t = readText(join(dir, INCLUDE));
+  if (t == null || (!orca.offeredInclude(t) && getBlock(t, INCLUDE_ID, '#') == null)) return;
+  if (includeOut(t).trim()) add('worktree-include', `${INCLUDE} without BenchKeeper's list`, { kind: 'write', path: join(dir, INCLUDE), edit: includeOut });
+  else add('worktree-include', `remove ${INCLUDE} (only BenchKeeper's list)`, { kind: 'remove', path: join(dir, INCLUDE), selected: true });
+}
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
 export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
@@ -106,7 +153,7 @@ function removals() {
 
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
 // AGENTS.md, a CLAUDE.md that only imports AGENTS.md, the sandbox keys BenchKeeper set in .claude/settings.json, the
-// state folder, the offered files it wrote, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
+// state folder, the offered files it wrote, its list in .worktreeinclude, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
 // (its own AGENTS.md text, own skills, docs/agents/, the dev container) stays.
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
@@ -127,13 +174,14 @@ export function committedSetup(dir) {
   if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
   for (const c of frameworkRemovals(dir, state)) add(c.step, c.title, c);
   for (const p of offeredFiles(dir)) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
+  includeRemoval(dir, add);
   installedFiles(dir, state, add);
   return changes;
 }
 
 // A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
-// (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
-// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, and the
+// (the file when nothing else is in it), BenchKeeper's part of AGENTS.override.md (the file likewise), the sandbox keys in
+// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, its list in .worktreeinclude, and the
 // installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
 // AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
 // shares the exclude list, so its block stays for it.
@@ -147,7 +195,8 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
     if (strip(claude).trim()) add('local-claude', `${LOCAL_CLAUDE} without the BenchKeeper block`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: strip });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block)`, { kind: 'remove', path: at(LOCAL_CLAUDE) });
   }
-  if (getBlock(readText(at(OVERRIDE)), 'project') != null) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's)`, { kind: 'remove', path: at(OVERRIDE) });
+  // Removing the setup takes BenchKeeper's part out whole, an older version's copy included: that version owned it.
+  overrideRemoval(dir, (step, title, c) => add(step, title, { ...c, selected: true }));
   const settings = readText(at(LOCAL_SETTINGS));
   if ((state?.sandbox || state?.guards) && editsJson(ownOff(state), settings)) {
     // A settings file that held only the keys BenchKeeper set was BenchKeeper's.
@@ -163,6 +212,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const tracked = (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '';
   for (const c of frameworkRemovals(dir, state).filter((x) => !tracked(x.path))) add(c.step, c.title, c);
   for (const p of offeredFiles(dir).filter((x) => !tracked(x))) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
+  if (!tracked(INCLUDE)) includeRemoval(dir, add);
   installedFiles(dir, state, add, tracked);
   const exclude = keepExclude ? null : excludeFile(ctx, dir);
   const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
@@ -200,12 +250,13 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), fileOn, fileOff (agent files switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), workflowLoad (default true: the
+// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
+// machine account's variables, or the user's own over them, in the local settings; Claude Code only), workflowLoad (default true: the
 // rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, machine: prev.machine ?? null, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -216,6 +267,8 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.guards = a.guards !== false;
+  if (a.machine === 'none') a.machine = null;
+  if (a.machine != null && !['on', 'off'].includes(a.machine)) throw new Error('machine must be on, off or none');
   a.workflowLoad = a.workflowLoad !== false;
   a.agentFiles = [...new Set([...[a.agentFiles].flat(), ...fileOn])].filter((p) => !fileOff.includes(p));
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
@@ -325,6 +378,9 @@ export function chosenSkills(a, lib = library()) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
+// A community skill's folder left by an install that did not finish: it has no SKILL.md.
+export const unfinishedHere = (skillsDir, name) => exists(join(skillsDir, name)) && !exists(join(skillsDir, name, 'SKILL.md'));
+
 // Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
 export const slashRel = (dir, p, path = nodePath) => path.relative(dir, p).split(path.sep).join('/');
 
@@ -354,14 +410,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
 
   // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
-  // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
-  // carries AGENTS.md's text too and is rebuilt from it on every apply).
+  // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so its
+  // block carries AGENTS.md's text too and is rebuilt from it on every apply; the user's lines around it stay).
   const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
   const ruleLines = forAgent(rules, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]).split('\n').map((l) => l.replace(/^- /, ''));
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
   const lines = (run) => [...ruleLines, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
-  const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   const rulesUnit = unit({ id: 'rules:project', kind: 'rules', source: { type: 'library' }, agents: a.agents, scope: 'project', removal: 'block' });
   if (a.share) {
     add('agents-md', 'AGENTS.md: rules, where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t, run) => setBlock(t, 'project', blockText(run)), installUnit: rulesUnit });
@@ -377,10 +432,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         edit: (t, run) => { const s = setBlock(t, 'project', blockText(run)); return imports || /^@AGENTS\.md$/m.test(s) ? s : `@AGENTS.md\n\n${s}`; } });
     }
     if (a.agents.includes('codex')) {
-      // A hand-written override is the user's: replacing it is offered, not preselected.
-      const ours = overrideOurs(readText(at(OVERRIDE)));
-      add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (replaces your own file)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
-        edit: (_, run) => setBlock(agentsMd, 'project', blockText(run)) });
+      // A hand-written override stays below the block, but Codex then reads AGENTS.md's text too: offered, not preselected.
+      const have = readText(at(OVERRIDE)), ours = have == null || overrideOurs(have);
+      add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (above your own text)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
+        edit: (t, run) => overrideWith(t, setBlock(agentsMd, 'project', blockText(run))) });
     }
   }
   // What a local setup wrote for an agent no longer chosen, or before the setup was shared.
@@ -390,11 +445,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) {
-    // Preselected only when the file is AGENTS.md plus BenchKeeper's block, as the setup wrote it: text added by hand is offered, not preselected.
-    const asWritten = setBlock(readText(at(OVERRIDE)), 'project', null).trim() === (readText(at('AGENTS.md')) ?? '').trim();
-    add('local-codex', `remove ${OVERRIDE} (${asWritten ? "BenchKeeper's" : 'BenchKeeper block plus text of your own'}; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: asWritten });
-  }
+  if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });
@@ -489,6 +540,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (exists(hook)) add('guards', `remove ${GUARD_PATH} (${note})`, { kind: 'remove', path: hook, selected: mine && readText(hook) === guardScript() });
   }
 
+  // Machine account (machine.mjs): on (its variables) or off (the user's own identity and gh folder over the variables of
+  // machine enable --global) for this project. Always the local settings file: the values name folders of this machine.
+  const machine = a.machine && a.agents.includes('claude');
+  if (machine) add('machine', `${LOCAL_SETTINGS}: agents ${a.machine === 'on' ? 'commit, push and use gh as your machine account' : 'commit, push and use gh as you, also with machine enable --global'}`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: (t) => withVars(t, a.machine === 'on' ? machineEnv(ctx) : ownEnv(ctx), LOCAL_SETTINGS) });
+  else if (prev?.machine && editsJson((t) => withVars(t, null), readText(at(LOCAL_SETTINGS)))) add('machine', `${LOCAL_SETTINGS} without the machine account setting`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: (t) => withVars(t, null, LOCAL_SETTINGS) });
+
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
   const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
   const moveDir = (step, from, to, installUnit) => {
@@ -509,6 +566,14 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Own skills adopted over a folder nobody installed: kept as it is until reset, also by the plans that follow.
   const adoptedBefore = new Set((readState(dir)?.skills ?? []).filter((x) => x.adopted === true).map((x) => x.name));
   const adoptedOwn = new Set();
+  // A user skill the project picked whose name the library now has (#945): the library's files are held, the state keeps
+  // source user, until a reset has written them all (clashFiles: the files a reset writes, path and content).
+  const clashing = new Set((readState(dir)?.skills ?? []).filter((x) => x.source === 'user' && skills.some((s) => s.name === x.name && s.source !== 'user')).map((x) => x.name));
+  const hiddenMine = new Set([...clashing].filter((n) => !a.reset.includes(n)));
+  const clashFiles = new Map();
+  // clashBack: hidden skills whose parked folder comes back in this plan; its files are written by the next reset, not this one.
+  const clashBack = new Set();
+  const keepsUser = (n, run) => clashing.has(n) && (hiddenMine.has(n) || a.disabled.includes(n) || clashBack.has(n) || (!!run && (clashFiles.get(n) ?? []).some(([p, d]) => itemState(p, d, ctx) !== 'current')));
   const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -519,6 +584,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
     const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
     for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name), installUnit);
+    if (back.length && clashing.has(s.name)) clashBack.add(s.name);
     const rest = dirs.filter((x) => !back.includes(x));
     // A copy edited here (it differs from what a run of this machine left), or a folder of that name being adopted, is replaced only
     // when asked for (reset): the plan shows its diff.
@@ -527,23 +593,27 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       for (const { dir: d } of rest) {
         for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text ?? bytes, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
-          if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
-          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
+          if (clashing.has(s.name)) clashFiles.set(s.name, [...(clashFiles.get(s.name) ?? []), [path, text ?? bytes]]);
+          const found = itemState(path, text ?? bytes, ctx), hides = hiddenMine.has(s.name) && found !== 'current', held = hides || found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          if (found === 'foreign' && held && !reseat && !hides) adoptedOwn.add(s.name);
+          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${hides ? ` (your skill ${s.name} is hidden by the library skill of that name: reset the skill to take the library's)` : held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {
       // A community skill comes from the default branch of its source; an update (asked for) adds it again.
       const was = installedRefs.get(s.name);
       const refresh = a.update.includes(s.name);
-      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)));
+      // A folder an install left unfinished is installed again.
+      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)) || unfinishedHere(d, s.name));
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
-      const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
+      // A folder the last install left unfinished is no edit.
+      const held = !reseat && targets.some(({ dir: d }) => !unfinishedHere(d, s.name) && editedHere(d, s.name, installedHashes.get(s.name)));
+      const note = held ? ' (edited here: reset the skill to replace it)' : targets.some(({ dir: d }) => unfinishedHere(d, s.name)) ? ' (again: the last install did not finish)' : '';
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${note}`, {
         kind: 'command', installUnit, outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
         argv: ['npx', '-y', skillsSpec(ctx), 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
@@ -589,29 +659,44 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
-    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.machine ? { machine: a.machine } : {}), ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
+    skills: skills.map((s) => ({ name: s.name, source: keepsUser(s.name, run) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
+  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
+  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
   // What a local setup leaves in the project, relative to it.
-  const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
+  const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded || machine ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
     ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
     // Stack skills the setup session installed with the skills CLI (its lockfile names them).
-    ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])];
+    ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`)), ...(atRoot ? [INCLUDE] : [])])];
 
-  // Workers ran in worktrees of this repository: the per-worktree setup files, at its root, off by default. A new worktree
-  // gets the local files listed (local: the whole local setup with the offered files; shared: the personal files only).
+  // Workers ran in worktrees of this repository: the multi-agent IDE's per-worktree setup file, at its root, off by default.
   if (workerRepos(ctx).has(resolve(dir))) {
-    const include = a.share ? [LOCAL_CLAUDE, OVERRIDE] : [...local.map((p) => p.replace(/\/$/, '')), ...offered.map((f) => f.path), ...orca.worktreeFiles(null, []).map((f) => f.path)];
     const install = installCommand(dir);
     // A new worktree has no container running: the line starts it. Plan steps have no dependencies, so without scripts/dc
     // the line fails in the setup terminal (the setup script stops there) and changes nothing.
     const line = install && (devcontainer ? `${DC_PATH} up && ${DC_PATH} ${install.command}` : install.command);
     const hook = install ? `setup hook: ${install.command} (${install.file})${devcontainer ? `, through ${DC_PATH} in the dev container it starts (fails without ${DC_PATH})` : ''}` : 'setup hook: none found, fill in the comment line';
-    const [yaml, inc] = orca.worktreeFiles(line, include);
+    const yaml = orca.worktreeFile(line);
     offer('worktrees', `${orca.NAME} worktree setup, ${hook}`, yaml.path, yaml.text, { off: true });
-    offer('worktrees', `${orca.NAME} worktree setup, the local files each new worktree gets`, inc.path, inc.text, { off: true });
+  }
+
+  // The files each new worktree copies, for every tool that reads .worktreeinclude (Claude Code --worktree, the IDE of orca/).
+  // Local: the whole local setup with the offered files written, the state file rather than its folder (handoff and
+  // knowledge files there are per worktree), and the list itself, so a worktree made from a worktree has it too. Shared:
+  // the personal files only, which stay ignored; with none, no list.
+  // The machine setting lives only in the local settings file: a shared setup copies it into new worktrees and ignores it too.
+  const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(machine ? [LOCAL_SETTINGS] : [])];
+  if (atRoot) {
+    const paths = (run) => (a.share ? personal : [...local.map((p) => (p === `${STATE.split('/')[0]}/` ? STATE : p.replace(/\/$/, ''))), ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
+    if (paths().length) {
+      // A .worktreeinclude the repository commits is in every checkout: a local setup offers its block, not preselected.
+      const committed = !a.share && exists(at(INCLUDE)) && git(ctx, dir, ['ls-files', '--', INCLUDE]).stdout.trim() !== '';
+      add('worktree-include', `${INCLUDE}: the ${a.share ? 'personal' : 'local'} files a new worktree copies from this checkout${committed ? ' (the repository commits this file)' : ''}`, { kind: 'write', path: at(INCLUDE), ...(committed ? { selected: false } : {}),
+        edit: (t, run) => setBlock(includeOut(t), INCLUDE_ID, [INCLUDE_HEAD, ...paths(run)].join('\n'), '#') });
+    } else includeRemoval(dir, add);
   }
 
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its
@@ -619,17 +704,29 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // (projects unshare). Shared: the list comes out again.
   const exclude = excludeFile(ctx, dir);
   if (exclude) {
-    const prefix = git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim();
-    const list = (run) => (a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${[...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)].map((p) => `/${prefix}${p}`).join('\n')}`);
+    const prefix = top.stdout.trim();
+    // Shared keeps the personal files ignored: a hand-written CLAUDE.local.md stays out of the commit, and worktree tools
+    // copy only ignored files.
+    const ignored = (run) => (a.share ? personal : [...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
+    const list = (run) => (ignored(run).length ? `# BenchKeeper's ${a.share ? 'personal' : 'local'} agent setup (benchkeeper projects apply)\n${ignored(run).map((p) => `/${prefix}${p}`).join('\n')}` : null);
     // One block per project folder: several projects in one repository keep their own lists.
     const id = `local:/${prefix}`;
-    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
+    const title = !a.share ? 'git ignores the local setup (.git/info/exclude)' : personal.length ? `git ignores only the personal files (${personal.join(', ')}); the setup is committed` : 'git ignores the setup no longer (it is committed)';
+    if (!a.share || personal.length || getBlock(readText(exclude), id, '#') != null) add('exclude', title, { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
   }
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
+  // A single pick that names no skill (deleted, or gone from the library) stays picked and installs nothing (#915).
+  const lost = a.skills.filter((n) => !lib.skills.some((s) => s.name === n)).map((n) => `skill ${n} is not in the library or your skills, so it installs nothing: create it again (benchkeeper skills new ${n}) or take it out (benchkeeper skills remove ${n})`);
+  const clashes = [...hiddenMine].map((n) => `your skill ${n} is hidden by the library skill of that name, so its files here are kept until you reset the skill: to keep yours, ${clashFix(ctx, n)}`);
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, dir, prev })] };
+  // A link in a copied skill's folder that points to nothing or to a folder is not copied (#914): the plan says which.
+  const linkWarnings = skills.filter((s) => copied(s) && !a.disabled.includes(s.name)).flatMap((s) => {
+    const links = skippedLinks(skillFolder(ctx, s));
+    return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
+  });
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

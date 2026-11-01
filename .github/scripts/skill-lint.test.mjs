@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isMain } from './main.mjs';
 import { lintSkill, ownSkills } from './skill-lint.mjs';
 
 function skill(name, { fm = `name: ${name}\ndescription: "Does a thing. Use when asked."`, body = '', yaml = 'interface:\n  display_name: "X"\n' } = {}) {
@@ -50,4 +53,35 @@ test('a skill naming a skills CLI version fails, inside a code block too', () =>
   for (const body of ['Run `npx -y skills@npm:skills@1.7.2 find x`.', '```sh\nnpx skills@1.8.0 add a/b\n```'])
     assert.match(lintSkill(skill('a', { body })).join(), /names a skills CLI version/);
   assert.deepEqual(lintSkill(skill('a', { body: 'Run `<skills> find x` with the line `npx benchkeeper@6 skills cli` prints.' })), []);
+});
+
+// isMain (main.mjs) guards the command line of every script here; this file runs in CI, so its tests are here.
+const scripts = fileURLToPath(new URL('.', import.meta.url));
+
+// A folder whose path holds a symlink: `link` points to `real`.
+function linked(t) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'scripts-main-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, 'real'));
+  symlinkSync(join(dir, 'real'), join(dir, 'link'), 'dir');
+  return dir;
+}
+
+test('a script started through a symlinked folder is the main module', (t) => {
+  const dir = linked(t);
+  const main = pathToFileURL(join(scripts, 'main.mjs')).href;
+  writeFileSync(join(dir, 'real/probe.mjs'), `import { isMain } from ${JSON.stringify(main)};\nconsole.log(isMain(import.meta.url));\n`);
+  for (const via of ['real', 'link']) assert.equal(execFileSync(process.execPath, [join(dir, via, 'probe.mjs')], { encoding: 'utf8' }).trim(), 'true', via);
+});
+
+test('an imported module is not the main module', () => {
+  assert.equal(isMain(new URL('./main.mjs', import.meta.url).href), false);
+});
+
+test('the checks run their command line when started through a symlinked folder', (t) => {
+  const dir = linked(t);
+  rmSync(join(dir, 'link'));
+  symlinkSync(scripts, join(dir, 'link'), 'dir');
+  const out = execFileSync(process.execPath, [join(dir, 'link/skill-lint.mjs')], { encoding: 'utf8' });
+  assert.match(out, /skills checked, 0 errors/);
 });

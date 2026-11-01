@@ -99,3 +99,20 @@ test('editor routes: absent while the preference editors is off; on, the policy 
   routes['POST /api/preferences']({ editors: false });
   assert.equal(status(() => routes['GET /api/params'](q)), 404);
 });
+
+test('editor routes: a save is refused when the file changed after the plan, and the hand edit stays', async () => {
+  const ctx = context({ home: tmp(), run: (argv) => (argv[1] === '--version' ? { code: 127, stdout: '' } : { code: 0, stdout: '' }) });
+  const policy = '{\n  "schemaVersion": 1,\n  "// note": "mine"\n}\n';
+  const file = FILES.policy[0];
+  const dir = project({ [file]: policy });
+  addProject(ctx, dir);
+  const routes = api(ctx);
+  routes['POST /api/preferences']({ editors: true });
+  const plan = routes['POST /api/params-plan']({ dir, file, text: policy.replace('mine', 'from the editor') });
+  const byHand = policy.replace('"mine"', '"mine",\n  "// added after the plan": "kept"');
+  writeFileSync(join(dir, file), byHand);
+  const s = await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job);
+  assert.equal(s.run.status, 'failed');
+  assert.match(s.run.entries[0].error, /changed since the plan/);
+  assert.equal(readFileSync(join(dir, file), 'utf8'), byHand);
+});

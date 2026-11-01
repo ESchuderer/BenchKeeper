@@ -4,15 +4,16 @@
 // view are in views-axe.spec.mjs.
 import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-export const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
-export const ONE = join(tmpdir(), 'bk-ui-one-4410');
+// Below the run's folder that playwright.config.mjs makes, as in serve.mjs.
+const ROOT = process.env.BK_UI_ROOT;
+export const BATCH = join(ROOT, 'batch');
+export const ONE = join(ROOT, 'one');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
-export const GATE = join(tmpdir(), 'bk-ui-gate-4410');
+export const GATE = join(ROOT, 'gate');
 // While this file exists, the stubbed automations runner answers (serve.mjs).
-export const RUNNER = join(tmpdir(), 'bk-ui-runner-4410');
+export const RUNNER = join(ROOT, 'runner');
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 export async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.

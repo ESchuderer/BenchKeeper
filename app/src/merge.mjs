@@ -1,5 +1,5 @@
 // Merges into files users already have: JSON by key, text in one marked block, TOML by key.
-import { applyEdits, modify, parse, printParseErrorCode } from 'jsonc-parser';
+import { applyEdits, findNodeAtLocation, modify, parse, parseTree, printParseErrorCode } from 'jsonc-parser';
 import { parse as parseToml } from 'smol-toml';
 
 const FORMAT = { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } };
@@ -12,6 +12,29 @@ export function parseJson(text, file = 'JSON') {
   const value = parse(text?.trim() ? text : '{}', errors, { allowTrailingComma: true });
   if (errors.length) throw new MergeError(`${file}: ${printParseErrorCode(errors[0].error)} at offset ${errors[0].offset}`);
   return value ?? {};
+}
+
+// Sets (value) or removes (undefined) one key. jsonc-parser formats an insert or a removal over whole lines, which would
+// reformat the property next to it on the same line: here the other properties keep their text. An object written on one
+// line is formatted as a whole, as before.
+function setKey(text, path, value) {
+  const parent = findNodeAtLocation(parseTree(text), path.slice(0, -1));
+  const props = parent?.type === 'object' && /[\r\n]/.test(text.slice(parent.offset, parent.offset + parent.length)) ? parent.children ?? [] : [];
+  const at = props.findIndex((p) => p.children[0].value === path.at(-1));
+  // A removal takes the property with the comma and line break between it and its neighbour; formatted when it leaves the object empty.
+  if (value === undefined && at >= 0 && props.length > 1) {
+    const [from, to] = at > 0 ? [props[at - 1].offset + props[at - 1].length, props[at].offset + props[at].length] : [props[0].offset, props[1].offset];
+    return text.slice(0, from) + text.slice(to);
+  }
+  // An insert after the last property: its value stands aside as a placeholder while the new key is formatted.
+  if (value !== undefined && at < 0 && props.length) {
+    const last = props.at(-1), prev = last.children[1], end = prev.offset + prev.length;
+    const shielded = `${text.slice(0, prev.offset)}0${text.slice(end)}`;
+    const out = applyEdits(shielded, modify(shielded, path, value, FORMAT));
+    const moved = findNodeAtLocation(parseTree(out), [...path.slice(0, -1), last.children[0].value]);
+    return text.slice(0, end) + out.slice(moved.offset + moved.length);
+  }
+  return applyEdits(text, modify(text, path, value, FORMAT));
 }
 
 // Same value whatever the order of an object's keys (a formatter may reorder them).
@@ -49,13 +72,13 @@ export function mergeJson(text, edits, file) {
       if (at(e.path) === undefined) continue;
       value = undefined;
     }
-    out = applyEdits(out, modify(out, e.path, value, FORMAT));
+    out = setKey(out, e.path, value);
   }
   parseJson(out, file);
   return out.endsWith('\n') ? out : `${out}\n`;
 }
 
-const marks = (id, comment) => (comment === '#' ? [`# benchkeeper:${id} start`, `# benchkeeper:${id} end`] : [`<!-- benchkeeper:${id} start -->`, `<!-- benchkeeper:${id} end -->`]);
+export const marks = (id, comment) => (comment === '#' ? [`# benchkeeper:${id} start`, `# benchkeeper:${id} end`] : [`<!-- benchkeeper:${id} start -->`, `<!-- benchkeeper:${id} end -->`]);
 
 // Replaces or appends the block between benchkeeper markers; text outside it stays. block null removes the block.
 export function setBlock(text, id, block, comment) {

@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './main.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Claims that are objects carry `evidence`; `[]` means each item.
@@ -100,7 +101,7 @@ export function check(facts, dir = root) {
   return errors;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const errors = check(JSON.parse(readFileSync(`${root}/web/src/data/facts.json`, 'utf8')));
   for (const e of errors) console.log(`::error file=web/src/data/facts.json::${e}`);
   if (errors.length) process.exit(1);

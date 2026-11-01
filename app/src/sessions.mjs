@@ -20,7 +20,9 @@ const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 // In command position only: at the start of a chain part, after variables or a runner (npx playwright test), also as the
 // start of a sh -c script (devcontainer exec ... sh -lc 'npm test'), not in quoted or echoed text.
 // A variable's value is quoted or stops at the next separator or quote, so a long chain of a=b parts is matched in linear time.
-export const TEST = /(?:^|[;&|(\n]|\b(?:ba)?sh -[a-z]*c\s+['"]?)\s*(?:\w+=(?:"[^"]*"|'[^']*'|[^\s;&|'"]*)\s+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
+// The space after a separator or a variable stops at a line break, which starts its own part, so a long run of line breaks
+// or of a=b lines is linear too.
+export const TEST = /(?:(?:^|[;&|(\n])[^\S\n]*|\b(?:ba)?sh -[a-z]*c\s+(?:['"]\s*)?)(?:\w+=(?:"[^"]*"|'[^']*'|[^\s;&|'"]*)[^\S\n]+)*(?:(?:npx|pnpm(?: exec)?|yarn|bunx|uv run|python3? -m)\s+)?((?:npm|pnpm|yarn|bun) (?:run )?test(?::\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];

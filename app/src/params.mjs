@@ -59,9 +59,10 @@ export function checkText(file, text) {
   if (typeof text !== 'string') throw new Error('text must be a string');
   return load(family, text).errors;
 }
-// A plan that writes the text as typed, so unknown and "//" keys stay; refused while the loader finds an error.
+// A plan that writes the text as typed, so unknown and "//" keys stay; refused while the loader finds an error. A whole-file
+// write (after, not edit): the apply refuses it when the file changed after the plan.
 export function paramsChange(dir, file, text) {
   const errors = checkText(file, text);
   if (errors.length) throw new Error(`${file}: ${errors.map((e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`).join('; ')}`);
-  return [{ id: `params:${file}`, step: 'params', title: `write ${file}`, kind: 'write', path: join(dir, file), edit: () => text }];
+  return [{ id: `params:${file}`, step: 'params', title: `write ${file}`, kind: 'write', path: join(dir, file), after: text }];
 }

@@ -1,7 +1,7 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -24,7 +24,7 @@ import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
-import { createPlan, listPresets, recommend, removePreset, savePreset } from './presets.mjs';
+import { createPlan, listPresets, presetsWith, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { copied, exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
@@ -40,7 +40,7 @@ import { dashboard } from './dashboard.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
-import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
+import { narrativeInput, narrativeKey, narrativePaths, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
 import { containerProjects, detectLevel, levelFor } from './level.mjs';
 import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
@@ -48,7 +48,8 @@ import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/pro
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, exportScript, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
-import { undoableAutomation } from './orca/index.mjs';
+import { sessionRole, undoableAutomation } from './orca/index.mjs';
+import { PAGES, globalChanges, hostSlug, identity, machineEnv, machineStatus, removeMachine, setupMachine, shellEnv, trailerArgs } from './machine.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -123,12 +124,13 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
-                                    ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
+                                    ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
+                                    --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-standards workflow file (never GitHub settings);
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
   projects create <dir> --preset <id> [--yes] [--all]
@@ -169,7 +171,7 @@ Usage: benchkeeper <command> [options]
                                     --description. A plan with a diff (undo restores it), as are edit and delete
   skills edit <name> --file path [--yes]
                                     replaces the SKILL.md of your skill; projects with a copy get it on their next apply
-  skills delete <name> [--yes]      removes your skill; refused while a project or own pack names it
+  skills delete <name> [--yes]      removes your skill; refused while a project, own pack or preset names it
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
                                     prints the environment and npx command to start every skills CLI command with
@@ -266,10 +268,29 @@ Usage: benchkeeper <command> [options]
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
                                     asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
                                     access token piped on stdin goes to codex login --with-access-token
-  run [--account name] [--project dir] [--token] [--yes] -- claude|codex [args]
+  run [--account name] [--project dir] [--token] [--yes] [--as-machine [--role orchestrator|worker]] -- claude|codex [args]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
-                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec
+                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec.
+                                    --as-machine (host accounts): the session commits, pushes and uses gh as your machine
+                                    account (machine setup); Claude Code commits get the trailers Agent-Host and Agent-Role
+                                    (--role, else worker for a dispatched worker's prompt, else orchestrator)
+  machine setup [--repos owner/name,..] [--owner name] [--no-signing] [--no-browser] [--yes] [--project dir]
+                                    your GitHub machine account for agent sessions: you create it (GitHub's sign-up opens,
+                                    <your login>-agent is suggested) and gh signs it in into BenchKeeper's own gh folder; then
+                                    write access, never admin, on the repositories named (default: the folder's origin;
+                                    --owner: every repository of that user or organization, after a question) with your gh,
+                                    the invitations accepted with its gh, and an ssh signing key uploaded (--no-signing skips
+                                    it). Nothing goes into your git or gh config; the token stays in gh's store
+  machine status                    the machine and your own account (kept by id, logins read again), the sign-in, the key
+  machine enable|disable --global [--yes]
+                                    the machine account's variables in the user settings of Claude Code (env) and Codex
+                                    (shell_environment_policy.set): a plan with a diff, undo restores it. A project:
+                                    projects apply --machine on|off|none
+  machine shell [--project dir]     starts your shell as the machine account; nothing goes into shell start files
+  machine remove [--yes]            after a question: takes the variables out of the agent settings, signs the machine
+                                    account out of BenchKeeper's gh folder, deletes the signing key and config, and prints
+                                    the GitHub pages to delete the key and the account
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, versions behind; the session signal needs 20 sessions
@@ -337,6 +358,7 @@ const OPTIONS = {
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
+  'as-machine': { type: 'boolean' }, role: { type: 'string' }, repos: { type: 'string', multiple: true }, owner: { type: 'string' }, 'no-signing': { type: 'boolean' }, machine: { type: 'string' },
 };
 
 // A question that found the end of the input before any answer: the command stops before it changes anything.
@@ -424,8 +446,9 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
-// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
-const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error, a
+// file that cannot be read (unreadable) a read failure; both exit 2.
+const lookupCode = (e) => ([400, 404].includes(e.status) || e.unreadable ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const named = () => { const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals; return [cmd, arg, sub]; };
@@ -554,7 +577,7 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
-const PLAN_FLAGS = 'agents env sandbox guards no-guards workflow-load no-workflow-load share local pack skill tier agent-file caller';
+const PLAN_FLAGS = 'agents env sandbox guards no-guards machine workflow-load no-workflow-load share local pack skill tier agent-file caller';
 // The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
 const FLAGS = {
   ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
@@ -580,7 +603,8 @@ const FLAGS = {
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
   'accounts limits': 'five-hour seven-day warn-five-hour warn-seven-day pool auto-pick when-none continue-below rotate-claude rotate-codex reset yes all',
-  'accounts login': 'token email no-browser project', run: 'account project token yes',
+  'accounts login': 'token email no-browser project', run: 'account project token yes as-machine role',
+  'machine setup': 'repos owner no-signing no-browser yes all project', 'machine status': '', 'machine enable': 'global yes all', 'machine disable': 'global yes all', 'machine shell': 'role project', 'machine remove': 'yes all',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations export': 'param project',
@@ -592,6 +616,16 @@ const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo:
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
 // The usage error of a flag or argument the command does not read, if any; puts a --project folder in its positional.
+// A folder argument that is missing or not a folder reads as such; another stat error (a parent that denies access) is named
+// as it is, so an existing project is not reported as missing.
+function folderProblem(dir) {
+  try {
+    return statSync(dir).isDirectory() ? undefined : `${dir} is not a folder`;
+  } catch (e) {
+    return ['ENOENT', 'ENOTDIR'].includes(e.code) ? `${dir} is not a folder` : `cannot read ${dir}: ${e.code ?? e.message}`;
+  }
+}
+
 function checkArgs(o, positionals) {
   const [cmd = 'ui', arg] = positionals;
   const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k));
@@ -603,7 +637,12 @@ function checkArgs(o, positionals) {
     if (positionals[at] !== undefined && resolve(positionals[at]) !== resolve(o.project)) return `--project ${o.project} and ${positionals[at]} name different folders: give one`;
     positionals[at] = o.project;
   }
-  return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
+  if (positionals.length > (ARGS[name] ?? Infinity)) return `unexpected argument ${positionals[ARGS[name]]}`;
+  // doctor and verify check the folder they name: one that does not exist must not read as a clean check.
+  if (['doctor', 'verify'].includes(name) && positionals[1] !== undefined) return folderProblem(resolve(positionals[1]));
+  // insights reads a project's proposals from --project: a folder that does not exist must not give the machine's findings alone.
+  if (name === 'insights' && o.project !== undefined) return o.project === '' ? '--project needs a folder' : folderProblem(resolve(o.project));
+  return undefined;
 }
 
 // The lines of HELP for one command (the noun, and the verb when given) with their continuation lines, then the
@@ -686,7 +725,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
   if (cmd === 'packs' && arg === 'scope') return packScopeCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'skills' && o.library && [undefined, 'list'].includes(arg)) {
-    for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}\n`);
+    for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}${s.hidesYours ? '  hides your skill of this name: see benchkeeper doctor' : ''}\n`);
     return 0;
   }
   if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
@@ -908,7 +947,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const packs = p.packs?.length ?? 0, here = (p.projects ?? []).filter((y) => existsSync(y.path)).length;
     if (!o.yes && (packs || here) && !(await ask(`Save ${packs} own packs and register ${here} projects (an own pack with the same id is replaced, the old one goes to the backup)?`))) {
       out.write('nothing applied\n');
-      return code;
+      return Math.max(code, 1);
     }
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
@@ -952,6 +991,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'machine') return machineCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -1053,7 +1093,10 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
+  const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
+  if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
@@ -1162,7 +1205,8 @@ function nothingChosen(plan, select, o, out) {
 async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
   // --all asks once for the whole plan: a no cancels it and declines nothing.
-  if (declines && !o.all) declineUnselected(ctx, plan, select);
+  const warning = declines && !o.all ? declineUnselected(ctx, plan, select) : null;
+  if (warning) out.write(`warning: ${warning}\n`);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 
@@ -1196,7 +1240,7 @@ async function userSkillCommand(ctx, { o, positionals, out, ask }) {
   if (sub === 'edit' && !o.file) { out.write('skills edit needs --file <path> with the new SKILL.md\n'); return 2; }
   let change;
   try {
-    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: [...skillUsers(ctx, name), ...presetsWith(ctx, name)] });
     else {
       const text = o.file ? readFileSync(resolve(o.file), 'utf8') : `---\nname: ${name}\ndescription: ${JSON.stringify(o.description ?? 'What this skill does and when to use it.')}\n---\n\n# ${name}\n`;
       change = userSkillWrite(ctx, name, text, { isNew: sub === 'new' });
@@ -1219,7 +1263,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations', 'machine'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
@@ -1252,7 +1296,7 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
-  const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
+  const fail = (message, code = 2) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, code); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
   const registryFail = () => { const problem = registryProblem(ctx); return problem ? fail(problem) : undefined; };
   // The list commands take no more positional arguments than they read.
@@ -1305,7 +1349,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'automations') {
     const r = await automationsDoc(ctx, arg, positionals, o);
-    return r.error ? fail(r.error) : emit(r.doc, r.code ?? 0);
+    // The code the terminal gives for the same error: a bad --param 2, a template that cannot be exported 1.
+    return r.error ? fail(r.error, r.code) : emit(r.doc, r.code ?? 0);
   }
   if (textRead(cmd, arg)) {
     const r = await readDoc(ctx, { cmd, o, positionals, err });
@@ -1405,7 +1450,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     // The findings the Insights view shows, so the view and the command share one cached narrative.
     const shown = shownFindings(ctx, found.findings);
     if (!shown.length) return fail('no findings to summarize');
-    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown);
+    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown, narrativePaths(ctx, listProjects(ctx)));
     // The ids the text covers: the findings the view shows and the prompt carries (the findings array above lists all of them).
     const covers = input.findings.map((f) => f.id);
     if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, covers, cached: true } }, found.summary.error ? 1 : 0);
@@ -1658,6 +1703,90 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
   return r.code ?? 0;
 }
 
+// ---- machine: the user's GitHub machine account for agent sessions (machine.mjs)
+
+// A known sign-in of another account (gh's shared keyring entry, a login by hand) would let git and gh act as that account
+// while commits name the machine: refused. An unknown one (offline) does not stop a launch.
+function signedInAsMachine(s) {
+  if (s.signedIn && s.signedIn.id !== s.config.machine.id) throw new Error(`BenchKeeper's gh folder is signed in as ${s.signedIn.login}, not the machine account ${s.config.machine.login}: benchkeeper machine remove, then machine setup`);
+}
+
+// The machine part of run --as-machine: its variables, with the login read again at the start (a rename changes the
+// address), and for Claude Code the trailers.
+function machineLaunch(ctx, args, role) {
+  const s = machineStatus(ctx);
+  if (!s.config) throw Object.assign(new Error('no machine account is set up on this machine: benchkeeper machine setup'), { status: 400 });
+  signedInAsMachine(s);
+  const r = role ?? sessionRole(args);
+  if (!['orchestrator', 'worker'].includes(r)) throw Object.assign(new Error('--role is orchestrator or worker'), { status: 400 });
+  return { env: machineEnv(ctx, s.config), args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(hostSlug(), r), ...a.slice(1)] : a) };
+}
+
+const MACHINE = ['setup', 'status', 'enable', 'disable', 'shell', 'remove'];
+async function machineCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub, ...rest] = positionals;
+  if (!MACHINE.includes(sub)) { out.write(`machine needs ${MACHINE.join(', ')}\n`); return 2; }
+  if (rest.length) { out.write(`unexpected argument ${rest[0]}\n`); return 2; }
+  const say = (l) => out.write(`${l}\n`), dir = resolve(o.project ?? '.');
+  // The global variables as a plan of the usual kind: the diff, a question (or --yes), a ledger run. sure: the user already said
+  // yes to a question that named this change (machine remove).
+  const settings = async (on, sure = false) => {
+    const changes = globalChanges(ctx, on);
+    if (!changes.length) { say('neither ~/.claude nor ~/.codex exists: no agent settings to change'); return 0; }
+    const plan = preview(changes.map((c, i) => ({ id: `machine-${i}`, ...c })));
+    if (!plan.length) { say(on ? 'the agent settings already have the machine account' : 'the agent settings have no machine account variables'); return 0; }
+    const { stop, select } = await chooseOrStop(plan, { o: sure ? { ...o, yes: true } : o, ask, out });
+    return stop ?? report(apply(plan, ctx, { scope: 'global', select }), out);
+  };
+  try {
+    if (sub === 'setup') {
+      const r = await setupMachine(ctx, { repos: o.repos, owner: o.owner, signing: !o['no-signing'], dir, yes: !!o.yes },
+        { say, open: (u) => (o['no-browser'] ? null : (ctx.openUrl ?? openBrowser)(u)), wait: (q) => ask.line(q), ask: (q) => ask(q) });
+      for (const x of r.access) say(x.ok ? `write access: ${x.repo}` : `no access to ${x.repo}: ${x.why} (an organization may forbid outside collaborators: an owner adds ${r.name} with the Write role, or the agent works through a fork)`);
+      say(`machine account ready: ${r.name} <${r.email}>, commits ${r.signing ? 'signed with its ssh key' : 'unsigned'}`);
+      say('use it: benchkeeper machine enable --global, projects apply --machine on, run --as-machine -- claude, or machine shell');
+      return r.access.some((x) => !x.ok) ? 1 : 0;
+    }
+    if (sub === 'status') {
+      const s = machineStatus(ctx), c = s.config;
+      if (!c) { say('no machine account is set up on this machine (benchkeeper machine setup)'); return 0; }
+      const id = identity(c);
+      say(`machine account: ${c.machine.login} (id ${c.machine.id})${s.renamed ? `, renamed from ${s.renamed[0]}` : ''}\nyour account: ${c.main.login} (id ${c.main.id})\nsigned in: ${s.signedIn ? `${s.signedIn.login}${s.signedIn.id === c.machine.id ? '' : ' (not the machine account)'}` : 'no (benchkeeper machine setup)'}\ncommits as: ${id.name} <${id.email}>\nsigning: ${c.signing ? (s.key ? 'on' : 'on, but the key is missing (benchkeeper machine setup)') : 'off'}\nin agent sessions: ${(ctx.env ?? process.env).BENCHKEEPER_MACHINE_EMAIL === id.email ? 'yes, in this environment' : 'not in this environment'}`);
+      return 0;
+    }
+    if (sub === 'enable' || sub === 'disable') {
+      if (!o.global) { say(`machine ${sub} needs --global; for one project: benchkeeper projects apply --machine ${sub === 'enable' ? 'on' : 'off'}`); return 2; }
+      return await settings(sub === 'enable');
+    }
+    if (sub === 'shell') {
+      const s = machineStatus(ctx);
+      if (!s.config) { say('no machine account is set up on this machine: benchkeeper machine setup'); return 2; }
+      signedInAsMachine(s);
+      const vars = shellEnv(ctx), shell = (ctx.env ?? process.env).SHELL || '/bin/sh';
+      say(`machine shell: ${shell} as ${vars.GIT_AUTHOR_NAME}; exit to leave it`);
+      ask.close();
+      return ctx.run([shell], { cwd: dir, env: vars, stdio: 'inherit' }).code;
+    }
+    let c = null;
+    try { c = machineStatus(ctx).config; } catch { c = { broken: true }; }
+    if (!c) { say('no machine account is set up on this machine'); return 0; }
+    if (!o.yes && !(await ask('Sign the machine account out of BenchKeeper, delete its signing key and config, and take its variables out of the agent settings? The account stays on GitHub.'))) return 1;
+    // The sign-out first: when gh keeps the login, nothing is deleted and the settings stay as they are.
+    removeMachine(ctx);
+    say('signed out and deleted the machine folder');
+    const code = await settings(false, true);
+    // The config is gone, so a second machine remove stops early: name the command that still works.
+    if (code) { say('the agent settings still have machine account variables: benchkeeper machine disable --global'); return code; }
+    say('a project set with --machine on keeps its variables in .claude/settings.local.json: run benchkeeper projects apply --machine none in each of them');
+    say(`on GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
+    return 0;
+  } catch (e) {
+    if (e instanceof Refused) throw e;
+    say(e.message);
+    return e.usage ? 2 : 1;
+  }
+}
+
 // ---- webhook: the run notification (webhook.mjs)
 
 async function webhookCommand(ctx, { o, positionals, out, ask }) {
@@ -1741,13 +1870,15 @@ function usageText(u, name) {
   return `  usage    ${WINDOWS.map(([k, label]) => `${label} ${u[k].state === 'unknown' ? `unknown (${u[k].reason})` : `${u[k].remaining}% left, resets ${u[k].resetsAt.slice(0, 16).replace('T', ' ')} UTC`}`).join('; ')}; read ${age} ago`;
 }
 
+// A flag value accounts limits cannot take, or a flag given where it does not belong: a usage error (exit 2).
+const badFlag = (message) => Object.assign(new Error(message), { status: 400 });
 const percent = (v, flag) => {
   const n = Number(v);
-  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${flag} is a percentage from 0 to 100`);
+  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw badFlag(`${flag} is a percentage from 0 to 100`);
   return n;
 };
 const onOff = (v, flag) => {
-  if (v !== 'on' && v !== 'off') throw new Error(`${flag} is on or off`);
+  if (v !== 'on' && v !== 'off') throw badFlag(`${flag} is on or off`);
   return v === 'on';
 };
 // The flags of `accounts limits` as the change takes them; names the flags that only work with or without an account name.
@@ -1761,19 +1892,19 @@ function limitFlags(o, name) {
   if (o['auto-pick'] !== undefined) out.autoPick = onOff(o['auto-pick'], '--auto-pick');
   if (o['continue-below'] !== undefined) out.continueBelow = onOff(o['continue-below'], '--continue-below');
   if (o['when-none'] !== undefined) {
-    if (!['stop', 'wait'].includes(o['when-none'])) throw new Error('--when-none is stop or wait');
+    if (!['stop', 'wait'].includes(o['when-none'])) throw badFlag('--when-none is stop or wait');
     out.whenNone = o['when-none'];
   }
   for (const agent of AGENTS) {
     const v = o[`rotate-${agent}`];
     if (v === undefined) continue;
-    if (!ROTATE.includes(v)) throw new Error(`--rotate-${agent} is ${ROTATE.join(' or ')}`);
+    if (!ROTATE.includes(v)) throw badFlag(`--rotate-${agent} is ${ROTATE.join(' or ')}`);
     out.rotate = { ...out.rotate, [agent]: v };
   }
-  if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
+  if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw badFlag('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
   const unavailable = Object.keys(out.rotate ?? {}).find((agent) => out.rotate[agent] === 'handover' && !ROTATABLE.includes(agent));
-  if (unavailable) throw new Error(`--rotate-${unavailable} handover is not available: rotation is for ${ROTATABLE.join(', ')} only`);
-  if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
+  if (unavailable) throw badFlag(`--rotate-${unavailable} handover is not available: rotation is for ${ROTATABLE.join(', ')} only`);
+  if (!name && (out.pool !== undefined || o.reset)) throw badFlag('--pool and --reset belong to one account: give its name');
   out.reset = !!o.reset;
   return out;
 }
@@ -1872,7 +2003,8 @@ async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    return 1;
+    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
+    return lookupCode(e);
   }
 }
 
@@ -1932,13 +2064,15 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
 async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
+  if (o.role !== undefined && !o['as-machine']) { out.write('--role belongs to run --as-machine\n'); return 2; }
   try {
     const problem = accountsProblem(ctx);
     if (problem) { out.write(`${problem}\n`); return 2; }
     const a = pickAccount(ctx, { name: o.account, agent: args[0] });
     // An account named with --account is never replaced by auto-pick.
     let ran = a;
-    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; } };
+    const dir = resolve(o.project ?? '.');
+    const opts = { dir, useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; }, ...(o['as-machine'] ? { machine: machineLaunch(ctx, args, o.role) } : {}) };
     let code;
     try { code = runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
       if (!(e instanceof NeedsConfirm)) throw e;
@@ -1953,6 +2087,7 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    return 1;
+    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
+    return lookupCode(e);
   }
 }

@@ -48,7 +48,8 @@ import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/pro
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, exportScript, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
-import { undoableAutomation } from './orca/index.mjs';
+import { sessionRole, undoableAutomation } from './orca/index.mjs';
+import { DEFAULT_PREFIX, botStatus, credentialAnswer, deleteUrl, identity, mintToken, pickRepo, removeBot, sessionEnv, setupBot, shellEnv, trailerArgs } from './bot.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -266,10 +267,29 @@ Usage: benchkeeper <command> [options]
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
                                     asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
                                     access token piped on stdin goes to codex login --with-access-token
-  run [--account name] [--project dir] [--token] [--yes] -- claude|codex [args]
+  run [--account name] [--project dir] [--token] [--yes] [--as-bot [--role orchestrator|worker]] -- claude|codex [args]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
-                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec
+                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec.
+                                    --as-bot (host accounts): a bot session that commits and pushes as this machine's GitHub
+                                    App bot (bot setup), for the --project folder's GitHub repository only; role: from the launch
+                                    (a dispatched worker's prompt), else orchestrator
+  bot setup [--repo owner/name] [--prefix p] [--org name] [--resume] [--no-browser] [--project dir]
+                                    registers this machine's GitHub App <prefix>-<host> (default prefix ${DEFAULT_PREFIX}) from a
+                                    manifest in the browser: you sign in, create and install it on the repository (default: the
+                                    folder's origin), the rest is automatic; the private key goes to the OS credential store only,
+                                    ids and names to bot.json. --resume finishes a setup whose installation was not seen
+  bot status [--check] [--repo owner/name]
+                                    the bot's App, installation, commit identity and whether its key is in the credential store;
+                                    --check mints a token (never shown)
+  bot token [--repo owner/name] [--project dir]
+                                    prints an installation token of at most 1 hour for one repository (default: the bot
+                                    session's, else the folder's origin), only into a pipe, never to a terminal
+  bot git-credential get            the git credential helper of bot sessions (reads the request on stdin)
+  bot shell [--repo owner/name] [--role orchestrator|worker] [--project dir]
+                                    starts your shell as a bot session; nothing is written to shell start files
+  bot remove [--yes]                deletes the private key, the cached token and bot.json after a question and prints
+                                    where to delete the App on GitHub
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, versions behind; the session signal needs 20 sessions
@@ -337,6 +357,7 @@ const OPTIONS = {
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
+  'as-bot': { type: 'boolean' }, role: { type: 'string' }, repo: { type: 'string' }, prefix: { type: 'string' }, org: { type: 'string' }, resume: { type: 'boolean' },
 };
 
 // A question that found the end of the input before any answer: the command stops before it changes anything.
@@ -581,7 +602,8 @@ const FLAGS = {
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
   'accounts limits': 'five-hour seven-day warn-five-hour warn-seven-day pool auto-pick when-none continue-below rotate-claude rotate-codex reset yes all',
-  'accounts login': 'token email no-browser project', run: 'account project token yes',
+  'accounts login': 'token email no-browser project', run: 'account project token yes as-bot role',
+  'bot setup': 'repo prefix org resume no-browser project', 'bot status': 'check repo', 'bot token': 'repo project', 'bot git-credential': '', 'bot shell': 'repo role project', 'bot remove': 'yes',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations export': 'param project',
@@ -968,6 +990,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'bot') return botCommand(ctx, { o, positionals, out, err, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -1239,7 +1262,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations', 'bot'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
@@ -1679,6 +1702,73 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
   return r.code ?? 0;
 }
 
+// ---- bot: the per-machine GitHub App bot of agent sessions (bot.mjs)
+
+// The bot part of run --as-bot: the session's variables for the folder's GitHub repository and, for Claude Code, the trailers.
+function botLaunch(ctx, dir, args, role) {
+  const env = sessionEnv(ctx, { repo: pickRepo(ctx, { dir }), role: role ?? sessionRole(args), env: ctx.env ?? process.env });
+  return { env, args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(env), ...a.slice(1)] : a) };
+}
+
+const BOT = ['setup', 'status', 'token', 'git-credential', 'shell', 'remove'];
+async function botCommand(ctx, { o, positionals, out, err, ask }) {
+  const [, sub, ...rest] = positionals;
+  if (!BOT.includes(sub)) { out.write(`bot needs ${BOT.join(', ')}\n`); return 2; }
+  if (rest.length > (sub === 'git-credential' ? 1 : 0)) { out.write(`unexpected argument ${rest.at(-1)}\n`); return 2; }
+  const env = ctx.env ?? process.env, dir = resolve(o.project ?? '.');
+  // token and git-credential answer into a pipe: their messages go to stderr.
+  const say = ['token', 'git-credential'].includes(sub) ? err : out;
+  try {
+    if (sub === 'setup') {
+      const r = await setupBot(ctx, { repo: o.resume ? undefined : pickRepo(ctx, { repo: o.repo, dir }), prefix: o.prefix, org: o.org, resume: !!o.resume, say: (l) => out.write(`${l}\n`), open: o['no-browser'] ? () => null : ctx.openUrl ?? openBrowser });
+      out.write(`bot ready: the App ${r.app} (${r.slug}, id ${r.appId}) of ${r.owner}, installed on ${r.repo} (installation ${r.installation})\ncommits as ${r.name} <${r.email}>\nkey: in the OS credential store (${r.store}); a test token was minted (expires ${r.expires}) and not shown\nstart a bot session: benchkeeper run --as-bot -- claude, or benchkeeper bot shell\n`);
+      return 0;
+    }
+    if (sub === 'status') {
+      const s = botStatus(ctx), c = s.config;
+      if (!c) { out.write('no bot is set up on this machine (benchkeeper bot setup)\n'); return 0; }
+      out.write(`app: ${c.name} (${c.slug}, id ${c.appId}) of ${c.owner}\nrepository: ${c.repo}\ninstallation: ${c.installation ? c.installation.id : 'not seen yet (benchkeeper bot setup --resume)'}\ncommits as: ${c.user ? `${identity(c).name} <${identity(c).email}>` : 'not known yet'}\nkey: ${s.key ? `in the credential store (${s.store})` : s.note ?? 'missing (benchkeeper bot remove, then bot setup)'}\ndelete the App on GitHub: ${deleteUrl(c)}\n`);
+      if (!o.check) return 0;
+      const t = await mintToken(ctx, o.repo ? pickRepo(ctx, { repo: o.repo }) : c.repo, { fresh: true });
+      out.write(`token: minted, expires ${t.expires} (not shown)\n`);
+      return 0;
+    }
+    if ((sub === 'token' || sub === 'git-credential') && out.isTTY) { err.write(`bot ${sub} prints a token only into a pipe, never to a terminal\n`); return 2; }
+    if (sub === 'token') {
+      const repo = o.repo !== undefined || !env.BENCHKEEPER_BOT_REPO ? pickRepo(ctx, { repo: o.repo, dir }) : env.BENCHKEEPER_BOT_REPO;
+      out.write(`${(await mintToken(ctx, repo)).token}\n`);
+      return 0;
+    }
+    if (sub === 'git-credential') {
+      if (!rest[0]) { err.write('bot git-credential needs the operation git passes (get)\n'); return 2; }
+      // store and erase: nothing is kept, so nothing to do (gitcredentials(7), custom helpers).
+      if (rest[0] !== 'get') return 0;
+      const lines = [];
+      for (let l = await ask.line(''); l !== null && l !== ''; l = await ask.line('')) lines.push(l);
+      out.write(await credentialAnswer(ctx, lines.join('\n'), { repo: env.BENCHKEEPER_BOT_REPO, dir }));
+      return 0;
+    }
+    if (sub === 'shell') {
+      const shellVars = shellEnv(ctx, { repo: pickRepo(ctx, { repo: o.repo, dir }), role: o.role ?? 'orchestrator', env });
+      const shell = env.SHELL || '/bin/sh';
+      out.write(`bot shell: ${shell} as ${shellVars.GIT_AUTHOR_NAME} for ${shellVars.BENCHKEEPER_BOT_REPO}; exit to leave it\n`);
+      ask.close();
+      return ctx.run([shell], { cwd: dir, env: shellVars, stdio: 'inherit' }).code;
+    }
+    let kept;
+    try { const s = botStatus(ctx, { probe: true }); kept = !!(s.config || s.key); } catch { kept = true; }
+    if (!kept) { out.write('no bot is set up on this machine\n'); return 0; }
+    if (!o.yes && !(await ask('Delete the bot\'s private key, its cached token and bot.json from this machine? The App stays on GitHub until you delete it there.'))) return 1;
+    const c = removeBot(ctx);
+    out.write(`deleted the private key, the cached token and bot.json${c ? `\ndelete the App on GitHub to revoke it for good: ${deleteUrl(c)}` : ''}\n`);
+    return 0;
+  } catch (e) {
+    if (e instanceof Refused) throw e;
+    say.write(`${e.message}\n`);
+    return e.usage ? 2 : 1;
+  }
+}
+
 // ---- webhook: the run notification (webhook.mjs)
 
 async function webhookCommand(ctx, { o, positionals, out, ask }) {
@@ -1956,13 +2046,15 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
 async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
+  if (o.role !== undefined && !o['as-bot']) { out.write('--role belongs to run --as-bot\n'); return 2; }
   try {
     const problem = accountsProblem(ctx);
     if (problem) { out.write(`${problem}\n`); return 2; }
     const a = pickAccount(ctx, { name: o.account, agent: args[0] });
     // An account named with --account is never replaced by auto-pick.
     let ran = a;
-    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; } };
+    const dir = resolve(o.project ?? '.');
+    const opts = { dir, useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; }, ...(o['as-bot'] ? { bot: botLaunch(ctx, dir, args, o.role) } : {}) };
     let code;
     try { code = runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
       if (!(e instanceof NeedsConfirm)) throw e;

@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { accountChecks } from './accounts.mjs';
 import { automationChecks } from './automations.mjs';
+import { botChecks } from './bot.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { containerChecks, containerEngine } from './containers.mjs';
@@ -141,7 +142,7 @@ export function doctorReport(ctx, { agents, dir, env = process.env, devcontainer
   const tooNew = contentRefusal(contentDir, appVersion) ?? installedRefusal(ctx, agents);
   const out = [...(tooNew ? [issue('error', 'content', tooNew, 'run the newer benchkeeper command named, or update the plugin to the version this app sets up')] : []), ...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
-  out.push(...ownSkillClashes(ctx), ...accountChecks(ctx, { dir, now }));
+  out.push(...ownSkillClashes(ctx), ...accountChecks(ctx, { dir, now }), ...botChecks(ctx));
   const ide = orca.unobserved(ctx);
   if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
   out.push(...automationChecks(ctx));

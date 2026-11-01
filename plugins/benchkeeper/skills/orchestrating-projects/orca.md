@@ -48,13 +48,13 @@ Claude Code runs the `check --wait` as a background command and is woken when it
 
 At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
-Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof. A worker blocked by a hook or waiting at a prompt stays `ready`, so a state watcher never fires for it. For the stall check, compare the time of the last commit on its branch, its PR and its last message with `stallMinutes`; when exceeded, `worker-read` its last output. Proof that it stopped without a report is a final agent turn that ended with no `worker_done`. Then:
+Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof. A worker blocked by a hook or waiting at a prompt stays `ready`, so a state watcher never fires for it. For the stall check (Stalled in [SKILL.md](SKILL.md#outcomes)), `worker-read` its last output. Proof that it stopped without a report is a final agent turn that ended with no `worker_done`. Then:
 
 ```text
 ORCA orchestration worker-stop --dispatch <dispatch id> --json
 ```
 
-and handle it as blocked; run the `nextAction` that `worker-list` gives for the stopped dispatch before releasing it. Without that proof, keep waiting.
+and handle it as blocked; run the `nextAction` that `worker-list` gives for the stopped dispatch before releasing it.
 
 ## Clean up
 
@@ -65,7 +65,7 @@ ORCA worktree rm --worktree path:<worktree path> --run-hooks --json
 
 `--run-hooks` runs the project's `orca.yaml` archive script before the removal; the one BenchKeeper's project setup writes removes the worktree's dev containers and exits 0 even when that fails, so the removal goes ahead. After the removal, list and remove what is left (`podman ps -aq --filter label=devcontainer.local_folder=<worktree path>`, or `docker`) and remove those containers with `rm -f`.
 
-A worker whose terminal a person typed in (its `worker-read` output shows input no `send` carried) is kept: `ORCA orchestration worker-retain --dispatch <dispatch id> --json`, no stop, no release, no worktree removal. Never type into a worker terminal or answer a dialog in it; Orca's `send` is the only way in.
+A worker whose terminal a person typed in (its `worker-read` output shows input no `send` carried) is kept: `ORCA orchestration worker-retain --dispatch <dispatch id> --json`. Never type into a worker terminal or answer a dialog in it; Orca's `send` is the only way in.
 
 Release only a settled worker, so stop an idle worker that sent no report before releasing it. `worker-read` still returns a released worker's output. `ORCA worktree rm` also tries to delete the checked-out local branch (Orca keeps it when it predates the worktree or its changes are not provably merged). Run it only after a merged PR with `deleteMergedBranch` true. Never remove a blocked worker's worktree. In the other cases (no merge allowed, `deleteMergedBranch` false) remove the worktree with `git -C <project path> worktree remove <worktree path>`, which leaves the branch; whether Orca's worktree list then drops the entry is unverified. Delete a merged branch's remote ref separately, when `deleteMergedBranch` allows it:
 

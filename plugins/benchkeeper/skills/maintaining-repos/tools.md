@@ -15,7 +15,7 @@ Versions are the newest release at least 7 days old on 2026-10-26; this skill pr
 
 ## Python and Rust
 
-Not run in the spike that wrote this skill: install, run time and false-positive rate are unverified, so every finding is a candidate to confirm by search.
+Install, run time and false-positive rate are unverified, so every finding is a candidate to confirm by search.
 
 | Stack | Dead code | Dependencies | Cycles and layers | Mutation |
 |---|---|---|---|---|
@@ -26,7 +26,7 @@ Other stacks: the language's own unused-code lint, the package manager's depende
 
 ## Reference search
 
-Before any deletion: search the name across code, tests, docs, scripts, CI and config (`git grep -nw -- <name>`), also its string forms (dynamic imports, registry keys, CLI flags). Record the search and its count with the finding.
+`git grep -nw -- <name>` across code, tests, docs, scripts, CI and config, also its string forms (dynamic imports, registry keys, CLI flags). Record the search and its count with the finding.
 
 ## Sources
 

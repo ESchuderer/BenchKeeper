@@ -1,6 +1,6 @@
 # Worker spec template
 
-Copy this file's block, replace each `<...>`, and send it as the worker's task. Change nothing else. The repository's rules stay in its `AGENTS.md`; this spec only points to them.
+Copy this file's block, replace each `<...>`, and send it as the worker's task. Change nothing else.
 
 ```text
 Issue: <owner/repo>#<number>. Read the issue and its comments before anything else.

@@ -48,12 +48,12 @@ export const templates = (ctx) => FILES.map((f) => ({
   change: { kind: 'write', path: join(ctx.config, 'orca', f), after: readFileSync(new URL(f, import.meta.url), 'utf8') },
 }));
 
-// The per-worktree setup files project setup offers when workers ran in the project's worktrees: the setup script runs
-// install (null: a line to fill in) before the agent starts, the archive script removes the worktree's dev containers, and the local files listed are copied into each new worktree.
-export const worktreeFiles = (install, include) => [
-  { path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\n  archive: |\n    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.\n    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'\nsetupAgentStartupPolicy: wait-for-setup\n` },
-  { path: '.worktreeinclude', text: `# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n${include.join('\n')}\n` },
-];
+// The per-worktree setup file project setup offers when workers ran in the project's worktrees: the setup script runs
+// install (null: a line to fill in) before the agent starts, and the archive script removes the worktree's dev containers.
+// The local files each new worktree copies are in .worktreeinclude, which project setup writes for every worktree tool.
+export const worktreeFile = (install) => ({ path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\n  archive: |\n    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.\n    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'\nsetupAgentStartupPolicy: wait-for-setup\n` });
+// The .worktreeinclude project setup offered with orca.yaml before it kept a block there: all of it BenchKeeper's.
+export const offeredInclude = (text) => typeof text === 'string' && text.startsWith(`# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n`);
 
 // The text in a dispatched worker's first prompt: two lines, both needed, so a prompt that quotes one is no worker. A user's
 // own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker.

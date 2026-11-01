@@ -14,7 +14,7 @@ The components BenchKeeper sets up, where each file lives and why these were cho
 | [workflow](../plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task kind (software change, docs pass, research) and tier (quick, standard, full), pre-push correctness review, security review for risky changes; uses installed skills that match a step |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo, committed: `.devcontainer/`, `AGENTS.md` (your own text), `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`. Local by default, listed in `.git/info/exclude` (committed with `--share`): `CLAUDE.local.md` (shared: `CLAUDE.md`), `AGENTS.override.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `.benchkeeper/`.
+Per repo, committed: `.devcontainer/`, `AGENTS.md` (your own text), `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`. Local by default, listed in `.git/info/exclude` (committed with `--share`): `CLAUDE.local.md` (shared: `CLAUDE.md`), `AGENTS.override.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `.benchkeeper/`, and `.worktreeinclude`, which lists them for new worktrees (with `--share` it lists only the personal files).
 
 Global (per machine): the rules, the BenchKeeper plugin, the plugins of the packs chosen (Ponytail, Matt Pocock's skills), find-skills, settings.
 

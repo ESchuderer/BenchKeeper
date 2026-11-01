@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -45,16 +45,22 @@ test('a skill without writes or when fails', () => {
   assert.throws(() => skillEntry(skill(['name: a', 'description: "Does a. Use when b."'])), /writes/);
   assert.throws(() => skillEntry(skill(['name: a', 'description: "Does a."', 'writes: "c"'])), /when/);
 });
+// Also started through a symlinked folder (the macOS temporary folder is one): the check must still run.
 test('--check fails on a page that differs from its sources', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skills-doc-'));
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'skills-doc-')));
+  const dir = join(tmp, 'repo');
   try {
     for (const p of ['.github/scripts', 'plugins/benchkeeper/skills', 'plugins/benchkeeper/library/library.json', 'docs/skills.md']) cpSync(join(root, p), join(dir, p), { recursive: true });
-    const script = join(dir, '.github/scripts/skills-doc.mjs');
-    execFileSync(process.execPath, [script, '--check']);
+    symlinkSync(dir, join(tmp, 'link'), 'dir');
     const page = join(dir, 'docs/skills.md');
     writeFileSync(page, readFileSync(page, 'utf8').replace('| Skill |', '| Skills |'));
-    assert.throws(() => execFileSync(process.execPath, [script, '--check'], { stdio: 'pipe' }), (e) => e.status === 1 && /differs/.test(e.stdout));
+    for (const via of [dir, join(tmp, 'link')]) {
+      const script = join(via, '.github/scripts/skills-doc.mjs');
+      assert.throws(() => execFileSync(process.execPath, [script, '--check'], { stdio: 'pipe' }), (e) => e.status === 1 && /differs/.test(e.stdout), via);
+    }
+    writeFileSync(page, readFileSync(join(root, 'docs/skills.md'), 'utf8'));
+    execFileSync(process.execPath, [join(tmp, 'link/.github/scripts/skills-doc.mjs'), '--check']);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(tmp, { recursive: true, force: true });
   }
 });

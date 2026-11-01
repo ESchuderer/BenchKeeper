@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, posix as posixPath, win32 } from 'node:path';
 import { test } from 'node:test';
 import { addCase } from '../src/cases.mjs';
-import { childEnv } from '../src/childenv.mjs';
+import { agentEnv, childEnv } from '../src/childenv.mjs';
 import { cooled } from '../src/cooldown.mjs';
 import { diffLines } from '../src/diff.mjs';
 import { Ledger, backupRel, runId } from '../src/ledger.mjs';
@@ -99,6 +99,14 @@ test('childEnv: tools keep their way to the network and their folders, credentia
   assert.equal(passed.SSH_AUTH_SOCK, '/s');
   assert.equal(passed.GITHUB_TOKEN, undefined);
   assert.equal(passed.X, '1');
+});
+
+test('childEnv: a passphrase stays out like a password, agentEnv keeps it for its own agent', () => {
+  const env = { PATH: '/bin', CLAUDE_CODE_CLIENT_KEY_PASSPHRASE: 'hunter2' };
+  assert.equal(childEnv({}, env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, undefined);
+  assert.equal(agentEnv('codex', env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, undefined);
+  assert.equal(agentEnv('claude', env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, 'hunter2');
+  assert.equal(childEnv({}, { ...env, BENCHKEEPER_PASS_ENV: 'CLAUDE_CODE_CLIENT_KEY_PASSPHRASE' }).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, 'hunter2');
 });
 
 test('cooled: published for 7 days, still installable, a plain release, a string time', () => {

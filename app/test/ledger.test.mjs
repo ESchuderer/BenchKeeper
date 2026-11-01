@@ -132,6 +132,27 @@ test('list: newest first, only parsing runs of this schema, cached until the fol
   assert.deepEqual(l.list().map((r) => r.id), ['8', '7', '3', '1']);
 });
 
+test('list and last: two runs of the same second go by their start time, not by the random suffix of their id', () => {
+  const l = ledger();
+  const path = join(l.home, 'f.txt');
+  const run = (id, time, hash) => ({ schema: SCHEMA, id, time, kind: 'apply', scope: 'global', status: 'done', entries: [{ id: 'w', step: 's', title: 't', kind: 'write', path, status: 'done', hashAfter: hash }] });
+  // The earlier run has the larger suffix; a run of the second before and one after stay in place.
+  l.save(run('20261101T000000Z-ffffff', '2026-11-01T00:00:00.100Z', 'first'));
+  l.save(run('20261101T000000Z-000000', '2026-11-01T00:00:00.900Z', 'second'));
+  l.save(run('20261031T235959Z-aaaaaa', '2026-10-31T23:59:59.999Z', 'before'));
+  l.save(run('20261101T000001Z-000001', '2026-11-01T00:00:01.000Z', 'after'));
+  assert.deepEqual(l.list().map((r) => r.id), ['20261101T000001Z-000001', '20261101T000000Z-000000', '20261101T000000Z-ffffff', '20261031T235959Z-aaaaaa']);
+  l.save(run('20261101T000002Z-000002', 'not a time', 'unreadable'));
+  l.save(run('20261101T000002Z-000003', undefined, 'none'));
+  assert.deepEqual(l.list().slice(0, 2).map((r) => r.id), ['20261101T000002Z-000003', '20261101T000002Z-000002'], 'without a readable time: by name');
+  // The newest run that wrote the path is the later one of the same second.
+  const l2 = ledger(), p2 = join(l2.home, 'f.txt');
+  const run2 = (id, time, hash) => ({ ...run(id, time, hash), entries: [{ id: 'w', step: 's', title: 't', kind: 'write', path: p2, status: 'done', hashAfter: hash }] });
+  l2.save(run2('20261101T000000Z-ffffff', '2026-11-01T00:00:00.100Z', 'first'));
+  l2.save(run2('20261101T000000Z-000000', '2026-11-01T00:00:00.900Z', 'second'));
+  assert.equal(l2.last(p2).hashAfter, 'second');
+});
+
 test('broken: run files that are not a JSON object, sorted; no folder is none', () => {
   const l = ledger();
   assert.deepEqual(l.broken(), []);

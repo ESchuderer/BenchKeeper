@@ -3,7 +3,7 @@
 // guard. No real gh login, account, token, keychain or git config.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -40,8 +40,15 @@ function machine({ signedIn = false, as = AGENT, failing = [], owned = [] } = {}
     const mine = o.env?.GH_CONFIG_DIR === ghDir(ctx), args = argv.slice(1);
     gh.calls.push({ args, machine: mine, env: o.env, stdio: o.stdio });
     const who = mine ? (gh.signedIn ? gh.as : null) : gh.main;
-    if (args[0] === 'auth' && args[1] === 'login') { gh.signedIn = true; return { code: 0, stdout: '', stderr: '' }; }
-    if (args[0] === 'auth' && args[1] === 'logout') { if (gh.stuck) return { code: 1, stdout: '', stderr: 'keyring locked' }; gh.signedIn = false; return { code: 0, stdout: '', stderr: '' }; }
+    // gh's hosts.yml in the folder names the login while it is signed in.
+    const hosts = join(ghDir(ctx), 'hosts.yml');
+    if (args[0] === 'auth' && args[1] === 'login') { gh.signedIn = true; writeFileSync(hosts, `github.com:\n    user: ${gh.as.login}\n`); return { code: 0, stdout: '', stderr: '' }; }
+    if (args[0] === 'auth' && args[1] === 'logout') {
+      if (gh.stuck || !gh.signedIn) return { code: 1, stdout: '', stderr: gh.stuck ? 'keyring locked' : 'not logged in to github.com' };
+      gh.signedIn = false;
+      rmSync(hosts, { force: true });
+      return { code: 0, stdout: '', stderr: '' };
+    }
     if (args.join(' ') === 'api user') return who ? json(who) : { code: 1, stdout: '', stderr: 'gh auth login' };
     if (args[1] === '--paginate') return args[2].startsWith('orgs/acme') || args[2].startsWith('user/repos') ? { code: 0, stdout: `${gh.owned.join('\n')}\n`, stderr: '' } : { code: 1, stdout: '', stderr: 'HTTP 404' };
     if (args[1] === '-X' && args[2] === 'PUT') {
@@ -71,6 +78,7 @@ async function cli(m, args, { lines = [] } = {}) {
 // A machine whose setup finished, as setup leaves it.
 function ready(m = machine({ signedIn: true }), signing = false) {
   mkdirSync(ghDir(m.ctx), { recursive: true });
+  writeFileSync(join(ghDir(m.ctx), 'hosts.yml'), `github.com:\n    user: ${AGENT.login}\n`);
   writeFileSync(configFile(m.ctx), JSON.stringify({ version: 1, machine: AGENT, main: MAIN, gh: join(m.bin, 'gh'), signing }));
   return m;
 }
@@ -293,7 +301,7 @@ test('guard hook in a machine account session: denies another identity and an ap
     'GIT_AUTHOR_EMAIL=me@example.com git commit -m x', 'env GIT_COMMITTER_NAME=me git commit -m x', 'export GIT_AUTHOR_EMAIL=me@example.com', 'unset GIT_CONFIG_COUNT', 'GH_CONFIG_DIR=~/.config/gh gh pr create',
     'bash -c "git -c user.name=x commit"', 'gh pr review 12 --approve', 'gh pr review -a', 'gh api repos/o/r/pulls/12/reviews -f event=APPROVE', 'gh api -X POST repos/o/r/pulls/12/reviews --field=event=approve', 'gh api repos/o/r/pulls/12/reviews --input review.json',
     'gh pr -R octo/proj review 12 --approve', 'gh pr --repo octo/proj review 12 -a', 'gh pr review 12 -R=octo/proj --approve', 'gh pr review 12 --repo=octo/proj -b ok -a', 'gh pr review 12 --approve=true',
-    'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/'];
+    'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/', 'gh api repos/o/r/pulls/12/reviews -F event=@review-event.txt'];
   for (const c of denied) assert.ok(denyReason(c, 0, env)?.machine, c);
   const fine = ['git commit -m "fix: x"', 'git push origin feat', 'git config user.email', 'git config get user.email', 'git config --get user.name', 'git config core.editor vim', 'git -c core.pager=cat log', 'export PATH=/x', 'git status',
     'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12'];
@@ -349,6 +357,11 @@ test('machine status, doctor and remove: ids decide, a renamed login is informat
   assert.match(stuck.text, /gh did not sign the machine account out of .*; nothing was deleted: run GH_CONFIG_DIR=/);
   assert.doesNotMatch(stuck.text, /signed out and deleted/);
   assert.deepEqual([existsSync(configFile(m.ctx)), JSON.parse(readFileSync(join(m.home, '.claude/settings.json'), 'utf8')).env.GIT_AUTHOR_EMAIL], [true, EMAIL]);
+  // gh answers no account although hosts.yml still names the login (a lookup that failed): still nothing is deleted.
+  m.gh.signedIn = false;
+  assert.equal((await cli(m, ['machine', 'remove', '--yes'])).code, 1, 'hosts.yml still names the login');
+  assert.ok(existsSync(configFile(m.ctx)));
+  m.gh.signedIn = true;
   m.gh.stuck = false;
   assert.equal((await cli(m, ['machine', 'remove'])).code, 2, 'no answer is no go-ahead');
   const r = await cli(m, ['machine', 'remove', '--yes']);
@@ -356,6 +369,13 @@ test('machine status, doctor and remove: ids decide, a renamed login is informat
   assert.match(r.text, /delete its signing key at https:\/\/github\.com\/settings\/keys, or the account at https:\/\/github\.com\/settings\/admin/);
   assert.equal(m.gh.signedIn, false);
   assert.deepEqual([existsSync(join(m.ctx.config, 'machine')), JSON.parse(readFileSync(join(m.home, '.claude/settings.json'), 'utf8')).env], [false, undefined]);
+  // Settings that cannot be edited: the account is signed out all the same, and the command that cleans up is named.
+  ready(m);
+  m.gh.signedIn = true;
+  writeFileSync(join(m.home, '.claude/settings.json'), '{ not json');
+  const broken = await cli(m, ['machine', 'remove', '--yes']);
+  assert.equal(broken.code, 1);
+  assert.match(broken.text, /signed out and deleted the machine folder[\s\S]*the agent settings still have machine account variables: benchkeeper machine disable --global/);
   assert.equal((await cli(m, ['machine', 'nope'])).code, 2);
   assert.equal((await cli(m, ['machine', 'status', 'extra'])).code, 2);
 });

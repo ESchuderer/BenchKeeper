@@ -307,8 +307,11 @@ export function removeMachine(ctx) {
   try { c = readConfig(ctx); } catch { /* a broken file goes too */ }
   const env = ctx.env ?? process.env, gh = c?.gh ?? findGh(env.PATH), machine = machineGhEnv(ctx, env);
   if (gh && existsSync(ghDir(ctx))) {
-    ctx.run([gh, 'auth', 'logout', '--hostname', 'github.com', ...(c ? ['--user', c.machine.login] : [])], { env: machine, timeout: 60e3 });
-    if (whoami(ctx, gh, machine)) throw new MachineError(`gh did not sign the machine account out of ${ghDir(ctx)}; nothing was deleted: run GH_CONFIG_DIR=${ghDir(ctx)} gh auth logout --hostname github.com, then benchkeeper machine remove again`);
+    const r = ctx.run([gh, 'auth', 'logout', '--hostname', 'github.com', ...(c ? ['--user', c.machine.login] : [])], { env: machine, timeout: 60e3 });
+    // A failed logout counts as signed out only when the folder's hosts.yml names no github.com login (it was never signed in);
+    // after a logout that worked, gh must not answer as an account there. A failed lookup alone proves nothing.
+    const still = r.code !== 0 ? /^github\.com:/m.test(readText(join(ghDir(ctx), 'hosts.yml')) ?? '') : !!whoami(ctx, gh, machine);
+    if (still) throw new MachineError(`gh did not sign the machine account out of ${ghDir(ctx)}; nothing was deleted: run GH_CONFIG_DIR=${ghDir(ctx)} gh auth logout --hostname github.com, then benchkeeper machine remove again`);
   }
   rmSync(machineDir(ctx), { recursive: true, force: true });
   return c;

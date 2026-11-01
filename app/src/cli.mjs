@@ -1765,7 +1765,8 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
     removeMachine(ctx);
     say('signed out and deleted the machine folder');
     const code = await settings(false, true);
-    if (code) return code;
+    // The config is gone, so a second machine remove stops early: name the command that still works.
+    if (code) { say('the agent settings still have machine account variables: benchkeeper machine disable --global'); return code; }
     say(`on GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
     return 0;
   } catch (e) {

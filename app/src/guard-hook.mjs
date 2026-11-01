@@ -93,7 +93,8 @@ function approval(args) {
   if (sub === 'pr' && verb === 'review' && args.some((a) => a === '--approve' || a.startsWith('--approve=') || shortApprove(a))) return { machine: 'gh pr review --approve' };
   if (sub !== 'api' || !args.some((a) => /\/pulls\/[^/\s]+\/reviews(\/|\?|$)/.test(a))) return null;
   const fields = args.flatMap((a, j) => (['-f', '-F', '--field', '--raw-field'].includes(a) ? [args[j + 1] ?? ''] : /^(-[fF]|--(raw-)?field=)/.test(a) ? [a.replace(/^(-[fF]|--(raw-)?field=)/, '')] : []));
-  return fields.some((f) => /^event=approve$/i.test(f)) || args.includes('--input') ? { machine: 'an approving review through gh api' } : null;
+  // A value read from a file (-F event=@file) or from --input cannot be seen here: denied as if it approved.
+  return fields.some((f) => /^event=(approve$|@)/i.test(f)) || args.includes('--input') ? { machine: 'an approving review through gh api' } : null;
 }
 
 // git config that writes one of IDENTITY_KEYS: the old form with a value or a write option, and the set/unset subcommands.

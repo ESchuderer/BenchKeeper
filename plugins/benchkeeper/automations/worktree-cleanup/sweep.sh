@@ -60,7 +60,8 @@ ignored() {
       { for (i = 1; i < NF; i++) if ($i in keep) next; sub(/\/+$/, ""); print }' |
     while IFS= read -r p; do
       copy "$1" "$p" && continue
-      if [ -d "$1/$p" ] && [ ! -L "$1/$p" ]; then
+      # Only a folder with an entry inside it is listed: others (.venv) are kept without walking their tree.
+      if [ -d "$1/$p" ] && [ ! -L "$1/$p" ] && awk -v d="$p/" 'index($0, d) == 1 { f = 1; exit } END { exit !f }' "$top/.worktreeinclude" 2>/dev/null; then
         # A folder that cannot be listed fails the scan: an empty list would read as all copied. A name with a line break
         # cannot be read back from the list, so its folder is never a copy.
         odd=$(cd "$1" && find "./$p" -name "*$nl*" -print) || exit 1

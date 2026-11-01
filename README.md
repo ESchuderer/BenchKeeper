@@ -51,7 +51,7 @@ If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.
   <img src="web/public/app/fix-light.webp" alt="Fix everything in the BenchKeeper app: a diff of a rules file and the plugin install commands, each with a checkbox, before the Apply step">
 </picture>
 
-Fix everything shows each file change as a diff and each command as its command line. The screenshot uses example data. [Every view of the app](https://eschuderer.github.io/BenchKeeper/app/).
+Fix everything shows each file change as a diff and each command as its command line, and writes nothing until you press Apply. The screenshot uses example data. [Every view of the app](https://eschuderer.github.io/BenchKeeper/app/).
 
 ## More
 
@@ -60,7 +60,7 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
-- [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner, with the catalogue, the file format and the lint rules
+- [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
 - [Restart-safe coordinator](docs/restart-safe-coordinator.md): one Orca coordinator kept through usage limits, account switches and restarts, by a model-free loop, short decision cycles and a watchdog you set up
 - [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)

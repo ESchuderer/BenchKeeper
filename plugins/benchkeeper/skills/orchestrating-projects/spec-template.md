@@ -21,7 +21,7 @@ Repository rules: read AGENTS.md and the files it points to before the first edi
 
 Acknowledge: send one heartbeat through the runner's message command as your first action.
 
-Flow: implement, run the checks AGENTS.md names, review the diff before pushing (one correctness pass against the issue, fixes made once; full tier the review rounds the workflow skill names), commit, push, open a draft pull request that refers to the issue and states the safest reversible options you chose and what you did not check, wait for the checks once and fix what fails, address review comments. Leave the pull request a draft: the coordinator marks it ready. Do not close the issue.
+Flow: implement, run the checks AGENTS.md names, review the diff before pushing (one correctness pass against the issue, fixes made once; full tier the review rounds the workflow skill names), commit, push, open a draft pull request that refers to the issue and states the safest reversible options you chose and what you did not check, wait for the checks once and fix what fails, address review comments. Leave the pull request a draft: the coordinator marks it ready. Do not merge. Do not close the issue.
 
 Decisions: you decide every open question yourself, taking the safest reversible option, and write it in the pull request. Never ask the coordinator and wait.
 

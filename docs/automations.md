@@ -1,6 +1,6 @@
 # Automation templates
 
-An automation template describes one scheduled agent run in a single Markdown file, so the run can be reviewed, versioned and carried to a second machine. Installing a template on a scheduler is not part of the format: the app does it ([Install and keep current](#install-and-keep-current)).
+An automation template describes one scheduled agent run in a single Markdown file, so the run can be reviewed, versioned and carried to a second machine. The format does not name the scheduler that runs it. Installing a template on a scheduler is not part of the format: the app does it ([Install and keep current](#install-and-keep-current)).
 
 ## Where templates live
 
@@ -140,7 +140,7 @@ Limits:
 
 ## Catalogue
 
-The generic templates, ranked by what the projects need. Each row's issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
+The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
 
 | Template | Schedule | Precheck reads | May change | Status |
 |---|---|---|---|---|

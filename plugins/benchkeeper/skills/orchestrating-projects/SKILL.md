@@ -71,6 +71,8 @@ A worker whose terminal a person typed in belongs to that person: skip every ste
 
 ## Recurring runs
 
+A scheduled run starts a session only when there is work, so a tick with nothing to do costs no session.
+
 - Pick, the caps (`workersPerProject`, `hostWorkerLimit`), merge by `merge.*` and one fix worker per failing head commit of a worker's PR are deterministic checks: a script decides them, not a model session. The script reads the policy from the default branch, as above.
 - A scheduled session starts only after its precheck exits 0, and never while a session of the same schedule is alive. The sample [precheck.mjs](precheck.mjs) (`node precheck.mjs <project paths>`) exits 0 when a project has an issue to pick and prints which; it starts and merges nothing.
 - An unattended run starts each worker in a disposable worktree.
@@ -82,3 +84,4 @@ A worker whose terminal a person typed in belongs to that person: skip every ste
 - Two gates belong to the owner: approving the design of full-tier work and merging outside `merge.allowed`. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
 - Nothing is typed into a worker's terminal except through the runner's message commands, and a trust or permission dialog in a worker's terminal is never answered: that worker is blocked for the owner.
 - Report each step with what was skipped or not checked.
+- Stay within `hostWorkerLimit` even when more issues are labeled.

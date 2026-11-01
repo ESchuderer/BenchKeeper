@@ -22,7 +22,7 @@ A mutant can loop or allocate without end: one run of a 49-line module was kille
   "reporters": ["json", "clear-text"], "disableTypeChecks": true }
 ```
 
-Choose the test files by behavior: those that import the module and those that reach it through another module or a CLI command (search the importers of the module, then their tests). A missing test shows as a survivor that an existing test catches.
+Choose the test files by behavior: those that import the module and those that reach it through another module or a CLI command (search the importers of the module, then their tests). A missing test shows as a survivor that an existing test catches. Run the chosen command unmutated first; it must pass.
 
 `stryker run <config>` with `@stryker-mutator/core@10.0.0` ([tools.md](tools.md)). Other stacks: their tool from the table, with the same bounds. Record per module: mutants, killed, survived, score, minutes.
 

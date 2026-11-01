@@ -264,7 +264,7 @@
       {
         "id": "accounts",
         "title": "Accounts",
-        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick and handover rotation (both Claude Code only) are opt-in: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
+        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick and handover rotation (both Claude Code only) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
         "evidence": "docs/setup.md#accounts"
       }
     ],
@@ -421,7 +421,7 @@
         "phase": "build",
         "sub": "tests, browser, spec review",
         "tip": "Every tier: build, types, lint and tests where AGENTS.md says, each with its command and result. UI changes also in a browser. Full: the branch reviewed against the spec.",
-        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also get a browser check in addition to the UI tests. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills).",
+        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also get a browser check in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills).",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md#verify"
         ]

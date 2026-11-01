@@ -91,6 +91,8 @@ function approval(args) {
   }
   const [sub, verb] = words;
   if (sub === 'pr' && verb === 'review' && args.some((a) => a === '--approve' || a.startsWith('--approve=') || shortApprove(a))) return { machine: 'gh pr review --approve' };
+  // GraphQL: a review mutation with the APPROVE event in the command text. A query read from a file stays unseen (a known limit).
+  if (sub === 'api' && words[1] === 'graphql') return args.some((a) => /(add|submit)PullRequestReview\b/.test(a)) && args.some((a) => /\bAPPROVE\b/.test(a)) ? { machine: 'an approving review through gh api graphql' } : null;
   if (sub !== 'api' || !args.some((a) => /\/pulls\/[^/\s]+\/reviews(\/|\?|$)/.test(a))) return null;
   const fields = args.flatMap((a, j) => (['-f', '-F', '--field', '--raw-field'].includes(a) ? [args[j + 1] ?? ''] : /^(-[fF]|--(raw-)?field=)/.test(a) ? [a.replace(/^(-[fF]|--(raw-)?field=)/, '')] : []));
   // A value read from a file (-F event=@file) or from --input cannot be seen here: denied as if it approved.

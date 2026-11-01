@@ -659,7 +659,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Local: the whole local setup with the offered files written, the state file rather than its folder (handoff and
   // knowledge files there are per worktree), and the list itself, so a worktree made from a worktree has it too. Shared:
   // the personal files only, which stay ignored; with none, no list.
-  const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : [])];
+  // The machine setting lives only in the local settings file: a shared setup copies it into new worktrees and ignores it too.
+  const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(machine ? [LOCAL_SETTINGS] : [])];
   if (atRoot) {
     const paths = (run) => (a.share ? personal : [...local.map((p) => (p === `${STATE.split('/')[0]}/` ? STATE : p.replace(/\/$/, ''))), ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
     if (paths().length) {

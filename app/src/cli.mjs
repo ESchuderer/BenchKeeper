@@ -1705,11 +1705,18 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
 
 // ---- machine: the user's GitHub machine account for agent sessions (machine.mjs)
 
+// A known sign-in of another account (gh's shared keyring entry, a login by hand) would let git and gh act as that account
+// while commits name the machine: refused. An unknown one (offline) does not stop a launch.
+function signedInAsMachine(s) {
+  if (s.signedIn && s.signedIn.id !== s.config.machine.id) throw new Error(`BenchKeeper's gh folder is signed in as ${s.signedIn.login}, not the machine account ${s.config.machine.login}: benchkeeper machine remove, then machine setup`);
+}
+
 // The machine part of run --as-machine: its variables, with the login read again at the start (a rename changes the
 // address), and for Claude Code the trailers.
 function machineLaunch(ctx, args, role) {
   const s = machineStatus(ctx);
   if (!s.config) throw Object.assign(new Error('no machine account is set up on this machine: benchkeeper machine setup'), { status: 400 });
+  signedInAsMachine(s);
   const r = role ?? sessionRole(args);
   if (!['orchestrator', 'worker'].includes(r)) throw Object.assign(new Error('--role is orchestrator or worker'), { status: 400 });
   return { env: machineEnv(ctx, s.config), args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(hostSlug(), r), ...a.slice(1)] : a) };
@@ -1752,7 +1759,9 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
       return await settings(sub === 'enable');
     }
     if (sub === 'shell') {
-      machineStatus(ctx);
+      const s = machineStatus(ctx);
+      if (!s.config) { say('no machine account is set up on this machine: benchkeeper machine setup'); return 2; }
+      signedInAsMachine(s);
       const vars = shellEnv(ctx), shell = (ctx.env ?? process.env).SHELL || '/bin/sh';
       say(`machine shell: ${shell} as ${vars.GIT_AUTHOR_NAME}; exit to leave it`);
       ask.close();
@@ -1768,6 +1777,7 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
     const code = await settings(false, true);
     // The config is gone, so a second machine remove stops early: name the command that still works.
     if (code) { say('the agent settings still have machine account variables: benchkeeper machine disable --global'); return code; }
+    say('a project set with --machine on keeps its variables in .claude/settings.local.json: run benchkeeper projects apply --machine none in each of them');
     say(`on GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
     return 0;
   } catch (e) {

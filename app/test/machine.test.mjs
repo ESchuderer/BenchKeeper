@@ -254,6 +254,11 @@ test('projects apply --machine on|off|none: the local settings only, kept in the
   // Undo of that run gives the project its off setting back.
   assert.equal(undo(gone.id, ctx).status, 'done');
   assert.deepEqual([local().GIT_AUTHOR_EMAIL, readState(dir).machine], ['octo@example.com', 'off']);
+  // A shared setup keeps the file out of git and copies it into new worktrees all the same.
+  go({ machine: 'on', share: true });
+  assert.equal(local().GIT_AUTHOR_EMAIL, EMAIL);
+  assert.match(readFileSync(join(dir, '.git/info/exclude'), 'utf8'), /\.claude\/settings\.local\.json/);
+  assert.match(readFileSync(join(dir, '.worktreeinclude'), 'utf8'), /\.claude\/settings\.local\.json/);
   assert.throws(() => projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', machine: 'maybe' }, plugins: { claude: [], codex: [] } }), /machine must be on, off or none/);
   // Without a machine account the change cannot be made and says why.
   const bare = { ...context({ home: mkdtempSync(join(tmpdir(), 'bk-machine-bare-')) }), roots: [dir] };
@@ -301,10 +306,11 @@ test('guard hook in a machine account session: denies another identity and an ap
     'GIT_AUTHOR_EMAIL=me@example.com git commit -m x', 'env GIT_COMMITTER_NAME=me git commit -m x', 'export GIT_AUTHOR_EMAIL=me@example.com', 'unset GIT_CONFIG_COUNT', 'GH_CONFIG_DIR=~/.config/gh gh pr create',
     'bash -c "git -c user.name=x commit"', 'gh pr review 12 --approve', 'gh pr review -a', 'gh api repos/o/r/pulls/12/reviews -f event=APPROVE', 'gh api -X POST repos/o/r/pulls/12/reviews --field=event=approve', 'gh api repos/o/r/pulls/12/reviews --input review.json',
     'gh pr -R octo/proj review 12 --approve', 'gh pr --repo octo/proj review 12 -a', 'gh pr review 12 -R=octo/proj --approve', 'gh pr review 12 --repo=octo/proj -b ok -a', 'gh pr review 12 --approve=true',
-    'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/', 'gh api repos/o/r/pulls/12/reviews -F event=@review-event.txt', 'gh api -X POST repos/o/r/pulls/12/reviews --input=review.json'];
+    'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/', 'gh api repos/o/r/pulls/12/reviews -F event=@review-event.txt', 'gh api -X POST repos/o/r/pulls/12/reviews --input=review.json',
+    'gh api graphql -f query=\'mutation { addPullRequestReview(input: { pullRequestId: "x", event: APPROVE }) { clientMutationId } }\'', 'gh api graphql -f query=\'mutation($e: PullRequestReviewEvent!) { submitPullRequestReview(input: { event: $e }) { clientMutationId } }\' -f e=APPROVE'];
   for (const c of denied) assert.ok(denyReason(c, 0, env)?.machine, c);
   const fine = ['git commit -m "fix: x"', 'git push origin feat', 'git config user.email', 'git config get user.email', 'git config --get user.name', 'git config core.editor vim', 'git -c core.pager=cat log', 'export PATH=/x', 'git status',
-    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12'];
+    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12', 'gh api graphql -f query=\'{ viewer { login } }\'', 'gh api graphql -f query=\'mutation { addPullRequestReview(input: { event: COMMENT }) { clientMutationId } }\''];
   for (const c of fine) assert.equal(denyReason(c, 0, env), null, c);
   assert.match(denyReason('git commit -m x', 0, { ...env, GIT_AUTHOR_EMAIL: 'me@example.com' }).machine, /not the machine account/);
   // A long flag-like word is checked in linear time (no backtracking pattern over it).
@@ -367,6 +373,7 @@ test('machine status, doctor and remove: ids decide, a renamed login is informat
   const r = await cli(m, ['machine', 'remove', '--yes']);
   assert.equal(r.code, 0, r.text);
   assert.match(r.text, /delete its signing key at https:\/\/github\.com\/settings\/keys, or the account at https:\/\/github\.com\/settings\/admin/);
+  assert.match(r.text, /run benchkeeper projects apply --machine none in each of them/);
   assert.equal(m.gh.signedIn, false);
   assert.deepEqual([existsSync(join(m.ctx.config, 'machine')), JSON.parse(readFileSync(join(m.home, '.claude/settings.json'), 'utf8')).env], [false, undefined]);
   // Settings that cannot be edited: the account is signed out all the same, and the command that cleans up is named.
@@ -392,4 +399,11 @@ test('machine shell: your shell with the machine variables and without a GitHub 
   assert.deepEqual([seen.argv, seen.stdio, seen.env.KEEP, seen.env.GH_TOKEN, seen.env.GITHUB_TOKEN, seen.env.GIT_CONFIG_PARAMETERS, seen.env.GH_CONFIG_DIR], [['/bin/zsh'], 'inherit', '1', undefined, undefined, undefined, ghDir(m.ctx)]);
   // The -c pairs of an outer git go; which config files git reads stays as the user set it.
   assert.deepEqual([seen.env.GIT_CONFIG_KEY_9, seen.env.GIT_CONFIG_GLOBAL, seen.env.GIT_CONFIG_NOSYSTEM, seen.env.GIT_CONFIG_SYSTEM], [undefined, m.gitconfig, '1', '/etc/x']);
+  // A folder signed in as another account is refused, before any shell starts; without a setup there is none to start.
+  seen = undefined;
+  m.gh.as = { id: 3003, login: 'other' };
+  const other = await cli(m, ['machine', 'shell']);
+  assert.deepEqual([other.code, seen], [1, undefined]);
+  assert.match(other.text, /signed in as other, not the machine account octo-agent/);
+  assert.equal((await cli(machine(), ['machine', 'shell'])).code, 2);
 });

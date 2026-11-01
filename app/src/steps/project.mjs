@@ -12,6 +12,7 @@ import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
 import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
+import { machineEnv, ownEnv, withVars } from '../machine.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
@@ -200,12 +201,13 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), fileOn, fileOff (agent files switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), workflowLoad (default true: the
+// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
+// machine account's variables, or the user's own over them, in the local settings; Claude Code only), workflowLoad (default true: the
 // rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, machine: prev.machine ?? null, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -216,6 +218,8 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.guards = a.guards !== false;
+  if (a.machine === 'none') a.machine = null;
+  if (a.machine != null && !['on', 'off'].includes(a.machine)) throw new Error('machine must be on, off or none');
   a.workflowLoad = a.workflowLoad !== false;
   a.agentFiles = [...new Set([...[a.agentFiles].flat(), ...fileOn])].filter((p) => !fileOff.includes(p));
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
@@ -492,6 +496,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (exists(hook)) add('guards', `remove ${GUARD_PATH} (${note})`, { kind: 'remove', path: hook, selected: mine && readText(hook) === guardScript() });
   }
 
+  // Machine account (machine.mjs): on (its variables) or off (the user's own identity and gh folder over the variables of
+  // machine enable --global) for this project. Always the local settings file: the values name folders of this machine.
+  const machine = a.machine && a.agents.includes('claude');
+  if (machine) add('machine', `${LOCAL_SETTINGS}: agents ${a.machine === 'on' ? 'commit, push and use gh as your machine account' : 'commit, push and use gh as you, also with machine enable --global'}`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: (t) => withVars(t, a.machine === 'on' ? machineEnv(ctx) : ownEnv(ctx), LOCAL_SETTINGS) });
+  else if (prev?.machine && editsJson((t) => withVars(t, null), readText(at(LOCAL_SETTINGS)))) add('machine', `${LOCAL_SETTINGS} without the machine account setting`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: (t) => withVars(t, null, LOCAL_SETTINGS) });
+
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
   const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
   const moveDir = (step, from, to, installUnit) => {
@@ -605,13 +615,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.machine ? { machine: a.machine } : {}), ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: keepsUser(s.name, run) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
   // What a local setup leaves in the project, relative to it.
-  const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
+  const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded || machine ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
     ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
     // Stack skills the setup session installed with the skills CLI (its lockfile names them).
     ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])];

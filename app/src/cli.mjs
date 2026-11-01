@@ -49,7 +49,7 @@ import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.m
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, exportScript, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
 import { sessionRole, undoableAutomation } from './orca/index.mjs';
-import { DEFAULT_PREFIX, botStatus, credentialAnswer, deleteUrl, identity, mintToken, pickRepo, removeBot, sessionEnv, setupBot, shellEnv, trailerArgs } from './bot.mjs';
+import { PAGES, globalChanges, hostSlug, identity, machineEnv, machineStatus, removeMachine, setupMachine, shellEnv, trailerArgs } from './machine.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -124,7 +124,7 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
@@ -267,29 +267,29 @@ Usage: benchkeeper <command> [options]
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
                                     asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
                                     access token piped on stdin goes to codex login --with-access-token
-  run [--account name] [--project dir] [--token] [--yes] [--as-bot [--role orchestrator|worker]] -- claude|codex [args]
+  run [--account name] [--project dir] [--token] [--yes] [--as-machine [--role orchestrator|worker]] -- claude|codex [args]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
                                     kept token, Claude Code only). Dev container accounts run through devcontainer exec.
-                                    --as-bot (host accounts): a bot session that commits and pushes as this machine's GitHub
-                                    App bot (bot setup), for the --project folder's GitHub repository only; role: from the launch
-                                    (a dispatched worker's prompt), else orchestrator
-  bot setup [--repo owner/name] [--prefix p] [--org name] [--resume] [--no-browser] [--project dir]
-                                    registers this machine's GitHub App <prefix>-<host> (default prefix ${DEFAULT_PREFIX}) from a
-                                    manifest in the browser: you sign in, create and install it on the repository (default: the
-                                    folder's origin), the rest is automatic; the private key goes to the OS credential store only,
-                                    ids and names to bot.json. --resume finishes a setup whose installation was not seen
-  bot status [--check] [--repo owner/name]
-                                    the bot's App, installation, commit identity and whether its key is in the credential store;
-                                    --check mints a token (never shown)
-  bot token [--repo owner/name] [--project dir]
-                                    prints an installation token of at most 1 hour for one repository (default: the bot
-                                    session's, else the folder's origin), only into a pipe, never to a terminal
-  bot git-credential get            the git credential helper of bot sessions (reads the request on stdin)
-  bot shell [--repo owner/name] [--role orchestrator|worker] [--project dir]
-                                    starts your shell as a bot session; nothing is written to shell start files
-  bot remove [--yes]                deletes the private key, the cached token and bot.json after a question and prints
-                                    where to delete the App on GitHub
+                                    --as-machine (host accounts): the session commits, pushes and uses gh as your machine
+                                    account (machine setup); Claude Code commits get the trailers Agent-Host and Agent-Role
+                                    (--role, else worker for a dispatched worker's prompt, else orchestrator)
+  machine setup [--repos owner/name,..] [--owner name] [--no-signing] [--no-browser] [--yes] [--project dir]
+                                    your GitHub machine account for agent sessions: you create it (GitHub's sign-up opens,
+                                    <your login>-agent is suggested) and gh signs it in into BenchKeeper's own gh folder; then
+                                    write access, never admin, on the repositories named (default: the folder's origin;
+                                    --owner: every repository of that user or organization, after a question) with your gh,
+                                    the invitations accepted with its gh, and an ssh signing key uploaded (--no-signing skips
+                                    it). Nothing goes into your git or gh config; the token stays in gh's store
+  machine status                    the machine and your own account (kept by id, logins read again), the sign-in, the key
+  machine enable|disable --global [--yes]
+                                    the machine account's variables in the user settings of Claude Code (env) and Codex
+                                    (shell_environment_policy.set): a plan with a diff, undo restores it. A project:
+                                    projects apply --machine on|off|none
+  machine shell [--project dir]     starts your shell as the machine account; nothing goes into shell start files
+  machine remove [--yes]            after a question: takes the variables out of the agent settings, signs the machine
+                                    account out of BenchKeeper's gh folder, deletes the signing key and config, and prints
+                                    the GitHub pages to delete the key and the account
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, versions behind; the session signal needs 20 sessions
@@ -357,7 +357,7 @@ const OPTIONS = {
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
-  'as-bot': { type: 'boolean' }, role: { type: 'string' }, repo: { type: 'string' }, prefix: { type: 'string' }, org: { type: 'string' }, resume: { type: 'boolean' },
+  'as-machine': { type: 'boolean' }, role: { type: 'string' }, repos: { type: 'string', multiple: true }, owner: { type: 'string' }, 'no-signing': { type: 'boolean' }, machine: { type: 'string' },
 };
 
 // A question that found the end of the input before any answer: the command stops before it changes anything.
@@ -576,7 +576,7 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
-const PLAN_FLAGS = 'agents env sandbox guards no-guards workflow-load no-workflow-load share local pack skill tier agent-file caller';
+const PLAN_FLAGS = 'agents env sandbox guards no-guards machine workflow-load no-workflow-load share local pack skill tier agent-file caller';
 // The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
 const FLAGS = {
   ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
@@ -602,8 +602,8 @@ const FLAGS = {
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
   'accounts limits': 'five-hour seven-day warn-five-hour warn-seven-day pool auto-pick when-none continue-below rotate-claude rotate-codex reset yes all',
-  'accounts login': 'token email no-browser project', run: 'account project token yes as-bot role',
-  'bot setup': 'repo prefix org resume no-browser project', 'bot status': 'check repo', 'bot token': 'repo project', 'bot git-credential': '', 'bot shell': 'repo role project', 'bot remove': 'yes',
+  'accounts login': 'token email no-browser project', run: 'account project token yes as-machine role',
+  'machine setup': 'repos owner no-signing no-browser yes all project', 'machine status': '', 'machine enable': 'global yes all', 'machine disable': 'global yes all', 'machine shell': 'role project', 'machine remove': 'yes all',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations export': 'param project',
@@ -990,7 +990,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
-  if (cmd === 'bot') return botCommand(ctx, { o, positionals, out, err, ask });
+  if (cmd === 'machine') return machineCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -1092,7 +1092,7 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
   const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
   if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
@@ -1262,7 +1262,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations', 'bot'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations', 'machine'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
@@ -1702,69 +1702,72 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
   return r.code ?? 0;
 }
 
-// ---- bot: the per-machine GitHub App bot of agent sessions (bot.mjs)
+// ---- machine: the user's GitHub machine account for agent sessions (machine.mjs)
 
-// The bot part of run --as-bot: the session's variables for the folder's GitHub repository and, for Claude Code, the trailers.
-function botLaunch(ctx, dir, args, role) {
-  const env = sessionEnv(ctx, { repo: pickRepo(ctx, { dir }), role: role ?? sessionRole(args), env: ctx.env ?? process.env });
-  return { env, args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(env), ...a.slice(1)] : a) };
+// The machine part of run --as-machine: its variables, with the login read again at the start (a rename changes the
+// address), and for Claude Code the trailers.
+function machineLaunch(ctx, args, role) {
+  const s = machineStatus(ctx);
+  if (!s.config) throw Object.assign(new Error('no machine account is set up on this machine: benchkeeper machine setup'), { status: 400 });
+  const r = role ?? sessionRole(args);
+  if (!['orchestrator', 'worker'].includes(r)) throw Object.assign(new Error('--role is orchestrator or worker'), { status: 400 });
+  return { env: machineEnv(ctx, s.config), args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(hostSlug(), r), ...a.slice(1)] : a) };
 }
 
-const BOT = ['setup', 'status', 'token', 'git-credential', 'shell', 'remove'];
-async function botCommand(ctx, { o, positionals, out, err, ask }) {
+const MACHINE = ['setup', 'status', 'enable', 'disable', 'shell', 'remove'];
+async function machineCommand(ctx, { o, positionals, out, ask }) {
   const [, sub, ...rest] = positionals;
-  if (!BOT.includes(sub)) { out.write(`bot needs ${BOT.join(', ')}\n`); return 2; }
-  if (rest.length > (sub === 'git-credential' ? 1 : 0)) { out.write(`unexpected argument ${rest.at(-1)}\n`); return 2; }
-  const env = ctx.env ?? process.env, dir = resolve(o.project ?? '.');
-  // token and git-credential answer into a pipe: their messages go to stderr.
-  const say = ['token', 'git-credential'].includes(sub) ? err : out;
+  if (!MACHINE.includes(sub)) { out.write(`machine needs ${MACHINE.join(', ')}\n`); return 2; }
+  if (rest.length) { out.write(`unexpected argument ${rest[0]}\n`); return 2; }
+  const say = (l) => out.write(`${l}\n`), dir = resolve(o.project ?? '.');
+  // The global variables as a plan of the usual kind: the diff, a question (or --yes), a ledger run.
+  const settings = async (on) => {
+    const changes = globalChanges(ctx, on);
+    if (!changes.length) { say('neither ~/.claude nor ~/.codex exists: no agent settings to change'); return 0; }
+    const plan = preview(changes.map((c, i) => ({ id: `machine-${i}`, ...c })));
+    if (!plan.length) { say(on ? 'the agent settings already have the machine account' : 'the agent settings have no machine account variables'); return 0; }
+    const { stop, select } = await chooseOrStop(plan, { o, ask, out });
+    return stop ?? report(apply(plan, ctx, { scope: 'global', select }), out);
+  };
   try {
     if (sub === 'setup') {
-      const r = await setupBot(ctx, { repo: o.resume ? undefined : pickRepo(ctx, { repo: o.repo, dir }), prefix: o.prefix, org: o.org, resume: !!o.resume, say: (l) => out.write(`${l}\n`), open: o['no-browser'] ? () => null : ctx.openUrl ?? openBrowser });
-      out.write(`bot ready: the App ${r.app} (${r.slug}, id ${r.appId}) of ${r.owner}, installed on ${r.repo} (installation ${r.installation})\ncommits as ${r.name} <${r.email}>\nkey: in the OS credential store (${r.store}); a test token was minted (expires ${r.expires}) and not shown\nstart a bot session: benchkeeper run --as-bot -- claude, or benchkeeper bot shell\n`);
-      return 0;
+      const r = await setupMachine(ctx, { repos: o.repos, owner: o.owner, signing: !o['no-signing'], dir, yes: !!o.yes },
+        { say, open: (u) => (o['no-browser'] ? null : (ctx.openUrl ?? openBrowser)(u)), wait: (q) => ask.line(q), ask: (q) => ask(q) });
+      for (const x of r.access) say(x.ok ? `write access: ${x.repo}` : `no access to ${x.repo}: ${x.why} (an organization may forbid outside collaborators: an owner adds ${r.name} with the Write role, or the agent works through a fork)`);
+      say(`machine account ready: ${r.name} <${r.email}>, commits ${r.signing ? 'signed with its ssh key' : 'unsigned'}`);
+      say('use it: benchkeeper machine enable --global, projects apply --machine on, run --as-machine -- claude, or machine shell');
+      return r.access.some((x) => !x.ok) ? 1 : 0;
     }
     if (sub === 'status') {
-      const s = botStatus(ctx), c = s.config;
-      if (!c) { out.write('no bot is set up on this machine (benchkeeper bot setup)\n'); return 0; }
-      out.write(`app: ${c.name} (${c.slug}, id ${c.appId}) of ${c.owner}\nrepository: ${c.repo}\ninstallation: ${c.installation ? c.installation.id : 'not seen yet (benchkeeper bot setup --resume)'}\ncommits as: ${c.user ? `${identity(c).name} <${identity(c).email}>` : 'not known yet'}\nkey: ${s.key ? `in the credential store (${s.store})` : s.note ?? 'missing (benchkeeper bot remove, then bot setup)'}\ndelete the App on GitHub: ${deleteUrl(c)}\n`);
-      if (!o.check) return 0;
-      const t = await mintToken(ctx, o.repo ? pickRepo(ctx, { repo: o.repo }) : c.repo, { fresh: true });
-      out.write(`token: minted, expires ${t.expires} (not shown)\n`);
+      const s = machineStatus(ctx), c = s.config;
+      if (!c) { say('no machine account is set up on this machine (benchkeeper machine setup)'); return 0; }
+      const id = identity(c);
+      say(`machine account: ${c.machine.login} (id ${c.machine.id})${s.renamed ? `, renamed from ${s.renamed[0]}` : ''}\nyour account: ${c.main.login} (id ${c.main.id})\nsigned in: ${s.signedIn ? `${s.signedIn.login}${s.signedIn.id === c.machine.id ? '' : ' (not the machine account)'}` : 'no (benchkeeper machine setup)'}\ncommits as: ${id.name} <${id.email}>\nsigning: ${c.signing ? (s.key ? 'on' : 'on, but the key is missing (benchkeeper machine setup)') : 'off'}\nin agent sessions: ${(ctx.env ?? process.env).BENCHKEEPER_MACHINE_EMAIL === id.email ? 'yes, in this environment' : 'not in this environment'}`);
       return 0;
     }
-    if ((sub === 'token' || sub === 'git-credential') && out.isTTY) { err.write(`bot ${sub} prints a token only into a pipe, never to a terminal\n`); return 2; }
-    if (sub === 'token') {
-      const repo = o.repo !== undefined || !env.BENCHKEEPER_BOT_REPO ? pickRepo(ctx, { repo: o.repo, dir }) : env.BENCHKEEPER_BOT_REPO;
-      out.write(`${(await mintToken(ctx, repo)).token}\n`);
-      return 0;
-    }
-    if (sub === 'git-credential') {
-      if (!rest[0]) { err.write('bot git-credential needs the operation git passes (get)\n'); return 2; }
-      // store and erase: nothing is kept, so nothing to do (gitcredentials(7), custom helpers).
-      if (rest[0] !== 'get') return 0;
-      const lines = [];
-      for (let l = await ask.line(''); l !== null && l !== ''; l = await ask.line('')) lines.push(l);
-      out.write(await credentialAnswer(ctx, lines.join('\n'), { repo: env.BENCHKEEPER_BOT_REPO, dir }));
-      return 0;
+    if (sub === 'enable' || sub === 'disable') {
+      if (!o.global) { say(`machine ${sub} needs --global; for one project: benchkeeper projects apply --machine ${sub === 'enable' ? 'on' : 'off'}`); return 2; }
+      return await settings(sub === 'enable');
     }
     if (sub === 'shell') {
-      const shellVars = shellEnv(ctx, { repo: pickRepo(ctx, { repo: o.repo, dir }), role: o.role ?? 'orchestrator', env });
-      const shell = env.SHELL || '/bin/sh';
-      out.write(`bot shell: ${shell} as ${shellVars.GIT_AUTHOR_NAME} for ${shellVars.BENCHKEEPER_BOT_REPO}; exit to leave it\n`);
+      machineStatus(ctx);
+      const vars = shellEnv(ctx), shell = (ctx.env ?? process.env).SHELL || '/bin/sh';
+      say(`machine shell: ${shell} as ${vars.GIT_AUTHOR_NAME}; exit to leave it`);
       ask.close();
-      return ctx.run([shell], { cwd: dir, env: shellVars, stdio: 'inherit' }).code;
+      return ctx.run([shell], { cwd: dir, env: vars, stdio: 'inherit' }).code;
     }
-    let kept;
-    try { const s = botStatus(ctx, { probe: true }); kept = !!(s.config || s.key); } catch { kept = true; }
-    if (!kept) { out.write('no bot is set up on this machine\n'); return 0; }
-    if (!o.yes && !(await ask('Delete the bot\'s private key, its cached token and bot.json from this machine? The App stays on GitHub until you delete it there.'))) return 1;
-    const c = removeBot(ctx);
-    out.write(`deleted the private key, the cached token and bot.json${c ? `\ndelete the App on GitHub to revoke it for good: ${deleteUrl(c)}` : ''}\n`);
+    let c = null;
+    try { c = machineStatus(ctx).config; } catch { c = { broken: true }; }
+    if (!c) { say('no machine account is set up on this machine'); return 0; }
+    if (!o.yes && !(await ask('Sign the machine account out of BenchKeeper, delete its signing key and config, and take its variables out of the agent settings? The account stays on GitHub.'))) return 1;
+    const code = await settings(false);
+    if (code) return code;
+    removeMachine(ctx);
+    say(`signed out and deleted the machine folder\non GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
     return 0;
   } catch (e) {
     if (e instanceof Refused) throw e;
-    say.write(`${e.message}\n`);
+    say(e.message);
     return e.usage ? 2 : 1;
   }
 }
@@ -2046,7 +2049,7 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
 async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
-  if (o.role !== undefined && !o['as-bot']) { out.write('--role belongs to run --as-bot\n'); return 2; }
+  if (o.role !== undefined && !o['as-machine']) { out.write('--role belongs to run --as-machine\n'); return 2; }
   try {
     const problem = accountsProblem(ctx);
     if (problem) { out.write(`${problem}\n`); return 2; }
@@ -2054,7 +2057,7 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
     // An account named with --account is never replaced by auto-pick.
     let ran = a;
     const dir = resolve(o.project ?? '.');
-    const opts = { dir, useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; }, ...(o['as-bot'] ? { bot: botLaunch(ctx, dir, args, o.role) } : {}) };
+    const opts = { dir, useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; }, ...(o['as-machine'] ? { machine: machineLaunch(ctx, args, o.role) } : {}) };
     let code;
     try { code = runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
       if (!(e instanceof NeedsConfirm)) throw e;

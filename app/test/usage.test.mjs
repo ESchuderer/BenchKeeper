@@ -682,7 +682,7 @@ test('Codex: status, list and run read the app-server of the account\'s CODEX_HO
   assert.match(accountStatus(m.ctx, a).notAvailable, /^not read: codex account authentication required/);
   // No token in any argument, and the app-server gets the account's filtered environment.
   assert.ok(m.calls().every((x) => ![CLAUDE_TOKEN, CODEX_TOKEN].some((t) => JSON.stringify(x.args).includes(t))));
-  // No GH_TOKEN in an account's session; only a bot session (run --as-bot) gets a token, the bot's narrow one (bot.test.mjs).
+  // No GH_TOKEN in an account's session; a machine account session uses gh's login of that account instead (machine.test.mjs).
   for (const x of m.calls().filter((c) => c.args[0] === 'app-server')) for (const k of ['GH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) assert.equal(x.env[k], undefined, k);
 });
 

@@ -87,8 +87,8 @@ test('a diff of a settings file masks a token in its context lines', () => {
   assert.doesNotMatch(r, /sk-ant/);
 });
 
-// No session gets GH_TOKEN from the environment. The one exception is a bot session (run --as-bot, bot shell), and not through
-// this function: its credential helper and gh wrapper mint the bot's own token for one repository (bot.test.mjs).
+// No session gets GH_TOKEN from the environment. A machine account session (machine enable, run --as-machine, machine shell)
+// acts on GitHub as that account through gh's own login in its folder (GH_CONFIG_DIR), not through this function (machine.test.mjs).
 test('childEnv: tools keep their way to the network and their folders, credentials stay', () => {
   const env = { PATH: '/bin', HOME: '/h', LC_ALL: 'C', HTTPS_PROXY: 'http://p:1', NODE_EXTRA_CA_CERTS: '/ca', npm_config_registry: 'https://r/', 'npm_config_//r/:_authToken': 'x', CLAUDE_CONFIG_DIR: '/c', CLAUDE_CODE_OAUTH_TOKEN: 't',
     GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_SSH_COMMAND: 'ssh -i /k', GIT_SSH: '/ssh', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'Authorization: Basic x', GIT_CONFIG_PARAMETERS: "'http.extraheader=x'", GIT_TERMINAL_PROMPT: '0', GIT_PROXY_COMMAND: '/p', GIT_EXTERNAL_DIFF: '/d', GIT_EXEC_PATH: '/x', GIT_PAGER: '/pg', GIT_EDITOR: '/e', GIT_SEQUENCE_EDITOR: '/se', GIT_TEMPLATE_DIR: '/t', GIT_TRACE_CURL: '1', GIT_CURL_VERBOSE: '1', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };

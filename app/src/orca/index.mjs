@@ -59,7 +59,7 @@ export const worktreeFiles = (install, include) => [
 // own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker.
 const PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your task ID is: \S+/m];
 export const isWorkerPrompt = (text) => PREAMBLE.every((r) => r.test(text));
-// The role a bot session's commit trailer names: a dispatched worker when an argument of its launch is a worker's first
+// The role a machine account session's commit trailer names: a dispatched worker when an argument of its launch is a worker's first
 // prompt, else the session that orchestrates (the user's own, which dispatches the workers).
 export const sessionRole = (args) => (args.some((a) => isWorkerPrompt(String(a))) ? 'worker' : 'orchestrator');
 // The line the worker-spec template carries: its value joins a coordinator's workers.

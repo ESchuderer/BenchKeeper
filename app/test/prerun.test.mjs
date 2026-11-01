@@ -90,7 +90,8 @@ test('prerun: no credentials reach the command, the home is the context home, an
   const ctx = { home, sandbox: SANDBOX, run: viaSrt((argv, o) => { seen = { env: o.env, rc: readFileSync(o.env.npm_config_userconfig, 'utf8'), git: readFileSync(o.env.GIT_CONFIG_GLOBAL, 'utf8') }; return { code: 0, stdout: '', stderr: '' }; }) };
   const global = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], env: { DO_NOT_TRACK: '1' } };
   assert.equal((await rehearse(ctx, global)).error, null);
-  // No GH_TOKEN for a command of the app; only a bot session gets a token, the bot's own (bot.test.mjs).
+  // No GH_TOKEN for a command of the app. A machine account session reaches GitHub through gh's own login in the machine's
+  // folder (GH_CONFIG_DIR), never through a token in the environment (machine.test.mjs).
   for (const k of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.equal(seen.env[k], undefined, k);
   assert.equal(seen.env.DO_NOT_TRACK, '1');
   assert.equal(seen.rc, 'registry=https://mirror.example/\n', 'registry settings stay, tokens go');

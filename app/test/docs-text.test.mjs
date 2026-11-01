@@ -9,7 +9,7 @@ test('the operating skill names every command whose effect undo does not reverse
   const skill = read('../../plugins/benchkeeper/skills/operating-benchkeeper/SKILL.md');
   const sentence = skill.slice(skill.indexOf('not undone by it'), skill.indexOf('before asking for approval'));
   const ask = skill.split('\n').find((l) => l.startsWith('3. Ask before'));
-  for (const cmd of ['packs remove', 'accounts remove', 'presets remove', 'knowledge clear', 'sessions cache clear', 'automations remove', 'webhook remove', 'bot remove', 'containers reconcile', 'packs save', 'packs import', 'profile import']) {
+  for (const cmd of ['packs remove', 'accounts remove', 'presets remove', 'knowledge clear', 'sessions cache clear', 'automations remove', 'webhook remove', 'machine remove', 'containers reconcile', 'packs save', 'packs import', 'profile import']) {
     assert.ok(sentence.includes(`\`${cmd}`), `not-undone list misses ${cmd}`);
     assert.ok(ask.includes(`\`${cmd}`), `ask list misses ${cmd}`);
   }

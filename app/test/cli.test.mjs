@@ -34,6 +34,17 @@ test('plan writes nothing; apply asks per change and n skips', async () => {
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
 });
 
+test('projects plan and apply refuse a --skill name that is neither a library skill nor an own skill, exit 2, nothing written (#915)', async () => {
+  const c = cli();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  for (const verb of ['plan', 'apply']) {
+    assert.equal(await c.exec(['projects', verb, dir, '--agents', 'claude', '--skill', 'nosuch', ...(verb === 'apply' ? ['--yes'] : [])]), 2, verb);
+    assert.match(c.err(), /unknown skill nosuch, see benchkeeper skills list --library\n$/);
+  }
+  assert.equal(existsSync(join(dir, '.benchkeeper')), false);
+});
+
 test('a changing command with no answer refuses before any change; every change declined records no run', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
   const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));

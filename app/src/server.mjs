@@ -27,7 +27,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { copied, exportPack, importPack, libraryWith, removePack, savePack, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
-import { createPlan, listPresets, recommend } from './presets.mjs';
+import { createPlan, listPresets, presetsWith, recommend } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, skillUsers, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
@@ -581,7 +581,7 @@ export function api(ctx) {
     'POST /api/user-skill-plan': (b) => {
       const name = String(b.name ?? '');
       const changes = preview([input(() => {
-        if (b.op === 'remove') return userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+        if (b.op === 'remove') return userSkillRemove(ctx, name, { usedBy: [...skillUsers(ctx, name), ...presetsWith(ctx, name)] });
         if (!['new', 'edit'].includes(b.op)) throw new Error('op must be new, edit or remove');
         return userSkillWrite(ctx, name, String(b.text ?? ''), { isNew: b.op === 'new' });
       })]);

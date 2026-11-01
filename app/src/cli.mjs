@@ -24,7 +24,7 @@ import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
-import { createPlan, listPresets, recommend, removePreset, savePreset } from './presets.mjs';
+import { createPlan, listPresets, presetsWith, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { copied, exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
@@ -169,7 +169,7 @@ Usage: benchkeeper <command> [options]
                                     --description. A plan with a diff (undo restores it), as are edit and delete
   skills edit <name> --file path [--yes]
                                     replaces the SKILL.md of your skill; projects with a copy get it on their next apply
-  skills delete <name> [--yes]      removes your skill; refused while a project or own pack names it
+  skills delete <name> [--yes]      removes your skill; refused while a project, own pack or preset names it
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
                                     prints the environment and npx command to start every skills CLI command with
@@ -1055,6 +1055,9 @@ function machineItems(ctx, o, cmd) {
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
   const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
+  const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
+  if (unknown.length) throw new Refused(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`);
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
@@ -1197,7 +1200,7 @@ async function userSkillCommand(ctx, { o, positionals, out, ask }) {
   if (sub === 'edit' && !o.file) { out.write('skills edit needs --file <path> with the new SKILL.md\n'); return 2; }
   let change;
   try {
-    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: skillUsers(ctx, name) });
+    if (sub === 'delete') change = userSkillRemove(ctx, name, { usedBy: [...skillUsers(ctx, name), ...presetsWith(ctx, name)] });
     else {
       const text = o.file ? readFileSync(resolve(o.file), 'utf8') : `---\nname: ${name}\ndescription: ${JSON.stringify(o.description ?? 'What this skill does and when to use it.')}\n---\n\n# ${name}\n`;
       change = userSkillWrite(ctx, name, text, { isNew: sub === 'new' });

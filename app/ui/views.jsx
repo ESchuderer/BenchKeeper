@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -64,85 +64,6 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   );
 }
 
-// Files in the packs folder that are no pack: the library leaves them out, so they are listed here to be removed (the file goes to the backups).
-function InvalidPacks({ files, onChange, announce }) {
-  const [error, setError] = useState(null);
-  // This section goes with its last file: focus then moves to the packs heading.
-  const remove = async (file) => {
-    setError(null);
-    try { await api('/api/packs', { action: 'remove', id: file }); onChange(); announce(files.length > 1 ? 'invalid-packs-title' : 'packs-title', `Removed: ${file}`); } catch (e) { setError(e.message); }
-  };
-  return (
-    <Section title="Pack files that are not packs" id="invalid-packs">
-      {error && <Note color="red" title="Failed">{error}</Note>}
-      {files.map(({ file, reason }) => (
-        <Group key={file} justify="space-between" wrap="nowrap">
-          <Text size="sm"><Code>{file}</Code>: {reason}</Text>
-          <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${file}`} onClick={() => remove(file)}>Remove</Button>
-        </Group>
-      ))}
-    </Section>
-  );
-}
-
-function Packs({ packs, onChange, announce }) {
-  const [error, setError] = useState(null);
-  const [file, setFile] = useState(0);
-  // A pack file whose id is an own pack's: asked first, the old file goes to the backup.
-  const [replace, setReplace] = useState(null);
-  const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
-  const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
-  return (
-    <Section title="Library and own packs" id="packs">
-      {error && <Note color="red" title="Failed">{error}</Note>}
-      <Table.ScrollContainer minWidth={520}>
-        <Table aria-label="Packs">
-          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Used by</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {packs.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td>{p.title ?? p.id}<Text size="xs">{p.id}</Text></Table.Td>
-                <Table.Td>{p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}</Table.Td>
-                <Table.Td>{p.own ? 'own' : 'library'}</Table.Td>
-                <Table.Td>{p.usedBy?.length ? p.usedBy.map((d) => d.split('/').pop()).join(', ') : '-'}</Table.Td>
-                <Table.Td>
-                  <Group gap="xs" wrap="nowrap">
-                    {p.skills && <Button leftSection={icon(IconDownload)} size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
-                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} disabled={!!p.usedBy?.length} title={p.usedBy?.length ? `In use by ${p.usedBy.join(', ')}: switch it off there first` : undefined} onClick={run(async () => { await api('/api/packs', { action: 'remove', id: p.id }); announce('packs-title', `Removed: ${p.id}`); })}>Remove</Button>}
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
-      <Group>
-        <FileButton key={file} accept="application/json,.json"
-          onChange={async (f) => {
-            if (!f) return;
-            setError(null);
-            let text;
-            try { text = await f.text(); } catch (e) { setError(e.message); return; }
-            let id; try { id = JSON.parse(text).id; } catch { /* the server names what is wrong */ }
-            if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else await importText(text);
-          }}>
-          {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import pack file</Button>}
-        </FileButton>
-      </Group>
-      <Modal opened={!!replace} onClose={() => { setReplace(null); setFile((n) => n + 1); }} withCloseButton={false} attributes={{ content: { 'aria-label': `Replace pack ${replace?.id}?` } }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4">Replace pack {replace?.id}?</Title>
-          <Text size="sm">An own pack with this id exists. Its file goes to the run backups, as when a pack is removed.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => { setReplace(null); setFile((n) => n + 1); }}>Cancel</Button>
-            <Button onClick={() => importText(replace.text)}>Replace pack {replace?.id}</Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </Section>
-  );
-}
-
 // The Catalog's first page: the library skills and the user's own to browse, each with its detail, the editor of the user's
 // skills, and the pack builder. A skill's state in a project is on that project's page.
 export function CatalogSkills({ catalog, params, refresh }) {
@@ -197,22 +118,7 @@ export function CatalogSkills({ catalog, params, refresh }) {
   );
 }
 
-// The Catalog's second page: the library packs and the own ones, defined once; a project switches them on its Installs tab.
-export function CatalogPacks({ catalog, refresh }) {
-  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
-  const [status, announce] = useAnnounce();
-  return (
-    <Loading state={catalog} label="catalog">{(c) => (
-      <Stack gap="lg">
-        <Packs packs={c.packs} onChange={refresh} announce={announce} />
-        {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
-        {status}
-        <Text size="sm">A pack is switched on or off per project, on the project's Installs tab: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
-        <Cli>{'benchkeeper packs list\nbenchkeeper packs show|export|remove <id>\nbenchkeeper packs import <file>\nbenchkeeper packs enable|disable <id> --project <dir>'}</Cli>
-      </Stack>
-    )}</Loading>
-  );
-}
+export { CatalogPacks } from './packs.jsx';
 
 function SkillDetail({ skill, results, onEdit, onRemove }) {
   const copied = ['own', 'user'].includes(skill.source);

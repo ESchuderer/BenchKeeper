@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -14,6 +14,8 @@ import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
 import { projectSkills } from '../src/skills.mjs';
+import { catalog } from '../src/reads.mjs';
+import { ownSkillClashes } from '../src/doctor.mjs';
 
 const TMP = realpathSync(tmpdir());
 const ctxAt = () => context({ home: mkdtempSync(join(TMP, 'bk-user-skills-')) });
@@ -146,6 +148,82 @@ test('a file of a user skill that is not UTF-8 text is copied byte for byte, in 
   const global = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { packs: [], containers: false } })).filter((c) => c.step === 'pack:mine');
   assert.equal(apply(global, ctx, { scope: 'global' }).status, 'done');
   assert.ok(readFileSync(join(ctx.home, '.claude/skills/release-notes/logo.png')).equals(bytes));
+});
+
+test('a library skill named like an own skill: doctor and the catalog name the clash, a project that picked the own one keeps its files until reset (#945)', () => {
+  const ctx0 = ctxAt();
+  const dir = mkdtempSync(join(TMP, 'bk-user-skill-clash-'));
+  execFileSync('git', ['init', '-q', dir]);
+  const ctx = { ...ctx0, roots: [...ctx0.roots, dir] };
+  const name = 'designing-technical-uis', mine = skillText(name, 'How our team designs.');
+  // The project picked the user's skill of this name before the library had one: its state says source user.
+  const plan = (answers) => projectPlan({ ctx, dir, answers, plugins: {} });
+  assert.equal(apply(preview(plan({ agents: ['claude'], env: 'host', skills: [name] }).changes), ctx, { scope: dir }).status, 'done');
+  const copy = join(dir, '.claude/skills', name, 'SKILL.md');
+  // Written by a run, as the copy of the user's skill was: not an edit made in the project.
+  apply(preview([{ id: 'copy', step: 'copy', title: 'copy', kind: 'write', path: copy, after: mine }]), ctx, { scope: dir });
+  const statePath = join(dir, '.benchkeeper/state.json'), st = readState(dir);
+  writeFileSync(statePath, JSON.stringify({ ...st, skills: st.skills.map((x) => (x.name === name ? { name, source: 'user' } : x)) }));
+  mkdirSync(userSkillDir(ctx, name), { recursive: true });
+  writeFileSync(join(userSkillDir(ctx, name), 'SKILL.md'), mine);
+  assert.deepEqual(ownSkillClashes(ctx).map((f) => [f.level, f.message]), [['warning', `your skill ${name} is hidden by the library skill of that name`]]);
+  assert.equal(catalog(ctx).skills.find((x) => x.name === name).hidesYours, true);
+  const p = plan({});
+  const held = preview(p.changes).find((c) => c.path === copy);
+  assert.deepEqual([held.held, held.selected], [true, false], held.title);
+  assert.match(held.title, /your skill designing-technical-uis is hidden by the library skill of that name: reset the skill to take the library's/);
+  assert.ok(p.warnings.some((w) => w.startsWith(`your skill ${name} is hidden by the library skill of that name`)), JSON.stringify(p.warnings));
+  apply(preview(p.changes), ctx, { scope: dir });
+  assert.equal(readFileSync(copy, 'utf8'), mine);
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
+  // A reset declined, or reset together with disable, keeps source user.
+  const resetPlan = preview(plan({ reset: [name] }).changes);
+  apply(resetPlan, ctx, { scope: dir, select: resetPlan.filter((c) => c.path !== copy && c.selected !== false).map((c) => c.id) });
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
+  const offPlan = preview(plan({ reset: [name], disable: [name] }).changes);
+  apply(offPlan, ctx, { scope: dir, select: offPlan.filter((c) => !c.step.startsWith('off:') && c.selected !== false).map((c) => c.id) });
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
+  // Turned off for real, then on again with a reset: the folder comes back as it was, so the state keeps source user.
+  apply(preview(plan({ disable: [name] }).changes), ctx, { scope: dir });
+  apply(preview(plan({ reset: [name], enable: [name] }).changes), ctx, { scope: dir });
+  assert.equal(readFileSync(copy, 'utf8'), mine);
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
+  // Reset takes the library's skill, and the state then says so.
+  apply(preview(plan({ reset: [name] }).changes), ctx, { scope: dir });
+  assert.notEqual(readFileSync(copy, 'utf8'), mine);
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'own');
+});
+
+test('a link to nothing or to a folder in a user skill is not copied and the project plan warns; the views keep working (#914)', () => {
+  const ctx0 = ctxAt();
+  const dir = mkdtempSync(join(TMP, 'bk-user-skill-link-'));
+  execFileSync('git', ['init', '-q', dir]);
+  const ctx = { ...ctx0, roots: [...ctx0.roots, dir] };
+  add(ctx, 'release-notes');
+  const src = userSkillDir(ctx, 'release-notes');
+  writeFileSync(join(ctx.home, 'kept.md'), 'kept\n');
+  symlinkSync(join(ctx.home, 'kept.md'), join(src, 'kept.md'));
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0x00]);
+  writeFileSync(join(ctx.home, 'logo.png'), bytes);
+  symlinkSync(join(ctx.home, 'logo.png'), join(src, 'logo.png'));
+  symlinkSync(join(ctx.home, 'nothing-here'), join(src, 'notes.md'));
+  mkdirSync(join(ctx.home, 'shared'));
+  symlinkSync(join(ctx.home, 'shared'), join(src, 'refs'));
+  const answers = { agents: ['claude'], env: 'host', skills: ['release-notes'] };
+  const p = projectPlan({ ctx, dir, answers, plugins: {} });
+  const paths = preview(p.changes).filter((c) => c.step === 'skill:release-notes').map((c) => c.path.slice(dir.length + 1));
+  assert.deepEqual(paths, ['.claude/skills/release-notes/kept.md', '.claude/skills/release-notes/logo.png', '.claude/skills/release-notes/SKILL.md']);
+  assert.ok(p.warnings.includes('your skill release-notes: notes.md, refs are links to nothing or to a folder, so they are not copied: replace each with the file or remove it'), JSON.stringify(p.warnings));
+  assert.equal(apply(preview(p.changes), ctx, { scope: dir }).status, 'done');
+  assert.equal(readFileSync(join(dir, '.claude/skills/release-notes/kept.md'), 'utf8'), 'kept\n');
+  // A link to a binary file is copied as the file's bytes, not as a link into the home folder.
+  assert.equal(lstatSync(join(dir, '.claude/skills/release-notes/logo.png')).isSymbolicLink(), false);
+  assert.ok(readFileSync(join(dir, '.claude/skills/release-notes/logo.png')).equals(bytes));
+  assert.equal(projectSkills(ctx, dir).skills.find((s) => s.name === 'release-notes').state, 'current');
+  savePack(ctx, { id: 'mine', skills: ['release-notes'] });
+  apply(preview([{ id: 'scope', step: 'scope', title: 'scope', ...scopeWrite(ctx, 'mine', 'global') }]), ctx, { scope: 'global' });
+  const global = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { packs: [], containers: false } })).filter((c) => c.step === 'pack:mine');
+  assert.deepEqual(global.map((c) => c.path), [join(ctx.home, '.claude/skills/release-notes/kept.md'), join(ctx.home, '.claude/skills/release-notes/logo.png'), join(ctx.home, '.claude/skills/release-notes/SKILL.md')]);
 });
 
 test('skills new, edit, delete and show on the command line, with --json and refusals', async () => {

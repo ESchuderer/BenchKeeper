@@ -2,12 +2,12 @@
 // (source 'user'), saved in ~/.config/benchkeeper/skills/<name>/, join the library's skills.
 // A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin; an own
 // pack may name the user's skills too, and is not exported then.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { contentDir, library } from './content.mjs';
-import { exists, listFiles, move, readText, writeAtomic } from './fsx.mjs';
+import { exists, listDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -39,10 +39,14 @@ export const copied = (s) => s?.source === 'own' || s?.source === 'user';
 export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, s.name) : join(contentDir, 'library', s.name));
 // A copied skill's files (src: its folder) as they are written: text with the path globs of the setup in SKILL.md's front matter,
 // and a file that is not UTF-8 text (an image of a user skill) as a byte copy, from, with its bytes.
+// An entry that is not a file (a link to nothing or to a folder) is left out: skippedLinks names it for the plan's warning.
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+export const skippedLinks = (src) => listFiles(src).filter((file) => !isFile(join(src, file)));
 export function ownSkillFiles(src, paths) {
-  return listFiles(src).map((file) => {
+  return listFiles(src).filter((file) => isFile(join(src, file))).map((file) => {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
-    if (!Buffer.from(text).equals(bytes)) return { file, from: join(src, file), bytes };
+    // The target of a link, not the link: the copy copies a link as a link.
+    if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
     return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
   });
 }
@@ -67,6 +71,11 @@ export function userSkills(ctx, lib = library()) {
     try { return [{ name, source: 'user', agents: 'both', pickWhen: checkSkill(name, readText(join(userSkillDir(ctx, name), 'SKILL.md')) ?? '') }]; } catch { return []; }
   });
 }
+
+// The user's skill folders the library has a skill of: the library's wins, and doctor, the catalog and the project plan name
+// the clash (#945). clashFix: how to keep the user's skill under another name.
+export const hiddenUserSkills = (ctx, lib = library()) => listDir(join(ctx.config, 'skills')).filter((n) => lib.skills.some((s) => s.name === n) && exists(join(userSkillDir(ctx, n), 'SKILL.md')));
+export const clashFix = (ctx, name) => `copy ${userSkillDir(ctx, name)} to a folder of a new name, set that name in its SKILL.md, and pick the new name in your projects`;
 
 // The plan change that writes a user skill's SKILL.md, new or edited; undo puts the earlier file back.
 export function userSkillWrite(ctx, name, text, { isNew }) {

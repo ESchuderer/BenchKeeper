@@ -350,7 +350,7 @@
     },
     {
       "id": "devcontainer",
-      "title": "Devcontainer and Playwright",
+      "title": "Devcontainer and browser checks",
       "href": "https://code.visualstudio.com/docs/devcontainers/devcontainer-cli",
       "scope": "Per repository",
       "text": "Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the [BenchKeeper library](https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/library/README.md), stack skills from [find-skills](https://github.com/vercel-labs/skills), at most two per technology.",

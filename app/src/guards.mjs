@@ -1,6 +1,7 @@
 // Guards: the deny rules and the PreToolUse hook that project setup writes for the rules without exceptions (no
 // --no-verify, no force push, no sudo, no apply against shared systems), the file edits that take them out, and the
-// doctor findings that read them back. The hook script itself is guard-hook.mjs.
+// doctor findings that read them back. The hook script itself is guard-hook.mjs. In a machine account session (machine.mjs) the same
+// hook also denies committing or pushing under another identity and an approving review; the deny rules here are the same for every session.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readText } from './fsx.mjs';

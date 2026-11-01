@@ -8,7 +8,7 @@ import { copied, libraryWith, ownSkillFiles, skillFolder } from './packs.mjs';
 import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
 import { KEEP_SKILLS } from './steps/global.mjs';
-import { editedHere, lockedSkills, tryState } from './steps/project.mjs';
+import { editedHere, lockedSkills, tryState, unfinishedHere } from './steps/project.mjs';
 
 // The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
 // Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
@@ -21,7 +21,7 @@ export function skillFiles(dir) {
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const subfolders = (dir) => listDir(dir).filter((n) => NAME.test(n) && isDir(join(dir, n)));
 
-// current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone), disabled.
+// current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone, or its install did not finish), disabled.
 function ownState(ctx, dir, skill, a) {
   const ids = a.agents.filter((x) => skill.agents !== 'codex' || x === 'codex');
   const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skillFolder(ctx, skill), a.paths?.[skill.name]).map(({ file, text, bytes }) => itemState(join(d, skill.name, file), text ?? bytes, ctx)));
@@ -33,10 +33,22 @@ function ownState(ctx, dir, skill, a) {
 
 function communityState(dir, rec, skill, a, latest) {
   const folders = skillDirs(a.agents.filter((x) => skill?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir);
-  if (!folders.some((d) => exists(join(d, rec.name)))) return 'removed';
+  // A folder an install left unfinished counts as gone: the next plan installs the skill again.
+  if (!folders.some((d) => exists(join(d, rec.name))) || folders.some((d) => unfinishedHere(d, rec.name))) return 'removed';
   if (folders.some((d) => editedHere(d, rec.name, rec.hash))) return 'modified';
   // A skill with no recorded commit is outdated once the source is known: an update records one.
   return latest[rec.source] && rec.ref !== latest[rec.source] ? 'outdated' : 'current';
+}
+
+// The community skills of a project's state file whose install did not finish, each with the folders it left (relative to dir).
+export function unfinishedSkills(ctx, dir, state) {
+  // A state file of another shape names no skill here: doctor reports the project, not a throw.
+  const list = (x) => (Array.isArray(x) ? x : []);
+  const disabled = list(state?.disabled), agents = list(state?.agents), lib = libraryWith(ctx);
+  return list(state?.skills).filter((r) => r && typeof r === 'object').filter((r) => NAME.test(r.name ?? '') && !copied(r) && !disabled.includes(r.name)).flatMap((rec) => {
+    const folders = skillDirs(agents.filter((x) => lib.skills.find((k) => k.name === rec.name)?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir).filter((d) => unfinishedHere(d, rec.name));
+    return folders.length ? [{ name: rec.name, source: rec.source, folders: folders.map((d) => join(d, rec.name).slice(dir.length + 1)) }] : [];
+  });
 }
 
 // null: no state file. Skills by the state file, each with where it comes from, its state, the commit installed (pinned)
@@ -63,7 +75,9 @@ export function projectSkills(ctx, dir, { check = false } = {}) {
     for (const name of subfolders(d).filter((n) => !tracked.has(n))) found.set(name, [...(found.get(name) ?? []), d.slice(dir.length + 1)]);
   }
   const untracked = [...found].map(([name, folders]) => ({ name, folders, library: lib.skills.some((s) => s.name === name) }));
-  return { skills, untracked };
+  // lost: single picks that name no skill any more (deleted, or gone from the library); skills remove takes them out (#915).
+  const lost = (state.singles ?? []).filter((n) => NAME.test(n ?? '') && !lib.skills.some((s) => s.name === n));
+  return { skills, untracked, lost };
 }
 
 // Skill folders in an agent's global folder that no BenchKeeper setup put there (its own skills and the kept ones).
@@ -80,6 +94,7 @@ const unknown = (message) => Object.assign(new Error(message), { status: 404 });
 export function skillAction(rows, action, names, lib) {
   const row = (n) => rows.skills.find((s) => s.name === n);
   for (const n of names) {
+    if (action === 'remove' && rows.lost?.includes(n)) continue;
     if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw unknown(`${n} is not an untracked library skill of this project`);
     if (action === 'add' && (row(n) || rows.untracked.some((u) => u.name === n))) throw new Error(`${n} is already in this project${row(n)?.state === 'disabled' ? `: benchkeeper skills enable ${n}` : ''}`);
     if (action === 'add' && !lib.skills.some((s) => s.name === n)) throw unknown(`${n} is not a library skill`);

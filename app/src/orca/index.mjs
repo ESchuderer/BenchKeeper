@@ -48,17 +48,20 @@ export const templates = (ctx) => FILES.map((f) => ({
   change: { kind: 'write', path: join(ctx.config, 'orca', f), after: readFileSync(new URL(f, import.meta.url), 'utf8') },
 }));
 
-// The per-worktree setup files project setup offers when workers ran in the project's worktrees: the setup script runs
-// install (null: a line to fill in) before the agent starts, the archive script removes the worktree's dev containers, and the local files listed are copied into each new worktree.
-export const worktreeFiles = (install, include) => [
-  { path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\n  archive: |\n    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.\n    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'\nsetupAgentStartupPolicy: wait-for-setup\n` },
-  { path: '.worktreeinclude', text: `# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n${include.join('\n')}\n` },
-];
+// The per-worktree setup file project setup offers when workers ran in the project's worktrees: the setup script runs
+// install (null: a line to fill in) before the agent starts, and the archive script removes the worktree's dev containers.
+// The local files each new worktree copies are in .worktreeinclude, which project setup writes for every worktree tool.
+export const worktreeFile = (install) => ({ path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\n  archive: |\n    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.\n    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'\nsetupAgentStartupPolicy: wait-for-setup\n` });
+// The .worktreeinclude project setup offered with orca.yaml before it kept a block there: all of it BenchKeeper's.
+export const offeredInclude = (text) => typeof text === 'string' && text.startsWith(`# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n`);
 
 // The text in a dispatched worker's first prompt: two lines, both needed, so a prompt that quotes one is no worker. A user's
 // own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker.
 const PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your task ID is: \S+/m];
 export const isWorkerPrompt = (text) => PREAMBLE.every((r) => r.test(text));
+// The role a machine account session's commit trailer names: a dispatched worker when an argument of its launch is a worker's first
+// prompt, else the session that orchestrates (the user's own, which dispatches the workers).
+export const sessionRole = (args) => (args.some((a) => isWorkerPrompt(String(a))) ? 'worker' : 'orchestrator');
 // The line the worker-spec template carries: its value joins a coordinator's workers.
 export const runOf = (text) => text.match(/^Orca run: ([\w.-]{1,64})[ \t]*$/m)?.[1] ?? null;
 // The task id of the preamble, only in a worker prompt.
@@ -88,14 +91,18 @@ export async function runs(ctx, limit = 20) {
 // from its source of that version). f is { name, schedule, prompt, agent, precheck, workspace, dir, reuseSession, grace }.
 const AUTO = (ctx) => [bin(ctx), 'automations'];
 const AUTO_ID = /^[\w-]{1,128}$/;
-// The fields an update may change; the target (project folder, worktree mode) stays as created.
-const fields = (f) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
-  ...(f.precheck ? ['--precheck', f.precheck] : []), ...(f.grace > 0 ? ['--missed-run-grace-minutes', String(f.grace)] : []),
+// Orca's grace when create gets none; it refuses 0, so a template's 0 (the runner's default) is this on an edit.
+const DEFAULT_GRACE = 720;
+// The fields an update may change; the target (project folder, worktree mode) stays as created. A create leaves an empty
+// precheck and a grace of 0 out; an edit changes only the flags it gets, so it sets both ("" clears the precheck).
+const fields = (f, edit = false) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
+  ...(f.precheck || edit ? ['--precheck', f.precheck ?? ''] : []),
+  ...(f.grace > 0 || edit ? ['--missed-run-grace-minutes', String(f.grace > 0 ? f.grace : DEFAULT_GRACE)] : []),
   ...(f.workspace === 'project' ? [f.reuseSession ? '--reuse-session' : '--fresh-session'] : [])];
 // An explicit target: without one the CLI binds the automation to the worktree its working folder lies in.
 const target = (f) => (f.workspace === 'project' ? ['--workspace', `path:${f.dir}`] : ['--repo', `path:${f.dir}`, '--workspace-mode', 'new-per-run']);
 export const createArgv = (ctx, f) => [...AUTO(ctx), 'create', ...fields(f), ...target(f), '--disabled', '--json'];
-export const editArgv = (ctx, id, f) => [...AUTO(ctx), 'edit', '--id', id, ...fields(f), '--json'];
+export const editArgv = (ctx, id, f) => [...AUTO(ctx), 'edit', '--id', id, ...fields(f, true), '--json'];
 export const removeArgv = (ctx, id) => [...AUTO(ctx), 'remove', '--id', id, '--json'];
 // The undo commands an automation change plans: remove by id, or edit by id with the fields above. A ledger file that
 // names anything else is not run. Any of the CLI's names: the context that recorded it may have found another one.

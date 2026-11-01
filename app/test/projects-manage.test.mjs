@@ -156,7 +156,7 @@ test('Remove BenchKeeper setup, local: exactly the recorded files go, nothing el
   assert.ok(existsSync(join(p.dir, STATE)) && existsSync(join(p.dir, 'CLAUDE.local.md')) && existsSync(join(p.dir, 'AGENTS.override.md')));
   const plan = setupRemoval(ctx, p.dir);
   assert.equal(plan.shared, false);
-  assert.deepEqual(plan.changes.map((c) => c.step).sort(), ['exclude', 'guards', 'local-claude', 'local-codex', 'offered', 'sandbox', 'skill:designing-technical-uis', 'skill:designing-technical-uis', 'state'].sort());
+  assert.deepEqual(plan.changes.map((c) => c.step).sort(), ['exclude', 'guards', 'local-claude', 'local-codex', 'offered', 'sandbox', 'skill:designing-technical-uis', 'skill:designing-technical-uis', 'state', 'worktree-include'].sort());
   const result = removeSetup(ctx, p.dir);
   assert.equal(result.status, 'removed', result.reason);
   const after = tree(p.dir);
@@ -179,11 +179,13 @@ test('Remove BenchKeeper setup keeps a hand-written CLAUDE.local.md and AGENTS.o
   const p = localProject(h, { sandbox: false });
   addProject(p.ctx, p.dir);
   writeFileSync(join(p.dir, 'CLAUDE.local.md'), `my note\n\n${readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8')}`);
+  writeFileSync(join(p.dir, 'AGENTS.override.md'), `${readFileSync(join(p.dir, 'AGENTS.override.md'), 'utf8')}\n## Agent skills\n`);
   const plan = setupRemoval(p.ctx, p.dir);
-  assert.ok(plan.changes.some((c) => c.step === 'local-claude' && c.kind === 'write'));
+  assert.ok(['local-claude', 'local-codex'].every((s) => plan.changes.some((c) => c.step === s && c.kind === 'write')));
   removeSetup(p.ctx, p.dir);
   assert.equal(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8').trim().startsWith('my note'), true);
   assert.doesNotMatch(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8'), /benchkeeper:project/);
+  assert.equal(readFileSync(join(p.dir, 'AGENTS.override.md'), 'utf8'), '## Agent skills\n');
   // A project without any setup has nothing to remove.
   const empty = repo().dir;
   assert.match(removeSetup(p.ctx, empty).reason, /not a registered project/);

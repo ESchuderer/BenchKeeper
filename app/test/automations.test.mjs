@@ -115,6 +115,16 @@ test('lint rule helper: missing, not executable, no shebang and network use fail
   assert.deepEqual(problems(tier(template(), SH.replace('"$1"', 'gh api repos/x/y'))), [], 'gh is allowed');
 });
 
+test('lint rule helper: a helper path inside quotes in the precheck fails, unquoted passes', () => {
+  for (const precheck of [String.raw`"\"alpha/check.sh\" x"`, `"'alpha/check.sh' x"`, String.raw`"x \"y alpha/check.sh\""`]) {
+    const out = check(machine(), { tiers: [['user', tier(template({ precheck }))]] });
+    assert.deepEqual(out.map((p) => p.rule), ['helper'], precheck);
+    assert.match(out[0].message, /alpha\/check\.sh is inside quotes in the precheck: write the helper path unquoted/);
+  }
+  for (const precheck of ['"alpha/check.sh \\"{{repository}}\\""', `"alpha/check.sh 'x' && echo \\"y\\" | alpha/check.sh"`, String.raw`"echo \\\"x alpha/check.sh"`, `"true # don't stop\\nalpha/check.sh x"`])
+    assert.deepEqual(problems(tier(template({ precheck }))), [], precheck);
+});
+
 test('a helper that is a link or sits outside the template folder is missing', () => {
   const dir = tier(template(), null);
   mkdirSync(join(dir, 'alpha'));

@@ -3,7 +3,8 @@ name: Release
 # Nothing releases until the owner merges the release pull request (docs/releasing.md). release-please keeps one release
 # pull request open from the Conventional Commits on main (release-please-config.json, two components: the app under
 # app/, tag app-v<x.y.z>, and the content under plugins/benchkeeper/, tag setup-v<x.y>). It creates no tag or Release:
-# after the merge the job `release` publishes the app to npm through npm.yml and waits for the registry, and only then
+# after the merge the job `release` publishes the app to npm through npm.yml (built from the release commit, the commit
+# the tags name, also when main has moved on) and waits for the registry, and only then
 # tags, creates the GitHub Releases, moves the branch stable (the ref the app adds BenchKeeper's marketplace at) and
 # rebuilds the site. A failed publish creates no tag or Release and moves nothing; rerun the job after the fix.
 #
@@ -18,14 +19,16 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
-
+# Concurrency is per job, not per workflow: GitHub keeps one pending run per group and cancels the one waiting before
+# it, and only the run of the release merge releases, so a later push must not cancel it.
 jobs:
   release-please:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # A pending release-please job that a newer push replaces is dropped: the newer one does the same work.
+    concurrency:
+      group: ${{ github.workflow }}-release-please
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -83,6 +86,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # One group per commit: a push after the release merge never cancels this job, and a rerun waits for a running one.
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       actions: write
       contents: write
@@ -114,8 +121,8 @@ jobs:
           [ "$content" != "$(jq -r '."plugins/benchkeeper"' <<<"$before")" ] && echo "content=$content" >> "$GITHUB_OUTPUT"
           true
       # npm.yml holds the trusted-publisher binding and the OIDC token; this job can only start it (a dispatch is the
-      # one event GITHUB_TOKEN may start a workflow with) and wait for it. A version that npm already has is not
-      # published again.
+      # one event GITHUB_TOKEN may start a workflow with) and wait for it. A dispatch runs on the head of main, so it
+      # gets the release commit as `sha` and builds that. A version that npm already has is not published again.
       - if: ${{ steps.v.outputs.app != '' }}
         name: Publish the app to npm and verify the registry
         env:
@@ -125,7 +132,7 @@ jobs:
           code=$(registry)
           if [ "$code" = 404 ]; then
             since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            gh workflow run npm.yml --repo "$REPO" --ref main -f "version=$V"
+            gh workflow run npm.yml --repo "$REPO" --ref main -f "version=$V" -f "sha=$SHA"
             run=
             for _ in $(seq 30); do
               sleep 10
@@ -177,3 +184,9 @@ jobs:
           PR: ${{ steps.pr.outputs.number }}
         run: |
           gh pr edit "$PR" --repo "$REPO" --remove-label 'autorelease: pending' --add-label 'autorelease: tagged'
+      # A push during the release ran release-please while the pull request was still pending, and that run opened no
+      # release pull request; the job release-please of this run is its own group, so it can run before the label
+      # changes. One more run of this workflow does that work now.
+      - if: ${{ steps.pr.outputs.number != '' }}
+        name: Run release-please again
+        run: gh workflow run release.yml --repo "$REPO" --ref main

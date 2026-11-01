@@ -65,7 +65,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'packs', view: 'packs', title: 'Packs', shot: 'packs',
-    alt: 'The Packs page of the Catalog: the library packs and the own ones, each with its skills or plugin and whether it is a library or own pack, the projects that use it, Export, and Remove for an own pack.',
+    alt: 'The Packs page of the Catalog: the plugin packs on top, then the library and own packs as cards, each with its skills, whether it is an own pack, the projects that use it, Export, and Remove for an own pack.',
     text: [
       'Packs lists the library packs and your own with the projects that use them, and exports, imports and removes own packs. A pack is defined once and switched on per project, on the project\'s Installs tab.',
     ],

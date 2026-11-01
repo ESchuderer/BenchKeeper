@@ -238,6 +238,23 @@ test('apply of the global plan with nothing chosen: its changes are declined, no
   assert.equal(ctx.ledger.list().length, 0, 'no run');
 });
 
+test('apply of the global plan while preferences.json does not parse: the declines are not recorded, the file is kept, the apply goes on with a warning', async () => {
+  const { ctx, routes } = fixture();
+  const prefs = join(ctx.config, 'preferences.json');
+  mkdirSync(ctx.config, { recursive: true });
+  const text = '{ "dismissed": ["change:global:abc"], }\n';
+  writeFileSync(prefs, text);
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const res = routes['POST /api/apply']({ planId: plan.planId, select: [] });
+  assert.equal(res.job, null);
+  assert.match(res.warning, /not remembered as declined/);
+  assert.ok(res.warning.includes(prefs));
+  assert.equal(readFileSync(prefs, 'utf8'), text, 'byte for byte unchanged');
+  assert.equal(status(() => routes['POST /api/settings-dismiss']({ id: 'note-x' })), 409);
+  assert.equal(status(() => routes['POST /api/preferences']({ editors: true })), 409);
+  assert.equal(readFileSync(prefs, 'utf8'), text);
+});
+
 test('prerun: the global skill install is rehearsed in a job, its file diff per change id; the real home stays as it is', async () => {
   const { ctx, routes } = fixture((argv, o) => {
     if (argv[2] !== SKILLS_SPEC) return null;

@@ -81,6 +81,12 @@ test('nothing is written before the plan is applied, and an installed template i
   assert.throws(() => installChanges(w.ctx, 'alpha', { values: { repository: 'o/r' }, dir: project }), /installed already: benchkeeper automations update alpha/);
 });
 
+test('install: a helper path inside quotes in the precheck is refused', () => {
+  const w = world();
+  writeFileSync(join(userDir(w.ctx), 'alpha.md'), TEMPLATE().replace('precheck = "alpha/check.sh {{repository}}"', 'precheck = "\\"alpha/check.sh\\" {{repository}}"'));
+  assert.throws(() => installChanges(w.ctx, 'alpha', { values: { repository: 'o/r' }, dir: project }), /alpha\/check\.sh is inside quotes in the precheck/);
+});
+
 test('undo of an install removes the automation on the runner and the record', () => {
   const w = world();
   const { run } = install(w);

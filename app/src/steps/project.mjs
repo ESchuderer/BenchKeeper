@@ -635,9 +635,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
+  // A single pick that names no skill (deleted, or gone from the library) stays picked and installs nothing (#915).
+  const lost = a.skills.filter((n) => !lib.skills.some((s) => s.name === n)).map((n) => `skill ${n} is not in the library or your skills, so it installs nothing: create it again (benchkeeper skills new ${n}) or take it out (benchkeeper skills remove ${n})`);
   const clashes = [...hiddenMine].map((n) => `your skill ${n} is hidden by the library skill of that name, so its files here are kept until you reset the skill: to keep yours, ${clashFix(ctx, n)}`);
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...clashes, ...envWarning, ...frameworkNotices({ a, dir, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...frameworkNotices({ a, dir, prev })] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

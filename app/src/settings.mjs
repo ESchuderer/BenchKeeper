@@ -204,9 +204,55 @@ function validate(agentId, def, value, layer) {
       const ok = { string: 'string', boolean: 'boolean', integer: 'number', number: 'number', array: 'array', object: 'object' };
       if (def.types?.length && !def.types.some((t) => ok[t] === kind(value) && (t !== 'integer' || Number.isInteger(value)))) return bad(`a value of type ${def.types.join(' or ')}`);
       if (agentId === 'codex' && !isTomlValue(value)) return bad('a value the app writes into TOML only as a scalar or a list of scalars: edit tables by hand');
-      return null;
+      // Claude Code skips the whole settings file over one invalid value, so a nested one is refused too.
+      const shape = agentId === 'claude' && def.schema ? shapeError(SCHEMAS.claude, schemaNode('claude', keyPath(agentId, def.key)), value) : null;
+      return shape ? bad(shape) : null;
     }
   }
+}
+
+// What a value of a schema type is, in the words of the reasons above.
+const TYPE_WORDS = { string: 'a text', boolean: 'true or false', integer: 'a whole number', number: 'a number', array: 'a list', object: 'an object', null: 'null' };
+const fitsType = (t, v) => (t === 'integer' ? Number.isInteger(v) : t === 'number' ? typeof v === 'number' : kind(v) === t);
+// null when the value fits the schema node all the way down, else where it does not and what it must be (#939). Checks
+// type, enum, const, minLength, items, properties, required and additionalProperties, through $ref, allOf, anyOf and
+// oneOf (any branch that fits is enough). pattern, propertyNames and not are skipped, so a tool name newer than the pin
+// is never refused; only a "not" of everything (how the schema marks a branch that takes nothing) counts.
+function shapeError(schema, node, value, at = [], depth = 0) {
+  node = resolve(schema, node);
+  if (node == null || node === true || depth > 32) return null;
+  const where = at.length ? `${at.join(' ')} ` : '';
+  if (node === false || (node.not && (node.not === true || Object.keys(node.not).length === 0))) return `${where}is not allowed`;
+  for (const sub of node.allOf ?? []) { const e = shapeError(schema, sub, value, at, depth + 1); if (e) return e; }
+  const branches = [...(node.anyOf ?? []), ...(node.oneOf ?? [])];
+  if (branches.length) {
+    const errors = branches.map((b) => shapeError(schema, b, value, at, depth + 1));
+    if (!errors.includes(null)) {
+      // One branch of the value's type: its reason is the precise one. Else name the types the branches take.
+      const own = branches.filter((b) => { const t = collect(schema, b).types; return [...t].some((x) => fitsType(x, value)); });
+      if (own.length === 1) return errors[branches.indexOf(own[0])];
+      const types = [...collect(schema, { anyOf: branches }).types];
+      return own.length || !types.length ? `${where}does not fit any of its shapes` : `${where}must be ${types.map((t) => TYPE_WORDS[t] ?? t).join(' or ')}`;
+    }
+  }
+  const types = [node.type].flat().filter(Boolean);
+  if (types.length && !types.some((t) => fitsType(t, value))) return `${where}must be ${types.map((t) => TYPE_WORDS[t] ?? t).join(' or ')}`;
+  if (node.enum && !node.enum.some((x) => same(x, value))) return `${where}must be one of ${node.enum.join(', ')}`;
+  if (node.const !== undefined && !same(node.const, value)) return `${where}must be ${JSON.stringify(node.const)}`;
+  if (typeof value === 'string' && node.minLength && value.length < node.minLength) return `${where}must be a non-empty text`;
+  if (Array.isArray(value) && node.items && typeof node.items === 'object' && !Array.isArray(node.items)) {
+    for (const [i, x] of value.entries()) { const e = shapeError(schema, node.items, x, [...at, `item ${i + 1}`], depth + 1); if (e) return e; }
+  }
+  if (kind(value) === 'object') {
+    for (const k of node.required ?? []) if (!Object.hasOwn(value, k)) return `${where}needs ${k}`;
+    for (const [k, x] of Object.entries(value)) {
+      const sub = node.properties && Object.hasOwn(node.properties, k) ? node.properties[k] : node.additionalProperties;
+      if (sub === false) return `${[...at, k].join(' ')} is not a key it takes`;
+      const e = shapeError(schema, sub, x, [...at, k], depth + 1);
+      if (e) return e;
+    }
+  }
+  return null;
 }
 const isScalar = (v) => ['string', 'boolean', 'number'].includes(typeof v);
 const isTomlValue = (v) => isScalar(v) || (Array.isArray(v) && v.every(isScalar));

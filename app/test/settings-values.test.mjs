@@ -107,6 +107,27 @@ test('validation of keys from the pinned schema or the reference: scope, type an
   assert.equal(refused('claude', 'notAKey', 1), "notAKey: not a key of Claude Code's settings reference or schema");
 });
 
+test('validation of keys from the pinned schema looks inside lists and objects (#939)', () => {
+  assert.equal(refused('claude', 'permissions.allow', [1]), 'permissions.allow: item 1 must be a text');
+  assert.equal(refused('claude', 'permissions.additionalDirectories', [1, {}]), 'permissions.additionalDirectories: item 1 must be a text');
+  assert.equal(refused('claude', 'companyAnnouncements', [1]), 'companyAnnouncements: item 1 must be a text');
+  assert.equal(refused('claude', 'companyAnnouncements', ['']), 'companyAnnouncements: item 1 must be a non-empty text');
+  assert.equal(refused('claude', 'hooks', { x: 1 }), 'hooks: x is not a key it takes');
+  assert.equal(refused('claude', 'hooks', { PreToolUse: [{ matcher: 'Bash' }] }), 'hooks: PreToolUse item 1 needs hooks');
+  assert.equal(refused('claude', 'hooks', { PreToolUse: [{ hooks: [{ type: 'command' }] }] }), 'hooks: PreToolUse item 1 hooks item 1 does not fit any of its shapes');
+  assert.equal(refused('claude', 'enabledPlugins', { a: 'x' }), 'enabledPlugins: a must be a list or true or false');
+  assert.equal(refused('claude', 'enabledPlugins', { a: [1] }), 'enabledPlugins: a item 1 must be a text');
+  // Valid values of the same keys are still planned; a tool name the pin's pattern does not know yet is not refused.
+  assert.equal(refused('claude', 'permissions.allow', ['Bash(ls)']), null);
+  assert.equal(refused('claude', 'permissions.allow', ['SomeNewTool']), null);
+  assert.equal(refused('claude', 'permissions.additionalDirectories', ['/tmp']), null);
+  assert.equal(refused('claude', 'companyAnnouncements', ['Hello']), null);
+  assert.equal(refused('claude', 'hooks', { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo hi', timeout: 5 }] }] }), null);
+  assert.equal(refused('claude', 'enabledPlugins', { 'a@b': true, 'c@d': ['x'] }), null);
+  // The Codex side keeps its shallow check.
+  assert.equal(refused('codex', 'audio.microphone_channel', [1, 2]), null);
+});
+
 test('describeKey outside the catalog: type, values, default, sentence, scope and group from the schema and the reference', () => {
   const pick = (id, key) => { const d = describeKey(id, key); return d && { type: d.type, values: d.values, types: d.types, sentence: d.sentence, default: d.default, scope: d.scope, group: d.group, advanced: d.advanced, schema: d.schema }; };
   assert.deepEqual(pick('claude', 'teammateMode'), { type: 'enum', values: ['auto', 'in-process', 'tmux', 'iterm2'], types: ['string'], sentence: 'Choose how agent team teammates display', default: 'in-process', scope: 'Any file', group: 'Agents, sessions, and worktrees', advanced: true, schema: true });

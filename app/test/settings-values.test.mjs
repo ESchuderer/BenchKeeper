@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
-import { agentSettings, describeKey, listSettings, maskSecrets, parseInput, readSettings, settingsChanges, settingsChecks, valuesOf } from '../src/settings.mjs';
+import { agentSettings, describeKey, listSettings, maskSecrets, parseInput, readSettings, redact, settingsChanges, settingsChecks, valuesOf } from '../src/settings.mjs';
 
 const run = () => ({ code: 0, stdout: '', stderr: '' });
 const ctx = Object.assign(context({ home: mkdtempSync(join(tmpdir(), 'bk-setv-')), run }), { managedRoot: mkdtempSync(join(tmpdir(), 'bk-setv-managed-')) });
@@ -136,6 +136,9 @@ test('agentSettings names the agents it knows; secret names are whole words', ()
   assert.throws(() => agentSettings('nope'), { message: 'no settings for agent nope: claude, codex' });
   const masked = maskSecrets({ apiKey: 'v', mytoken: 'v', mysecret: 'v', mypassword: 'v', credential: 'v', oauth: 'v', mypasswd: 'v', keys: 'v', tokens: 'v' });
   assert.deepEqual(masked, { apiKey: '(set)', mytoken: '(set)', mysecret: '(set)', mypassword: '(set)', credential: '(set)', oauth: '(set)', mypasswd: 'v', keys: 'v', tokens: 'v' });
+  // A passphrase is a secret word like a password (GPG_PASSPHRASE has no other secret word in it).
+  assert.deepEqual(maskSecrets({ env: { GPG_PASSPHRASE: 'v', myPassphrase: 'v' } }), { env: { GPG_PASSPHRASE: '(set)', myPassphrase: '(set)' } });
+  assert.equal(redact('GPG_PASSPHRASE = "x"'), 'GPG_PASSPHRASE = "(set)"');
 });
 
 test('readSettings: a missing file, an unreadable one, one that does not parse; project and user layers on the same path stay apart', () => {

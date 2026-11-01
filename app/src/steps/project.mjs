@@ -514,7 +514,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const clashing = new Set((readState(dir)?.skills ?? []).filter((x) => x.source === 'user' && skills.some((s) => s.name === x.name && s.source !== 'user')).map((x) => x.name));
   const hiddenMine = new Set([...clashing].filter((n) => !a.reset.includes(n)));
   const clashFiles = new Map();
-  const keepsUser = (n, run) => clashing.has(n) && (hiddenMine.has(n) || a.disabled.includes(n) || (!!run && (clashFiles.get(n) ?? []).some(([p, d]) => itemState(p, d, ctx) !== 'current')));
+  // clashBack: hidden skills whose parked folder comes back in this plan; its files are written by the next reset, not this one.
+  const clashBack = new Set();
+  const keepsUser = (n, run) => clashing.has(n) && (hiddenMine.has(n) || a.disabled.includes(n) || clashBack.has(n) || (!!run && (clashFiles.get(n) ?? []).some(([p, d]) => itemState(p, d, ctx) !== 'current')));
   const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -525,6 +527,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
     const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
     for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name), installUnit);
+    if (back.length && clashing.has(s.name)) clashBack.add(s.name);
     const rest = dirs.filter((x) => !back.includes(x));
     // A copy edited here (it differs from what a run of this machine left), or a folder of that name being adopted, is replaced only
     // when asked for (reset): the plan shows its diff.

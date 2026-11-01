@@ -183,8 +183,13 @@ test('a library skill named like an own skill: doctor and the catalog name the c
   const offPlan = preview(plan({ reset: [name], disable: [name] }).changes);
   apply(offPlan, ctx, { scope: dir, select: offPlan.filter((c) => !c.step.startsWith('off:') && c.selected !== false).map((c) => c.id) });
   assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
-  // Reset (and on again) takes the library's skill, and the state then says so.
+  // Turned off for real, then on again with a reset: the folder comes back as it was, so the state keeps source user.
+  apply(preview(plan({ disable: [name] }).changes), ctx, { scope: dir });
   apply(preview(plan({ reset: [name], enable: [name] }).changes), ctx, { scope: dir });
+  assert.equal(readFileSync(copy, 'utf8'), mine);
+  assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'user');
+  // Reset takes the library's skill, and the state then says so.
+  apply(preview(plan({ reset: [name] }).changes), ctx, { scope: dir });
   assert.notEqual(readFileSync(copy, 'utf8'), mine);
   assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'own');
 });

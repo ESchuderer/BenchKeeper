@@ -48,6 +48,9 @@ jobs:
         run: node --test .github/scripts/skill-lint.test.mjs && node .github/scripts/skill-lint.mjs
       - name: PR title pattern
         run: node --test .github/scripts/pr-title.test.mjs
+      # npm.yml builds the release commit; release.yml never lets a later push cancel the release job.
+      - name: Release workflows
+        run: node --test .github/scripts/release-workflows.test.mjs
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check

@@ -63,7 +63,6 @@ export const safeBranch = (n) => (/^[\p{L}\p{N}_.][\p{L}\p{N}_.\/@+-]*$/u.test(n
 
 export const isRepo = (ctx, dir) => git(ctx, dir, ['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 
-// Tree of every tracked and untracked, not ignored, file, written through a temporary index.
 // The files of a local agent setup that git ignores through BenchKeeper's blocks in info/exclude (paths from the
 // repository root dir): a snapshot holds them too, so a recorded session can undo skills it installed there.
 function localSetupPaths(ctx, dir) {
@@ -80,6 +79,7 @@ function localSetupPaths(ctx, dir) {
   return paths.filter((p) => existsSync(join(dir, p)));
 }
 
+// Tree of every tracked and untracked, not ignored, file, written through a temporary index.
 export function snapshot(ctx, dir) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-index-'));
   const env = { ...process.env, GIT_INDEX_FILE: join(tmp, 'index') };

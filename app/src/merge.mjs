@@ -16,7 +16,7 @@ export function parseJson(text, file = 'JSON') {
 
 // Sets (value) or removes (undefined) one key. jsonc-parser formats an insert or a removal over whole lines, which would
 // reformat the property next to it on the same line: here the other properties keep their text. An object written on one
-// line is formatted as a whole, as before.
+// line is formatted as a whole.
 function setKey(text, path, value) {
   const parent = findNodeAtLocation(parseTree(text), path.slice(0, -1));
   const props = parent?.type === 'object' && /[\r\n]/.test(text.slice(parent.offset, parent.offset + parent.length)) ? parent.children ?? [] : [];

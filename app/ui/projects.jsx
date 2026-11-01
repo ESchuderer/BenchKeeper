@@ -140,7 +140,7 @@ export function RemoveFromList({ paths, onClose, onDone }) {
     <Modal opened onClose={onClose} withCloseButton={false} attributes={{ content: { 'aria-label': `Remove ${plural(paths.length, 'project')} from the list?` } }}>
       <Stack gap="sm">
         <Title order={2} size="h4">Remove {plural(paths.length, 'project')} from the list?</Title>
-        <Text size="sm">The folders, their files, BenchKeeper's setup in them and the history stay. Add a folder again any time.</Text>
+        <Text size="sm">Only the list changes: the folders, their files, BenchKeeper's setup in them and the history stay. Add a folder again any time.</Text>
         {paths.length <= 5 && <List size="sm">{paths.map((p) => <List.Item key={p}><Code>{p}</Code></List.Item>)}</List>}
         {error && <Note color="red" title="Failed">{error}</Note>}
         <Group justify="flex-end">

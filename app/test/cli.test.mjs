@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -337,6 +337,52 @@ test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only
   const debug = run({ BENCHKEEPER_DEBUG: '1' });
   assert.equal(debug.status, 2);
   assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
+});
+
+test('doctor and verify refuse a folder that does not exist, exit 2 in the terminal and with --json; an existing folder still runs', async () => {
+  const missing = join(mkdtempSync(join(tmpdir(), 'bk-cli-')), 'nope');
+  for (const args of [['doctor', missing], ['verify', missing], ['doctor', '--project', missing], ['verify', '--project', missing]]) {
+    const t = cli();
+    assert.equal(await t.exec(args), 2, args.join(' '));
+    assert.equal(t.text(), `${missing} is not a folder\n`, args.join(' '));
+    const j = cli();
+    assert.equal(await j.exec([...args, '--json']), 2, `${args.join(' ')} --json`);
+    assert.equal(JSON.parse(j.text()).error, `${missing} is not a folder`, `${args.join(' ')} --json`);
+  }
+  const here = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const v = cli();
+  assert.notEqual(await v.exec(['verify', here, '--json']), 2);
+  assert.ok(JSON.parse(v.text()).checks.length);
+});
+
+test('doctor names a folder it cannot read instead of calling it missing', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const dir = join(parent, 'proj');
+  mkdirSync(dir);
+  chmodSync(parent, 0o000);
+  try {
+    const t = cli();
+    assert.equal(await t.exec(['doctor', dir]), 2);
+    assert.equal(t.text(), `cannot read ${dir}: EACCES\n`);
+  } finally {
+    chmodSync(parent, 0o700);
+  }
+});
+
+test('insights --json --project refuses a folder that does not exist, exit 2; an existing folder still runs', async () => {
+  const missing = join(mkdtempSync(join(tmpdir(), 'bk-cli-')), 'nope');
+  const j = cli();
+  assert.equal(await j.exec(['insights', '--json', '--project', missing]), 2);
+  assert.equal(JSON.parse(j.text()).error, `${missing} is not a folder`);
+  const t = cli();
+  assert.equal(await t.exec(['insights', '--project', missing]), 2);
+  assert.equal(t.text(), `${missing} is not a folder\n`);
+  const here = cli();
+  assert.notEqual(await here.exec(['insights', '--json', '--project', mkdtempSync(join(tmpdir(), 'bk-cli-'))]), 2);
+  assert.ok(Array.isArray(JSON.parse(here.text()).findings));
+  const empty = cli();
+  assert.equal(await empty.exec(['insights', '--json', '--project', '']), 2);
+  assert.equal(JSON.parse(empty.text()).error, '--project needs a folder');
 });
 
 test('profile import exits 1 when its save and register question is answered no', async () => {

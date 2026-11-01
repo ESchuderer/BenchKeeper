@@ -1,7 +1,7 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -593,6 +593,16 @@ const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo:
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
 // The usage error of a flag or argument the command does not read, if any; puts a --project folder in its positional.
+// A folder argument that is missing or not a folder reads as such; another stat error (a parent that denies access) is named
+// as it is, so an existing project is not reported as missing.
+function folderProblem(dir) {
+  try {
+    return statSync(dir).isDirectory() ? undefined : `${dir} is not a folder`;
+  } catch (e) {
+    return ['ENOENT', 'ENOTDIR'].includes(e.code) ? `${dir} is not a folder` : `cannot read ${dir}: ${e.code ?? e.message}`;
+  }
+}
+
 function checkArgs(o, positionals) {
   const [cmd = 'ui', arg] = positionals;
   const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k));
@@ -604,7 +614,12 @@ function checkArgs(o, positionals) {
     if (positionals[at] !== undefined && resolve(positionals[at]) !== resolve(o.project)) return `--project ${o.project} and ${positionals[at]} name different folders: give one`;
     positionals[at] = o.project;
   }
-  return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
+  if (positionals.length > (ARGS[name] ?? Infinity)) return `unexpected argument ${positionals[ARGS[name]]}`;
+  // doctor and verify check the folder they name: one that does not exist must not read as a clean check.
+  if (['doctor', 'verify'].includes(name) && positionals[1] !== undefined) return folderProblem(resolve(positionals[1]));
+  // insights reads a project's proposals from --project: a folder that does not exist must not give the machine's findings alone.
+  if (name === 'insights' && o.project !== undefined) return o.project === '' ? '--project needs a folder' : folderProblem(resolve(o.project));
+  return undefined;
 }
 
 // The lines of HELP for one command (the noun, and the verb when given) with their continuation lines, then the

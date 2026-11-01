@@ -105,6 +105,23 @@ const SHEBANG = /^#!\s*(\/usr\/bin\/env\s+)?(\S*\/)?(sh|bash|python3?)(\s|$)/;
 const NETWORK = /\b(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|ftp|telnet|nmap|npm|npx|pip3?|apt(-get)?|brew)\b|\bgit\s+(fetch|pull|push|clone|ls-remote)\b|\/dev\/(tcp|udp)\/|https?:\/\/|\b(import|from)\s+(urllib|requests|socket|http|httpx|aiohttp|ftplib|smtplib|ssl)\b/;
 const marker = (id) => `automation-${id}`;
 const re = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The helpers whose path in the sh text s sits inside single or double quotes. Install and export put a quoted absolute
+// path in its place, so inside quotes it would name a file with quote characters in its name. A # comment is skipped.
+const quotedHelpers = (t, s) => {
+  const inside = new Set();
+  let q = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) for (const h of t.helpers) if (s.startsWith(h, i)) inside.add(h);
+    if (q === "'") { if (c === "'") q = ''; }
+    else if (c === '\\') i++;
+    else if (c === '"') q = q ? '' : '"';
+    else if (c === "'" && !q) q = "'";
+    else if (c === '#' && !q && (i === 0 || /\s/.test(s[i - 1]))) { const end = s.indexOf('\n', i); i = end < 0 ? s.length : end; }
+  }
+  return [...inside];
+};
+const quotedMessage = (h) => `${h} is inside quotes in the precheck: write the helper path unquoted, it is replaced by a quoted path`;
 
 // Problems of one loaded template as { rule, message }. generic: the template ships in this repository, so it may name no private path or name.
 // A helper file is { path, text, executable }; text null when the file is missing.
@@ -128,6 +145,7 @@ export function lint(t, { generic = true, privateNames = [] } = {}) {
     if (HOME_PATH.test(all)) bad('private', 'a home, mount or drive path: use $HOME or a parameter');
     for (const n of privateNames) if (new RegExp(`(?<!\\w)${re(n)}(?!\\w)`, 'i').test(all)) bad('private', `the private name "${n}"`);
   }
+  for (const h of quotedHelpers(t, t.precheck)) bad('helper', quotedMessage(h));
   for (const f of files) {
     if (f.text == null) { bad('helper', `${f.path} is missing, not a plain file, or outside the template folder`); continue; }
     if (!f.executable) bad('helper', `${f.path} is not executable`);
@@ -211,6 +229,8 @@ function template(ctx, id) {
 // What the runner gets for a template filled with values in the project folder dir.
 function spec(ctx, t, values, dir, { fromUser = false } = {}) {
   if (t.schedule === '') throw new Error(`${t.id} has no schedule: the runner needs one`);
+  const [quoted] = quotedHelpers(t, t.precheck);
+  if (quoted) throw new Error(quotedMessage(quoted));
   const filled = fill(t, values, { fromUser });
   let { precheck, prompt } = filled;
   for (const h of t.helpers) {
@@ -259,6 +279,8 @@ export function exportScript(ctx, id, { values = {}, dir }) {
   if (t.workspace !== 'project') throw new Error(`${id}: workspace ${t.workspace} needs the runner`);
   const filled = fill(t, values, { fromUser: true });
   if (filled.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
+  const [quoted] = quotedHelpers(t, t.precheck);
+  if (quoted) throw new Error(quotedMessage(quoted));
   const helpers = t.helper_files.map((h) => {
     if (h.text == null) throw new Error(`${h.path} is missing`);
     let end = 'HELPER';

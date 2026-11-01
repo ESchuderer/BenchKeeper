@@ -98,6 +98,11 @@ test('export: a precheck that ends in a comment or spans lines still parses and 
   }
 });
 
+test('export: a helper path inside quotes in the precheck is refused, not run as a path with quote characters', () => {
+  const s = setup({ precheck: '"probe/precheck.sh" x' });
+  assert.throws(() => exportScript(s.ctx, 'probe', { dir: s.project }), /probe\/precheck\.sh is inside quotes in the precheck: write the helper path unquoted/);
+});
+
 test('export: an agent missing from PATH fails with exit 127 before the precheck', () => {
   const s = setup();
   const file = join(s.project, 'probe.sh');

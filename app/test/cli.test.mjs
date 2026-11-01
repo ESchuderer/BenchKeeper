@@ -327,3 +327,16 @@ test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only
   assert.equal(debug.status, 2);
   assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
 });
+
+test('accounts: a bad name, agent or percentage and an unknown --account exit 2 in the terminal', async () => {
+  for (const [args, message] of [
+    [['accounts', 'add', '../evil', '--agent', 'claude', '--yes'], /^the name is 1 to 32 characters/],
+    [['accounts', 'add', 'ok2', '--agent', 'bogus', '--yes'], /the agent is one of claude, codex/],
+    [['accounts', 'limits', '--five-hour', '200'], /^--five-hour is a percentage from 0 to 100/],
+    [['run', '--account', 'nosuch', '--', 'claude'], /^no account nosuch: benchkeeper accounts list/],
+  ]) {
+    const t = cli();
+    assert.equal(await t.exec(args), 2, args.join(' '));
+    assert.match(t.text(), message, args.join(' '));
+  }
+});

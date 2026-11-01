@@ -64,7 +64,7 @@ test('add asks for what is missing, then offers the sign-in', skip, async () => 
   assert.equal(m.opened.length, 1);
   // With --yes nothing is asked: a missing name is a usage error.
   const d = cli(m);
-  assert.equal(await d.exec(['accounts', 'add', '--yes']), 1);
+  assert.equal(await d.exec(['accounts', 'add', '--yes']), 2);
   assert.match(d.text(), /the name is 1 to 32 characters/);
 });
 

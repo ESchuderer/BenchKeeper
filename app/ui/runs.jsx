@@ -92,9 +92,9 @@ export function Surfaces() {
   const [asking, setAsking] = useState(false);
   // why: the sentence the plan shows; on: set for the tier strip switch only.
   // route and body: the status line style plans in an account's settings.json, not in the user settings.
-  const ask = async (key, value, why, on, route = '/api/settings-plan', body = { agent: 'claude', layer: 'user', edits: { [key]: value } }) => {
+  const ask = async (key, value, why, on, route = '/api/settings-plan', body = null) => {
     setError(null); setPlan(null); setAsking(true);
-    try { setPlan({ key, value, why, on, plan: await api(route, body) }); } catch (e) { setError(e.message); }
+    try { setPlan({ key, value, why, on, plan: await api(route, body ?? { agent: 'claude', layer: 'user', edits: { [key]: value } }) }); } catch (e) { setError(e.message); }
     setAsking(false);
   };
   const pending = (key) => (plan && !plan.done && plan.key === key ? plan : null);

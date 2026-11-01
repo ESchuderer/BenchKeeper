@@ -21,11 +21,14 @@ BenchKeeper releases only when the owner merges the release pull request or star
    2. creates the tags and the GitHub Releases;
    3. moves the branch `stable` (the ref the app adds BenchKeeper's marketplace at) to the release commit;
    4. starts `.github/workflows/pages.yml`;
-   5. labels the release pull request `autorelease: tagged`, so release-please opens the next one.
+   5. labels the release pull request `autorelease: tagged`, so release-please opens the next one;
+   6. starts the Release workflow once more, so release-please sees the new label even when a push during the release ran it before the label changed.
 
 A failed publish creates no tag or Release and moves nothing. Rerun the job after the fix: each step skips what an earlier run did. Until then the docs on `main` name a version npm does not have, and release-please opens no new release pull request.
 
-Pushes to `main` right after the merge do not stop the release. The job `release` has a concurrency group per commit, so a later push never cancels the run of the release merge; its own run of the job finds no release pull request and does nothing. Only the job `release-please` shares one group: a pending one that a newer push replaces is dropped, and the newer one updates the release pull request.
+Pushes to `main` right after the merge do not stop the release. The job `release` has a concurrency group per commit, so a later push never cancels the run of the release merge; its own run of the job finds no release pull request and does nothing. Only the job `release-please` shares one group: a pending one that a newer push replaces is dropped, and the newer one updates the release pull request. A release-please job that runs while the job `release` is still publishing finds the pending pull request and does nothing; step 6 runs it again afterwards.
+
+The owner starts `npm.yml` by hand (Actions, npm publish, Run workflow) with both inputs, the version and the full hash of the release commit: `gh workflow run npm.yml --repo ESchuderer/BenchKeeper --ref main -f version=<x.y.z> -f sha=<release commit>`. That is also the way out for a run of the job `release` that started before `npm.yml` required `sha`: a rerun of such a run uses its old workflow file and dispatches without `sha`, which fails. Publish by hand, then rerun the job; it finds the version on npm and continues.
 
 ## Site
 

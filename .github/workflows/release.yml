@@ -184,3 +184,9 @@ jobs:
           PR: ${{ steps.pr.outputs.number }}
         run: |
           gh pr edit "$PR" --repo "$REPO" --remove-label 'autorelease: pending' --add-label 'autorelease: tagged'
+      # A push during the release ran release-please while the pull request was still pending, and that run opened no
+      # release pull request; the job release-please of this run is its own group, so it can run before the label
+      # changes. One more run of this workflow does that work now.
+      - if: ${{ steps.pr.outputs.number != '' }}
+        name: Run release-please again
+        run: gh workflow run release.yml --repo "$REPO" --ref main

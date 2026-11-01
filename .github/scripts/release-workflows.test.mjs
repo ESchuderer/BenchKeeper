@@ -100,3 +100,11 @@ test('release.yml has no workflow-wide concurrency group; the job release has on
   const rp = release.slice(release.indexOf('\n  release-please:\n'), release.indexOf('\n  release:\n'));
   assert.match(rp, /^ {4}concurrency:\n {6}group: \$\{\{ github\.workflow \}\}-release-please\n/m);
 });
+
+// A push during the release runs release-please while the release pull request is still pending, which opens nothing.
+test('release.yml starts release-please again after it marks the release pull request as tagged', () => {
+  const tagged = release.indexOf('- if: ${{ steps.pr.outputs.number != \'\' }}\n        name: Mark the release pull request as tagged');
+  const again = release.indexOf('name: Run release-please again');
+  assert.ok(tagged > 0 && again > tagged);
+  assert.match(release.slice(again), /run: gh workflow run release\.yml --repo "\$REPO" --ref main/);
+});

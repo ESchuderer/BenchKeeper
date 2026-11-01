@@ -18,12 +18,15 @@ test('the demo server refuses a HOME outside its fixture root', () => {
 // UI test fixtures at fixed names below the temp folder could be made in advance by another user (CodeQL's
 // js/insecure-temporary-file): playwright.config.mjs makes one private folder per run and the fixtures live below it.
 test('the UI tests keep their fixtures in one private folder per run, not at fixed names below the temp folder', async () => {
-  const load = (env = {}) => spawnSync(process.execPath, ['--input-type=module', '-e', "import { statSync } from 'node:fs'; const { STATE } = await import('./playwright.config.mjs'); const root = process.env.BK_UI_ROOT; console.log(JSON.stringify([root, STATE, root && statSync(root).mode & 0o777]));"], { env: { PATH: process.env.PATH, ...env }, encoding: 'utf8', timeout: 20000 });
+  // PATH and the temp folder settings only: BK_UI_ROOT stays unset unless a case sets it.
+  const temp = Object.fromEntries(['PATH', 'TMPDIR', 'TMP', 'TEMP'].filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]]));
+  const load = (env = {}) => spawnSync(process.execPath, ['--input-type=module', '-e', "import { statSync } from 'node:fs'; const { STATE } = await import('./playwright.config.mjs'); const root = process.env.BK_UI_ROOT; console.log(JSON.stringify([root, STATE, root && statSync(root).mode & 0o777]));"], { env: { ...temp, ...env }, encoding: 'utf8', timeout: 20000 });
   const runs = [load(), load()].map((r) => { assert.equal(r.status, 0, r.stderr); return JSON.parse(r.stdout); });
   try {
     assert.notEqual(runs[0][0], runs[1][0]);
     for (const [root, state, mode] of runs) {
-      assert.equal(mode, 0o700);
+      // Windows reports made-up permission bits.
+      if (process.platform !== 'win32') assert.equal(mode, 0o700);
       assert.equal(dirname(state), root);
       // The process that made the folder removes it when it ends.
       assert.equal(existsSync(root), false);

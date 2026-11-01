@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -18,15 +18,25 @@ test('the demo server refuses a HOME outside its fixture root', () => {
 // UI test fixtures at fixed names below the temp folder could be made in advance by another user (CodeQL's
 // js/insecure-temporary-file): playwright.config.mjs makes one private folder per run and the fixtures live below it.
 test('the UI tests keep their fixtures in one private folder per run, not at fixed names below the temp folder', async () => {
-  const load = () => spawnSync(process.execPath, ['--input-type=module', '-e', "const { STATE } = await import('./playwright.config.mjs'); console.log(JSON.stringify([process.env.BK_UI_ROOT, STATE]));"], { env: { PATH: process.env.PATH }, encoding: 'utf8', timeout: 20000 });
+  const load = (env = {}) => spawnSync(process.execPath, ['--input-type=module', '-e', "import { statSync } from 'node:fs'; const { STATE } = await import('./playwright.config.mjs'); const root = process.env.BK_UI_ROOT; console.log(JSON.stringify([root, STATE, root && statSync(root).mode & 0o777]));"], { env: { PATH: process.env.PATH, ...env }, encoding: 'utf8', timeout: 20000 });
   const runs = [load(), load()].map((r) => { assert.equal(r.status, 0, r.stderr); return JSON.parse(r.stdout); });
   try {
     assert.notEqual(runs[0][0], runs[1][0]);
-    for (const [root, state] of runs) {
-      assert.equal(statSync(root).mode & 0o777, 0o700);
+    for (const [root, state, mode] of runs) {
+      assert.equal(mode, 0o700);
       assert.equal(dirname(state), root);
+      // The process that made the folder removes it when it ends.
+      assert.equal(existsSync(root), false);
     }
   } finally { for (const [root] of runs) if (root) rmSync(root, { recursive: true, force: true }); }
+  // A folder the caller passes in (the workers and the web server get the runner's) stays.
+  const given = mkdtempSync(join(tmpdir(), 'bk-ui-given-'));
+  try {
+    const r = load({ BK_UI_ROOT: given });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout).slice(0, 2), [given, join(given, 'state.json')]);
+    assert.equal(existsSync(given), true);
+  } finally { rmSync(given, { recursive: true, force: true }); }
   const files = ['playwright.config.mjs', ...readdirSync('test/ui').filter((f) => f.endsWith('.mjs')).map((f) => join('test/ui', f))];
   for (const f of files) assert.doesNotMatch(readFileSync(f, 'utf8'), /(?<!mkdtempSync\()join\(tmpdir\(\),/, f);
 });

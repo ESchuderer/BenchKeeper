@@ -21,20 +21,26 @@ if (!GIT) throw new Error('git is not in /usr/bin, /usr/local/bin or /opt/homebr
 
 export const PORT = 4410;
 export const TOKEN = 'ui-test-token-0123456789';
-// The run's private folder from playwright.config.mjs (chain.mjs names the same paths below it), or a new one.
-const ROOT = process.env.BK_UI_ROOT || mkdtempSync(join(tmpdir(), 'bk-ui-run-'));
-// Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
-export const BATCH = join(ROOT, 'batch');
-
 // Demo mode (app/scripts/screenshots.mjs, the site's screenshots): fixed folder names under one fixture root, and the
 // server must run with HOME inside it.
 const DEMO = process.env.BK_DEMO_ROOT;
-const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(tmpdir(), 'bk-ui-'));
+// The run's private folder from playwright.config.mjs, which removes it (chain.mjs names the same paths below it); in
+// demo mode a folder in the demo root; else a new one, removed when this server ends.
+let ROOT = process.env.BK_UI_ROOT || (DEMO && join(DEMO, 'fixtures'));
+if (!ROOT) {
+  const own = mkdtempSync(join(tmpdir(), 'bk-ui-run-'));
+  ROOT = own;
+  process.on('exit', () => rmSync(own, { recursive: true, force: true }));
+  for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(signal, () => process.exit(code));
+}
+// Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
+export const BATCH = join(ROOT, 'batch');
+const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(ROOT, 'bk-ui-'));
 if (DEMO && resolve(process.env.HOME ?? '') !== resolve(home)) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
 mkdirSync(home, { recursive: true });
 // The folder dialog answers with a parent of the registered projects (one of them, other, is not set up) and, for the
 // scan, of one more unregistered folder with an agent setup.
-const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
+const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(ROOT, 'bk-ui-scan-'));
 const other = DEMO ? 'blog' : 'other';
 for (const name of DEMO ? [other] : [other, 'found']) {
   mkdirSync(join(parent, name), { recursive: true });

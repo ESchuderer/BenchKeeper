@@ -20,7 +20,7 @@ export const settingsAgents = Object.keys(CATALOG);
 export const agentSettings = (id) => CATALOG[id] ?? (() => { throw new Error(`no settings for agent ${id}: ${settingsAgents.join(', ')}`); })();
 
 // Whole words of the name (split at case changes and separators), so includeCoAuthoredBy and MAX_THINKING_TOKENS stay visible.
-const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
+const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|\w*passphrase|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
 const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 // A masked value must never come back as an edit: the placeholder would replace the stored secret.

@@ -1162,7 +1162,8 @@ function nothingChosen(plan, select, o, out) {
 async function applyAnswered(plan, ctx, scope, { o, ask, out, declines = false }) {
   const select = await choose(plan, o, ask, out);
   // --all asks once for the whole plan: a no cancels it and declines nothing.
-  if (declines && !o.all) declineUnselected(ctx, plan, select);
+  const warning = declines && !o.all ? declineUnselected(ctx, plan, select) : null;
+  if (warning) out.write(`warning: ${warning}\n`);
   return nothingChosen(plan, select, o, out) ?? report(apply(plan, ctx, { scope, select }), out);
 }
 

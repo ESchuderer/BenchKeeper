@@ -258,10 +258,17 @@ export function declineId(c) {
   return `change:${c.step}:${hashText(JSON.stringify([c.title, what]))}`;
 }
 // After an apply of the global plan: what the user left unselected is declined, unless it is optional, a removal or cannot be made;
-// a declined change the user selected again is no longer declined.
+// a declined change the user selected again is no longer declined. A preferences file that cannot be written over does
+// not stop the apply: nothing is recorded, and the warning returned says why (null when recorded).
 export function declineUnselected(ctx, plan, select) {
   const eligible = plan.filter((c) => !c.optional && !c.destructive && !c.error);
-  dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+  try {
+    dismissAll(ctx, eligible.filter((c) => !select.includes(c.id)).map(declineId), eligible.filter((c) => select.includes(c.id)).map(declineId));
+  } catch (e) {
+    if (!e.preferences) throw e;
+    return `the unselected changes are not remembered as declined: ${e.message}`;
+  }
+  return null;
 }
 
 export function globalPlan(env) {

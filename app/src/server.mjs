@@ -145,12 +145,12 @@ export function api(ctx) {
     if (named.length && ok !== true) throw bad(`confirmDestructive is needed to apply: ${named.map((c) => c.title).join('; ')}`);
   };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
-  const start = (total, work, { kind, title, readOnly = false }) => {
-    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, ctl: new AbortController() };
+  const start = (total, work, { kind, title, readOnly = false, warning = null }) => {
+    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, warning, ctl: new AbortController() };
     jobs.set(job.id, job);
     for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
     work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; memo.clear(); });
-    return { job: job.id, total };
+    return { job: job.id, total, ...(warning ? { warning } : {}) };
   };
   const evalPlanFor = (src) => {
     if (process.env.CI) throw bad('evals start agent sessions on a subscription and do not run in CI');
@@ -247,14 +247,15 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
-      if (p.declines && b.select) declineUnselected(ctx, p.changes, b.select);
+      // warning: the declines could not be recorded (an unreadable preferences file); the apply runs anyway.
+      const warning = p.declines && b.select ? declineUnselected(ctx, p.changes, b.select) : null;
       // Nothing chosen: the declines are recorded, no run starts.
-      if (b.select?.length === 0) return { job: null, total: 0 };
+      if (b.select?.length === 0) return { job: null, total: 0, ...(warning ? { warning } : {}) };
       // Output is masked as it arrives and kept per change, its last 64 kB; GET /api/job cuts it to 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
         if (e.output) maskStream(job.output[e.entry.id] ??= { text: '', rest: '', end: null }, e.output);
-      }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
+      }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope, warning });
     },
     // One-run setup: several plans (the global one, projects) applied as one job, one section per plan, in order. Each
     // section is a run of its own, so undo stays per run. A failed section leaves the others; a cancel stops after the
@@ -271,7 +272,7 @@ export function api(ctx) {
       if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
       for (const { p, select } of list) confirmed(p, select, b.confirmDestructive);
       for (const { id } of list) plans.delete(id);
-      for (const { p, select } of list) if (p.declines && select) declineUnselected(ctx, p.changes, select);
+      const warning = list.map(({ p, select }) => (p.declines && select ? declineUnselected(ctx, p.changes, select) : null)).find(Boolean) ?? null;
       return start(list.length, async (job) => {
         job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
         for (const [i, { p, select }] of list.entries()) {
@@ -285,7 +286,7 @@ export function api(ctx) {
             if (run.status === 'failed') s.error = run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ');
           } catch (e) { s.status = 'failed'; s.error = e.message; }
         }
-      }, { kind: 'apply-all', title: 'one-run setup' });
+      }, { kind: 'apply-all', title: 'one-run setup', warning });
     },
     // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id. Three
     // run at a time; a result is kept 10 minutes or until files change through the app. They run in an OS sandbox; where
@@ -324,7 +325,7 @@ export function api(ctx) {
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: Object.fromEntries(Object.entries(job.output).map(([id, t]) => [id, shown(t).slice(-8192)])), run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, warning: job.warning ?? null, output: Object.fromEntries(Object.entries(job.output).map(([id, t]) => [id, shown(t).slice(-8192)])), run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
       sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.

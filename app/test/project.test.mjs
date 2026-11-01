@@ -11,7 +11,8 @@ import { appVersion, contentDir, library } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
-import { ENVS, STATE, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, localSetup, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
+import { classify } from '../src/inventory.mjs';
 import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -63,7 +64,7 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   const local = read(join(r.dir, 'CLAUDE.local.md'));
   assert.ok(local.startsWith('@AGENTS.md\n\n') && local.includes('- Default tier: quick'), local);
   const override = read(join(r.dir, 'AGENTS.override.md'));
-  assert.ok(override.startsWith('# Project\n\nmy notes\n') && override.includes('- Default tier: quick'), override);
+  assert.ok(override.startsWith('<!-- benchkeeper:override start -->\n# Project\n\nmy notes\n') && override.includes('- Default tier: quick'), override);
   assert.equal(readState(r.dir).share, false);
   const exclude = read(join(r.dir, '.git/info/exclude'));
   for (const p of ['/.benchkeeper/', '/CLAUDE.local.md', '/AGENTS.override.md', '/.claude/skills/designing-technical-uis/', '/.agents/skills/designing-technical-uis/']) assert.ok(exclude.includes(`\n${p}\n`), p);
@@ -77,6 +78,74 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   // Only the personal files stay ignored: a hand-written CLAUDE.local.md stays out of the commit and in new worktrees.
   assert.deepEqual(read(join(r.dir, '.git/info/exclude')).split('\n').filter((l) => l.startsWith('/')), ['/CLAUDE.local.md', '/AGENTS.override.md']);
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
+});
+
+test('AGENTS.override.md keeps the user\'s own lines: a re-apply follows AGENTS.md in its block, drift ignores them, removal leaves them', () => {
+  const r = repo();
+  const at = join(r.dir, 'AGENTS.override.md');
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nfirst\n');
+  const answers = { agents: ['codex'], env: 'host', share: false };
+  const go = () => apply(preview(plan(r, answers).changes), r.ctx, { scope: r.dir });
+  assert.equal(go().status, 'done');
+  writeFileSync(at, `my note above\n\n${read(at)}\n## Agent skills\n\n- mine\n`);
+  // The user's lines are no drift: the change is current, and a plan without AGENTS.md changes has nothing for the file.
+  const states = [];
+  classify(r.ctx, plan(r, answers).changes.filter((c) => c.step === 'local-codex'), (step, title, state) => states.push(state));
+  assert.deepEqual(states, ['current']);
+  assert.ok(!preview(plan(r, answers).changes).some((c) => c.step === 'local-codex'));
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nsecond\n');
+  const [change] = preview(plan(r, answers).changes).filter((c) => c.step === 'local-codex');
+  assert.equal(change.selected, true);
+  assert.equal(go().status, 'done');
+  const text = read(at);
+  assert.ok(text.startsWith('my note above\n\n<!-- benchkeeper:override start -->\n# Project\n\nsecond\n') && text.endsWith('<!-- benchkeeper:override end -->\n\n## Agent skills\n\n- mine\n'), text);
+  assert.doesNotMatch(text, /first/);
+
+  // Removing the setup takes out BenchKeeper's block only; the file goes when nothing else is in it.
+  const removal = preview(localSetup(r.ctx, r.dir)).filter((c) => c.step === 'local-codex');
+  assert.deepEqual(removal.map((c) => [c.kind, c.selected]), [['write', true]]);
+  const run = apply(removal, projectCtx(r.ctx, r.dir), { scope: r.dir });
+  assert.equal(read(at), 'my note above\n\n## Agent skills\n\n- mine\n');
+  assert.equal(undo(run.id, projectCtx(r.ctx, r.dir)).status, 'done');
+  assert.equal(read(at), text);
+  writeFileSync(at, text.replace('my note above\n\n', '').replace(/\n## Agent skills[^]*$/, ''));
+  assert.deepEqual(preview(localSetup(r.ctx, r.dir)).filter((c) => c.step === 'local-codex').map((c) => c.kind), ['remove']);
+});
+
+test('an AGENTS.override.md an older version wrote is converted on apply: lines after its block stay, its copy of AGENTS.md is replaced', () => {
+  const r = repo();
+  const at = join(r.dir, 'AGENTS.override.md');
+  const answers = { agents: ['codex'], env: 'host', share: false };
+  // The case of the report: no AGENTS.md, so the old file was the rules block alone, and the user appended a section.
+  const old = '<!-- benchkeeper:project start -->\n- old rule\n<!-- benchkeeper:project end -->\n\n## Agent skills\n\n- mine\n';
+  writeFileSync(at, old);
+  let [change] = preview(plan(r, answers).changes).filter((c) => c.step === 'local-codex');
+  assert.equal(change.selected, true);
+  assert.equal(apply(preview(plan(r, answers).changes), r.ctx, { scope: r.dir }).status, 'done');
+  let text = read(at);
+  assert.match(text, /^<!-- benchkeeper:override start -->\n<!-- benchkeeper:project start -->\n/);
+  assert.ok(text.endsWith('<!-- benchkeeper:override end -->\n\n## Agent skills\n\n- mine\n') && !text.includes('- old rule'), text);
+  // Converted once: the next plan has nothing for the file.
+  assert.ok(!preview(plan(r, answers).changes).some((c) => c.step === 'local-codex'));
+
+  // With AGENTS.md: the old copy before the block is replaced by the current text, not kept as the user's.
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nnew\n');
+  writeFileSync(at, `# Project\n\nstale\n\n${old}`);
+  [change] = preview(plan(r, answers).changes).filter((c) => c.step === 'local-codex');
+  assert.match(change.diff, /-stale/);
+  apply([change], r.ctx, { scope: r.dir });
+  text = read(at);
+  assert.ok(text.startsWith('<!-- benchkeeper:override start -->\n# Project\n\nnew\n') && text.endsWith('\n## Agent skills\n\n- mine\n') && !text.includes('stale'), text);
+  // Removing an older version's file keeps its appended lines too.
+  writeFileSync(at, `# Project\n\nnew\n\n${old}`);
+  const removal = preview(localSetup(r.ctx, r.dir)).filter((c) => c.step === 'local-codex');
+  apply(removal, projectCtx(r.ctx, r.dir), { scope: r.dir });
+  assert.equal(read(at), '## Agent skills\n\n- mine\n');
+  // A file without any block is hand-written: the block goes above it, offered, since Codex then reads AGENTS.md's text too.
+  [change] = preview(plan(r, answers).changes).filter((c) => c.step === 'local-codex');
+  assert.deepEqual([change.selected, change.title.endsWith('(above your own text)')], [false, true]);
+  apply([change], r.ctx, { scope: r.dir, select: [change.id] });
+  assert.match(read(at), /^<!-- benchkeeper:override start -->\n# Project\n\nnew\n[^]*<!-- benchkeeper:override end -->\n\n## Agent skills\n\n- mine\n$/);
 });
 
 test('exclude lines use forward slashes for Windows paths: a backslash escapes the next character in Git', () => {

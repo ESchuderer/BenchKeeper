@@ -78,7 +78,7 @@ export function mergeJson(text, edits, file) {
   return out.endsWith('\n') ? out : `${out}\n`;
 }
 
-const marks = (id, comment) => (comment === '#' ? [`# benchkeeper:${id} start`, `# benchkeeper:${id} end`] : [`<!-- benchkeeper:${id} start -->`, `<!-- benchkeeper:${id} end -->`]);
+export const marks = (id, comment) => (comment === '#' ? [`# benchkeeper:${id} start`, `# benchkeeper:${id} end`] : [`<!-- benchkeeper:${id} start -->`, `<!-- benchkeeper:${id} end -->`]);
 
 // Replaces or appends the block between benchkeeper markers; text outside it stays. block null removes the block.
 export function setBlock(text, id, block, comment) {

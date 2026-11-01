@@ -46,6 +46,12 @@ test('quality: the baselines only shrink, a new finding or more duplicated lines
   assert.deepEqual(fixed.shrunk, { knip: run.knip, duplicatedLines: { app: 12, web: 3 } });
 });
 
+test('quality: coverage without an lcov file prints the usage and exits 2', () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/quality.mjs', import.meta.url)), 'coverage'], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /^usage: node scripts\/quality\.mjs coverage <lcov file>/);
+});
+
 test('quality: started through a symlinked folder it still runs its command line', () => {
   const real = realpathSync(fileURLToPath(new URL('../scripts', import.meta.url)));
   const link = join(mkdtempSync(join(tmpdir(), 'bk-quality-')), 'link');

@@ -129,7 +129,7 @@ The view shows per installed automation its state, whether it is enabled, its mo
 | Agent | Command in the script | What the run may do |
 |---|---|---|
 | `claude` | `claude -p "$prompt" --permission-mode dontAsk --allowedTools "Bash(<folder>/<helper> *)"..` | file reads in the folder, the template's helpers (the script allows each one, since their folder changes per run) and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the other commands the prompt runs, such as `gh`, to the project's settings |
-| `codex` | `codex exec --sandbox workspace-write "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
+| `codex` | `codex exec --sandbox workspace-write -- "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
 
 Limits:
 

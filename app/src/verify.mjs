@@ -29,9 +29,9 @@ export function verifyPackage(spec, env = childEnv({})) {
   }
 }
 
-// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var);
-// with node -e it may be an argument, not a file.
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+// import.meta.main (Node 22.18 and later) is true for the entry module only, also when started through a symlink or
+// imported from node -e. Before 22.18: compare real paths, as Node keeps process.argv[1] as given (macOS /var is /private/var).
+if (import.meta.main ?? (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)))) {
   const r = verifyPackage(process.argv[2] ?? '');
   process.stdout.write(r.stdout ?? '');
   process.stderr.write(r.stderr ?? '');

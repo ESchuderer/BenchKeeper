@@ -90,9 +90,9 @@ const run = () => ({
   duplicatedLines: Object.fromEntries(Object.entries(AREAS).map(([area, args]) => [area, duplicated(args)])),
 });
 
-// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var);
-// with node -e it may be an argument, not a file.
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+// import.meta.main (Node 22.18 and later) is true for the entry module only, also when started through a symlink or
+// imported from node -e. Before 22.18: compare real paths, as Node keeps process.argv[1] as given (macOS /var is /private/var).
+if (import.meta.main ?? (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)))) {
   const [what, arg] = process.argv.slice(2);
   const quality = JSON.parse(readFileSync(QUALITY, 'utf8'));
   let problems;

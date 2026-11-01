@@ -286,3 +286,14 @@ test('tests: a long chain of variable assignments is matched in linear time, quo
   assert.equal(TEST.test(`NODE_OPTIONS="--trace-warnings --no-deprecation" A='x y' npm test`), true);
   assert.deepEqual(['sh -c npm test', "bash -lc  'npm test'", 'sh -c " npm test"'].map((c) => TEST.test(c)), [true, true, true]);
 });
+
+test('tests: a long run of line breaks is matched in linear time, and a test command after line breaks still counts', () => {
+  const start = performance.now();
+  assert.equal(TEST.test(`${'\n'.repeat(30000)}x`), false);
+  assert.equal(TEST.test(`${'\n '.repeat(30000)}x`), false);
+  assert.equal(TEST.test(`;${' \r\n'.repeat(30000)}x`), false);
+  assert.equal(TEST.test(`${'A=1\n'.repeat(16000)}x`), false);
+  assert.equal(TEST.test(`${'A="x\ny" \n'.repeat(8000)}x`), false);
+  assert.ok(performance.now() - start < 200);
+  assert.deepEqual(['cd app\n\n  npm test', 'cd app;\n npm test', '\n\tCI=1 npx vitest run', 'sh -c "\n npm test"', 'echo\n# npm test', 'A=1\nB=2 npm test', ';A="x\ny" npm test'].map((c) => TEST.test(c)), [true, true, true, true, false, true, true]);
+});

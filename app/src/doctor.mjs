@@ -19,10 +19,10 @@ import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
-import { skillFiles } from './skills.mjs';
+import { skillFiles, unfinishedSkills } from './skills.mjs';
 import { declineId, globalPlan, installedRefusal } from './steps/global.mjs';
 import { dismissedNotes } from './preferences.mjs';
-import { promptAgent, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { promptAgent, quote, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -120,6 +120,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && !upToDate(state)) out.push(issue('warning', 'project', `project setup: app ${state.appVersion}, content ${state.contentVersion}; this app ${appVersion}, content ${contentVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
+  for (const u of unfinishedSkills(ctx, dir, state)) out.push(issue('warning', 'skills', `skill ${u.name} from ${u.source}: its install did not finish (${u.folders.join(', ')})`, `benchkeeper projects apply --project ${quote(dir)}: it installs the unfinished folders again`));
   out.push(...packSetupChecks(dir, state), ...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // The global files are reported once, by the global checks; imports that point nowhere by instructionChecks.

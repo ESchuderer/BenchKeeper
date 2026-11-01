@@ -13,7 +13,7 @@ import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, 
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
+import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -325,6 +325,9 @@ export function chosenSkills(a, lib = library()) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
+// A community skill's folder left by an install that did not finish: it has no SKILL.md.
+export const unfinishedHere = (skillsDir, name) => exists(join(skillsDir, name)) && !exists(join(skillsDir, name, 'SKILL.md'));
+
 // Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
 export const slashRel = (dir, p, path = nodePath) => path.relative(dir, p).split(path.sep).join('/');
 
@@ -546,14 +549,17 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // A community skill comes from the default branch of its source; an update (asked for) adds it again.
       const was = installedRefs.get(s.name);
       const refresh = a.update.includes(s.name);
-      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)));
+      // A folder an install left unfinished is installed again.
+      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)) || unfinishedHere(d, s.name));
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
-      const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
+      // A folder the last install left unfinished is no edit.
+      const held = !reseat && targets.some(({ dir: d }) => !unfinishedHere(d, s.name) && editedHere(d, s.name, installedHashes.get(s.name)));
+      const note = held ? ' (edited here: reset the skill to replace it)' : targets.some(({ dir: d }) => unfinishedHere(d, s.name)) ? ' (again: the last install did not finish)' : '';
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${note}`, {
         kind: 'command', installUnit, outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
         argv: ['npx', '-y', skillsSpec(ctx), 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
@@ -642,7 +648,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const lost = a.skills.filter((n) => !lib.skills.some((s) => s.name === n)).map((n) => `skill ${n} is not in the library or your skills, so it installs nothing: create it again (benchkeeper skills new ${n}) or take it out (benchkeeper skills remove ${n})`);
   const clashes = [...hiddenMine].map((n) => `your skill ${n} is hidden by the library skill of that name, so its files here are kept until you reset the skill: to keep yours, ${clashFix(ctx, n)}`);
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...frameworkNotices({ a, dir, prev })] };
+  // A link in a copied skill's folder that points to nothing or to a folder is not copied (#914): the plan says which.
+  const linkWarnings = skills.filter((s) => copied(s) && !a.disabled.includes(s.name)).flatMap((s) => {
+    const links = skippedLinks(skillFolder(ctx, s));
+    return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
+  });
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

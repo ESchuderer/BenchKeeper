@@ -173,7 +173,10 @@ const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'E
   [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
 
 // What the global setup installs, by part, with its state on disk; a part's items open on a button, open from the start when some need attention.
-function GlobalItems({ items }) {
+// An item that needs attention has a box: the ticked ones go into the plan. A removal ('foreign') starts unticked.
+const tickable = (i) => ATTENTION.includes(i.state) && i.state !== 'error';
+const itemKey = (i) => `${i.step}|${i.title}`;
+function GlobalItems({ items, ticked, onTick, locked }) {
   const parts = GLOBAL_PARTS.map(([steps, title, view, viewName]) => ({ title, view, viewName, rows: items.filter((i) => steps.includes(i.step.split(':')[0])) })).filter((p) => p.rows.length);
   if (!parts.length) return <Text size="sm">Nothing is installed globally yet: plan the setup below.</Text>;
   return parts.map((p) => {
@@ -186,12 +189,30 @@ function GlobalItems({ items }) {
         </Group>
         <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`} initial={attention > 0}>
           <List size="sm" listStyleType="none" spacing={4}>
-            {p.rows.map((i) => <List.Item key={`${i.step}|${i.title}`}><Group gap="xs" wrap="nowrap"><StateBadge state={i.state} /><Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text></Group></List.Item>)}
+            {p.rows.map((i) => (
+              <List.Item key={itemKey(i)}>
+                <Group gap="xs" wrap="nowrap">
+                  {tickable(i) && <Checkbox size="xs" aria-label={i.title} checked={ticked.has(itemKey(i))} disabled={locked} onChange={() => onTick(i)} />}
+                  <StateBadge state={i.state} />
+                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text>
+                </Group>
+              </List.Item>
+            ))}
           </List>
         </Folded>
       </Stack>
     );
   });
+}
+
+// The plan's own start selection with the ticks applied: a change of a ticked item is on, one of an unticked item is off,
+// the rest (what the inventory does not list) keeps its default; the changes of one unit go together.
+function followTicks(plan, items, ticked) {
+  const known = new Set(items.filter(tickable).map(itemKey));
+  const key = (c) => `${c.step}|${c.title}`;
+  const on = plan.changes.filter((c) => !c.error && (known.has(key(c)) ? ticked.has(key(c)) : c.selected)).map((c) => c.id);
+  const units = new Set(plan.changes.filter((c) => c.unit && on.includes(c.id)).map((c) => c.unit));
+  return plan.changes.filter((c) => !c.error && (on.includes(c.id) || units.has(c.unit))).map((c) => c.id);
 }
 
 // One row per agent. An installed agent shows a short chip per missing feature with the sentence as its tooltip;
@@ -229,8 +250,23 @@ export function Agents({ overview, params, refresh }) {
   const [select, setSelect] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
+  // The user's own ticks by item; an item without one keeps its default, so a reload of the inventory drops the resolved items and ticks the new ones.
+  const [choices, setChoices] = useState({});
+  const [running, setRunning] = useState(false);
+  const request = useRef(0);
   const installed = overview.data?.agents.filter((a) => a.installed).map((a) => a.id) ?? [];
-  const load = async (ids) => { setError(null); setPlan(null); try { setPlan(await api(`/api/global-plan?agents=${ids.join(',')}`)); } catch (e) { setError(e.message); } };
+  const rows = inv.data?.filter(tickable) ?? [];
+  const ticked = new Set(rows.filter((i) => choices[itemKey(i)] ?? (i.state !== 'foreign')).map(itemKey));
+  // Ticking changes what the plan holds: an open plan is dropped, a plan still on its way is ignored, the button asks for a new one.
+  const tick = (i) => { request.current += 1; setPlan(null); setChoices({ ...choices, [itemKey(i)]: !ticked.has(itemKey(i)) }); };
+  const load = async (ids, follow) => {
+    const n = ++request.current;
+    setError(null); setPlan(null);
+    try {
+      const p = await api(`/api/global-plan?agents=${ids.join(',')}`);
+      if (n === request.current) setPlan(follow ? { ...p, initial: followTicks(p, inv.data, ticked) } : p);
+    } catch (e) { if (n === request.current) setError(e.message); }
+  };
   // #/agents?agent=claude or ?plan=1 (Dashboard, palette) opens that plan.
   const auto = params.get('agent') ?? (params.get('plan') ? '*' : null);
   useEffect(() => {
@@ -242,6 +278,9 @@ export function Agents({ overview, params, refresh }) {
   return (
     <Loading state={overview} label="agents">{(o) => {
       const chosen = select ?? installed;
+      // The plan covers the chosen agents: the items of an installed agent that is not chosen do not count; machine items always do.
+      const scoped = rows.filter((i) => !installed.includes(i.agent) || chosen.includes(i.agent));
+      const count = scoped.filter((i) => ticked.has(itemKey(i))).length;
       return (
         <Stack gap="lg">
           <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
@@ -253,10 +292,10 @@ export function Agents({ overview, params, refresh }) {
             </details>
           )}
           <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
-          <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
-          <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
+          <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} ticked={ticked} onTick={tick} locked={running} />}</Loading></Section>
+          <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen, scoped.length > 0)} disabled={!chosen.length || (scoped.length > 0 && !count)}>{scoped.length ? `Plan ${plural(count, 'item')}` : `Plan setup for ${plural(chosen.length, 'agent')}`}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} scope="global" onDone={() => { refresh(); inv.reload(); }} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} initial={plan.initial} scope="global" onRunning={setRunning} onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>

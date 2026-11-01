@@ -307,9 +307,10 @@ export const defaultSelect = (plan) => plan.changes.filter((c) => c.selected && 
 
 // A plan from the server: its changes (removals off by default), then apply from a footer that stays in view. After the
 // apply, the run with its undo replaces the plan. onRunning hears when an apply starts and ends, onCancel when the user
-// cancels (true) or reviews the changes again (false). why and scope go to the change list.
-export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
-  const [select, setSelect] = useState(() => defaultSelect(plan));
+// cancels (true) or reviews the changes again (false). why and scope go to the change list. initial: the ids ticked at
+// the start, instead of the plan's own default.
+export function Plan({ plan, onDone, onRunning, onCancel, why, scope, initial }) {
+  const [select, setSelect] = useState(() => initial ?? defaultSelect(plan));
   const [cancelled, setCancelled] = useState(false);
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);

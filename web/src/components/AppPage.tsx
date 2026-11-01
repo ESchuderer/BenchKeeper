@@ -119,10 +119,10 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
   {
     id: 'global', view: 'agents', title: 'Global setup', shot: 'global',
-    alt: 'The Global setup view: the installed agents with version, rules file, skills folder, tested and a chip for each feature that is not available, the agents that are not installed folded into one line, then the items installed globally, one group each with its count and how many need attention.',
+    alt: 'The Global setup view: the installed agents with version, rules file, skills folder, tested and a chip for each feature that is not available, the agents that are not installed folded into one line, then the items installed globally, one group each with its count and how many need attention, a box on each item that needs attention, and the Plan button counting the ticked items.',
     text: [
       'The machine-wide setup per agent: each installed agent with its version, rules file and skills folder, whether BenchKeeper is tested with it and what it does not support, the agents that are not installed folded below, then the items installed globally with their state; a group with items that need attention starts open.',
-      'Plan setup shows the changes for the agents you check, each with a diff, before anything is written. Removing the setup is an undo of its runs in History; the app does not install or remove agents.',
+      'Each item that needs attention has a box (a removal starts unticked); Plan N items shows the changes for the ticked ones, each with a diff, before anything is written. Removing the setup is an undo of its runs in History; the app does not install or remove agents.',
     ],
     cli: [`${V} plan --agents claude,codex`, `${V} apply --agents claude,codex`],
   },

@@ -6,6 +6,14 @@ import { join } from 'node:path';
 import { nav } from './views.mjs';
 import { BATCH, ONE, noAxe, openDiffs, opened } from './chain.mjs';
 
+// The test server has Claude Code only: the overview says Codex is installed too.
+const codexInstalled = (page) => page.route(/\/api\/overview(\?|$)/, async (route) => {
+  const r = await route.fetch();
+  const d = await r.json();
+  for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
+  await route.fulfill({ response: r, json: d });
+});
+
 test.describe('views', () => {
   opened(test);
 
@@ -590,12 +598,7 @@ test.describe('views', () => {
   });
 
   test('Global setup: an installed agent shows a short chip per missing feature, the sentence as its tooltip on hover and focus and as text', async ({ page }) => {
-    await page.route(/\/api\/overview(\?|$)/, async (route) => {
-      const r = await route.fetch();
-      const d = await r.json();
-      for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
-      await route.fulfill({ response: r, json: d });
-    });
+    await codexInstalled(page);
     await page.goto('/#/agents');
     await page.reload();
     const codex = page.getByRole('table', { name: 'Agents', exact: true }).getByRole('row', { name: /^Codex/ });
@@ -605,6 +608,105 @@ test.describe('views', () => {
     await chip.focus();
     await expect(page.getByRole('tooltip')).toHaveText('the usage feed is not available for Codex');
     await page.unroute(/\/api\/overview(\?|$)/);
+  });
+
+  test('Global setup: an item that needs attention has a box, a removal starts unticked, the button counts the ticked items and the plan starts with them; a tick drops an open plan; no axe violations; 390 px', async ({ page }) => {
+    const item = (step, title, state) => ({ step, agent: 'claude', title, state });
+    const items = [item('plugin:claude:demo@demo', 'Claude Code plugin demo@demo', 'missing'), item('rules:claude', 'Claude Code rules', 'modified'),
+      item('other:claude:mcp', 'remove the Claude user MCP server demo', 'foreign'), item('settings:claude', 'Claude default model opusplan', 'current')];
+    const change = (id, c) => ({ id, kind: 'command', argv: ['demo'], state: null, selected: true, ...c });
+    const changes = [change('plugin', { step: 'plugin:claude:demo@demo', title: 'Claude Code plugin demo@demo' }), change('rules', { step: 'rules:claude', title: 'Claude Code rules', state: 'modified' }),
+      change('mcp', { step: 'other:claude:mcp', title: 'remove the Claude user MCP server demo', destructive: true, state: 'foreign', selected: false }), change('extra', { step: 'tools:extra', title: 'Install the extra tool' })];
+    await page.route(/\/api\/inventory$/, (route) => route.fulfill({ json: items }));
+    await page.route(/\/api\/global-plan(\?|$)/, (route) => route.fulfill({ json: { planId: 'ticks-test', agents: ['claude'], changes } }));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/#/agents');
+    const main = page.getByRole('main');
+    const box = (name) => main.getByRole('checkbox', { name, exact: true });
+    await expect(box('Claude Code plugin demo@demo')).toBeChecked();
+    await expect(box('Claude Code rules')).toBeChecked();
+    await expect(box('remove the Claude user MCP server demo')).not.toBeChecked();
+    await expect(box('Claude default model opusplan')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: 'Plan 2 items' })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+    // Unticked: the rules change is off, the change the list does not name keeps its default.
+    await box('Claude Code rules').uncheck();
+    await main.getByRole('button', { name: 'Plan 1 item' }).click();
+    const changesRegion = main.getByRole('region', { name: 'Changes' });
+    await expect(changesRegion.getByRole('group', { name: 'Selected changes' })).toContainText('2 changes selected');
+    // A tick asks for a new plan: the open one goes, the button shows the new count; the removal is its own choice.
+    await box('remove the Claude user MCP server demo').check();
+    await expect(changesRegion).toHaveCount(0);
+    await main.getByRole('button', { name: 'Plan 2 items' }).click();
+    await expect(changesRegion.getByRole('group', { name: 'Selected changes' })).toContainText('3 changes selected');
+    await box('Claude Code plugin demo@demo').uncheck();
+    await box('remove the Claude user MCP server demo').uncheck();
+    await expect(main.getByRole('button', { name: 'Plan 0 items' })).toBeDisabled();
+    await page.unroute(/\/api\/inventory$/);
+    await page.unroute(/\/api\/global-plan(\?|$)/);
+  });
+
+  test('Global setup: the button counts the ticks of the chosen agents only; a plan asked before a tick is dropped; after an apply the ticks follow the new inventory', async ({ page }) => {
+    await codexInstalled(page);
+    const item = (agent, step, title, state) => ({ step, agent, title, state });
+    let items = [item('claude', 'plugin:claude:demo@demo', 'Claude Code plugin demo@demo', 'missing'), item('claude', 'rules:claude', 'Claude Code rules', 'modified'),
+      item('codex', 'rules:codex', 'Codex rules', 'missing'), item('machine', 'tools:extra', 'Install the extra tool', 'missing')];
+    const change = (id, step, title) => ({ id, kind: 'command', argv: ['demo'], state: null, selected: true, step, title });
+    const changes = [change('plugin', 'plugin:claude:demo@demo', 'Claude Code plugin demo@demo'), change('rules', 'rules:claude', 'Claude Code rules'), change('extra', 'tools:extra', 'Install the extra tool')];
+    // Each plan request waits for its own release; the plan id names the request.
+    const held = [];
+    await page.route(/\/api\/inventory$/, (route) => route.fulfill({ json: items }));
+    await page.route(/\/api\/global-plan(\?|$)/, async (route) => {
+      const n = held.length;
+      await new Promise((r) => held.push(r));
+      await route.fulfill({ json: { planId: `ticks-scope-${n}`, agents: ['claude'], changes } });
+    });
+    await page.goto('/#/agents');
+    await page.reload();
+    const main = page.getByRole('main');
+    const box = (name) => main.getByRole('checkbox', { name, exact: true });
+    const planButton = main.getByRole('button', { name: /^Plan \d+ items?$/ });
+    await expect(planButton).toHaveText('Plan 4 items');
+    // Codex not chosen: its tick stays but does not count; the machine tool always does.
+    await main.getByRole('table', { name: 'Agents', exact: true }).getByRole('checkbox', { name: 'Codex', exact: true }).uncheck();
+    await expect(planButton).toHaveText('Plan 3 items');
+    for (const name of ['Claude Code plugin demo@demo', 'Claude Code rules', 'Install the extra tool']) await box(name).uncheck();
+    await expect(box('Codex rules')).toBeChecked();
+    await expect(planButton).toHaveText('Plan 0 items');
+    await expect(planButton).toBeDisabled();
+    await box('Claude Code plugin demo@demo').check();
+    await box('Install the extra tool').check();
+    // A tick while the plan is on its way: that plan is dropped, the new one starts with the new ticks.
+    await planButton.click();
+    await expect.poll(() => held.length).toBe(1);
+    await box('Claude Code rules').check();
+    await expect(planButton).toHaveText('Plan 3 items');
+    const stale = page.waitForEvent('requestfinished', (r) => r.url().includes('/api/global-plan'));
+    held[0]();
+    await stale;
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const changesRegion = main.getByRole('region', { name: 'Changes' });
+    await expect(changesRegion).toHaveCount(0);
+    await planButton.click();
+    await expect.poll(() => held.length).toBe(2);
+    held[1]();
+    await expect(changesRegion.getByRole('group', { name: 'Selected changes' })).toContainText('3 changes selected');
+    // After the apply the plugin is current and a new item needs attention: the count drops the one and ticks the other.
+    await box('Claude Code rules').uncheck();
+    await planButton.click();
+    await expect.poll(() => held.length).toBe(3);
+    held[2]();
+    await page.route(/\/api\/apply$/, (route) => route.fulfill({ json: { job: 'stub-job', total: 1 } }));
+    await page.route(/\/api\/job\?id=stub-job$/, (route) => route.fulfill({ json: { done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} } }));
+    items = [item('claude', 'plugin:claude:demo@demo', 'Claude Code plugin demo@demo', 'current'), item('claude', 'rules:claude', 'Claude Code rules', 'modified'),
+      item('codex', 'rules:codex', 'Codex rules', 'missing'), item('machine', 'tools:extra', 'Install the extra tool', 'missing'), item('claude', 'settings:claude', 'Claude default model opusplan', 'modified')];
+    await changesRegion.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
+    await expect(box('Claude default model opusplan')).toBeChecked();
+    await expect(box('Claude Code plugin demo@demo')).toHaveCount(0);
+    await expect(box('Claude Code rules')).not.toBeChecked();
+    await expect(planButton).toHaveText('Plan 2 items');
+    for (const r of [/\/api\/overview(\?|$)/, /\/api\/inventory$/, /\/api\/global-plan(\?|$)/, /\/api\/apply$/, /\/api\/job\?id=stub-job$/]) await page.unroute(r);
   });
 
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {

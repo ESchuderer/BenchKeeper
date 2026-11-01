@@ -34,6 +34,17 @@ test('plan writes nothing; apply asks per change and n skips', async () => {
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
 });
 
+test('projects plan and apply refuse a --skill name that is neither a library skill nor an own skill, exit 2, nothing written (#915)', async () => {
+  const c = cli();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  // Thrown like an unknown pack: the command line prints it and exits 2; with --json it is the error document.
+  for (const verb of ['plan', 'apply']) await assert.rejects(c.exec(['projects', verb, dir, '--agents', 'claude', '--skill', 'nosuch', ...(verb === 'apply' ? ['--yes'] : [])]), /^Error: unknown skill nosuch, see benchkeeper skills list --library$/, verb);
+  assert.equal(await c.exec(['projects', 'plan', dir, '--agents', 'claude', '--skill', 'nosuch', '--json']), 2);
+  assert.equal(JSON.parse(c.text()).error, 'unknown skill nosuch, see benchkeeper skills list --library');
+  assert.equal(existsSync(join(dir, '.benchkeeper')), false);
+});
+
 test('a changing command with no answer refuses before any change; every change declined records no run', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
   const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
@@ -326,4 +337,22 @@ test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only
   const debug = run({ BENCHKEEPER_DEBUG: '1' });
   assert.equal(debug.status, 2);
   assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
+});
+
+test('profile import exits 1 when its save and register question is answered no', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
+  execFileSync('git', ['-C', dir, 'init', '-q', '-b', 'main']);
+  const ctx = context({ home, roots: [home, dir], run: (argv) => ({ code: argv[0] === 'npm' ? 1 : 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' }) });
+  addProject(ctx, dir);
+  const file = join(home, 'prof.json');
+  const exec = async (args, answers = '') => {
+    let text = '';
+    const code = await main(args, { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: new Writable({ write(_c, _, done) { done(); } }), ctx, input: Readable.from([answers]) });
+    return { code, text };
+  };
+  assert.equal((await exec(['profile', 'export', file, '--agents', 'claude'])).code, 0);
+  const r = await exec(['profile', 'import', file], 'n\n');
+  assert.match(r.text, /register 1 projects .*\? \[y\/N\] nothing applied\n$/);
+  assert.equal(r.code, 1, r.text);
 });

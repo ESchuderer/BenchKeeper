@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { exportScript, userDir } from '../src/automations.mjs';
+import { exportScript, registryFile, userDir } from '../src/automations.mjs';
 import { main } from '../src/cli.mjs';
 import { context } from '../src/runner.mjs';
 
@@ -21,7 +21,7 @@ id = "probe"
 title = "Probe"
 agent = "${agent}"
 schedule = "${schedule}"
-precheck = '${precheck}'
+precheck = ${precheck.includes('\n') ? `'''${precheck}'''` : `'${precheck}'`}
 helpers = ["probe/precheck.sh", "probe/${list}"]
 
 [parameters.flag]
@@ -85,6 +85,24 @@ test('export: a helper in a subfolder is unpacked into the same subfolder', () =
   assert.match(flags.join(' '), /Bash\(\S+\/sub\/list\.sh \*\)/);
 });
 
+test('export: a precheck that ends in a comment or spans lines still parses and runs', () => {
+  for (const precheck of ['probe/precheck.sh x # a comment', 'true\nprobe/precheck.sh x # the last line']) {
+    const s = setup({ precheck });
+    const script = exportScript(s.ctx, 'probe', { dir: s.project });
+    const file = join(s.project, 'check.sh');
+    writeFileSync(file, script);
+    execFileSync('sh', ['-n', file]);
+    assert.equal(run(script, s, 1), null, precheck);
+    assert.equal(readFileSync(join(s.project, 'seen'), 'utf8').split(' ')[0], 'x', 'the precheck ran');
+    assert.ok(run(script, s, 0), precheck);
+  }
+});
+
+test('export: a helper path inside quotes in the precheck is refused, not run as a path with quote characters', () => {
+  const s = setup({ precheck: '"probe/precheck.sh" x' });
+  assert.throws(() => exportScript(s.ctx, 'probe', { dir: s.project }), /probe\/precheck\.sh is inside quotes in the precheck: write the helper path unquoted/);
+});
+
 test('export: an agent missing from PATH fails with exit 127 before the precheck', () => {
   const s = setup();
   const file = join(s.project, 'probe.sh');
@@ -107,9 +125,45 @@ test('automations export prints the script, --json carries it, a missing id is a
   const lines = [];
   const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
   assert.equal(await cli(['automations', 'export', 'probe', '--project', s.project, '--param', 'flag=c']), 0);
-  assert.match(lines.pop(), /\("\$helpers"\/'precheck\.sh' "c"\) \|\| exit 0/);
+  assert.match(lines.pop(), /^\(\n"\$helpers"\/'precheck\.sh' "c"\n\) \|\| exit 0$/m);
   assert.equal(await cli(['automations', 'export', 'probe', '--json']), 0);
   assert.match(JSON.parse(lines.pop()).script, /^#!\/bin\/sh/);
   assert.equal(await cli(['automations', 'export']), 2);
   assert.match(lines.pop(), /export needs a template id/);
+});
+
+test('automations export: a bad --param exits 2 in the terminal and with --json, a template it cannot export 1 in both', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv, ctx = s.ctx) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx });
+  for (const param of ['nosuch=1', 'mode=x', 'flag=a;b']) {
+    assert.equal(await cli(['automations', 'export', 'probe', '--param', param]), 2, param);
+    assert.equal(await cli(['automations', 'export', 'probe', '--param', param, '--json']), 2, param);
+    assert.ok(JSON.parse(lines.pop()).error, param);
+  }
+  const gemini = setup({ agent: 'gemini' }).ctx;
+  assert.equal(await cli(['automations', 'export', 'probe'], gemini), 1);
+  assert.equal(await cli(['automations', 'export', 'probe', '--json'], gemini), 1);
+  assert.match(JSON.parse(lines.pop()).error, /claude or codex, not gemini/);
+});
+
+test('automations diff: values an installed record kept that the template no longer takes are not a usage error', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
+  writeFileSync(registryFile(s.ctx), JSON.stringify({ automations: { probe: { runnerId: 'r1', values: { flag: 'x', gone: 'y' }, dir: s.project, spec: { name: 'Probe' }, installed: {}, version: 'v' } } }));
+  assert.equal(await cli(['automations', 'diff', 'probe']), 1);
+  assert.match(lines.pop(), /unknown parameter: gone/);
+  assert.equal(await cli(['automations', 'diff', 'probe', '--json']), 1);
+  assert.match(JSON.parse(lines.pop()).error, /unknown parameter: gone/);
+});
+
+test('automations list and status: an automations.json that does not parse is a read failure, exit 2 in the terminal and with --json', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
+  writeFileSync(registryFile(s.ctx), '{oops');
+  for (const sub of ['list', 'status']) {
+    assert.equal(await cli(['automations', sub]), 2, sub);
+    assert.match(lines.pop(), /is not valid JSON/);
+    assert.equal(await cli(['automations', sub, '--json']), 2, sub);
+    assert.match(JSON.parse(lines.pop()).error, /is not valid JSON/);
+  }
 });

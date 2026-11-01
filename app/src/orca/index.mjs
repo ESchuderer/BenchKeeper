@@ -88,14 +88,18 @@ export async function runs(ctx, limit = 20) {
 // from its source of that version). f is { name, schedule, prompt, agent, precheck, workspace, dir, reuseSession, grace }.
 const AUTO = (ctx) => [bin(ctx), 'automations'];
 const AUTO_ID = /^[\w-]{1,128}$/;
-// The fields an update may change; the target (project folder, worktree mode) stays as created.
-const fields = (f) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
-  ...(f.precheck ? ['--precheck', f.precheck] : []), ...(f.grace > 0 ? ['--missed-run-grace-minutes', String(f.grace)] : []),
+// Orca's grace when create gets none; it refuses 0, so a template's 0 (the runner's default) is this on an edit.
+const DEFAULT_GRACE = 720;
+// The fields an update may change; the target (project folder, worktree mode) stays as created. A create leaves an empty
+// precheck and a grace of 0 out; an edit changes only the flags it gets, so it sets both ("" clears the precheck).
+const fields = (f, edit = false) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
+  ...(f.precheck || edit ? ['--precheck', f.precheck ?? ''] : []),
+  ...(f.grace > 0 || edit ? ['--missed-run-grace-minutes', String(f.grace > 0 ? f.grace : DEFAULT_GRACE)] : []),
   ...(f.workspace === 'project' ? [f.reuseSession ? '--reuse-session' : '--fresh-session'] : [])];
 // An explicit target: without one the CLI binds the automation to the worktree its working folder lies in.
 const target = (f) => (f.workspace === 'project' ? ['--workspace', `path:${f.dir}`] : ['--repo', `path:${f.dir}`, '--workspace-mode', 'new-per-run']);
 export const createArgv = (ctx, f) => [...AUTO(ctx), 'create', ...fields(f), ...target(f), '--disabled', '--json'];
-export const editArgv = (ctx, id, f) => [...AUTO(ctx), 'edit', '--id', id, ...fields(f), '--json'];
+export const editArgv = (ctx, id, f) => [...AUTO(ctx), 'edit', '--id', id, ...fields(f, true), '--json'];
 export const removeArgv = (ctx, id) => [...AUTO(ctx), 'remove', '--id', id, '--json'];
 // The undo commands an automation change plans: remove by id, or edit by id with the fields above. A ledger file that
 // names anything else is not run. Any of the CLI's names: the context that recorded it may have found another one.

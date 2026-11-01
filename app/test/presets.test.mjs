@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
-import { savePack } from '../src/packs.mjs';
+import { savePack, userSkillDir, userSkillWrite } from '../src/packs.mjs';
 import { createPlan, listPresets, recommend, removePreset, savePreset } from '../src/presets.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
@@ -71,6 +71,31 @@ test('creating from a preset is a plan of a new folder; existing, missing parent
   addProject(ctx, join(h, 'first'));
   mkdirSync(join(h, 'first', 'sub'));
   assert.throws(() => createPlan(ctx, join(h, 'first', 'sub', 'x'), 'web'), /inside the registered project/);
+});
+
+test('a preset that names an own skill blocks skills delete; a stored pick that no longer resolves is kept with a plan warning (#915)', async () => {
+  const { ctx, h, setUp } = home();
+  const text = '---\nname: team-notes\ndescription: "Writes team notes."\n---\n\n# team-notes\n';
+  apply(preview([userSkillWrite(ctx, 'team-notes', text, { isNew: true })]), ctx, { scope: 'global' });
+  savePreset(ctx, 'notes', setUp('withnotes', { agents: ['claude'], env: 'host', skills: ['team-notes'] }));
+  const r = await cli(ctx, ['skills', 'delete', 'team-notes', '--yes']);
+  assert.equal(r.code, 2, r.text);
+  assert.match(r.text, /skill team-notes is in use by .*preset notes: take it out there first/);
+  assert.ok(existsSync(userSkillDir(ctx, 'team-notes')));
+  // Deleted outside BenchKeeper: projects create keeps the pick and warns.
+  rmSync(userSkillDir(ctx, 'team-notes'), { recursive: true });
+  const warning = 'skill team-notes is not in the library or your skills, so it installs nothing: create it again (benchkeeper skills new team-notes) or take it out (benchkeeper skills remove team-notes)';
+  const planned = createPlan(ctx, join(h, 'fresh'), 'notes');
+  assert.ok(planned.warnings.includes(warning), JSON.stringify(planned.warnings));
+  const c = await cli(ctx, ['projects', 'create', join(h, 'fresh'), '--preset', 'notes', '--yes'], 'n\n'.repeat(20));
+  assert.equal(c.code, 0, c.text);
+  assert.ok(c.text.includes(`warning: ${warning}\n`), c.text);
+  assert.deepEqual(readState(join(h, 'fresh')).singles, ['team-notes']);
+  assert.ok(projectPlan({ ctx, dir: join(h, 'withnotes'), answers: {}, plugins: {} }).warnings.includes(warning));
+  // The warning's own fix works: skills remove takes the lost pick out.
+  const removed = await cli(ctx, ['skills', 'remove', 'team-notes', '--project', join(h, 'withnotes'), '--yes']);
+  assert.equal(removed.code, 0, removed.text);
+  assert.deepEqual(readState(join(h, 'withnotes')).singles, []);
 });
 
 test('the check recommends turning off a skill installed for all projects and adding a pack most projects with the agent use', () => {

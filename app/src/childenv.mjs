@@ -7,8 +7,8 @@ const NAMES = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LANG
   'DO_NOT_TRACK', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE',
   'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'PATHEXT', 'USERPROFILE', 'USERNAME', 'APPDATA', 'LOCALAPPDATA', 'HOMEDRIVE', 'HOMEPATH', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'OS', 'PROCESSOR_ARCHITECTURE']);
 const PREFIXES = ['LC_', 'XDG_', 'NPM_CONFIG_', 'CLAUDE_', 'CODEX_', 'GIT_', 'BENCHKEEPER_'];
-// A name that suggests a credential never passes, whatever its prefix (npm_config_//registry/:_authToken, CLAUDE_CODE_OAUTH_TOKEN).
-const SECRET = /token|secret|passw|credential|auth|api[_-]?key|private/i;
+// A name that suggests a credential never passes, whatever its prefix (npm_config_//registry/:_authToken, CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_CLIENT_KEY_PASSPHRASE).
+const SECRET = /token|secret|pass(w|phrase)|credential|auth|api[_-]?key|private/i;
 // Git variables that run a program, read a template or log a request, or carry a setting whose value can hold a credential (an askpass
 // program, an ssh command with a key, -c pairs such as http.extraheader, a curl trace with Authorization headers): the name says nothing
 // about the value, so they stay out like the names above.

@@ -628,13 +628,15 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
+  // A single pick that names no skill (deleted, or gone from the library) stays picked and installs nothing (#915).
+  const lost = a.skills.filter((n) => !lib.skills.some((s) => s.name === n)).map((n) => `skill ${n} is not in the library or your skills, so it installs nothing: create it again (benchkeeper skills new ${n}) or take it out (benchkeeper skills remove ${n})`);
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
   // A link in a copied skill's folder that points to nothing or to a folder is not copied (#914): the plan says which.
   const linkWarnings = skills.filter((s) => copied(s) && !a.disabled.includes(s.name)).flatMap((s) => {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, hashPath, readText } from './fsx.mjs';
+import { newerPaths } from './integrity.mjs';
 import { copied } from './packs.mjs';
 import { PLUGINS, pluginState } from './steps/global.mjs';
 import { readState } from './steps/project.mjs';
@@ -12,12 +13,14 @@ const check = (name, problems) => ({ name, ok: problems.length === 0, problems }
 
 // Each path's newest recorded change still holds: written files have the recorded hash, removed ones are gone.
 function ledgerCheck(ctx) {
-  const seen = new Set(), problems = [];
+  const seen = newerPaths(), problems = [];
   for (const run of ctx.ledger.list()) {
     if (run.scope !== 'global' && !exists(run.scope)) continue;
     for (const e of [...run.entries].reverse()) {
-      if (!e.path || e.status !== 'done' || e.undone || seen.has(e.path)) continue;
+      if (!e.path || e.status !== 'done' || e.undone) continue;
+      const done = seen.settled(e.path);
       seen.add(e.path);
+      if (done) continue;
       if (e.kind === 'write' && hashPath(e.path) !== e.hashAfter) problems.push(`${e.path} changed since run ${run.id}`);
       if (e.kind === 'remove' && exists(e.path)) problems.push(`${e.path} is back after run ${run.id} removed it`);
     }

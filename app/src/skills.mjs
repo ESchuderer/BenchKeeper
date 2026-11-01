@@ -63,7 +63,9 @@ export function projectSkills(ctx, dir, { check = false } = {}) {
     for (const name of subfolders(d).filter((n) => !tracked.has(n))) found.set(name, [...(found.get(name) ?? []), d.slice(dir.length + 1)]);
   }
   const untracked = [...found].map(([name, folders]) => ({ name, folders, library: lib.skills.some((s) => s.name === name) }));
-  return { skills, untracked };
+  // lost: single picks that name no skill any more (deleted, or gone from the library); skills remove takes them out (#915).
+  const lost = (state.singles ?? []).filter((n) => NAME.test(n ?? '') && !lib.skills.some((s) => s.name === n));
+  return { skills, untracked, lost };
 }
 
 // Skill folders in an agent's global folder that no BenchKeeper setup put there (its own skills and the kept ones).
@@ -80,6 +82,7 @@ const unknown = (message) => Object.assign(new Error(message), { status: 404 });
 export function skillAction(rows, action, names, lib) {
   const row = (n) => rows.skills.find((s) => s.name === n);
   for (const n of names) {
+    if (action === 'remove' && rows.lost?.includes(n)) continue;
     if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw unknown(`${n} is not an untracked library skill of this project`);
     if (action === 'add' && (row(n) || rows.untracked.some((u) => u.name === n))) throw new Error(`${n} is already in this project${row(n)?.state === 'disabled' ? `: benchkeeper skills enable ${n}` : ''}`);
     if (action === 'add' && !lib.skills.some((s) => s.name === n)) throw unknown(`${n} is not a library skill`);

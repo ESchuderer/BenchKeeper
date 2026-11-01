@@ -4,7 +4,7 @@
 
 ## Questions to the user
 - Decide yourself when research, the code, the project docs or a safe default can settle it. Say in one line what you chose and why; prefer the choice that is easy to undo.
-- Ask when the choice is the user's (taste, priorities, scope, money, risk), when the options lead to results the user would notice, or when the request is ambiguous in a way that changes the outcome. Unsure whether to ask: ask once.
+- Ask when the choice is the user's (taste, priorities, scope, money, risk), when the user would notice the difference between the options, or when the request is ambiguous in a way that changes the outcome. Unsure: ask once.
 - Research the recommended option before asking (code, docs, an official source, a cheap trial).
 - Question text: What (topic), Impact (per option), Why now, Recommendation (one option first, labelled "(Recommended)", with reason, source or file and line, confidence). Each option names its trade-off.
 

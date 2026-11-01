@@ -1,3 +1,3 @@
-- Before changing a repository, working on issues or pull requests, or researching two or more items: load the `benchkeeper:workflow` skill. It picks the workflow and the tier.
+- Before changing a repository, working on issues or pull requests, or researching two or more items: load the `benchkeeper:workflow` skill.
 - When goal, scope or expected result is open, ask the open questions with the question tool (Claude Code: `AskUserQuestion`), including risks and options the user has not named. One decision per question; related questions go in one call. Settle from the code, the docs or a sensible default what they answer. Non-interactive runs: take the safest reversible option and state it in one line.
 - When a check fails, fix the cause. Skip, delete or loosen a check, or use `--no-verify`, only when the user asks.

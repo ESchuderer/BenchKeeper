@@ -6,6 +6,14 @@ import { join } from 'node:path';
 import { nav } from './views.mjs';
 import { BATCH, ONE, noAxe, openDiffs, opened } from './chain.mjs';
 
+// The test server has Claude Code only: the overview says Codex is installed too.
+const codexInstalled = (page) => page.route(/\/api\/overview(\?|$)/, async (route) => {
+  const r = await route.fetch();
+  const d = await r.json();
+  for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
+  await route.fulfill({ response: r, json: d });
+});
+
 test.describe('views', () => {
   opened(test);
 
@@ -590,12 +598,7 @@ test.describe('views', () => {
   });
 
   test('Global setup: an installed agent shows a short chip per missing feature, the sentence as its tooltip on hover and focus and as text', async ({ page }) => {
-    await page.route(/\/api\/overview(\?|$)/, async (route) => {
-      const r = await route.fetch();
-      const d = await r.json();
-      for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
-      await route.fulfill({ response: r, json: d });
-    });
+    await codexInstalled(page);
     await page.goto('/#/agents');
     await page.reload();
     const codex = page.getByRole('table', { name: 'Agents', exact: true }).getByRole('row', { name: /^Codex/ });
@@ -645,12 +648,7 @@ test.describe('views', () => {
   });
 
   test('Global setup: the button counts the ticks of the chosen agents only; a plan asked before a tick is dropped; after an apply the ticks follow the new inventory', async ({ page }) => {
-    await page.route(/\/api\/overview(\?|$)/, async (route) => {
-      const r = await route.fetch();
-      const d = await r.json();
-      for (const a of d.agents) if (a.id === 'codex') Object.assign(a, { installed: true, version: '0.1.0' });
-      await route.fulfill({ response: r, json: d });
-    });
+    await codexInstalled(page);
     const item = (agent, step, title, state) => ({ step, agent, title, state });
     let items = [item('claude', 'plugin:claude:demo@demo', 'Claude Code plugin demo@demo', 'missing'), item('claude', 'rules:claude', 'Claude Code rules', 'modified'),
       item('codex', 'rules:codex', 'Codex rules', 'missing'), item('machine', 'tools:extra', 'Install the extra tool', 'missing')];

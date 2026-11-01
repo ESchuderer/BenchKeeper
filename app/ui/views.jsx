@@ -344,19 +344,22 @@ export function Agents({ overview, params, refresh }) {
   const [select, setSelect] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
-  const [ticks, setTicks] = useState(null);
+  // The user's own ticks by item; an item without one keeps its default, so a reload of the inventory drops the resolved items and ticks the new ones.
+  const [choices, setChoices] = useState({});
   const [running, setRunning] = useState(false);
+  const request = useRef(0);
   const installed = overview.data?.agents.filter((a) => a.installed).map((a) => a.id) ?? [];
   const rows = inv.data?.filter(tickable) ?? [];
-  const ticked = new Set(ticks ?? rows.filter((i) => i.state !== 'foreign').map(itemKey));
-  // Ticking changes what the plan holds: an open plan is dropped, the button asks for a new one.
-  const tick = (i) => { setPlan(null); setTicks(ticked.has(itemKey(i)) ? [...ticked].filter((k) => k !== itemKey(i)) : [...ticked, itemKey(i)]); };
+  const ticked = new Set(rows.filter((i) => choices[itemKey(i)] ?? (i.state !== 'foreign')).map(itemKey));
+  // Ticking changes what the plan holds: an open plan is dropped, a plan still on its way is ignored, the button asks for a new one.
+  const tick = (i) => { request.current += 1; setPlan(null); setChoices({ ...choices, [itemKey(i)]: !ticked.has(itemKey(i)) }); };
   const load = async (ids, follow) => {
+    const n = ++request.current;
     setError(null); setPlan(null);
     try {
       const p = await api(`/api/global-plan?agents=${ids.join(',')}`);
-      setPlan(follow ? { ...p, initial: followTicks(p, inv.data, ticked) } : p);
-    } catch (e) { setError(e.message); }
+      if (n === request.current) setPlan(follow ? { ...p, initial: followTicks(p, inv.data, ticked) } : p);
+    } catch (e) { if (n === request.current) setError(e.message); }
   };
   // #/agents?agent=claude or ?plan=1 (Dashboard, palette) opens that plan.
   const auto = params.get('agent') ?? (params.get('plan') ? '*' : null);
@@ -369,6 +372,9 @@ export function Agents({ overview, params, refresh }) {
   return (
     <Loading state={overview} label="agents">{(o) => {
       const chosen = select ?? installed;
+      // The plan covers the chosen agents: the items of an installed agent that is not chosen do not count; machine items always do.
+      const scoped = rows.filter((i) => !installed.includes(i.agent) || chosen.includes(i.agent));
+      const count = scoped.filter((i) => ticked.has(itemKey(i))).length;
       return (
         <Stack gap="lg">
           <Text>Per-project setup lives in each project: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
@@ -381,7 +387,7 @@ export function Agents({ overview, params, refresh }) {
           )}
           <Text size="sm">Agent logins: <Anchor href={href('accounts')} underline="always">Accounts</Anchor>.</Text>
           <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} ticked={ticked} onTick={tick} locked={running} />}</Loading></Section>
-          <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen, rows.length > 0)} disabled={!chosen.length || (rows.length > 0 && !ticked.size)}>{rows.length ? `Plan ${plural(ticked.size, 'item')}` : `Plan setup for ${plural(chosen.length, 'agent')}`}</Button></Group>
+          <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen, scoped.length > 0)} disabled={!chosen.length || (scoped.length > 0 && !count)}>{scoped.length ? `Plan ${plural(count, 'item')}` : `Plan setup for ${plural(chosen.length, 'agent')}`}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
           {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} initial={plan.initial} scope="global" onRunning={setRunning} onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>

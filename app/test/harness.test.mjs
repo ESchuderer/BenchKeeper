@@ -226,3 +226,36 @@ test('evals --json: the plan starts nothing, run needs --yes and prints the plan
     assert.equal(calls.length, started, 'no session in CI');
   } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }
 });
+
+test('doctor and verify ledger checks: files of a folder a newer run removed, and a folder whose files a newer run wrote again, are not reported', async () => {
+  const { ledgerIssues } = await import('../src/integrity.mjs');
+  const { hashPath } = await import('../src/fsx.mjs');
+  const { SCHEMA } = await import('../src/ledger.mjs');
+  const c = machine();
+  const folder = join(c.home, 'proj', '.claude', 'skills', 'mine');
+  const files = ['SKILL.md', 'refs/a.md'].map((f) => join(folder, f));
+  const write = (path) => ({ id: path, step: 's', title: path, kind: 'write', path, status: 'done', hashAfter: hashPath(path) });
+  // Fixed ids of different seconds: the order of runs does not depend on when the test runs.
+  const save = (id, entries) => c.ledger.save({ schema: SCHEMA, id, time: `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)}T00:00:0${id[14]}.000Z`, kind: 'apply', scope: 'global', status: 'done', entries });
+  const ledgerOk = () => byName(harnessTest(c, { agents: [] }))['installed files match the ledger'];
+  mkdirSync(join(folder, 'refs'), { recursive: true });
+  for (const f of files) writeFileSync(f, 'v1\n');
+  save('20261101T000001Z-aaaaaa', files.map(write));
+  assert.deepEqual(ledgerIssues(c), []);
+  // A newer run removed the whole folder (skills remove, a scope move, the move of skills disable).
+  const { rmSync } = await import('node:fs');
+  rmSync(folder, { recursive: true });
+  save('20261101T000002Z-aaaaaa', [{ id: 'rm', step: 'r', title: 'remove', kind: 'remove', path: folder, status: 'done', hashAfter: null }]);
+  assert.deepEqual(ledgerIssues(c).map((i) => i.message), []);
+  assert.equal(ledgerOk().ok, true, ledgerOk().problems.join('; '));
+  // The folder comes back by hand: the removal reports it.
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(files[0], 'by hand\n');
+  assert.deepEqual(ledgerIssues(c).map((i) => i.message), [`${folder} is back after run 20261101T000002Z-aaaaaa removed it`]);
+  assert.equal(ledgerOk().ok, false);
+  // A newer run wrote its files again (skills add after skills remove): the older removal no longer counts.
+  writeFileSync(files[0], 'v2\n');
+  save('20261101T000003Z-aaaaaa', [write(files[0])]);
+  assert.deepEqual(ledgerIssues(c).map((i) => i.message), []);
+  assert.equal(ledgerOk().ok, true, ledgerOk().problems.join('; '));
+});

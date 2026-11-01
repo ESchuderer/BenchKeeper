@@ -28,6 +28,9 @@ export const listPresets = (ctx) => listDir(dir(ctx)).flatMap((file) => {
   } catch { return []; }
 });
 
+// The presets whose single picks name the skill, for the refusal of skills delete.
+export const presetsWith = (ctx, name) => listPresets(ctx).filter((p) => p.answers.singles?.includes(name)).map((p) => `preset ${p.id}`);
+
 function preset(ctx, id) {
   const p = listPresets(ctx).find((x) => x.id === id);
   if (!p) throw lookup(`unknown preset ${id}, see benchkeeper presets list`);

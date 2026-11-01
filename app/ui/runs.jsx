@@ -20,7 +20,7 @@ export function Runs() {
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Orchestrated runs with cost and tokens, each project's last setup change and the multi-agent IDE's runs, read when the view opens and on Refresh: nothing runs while it is closed.</Text>
+        <Text maw={720}>Orchestrated runs and tasks in the registered projects and their worktrees with cost and tokens, each project's last setup change and the multi-agent IDE's runs, read when the view opens and on Refresh: nothing runs while it is closed.</Text>
         <Button leftSection={icon(IconRefresh)} variant="default" loading={runs.loading} onClick={runs.reload}>Refresh</Button>
       </Group>
       <Loading state={runs} label="runs">{(d) => (

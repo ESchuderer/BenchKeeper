@@ -909,7 +909,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const packs = p.packs?.length ?? 0, here = (p.projects ?? []).filter((y) => existsSync(y.path)).length;
     if (!o.yes && (packs || here) && !(await ask(`Save ${packs} own packs and register ${here} projects (an own pack with the same id is replaced, the old one goes to the backup)?`))) {
       out.write('nothing applied\n');
-      return code;
+      return Math.max(code, 1);
     }
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -126,6 +126,11 @@ test('worktree-cleanup: a folder Git ignores as a whole counts as copied when ev
   writeFileSync(join(wt.handoff, '.benchkeeper', 'handoff.md'), 'next steps');
   writeFileSync(join(wt.edited, '.benchkeeper', 'state.json'), '{"x":1}');
   assert.deepEqual(f.sweep('report').out.slice(1).sort(), [`keep worktree ${wt.edited} edited ignored-files`, `keep worktree ${wt.handoff} handoff ignored-files`, `removable worktree ${wt.copy} copy`].sort());
+  // A folder that cannot be listed fails the scan instead of reading as all copied.
+  chmodSync(join(wt.copy, '.benchkeeper'), 0o000);
+  try {
+    assert.ok(f.sweep('report').out.includes(`keep worktree ${wt.copy} copy ignored-scan`));
+  } finally { chmodSync(join(wt.copy, '.benchkeeper'), 0o755); }
 });
 
 test('worktree-cleanup sweep: lists before act removes merged work with its container and volume, keeps the rest', sh, async () => {

@@ -74,7 +74,8 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
   assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
   assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
-  assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
+  // Only the personal files stay ignored: a hand-written CLAUDE.local.md stays out of the commit and in new worktrees.
+  assert.deepEqual(read(join(r.dir, '.git/info/exclude')).split('\n').filter((l) => l.startsWith('/')), ['/CLAUDE.local.md', '/AGENTS.override.md']);
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
 });
 
@@ -253,7 +254,8 @@ test('local: two projects in one repository keep their own exclude blocks; a dro
 
   const api = at('api');
   apply(preview(projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: true } }).changes), api.ctx, { scope: api.dir });
-  assert.ok(!exclude().includes('/api/') && exclude().includes('/web/CLAUDE.local.md'));
+  assert.deepEqual(exclude().split('\n').filter((l) => l.startsWith('/api/')), ['/api/CLAUDE.local.md', '/api/AGENTS.override.md']);
+  assert.ok(exclude().includes('/web/CLAUDE.local.md'));
   r.git('add', '-A');
   r.git('commit', '-qm', 'shared api setup');
   assert.throws(() => projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: false } }), /is committed: benchkeeper projects unshare/);

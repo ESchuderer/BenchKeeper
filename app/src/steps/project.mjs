@@ -649,8 +649,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Local: the whole local setup with the offered files written, the state file rather than its folder (handoff and
   // knowledge files there are per worktree), and the list itself, so a worktree made from a worktree has it too. Shared:
   // the personal files only, which stay ignored; with none, no list.
+  const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : [])];
   if (atRoot) {
-    const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : [])];
     const paths = (run) => (a.share ? personal : [...local.map((p) => (p === `${STATE.split('/')[0]}/` ? STATE : p.replace(/\/$/, ''))), ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
     if (paths().length) {
       // A .worktreeinclude the repository commits is in every checkout: a local setup offers its block, not preselected.
@@ -666,10 +666,14 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const exclude = excludeFile(ctx, dir);
   if (exclude) {
     const prefix = top.stdout.trim();
-    const list = (run) => (a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${[...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)].map((p) => `/${prefix}${p}`).join('\n')}`);
+    // Shared keeps the personal files ignored: a hand-written CLAUDE.local.md stays out of the commit, and worktree tools
+    // copy only ignored files.
+    const ignored = (run) => (a.share ? personal : [...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
+    const list = (run) => (ignored(run).length ? `# BenchKeeper's ${a.share ? 'personal' : 'local'} agent setup (benchkeeper projects apply)\n${ignored(run).map((p) => `/${prefix}${p}`).join('\n')}` : null);
     // One block per project folder: several projects in one repository keep their own lists.
     const id = `local:/${prefix}`;
-    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
+    const title = !a.share ? 'git ignores the local setup (.git/info/exclude)' : personal.length ? `git ignores only the personal files (${personal.join(', ')}); the setup is committed` : 'git ignores the setup no longer (it is committed)';
+    if (!a.share || personal.length || getBlock(readText(exclude), id, '#') != null) add('exclude', title, { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
   }
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.

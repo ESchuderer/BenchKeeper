@@ -59,7 +59,9 @@ ignored() {
     while IFS= read -r p; do
       copy "$1" "$p" && continue
       if [ -d "$1/$p" ] && [ ! -L "$1/$p" ]; then
-        (cd "$1" && find "./$p" ! -type d) | while IFS= read -r f; do copy "$1" "${f#./}" || { echo x; break; }; done | grep -q x || continue
+        # A folder that cannot be listed fails the scan: an empty list would read as all copied.
+        inner=$(cd "$1" && find "./$p" ! -type d) || exit 1
+        [ -n "$inner" ] && printf '%s\n' "$inner" | while IFS= read -r f; do copy "$1" "${f#./}" || { echo x; break; }; done | grep -q x || continue
       fi
       printf '%s\n' "$p"
     done

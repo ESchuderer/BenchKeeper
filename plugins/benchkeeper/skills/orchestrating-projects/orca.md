@@ -1,6 +1,6 @@
 # Orca commands
 
-Orca is the runner this skill drives. `ORCA` stands for the executable the session resolved and used for `ORCA skills get orchestration`; substitute it, do not run `ORCA` literally. Load that guide first: it is the version-matched source for the commands and states below. This file only maps the skill's steps onto them. Prefer `--json`.
+Orca is the runner this skill drives. `ORCA` stands for the executable the session resolved and used for `ORCA skills get orchestration`; substitute it, do not run `ORCA` literally. Load that guide first: it is the version-matched source for the commands and states below.
 
 ## Start the run
 
@@ -17,7 +17,7 @@ Branch check before each `worker-start`: `git -C <project path> ls-remote --head
 ORCA orchestration send --to dispatch:<dispatch id> --subject "Follow-up" --body "$(cat <follow-up file>)" --json
 ```
 
-Acknowledgement: the worker's first heartbeat. With none within 60 seconds, read `worker-read` once; when it shows no agent turn, `worker-stop` it and start one replacement with `worker-start --retry-of <dispatch id>` and the same spec file. A second miss goes to the owner.
+Acknowledgement: the worker's first heartbeat. With none within 60 seconds, read `worker-read` once; when it shows no agent turn, `worker-stop` it and start one replacement with `worker-start --retry-of <dispatch id>` and the same spec file.
 
 ## Worker reports
 
@@ -30,7 +30,7 @@ A worker settles with one message. The skill's outcomes map to Orca like this:
 | NEEDS_REPLAN | `--type worker_done --outcome failed` with a subject that starts `NEEDS_REPLAN:` |
 | failed | `--type worker_done --outcome failed`, any other subject |
 
-Orca has no separate blocked or replan message type: such a report is a `worker_done` that failed, which settles the dispatch so the coordinator can release it. The handoff block is the file the message names with `--report-path`, or its body. The worker's start message carries its own `send` command; the spec only says what to report.
+The handoff block is the file the message names with `--report-path`, or its body. The worker's start message carries its own `send` command; the spec only says what to report.
 
 ## Watch
 
@@ -42,7 +42,7 @@ ORCA orchestration worker-read --dispatch <dispatch id> --limit 50 --json
 gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,mergedAt
 ```
 
-Claude Code runs the `check --wait` as a background command and is woken when it exits; an agent that cannot (wake mode `unsupported`) runs it in the foreground. Never loop it faster than once a minute. Rolling waits stop at the run's deadline (55 minutes unless the owner named another).
+Claude Code runs the `check --wait` as a background command and is woken when it exits; an agent that cannot (wake mode `unsupported`) runs it in the foreground.
 
 At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
@@ -61,11 +61,11 @@ ORCA orchestration worker-release --dispatch <dispatch id> --json
 ORCA worktree rm --worktree path:<worktree path> --run-hooks --json
 ```
 
-`--run-hooks` runs the project's `orca.yaml` archive script before the removal; the one BenchKeeper's project setup writes removes the worktree's dev containers and exits 0 even when that fails, so the removal goes ahead. After the removal, list what is left (`podman ps -aq --filter label=devcontainer.local_folder=<worktree path>`, or `docker`) and remove those containers with `rm -f`.
+`--run-hooks` runs the project's `orca.yaml` archive script before the removal; the one BenchKeeper's project setup writes removes the worktree's dev containers and exits 0 even when that fails, so the removal goes ahead. After the removal, list and remove what is left as in the skill's Clean up step 2.
 
-A worker whose terminal a person typed in (its `worker-read` output shows input no `send` carried) is kept: `ORCA orchestration worker-retain --dispatch <dispatch id> --json`, no stop, no release, no worktree removal. Never type into a worker terminal or answer a dialog in it; Orca's `send` is the only way in.
+A worker whose terminal a person typed in (its `worker-read` output shows input no `send` carried) is kept: `ORCA orchestration worker-retain --dispatch <dispatch id> --json`, no stop, no release, no worktree removal.
 
-Release only a settled worker, so stop an idle worker that sent no report before releasing it. `worker-read` still returns a released worker's output. `ORCA worktree rm` also tries to delete the checked-out local branch (Orca keeps it when it predates the worktree or its changes are not provably merged). Run it only after a merged PR with `deleteMergedBranch` true. Never remove a blocked worker's worktree. In the other cases (no merge allowed, `deleteMergedBranch` false) remove the worktree with `git -C <project path> worktree remove <worktree path>`, which leaves the branch; whether Orca's worktree list then drops the entry is unverified. Delete a merged branch's remote ref separately, when `deleteMergedBranch` allows it:
+`worker-read` still returns a released worker's output. `ORCA worktree rm` also tries to delete the checked-out local branch (Orca keeps it when it predates the worktree or its changes are not provably merged). Run it only after a merged PR with `deleteMergedBranch` true. In the other cases (no merge allowed, `deleteMergedBranch` false) remove the worktree with `git -C <project path> worktree remove <worktree path>`, which leaves the branch; whether Orca's worktree list then drops the entry is unverified. Delete a merged branch's remote ref separately, when `deleteMergedBranch` allows it:
 
 ```text
 gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>

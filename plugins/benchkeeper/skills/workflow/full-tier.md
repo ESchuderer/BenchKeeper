@@ -1,6 +1,6 @@
 # Full tier
 
-Parentheses name the kind of skill that runs a step when installed; one only the user starts is suggested, then wait. None installed: do the step directly.
+Parentheses name the kind of skill that runs a step when installed ([software.md](software.md#steps)).
 
 1. Settle the spec: the decisions an agent does not take on its own (deployment target, data storage, module boundaries, core types and interfaces), terms and decisions recorded (a domain-modeling skill). Add an acceptance table: per requirement the instrument (test, command, screenshot), the wrong implementation it rejects, and where the result is observed. The design names one plausible counterexample (an input or state that breaks the obvious approach) and how the design handles it.
 2. Several sessions of work: one ticket per independently testable slice where the project tracks work (a ticket skill, user-started), each with acceptance criteria. Work too big to see the way yet: suggest a planning skill the user starts.

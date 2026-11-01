@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { exportScript, userDir } from '../src/automations.mjs';
+import { exportScript, registryFile, userDir } from '../src/automations.mjs';
 import { main } from '../src/cli.mjs';
 import { context } from '../src/runner.mjs';
 
@@ -126,4 +126,26 @@ test('automations export: a bad --param exits 2 in the terminal and with --json,
   assert.equal(await cli(['automations', 'export', 'probe'], gemini), 1);
   assert.equal(await cli(['automations', 'export', 'probe', '--json'], gemini), 1);
   assert.match(JSON.parse(lines.pop()).error, /claude or codex, not gemini/);
+});
+
+test('automations diff: values an installed record kept that the template no longer takes are not a usage error', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
+  writeFileSync(registryFile(s.ctx), JSON.stringify({ automations: { probe: { runnerId: 'r1', values: { flag: 'x', gone: 'y' }, dir: s.project, spec: { name: 'Probe' }, installed: {}, version: 'v' } } }));
+  assert.equal(await cli(['automations', 'diff', 'probe']), 1);
+  assert.match(lines.pop(), /unknown parameter: gone/);
+  assert.equal(await cli(['automations', 'diff', 'probe', '--json']), 1);
+  assert.match(JSON.parse(lines.pop()).error, /unknown parameter: gone/);
+});
+
+test('automations list and status: an automations.json that does not parse is a read failure, exit 2 in the terminal and with --json', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
+  writeFileSync(registryFile(s.ctx), '{oops');
+  for (const sub of ['list', 'status']) {
+    assert.equal(await cli(['automations', sub]), 2, sub);
+    assert.match(lines.pop(), /is not valid JSON/);
+    assert.equal(await cli(['automations', sub, '--json']), 2, sub);
+    assert.match(JSON.parse(lines.pop()).error, /is not valid JSON/);
+  }
 });

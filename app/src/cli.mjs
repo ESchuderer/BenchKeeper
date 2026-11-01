@@ -424,8 +424,9 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
-// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
-const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error, a
+// file that cannot be read (unreadable) a read failure; both exit 2.
+const lookupCode = (e) => ([400, 404].includes(e.status) || e.unreadable ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const named = () => { const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals; return [cmd, arg, sub]; };

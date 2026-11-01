@@ -70,10 +70,11 @@ export function parse(source) {
 
 const placeholders = (t) => [...new Set([t.prompt, t.precheck].flatMap((s) => [...s.matchAll(PLACEHOLDER)].map((x) => x[1])))];
 
-// A bad parameter is a usage error (status 400): the CLI exits 2 for it, as for an unknown name.
-const usage = (message) => Object.assign(new Error(message), { status: 400 });
 // The prompt and the precheck with every placeholder replaced. Rejects an unknown or a missing parameter and a value with shell characters.
-export function fill(t, values = {}) {
+// fromUser: the values are the --param the user typed, so a bad one is a usage error (status 400, the CLI exits 2); values an
+// installed record kept from an older template are not.
+export function fill(t, values = {}, { fromUser = false } = {}) {
+  const usage = (message) => Object.assign(new Error(message), fromUser ? { status: 400 } : {});
   const known = { mode: t.mode, ...Object.fromEntries(Object.entries(t.parameters).map(([k, p]) => [k, p.default])) };
   const given = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]));
   const unknown = [...Object.keys(given), ...placeholders(t)].filter((k) => !own(known, k));
@@ -193,7 +194,7 @@ const quote = (p) => `'${p.replaceAll("'", "'\\''")}'`;
 export function readRegistry(ctx) {
   const text = readText(registryFile(ctx));
   if (text == null) return {};
-  try { return JSON.parse(text).automations ?? {}; } catch { throw new Error(`${registryFile(ctx)} is not valid JSON: fix or move it`); }
+  try { return JSON.parse(text).automations ?? {}; } catch { throw Object.assign(new Error(`${registryFile(ctx)} is not valid JSON: fix or move it`), { unreadable: true }); }
 }
 const withRecord = (text, id, rec) => {
   const all = text == null ? {} : JSON.parse(text).automations ?? {};
@@ -208,9 +209,9 @@ function template(ctx, id) {
 }
 
 // What the runner gets for a template filled with values in the project folder dir.
-function spec(ctx, t, values, dir) {
+function spec(ctx, t, values, dir, { fromUser = false } = {}) {
   if (t.schedule === '') throw new Error(`${t.id} has no schedule: the runner needs one`);
-  const filled = fill(t, values);
+  const filled = fill(t, values, { fromUser });
   let { precheck, prompt } = filled;
   for (const h of t.helpers) {
     const path = quote(join(helperDir(ctx, t.id), h.slice(t.id.length + 1)));
@@ -256,7 +257,7 @@ export function exportScript(ctx, id, { values = {}, dir }) {
   if (!HEADLESS[t.agent]) throw new Error(`${id}: export runs claude or codex, not ${t.agent}`);
   if (!CRON.test(t.schedule)) throw new Error(`${id}: the schedule "${t.schedule}" is not a cron line (five fields or @daily and the like)`);
   if (t.workspace !== 'project') throw new Error(`${id}: workspace ${t.workspace} needs the runner`);
-  const filled = fill(t, values);
+  const filled = fill(t, values, { fromUser: true });
   if (filled.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
   const helpers = t.helper_files.map((h) => {
     if (h.text == null) throw new Error(`${h.path} is missing`);
@@ -289,7 +290,7 @@ export function installChanges(ctx, id, { values = {}, dir }) {
   const t = template(ctx, id), rec = readRegistry(ctx)[id];
   needRunner(ctx);
   if (rec && !orca.showAutomation(ctx, rec.runnerId).removed) throw new Error(`${id} is installed already: benchkeeper automations update ${id}`);
-  const { values: all, f } = spec(ctx, t, values, resolve(dir));
+  const { values: all, f } = spec(ctx, t, values, resolve(dir), { fromUser: true });
   const step = `automation:${id}`;
   return [
     ...helperChanges(ctx, t, step, step),

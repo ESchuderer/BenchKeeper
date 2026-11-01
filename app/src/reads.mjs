@@ -7,7 +7,7 @@ import { appVersion } from './content.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
-import { invalidPacks, libraryWith } from './packs.mjs';
+import { hiddenUserSkills, invalidPacks, libraryWith } from './packs.mjs';
 import { detectLevel } from './level.mjs';
 import { listProjects, prefetchOrigins, projectState, setupOf, usersByPack } from './projects.mjs';
 import { isSettingsFile, redact } from './settings.mjs';
@@ -66,8 +66,9 @@ export function runReport(ctx, id) {
 // Library skills with the number of registered projects that have each, packs with the projects that use them.
 export function catalog(ctx) {
   const lib = libraryWith(ctx), users = usersByPack(ctx);
-  const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-  return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
+  const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean), hidden = hiddenUserSkills(ctx);
+  // hidesYours: a library skill named like one of the user's skills, which it hides (#945).
+  return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length, ...(hidden.includes(s.name) ? { hidesYours: true } : {}) })) };
 }
 
 // Eval results without the per-case details; lines that do not parse are left out.

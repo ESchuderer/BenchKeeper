@@ -13,7 +13,7 @@ import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, 
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
+import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -509,6 +509,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Own skills adopted over a folder nobody installed: kept as it is until reset, also by the plans that follow.
   const adoptedBefore = new Set((readState(dir)?.skills ?? []).filter((x) => x.adopted === true).map((x) => x.name));
   const adoptedOwn = new Set();
+  // A user skill the project picked whose name the library now has (#945): the library's files are held, the state keeps
+  // source user, until the skill is reset.
+  const hiddenMine = new Set((readState(dir)?.skills ?? []).filter((x) => x.source === 'user' && skills.some((s) => s.name === x.name && s.source !== 'user') && !a.reset.includes(x.name)).map((x) => x.name));
   const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -527,9 +530,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       for (const { dir: d } of rest) {
         for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text ?? bytes, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
-          if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
-          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
+          const found = itemState(path, text ?? bytes, ctx), hides = hiddenMine.has(s.name) && found !== 'current', held = hides || found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          if (found === 'foreign' && held && !reseat && !hides) adoptedOwn.add(s.name);
+          add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${hides ? ` (your skill ${s.name} is hidden by the library skill of that name: reset the skill to take the library's)` : held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {
@@ -590,7 +593,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
   const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
-    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
+    skills: skills.map((s) => ({ name: s.name, source: hiddenMine.has(s.name) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
@@ -628,8 +631,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
+  const clashes = [...hiddenMine].map((n) => `your skill ${n} is hidden by the library skill of that name, so its files here are kept until you reset the skill: to keep yours, ${clashFix(ctx, n)}`);
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, dir, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...clashes, ...envWarning, ...frameworkNotices({ a, dir, prev })] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

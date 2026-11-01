@@ -687,7 +687,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
   if (cmd === 'packs' && arg === 'scope') return packScopeCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'skills' && o.library && [undefined, 'list'].includes(arg)) {
-    for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}\n`);
+    for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}${s.hidesYours ? '  hides your skill of this name: see benchkeeper doctor' : ''}\n`);
     return 0;
   }
   if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }

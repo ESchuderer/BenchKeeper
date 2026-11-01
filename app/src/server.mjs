@@ -461,8 +461,6 @@ export function api(ctx) {
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
       return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
     },
-    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time. A scan less
-    // than a minute old is reused unless force is set (Rescan).
     'POST /api/board-ticket': () => {
       const t = boardTickets(ctx), now = Date.now();
       for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
@@ -483,6 +481,8 @@ export function api(ctx) {
       for (const j of jobs.values()) if (!j.done) j.ctl.abort();
       return { stopping: true };
     },
+    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time. A scan less
+    // than a minute old is reused unless force is set (Rescan).
     'POST /api/sessions-scan': (b) => {
       const last = scans.get(ctx);
       if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };

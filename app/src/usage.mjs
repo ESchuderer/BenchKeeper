@@ -10,7 +10,7 @@ export const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 // rotate: per agent, off or handover (usage-gated handover to another account of the pool); off until the user turns it on.
 const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false, rotate: { claude: 'off', codex: 'off' } };
 export const ROTATE = ['off', 'handover'];
-// The agents rotation can be turned on for. Codex is left out for now: a stored codex handover counts as off and the flag is
+// The agents rotation can be turned on for. Codex is left out: a stored codex handover counts as off and the flag is
 // refused. Adding 'codex' here turns its rotation back on.
 export const ROTATABLE = ['claude'];
 export const STATE_DIR = 'benchkeeper';

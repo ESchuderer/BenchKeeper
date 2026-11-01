@@ -91,10 +91,18 @@ function approval(args) {
   }
   const [sub, verb] = words;
   if (sub === 'pr' && verb === 'review' && args.some((a) => a === '--approve' || a.startsWith('--approve=') || shortApprove(a))) return { machine: 'gh pr review --approve' };
-  // GraphQL: a review mutation with the APPROVE event in the command text. A query read from a file stays unseen (a known limit).
-  if (sub === 'api' && words[1] === 'graphql') return args.some((a) => /(add|submit)PullRequestReview\b/.test(a)) && args.some((a) => /\bAPPROVE\b/.test(a)) ? { machine: 'an approving review through gh api graphql' } : null;
-  if (sub !== 'api' || !args.some((a) => /\/pulls\/[^/\s]+\/reviews(\/|\?|$)/.test(a))) return null;
+  if (sub !== 'api') return null;
   const fields = args.flatMap((a, j) => (['-f', '-F', '--field', '--raw-field'].includes(a) ? [args[j + 1] ?? ''] : /^(-[fF]|--(raw-)?field=)/.test(a) ? [a.replace(/^(-[fF]|--(raw-)?field=)/, '')] : []));
+  // GraphQL: a review mutation whose event is APPROVE, written in the query or bound to a variable (-f e=APPROVE, or read
+  // from a file). APPROVE in a review body is no event. A query read from a file stays unseen (a known limit).
+  if (words[1] === 'graphql') {
+    const text = args.join('\n');
+    if (!/(add|submit)PullRequestReview\b/.test(text)) return null;
+    const bound = [...text.matchAll(/\bevent\s*:\s*\$(\w+)/g)].map((m) => m[1]);
+    const approves = /\bevent\s*:\s*APPROVE\b/.test(text) || fields.some((f) => bound.some((v) => new RegExp(`^${v}=(APPROVE$|@)`).test(f)));
+    return approves ? { machine: 'an approving review through gh api graphql' } : null;
+  }
+  if (!args.some((a) => /\/pulls\/[^/\s]+\/reviews(\/|\?|$)/.test(a))) return null;
   // A value read from a file (-F event=@file) or from --input cannot be seen here: denied as if it approved.
   return fields.some((f) => /^event=(approve$|@)/i.test(f)) || args.some((a) => a === '--input' || a.startsWith('--input=')) ? { machine: 'an approving review through gh api' } : null;
 }

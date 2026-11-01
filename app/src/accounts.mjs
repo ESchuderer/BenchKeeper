@@ -354,7 +354,9 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   used(a);
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
-  if (a.mode === 'host') return ctx.run(machine ? machine.args(args) : args, { cwd: dir, env: { ...accountEnv(ctx, a, { token }), ...machine?.env }, stdio: 'inherit' }).code;
+  // A machine session reaches GitHub only through its gh folder: a GitHub token that BENCHKEEPER_PASS_ENV lets through would win over it.
+  const env = Object.fromEntries(Object.entries(accountEnv(ctx, a, { token })).filter(([k]) => !(machine && /^(GH|GITHUB)_(ENTERPRISE_)?TOKEN$/i.test(k))));
+  if (a.mode === 'host') return ctx.run(machine ? machine.args(args) : args, { cwd: dir, env: { ...env, ...machine?.env }, stdio: 'inherit' }).code;
   const engine = engineOf(ctx), opts = { cwd: dir, env: baseEnv(ctx), timeout: 60e3 };
   if (!token) return ctx.run(execArgv(engine, dir, a, args), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
   const file = tokenFile(a);

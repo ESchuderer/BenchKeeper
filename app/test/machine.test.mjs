@@ -275,6 +275,8 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
   await exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
   await exec(['accounts', 'login', 'work']);
   const before = am.calls().length;
+  // A GitHub token that BENCHKEEPER_PASS_ENV lets through does not reach a machine session.
+  m.ctx.env = { ...m.ctx.env, BENCHKEEPER_PASS_ENV: 'GH_TOKEN' };
   const r = await exec(['run', '--account', 'work', '--as-machine', '--', 'claude', '-p', 'hi']);
   assert.equal(r.code, 0, r.text);
   const launch = am.calls().slice(before).find((x) => x.args.includes('hi'));
@@ -284,7 +286,8 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
   const plain = am.calls().length;
   await exec(['run', '--account', 'work', '--', 'claude', '-p', 'plain']);
   const p = am.calls().slice(plain).find((x) => x.args.includes('plain'));
-  assert.deepEqual([p.args, p.env.GIT_AUTHOR_EMAIL, p.env.BENCHKEEPER_MACHINE_EMAIL], [['-p', 'plain'], undefined, undefined]);
+  // The same variable passes to a session that is not a machine one, as BENCHKEEPER_PASS_ENV asks.
+  assert.deepEqual([p.args, p.env.GIT_AUTHOR_EMAIL, p.env.BENCHKEEPER_MACHINE_EMAIL, p.env.GH_TOKEN], [['-p', 'plain'], undefined, undefined, 'dummy-gh']);
   assert.equal((await exec(['run', '--role', 'worker', '--', 'claude'])).code, 2);
   assert.equal((await exec(['run', '--account', 'work', '--as-machine', '--role', 'boss', '--', 'claude'])).code, 2);
   await exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
@@ -307,10 +310,12 @@ test('guard hook in a machine account session: denies another identity and an ap
     'bash -c "git -c user.name=x commit"', 'gh pr review 12 --approve', 'gh pr review -a', 'gh api repos/o/r/pulls/12/reviews -f event=APPROVE', 'gh api -X POST repos/o/r/pulls/12/reviews --field=event=approve', 'gh api repos/o/r/pulls/12/reviews --input review.json',
     'gh pr -R octo/proj review 12 --approve', 'gh pr --repo octo/proj review 12 -a', 'gh pr review 12 -R=octo/proj --approve', 'gh pr review 12 --repo=octo/proj -b ok -a', 'gh pr review 12 --approve=true',
     'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/', 'gh api repos/o/r/pulls/12/reviews -F event=@review-event.txt', 'gh api -X POST repos/o/r/pulls/12/reviews --input=review.json',
-    'gh api graphql -f query=\'mutation { addPullRequestReview(input: { pullRequestId: "x", event: APPROVE }) { clientMutationId } }\'', 'gh api graphql -f query=\'mutation($e: PullRequestReviewEvent!) { submitPullRequestReview(input: { event: $e }) { clientMutationId } }\' -f e=APPROVE'];
+    'gh api graphql -f query=\'mutation { addPullRequestReview(input: { pullRequestId: "x", event: APPROVE }) { clientMutationId } }\'', 'gh api graphql -f query=\'mutation($e: PullRequestReviewEvent!) { submitPullRequestReview(input: { event: $e }) { clientMutationId } }\' -f e=APPROVE',
+    'gh api graphql -F e=@event.txt -f query=\'mutation($e: PullRequestReviewEvent!) { addPullRequestReview(input: { event: $e }) { clientMutationId } }\''];
   for (const c of denied) assert.ok(denyReason(c, 0, env)?.machine, c);
   const fine = ['git commit -m "fix: x"', 'git push origin feat', 'git config user.email', 'git config get user.email', 'git config --get user.name', 'git config core.editor vim', 'git -c core.pager=cat log', 'export PATH=/x', 'git status',
-    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12', 'gh api graphql -f query=\'{ viewer { login } }\'', 'gh api graphql -f query=\'mutation { addPullRequestReview(input: { event: COMMENT }) { clientMutationId } }\''];
+    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12', 'gh api graphql -f query=\'{ viewer { login } }\'', 'gh api graphql -f query=\'mutation { addPullRequestReview(input: { event: COMMENT }) { clientMutationId } }\'',
+    'gh api graphql -f query=\'mutation { addPullRequestReview(input: { event: COMMENT, body: "Please APPROVE after CI" }) { clientMutationId } }\'', 'gh api graphql -f query=\'mutation($e: PullRequestReviewEvent!, $b: String) { addPullRequestReview(input: { event: $e, body: $b }) { clientMutationId } }\' -f e=COMMENT -f b=APPROVE'];
   for (const c of fine) assert.equal(denyReason(c, 0, env), null, c);
   assert.match(denyReason('git commit -m x', 0, { ...env, GIT_AUTHOR_EMAIL: 'me@example.com' }).machine, /not the machine account/);
   // A long flag-like word is checked in linear time (no backtracking pattern over it).

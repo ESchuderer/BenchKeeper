@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -342,6 +342,20 @@ test('doctor and verify refuse a folder that does not exist, exit 2 in the termi
   const v = cli();
   assert.notEqual(await v.exec(['verify', here, '--json']), 2);
   assert.ok(JSON.parse(v.text()).checks.length);
+});
+
+test('doctor names a folder it cannot read instead of calling it missing', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const dir = join(parent, 'proj');
+  mkdirSync(dir);
+  chmodSync(parent, 0o000);
+  try {
+    const t = cli();
+    assert.equal(await t.exec(['doctor', dir]), 2);
+    assert.equal(t.text(), `cannot read ${dir}: EACCES\n`);
+  } finally {
+    chmodSync(parent, 0o700);
+  }
 });
 
 test('insights --json --project refuses a folder that does not exist, exit 2; an existing folder still runs', async () => {

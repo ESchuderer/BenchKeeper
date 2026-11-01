@@ -20,7 +20,7 @@ import { evalPlan, runEval } from './eval.mjs';
 import { boardFile as ponytailBoard, STATUS_STYLES, styleOf, trackedStyles } from './ponytail.mjs';
 import { doctorReport, projectChecks, splitDismissed } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
-import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
+import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePaths, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
 import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
@@ -199,7 +199,7 @@ export function api(ctx) {
     const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
     const shown = shownFindings(ctx, found.findings);
     const key = narrativeKey(shown);
-    return { shown, key, ...narrativePrompt(narrativeInput(found, shown), key) };
+    return { shown, key, ...narrativePrompt(narrativeInput(found, shown, narrativePaths(ctx, listProjects(ctx))), key) };
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const editorsOn = () => readPreferences(ctx).editors === true;

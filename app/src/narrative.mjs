@@ -18,21 +18,60 @@ const consentFile = (ctx) => join(ctx.config, 'insights-narrative.json');
 const cacheFile = (ctx) => join(ctx.home, '.cache/benchkeeper', 'insights-narrative.json');
 // A path in a doctor message is cut to its last segment, as a project is named by its folder.
 const PATH = /(^|[\s'"`(=])((?:~|[A-Za-z]:)[\\/][^\s'"`),;:]*|[\\/][^\s'"`),;:]*[\\/][^\s'"`),;:]*)/g;
-const plain = (text) => String(text ?? '').replace(PATH, (m, pre, path) => pre + (path.split(/[\\/]/).filter(Boolean).at(-1) ?? '')).slice(0, 300);
+const last = (path) => path.split(/[\\/]/).filter(Boolean).at(-1) ?? '';
+// The known folders (the home folder as ~ and as a path, the config folder, the registered projects), whose names can
+// hold spaces, are cut first, longest first, either separator. Below one, a folder name may hold spaces too: a segment
+// counts as a folder when another separator follows it and it neither starts nor ends with a space. The last segment
+// ends where a PATH segment ends.
+const SEP = /[\\/]/, STOP = /[\s'"`),;:]/;
+const escaped = (p) => p.replace(/[\\/]+$/, '').split(SEP).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]');
+const knownPattern = (known) => {
+  const list = [...new Set(['~', ...known.filter((p) => typeof p === 'string' && p.length > 1)])].sort((x, y) => y.length - x.length).map(escaped);
+  return new RegExp(`(^|[\\s'"\`(=])(?:${list.join('|')})(?=[\\\\/]|$|[\\s'"\`),;:])`, 'g');
+};
+// The end of the path that starts at i (just after a known folder): its folders, then its last segment.
+function pathEnd(text, i) {
+  while (SEP.test(text[i] ?? '')) {
+    let k = i + 1;
+    while (k < text.length && !SEP.test(text[k]) && !/['"`\n\t]/.test(text[k])) k++;
+    const seg = text.slice(i + 1, k);
+    if (k < text.length && SEP.test(text[k]) && seg && seg.trim() === seg) { i = k; continue; }
+    let e = i + 1;
+    while (e < text.length && !STOP.test(text[e])) e++;
+    return e;
+  }
+  return i;
+}
+function cutKnown(text, pattern) {
+  let out = '', from = 0;
+  for (const m of text.matchAll(pattern)) {
+    const at = m.index + m[1].length;
+    if (at < from) continue;
+    const end = pathEnd(text, at + m[0].length - m[1].length);
+    out += text.slice(from, at) + last(text.slice(at, end));
+    from = end;
+  }
+  return out + text.slice(from);
+}
+const plain = (text, pattern = knownPattern([])) => cutKnown(String(text ?? ''), pattern).replace(PATH, (m, pre, path) => pre + last(path)).slice(0, 300);
 // Numbers stay, a list is its length; of the strings only the project (a folder name), the doctor check and the scope.
-const evidenceOf = (e) => Object.fromEntries(Object.entries(e).flatMap(([k, v]) => {
+const evidenceOf = (e, cut = plain) => Object.fromEntries(Object.entries(e).flatMap(([k, v]) => {
   if (k === 'line') return [];
   if (typeof v === 'number') return [[k, v]];
   if (Array.isArray(v)) return [[k, v.length]];
-  return ['project', 'check', 'scope'].includes(k) && typeof v === 'string' ? [[k, plain(v)]] : [];
+  return ['project', 'check', 'scope'].includes(k) && typeof v === 'string' ? [[k, cut(v)]] : [];
 }));
 
-// found: the result of insights() with the findings to summarize (the ones shown).
-export function narrativeInput({ samples }, findings) {
+// The folders whose paths the input cuts first: the home folder, the config folder and the registered projects.
+export const narrativePaths = (ctx, projects = []) => [ctx.home, ctx.config, ...projects.map((p) => p.path)];
+
+// found: the result of insights() with the findings to summarize (the ones shown); known: narrativePaths().
+export function narrativeInput({ samples }, findings, known = []) {
+  const pattern = knownPattern(known), cut = (text) => plain(text, pattern);
   return {
     window: { days: WINDOW_DAYS }, samples,
     omitted: Math.max(0, findings.length - MAX_FINDINGS),
-    findings: findings.slice(0, MAX_FINDINGS).map((f) => ({ id: f.id, signal: f.signal, severity: f.severity, message: plain(f.message), evidence: evidenceOf(f.evidence), proposal: plain(f.fix) })),
+    findings: findings.slice(0, MAX_FINDINGS).map((f) => ({ id: f.id, signal: f.signal, severity: f.severity, message: cut(f.message), evidence: evidenceOf(f.evidence, cut), proposal: cut(f.fix) })),
   };
 }
 

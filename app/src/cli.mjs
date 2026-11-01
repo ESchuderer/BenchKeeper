@@ -40,7 +40,7 @@ import { dashboard } from './dashboard.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
-import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
+import { narrativeInput, narrativeKey, narrativePaths, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
 import { containerProjects, detectLevel, levelFor } from './level.mjs';
 import { PLUGINS, LEVELS, declineUnselected, globalPlan, installedPlugins, installedRefusal, skillsSpec, skillsVerify } from './steps/global.mjs';
@@ -1407,7 +1407,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     // The findings the Insights view shows, so the view and the command share one cached narrative.
     const shown = shownFindings(ctx, found.findings);
     if (!shown.length) return fail('no findings to summarize');
-    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown);
+    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown, narrativePaths(ctx, listProjects(ctx)));
     // The ids the text covers: the findings the view shows and the prompt carries (the findings array above lists all of them).
     const covers = input.findings.map((f) => f.id);
     if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, covers, cached: true } }, found.summary.error ? 1 : 0);

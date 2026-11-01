@@ -138,7 +138,7 @@ Usage: benchkeeper <command> [options]
                                     folder that exists. Then a check recommends skills to turn off and packs to add, each with
                                     its reason, as a second plan with no change selected (--yes takes none, --all all)
   presets [list|save <id> --project dir|remove <id>]
-                                    presets: the setup answers of a project (agents, environment, packs, skills, tier) saved
+                                    the setup answers of a project (agents, environment, packs, skills, tier) saved
                                     under a name (presets/ of the config folder) to start new projects with; a pack is a set
                                     of skills switched on in a project, a preset starts a project with its packs
   packs [list|show <id>|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
@@ -615,7 +615,6 @@ const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo:
 // The position of the folder that --project names as well.
 const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
 
-// The usage error of a flag or argument the command does not read, if any; puts a --project folder in its positional.
 // A folder argument that is missing or not a folder reads as such; another stat error (a parent that denies access) is named
 // as it is, so an existing project is not reported as missing.
 function folderProblem(dir) {
@@ -626,6 +625,7 @@ function folderProblem(dir) {
   }
 }
 
+// The usage error of a flag or argument the command does not read, if any; puts a --project folder in its positional.
 function checkArgs(o, positionals) {
   const [cmd = 'ui', arg] = positionals;
   const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k));
@@ -1060,7 +1060,6 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'undo' || cmd === 'restore') {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
     if (cmd === 'restore') {
-      // Files written into the home folder from a backup: listed, and asked once unless --yes.
       if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 2; }
       const files = listFiles(join(ctx.ledger.backups, arg));
       files.forEach((f) => out.write(`restore ${f}\n`));
@@ -1504,7 +1503,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
   if (!known(cmd) || (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`))) return fail(unknownCommand(cmd, arg));
-  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with the commands listed under --json in benchkeeper --help');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -2003,7 +2002,6 @@ async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
     return lookupCode(e);
   }
 }
@@ -2087,7 +2085,6 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
     return lookupCode(e);
   }
 }

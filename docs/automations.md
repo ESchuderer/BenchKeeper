@@ -24,7 +24,7 @@ TOML front matter between two `+++` lines, then the prompt.
 | `workspace` | no | `project` | `project` (the project checkout) or `new-worktree` (a fresh worktree per run) |
 | `reuse_session` | no | `false` | continue the previous live session |
 | `precheck` | yes, lint | empty | a bounded, read-only command: exit code 0 starts the run, anything else skips it |
-| `missed_run_grace_minutes` | no | `0` | how long a missed run may still start |
+| `missed_run_grace_minutes` | no | `0` | how long a missed run may still start; `0`: the runner's default (720 minutes on Orca) |
 | `mode` | no | `report` | `report` or `act`; the value a run gets unless the install says otherwise |
 | `parameters` | no | none | one table per parameter with `description` (one line), an optional `default` and an optional `allow` (a list of prefixes) |
 | `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>`; an installed precheck and prompt name the copy in the config folder |

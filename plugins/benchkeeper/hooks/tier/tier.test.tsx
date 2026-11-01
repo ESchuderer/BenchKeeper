@@ -258,7 +258,6 @@ test('on: doctor asks the agent to run the doctor, ? explains the band and how t
   await ui.unmount()
 })
 
-// One stub answers every tool call: Bash with the outcome set, the edit tools with it too.
 function tools($: Parameters<Parameters<typeof test>[1]>[0], on: Parameters<Parameters<typeof test>[1]>[1]) {
   let outcome: { isError?: true; text: string } = { text: 'ok' }
   on('tool.call', () => ({ result: {}, ...outcome }) as never)

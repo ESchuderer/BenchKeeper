@@ -23,7 +23,6 @@ export function render(manifest) {
       out.push(row(['Skill', 'Pick when', '`paths`', 'Pointer line']), row(['---', '---', '---', '---']));
       for (const s of skills) out.push(row([`[${s.name}](${s.name}/SKILL.md)`, s.pickWhen, s.paths, s.pointer]));
     } else {
-      // Skills with the same source, agents and pick-when text share one row.
       const groups = new Map();
       for (const s of skills) {
         const key = [s.set, s.source, s.agents, s.pickWhen].join('\0');

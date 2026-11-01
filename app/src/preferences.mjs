@@ -4,7 +4,7 @@
 // change:<step>:<hash of what the change writes or runs>.
 // Written directly, without a plan.
 import { join } from 'node:path';
-import { readText, writeAtomic } from './fsx.mjs';
+import { exists, readText, writeAtomic } from './fsx.mjs';
 
 const file = (ctx) => join(ctx.config, 'preferences.json');
 const DEFAULTS = { editors: false, dismissed: [] };
@@ -16,9 +16,22 @@ export function readPreferences(ctx) {
   return { ...DEFAULTS, ...(doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {}) };
 }
 
+// Why the file cannot be written over, null when it is fine or missing: one that exists but does not parse, or is no
+// object, reads as the defaults, so a write would replace the user's list with them. A parser's message can quote the
+// file, so none is passed on.
+export function preferencesProblem(ctx) {
+  const path = file(ctx), text = readText(path);
+  if (text == null) return exists(path) ? `${path} cannot be read: fix it, then try again` : null;
+  let doc;
+  try { doc = JSON.parse(text); } catch { return `${path} is not valid JSON: fix it, then try again`; }
+  return doc && typeof doc === 'object' && !Array.isArray(doc) ? null : `${path} is not a JSON object: fix it, then try again`;
+}
+
 export function setPreference(ctx, key, value) {
   if (!(key in DEFAULTS)) throw new Error(`key must be one of ${Object.keys(DEFAULTS).join(', ')}`);
   if (Array.isArray(DEFAULTS[key]) ? !(Array.isArray(value) && value.every((x) => typeof x === 'string')) : typeof value !== typeof DEFAULTS[key]) throw new Error(`${key} must be ${Array.isArray(DEFAULTS[key]) ? 'a list of strings' : typeof DEFAULTS[key] === 'boolean' ? 'true or false' : typeof DEFAULTS[key]}`);
+  const problem = preferencesProblem(ctx);
+  if (problem) throw Object.assign(new Error(problem), { status: 409, preferences: true });
   const next = { ...readPreferences(ctx), schemaVersion: 1, [key]: value };
   writeAtomic(file(ctx), `${JSON.stringify(next, null, 2)}\n`, 0o600);
   return next;

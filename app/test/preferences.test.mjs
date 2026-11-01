@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { dismissNote, dismissedNotes, readPreferences, setPreference } from '../src/preferences.mjs';
+import { dismissAll, dismissNote, dismissedNotes, preferencesProblem, readPreferences, setPreference } from '../src/preferences.mjs';
 
 const ctx = () => { const config = mkdtempSync(join(tmpdir(), 'bk-prefs-')); return { config }; };
 const file = (c) => join(c.config, 'preferences.json');
@@ -43,4 +43,25 @@ test('dismissed notes: added once, removed again, a damaged list reads as empty'
   assert.deepEqual([...dismissedNotes(c)], ['a']);
   assert.throws(() => dismissNote(c, ''), /id must be a note id/);
   assert.throws(() => setPreference(c, 'dismissed', [1]), /dismissed must be a list of strings/);
+});
+
+test('a file that exists but does not parse, or is no object, is never written over: the write names the file', () => {
+  const c = ctx();
+  for (const text of ['{ "editors": true, "dismissed": ["setting:claude:model", "change:global:abc"], }\n', '[true]', 'null']) {
+    writeFileSync(file(c), text);
+    assert.throws(() => dismissNote(c, 'note-x'), (e) => e.message.includes(file(c)) && e.status === 409, text);
+    assert.throws(() => setPreference(c, 'editors', false), (e) => e.message.includes(file(c)), text);
+    assert.throws(() => dismissAll(c, ['note-y']), (e) => e.message.includes(file(c)), text);
+    assert.equal(readFileSync(file(c), 'utf8'), text, 'byte for byte unchanged');
+  }
+  assert.equal(preferencesProblem(c), `${file(c)} is not a JSON object: fix it, then try again`);
+  writeFileSync(file(c), '{,');
+  assert.equal(preferencesProblem(c), `${file(c)} is not valid JSON: fix it, then try again`);
+});
+
+test('a missing file still reads as the defaults and is written by the first change', () => {
+  const c = ctx();
+  assert.equal(preferencesProblem(c), null);
+  dismissNote(c, 'note-x');
+  assert.deepEqual(JSON.parse(readFileSync(file(c), 'utf8')), { editors: false, dismissed: ['note-x'], schemaVersion: 1 });
 });

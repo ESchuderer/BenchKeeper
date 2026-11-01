@@ -12,7 +12,7 @@ const theme = createTheme({
   defaultRadius: 'md',
 });
 
-// The frame of every page: theme, skip link, header and footer. The main page (home) lays out its own sections.
+// The main page (home) lays out its own sections.
 export function SiteShell({ base, home = false, updated, commit, children }: { base: string; home?: boolean; updated?: string; commit?: string; children: ReactNode }) {
   const size = home ? undefined : 'xl';
   return (

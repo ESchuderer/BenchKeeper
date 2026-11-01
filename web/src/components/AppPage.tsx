@@ -93,7 +93,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     id: 'runs', view: 'runs', title: 'Runs', shot: 'runs',
     alt: 'The Runs view: the orchestrated runs table with run, task, worktree, branch, sessions, cost and tokens, the last setup change of each registered project, one line saying the multi-agent IDE is not installed, and the folded command.',
     text: [
-      'Orchestrated runs and their tasks in the registered projects and their worktrees, with sessions, tokens and cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices, unpriced models left out), each project\'s last setup change, and the runs of the multi-agent IDE when it is installed.',
+      'Orchestrated runs and their tasks in the registered projects and their worktrees, with sessions, tokens and cost (priced as on the Sessions board), each project\'s last setup change, and the runs of the multi-agent IDE when it is installed.',
       'The view reads when it opens and on Refresh, with no timer. The rows hold ids, states and counts, never a prompt or worker output.',
     ],
     cli: [`${V} sessions list`, `${V} sessions list --run <id>`],
@@ -121,7 +121,7 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
     id: 'global', view: 'agents', title: 'Global setup', shot: 'global',
     alt: 'The Global setup view: the installed agents with version, rules file, skills folder, tested and a chip for each feature that is not available, the agents that are not installed folded into one line, then the items installed globally, one group each with its count and how many need attention, a box on each item that needs attention, and the Plan button counting the ticked items.',
     text: [
-      'The machine-wide setup per agent: each installed agent with its version, rules file and skills folder, whether BenchKeeper is tested with it and what it does not support, the agents that are not installed folded below, then the items installed globally with their state; a group with items that need attention starts open.',
+      'The machine-wide setup per agent: each installed agent with its version, rules file and skills folder, whether BenchKeeper is tested with it and what it does not support, the agents that are not installed folded below, then the items installed globally with their state.',
       'Each item that needs attention has a box (a removal starts unticked); Plan N items shows the changes for the ticked ones, each with a diff, before anything is written. Removing the setup is an undo of its runs in History; the app does not install or remove agents.',
     ],
     cli: [`${V} plan --agents claude,codex`, `${V} apply --agents claude,codex`],
@@ -214,7 +214,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
             <code>npx benchkeeper@6.25.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
             The same steps run on the command line, see the CLI tab of the <Anchor href={`${base}/#start`}>quick start</Anchor>.
           </Text>
-          <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</Text>
+          <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog.</Text>
         </Stack>
         {VIEWS.map((v) => (
           <Container key={v.id} component="section" id={v.id} data-view={v.view} aria-labelledby={`${v.id}-h`} size="xl" p={0} w="100%">

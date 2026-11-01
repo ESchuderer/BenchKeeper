@@ -333,7 +333,7 @@ test('a community skill whose install failed after it created the folder is not 
   assert.equal(state(), 'removed');
   assert.deepEqual([step()?.kind, step()?.selected], ['command', undefined]);
   assert.match(step().title, /the last install did not finish/);
-  assert.deepEqual(unfinished().map((i) => [i.message.split(':')[0], i.fix]), [[`skill ${name} from ${libraryWith(ctx).skills.find((s) => s.name === name).source}`, `benchkeeper skills update ${name} --project ${dir}`]]);
+  assert.deepEqual(unfinished().map((i) => [i.message.split(':')[0], i.fix]), [[`skill ${name} from ${libraryWith(ctx).skills.find((s) => s.name === name).source}`, `benchkeeper projects apply --project '${dir}': it installs the unfinished folders again`]]);
   // The install that finishes: current, nothing planned, doctor quiet.
   fail = false;
   apply(preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: {} }).changes), ctx, { scope: dir });

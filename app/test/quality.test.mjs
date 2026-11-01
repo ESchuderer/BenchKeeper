@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { belowFloors, compare, knipFindings, modules, perModule } from '../scripts/quality.mjs';
 
 const quality = JSON.parse(readFileSync(new URL('../quality.json', import.meta.url), 'utf8'));
@@ -40,4 +44,14 @@ test('quality: the baselines only shrink, a new finding or more duplicated lines
   assert.equal(fixed.problems.length, 2);
   assert.ok(fixed.problems.every((p) => p.endsWith('(run with --write)')));
   assert.deepEqual(fixed.shrunk, { knip: run.knip, duplicatedLines: { app: 12, web: 3 } });
+});
+
+test('quality: started through a symlinked folder it still runs its command line', () => {
+  const real = realpathSync(fileURLToPath(new URL('../scripts', import.meta.url)));
+  const link = join(mkdtempSync(join(tmpdir(), 'bk-quality-')), 'link');
+  symlinkSync(real, link, 'dir');
+  for (const dir of [real, link]) {
+    const r = spawnSync(process.execPath, [join(dir, 'quality.mjs'), 'nothing'], { encoding: 'utf8' });
+    assert.deepEqual([r.status, r.stderr.split('\n')[0]], [2, 'usage: node scripts/quality.mjs coverage <lcov file> | baselines [--write]'], dir);
+  }
 });

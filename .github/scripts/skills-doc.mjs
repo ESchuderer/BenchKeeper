@@ -3,6 +3,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './main.mjs';
 import { frontMatter } from './skill-lint.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -53,7 +54,7 @@ export function sources() {
   return [skills, JSON.parse(readFileSync(`${root}/plugins/benchkeeper/library/library.json`, 'utf8'))];
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const file = `${root}/docs/skills.md`;
   const page = readFileSync(file, 'utf8');
   const next = update(page, ...sources());

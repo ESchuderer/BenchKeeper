@@ -93,11 +93,35 @@ test.describe('views', () => {
     const detail = page.getByRole('region', { name: 'Skill ui-own-skill' });
     await expect(table.getByRole('row', { name: /ui-own-skill/ })).toContainText('yours');
     await expect(detail).toContainText('Source: your skills');
+    // A skill text that arrives after New opened leaves the New dialog and its draft in place.
+    let releaseText;
+    const textHeld = new Promise((r) => { releaseText = r; });
+    await page.route(/\/api\/skill\?/, async (route) => { await textHeld; await route.continue(); }, { times: 1 });
+    await table.getByRole('button', { name: 'Edit ui-own-skill' }).click();
+    await page.getByRole('button', { name: 'New skill' }).click();
+    const draft = page.getByRole('dialog', { name: 'New skill' });
+    await draft.getByRole('textbox', { name: 'Name' }).fill('typed-draft');
+    const textLoaded = page.waitForResponse(/\/api\/skill\?/);
+    releaseText();
+    await textLoaded;
+    await draft.getByRole('textbox', { name: 'Name' }).press('End');
+    await expect(draft.getByRole('textbox', { name: 'Name' })).toHaveValue('typed-draft');
+    await expect(page.getByRole('dialog', { name: 'Edit skill ui-own-skill' })).toHaveCount(0);
+    await draft.getByRole('button', { name: 'Discard' }).click();
+    await expect(draft).toHaveCount(0);
     await table.getByRole('button', { name: 'Edit ui-own-skill' }).click();
     const edit = page.getByRole('dialog', { name: 'Edit skill ui-own-skill' });
     const body = edit.getByRole('textbox', { name: 'SKILL.md' });
     await body.fill((await body.inputValue()).replace('What this skill does', 'Edited in the UI. What it does'));
+    // While the plan is made the text is read-only and Escape keeps the dialog.
+    let releasePlan;
+    const planHeld = new Promise((r) => { releasePlan = r; });
+    await page.route(/\/api\/user-skill-plan(\?|$)/, async (route) => { await planHeld; await route.continue(); }, { times: 1 });
     await edit.getByRole('button', { name: 'Save' }).click();
+    await expect(body).not.toBeEditable();
+    await page.keyboard.press('Escape');
+    await expect(edit).toBeVisible();
+    releasePlan();
     await apply(edit);
     await expect(page.getByRole('region', { name: 'Skill ui-own-skill' })).toContainText('Edited in the UI');
     // Picked into an own pack: the pack file is not exported, and the skill cannot be removed while the pack names it.

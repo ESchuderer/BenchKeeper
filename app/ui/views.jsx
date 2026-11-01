@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -77,9 +77,16 @@ export function CatalogSkills({ catalog, params, refresh }) {
   const [editor, setEditor] = useState(null);
   const [loadFailed, setLoadFailed] = useState(null);
   const open = params.get('skill');
+  // Each editor action takes a new token; a skill text that arrives after a newer action opened is dropped.
+  const action = useRef(0);
+  const openEditor = (e) => { action.current += 1; setEditor(e); };
   const edit = async (name) => {
+    const token = ++action.current;
     setLoadFailed(null);
-    try { setEditor({ op: 'edit', name, text: (await api(`/api/skill?name=${encodeURIComponent(name)}`)).text }); } catch (e) { setLoadFailed(e.message); }
+    try {
+      const { text } = await api(`/api/skill?name=${encodeURIComponent(name)}`);
+      if (token === action.current) setEditor({ op: 'edit', name, text });
+    } catch (e) { if (token === action.current) setLoadFailed(e.message); }
   };
   const flip = (n) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
   return (
@@ -99,7 +106,7 @@ export function CatalogSkills({ catalog, params, refresh }) {
             <Select label="Agent" placeholder="All agents" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
             <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
             {picked.length > 0 && <Button leftSection={icon(IconPackage)} variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>}
-            <Button leftSection={icon(IconPlus)} onClick={() => setEditor({ op: 'new' })}>New skill</Button>
+            <Button leftSection={icon(IconPlus)} onClick={() => openEditor({ op: 'new' })}>New skill</Button>
           </Group>
           {loadFailed && <Note color="red" title="Skill text not loaded">{loadFailed}</Note>}
           <SplitView list={
@@ -112,7 +119,7 @@ export function CatalogSkills({ catalog, params, refresh }) {
                     <Table.Td>
                       <Anchor href={href('skills', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor>
                       <Group gap={4} mt={2}>{s.source === 'user' && <Badge variant="default">yours</Badge>}{areas(s.name).map((a) => <Badge key={a} variant="default">{a}</Badge>)}
-                        {s.source === 'user' && <><Button size="compact-xs" variant="default" aria-label={`Edit ${s.name}`} onClick={() => edit(s.name)}>Edit</Button><Button size="compact-xs" variant="default" color="red" aria-label={`Remove ${s.name}`} leftSection={icon(IconTrash, 12)} onClick={() => setEditor({ op: 'remove', name: s.name })}>Remove</Button></>}
+                        {s.source === 'user' && <><Button size="compact-xs" variant="default" aria-label={`Edit ${s.name}`} onClick={() => edit(s.name)}>Edit</Button><Button size="compact-xs" variant="default" color="red" aria-label={`Remove ${s.name}`} leftSection={icon(IconTrash, 12)} onClick={() => openEditor({ op: 'remove', name: s.name })}>Remove</Button></>}
                       </Group>
                     </Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
@@ -120,9 +127,9 @@ export function CatalogSkills({ catalog, params, refresh }) {
                 ))}
               </Table.Tbody>
             </Table>
-          } detail={skill ? <SkillDetail key={skill.name} skill={skill} areas={areas(skill.name)} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} onEdit={() => edit(skill.name)} onRemove={() => setEditor({ op: 'remove', name: skill.name })} />
+          } detail={skill ? <SkillDetail key={skill.name} skill={skill} areas={areas(skill.name)} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} onEdit={() => edit(skill.name)} onRemove={() => openEditor({ op: 'remove', name: skill.name })} />
             : <Text>Choose a skill for its source, pin and eval results.</Text>} />
-          {editor && <UserSkillEditor key={`${editor.op}:${editor.name}`} {...editor} onDone={refresh} onClose={() => setEditor(null)} />}
+          {editor && <UserSkillEditor key={`${editor.op}:${editor.name}`} {...editor} onDone={refresh} onClose={() => openEditor(null)} />}
           <Text size="sm">A skill's state in a project, with Update, Reset and Remove, is on the project's page: <Anchor href={href('projects')} underline="always">Projects</Anchor>.</Text>
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
           <Cli>{`benchkeeper skills list --library\nbenchkeeper skills show ${open ?? '<name>'}\nbenchkeeper skills new|edit|delete <name>\nbenchkeeper packs save <id> --skill <name>`}</Cli>
@@ -160,27 +167,30 @@ function UserSkillEditor({ op, name: start = '', text: startText = null, onDone,
   const [plan, setPlan] = useState(null);
   const [failed, setFailed] = useState(null);
   const [running, setRunning] = useState(false);
+  const [planning, setPlanning] = useState(false);
   const body = text ?? skillTemplate(name);
+  // The fields stay read-only while the plan is made, so the plan carries the text on screen.
   const save = async () => {
     setFailed(null);
-    try { setPlan(await api('/api/user-skill-plan', { op, name, text: body })); } catch (e) { setFailed(e.message); }
+    setPlanning(true);
+    try { setPlan(await api('/api/user-skill-plan', { op, name, text: body })); } catch (e) { setFailed(e.message); } finally { setPlanning(false); }
   };
   useEffect(() => { if (op === 'remove') void save(); }, []);
   const title = op === 'new' ? 'New skill' : `${op === 'edit' ? 'Edit' : 'Remove'} skill ${start}`;
-  // A running apply and unsaved text keep the dialog open against Escape and a click outside.
-  const lock = running || (!plan && (name !== start || text !== startText));
-  const close = () => !running && onClose();
+  // A plan being made, a running apply and unsaved text keep the dialog open against Escape and a click outside.
+  const lock = planning || running || (!plan && (name !== start || text !== startText));
+  const close = () => !planning && !running && onClose();
   return (
     <Modal opened onClose={close} size="xl" closeOnEscape={!lock} closeOnClickOutside={!lock} withCloseButton={false} attributes={{ content: { 'aria-label': title } }}>
       <Stack gap="sm" component="section" aria-label={title}>
         <Title order={3} size="h3">{title}</Title>
-        {op === 'new' && <TextInput label="Name" description="1 to 64 lowercase letters, digits and single hyphens" value={name} readOnly={!!plan} onChange={(e) => setName(e.currentTarget.value)} />}
-        {op !== 'remove' && <Textarea label="SKILL.md" value={body} readOnly={!!plan} onChange={(e) => setText(e.currentTarget.value)} autosize minRows={8} maxRows={24} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />}
+        {op === 'new' && <TextInput label="Name" description="1 to 64 lowercase letters, digits and single hyphens" value={name} readOnly={planning || !!plan} onChange={(e) => setName(e.currentTarget.value)} />}
+        {op !== 'remove' && <Textarea label="SKILL.md" value={body} readOnly={planning || !!plan} onChange={(e) => setText(e.currentTarget.value)} autosize minRows={8} maxRows={24} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />}
         {failed && <Note color="red" title="Not planned">{failed}</Note>}
         {plan && <Plan key={plan.planId} plan={plan} why={`You asked for this in Skills: ${title}.`} scope="global" onRunning={setRunning} onDone={onDone} />}
         <Group>
-          {!plan && op !== 'remove' && <Button onClick={save} disabled={op === 'new' ? !name : body === startText}>Save</Button>}
-          <Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={close}>{plan || op === 'remove' ? 'Close editor' : 'Discard'}</Button>
+          {!plan && op !== 'remove' && <Button onClick={save} loading={planning} disabled={op === 'new' ? !name : body === startText}>Save</Button>}
+          <Button variant="default" data-disabled={planning || running || undefined} aria-disabled={planning || running || undefined} onClick={close}>{plan || op === 'remove' ? 'Close editor' : 'Discard'}</Button>
         </Group>
       </Stack>
     </Modal>

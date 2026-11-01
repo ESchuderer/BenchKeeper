@@ -223,7 +223,7 @@ test('a community skill is added again from the default branch only when an upda
   const r = repo();
   const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
   apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
-  for (const n of ['frontend-design', 'accessibility']) mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true });
+  for (const n of ['frontend-design', 'accessibility']) { mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true }); writeFileSync(join(r.dir, '.claude/skills', n, 'SKILL.md'), `---\nname: ${n}\n---\n`); }
   const titles = (answers = {}) => plan(r, answers).changes.filter((c) => c.kind === 'command').map((c) => c.title);
   assert.deepEqual(titles(), []);
   const f = join(r.dir, STATE);

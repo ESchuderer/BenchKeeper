@@ -325,6 +325,9 @@ export function chosenSkills(a, lib = library()) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
+// A community skill's folder left by an install that did not finish: it has no SKILL.md.
+export const unfinishedHere = (skillsDir, name) => exists(join(skillsDir, name)) && !exists(join(skillsDir, name, 'SKILL.md'));
+
 // Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
 export const slashRel = (dir, p, path = nodePath) => path.relative(dir, p).split(path.sep).join('/');
 
@@ -536,14 +539,17 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // A community skill comes from the default branch of its source; an update (asked for) adds it again.
       const was = installedRefs.get(s.name);
       const refresh = a.update.includes(s.name);
-      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)));
+      // A folder an install left unfinished is installed again.
+      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)) || unfinishedHere(d, s.name));
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
-      const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
+      // A folder the last install left unfinished is no edit.
+      const held = !reseat && targets.some(({ dir: d }) => !unfinishedHere(d, s.name) && editedHere(d, s.name, installedHashes.get(s.name)));
+      const note = held ? ' (edited here: reset the skill to replace it)' : targets.some(({ dir: d }) => unfinishedHere(d, s.name)) ? ' (again: the last install did not finish)' : '';
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${note}`, {
         kind: 'command', installUnit, outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
         argv: ['npx', '-y', skillsSpec(ctx), 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
       });

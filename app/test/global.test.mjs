@@ -46,8 +46,7 @@ function machine({ failCodexInstall = false } = {}) {
     if (argv[1]?.endsWith('verify.mjs')) { s.verified.push(argv[2]); return s.failVerify ? { code: 1, stdout: '', stderr: 'npm error signature mismatch' } : ok(); }
     if (argv[0] === 'npx') {
       const name = argv[argv.indexOf('-s') + 1];
-      if (argv.includes('claude-code')) mkdirSync(join(home, '.claude/skills', name), { recursive: true });
-      if (argv.includes('codex')) mkdirSync(join(home, '.agents/skills', name), { recursive: true });
+      for (const [flag, d] of [['claude-code', '.claude/skills'], ['codex', '.agents/skills']]) if (argv.includes(flag)) { mkdirSync(join(home, d, name), { recursive: true }); writeFileSync(join(home, d, name, 'SKILL.md'), `---\nname: ${name}\n---\n`); }
       return ok();
     }
     if (argv[1] === 'plugin' && argv[2] === 'marketplace') return ok();
@@ -530,4 +529,16 @@ test('verifyPackage takes only an exact name@version and reports a package it ca
   const r = verifyPackage('skills@1.7.2', { PATH: '/nonexistent' });
   assert.notEqual(r.code, 0);
   assert.match(r.stderr, /could not fetch skills@1\.7\.2 to verify it/);
+});
+
+test('a global skill folder without SKILL.md, left by an install that did not finish, is installed again', () => {
+  const m = machine();
+  const step = () => m.plan().find((c) => c.step === 'tools:skill:find-skills');
+  mkdirSync(join(m.home, '.claude/skills/find-skills'), { recursive: true });
+  mkdirSync(join(m.home, '.agents/skills/find-skills'), { recursive: true });
+  writeFileSync(join(m.home, '.claude/skills/find-skills/README.md'), 'partial\n');
+  writeFileSync(join(m.home, '.agents/skills/find-skills/SKILL.md'), '---\nname: find-skills\n---\n');
+  assert.deepEqual(step()?.argv.filter((x, i, a) => a[i - 1] === '-a'), ['claude-code']);
+  writeFileSync(join(m.home, '.claude/skills/find-skills/SKILL.md'), '---\nname: find-skills\n---\n');
+  assert.equal(step(), undefined);
 });

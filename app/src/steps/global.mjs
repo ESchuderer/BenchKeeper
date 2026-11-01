@@ -467,7 +467,8 @@ export function globalPlan(env) {
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
     installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: source }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
   });
-  const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
+  // A folder without SKILL.md is what an install that did not finish left: it is installed again.
+  const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}/SKILL.md`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}/SKILL.md`)) && ['-a', 'codex']].filter(Boolean).flat();
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f, `tools:skill:${name}`, `global skill ${name} from ${repo}`); }

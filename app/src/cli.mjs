@@ -603,7 +603,10 @@ function checkArgs(o, positionals) {
     if (positionals[at] !== undefined && resolve(positionals[at]) !== resolve(o.project)) return `--project ${o.project} and ${positionals[at]} name different folders: give one`;
     positionals[at] = o.project;
   }
-  return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
+  if (positionals.length > (ARGS[name] ?? Infinity)) return `unexpected argument ${positionals[ARGS[name]]}`;
+  // doctor and verify check the folder they name: one that does not exist must not read as a clean check.
+  if (['doctor', 'verify'].includes(name) && positionals[1] !== undefined && !isDir(resolve(positionals[1]))) return `${resolve(positionals[1])} is not a folder`;
+  return undefined;
 }
 
 // The lines of HELP for one command (the noun, and the verb when given) with their continuation lines, then the

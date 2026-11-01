@@ -327,3 +327,19 @@ test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only
   assert.equal(debug.status, 2);
   assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
 });
+
+test('doctor and verify refuse a folder that does not exist, exit 2 in the terminal and with --json; an existing folder still runs', async () => {
+  const missing = join(mkdtempSync(join(tmpdir(), 'bk-cli-')), 'nope');
+  for (const args of [['doctor', missing], ['verify', missing], ['doctor', '--project', missing], ['verify', '--project', missing]]) {
+    const t = cli();
+    assert.equal(await t.exec(args), 2, args.join(' '));
+    assert.equal(t.text(), `${missing} is not a folder\n`, args.join(' '));
+    const j = cli();
+    assert.equal(await j.exec([...args, '--json']), 2, `${args.join(' ')} --json`);
+    assert.equal(JSON.parse(j.text()).error, `${missing} is not a folder`, `${args.join(' ')} --json`);
+  }
+  const here = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const v = cli();
+  assert.notEqual(await v.exec(['verify', here, '--json']), 2);
+  assert.ok(JSON.parse(v.text()).checks.length);
+});

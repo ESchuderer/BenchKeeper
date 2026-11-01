@@ -34,6 +34,19 @@ test('mergeJson: pull and prune leave other values, remove skips a missing key',
   assert.equal(mergeJson('{"k": null, "j": 1}', [{ path: ['k'], remove: true }]), '{\n  "j": 1\n}\n');
 });
 
+test('mergeJson: an add after or a removal next to a one-line object or list leaves that line as written', () => {
+  const doc = '{\n  "env": {"A": "1"},\n  "x": {"keep": true}\n}\n';
+  assert.equal(mergeJson(doc, [{ path: ['model'], value: 'opus' }]), '{\n  "env": {"A": "1"},\n  "x": {"keep": true},\n  "model": "opus"\n}\n');
+  assert.equal(mergeJson('{\n  "x": [1, 2]\n}\n', [{ path: ['model'], value: { a: 1 } }]), '{\n  "x": [1, 2],\n  "model": {\n    "a": 1\n  }\n}\n');
+  assert.equal(mergeJson('{\r\n  "x": [1, 2]\r\n}\r\n', [{ path: ['model'], value: 'opus' }]), '{\r\n  "x": [1, 2],\r\n  "model": "opus"\r\n}\r\n');
+  // A removal before, between and after neighbours.
+  assert.equal(mergeJson('{\n  "model": "a",\n  "x": {"a": 1}\n}\n', [{ path: ['model'], remove: true }]), '{\n  "x": {"a": 1}\n}\n');
+  assert.equal(mergeJson('{\n  "x": {"a": 1},\n  "model": "a",\n  "y": [1, 2]\n}\n', [{ path: ['model'], remove: true }]), '{\n  "x": {"a": 1},\n  "y": [1, 2]\n}\n');
+  assert.equal(mergeJson('{\n  "x": {"a": 1},\n  "model": "a"\n}\n', [{ path: ['model'], remove: true }]), '{\n  "x": {"a": 1}\n}\n');
+  // Nested: a key added to an object keeps its sibling list on one line.
+  assert.equal(mergeJson('{\n  "permissions": {\n    "allow": ["a", "b"]\n  }\n}\n', [{ path: ['permissions', 'deny'], value: ['x'] }]), '{\n  "permissions": {\n    "allow": ["a", "b"],\n    "deny": [\n      "x"\n    ]\n  }\n}\n');
+});
+
 test('setBlock and getBlock: HTML and # markers, text around the block, removal', () => {
   assert.equal(setBlock('', 'r', 'x'), '<!-- benchkeeper:r start -->\nx\n<!-- benchkeeper:r end -->\n');
   assert.equal(setBlock('  \n', 'r', 'x  \n'), '<!-- benchkeeper:r start -->\nx\n<!-- benchkeeper:r end -->\n');

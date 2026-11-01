@@ -146,6 +146,18 @@ test('the automation commands: precheck, grace and session flags only when set; 
   assert.equal(undoableAutomation(['orca', 'automations', 'remove', '--id']), false, 'no id');
 });
 
+test('an edit sets an empty precheck and a grace of 0 too, so an update clears them; a create leaves both to the runner', () => {
+  const ctx = { home: '/h', run: () => ({ code: 0, stdout: '1.4.243\n', stderr: '' }) };
+  const f = { name: 'n', schedule: 'hourly', prompt: 'p', agent: 'claude', dir: '/p', workspace: 'project', precheck: '', grace: 0 };
+  const edit = editArgv(ctx, 'a1', f);
+  // Orca clears a precheck on --precheck "" and refuses a grace of 0; 720 is its default.
+  assert.equal(edit[edit.indexOf('--precheck') + 1], '');
+  assert.equal(edit[edit.indexOf('--missed-run-grace-minutes') + 1], '720');
+  assert.equal(undoableAutomation(edit), true);
+  const create = createArgv(ctx, f);
+  assert.ok(!create.includes('--precheck') && !create.includes('--missed-run-grace-minutes'));
+});
+
 test('an automation result: picked fields with defaults, else the error from the envelope, the output or the exit code', () => {
   const ok = (automation) => ({ code: 0, stdout: JSON.stringify({ ok: true, result: { automation } }), stderr: '' });
   assert.deepEqual(automationResult(ok({ id: 1 })), { automation: { id: '1', name: '', prompt: '', schedule: '', precheck: '', agent: '', enabled: false } });

@@ -2,7 +2,8 @@
 // Links to this repository's main branch are checked against the checkout, so files added in a pull request pass.
 // Usage: GITHUB_TOKEN=... node .github/scripts/github-links.mjs <files...> (without a token, discussion links fail and the API allows 60 requests per hour)
 import { existsSync, readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isMain } from './main.mjs';
 
 const byCode = (a, b) => Number(a > b) - Number(a < b);
 const trimTrailing = (s) => { let end = s.length; while (end > 0 && '.,;:_'.includes(s[end - 1])) end--; return s.slice(0, end); };
@@ -95,7 +96,7 @@ async function check(t, token) {
   return last;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
   const token = process.env.GITHUB_TOKEN;
   const urls = [...new Set(process.argv.slice(2).flatMap((f) => extract(readFileSync(f, 'utf8'))))].sort(byCode);
   const errors = [];

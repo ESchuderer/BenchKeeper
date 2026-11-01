@@ -24,10 +24,10 @@ TOML front matter between two `+++` lines, then the prompt.
 | `workspace` | no | `project` | `project` (the project checkout) or `new-worktree` (a fresh worktree per run) |
 | `reuse_session` | no | `false` | continue the previous live session |
 | `precheck` | yes, lint | empty | a bounded, read-only command: exit code 0 starts the run, anything else skips it |
-| `missed_run_grace_minutes` | no | `0` | how long a missed run may still start |
+| `missed_run_grace_minutes` | no | `0` | how long a missed run may still start; `0`: the runner's default (720 minutes on Orca) |
 | `mode` | no | `report` | `report` or `act`; the value a run gets unless the install says otherwise |
 | `parameters` | no | none | one table per parameter with `description` (one line), an optional `default` and an optional `allow` (a list of prefixes) |
-| `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>`; an installed precheck and prompt name the copy in the config folder |
+| `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>`; an installed precheck and prompt name the copy in the config folder. Write a helper path in the precheck unquoted (`my-auto/check.sh "$1"`, not `"my-auto/check.sh" "$1"`): install and export put an already quoted path in its place, so the lint, install and export refuse a helper path inside quotes |
 
 Unknown keys are an error.
 
@@ -45,7 +45,7 @@ Each rule has a failing and a passing fixture in `app/test/automations.test.mjs`
 | `session` | in a recurring template: the marker `automation-<id>` in the prompt, and a precheck (or a helper it calls) that names the marker and one of `pgrep`, `pidof`, `flock` or a lock file. This is a text match, not a proof: the lint does not run the precheck or check that it refuses while a session of the same automation is alive. Write one character of the marker in brackets (`automation-[o]pen-pr-report`) so `pgrep -f` does not match the precheck itself. A process check sees the marker only where the scheduler shows the prompt in the process arguments; otherwise let the prompt create a lock file and check that. |
 | `guardrail` | the three lines below at the start of a line, and `{{mode}}` in the prompt |
 | `private` | generic tier only: no absolute path into a home folder, a mount or a drive, and no path starting with a tilde, and none of the private names the caller passes in |
-| `helper` | each helper exists as a plain file in the template folder, is executable, starts with a `sh`, `bash` or `python` shebang and uses no network except `gh` (no `curl`, `wget`, `ssh`, `git fetch`, URL, `socket`, `urllib` and the like; a word list, not a parser) |
+| `helper` | each helper exists as a plain file in the template folder, is executable, starts with a `sh`, `bash` or `python` shebang and uses no network except `gh` (no `curl`, `wget`, `ssh`, `git fetch`, URL, `socket`, `urllib` and the like; a word list, not a parser), and no helper path in the precheck sits inside single or double quotes |
 | `placeholder` | every `{{name}}` is a declared parameter |
 
 Guardrail lines:
@@ -129,7 +129,7 @@ The view shows per installed automation its state, whether it is enabled, its mo
 | Agent | Command in the script | What the run may do |
 |---|---|---|
 | `claude` | `claude -p "$prompt" --permission-mode dontAsk --allowedTools "Bash(<folder>/<helper> *)"..` | file reads in the folder, the template's helpers (the script allows each one, since their folder changes per run) and the tools your allow rules name; every other call is denied, since nobody answers a prompt ([permission modes](https://code.claude.com/docs/en/permission-modes.md)). Add allow rules for the other commands the prompt runs, such as `gh`, to the project's settings |
-| `codex` | `codex exec --sandbox workspace-write "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
+| `codex` | `codex exec --sandbox workspace-write -- "$prompt" </dev/null` | writes in the folder; network access is off unless the Codex configuration turns it on ([non-interactive mode](https://developers.openai.com/codex/noninteractive), [approvals and security](https://developers.openai.com/codex/agent-approvals-security)) |
 
 Limits:
 

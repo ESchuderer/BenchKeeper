@@ -21,18 +21,26 @@ if (!GIT) throw new Error('git is not in /usr/bin, /usr/local/bin or /opt/homebr
 
 export const PORT = 4410;
 export const TOKEN = 'ui-test-token-0123456789';
-// Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
-export const BATCH = join(tmpdir(), `bk-ui-batch-${PORT}`);
-
 // Demo mode (app/scripts/screenshots.mjs, the site's screenshots): fixed folder names under one fixture root, and the
 // server must run with HOME inside it.
 const DEMO = process.env.BK_DEMO_ROOT;
-const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(tmpdir(), 'bk-ui-'));
+// The run's private folder from playwright.config.mjs, which removes it (chain.mjs names the same paths below it); in
+// demo mode a folder in the demo root; else a new one, removed when this server ends.
+let ROOT = process.env.BK_UI_ROOT || (DEMO && join(DEMO, 'fixtures'));
+if (!ROOT) {
+  const own = mkdtempSync(join(tmpdir(), 'bk-ui-run-'));
+  ROOT = own;
+  process.on('exit', () => rmSync(own, { recursive: true, force: true }));
+  for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(signal, () => process.exit(code));
+}
+// Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
+export const BATCH = join(ROOT, 'batch');
+const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(ROOT, 'bk-ui-'));
 if (DEMO && resolve(process.env.HOME ?? '') !== resolve(home)) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
 mkdirSync(home, { recursive: true });
 // The folder dialog answers with a parent of the registered projects (one of them, other, is not set up) and, for the
 // scan, of one more unregistered folder with an agent setup.
-const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
+const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(ROOT, 'bk-ui-scan-'));
 const other = DEMO ? 'blog' : 'other';
 for (const name of DEMO ? [other] : [other, 'found']) {
   mkdirSync(join(parent, name), { recursive: true });
@@ -42,8 +50,8 @@ for (const name of DEMO ? [other] : [other, 'found']) {
 for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
 // Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
 // others have none. A suggestion for duo or quatro waits while GATE exists, so a test can look at the progress page.
-export const ONE = join(tmpdir(), `bk-ui-one-${PORT}`);
-export const GATE = join(tmpdir(), `bk-ui-gate-${PORT}`);
+export const ONE = join(ROOT, 'one');
+export const GATE = join(ROOT, 'gate');
 rmSync(ONE, { recursive: true, force: true });
 rmSync(GATE, { force: true });
 for (const name of ['uno', 'duo', 'tres', 'quatro']) {
@@ -54,7 +62,7 @@ for (const name of ['uno', 'duo', 'tres', 'quatro']) {
 }
 // The automations runner answers only while RUNNER exists: the Automations test creates it, so the other views see no
 // runner (an installed one adds its skills to the global plan). A store in memory, in the CLI's JSON shapes.
-export const RUNNER = join(tmpdir(), `bk-ui-runner-${PORT}`);
+export const RUNNER = join(ROOT, 'runner');
 rmSync(RUNNER, { force: true });
 const automations = new Map();
 const runner = (args) => {
@@ -80,7 +88,7 @@ for (const name of ['alpha', 'broken']) {
 }
 execFileSync(GIT, ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 // Two worktrees of the registered project, listed by the git stub below; a session in each folds into the project on the board.
-const TREES = ['a', 'b'].map((t) => join(tmpdir(), `bk-ui-tree-${PORT}`, t));
+const TREES = ['a', 'b'].map((t) => join(ROOT, 'tree', t));
 let registered = null;
 const run = (argv, o = {}) => {
   if (!DEMO && argv[0] === 'git' && argv[2] === registered && argv.slice(3).join(' ') === 'worktree list --porcelain') return { code: 0, stdout: [registered, ...TREES].map((w) => `worktree ${w}\nHEAD 0\n`).join('\n'), stderr: '' };

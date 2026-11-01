@@ -618,7 +618,7 @@ function checkArgs(o, positionals) {
   // doctor and verify check the folder they name: one that does not exist must not read as a clean check.
   if (['doctor', 'verify'].includes(name) && positionals[1] !== undefined) return folderProblem(resolve(positionals[1]));
   // insights reads a project's proposals from --project: a folder that does not exist must not give the machine's findings alone.
-  if (name === 'insights' && o.project !== undefined) return folderProblem(resolve(o.project));
+  if (name === 'insights' && o.project !== undefined) return o.project === '' ? '--project needs a folder' : folderProblem(resolve(o.project));
   return undefined;
 }
 

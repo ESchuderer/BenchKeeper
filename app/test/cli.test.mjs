@@ -369,6 +369,9 @@ test('insights --json --project refuses a folder that does not exist, exit 2; an
   const here = cli();
   assert.notEqual(await here.exec(['insights', '--json', '--project', mkdtempSync(join(tmpdir(), 'bk-cli-'))]), 2);
   assert.ok(Array.isArray(JSON.parse(here.text()).findings));
+  const empty = cli();
+  assert.equal(await empty.exec(['insights', '--json', '--project', '']), 2);
+  assert.equal(JSON.parse(empty.text()).error, '--project needs a folder');
 });
 
 test('profile import exits 1 when its save and register question is answered no', async () => {

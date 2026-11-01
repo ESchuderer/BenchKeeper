@@ -32,7 +32,7 @@ export function verifyPackage(spec, env = childEnv({})) {
 // import.meta.main (Node 22.18 and later) is true for the entry module, also through a symlink, but false while a
 // preload (--import) imports it first. So also compare real paths, as Node keeps process.argv[1] as given (macOS /var is
 // /private/var), except under -e or -p, where process.argv[1] is an argument and not the entry module.
-const evalOrPrint = process.execArgv.some((a) => ['-e', '--eval', '-p', '--print'].includes(a) || a.startsWith('--eval=') || a.startsWith('--print='));
+const evalOrPrint = process.execArgv.some((a) => /^-[ep]+$/.test(a) || a === '--eval' || a === '--print' || a.startsWith('--eval=') || a.startsWith('--print='));
 if (import.meta.main || (!evalOrPrint && process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)))) {
   const r = verifyPackage(process.argv[2] ?? '');
   process.stdout.write(r.stdout ?? '');

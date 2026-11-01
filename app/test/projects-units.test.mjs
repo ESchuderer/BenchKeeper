@@ -10,7 +10,7 @@ import { doctor } from '../src/doctor.mjs';
 import { copied, libraryWith } from '../src/packs.mjs';
 import { addProject, confirmGit, gitCodeConfig, listProjects, prefetchOrigins, projectInstalls, registeredEntry, registryProblem, relocateProject, remoteHead, renameProject, skillCounts, status, unconfirmedGit, unshare, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, runCommand } from '../src/runner.mjs';
-import { projectSkills } from '../src/skills.mjs';
+import { projectSkills, unfinishedSkills } from '../src/skills.mjs';
 import { STATE, projectCtx, projectPlan } from '../src/steps/project.mjs';
 
 const TMP = realpathSync(tmpdir());
@@ -338,4 +338,6 @@ test('a community skill whose install failed after it created the folder is not 
   fail = false;
   apply(preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: {} }).changes), ctx, { scope: dir });
   assert.deepEqual([state(), step(), unfinished()], ['current', undefined, []]);
+  // A state file of another shape: no finding, no throw.
+  assert.deepEqual(unfinishedSkills(ctx, dir, { skills: {}, agents: 'claude', disabled: 1 }), []);
 });

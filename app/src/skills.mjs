@@ -42,9 +42,11 @@ function communityState(dir, rec, skill, a, latest) {
 
 // The community skills of a project's state file whose install did not finish, each with the folders it left (relative to dir).
 export function unfinishedSkills(ctx, dir, state) {
-  const disabled = state?.disabled ?? [], lib = libraryWith(ctx);
-  return (state?.skills ?? []).filter((r) => NAME.test(r.name ?? '') && !copied(r) && !disabled.includes(r.name)).flatMap((rec) => {
-    const folders = skillDirs((state.agents ?? []).filter((x) => lib.skills.find((k) => k.name === rec.name)?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir).filter((d) => unfinishedHere(d, rec.name));
+  // A state file of another shape names no skill here: doctor reports the project, not a throw.
+  const list = (x) => (Array.isArray(x) ? x : []);
+  const disabled = list(state?.disabled), agents = list(state?.agents), lib = libraryWith(ctx);
+  return list(state?.skills).filter((r) => r && typeof r === 'object').filter((r) => NAME.test(r.name ?? '') && !copied(r) && !disabled.includes(r.name)).flatMap((rec) => {
+    const folders = skillDirs(agents.filter((x) => lib.skills.find((k) => k.name === rec.name)?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir).filter((d) => unfinishedHere(d, rec.name));
     return folders.length ? [{ name: rec.name, source: rec.source, folders: folders.map((d) => join(d, rec.name).slice(dir.length + 1)) }] : [];
   });
 }

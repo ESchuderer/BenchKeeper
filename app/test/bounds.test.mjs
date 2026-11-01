@@ -577,17 +577,22 @@ test('a query that starts with a dash is no eval case', async () => {
   await assert.rejects(runEval(c, [{ target: 'skill:x', agent: 'claude', cases: [{ id: 'k', query: '', should: true }] }]), /empty/);
 });
 
-test('a hand-edited AGENTS.override.md is offered for removal, not preselected; one as written is preselected', () => {
+test('AGENTS.override.md when Codex goes: the user\'s own text stays, an older version\'s copy that differs from AGENTS.md is not preselected', () => {
   const h = home(), dir = home();
   const c = context({ home: h, roots: [h, dir] });
-  const share = () => preview(projectPlan({ ctx: c, dir, answers: { agents: ['codex'], env: 'host', share: true } }).changes).filter((x) => x.step === 'local-codex' && x.kind === 'remove');
+  const share = () => preview(projectPlan({ ctx: c, dir, answers: { agents: ['codex'], env: 'host', share: true } }).changes).filter((x) => x.step === 'local-codex');
   apply(preview(projectPlan({ ctx: c, dir, answers: { agents: ['codex'], env: 'host', share: false } }).changes), projectCtx(c, dir), { scope: dir });
   const [pristine] = share();
-  assert.deepEqual([pristine.selected, pristine.destructive], [true, true]);
-  writeFileSync(join(dir, 'AGENTS.override.md'), `my own notes\n\n${readFileSync(join(dir, 'AGENTS.override.md'), 'utf8')}`);
+  assert.deepEqual([pristine.kind, pristine.selected, pristine.destructive], ['remove', true, true]);
+  const path = join(dir, 'AGENTS.override.md'), written = readFileSync(path, 'utf8');
+  writeFileSync(path, `my own notes\n\n${written}`);
   const [edited] = share();
-  assert.equal(edited.selected, false);
-  assert.match(edited.title, /text of your own/);
+  assert.deepEqual([edited.kind, edited.selected, edited.title], ['write', true, "AGENTS.override.md without BenchKeeper's part (now in AGENTS.md)"]);
+  // An older version's file: the copy before the rules block is no longer AGENTS.md's text (here: a line of the user's).
+  writeFileSync(path, `my own notes\n\n${written.replace(/<!-- benchkeeper:override (start|end) -->\n/g, '')}`);
+  const [legacy] = share();
+  assert.deepEqual([legacy.kind, legacy.selected], ['remove', false]);
+  assert.match(legacy.title, /differs from AGENTS\.md/);
 });
 
 test('the Update all dry run of the server leaves out file contents, like every plan route', () => {

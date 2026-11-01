@@ -13,7 +13,7 @@ import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, 
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { machineEnv, ownEnv, withVars } from '../machine.mjs';
-import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
+import { getBlock, marks, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
@@ -71,6 +71,38 @@ const INCLUDE = '.worktreeinclude', INCLUDE_ID = 'worktrees';
 const INCLUDE_HEAD = '# Files a new worktree copies from this checkout when Git ignores them (benchkeeper projects apply)';
 // The file without BenchKeeper's lists: the block, or all of a file an earlier setup offered whole.
 const includeOut = (t) => (orca.offeredInclude(t) ? '' : setBlock(t, INCLUDE_ID, null, '#'));
+// Codex reads AGENTS.override.md instead of AGENTS.md, so BenchKeeper keeps AGENTS.md's text there with the rules block,
+// both in one marked block that every apply rebuilds from AGENTS.md. Lines outside it are the user's and stay, as in
+// CLAUDE.local.md: in a repository without a tracked AGENTS.md this file is the only per-project text Codex reads.
+const OVERRIDE_ID = 'override';
+// A file an older version wrote has no override block: AGENTS.md's text unmarked, then the rules block. That version
+// rewrote all up to the block's end on every apply, so that is its copy; what follows the block is the user's.
+const legacyOverride = (t) => getBlock(t, OVERRIDE_ID) == null && getBlock(t, 'project') != null;
+const legacyParts = (t) => {
+  const [start, end] = marks('project');
+  return { copy: t.slice(0, t.indexOf(start)), own: t.slice(t.indexOf(end) + end.length).replace(/^\n+/, '') };
+};
+const overrideOurs = (t) => getBlock(t, OVERRIDE_ID) != null || getBlock(t, 'project') != null;
+// The file without BenchKeeper's part: the user's own lines, '' when there are none.
+const overrideOwn = (t) => (legacyOverride(t) ? legacyParts(t).own : setBlock(t, OVERRIDE_ID, null));
+// The file with BenchKeeper's part as body, in place. A file without the block (new, hand-written or an older version's)
+// gets it first: the user's lines follow AGENTS.md's text, as an override of it reads.
+function overrideWith(t, body) {
+  if (getBlock(t, OVERRIDE_ID) != null) return setBlock(t, OVERRIDE_ID, body);
+  const own = overrideOwn(t ?? ''), block = setBlock('', OVERRIDE_ID, body);
+  return own.trim() ? `${block}\n${own.replace(/^\n+/, '')}` : block;
+}
+// BenchKeeper's part of the file as a removal: the file when nothing else is in it. selected only when that part is
+// known exactly: an older version's copy that differs from AGENTS.md may hold text the user put before the block.
+function overrideRemoval(dir, add, why = '') {
+  const path = join(dir, OVERRIDE), t = readText(path);
+  if (!overrideOurs(t)) return;
+  const agentsMd = setBlock(readText(join(dir, 'AGENTS.md')) ?? '', 'project', null);
+  const exact = !legacyOverride(t) || legacyParts(t).copy.trim() === agentsMd.trim();
+  const note = `${exact ? '' : 'the text before the BenchKeeper block differs from AGENTS.md'}${!exact && why ? '; ' : ''}${why}`;
+  if (overrideOwn(t).trim()) add('local-codex', `${OVERRIDE} without BenchKeeper's part${note ? ` (${note})` : ''}`, { kind: 'write', path, edit: overrideOwn, selected: exact });
+  else add('local-codex', `remove ${OVERRIDE} (only BenchKeeper's part${note ? `; ${note}` : ''})`, { kind: 'remove', path, selected: exact });
+}
 // BenchKeeper's lists in the worktree include file as a removal (the file when nothing else is in it).
 function includeRemoval(dir, add) {
   const t = readText(join(dir, INCLUDE));
@@ -148,7 +180,7 @@ export function committedSetup(dir) {
 }
 
 // A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
-// (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
+// (the file when nothing else is in it), BenchKeeper's part of AGENTS.override.md (the file likewise), the sandbox keys in
 // .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, its list in .worktreeinclude, and the
 // installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
 // AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
@@ -163,7 +195,8 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
     if (strip(claude).trim()) add('local-claude', `${LOCAL_CLAUDE} without the BenchKeeper block`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: strip });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block)`, { kind: 'remove', path: at(LOCAL_CLAUDE) });
   }
-  if (getBlock(readText(at(OVERRIDE)), 'project') != null) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's)`, { kind: 'remove', path: at(OVERRIDE) });
+  // Removing the setup takes BenchKeeper's part out whole, an older version's copy included: that version owned it.
+  overrideRemoval(dir, (step, title, c) => add(step, title, { ...c, selected: true }));
   const settings = readText(at(LOCAL_SETTINGS));
   if ((state?.sandbox || state?.guards) && editsJson(ownOff(state), settings)) {
     // A settings file that held only the keys BenchKeeper set was BenchKeeper's.
@@ -377,14 +410,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
 
   // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
-  // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
-  // carries AGENTS.md's text too and is rebuilt from it on every apply).
+  // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so its
+  // block carries AGENTS.md's text too and is rebuilt from it on every apply; the user's lines around it stay).
   const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
   const ruleLines = forAgent(rules, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]).split('\n').map((l) => l.replace(/^- /, ''));
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
   const lines = (run) => [...ruleLines, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
-  const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   const rulesUnit = unit({ id: 'rules:project', kind: 'rules', source: { type: 'library' }, agents: a.agents, scope: 'project', removal: 'block' });
   if (a.share) {
     add('agents-md', 'AGENTS.md: rules, where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t, run) => setBlock(t, 'project', blockText(run)), installUnit: rulesUnit });
@@ -400,10 +432,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         edit: (t, run) => { const s = setBlock(t, 'project', blockText(run)); return imports || /^@AGENTS\.md$/m.test(s) ? s : `@AGENTS.md\n\n${s}`; } });
     }
     if (a.agents.includes('codex')) {
-      // A hand-written override is the user's: replacing it is offered, not preselected.
-      const ours = overrideOurs(readText(at(OVERRIDE)));
-      add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (replaces your own file)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
-        edit: (_, run) => setBlock(agentsMd, 'project', blockText(run)) });
+      // A hand-written override stays below the block, but Codex then reads AGENTS.md's text too: offered, not preselected.
+      const have = readText(at(OVERRIDE)), ours = have == null || overrideOurs(have);
+      add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (above your own text)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
+        edit: (t, run) => overrideWith(t, setBlock(agentsMd, 'project', blockText(run))) });
     }
   }
   // What a local setup wrote for an agent no longer chosen, or before the setup was shared.
@@ -413,11 +445,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) {
-    // Preselected only when the file is AGENTS.md plus BenchKeeper's block, as the setup wrote it: text added by hand is offered, not preselected.
-    const asWritten = setBlock(readText(at(OVERRIDE)), 'project', null).trim() === (readText(at('AGENTS.md')) ?? '').trim();
-    add('local-codex', `remove ${OVERRIDE} (${asWritten ? "BenchKeeper's" : 'BenchKeeper block plus text of your own'}; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: asWritten });
-  }
+  if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });

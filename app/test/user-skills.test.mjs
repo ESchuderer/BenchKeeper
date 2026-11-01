@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -146,6 +146,38 @@ test('a file of a user skill that is not UTF-8 text is copied byte for byte, in 
   const global = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { packs: [], containers: false } })).filter((c) => c.step === 'pack:mine');
   assert.equal(apply(global, ctx, { scope: 'global' }).status, 'done');
   assert.ok(readFileSync(join(ctx.home, '.claude/skills/release-notes/logo.png')).equals(bytes));
+});
+
+test('a link to nothing or to a folder in a user skill is not copied and the project plan warns; the views keep working (#914)', () => {
+  const ctx0 = ctxAt();
+  const dir = mkdtempSync(join(TMP, 'bk-user-skill-link-'));
+  execFileSync('git', ['init', '-q', dir]);
+  const ctx = { ...ctx0, roots: [...ctx0.roots, dir] };
+  add(ctx, 'release-notes');
+  const src = userSkillDir(ctx, 'release-notes');
+  writeFileSync(join(ctx.home, 'kept.md'), 'kept\n');
+  symlinkSync(join(ctx.home, 'kept.md'), join(src, 'kept.md'));
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0x00]);
+  writeFileSync(join(ctx.home, 'logo.png'), bytes);
+  symlinkSync(join(ctx.home, 'logo.png'), join(src, 'logo.png'));
+  symlinkSync(join(ctx.home, 'nothing-here'), join(src, 'notes.md'));
+  mkdirSync(join(ctx.home, 'shared'));
+  symlinkSync(join(ctx.home, 'shared'), join(src, 'refs'));
+  const answers = { agents: ['claude'], env: 'host', skills: ['release-notes'] };
+  const p = projectPlan({ ctx, dir, answers, plugins: {} });
+  const paths = preview(p.changes).filter((c) => c.step === 'skill:release-notes').map((c) => c.path.slice(dir.length + 1));
+  assert.deepEqual(paths, ['.claude/skills/release-notes/kept.md', '.claude/skills/release-notes/logo.png', '.claude/skills/release-notes/SKILL.md']);
+  assert.ok(p.warnings.includes('your skill release-notes: notes.md, refs are links to nothing or to a folder, so they are not copied: replace each with the file or remove it'), JSON.stringify(p.warnings));
+  assert.equal(apply(preview(p.changes), ctx, { scope: dir }).status, 'done');
+  assert.equal(readFileSync(join(dir, '.claude/skills/release-notes/kept.md'), 'utf8'), 'kept\n');
+  // A link to a binary file is copied as the file's bytes, not as a link into the home folder.
+  assert.equal(lstatSync(join(dir, '.claude/skills/release-notes/logo.png')).isSymbolicLink(), false);
+  assert.ok(readFileSync(join(dir, '.claude/skills/release-notes/logo.png')).equals(bytes));
+  assert.equal(projectSkills(ctx, dir).skills.find((s) => s.name === 'release-notes').state, 'current');
+  savePack(ctx, { id: 'mine', skills: ['release-notes'] });
+  apply(preview([{ id: 'scope', step: 'scope', title: 'scope', ...scopeWrite(ctx, 'mine', 'global') }]), ctx, { scope: 'global' });
+  const global = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { packs: [], containers: false } })).filter((c) => c.step === 'pack:mine');
+  assert.deepEqual(global.map((c) => c.path), [join(ctx.home, '.claude/skills/release-notes/kept.md'), join(ctx.home, '.claude/skills/release-notes/logo.png'), join(ctx.home, '.claude/skills/release-notes/SKILL.md')]);
 });
 
 test('skills new, edit, delete and show on the command line, with --json and refusals', async () => {

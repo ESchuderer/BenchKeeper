@@ -2,12 +2,12 @@
 // (source 'user'), saved in ~/.config/benchkeeper/skills/<name>/, join the library's skills.
 // A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin; an own
 // pack may name the user's skills too, and is not exported then.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { contentDir, library } from './content.mjs';
-import { exists, listFiles, move, readText, writeAtomic } from './fsx.mjs';
+import { exists, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -39,10 +39,14 @@ export const copied = (s) => s?.source === 'own' || s?.source === 'user';
 export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, s.name) : join(contentDir, 'library', s.name));
 // A copied skill's files (src: its folder) as they are written: text with the path globs of the setup in SKILL.md's front matter,
 // and a file that is not UTF-8 text (an image of a user skill) as a byte copy, from, with its bytes.
+// An entry that is not a file (a link to nothing or to a folder) is left out: skippedLinks names it for the plan's warning.
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+export const skippedLinks = (src) => listFiles(src).filter((file) => !isFile(join(src, file)));
 export function ownSkillFiles(src, paths) {
-  return listFiles(src).map((file) => {
+  return listFiles(src).filter((file) => isFile(join(src, file))).map((file) => {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
-    if (!Buffer.from(text).equals(bytes)) return { file, from: join(src, file), bytes };
+    // The target of a link, not the link: the copy copies a link as a link.
+    if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
     return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
   });
 }

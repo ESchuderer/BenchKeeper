@@ -82,7 +82,11 @@ export async function starts(tool, run, { t, home, hosts, env, signal }) {
   if (hit && hit.until > Date.now()) return hit.error;
   const w = wrap(tool, { argv: ['true'], t, home, hosts, env });
   const r = await run(w.argv, { cwd: t, env: w.env, signal, timeout: 60e3 });
-  const tail = lastLines(r.stderr || r.stdout || '');
+  // The cause: the line of bwrap (srt starts it on Linux) or of the sandbox program; else the last lines without npm's
+  // notices, which npx prints after the cause.
+  const lines = String(r.stderr || r.stdout || '').split('\n');
+  const cause = lines.find((l) => /^(bwrap|srt|sandbox-exec):/.test(l.trim()));
+  const tail = lastLines(cause ?? lines.filter((l) => !/^npm (notice|warn)\b/i.test(l.trim())).join('\n'));
   const error = r.code === 0 ? null : `the sandbox (${tool}) did not start: ${tail || `exit ${r.code}`}${/mount proc/i.test(tail) ? ' (in a container, start it with --security-opt unmask=/proc/*)' : ''}`;
   // A stop or a timeout says nothing about the sandbox: it is checked again next time.
   if (!signal?.aborted && r.code !== 124) probed.set(key, { error, until: Date.now() + (error ? 60e3 : 10 * 60e3) });

@@ -74,12 +74,13 @@ function ready(ctx) {
 // The name and noreply address GitHub shows as the bot, the form of dependabot[bot] and github-actions[bot] commits.
 export const identity = (c) => ({ name: c.user.login, email: `${c.user.id}+${c.user.login}@users.noreply.github.com` });
 
-// The first label of the host name in lowercase letters, digits and dashes.
-export const hostSlug = (h) => String(h).split('.')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'host';
+// The first label of the host name in lowercase letters, digits and single dashes (a run of others is one dash, so an
+// end holds at most one).
+export const hostSlug = (h) => String(h).split('.')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'host';
 // <prefix>-<host slug>, cut to GitHub's limit; the prefix leaves at least 8 characters for the host.
 export function appName(prefix, host) {
   if (!PREFIX.test(prefix) || prefix.length > NAME_MAX - 9) throw usage(`--prefix is lowercase letters, digits and single dashes, at most ${NAME_MAX - 9} characters`);
-  return `${prefix}-${hostSlug(host).slice(0, NAME_MAX - prefix.length - 1).replace(/-+$/, '')}`;
+  return `${prefix}-${hostSlug(host).slice(0, NAME_MAX - prefix.length - 1).replace(/-$/, '')}`;
 }
 
 // owner/name of a GitHub remote URL (https, scp-like ssh, ssh://), else null.
@@ -125,11 +126,12 @@ export function appJwt(iss, key, now = Date.now()) {
   return `${body}.${createSign('RSA-SHA256').update(body).sign(key).toString('base64url')}`;
 }
 
-// One request; what names the call in an error, never the path (the manifest code is in one) or a credential.
-async function call(ctx, method, path, { what, auth, body, missing } = {}) {
+// One request to the path of these segments, each encoded, so no value (a manifest code from the browser, a name from
+// bot.json) leaves its segment or the API host. what names the call in an error, never the path or a credential.
+async function call(ctx, method, segments, { what, auth, body, missing } = {}) {
   let r;
   try {
-    r = await (ctx.fetch ?? fetch)(`${API}${path}`, {
+    r = await (ctx.fetch ?? fetch)(`${API}/${segments.map((s) => encodeURIComponent(s)).join('/')}`, {
       method, redirect: 'error', signal: AbortSignal.timeout(30e3),
       headers: { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'benchkeeper', ...(auth ? { authorization: `Bearer ${auth}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -145,7 +147,7 @@ async function call(ctx, method, path, { what, auth, body, missing } = {}) {
 const jwtFor = (ctx, c, now) => appJwt(c.clientId || c.appId, loadKey(ctx), now);
 // { id, account } of the App's installation that covers repo, or null while there is none.
 async function installationOf(ctx, c, repo, now = Date.now()) {
-  const j = await call(ctx, 'GET', `/repos/${repo}/installation`, { what: `installation on ${repo}`, auth: jwtFor(ctx, c, now), missing: 'none' });
+  const j = await call(ctx, 'GET', ['repos', ...repo.split('/'), 'installation'], { what: `installation on ${repo}`, auth: jwtFor(ctx, c, now), missing: 'none' });
   if (j === 'none') return null;
   if (!positive(j?.id)) throw new BotError(`GitHub sent no installation id for ${repo}`);
   return { id: j.id, account: String(j.account?.login ?? repo.split('/')[0]) };
@@ -178,7 +180,7 @@ export async function mintToken(ctx, repo, { now = Date.now(), fresh = false } =
   if (hit) return hit;
   const inst = await installationOf(ctx, c, repo, now);
   if (!inst) throw new BotError(`the App ${c.slug} is not installed on ${repo}: ${installUrl(c)}`);
-  const j = await call(ctx, 'POST', `/app/installations/${inst.id}/access_tokens`, { what: `token for ${repo}`, auth: jwtFor(ctx, c, now), body: { repositories: [repo.split('/')[1]], permissions: PERMISSIONS } });
+  const j = await call(ctx, 'POST', ['app', 'installations', String(inst.id), 'access_tokens'], { what: `token for ${repo}`, auth: jwtFor(ctx, c, now), body: { repositories: [repo.split('/')[1]], permissions: PERMISSIONS } });
   if (!MINTED.test(j?.token ?? '') || Number.isNaN(Date.parse(j?.expires_at))) throw new BotError('GitHub sent no installation token');
   const t = { token: j.token, expires: j.expires_at };
   keep(ctx, repo, t);
@@ -275,7 +277,7 @@ const same = (a, b) => typeof a === 'string' && a.length === b.length && timingS
 // client secret and the webhook secret of the answer are dropped here: never stored, never shown.
 async function convert(ctx, code, fields) {
   if (!/^[\w-]{1,200}$/.test(code ?? '')) throw new BotError('GitHub sent no valid code');
-  const app = await call(ctx, 'POST', `/app-manifests/${code}/conversions`, { what: 'creating the App from the manifest' });
+  const app = await call(ctx, 'POST', ['app-manifests', code, 'conversions'], { what: 'creating the App from the manifest' });
   if (!positive(app?.id) || !SLUG.test(app?.slug ?? '') || typeof app?.client_id !== 'string') throw new BotError('GitHub sent no App id, slug or client id');
   store(ctx).set(KEY_ENTRY, encodeKey(app.pem));
   const c = { version: 1, ...fields, appId: app.id, slug: app.slug, name: String(app.name ?? app.slug), clientId: app.client_id, owner: String(app.owner?.login ?? ''), created: new Date().toISOString() };
@@ -298,7 +300,7 @@ export async function setupBot(ctx, o) {
   const created = waiter();
   let nudge = waiter(), used = false;
   const server = createServer((req, res) => {
-    const url = new URL(req.url, 'http://x'), send = (code, body, head = {}) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', connection: 'close', ...head }); res.end(body); };
+    const url = new URL(req.url, base), send = (code, body, head = {}) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', connection: 'close', ...head }); res.end(body); };
     // Only this address: a page of another site cannot reach the server under a name of its own (DNS rebinding).
     if (`http://${req.headers.host}` !== base) return send(421, page('Wrong host', '<p>Wrong host.</p>'));
     if (url.pathname === '/start' && same(url.searchParams.get('state'), state)) {
@@ -334,7 +336,7 @@ export async function setupBot(ctx, o) {
       if (Date.now() >= end) throw new BotError(`the App ${c.slug} is not installed on ${c.repo} yet: install it at ${installUrl(c)}, then run benchkeeper bot setup --resume`);
       await within(nudge.p, interval, 'poll').catch(() => {});
     }
-    const u = await call(ctx, 'GET', `/users/${encodeURIComponent(`${c.slug}[bot]`)}`, { what: 'the bot user' });
+    const u = await call(ctx, 'GET', ['users', `${c.slug}[bot]`], { what: 'the bot user' });
     if (!positive(u?.id) || u.login !== `${c.slug}[bot]`) throw new BotError(`GitHub sent no bot user ${c.slug}[bot]`);
     c = { ...c, installation: inst, user: { id: u.id, login: u.login } };
     writeConfig(ctx, c);

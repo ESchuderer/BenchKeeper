@@ -1,7 +1,7 @@
 // Checks the registry signatures and provenance attestations of an npm package and its dependencies before a command
 // installs or runs it. `npm audit signatures` reads an installed tree, so the package goes into a throwaway project
 // first, with lifecycle scripts off. Run as a script: node verify.mjs <name@version>; the exit code is npm's.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +29,11 @@ export function verifyPackage(spec, env = childEnv({})) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// import.meta.main (Node 22.18 and later) is true for the entry module, also through a symlink, but false while a
+// preload (--import) imports it first. So also compare real paths, as Node keeps process.argv[1] as given (macOS /var is
+// /private/var), except under -e or -p, where process.argv[1] is an argument and not the entry module.
+const evalOrPrint = process.execArgv.some((a) => /^-[ep]+$/.test(a) || a === '--eval' || a === '--print' || a.startsWith('--eval=') || a.startsWith('--print='));
+if (import.meta.main || (!evalOrPrint && process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)))) {
   const r = verifyPackage(process.argv[2] ?? '');
   process.stdout.write(r.stdout ?? '');
   process.stderr.write(r.stderr ?? '');

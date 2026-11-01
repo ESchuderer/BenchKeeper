@@ -2,7 +2,7 @@
 // duplicated lines (jscpd). A baseline may only shrink: a new finding fails, and so does a fixed one still listed.
 // Usage: node scripts/quality.mjs coverage <lcov file> | baselines [--write]. --write drops fixed findings, never adds one.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -90,7 +90,10 @@ const run = () => ({
   duplicatedLines: Object.fromEntries(Object.entries(AREAS).map(([area, args]) => [area, duplicated(args)])),
 });
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// True when this file is the script Node was started with. Node resolves symlinks for import.meta.url but keeps
+// process.argv[1] as typed, so both are compared as real paths: started through a symlinked folder, the command line still runs.
+const isMain = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (isMain()) {
   const [what, arg] = process.argv.slice(2);
   const quality = JSON.parse(readFileSync(QUALITY, 'utf8'));
   let problems;

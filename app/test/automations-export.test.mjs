@@ -21,7 +21,7 @@ id = "probe"
 title = "Probe"
 agent = "${agent}"
 schedule = "${schedule}"
-precheck = '${precheck}'
+precheck = ${precheck.includes('\n') ? `'''${precheck}'''` : `'${precheck}'`}
 helpers = ["probe/precheck.sh", "probe/${list}"]
 
 [parameters.flag]
@@ -85,6 +85,19 @@ test('export: a helper in a subfolder is unpacked into the same subfolder', () =
   assert.match(flags.join(' '), /Bash\(\S+\/sub\/list\.sh \*\)/);
 });
 
+test('export: a precheck that ends in a comment or spans lines still parses and runs', () => {
+  for (const precheck of ['probe/precheck.sh x # a comment', 'true\nprobe/precheck.sh x # the last line']) {
+    const s = setup({ precheck });
+    const script = exportScript(s.ctx, 'probe', { dir: s.project });
+    const file = join(s.project, 'check.sh');
+    writeFileSync(file, script);
+    execFileSync('sh', ['-n', file]);
+    assert.equal(run(script, s, 1), null, precheck);
+    assert.equal(readFileSync(join(s.project, 'seen'), 'utf8').split(' ')[0], 'x', 'the precheck ran');
+    assert.ok(run(script, s, 0), precheck);
+  }
+});
+
 test('export: an agent missing from PATH fails with exit 127 before the precheck', () => {
   const s = setup();
   const file = join(s.project, 'probe.sh');
@@ -107,7 +120,7 @@ test('automations export prints the script, --json carries it, a missing id is a
   const lines = [];
   const cli = (argv) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx: s.ctx });
   assert.equal(await cli(['automations', 'export', 'probe', '--project', s.project, '--param', 'flag=c']), 0);
-  assert.match(lines.pop(), /\("\$helpers"\/'precheck\.sh' "c"\) \|\| exit 0/);
+  assert.match(lines.pop(), /^\(\n"\$helpers"\/'precheck\.sh' "c"\n\) \|\| exit 0$/m);
   assert.equal(await cli(['automations', 'export', 'probe', '--json']), 0);
   assert.match(JSON.parse(lines.pop()).script, /^#!\/bin\/sh/);
   assert.equal(await cli(['automations', 'export']), 2);

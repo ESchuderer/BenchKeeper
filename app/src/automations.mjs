@@ -275,7 +275,9 @@ helpers=$(mktemp -d) || exit 1
 trap 'rm -rf "$helpers"' EXIT
 trap 'exit 1' HUP INT TERM
 ${helpers}cd ${quote(resolve(dir))} || exit 1
-(${withHelpers(t, filled.precheck)}) || exit 0
+(
+${withHelpers(t, filled.precheck)}
+) || exit 0
 prompt=${withHelpers(t, filled.prompt, true)}
 ${allow}${HEADLESS[t.agent]}
 `;

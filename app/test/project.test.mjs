@@ -74,7 +74,8 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
   assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
   assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
-  assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
+  // Only the personal files stay ignored: a hand-written CLAUDE.local.md stays out of the commit and in new worktrees.
+  assert.deepEqual(read(join(r.dir, '.git/info/exclude')).split('\n').filter((l) => l.startsWith('/')), ['/CLAUDE.local.md', '/AGENTS.override.md']);
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
 });
 
@@ -95,26 +96,92 @@ test('the dev container wrapper and the worktree files: offered by what the proj
   const shown = preview(changes);
   const dc = shown.find((c) => c.step === 'dc'), files = shown.filter((c) => c.step === 'worktrees');
   assert.ok(dc.selected && dc.title.startsWith('scripts/dc:'));
-  assert.deepEqual(files.map((c) => [basename(c.path), c.selected]), [['orca.yaml', false], ['.worktreeinclude', false]]);
+  assert.deepEqual(files.map((c) => [basename(c.path), c.selected]), [['orca.yaml', false]]);
   assert.match(files[0].after, /\n {4}scripts\/dc up && scripts\/dc npm ci\n/);
   assert.match(files[0].title, /setup hook: npm ci \(package-lock\.json\), through scripts\/dc/);
-  for (const p of ['CLAUDE.local.md', '.benchkeeper', 'scripts/dc', 'orca.yaml']) assert.ok(files[1].after.split('\n').includes(p), p);
   assert.match(shown.find((c) => c.step === 'local-claude').diff, /scripts\/dc <command>/);
 
   const run = apply(shown, r.ctx, { scope: r.dir, select: shown.map((c) => c.id) });
   assert.equal(run.status, 'done');
   assert.ok(statSync(join(r.dir, 'scripts/dc')).mode & 0o100);
   assert.match(read(join(r.dir, 'CLAUDE.local.md')), /`scripts\/dc <command>`/);
+  // The offered files written are in the worktree list and the exclude list.
+  for (const p of ['scripts/dc', 'orca.yaml']) assert.ok(read(join(r.dir, '.worktreeinclude')).split('\n').includes(p), p);
   for (const p of ['/scripts/dc', '/orca.yaml', '/.worktreeinclude']) assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes(p), p);
   assert.equal(r.git('status', '--porcelain').toString(), '?? package-lock.json\n');
   assert.equal(undo(run.id, r.ctx).status, 'done');
   for (const p of ['scripts/dc', 'orca.yaml', '.worktreeinclude']) assert.ok(!existsSync(join(r.dir, p)), p);
 
-  // Not chosen: the block and the exclude list leave it out.
+  // Not chosen: the block, the worktree list and the exclude list leave it out.
   const again = preview(plan(r, opts).changes);
   apply(again, r.ctx, { scope: r.dir, select: again.filter((c) => c.step !== 'dc').map((c) => c.id) });
   assert.ok(!existsSync(join(r.dir, 'scripts/dc')));
-  assert.ok(!read(join(r.dir, 'CLAUDE.local.md')).includes('scripts/dc') && !read(join(r.dir, '.git/info/exclude')).includes('scripts/dc'));
+  for (const f of ['CLAUDE.local.md', '.worktreeinclude', '.git/info/exclude']) assert.ok(!read(join(r.dir, f)).includes('scripts/dc'), f);
+});
+
+test('.worktreeinclude: every setup gives new worktrees the local files; shared lists the personal ones; your lines stay; undo and removal', () => {
+  const r = repo();
+  const lines = () => read(join(r.dir, '.worktreeinclude')).split('\n');
+  const listed = () => { const t = read(join(r.dir, '.worktreeinclude')); return t.slice(t.indexOf('# benchkeeper:worktrees start'), t.indexOf('# benchkeeper:worktrees end')).split('\n').slice(2).filter(Boolean); };
+  // An earlier setup's whole offered file (Orca workers only, off by default) is BenchKeeper's: it becomes the block.
+  writeFileSync(join(r.dir, '.worktreeinclude'), '# Local files Orca copies into each new worktree when they exist and Git ignores them.\n.benchkeeper\n');
+  const shown = preview(plan(r, { agents: ['claude', 'codex'], env: 'host', packs: ['frontend'] }).changes);
+  const inc = shown.find((c) => c.step === 'worktree-include');
+  assert.ok(inc.selected && !shown.some((c) => c.step === 'worktrees'), 'on by default, without Orca workers');
+  const run = apply(shown, r.ctx, { scope: r.dir, select: shown.filter((c) => c.kind !== 'command').map((c) => c.id) });
+  assert.equal(run.status, 'done');
+  // The state file, not its folder: handoff and knowledge files there are per worktree. Literal paths, no leading slash, no trailing one.
+  assert.deepEqual(listed(), ['.benchkeeper/state.json', 'skills-lock.json', 'CLAUDE.local.md', 'AGENTS.override.md', '.claude/settings.local.json', '.claude/hooks/benchkeeper-guard.mjs',
+    '.claude/skills/designing-technical-uis', '.agents/skills/designing-technical-uis', '.claude/skills/frontend-design', '.agents/skills/frontend-design', '.claude/skills/accessibility', '.agents/skills/accessibility', '.worktreeinclude']);
+  assert.ok(!lines().includes('.benchkeeper') && !lines().some((l) => /^[^#].*[*?!]|^\//.test(l)));
+  assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes('/.worktreeinclude'));
+  assert.equal(r.git('status', '--porcelain').toString(), '');
+  // Git ignores every entry here, so a worktree tool copies each one (Orca and Claude Code copy ignored files only).
+  const ignored = r.git('check-ignore', '--', ...listed().filter((p) => existsSync(join(r.dir, p)))).toString().trim().split('\n');
+  assert.deepEqual(ignored, listed().filter((p) => existsSync(join(r.dir, p))));
+
+  // Your own lines outside the block stay through every apply, share and removal.
+  writeFileSync(join(r.dir, '.worktreeinclude'), `.env\n\n${read(join(r.dir, '.worktreeinclude'))}`);
+  const pending = () => preview(plan(r, {}).changes).filter((c) => c.step === 'worktree-include');
+  assert.equal(pending().length, 0, 'an applied setup has no worktree list change pending');
+  writeFileSync(join(r.dir, '.worktreeinclude'), '.env\n');
+  assert.equal(pending().length, 1, 'a missing block is a pending change (projects status shows it)');
+  const fix = preview(plan(r, {}).changes);
+  const again = apply(fix, r.ctx, { scope: r.dir, select: fix.filter((c) => c.step === 'worktree-include').map((c) => c.id) });
+  assert.equal(lines()[0], '.env');
+  assert.ok(listed().includes('CLAUDE.local.md'));
+  assert.equal(undo(again.id, r.ctx).status, 'done');
+  assert.equal(read(join(r.dir, '.worktreeinclude')), '.env\n', 'undo restores the file');
+  // The preselected changes without the skills CLI (no network in tests).
+  const go = (answers) => { const c = preview(plan(r, answers).changes); return apply(c, r.ctx, { scope: r.dir, select: c.filter((x) => x.selected && x.kind !== 'command').map((x) => x.id) }); };
+  go({});
+
+  // Shared: committed with the rest, only the personal files that stay ignored.
+  go({ share: true });
+  assert.deepEqual(listed(), ['CLAUDE.local.md', 'AGENTS.override.md']);
+  assert.equal(lines()[0], '.env');
+  assert.match(r.git('status', '--porcelain').toString(), /\?\? \.worktreeinclude\n/);
+  // Gemini alone has no personal file: the block comes out, your lines stay; with none of yours, the file goes.
+  go({ agents: ['gemini'] });
+  assert.equal(read(join(r.dir, '.worktreeinclude')), '.env\n');
+  go({ agents: ['claude'] });
+  assert.deepEqual(listed(), ['CLAUDE.local.md']);
+  writeFileSync(join(r.dir, '.worktreeinclude'), read(join(r.dir, '.worktreeinclude')).replace('.env\n\n', ''));
+  go({ agents: ['gemini'] });
+  assert.ok(!existsSync(join(r.dir, '.worktreeinclude')));
+});
+
+test('.worktreeinclude: a committed one gets the local list offered, not preselected; a project in a subfolder gets none', () => {
+  const r = repo();
+  writeFileSync(join(r.dir, '.worktreeinclude'), '.env\n');
+  r.git('add', '.worktreeinclude');
+  r.git('commit', '-qm', 'include');
+  const inc = preview(plan(r, { agents: ['claude'], env: 'host' }).changes).find((c) => c.step === 'worktree-include');
+  assert.ok(!inc.selected && /the repository commits this file/.test(inc.title), inc.title);
+  const sub = join(r.dir, 'pkg');
+  mkdirSync(sub);
+  const changes = projectPlan({ ctx: r.ctx, dir: sub, answers: { agents: ['claude'], env: 'host' }, plugins: {} }).changes;
+  assert.ok(!changes.some((c) => c.step === 'worktree-include') && !changes.some((c) => c.path === join(sub, '.worktreeinclude')));
 });
 
 test('the worktree setup hook: the install command of the one lockfile at the root, else a line to fill in', () => {
@@ -187,7 +254,8 @@ test('local: two projects in one repository keep their own exclude blocks; a dro
 
   const api = at('api');
   apply(preview(projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: true } }).changes), api.ctx, { scope: api.dir });
-  assert.ok(!exclude().includes('/api/') && exclude().includes('/web/CLAUDE.local.md'));
+  assert.deepEqual(exclude().split('\n').filter((l) => l.startsWith('/api/')), ['/api/CLAUDE.local.md', '/api/AGENTS.override.md']);
+  assert.ok(exclude().includes('/web/CLAUDE.local.md'));
   r.git('add', '-A');
   r.git('commit', '-qm', 'shared api setup');
   assert.throws(() => projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: false } }), /is committed: benchkeeper projects unshare/);

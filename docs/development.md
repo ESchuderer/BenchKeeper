@@ -49,4 +49,4 @@ The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json`, `
 
 3. Add `/.mcp.json`, `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
 
-A new Orca worktree gets a copy of these paths from the primary checkout when Git ignores them there and a local `.worktreeinclude` in the primary checkout lists them, one path per line. Add `/.worktreeinclude` to `.git/info/exclude` too.
+A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.mcp.json` and `.codex/config.toml` below the block, one path per line; the setup keeps lines outside it.

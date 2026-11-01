@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { containerChecks, keyQuota, reconcile } from '../src/containers.mjs';
 import { doctor } from '../src/doctor.mjs';
-import { worktreeFiles } from '../src/orca/index.mjs';
+import { worktreeFile } from '../src/orca/index.mjs';
 import { context } from '../src/runner.mjs';
 
 // A fake podman with five containers: running and stopped ones of an existing worktree, a running and a stopped one of a
@@ -137,7 +137,7 @@ test('the worktree archive hook removes the containers of its worktree only and 
   const root = mkdtempSync(join(tmpdir(), 'bk-arch-')), bin = join(root, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'podman'), `#!/bin/sh\necho "$*" >> '${bin}/log'\ncase "$*" in *"label=devcontainer.local_folder=/w/done") echo c1 ;; rm*) exit 1 ;; esac\n`, { mode: 0o755 });
-  const line = worktreeFiles(null, [])[0].text.match(/^ {4}(sh -c .*)$/m)[1];
+  const line = worktreeFile(null).text.match(/^ {4}(sh -c .*)$/m)[1];
   const r = spawnSync('sh', ['-c', line], { env: { PATH: `${bin}:/usr/bin:/bin`, ORCA_WORKTREE_PATH: '/w/done' }, encoding: 'utf8' });
   assert.equal(r.status, 0);
   assert.deepEqual(readFileSync(join(bin, 'log'), 'utf8').trim().split('\n'), ['ps -aq --filter label=devcontainer.local_folder=/w/done', 'rm -f c1']);

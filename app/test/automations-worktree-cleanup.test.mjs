@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -107,6 +107,35 @@ test('worktree-cleanup: an ignored file keeps its worktree unless a rebuildable 
   assert.deepEqual(act.out.filter((l) => l.startsWith('keep')).sort(), kept);
   assert.ok(existsSync(join(secret, '.env')) && existsSync(join(edited, 'CLAUDE.local.md')));
   assert.ok(!existsSync(deps) && !existsSync(copy));
+});
+
+test('worktree-cleanup: a folder Git ignores as a whole counts as copied when every file in it is an unchanged .worktreeinclude entry', sh, () => {
+  const f = fixture();
+  // As a local project setup leaves it: the exclude list ignores the folder, the include list names its state file.
+  writeFileSync(join(f.repo, '.git', 'info', 'exclude'), '/.benchkeeper/\n/.claude/skills/a/\n/.worktreeinclude\n');
+  writeFileSync(join(f.repo, '.worktreeinclude'), '# benchkeeper:worktrees start\n.benchkeeper/state.json\n.claude/skills/a\n.worktreeinclude\n# benchkeeper:worktrees end\n');
+  mkdirSync(join(f.repo, '.benchkeeper')); writeFileSync(join(f.repo, '.benchkeeper', 'state.json'), '{}');
+  mkdirSync(join(f.repo, '.claude', 'skills', 'a'), { recursive: true }); writeFileSync(join(f.repo, '.claude', 'skills', 'a', 'SKILL.md'), 'a');
+  const wt = {};
+  for (const b of ['copy', 'handoff', 'edited']) {
+    wt[b] = f.worktree(b);
+    f.merged(b, git(f.repo, 'rev-parse', 'main'));
+    for (const p of ['.benchkeeper/state.json', '.claude/skills/a/SKILL.md', '.worktreeinclude']) { mkdirSync(join(wt[b], p, '..'), { recursive: true }); writeFileSync(join(wt[b], p), readFileSync(join(f.repo, p))); }
+  }
+  // A handoff note is per worktree and not copied: it keeps the worktree, as does an edited state file.
+  writeFileSync(join(wt.handoff, '.benchkeeper', 'handoff.md'), 'next steps');
+  writeFileSync(join(wt.edited, '.benchkeeper', 'state.json'), '{"x":1}');
+  assert.deepEqual(f.sweep('report').out.slice(1).sort(), [`keep worktree ${wt.edited} edited ignored-files`, `keep worktree ${wt.handoff} handoff ignored-files`, `removable worktree ${wt.copy} copy`].sort());
+  // A folder that cannot be listed fails the scan instead of reading as all copied (root can still list it: no check then).
+  chmodSync(join(wt.copy, '.benchkeeper'), 0o000);
+  try {
+    let listable = true;
+    try { readdirSync(join(wt.copy, '.benchkeeper')); } catch { listable = false; }
+    if (!listable) assert.ok(f.sweep('report').out.includes(`keep worktree ${wt.copy} copy ignored-scan`));
+  } finally { chmodSync(join(wt.copy, '.benchkeeper'), 0o755); }
+  // A name with a line break cannot be read back from a list, so it keeps the worktree, even beside an unchanged copy.
+  writeFileSync(join(wt.copy, '.benchkeeper', 'state.json\n'), 'other');
+  assert.ok(f.sweep('report').out.includes(`keep worktree ${wt.copy} copy ignored-files`));
 });
 
 test('worktree-cleanup sweep: lists before act removes merged work with its container and volume, keeps the rest', sh, async () => {

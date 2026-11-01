@@ -61,9 +61,23 @@ const installCommand = (dir) => {
   const [file] = found;
   return { file, command: INSTALLS[file] ?? `yarn install ${exists(join(dir, '.yarnrc.yml')) ? '--immutable' : '--frozen-lockfile'}` };
 };
-// The offered files the setup wrote, known by their first two lines (a worktree file's list and install command vary).
-const offeredFiles = (dir) => [{ path: DC_PATH, text: DC }, ...orca.worktreeFiles(null, [])]
+// The offered files the setup wrote, known by their first two lines (the worktree file's install command varies).
+const offeredFiles = (dir) => [{ path: DC_PATH, text: DC }, orca.worktreeFile(null)]
   .filter((f) => readText(join(dir, f.path))?.startsWith(f.text.split('\n').slice(0, 2).join('\n'))).map((f) => f.path);
+// The local files a new worktree copies from this checkout, at the repository root. The multi-agent IDE of orca/ reads
+// literal paths and # comments, Claude Code .gitignore patterns (a literal path is one); both copy an entry only when it
+// exists and Git ignores it. BenchKeeper keeps a block there, so the user's own lines stay.
+const INCLUDE = '.worktreeinclude', INCLUDE_ID = 'worktrees';
+const INCLUDE_HEAD = '# Files a new worktree copies from this checkout when Git ignores them (benchkeeper projects apply)';
+// The file without BenchKeeper's lists: the block, or all of a file an earlier setup offered whole.
+const includeOut = (t) => (orca.offeredInclude(t) ? '' : setBlock(t, INCLUDE_ID, null, '#'));
+// BenchKeeper's lists in the worktree include file as a removal (the file when nothing else is in it).
+function includeRemoval(dir, add) {
+  const t = readText(join(dir, INCLUDE));
+  if (t == null || (!orca.offeredInclude(t) && getBlock(t, INCLUDE_ID, '#') == null)) return;
+  if (includeOut(t).trim()) add('worktree-include', `${INCLUDE} without BenchKeeper's list`, { kind: 'write', path: join(dir, INCLUDE), edit: includeOut });
+  else add('worktree-include', `remove ${INCLUDE} (only BenchKeeper's list)`, { kind: 'remove', path: join(dir, INCLUDE), selected: true });
+}
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
 export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
@@ -107,7 +121,7 @@ function removals() {
 
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
 // AGENTS.md, a CLAUDE.md that only imports AGENTS.md, the sandbox keys BenchKeeper set in .claude/settings.json, the
-// state folder, the offered files it wrote, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
+// state folder, the offered files it wrote, its list in .worktreeinclude, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
 // (its own AGENTS.md text, own skills, docs/agents/, the dev container) stays.
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
@@ -128,13 +142,14 @@ export function committedSetup(dir) {
   if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
   for (const c of frameworkRemovals(dir, state)) add(c.step, c.title, c);
   for (const p of offeredFiles(dir)) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
+  includeRemoval(dir, add);
   installedFiles(dir, state, add);
   return changes;
 }
 
 // A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
 // (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
-// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, and the
+// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, its list in .worktreeinclude, and the
 // installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
 // AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
 // shares the exclude list, so its block stays for it.
@@ -164,6 +179,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const tracked = (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '';
   for (const c of frameworkRemovals(dir, state).filter((x) => !tracked(x.path))) add(c.step, c.title, c);
   for (const p of offeredFiles(dir).filter((x) => !tracked(x))) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
+  if (!tracked(INCLUDE)) includeRemoval(dir, add);
   installedFiles(dir, state, add, tracked);
   const exclude = keepExclude ? null : excludeFile(ctx, dir);
   const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
@@ -620,24 +636,38 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
+  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
+  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
   // What a local setup leaves in the project, relative to it.
   const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded || machine ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
     ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
     // Stack skills the setup session installed with the skills CLI (its lockfile names them).
-    ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])];
+    ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`)), ...(atRoot ? [INCLUDE] : [])])];
 
-  // Workers ran in worktrees of this repository: the per-worktree setup files, at its root, off by default. A new worktree
-  // gets the local files listed (local: the whole local setup with the offered files; shared: the personal files only).
+  // Workers ran in worktrees of this repository: the multi-agent IDE's per-worktree setup file, at its root, off by default.
   if (workerRepos(ctx).has(resolve(dir))) {
-    const include = a.share ? [LOCAL_CLAUDE, OVERRIDE] : [...local.map((p) => p.replace(/\/$/, '')), ...offered.map((f) => f.path), ...orca.worktreeFiles(null, []).map((f) => f.path)];
     const install = installCommand(dir);
     // A new worktree has no container running: the line starts it. Plan steps have no dependencies, so without scripts/dc
     // the line fails in the setup terminal (the setup script stops there) and changes nothing.
     const line = install && (devcontainer ? `${DC_PATH} up && ${DC_PATH} ${install.command}` : install.command);
     const hook = install ? `setup hook: ${install.command} (${install.file})${devcontainer ? `, through ${DC_PATH} in the dev container it starts (fails without ${DC_PATH})` : ''}` : 'setup hook: none found, fill in the comment line';
-    const [yaml, inc] = orca.worktreeFiles(line, include);
+    const yaml = orca.worktreeFile(line);
     offer('worktrees', `${orca.NAME} worktree setup, ${hook}`, yaml.path, yaml.text, { off: true });
-    offer('worktrees', `${orca.NAME} worktree setup, the local files each new worktree gets`, inc.path, inc.text, { off: true });
+  }
+
+  // The files each new worktree copies, for every tool that reads .worktreeinclude (Claude Code --worktree, the IDE of orca/).
+  // Local: the whole local setup with the offered files written, the state file rather than its folder (handoff and
+  // knowledge files there are per worktree), and the list itself, so a worktree made from a worktree has it too. Shared:
+  // the personal files only, which stay ignored; with none, no list.
+  const personal = [...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : [])];
+  if (atRoot) {
+    const paths = (run) => (a.share ? personal : [...local.map((p) => (p === `${STATE.split('/')[0]}/` ? STATE : p.replace(/\/$/, ''))), ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
+    if (paths().length) {
+      // A .worktreeinclude the repository commits is in every checkout: a local setup offers its block, not preselected.
+      const committed = !a.share && exists(at(INCLUDE)) && git(ctx, dir, ['ls-files', '--', INCLUDE]).stdout.trim() !== '';
+      add('worktree-include', `${INCLUDE}: the ${a.share ? 'personal' : 'local'} files a new worktree copies from this checkout${committed ? ' (the repository commits this file)' : ''}`, { kind: 'write', path: at(INCLUDE), ...(committed ? { selected: false } : {}),
+        edit: (t, run) => setBlock(includeOut(t), INCLUDE_ID, [INCLUDE_HEAD, ...paths(run)].join('\n'), '#') });
+    } else includeRemoval(dir, add);
   }
 
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its
@@ -645,11 +675,15 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // (projects unshare). Shared: the list comes out again.
   const exclude = excludeFile(ctx, dir);
   if (exclude) {
-    const prefix = git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim();
-    const list = (run) => (a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${[...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)].map((p) => `/${prefix}${p}`).join('\n')}`);
+    const prefix = top.stdout.trim();
+    // Shared keeps the personal files ignored: a hand-written CLAUDE.local.md stays out of the commit, and worktree tools
+    // copy only ignored files.
+    const ignored = (run) => (a.share ? personal : [...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)]);
+    const list = (run) => (ignored(run).length ? `# BenchKeeper's ${a.share ? 'personal' : 'local'} agent setup (benchkeeper projects apply)\n${ignored(run).map((p) => `/${prefix}${p}`).join('\n')}` : null);
     // One block per project folder: several projects in one repository keep their own lists.
     const id = `local:/${prefix}`;
-    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
+    const title = !a.share ? 'git ignores the local setup (.git/info/exclude)' : personal.length ? `git ignores only the personal files (${personal.join(', ')}); the setup is committed` : 'git ignores the setup no longer (it is committed)';
+    if (!a.share || personal.length || getBlock(readText(exclude), id, '#') != null) add('exclude', title, { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
   }
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.

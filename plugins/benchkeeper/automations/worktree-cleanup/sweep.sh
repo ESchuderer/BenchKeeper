@@ -11,6 +11,8 @@ case "$mode" in report|act) ;; *) echo "mode must be report or act" >&2; exit 2 
 case "$limit" in ''|*[!0-9]*) echo "the limit must be a whole number of percent" >&2; exit 2 ;; esac
 top=$(git rev-parse --show-toplevel) || exit 2
 work=1 moved=
+nl='
+'
 tmp=${TMPDIR:-/tmp}
 used=$(df -P "$tmp" | awk 'NR == 2 { sub(/%/, "", $5); print $5 }')
 case "$used" in
@@ -36,8 +38,19 @@ busy() {
   lsof -a -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | awk -v p="$1/" 'index($0 "/", p) == 1 { f = 1 } END { exit !f }'
 }
 
+# Whether path $2 of worktree $1 is a copy: it, or a folder it lies in, is a .worktreeinclude entry of the checkout, and it
+# still equals the checkout's copy.
+copy() {
+  e=$2
+  until grep -qxF -- "$e" "$top/.worktreeinclude" 2>/dev/null; do
+    case $e in */*) e=${e%/*} ;; *) return 1 ;; esac
+  done
+  diff -rq -- "$top/$2" "$1/$2" >/dev/null 2>&1
+}
+
 # Prints the ignored paths of worktree $1 that cannot be rebuilt: outside every folder named in $rebuildable and not a
-# .worktreeinclude entry of the checkout that still equals the checkout's copy. git worktree remove deletes them.
+# copy. A folder Git ignores as a whole counts as a copy when every file in it is one: project setup lists the state file
+# .benchkeeper/state.json, not the folder, whose other files are per worktree. git worktree remove deletes them.
 # Fails when Git cannot list them. Only a folder counts as rebuildable: Git marks one with a trailing slash, so the last
 # path component of a file is never checked.
 ignored() {
@@ -46,7 +59,16 @@ ignored() {
     awk -F/ -v r="$rebuildable" 'BEGIN { n = split(r, a, ","); for (i = 1; i <= n; i++) keep[a[i]] = 1 }
       { for (i = 1; i < NF; i++) if ($i in keep) next; sub(/\/+$/, ""); print }' |
     while IFS= read -r p; do
-      grep -qxF -- "$p" "$top/.worktreeinclude" 2>/dev/null && diff -rq -- "$top/$p" "$1/$p" >/dev/null 2>&1 || printf '%s\n' "$p"
+      copy "$1" "$p" && continue
+      # Only a folder with an entry inside it is listed: others (.venv) are kept without walking their tree.
+      if [ -d "$1/$p" ] && [ ! -L "$1/$p" ] && awk -v d="$p/" 'index($0, d) == 1 { f = 1; exit } END { exit !f }' "$top/.worktreeinclude" 2>/dev/null; then
+        # A folder that cannot be listed fails the scan: an empty list would read as all copied. A name with a line break
+        # cannot be read back from the list, so its folder is never a copy.
+        odd=$(cd "$1" && find "./$p" -name "*$nl*" -print) || exit 1
+        inner=$(cd "$1" && find "./$p" ! -type d) || exit 1
+        [ -z "$odd" ] && { [ -z "$inner" ] || ! printf '%s\n' "$inner" | while IFS= read -r f; do copy "$1" "${f#./}" || { echo x; break; }; done | grep -q x; } && continue
+      fi
+      printf '%s\n' "$p"
     done
 }
 

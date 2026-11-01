@@ -34,6 +34,13 @@ export function backupRel(home, file, path = nodePath) {
   return path.join('_root', p.replace(/^\\\\/, 'UNC\\').replace(/^([A-Za-z]):/, '$1'));
 }
 
+// Run files newest first by name. A run id holds the second it started and a random suffix, so two runs of the same second
+// go by their start time (milliseconds), then by name; a run without a readable time keeps its place by name.
+const second = (n) => n.match(/^(\d{8}T\d{6}Z)-[0-9a-f]{6}\.json$/)?.[1] ?? n;
+const started = (r) => { const t = Date.parse(r.time); return Number.isNaN(t) ? -Infinity : t; };
+const byName = (a, b) => (a > b ? -1 : a < b ? 1 : 0);
+const newestFirst = ([a, x], [b, y]) => byName(second(a), second(b)) || (started(y) - started(x) || 0) || byName(a, b);
+
 export class Ledger {
   constructor(config, home) {
     this.dir = join(config, 'ledger');
@@ -136,9 +143,9 @@ export class Ledger {
     let names = [], gen;
     try { gen = statSync(this.dir).mtimeMs; names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
     if (this.cache?.gen === gen && this.cache.count === names.length) return this.cache.runs;
-    const runs = names.sort().reverse().map((n) => {
-      try { return JSON.parse(readFileSync(join(this.dir, n), 'utf8')); } catch { return null; }
-    }).filter((r) => r?.schema === SCHEMA);
+    const runs = names.map((n) => {
+      try { return [n, JSON.parse(readFileSync(join(this.dir, n), 'utf8'))]; } catch { return [n, null]; }
+    }).filter(([, r]) => r?.schema === SCHEMA).sort(newestFirst).map(([, r]) => r);
     this.cache = { gen, count: names.length, runs };
     return runs;
   }

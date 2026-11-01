@@ -1762,13 +1762,15 @@ function usageText(u, name) {
   return `  usage    ${WINDOWS.map(([k, label]) => `${label} ${u[k].state === 'unknown' ? `unknown (${u[k].reason})` : `${u[k].remaining}% left, resets ${u[k].resetsAt.slice(0, 16).replace('T', ' ')} UTC`}`).join('; ')}; read ${age} ago`;
 }
 
+// A flag value accounts limits cannot take, or a flag given where it does not belong: a usage error (exit 2).
+const badFlag = (message) => Object.assign(new Error(message), { status: 400 });
 const percent = (v, flag) => {
   const n = Number(v);
-  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${flag} is a percentage from 0 to 100`);
+  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw badFlag(`${flag} is a percentage from 0 to 100`);
   return n;
 };
 const onOff = (v, flag) => {
-  if (v !== 'on' && v !== 'off') throw new Error(`${flag} is on or off`);
+  if (v !== 'on' && v !== 'off') throw badFlag(`${flag} is on or off`);
   return v === 'on';
 };
 // The flags of `accounts limits` as the change takes them; names the flags that only work with or without an account name.
@@ -1782,19 +1784,19 @@ function limitFlags(o, name) {
   if (o['auto-pick'] !== undefined) out.autoPick = onOff(o['auto-pick'], '--auto-pick');
   if (o['continue-below'] !== undefined) out.continueBelow = onOff(o['continue-below'], '--continue-below');
   if (o['when-none'] !== undefined) {
-    if (!['stop', 'wait'].includes(o['when-none'])) throw new Error('--when-none is stop or wait');
+    if (!['stop', 'wait'].includes(o['when-none'])) throw badFlag('--when-none is stop or wait');
     out.whenNone = o['when-none'];
   }
   for (const agent of AGENTS) {
     const v = o[`rotate-${agent}`];
     if (v === undefined) continue;
-    if (!ROTATE.includes(v)) throw new Error(`--rotate-${agent} is ${ROTATE.join(' or ')}`);
+    if (!ROTATE.includes(v)) throw badFlag(`--rotate-${agent} is ${ROTATE.join(' or ')}`);
     out.rotate = { ...out.rotate, [agent]: v };
   }
-  if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
+  if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw badFlag('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
   const unavailable = Object.keys(out.rotate ?? {}).find((agent) => out.rotate[agent] === 'handover' && !ROTATABLE.includes(agent));
-  if (unavailable) throw new Error(`--rotate-${unavailable} handover is not available: rotation is for ${ROTATABLE.join(', ')} only`);
-  if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
+  if (unavailable) throw badFlag(`--rotate-${unavailable} handover is not available: rotation is for ${ROTATABLE.join(', ')} only`);
+  if (!name && (out.pool !== undefined || o.reset)) throw badFlag('--pool and --reset belong to one account: give its name');
   out.reset = !!o.reset;
   return out;
 }
@@ -1893,7 +1895,8 @@ async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    return 1;
+    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
+    return lookupCode(e);
   }
 }
 
@@ -1974,6 +1977,7 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   } catch (e) {
     if (e instanceof Refused) throw e;
     out.write(`${e.message}\n`);
-    return 1;
+    // A bad value or an unknown name is a usage error (2), anything else a failure (1).
+    return lookupCode(e);
   }
 }

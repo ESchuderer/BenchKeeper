@@ -402,3 +402,16 @@ test('profile import exits 1 when its save and register question is answered no'
   assert.match(r.text, /register 1 projects .*\? \[y\/N\] nothing applied\n$/);
   assert.equal(r.code, 1, r.text);
 });
+
+test('accounts: a bad name, agent or percentage and an unknown --account exit 2 in the terminal', async () => {
+  for (const [args, message] of [
+    [['accounts', 'add', '../evil', '--agent', 'claude', '--yes'], /^the name is 1 to 32 characters/],
+    [['accounts', 'add', 'ok2', '--agent', 'bogus', '--yes'], /the agent is one of claude, codex/],
+    [['accounts', 'limits', '--five-hour', '200'], /^--five-hour is a percentage from 0 to 100/],
+    [['run', '--account', 'nosuch', '--', 'claude'], /^no account nosuch: benchkeeper accounts list/],
+  ]) {
+    const t = cli();
+    assert.equal(await t.exec(args), 2, args.join(' '));
+    assert.match(t.text(), message, args.join(' '));
+  }
+});

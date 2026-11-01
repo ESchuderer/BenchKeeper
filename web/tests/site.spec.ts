@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { BASE } from './base';
 
@@ -26,11 +26,11 @@ for (const path of ['./', './overview/', './app/', './writes/', './changelog/', 
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     // A stored choice wins over a later system change.
     await page.emulateMedia({ colorScheme: 'light' });
     await page.emulateMedia({ colorScheme: 'dark' });
-    await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 }
 
@@ -50,10 +50,15 @@ test('the writes page renders the sections of docs/setup.md and docs/security.md
   await expect(doc.locator('a[href="https://github.com/ESchuderer/BenchKeeper/blob/main/SECURITY.md"]')).toHaveCount(1);
 });
 
-test('the changelog page shows the entries of CHANGELOG.md in its order', async ({ page }) => {
-  const entries = [...readFileSync('../CHANGELOG.md', 'utf8').matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+// The app and the setup content release apart from 7.0 on; CHANGELOG.md keeps the versions up to 6.25.
+const CHANGELOGS = [['../app/CHANGELOG.md', 'App'], ['../plugins/benchkeeper/CHANGELOG.md', 'Setup content'], ['../CHANGELOG.md', 'Up to 6.25']].filter(([f]) => existsSync(f));
+
+test('the changelog page shows the entries of each changelog in its order, newest component first', async ({ page }) => {
+  // A version heading may be a link (release-please writes `## [7.0.0](compare link) (date)`); the page shows its text.
+  const entries = CHANGELOGS.flatMap(([f]) => [...readFileSync(f, 'utf8').matchAll(/^## (.+)$/gm)].map((m) => m[1].replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')));
   await page.goto('./changelog/');
-  await expect(page.locator('.doc h2')).toHaveText(entries);
+  await expect(page.locator('.doc h2')).toHaveText(CHANGELOGS.map(([, title]) => title));
+  await expect(page.locator('.doc h3')).toHaveText(entries);
   await expect(page.locator('.doc h1')).toHaveCount(0);
   await expect(page.locator(`footer a[href="${BASE}changelog/"]`)).toHaveCount(1);
 });

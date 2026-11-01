@@ -1,14 +1,14 @@
-import { Stack, Title } from '@mantine/core';
-import { SiteShell } from './SiteShell';
+import SitePage from './SitePage';
+import Writes from '../pages/_generated/writes.md';
 
-// html: the sections of docs/setup.md and docs/security.md, rendered at build time (pages/writes.astro).
-export default function WritesPage({ base, html }: { base: string; html: string }) {
+// The sections of docs/setup.md and docs/security.md, written by scripts/generate.mjs.
+export default function WritesPage() {
   return (
-    <SiteShell base={base}>
-      <Stack gap="xs" maw={960}>
-        <Title order={1} fz={{ base: 34, md: 44 }}>What the app writes and what it never does</Title>
-        <div className="doc" dangerouslySetInnerHTML={{ __html: html }} />
-      </Stack>
-    </SiteShell>
+    <SitePage title="What the app writes, BenchKeeper" description="What the BenchKeeper app writes to your machine and repositories, where each write is confined, and what it never does, from docs/setup.md and docs/security.md.">
+      <div className="bk-stack bk-wide">
+        <h1 className="bk-title">What the app writes and what it never does</h1>
+        <div className="doc"><Writes /></div>
+      </div>
+    </SitePage>
   );
 }

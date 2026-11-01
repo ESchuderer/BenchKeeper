@@ -16,6 +16,8 @@ test('the quick start selects App first and CLI second', async ({ page }) => {
 
 test('arrow keys, Home and End move between the tabs', async ({ page }) => {
   await page.goto('./');
+  // The tab panels get their role when the page has hydrated; keys before that reach no handler.
+  await expect(page.getByRole('tabpanel', { name: 'App' })).toBeVisible();
   const [appTab, cliTab] = await page.getByRole('tab').all();
   await appTab.focus();
   await page.keyboard.press('ArrowRight');
@@ -57,7 +59,7 @@ test.describe('without JavaScript', () => {
 for (const scheme of ['light', 'dark']) {
   test(`no axe violations on the CLI tab in ${scheme} mode`, async ({ page }) => {
     await page.goto('./');
-    await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
     await page.getByRole('tab', { name: 'CLI' }).click();
     const { violations } = await new AxeBuilder({ page }).include('#start').analyze();
     expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

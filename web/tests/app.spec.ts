@@ -19,7 +19,7 @@ test('the app page says its screenshots show example data', async ({ page }) => 
 for (const scheme of ['light', 'dark']) {
   test(`every screenshot of the app page loads and has alt text in ${scheme} mode`, async ({ page }) => {
     await page.goto('./app/');
-    await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
     const shots = page.locator(`img.shot-${scheme}`);
     expect(await shots.count()).toBe(await page.locator('section[data-view]').count());
     for (const img of await shots.all()) {

@@ -1,5 +1,8 @@
-import { Anchor, Code, Container, Stack, Text, Title } from '@mantine/core';
-import { SiteShell } from './SiteShell';
+import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import data from '../pages/_generated/data.json';
+import { useAnchor } from './Page';
+import SitePage from './SitePage';
 
 export type Shot = { width: number; height: number };
 
@@ -236,34 +239,38 @@ export const VIEWS: { id: string; view: string; title: string; shot: string; alt
   },
 ];
 
-export default function AppPage({ base, shots }: { base: string; shots: Record<string, Shot> }) {
+function View({ v, shots }: { v: (typeof VIEWS)[number]; shots: Record<string, Shot> }) {
+  const app = useBaseUrl('/app/');
   return (
-    <SiteShell base={base}>
-      <Stack gap={56}>
-        <Stack gap="xs" maw={720}>
-          <Title order={1} fz={{ base: 34, md: 44 }}>The app</Title>
-          <Text size="lg">
+    <section id={useAnchor(v.id)} data-view={v.view} aria-labelledby={`${v.id}-h`} className="bk-stack">
+      <h2 id={`${v.id}-h`} className="bk-h2-sm">{v.title}</h2>
+      <div className="bk-stack bk-narrow">
+        {v.text.map((t) => <p key={t}>{t}</p>)}
+        <pre className="bk-code" tabIndex={0} role="group" aria-label={`${v.title} on the command line`}>{v.cli.join('\n')}</pre>
+      </div>
+      {(['light', 'dark'] as const).map((scheme) => (
+        <img key={scheme} className={`shot shot-${scheme}`} src={`${app}${v.shot}-${scheme}.webp`} alt={v.alt}
+          width={shots[`${v.shot}-${scheme}`].width} height={shots[`${v.shot}-${scheme}`].height} loading="lazy" />
+      ))}
+    </section>
+  );
+}
+
+export default function AppPage() {
+  const shots = data.shots as Record<string, Shot>;
+  return (
+    <SitePage title="The app, BenchKeeper" description="What the BenchKeeper app shows, view by view, with the matching CLI command and screenshots of example data.">
+      <div className="bk-stack bk-gap-56">
+        <div className="bk-stack bk-narrow">
+          <h1 className="bk-title">The app</h1>
+          <p className="bk-lead">
             <code>npx benchkeeper@6.25.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
-            The same steps run on the command line, see the CLI tab of the <Anchor href={`${base}/#start`}>quick start</Anchor>.
-          </Text>
-          <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</Text>
-        </Stack>
-        {VIEWS.map((v) => (
-          <Container key={v.id} component="section" id={v.id} data-view={v.view} aria-labelledby={`${v.id}-h`} size="xl" p={0} w="100%">
-            <Stack gap="md">
-              <Title order={2} id={`${v.id}-h`} fz={{ base: 24, md: 30 }}>{v.title}</Title>
-              <Stack gap="xs" maw={720}>
-                {v.text.map((t) => <Text key={t}>{t}</Text>)}
-                <Code block tabIndex={0} role="group" aria-label={`${v.title} on the command line`}>{v.cli.join('\n')}</Code>
-              </Stack>
-              {(['light', 'dark'] as const).map((scheme) => (
-                <img key={scheme} className={`shot shot-${scheme}`} src={`${base}/app/${v.shot}-${scheme}.webp`} alt={v.alt}
-                  width={shots[`${v.shot}-${scheme}`].width} height={shots[`${v.shot}-${scheme}`].height} loading="lazy" />
-              ))}
-            </Stack>
-          </Container>
-        ))}
-      </Stack>
-    </SiteShell>
+            The same steps run on the command line, see the CLI tab of the <Link to="/#start">quick start</Link>.
+          </p>
+          <p className="bk-dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</p>
+        </div>
+        {VIEWS.map((v) => <View key={v.id} v={v} shots={shots} />)}
+      </div>
+    </SitePage>
   );
 }

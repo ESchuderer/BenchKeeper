@@ -3,7 +3,7 @@ import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, Section, usePlanRunning } from './parts.jsx';
-import { Dot, Folded, Loading, Note, icon, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, SCROLL_CUE, icon, useAnnounce, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
 const STATE = { current: ['teal', 'matches the template'], outdated: ['yellow', 'template changed'], modified: ['yellow', 'changed on the runner'], removed: ['red', 'gone from the runner'], unknown: ['gray', 'unknown'] };
@@ -103,7 +103,7 @@ export function Automations({ overview, refresh }) {
               {data.automations.length === 0
                 ? <Text>No template yet. Put your own in <Code>automations/</Code> of the config folder.</Text>
                 : (
-                  <Table.ScrollContainer minWidth={760} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Automations, scrollable' } }}>
+                  <Table.ScrollContainer minWidth={760} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Automations, scrollable' } }}>
                     <Table aria-label="Automations" verticalSpacing="sm">
                       <Table.Thead><Table.Tr><Table.Th>Automation</Table.Th><Table.Th>Schedule</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Last run</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                       <Table.Tbody>

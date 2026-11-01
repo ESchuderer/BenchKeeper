@@ -1,7 +1,7 @@
 import { Badge, Button, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { useId, useRef, useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
-import { Loading, Note, icon, useApi } from './shell.jsx';
+import { Loading, Note, SCROLL_CUE, icon, useApi } from './shell.jsx';
 import { label } from './cards.js';
 import { IconPlus, IconRefresh, IconRestore, IconTrash } from '@tabler/icons-react';
 
@@ -150,7 +150,7 @@ export function SkillStates({ dir, refresh }) {
         return (
           <>
             {rows.length ? (
-              <Table.ScrollContainer minWidth={720}>
+              <Table.ScrollContainer minWidth={720} scrollAreaProps={SCROLL_CUE}>
                 <Table aria-label="Skill states">
                   <Table.Thead><Table.Tr><Table.Th>Skill</Table.Th><Table.Th>State</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Source now</Table.Th><Table.Th>Active</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
@@ -183,7 +183,7 @@ export function SkillStates({ dir, refresh }) {
                 <Title order={4} size="h5">Untracked skill folders</Title>
                 <Text size="sm">No BenchKeeper setup installed these. A skill action, a projects apply and Update all never touch them.</Text>
                 {!!untracked.length && (
-                  <Table.ScrollContainer minWidth={420}>
+                  <Table.ScrollContainer minWidth={420} scrollAreaProps={SCROLL_CUE}>
                     <Table aria-label="Untracked folders">
                       <Table.Thead><Table.Tr><Table.Th>Skill</Table.Th><Table.Th>Folder</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                       <Table.Tbody>

@@ -4,7 +4,7 @@ import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Plan, Section, SettingFacts } from './parts.jsx';
-import { Dot, Folded, Loading, Note, icon, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, Note, SCROLL_CUE, breakAt, icon, useAnnounce, useApi } from './shell.jsx';
 import { differs, editableIn, fixOf, matches, ownOf } from './suggest.js';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
@@ -93,7 +93,7 @@ function Row({ row, layer, edits, setEdit, stage, decide, running, phone, cols }
   const s = row.suggest;
   const setting = (
     <Group gap="xs">
-      <Code id={`setting-${row.key}`} tabIndex={-1} style={{ overflowWrap: 'anywhere' }}>{row.key}</Code>
+      <Code id={`setting-${row.key}`} tabIndex={-1} style={{ overflowWrap: 'break-word' }}>{breakAt(row.key)}</Code>
       {s && <Chip ok={matches(row, shown)} pending={edit !== undefined} />}
       <Button size="compact-xs" variant="subtle" aria-expanded={open} aria-label={`Details of ${row.key}`} onClick={() => setOpen(!open)}>Details</Button>
     </Group>
@@ -149,7 +149,7 @@ function Rows({ rows, layer, edits, setEdit, stage, decide, label, running, grou
   if (!rows.length) return <Text size="sm">No setting matches.</Text>;
   const cols = phone ? 1 : 4;
   return (
-    <Table.ScrollContainer minWidth={phone ? 0 : 720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+    <Table.ScrollContainer minWidth={phone ? 0 : 720} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
         <Table.Thead><Table.Tr>{phone ? <Table.Th>Setting, {LAYERS[layer]}</Table.Th> : <><Table.Th w="30%">Setting</Table.Th><Table.Th w="20%">Current, {LAYERS[layer].toLowerCase()}</Table.Th><Table.Th w="22%">Default</Table.Th><Table.Th>Suggested</Table.Th></>}</Table.Tr></Table.Thead>
         <Table.Tbody>
@@ -316,7 +316,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
         </Section>
       )}
       <Folded title="Settings files" name={`settings files (${data.layers.length})`} label={[`Show settings files (${data.layers.length})`, 'Hide settings files']}>
-        <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Settings files, scrollable' } }}>
+        <Table.ScrollContainer minWidth={560} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Settings files, scrollable' } }}>
           <Table aria-label="Settings files">
             <Table.Thead><Table.Tr><Table.Th>Layer</Table.Th><Table.Th>File</Table.Th><Table.Th>State</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>

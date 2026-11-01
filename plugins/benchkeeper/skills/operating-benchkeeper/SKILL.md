@@ -36,7 +36,8 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | Update one project | `projects plan [dir]`, then `projects apply [dir] --yes` (the answers default to its state file) |
 | Update every project | `projects update [dir..]` with no input first: it prints each project's changes and the summary, then exits 2 without applying (`--dry-run` omits the summary). After approval, `projects update [dir..] --yes`; it pushes nothing, and each result line names the `push` command of a committed branch for the user to run |
 | Take the setup out of a project | `projects remove <dir> --setup` (lists the files; ask, then `--yes`) |
-| Skills of a project | `skills list --json`, `skills show <name> --json` (a library skill's text); `skills update\|reset\|adopt\|enable\|disable [name..] --yes` |
+| Skills of a project | `skills list --json`, `skills show <name> --json` (the text of a library skill or one of the user's own); `skills update\|reset\|adopt\|enable\|disable [name..] --yes` |
+| The user's own skills | `skills new <name> --description <text> --yes` or `--file <path>`, `skills edit <name> --file <path> --yes`, `skills delete <name> --yes` (`skills new\|edit\|delete`: each a plan with a diff that undo reverses; `delete` is refused while a project or own pack names the skill) |
 | Packs | `packs list --json`, `packs show <id> --json`, `packs enable\|disable <id> --project dir --yes` |
 | Rules, extensions, settings | `rules list --json`, `rules show <file> --json`, `extensions list --json`, `settings list --json`, `settings get <key> --json` |
 | Runs and undo | `history --json`, `history show <run> --json`, `undo <run>` |

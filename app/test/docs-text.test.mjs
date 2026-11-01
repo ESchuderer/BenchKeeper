@@ -32,3 +32,15 @@ test('every test the security model cites exists in that file under that title',
   }
   assert.deepEqual(missing, []);
 });
+
+test('the setup guide, the app README and the operating skill describe own skills as the CLI has them', () => {
+  const setup = read('../../docs/setup.md'), readme = read('../README.md');
+  const skill = read('../../plugins/benchkeeper/skills/operating-benchkeeper/SKILL.md');
+  assert.doesNotMatch(setup, /a unit of your own needs a change to BenchKeeper/);
+  assert.match(setup, /`skills new/);
+  const rows = readme.split('\n').filter((l) => l.startsWith('| `skills show'));
+  assert.equal(rows.length, 2);
+  for (const row of rows) assert.match(row, /your own|yours/, row);
+  assert.doesNotMatch(skill, /a library skill's text/);
+  assert.match(skill, /`skills new\\\|edit\\\|delete/);
+});

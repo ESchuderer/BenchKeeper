@@ -94,7 +94,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [what, arg] = process.argv.slice(2);
   const quality = JSON.parse(readFileSync(QUALITY, 'utf8'));
   let problems;
-  if (what === 'coverage') {
+  if (what === 'coverage' && arg) {
     const measured = perModule(readFileSync(arg, 'utf8'), modules());
     for (const [m, k] of Object.entries(measured)) console.log(`${m.padEnd(8)} lines ${k.lines}  branches ${k.branches}  functions ${k.functions}`);
     problems = belowFloors(measured, quality.coverage);

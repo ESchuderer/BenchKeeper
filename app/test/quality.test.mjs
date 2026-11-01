@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { belowFloors, compare, knipFindings, modules, perModule } from '../scripts/quality.mjs';
@@ -40,4 +41,10 @@ test('quality: the baselines only shrink, a new finding or more duplicated lines
   assert.equal(fixed.problems.length, 2);
   assert.ok(fixed.problems.every((p) => p.endsWith('(run with --write)')));
   assert.deepEqual(fixed.shrunk, { knip: run.knip, duplicatedLines: { app: 12, web: 3 } });
+});
+
+test('quality: coverage without an lcov file prints the usage and exits 2', () => {
+  const r = spawnSync(process.execPath, [new URL('../scripts/quality.mjs', import.meta.url).pathname, 'coverage'], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /^usage: node scripts\/quality\.mjs coverage <lcov file>/);
 });

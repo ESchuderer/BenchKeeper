@@ -63,7 +63,7 @@ Operating systems: Linux and macOS are tested. Native Windows is supported for t
 Manual Windows checklist, for when a machine is available (nothing below runs in CI):
 
 - `npx benchkeeper@6.25.0 doctor` runs and lists the installed agents.
-- `plan` previews the rules, skills and settings of an installed agent and writes nothing; `apply` writes them under the user profile, and `history` undoes the run.
+- `plan` previews the rules, skills and settings of an installed agent and writes nothing; `apply` writes them under the user profile, `history` lists the run and `undo <run>` reverses it.
 - `projects plan` and `projects apply` in a repository on an NTFS drive, with Git for Windows.
 - The browser UI starts and "Choose folder" reports that no dialog is available, without an error.
 - A WSL2 distribution runs the same commands with the sandboxed preview on.

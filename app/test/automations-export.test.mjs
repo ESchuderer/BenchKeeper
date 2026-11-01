@@ -77,6 +77,17 @@ test('export: codex runs codex exec in a workspace-write sandbox', () => {
   assert.match(args[4], /automation-probe/);
 });
 
+test('export: docs/automations.md shows the agent command each exported script runs', () => {
+  const doc = readFileSync(new URL('../../docs/automations.md', import.meta.url), 'utf8');
+  for (const agent of ['claude', 'codex']) {
+    const s = setup({ agent });
+    const line = exportScript(s.ctx, 'probe', { dir: s.project }).split('\n').find((l) => l.startsWith(`${agent} `));
+    // The script passes the claude allow rules through "$@"; the table writes them out.
+    const shown = line.replace(' "$@"', '');
+    assert.ok(doc.includes(`| \`${agent}\` | \`${shown}`), `${agent}: ${shown}`);
+  }
+});
+
 test('export: a helper in a subfolder is unpacked into the same subfolder', () => {
   const s = setup({ list: 'sub/list.sh' });
   const script = exportScript(s.ctx, 'probe', { dir: s.project });

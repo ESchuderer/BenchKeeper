@@ -254,7 +254,8 @@ export const hostSlug = (h = hostname()) => String(h).split('.')[0].toLowerCase(
 // The environment of `machine shell`: the user's own, without a GitHub token or -c settings of an outer git, plus the machine's.
 export function shellEnv(ctx) {
   const env = ctx.env ?? process.env;
-  const own = Object.fromEntries(Object.entries(env).filter(([k]) => !TOKENS.test(k) && !/^(GIT_ASKPASS|SSH_ASKPASS|GIT_CONFIG_\w+)$/i.test(k)));
+  // The -c pairs of an outer git go; GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM and GIT_CONFIG_NOSYSTEM (which config files git reads) stay.
+  const own = Object.fromEntries(Object.entries(env).filter(([k]) => !TOKENS.test(k) && !/^(GIT_ASKPASS|SSH_ASKPASS|GIT_CONFIG_(COUNT|PARAMETERS|KEY_\d+|VALUE_\d+))$/i.test(k)));
   return { ...own, ...machineEnv(ctx) };
 }
 
@@ -298,13 +299,17 @@ export function machineChecks(ctx) {
 // Pages for what the app cannot do: the signing key and the account are deleted on GitHub, signed in as the machine account.
 export const PAGES = { keys: 'https://github.com/settings/keys', account: 'https://github.com/settings/admin' };
 
-// Signs the machine account out of the app's gh folder and deletes the folder with the key and config. The caller takes the
-// variables out of the agent settings first (a plan of its own).
+// Signs the machine account out of the app's gh folder and deletes the folder with the key and config, only once gh no longer
+// answers as an account there: a folder deleted with the login still in the keyring would leave a token nobody signs out.
+// The caller takes the variables out of the agent settings after it (a plan of its own).
 export function removeMachine(ctx) {
   let c = null;
   try { c = readConfig(ctx); } catch { /* a broken file goes too */ }
-  const env = ctx.env ?? process.env, gh = c?.gh ?? findGh(env.PATH);
-  if (gh && existsSync(ghDir(ctx))) ctx.run([gh, 'auth', 'logout', '--hostname', 'github.com', ...(c ? ['--user', c.machine.login] : [])], { env: machineGhEnv(ctx, env), timeout: 60e3 });
+  const env = ctx.env ?? process.env, gh = c?.gh ?? findGh(env.PATH), machine = machineGhEnv(ctx, env);
+  if (gh && existsSync(ghDir(ctx))) {
+    ctx.run([gh, 'auth', 'logout', '--hostname', 'github.com', ...(c ? ['--user', c.machine.login] : [])], { env: machine, timeout: 60e3 });
+    if (whoami(ctx, gh, machine)) throw new MachineError(`gh did not sign the machine account out of ${ghDir(ctx)}; nothing was deleted: run GH_CONFIG_DIR=${ghDir(ctx)} gh auth logout --hostname github.com, then benchkeeper machine remove again`);
+  }
   rmSync(machineDir(ctx), { recursive: true, force: true });
   return c;
 }

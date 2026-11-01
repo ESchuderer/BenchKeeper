@@ -41,7 +41,7 @@ function machine({ signedIn = false, as = AGENT, failing = [], owned = [] } = {}
     gh.calls.push({ args, machine: mine, env: o.env, stdio: o.stdio });
     const who = mine ? (gh.signedIn ? gh.as : null) : gh.main;
     if (args[0] === 'auth' && args[1] === 'login') { gh.signedIn = true; return { code: 0, stdout: '', stderr: '' }; }
-    if (args[0] === 'auth' && args[1] === 'logout') { gh.signedIn = false; return { code: 0, stdout: '', stderr: '' }; }
+    if (args[0] === 'auth' && args[1] === 'logout') { if (gh.stuck) return { code: 1, stdout: '', stderr: 'keyring locked' }; gh.signedIn = false; return { code: 0, stdout: '', stderr: '' }; }
     if (args.join(' ') === 'api user') return who ? json(who) : { code: 1, stdout: '', stderr: 'gh auth login' };
     if (args[1] === '--paginate') return args[2].startsWith('orgs/acme') || args[2].startsWith('user/repos') ? { code: 0, stdout: `${gh.owned.join('\n')}\n`, stderr: '' } : { code: 1, stdout: '', stderr: 'HTTP 404' };
     if (args[1] === '-X' && args[2] === 'PUT') {
@@ -291,12 +291,18 @@ test('guard hook in a machine account session: denies another identity and an ap
   const denied = ['git commit --author "Me <me@example.com>" -m x', 'git commit --author=me -m x', 'git -c user.email=me@example.com commit -m x', 'git -c credential.helper= push',
     'git --config-env=user.name=NAME commit -m x', 'git config user.email me@example.com', 'git config --global user.name Me', 'git config set user.email me@example.com', 'git config --unset user.email',
     'GIT_AUTHOR_EMAIL=me@example.com git commit -m x', 'env GIT_COMMITTER_NAME=me git commit -m x', 'export GIT_AUTHOR_EMAIL=me@example.com', 'unset GIT_CONFIG_COUNT', 'GH_CONFIG_DIR=~/.config/gh gh pr create',
-    'bash -c "git -c user.name=x commit"', 'gh pr review 12 --approve', 'gh pr review -a', 'gh api repos/o/r/pulls/12/reviews -f event=APPROVE', 'gh api -X POST repos/o/r/pulls/12/reviews --field=event=approve', 'gh api repos/o/r/pulls/12/reviews --input review.json'];
+    'bash -c "git -c user.name=x commit"', 'gh pr review 12 --approve', 'gh pr review -a', 'gh api repos/o/r/pulls/12/reviews -f event=APPROVE', 'gh api -X POST repos/o/r/pulls/12/reviews --field=event=approve', 'gh api repos/o/r/pulls/12/reviews --input review.json',
+    'gh pr -R octo/proj review 12 --approve', 'gh pr --repo octo/proj review 12 -a', 'gh pr review 12 -R=octo/proj --approve', 'gh pr review 12 --repo=octo/proj -b ok -a', 'gh pr review 12 --approve=true',
+    'gh api -f event=APPROVE -X POST repos/o/r/pulls/12/reviews', 'gh api --raw-field event=APPROVE repos/o/r/pulls/12/reviews', 'gh api -X POST -F event=approve repos/o/r/pulls/12/reviews/'];
   for (const c of denied) assert.ok(denyReason(c, 0, env)?.machine, c);
   const fine = ['git commit -m "fix: x"', 'git push origin feat', 'git config user.email', 'git config get user.email', 'git config --get user.name', 'git config core.editor vim', 'git -c core.pager=cat log', 'export PATH=/x', 'git status',
-    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12'];
+    'gh pr review 12 --comment -b "looks fine"', 'gh api repos/o/r/pulls/12/reviews -f event=COMMENT', 'gh pr create --fill', 'gh api repos/o/r/pulls/12', 'gh pr -R octo/proj review 12 --comment -b approve-later', 'gh pr review 12 -b approve', 'gh pr --repo octo/proj view 12'];
   for (const c of fine) assert.equal(denyReason(c, 0, env), null, c);
   assert.match(denyReason('git commit -m x', 0, { ...env, GIT_AUTHOR_EMAIL: 'me@example.com' }).machine, /not the machine account/);
+  // A long flag-like word is checked in linear time (no backtracking pattern over it).
+  const started = process.hrtime.bigint();
+  assert.equal(denyReason(`gh pr review 12 -${'b'.repeat(200000)}!`, 0, env), null);
+  assert.ok(process.hrtime.bigint() - started < 2_000_000_000n, 'a long word takes no noticeable time');
   assert.equal(denyReason('git push -f', 0, env), 'git push with -f');
   for (const c of denied.filter((x) => !x.includes('-c ') && !x.startsWith('bash'))) assert.equal(denyReason(c), null, c);
   assert.match(decide(JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'gh pr review 3 --approve' } }), env), /^BenchKeeper guard: gh pr review --approve is denied in a machine account session \(2002\+octo-agent@users\.noreply\.github\.com\)/);
@@ -336,6 +342,14 @@ test('machine status, doctor and remove: ids decide, a renamed login is informat
   mkdirSync(join(m.home, '.claude'));
   assert.equal((await cli(m, ['machine', 'enable', '--global', '--yes'])).code, 0);
   assert.equal((await cli(m, ['machine', 'remove'], { lines: ['n'] })).code, 1);
+  // gh keeps the login: nothing is deleted, the settings stay, no success is claimed.
+  m.gh.stuck = true;
+  const stuck = await cli(m, ['machine', 'remove', '--yes']);
+  assert.equal(stuck.code, 1);
+  assert.match(stuck.text, /gh did not sign the machine account out of .*; nothing was deleted: run GH_CONFIG_DIR=/);
+  assert.doesNotMatch(stuck.text, /signed out and deleted/);
+  assert.deepEqual([existsSync(configFile(m.ctx)), JSON.parse(readFileSync(join(m.home, '.claude/settings.json'), 'utf8')).env.GIT_AUTHOR_EMAIL], [true, EMAIL]);
+  m.gh.stuck = false;
   assert.equal((await cli(m, ['machine', 'remove'])).code, 2, 'no answer is no go-ahead');
   const r = await cli(m, ['machine', 'remove', '--yes']);
   assert.equal(r.code, 0, r.text);
@@ -351,9 +365,11 @@ test('machine shell: your shell with the machine variables and without a GitHub 
   let seen;
   const run = m.ctx.run;
   m.ctx.run = (argv, o) => (argv[0] === '/bin/zsh' ? ((seen = { argv, env: o.env, stdio: o.stdio }), { code: 7 }) : run(argv, o));
-  Object.assign(m.ctx.env, { SHELL: '/bin/zsh', GITHUB_TOKEN: 'dummy-2', GIT_CONFIG_PARAMETERS: "'user.email=me'", KEEP: '1' });
+  Object.assign(m.ctx.env, { SHELL: '/bin/zsh', GITHUB_TOKEN: 'dummy-2', GIT_CONFIG_PARAMETERS: "'user.email=me'", GIT_CONFIG_KEY_9: 'user.email', GIT_CONFIG_SYSTEM: '/etc/x', KEEP: '1' });
   const r = await cli(m, ['machine', 'shell']);
   assert.equal(r.code, 7);
   assert.match(r.text, /machine shell: \/bin\/zsh as octo-agent/);
   assert.deepEqual([seen.argv, seen.stdio, seen.env.KEEP, seen.env.GH_TOKEN, seen.env.GITHUB_TOKEN, seen.env.GIT_CONFIG_PARAMETERS, seen.env.GH_CONFIG_DIR], [['/bin/zsh'], 'inherit', '1', undefined, undefined, undefined, ghDir(m.ctx)]);
+  // The -c pairs of an outer git go; which config files git reads stays as the user set it.
+  assert.deepEqual([seen.env.GIT_CONFIG_KEY_9, seen.env.GIT_CONFIG_GLOBAL, seen.env.GIT_CONFIG_NOSYSTEM, seen.env.GIT_CONFIG_SYSTEM], [undefined, m.gitconfig, '1', '/etc/x']);
 });

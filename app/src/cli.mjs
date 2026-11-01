@@ -1720,13 +1720,14 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
   if (!MACHINE.includes(sub)) { out.write(`machine needs ${MACHINE.join(', ')}\n`); return 2; }
   if (rest.length) { out.write(`unexpected argument ${rest[0]}\n`); return 2; }
   const say = (l) => out.write(`${l}\n`), dir = resolve(o.project ?? '.');
-  // The global variables as a plan of the usual kind: the diff, a question (or --yes), a ledger run.
-  const settings = async (on) => {
+  // The global variables as a plan of the usual kind: the diff, a question (or --yes), a ledger run. sure: the user already said
+  // yes to a question that named this change (machine remove).
+  const settings = async (on, sure = false) => {
     const changes = globalChanges(ctx, on);
     if (!changes.length) { say('neither ~/.claude nor ~/.codex exists: no agent settings to change'); return 0; }
     const plan = preview(changes.map((c, i) => ({ id: `machine-${i}`, ...c })));
     if (!plan.length) { say(on ? 'the agent settings already have the machine account' : 'the agent settings have no machine account variables'); return 0; }
-    const { stop, select } = await chooseOrStop(plan, { o, ask, out });
+    const { stop, select } = await chooseOrStop(plan, { o: sure ? { ...o, yes: true } : o, ask, out });
     return stop ?? report(apply(plan, ctx, { scope: 'global', select }), out);
   };
   try {
@@ -1760,10 +1761,12 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
     try { c = machineStatus(ctx).config; } catch { c = { broken: true }; }
     if (!c) { say('no machine account is set up on this machine'); return 0; }
     if (!o.yes && !(await ask('Sign the machine account out of BenchKeeper, delete its signing key and config, and take its variables out of the agent settings? The account stays on GitHub.'))) return 1;
-    const code = await settings(false);
-    if (code) return code;
+    // The sign-out first: when gh keeps the login, nothing is deleted and the settings stay as they are.
     removeMachine(ctx);
-    say(`signed out and deleted the machine folder\non GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
+    say('signed out and deleted the machine folder');
+    const code = await settings(false, true);
+    if (code) return code;
+    say(`on GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
     return 0;
   } catch (e) {
     if (e instanceof Refused) throw e;

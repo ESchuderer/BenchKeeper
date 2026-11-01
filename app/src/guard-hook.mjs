@@ -79,9 +79,18 @@ const IDENTITY_VARS = /^(GIT_(AUTHOR|COMMITTER)_(NAME|EMAIL)|GIT_CONFIG(_\w+)?|G
 const IDENTITY_KEYS = /^(user|author|committer|credential)(\.|$)/i;
 const CONFIG_VALUE_OPTS = new Set(['-f', '--file', '--blob', '--type', '--default', '--comment', '--value']);
 // gh pr review --approve (-a), and a review through gh api with the event APPROVE: the machine account never approves.
+// gh flags that take the next word as their value, wherever they stand (gh pr -R owner/repo review): skipped with it.
+const GH_VALUE_FLAGS = new Set(['-R', '--repo', '--hostname', '-b', '--body', '-F', '--body-file', '-f', '--field', '--raw-field', '-X', '--method', '-H', '--header', '-q', '--jq', '-t', '--template', '--input']);
+// A cluster of short flags with -a in it (-a, -ab); a test of the word's shape and a search, both linear in its length.
+const shortApprove = (a) => /^-[a-zA-Z]+$/.test(a) && a.includes('a');
 function approval(args) {
-  const [sub, verb] = args;
-  if (sub === 'pr' && verb === 'review' && args.some((a) => a === '--approve' || /^-[a-zA-Z]*a[a-zA-Z]*$/.test(a))) return { machine: 'gh pr review --approve' };
+  const words = [];
+  for (let j = 0; j < args.length; j++) {
+    if (GH_VALUE_FLAGS.has(args[j])) j++;
+    else if (!args[j].startsWith('-')) words.push(args[j]);
+  }
+  const [sub, verb] = words;
+  if (sub === 'pr' && verb === 'review' && args.some((a) => a === '--approve' || a.startsWith('--approve=') || shortApprove(a))) return { machine: 'gh pr review --approve' };
   if (sub !== 'api' || !args.some((a) => /\/pulls\/[^/\s]+\/reviews(\/|\?|$)/.test(a))) return null;
   const fields = args.flatMap((a, j) => (['-f', '-F', '--field', '--raw-field'].includes(a) ? [args[j + 1] ?? ''] : /^(-[fF]|--(raw-)?field=)/.test(a) ? [a.replace(/^(-[fF]|--(raw-)?field=)/, '')] : []));
   return fields.some((f) => /^event=approve$/i.test(f)) || args.includes('--input') ? { machine: 'an approving review through gh api' } : null;

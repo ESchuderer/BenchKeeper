@@ -225,8 +225,9 @@ function GlobalItems({ items, ticked, onTick, locked }) {
               <List.Item key={itemKey(i)} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
                 <Group gap="xs" wrap="nowrap">
                   {tickable(i) && <Checkbox size="xs" aria-label={i.title} checked={ticked.has(itemKey(i))} disabled={locked} onChange={() => onTick(i)} />}
-                  {/* One badge column, as wide as the longest state (UNTRACKED), so every item starts at the same x. */}
-                  <Box w={112} style={{ flexShrink: 0 }}><StateBadge state={i.state} /></Box>
+                  {/* One badge column, as wide as the longest state (UNTRACKED), so every item starts at the same x; in a narrow
+                      column (the plan beside it) it shrinks to the badge itself. */}
+                  <Box style={{ flex: '0 1 112px', minWidth: 'min-content' }}><StateBadge state={i.state} /></Box>
                   <Text size="sm" style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>{i.title}</Text>
                 </Group>
               </List.Item>

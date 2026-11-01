@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './main.mjs';
 
 const lib = resolve(dirname(fileURLToPath(import.meta.url)), '../../plugins/benchkeeper/library');
 const START = '<!-- generated:catalog -->';
@@ -62,7 +63,7 @@ export function update(readme, manifest) {
   return `${readme.slice(0, a + START.length)}\n${render(manifest)}\n${readme.slice(b)}`;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const manifest = JSON.parse(readFileSync(`${lib}/library.json`, 'utf8'));
   const readme = readFileSync(`${lib}/README.md`, 'utf8');
   const next = update(readme, manifest);

@@ -6,9 +6,10 @@ const SLUG = 'ESchuderer/BenchKeeper';
 type Facts = { tag?: string; stars?: string; forks?: string };
 
 // The repository in the header: icon and name, then latest release, stars and forks when the build could read them.
-export default function RepoWidget() {
+// In the phone menu the navbar renders items in a list (`mobile`), so the link goes in a list item there.
+export default function RepoWidget({ mobile = false }: { mobile?: boolean }) {
   const { tag, stars, forks } = data.repo as Facts;
-  return (
+  const link = (
     <Link href={`https://github.com/${SLUG}`} className="repo">
       <Icon name="BrandGithub" size={28} className="repo-icon" />
       <span className="repo-text">
@@ -23,4 +24,5 @@ export default function RepoWidget() {
       </span>
     </Link>
   );
+  return mobile ? <li className="menu__list-item">{link}</li> : link;
 }

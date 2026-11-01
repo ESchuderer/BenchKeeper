@@ -1,6 +1,7 @@
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import useBrokenLinks from '@docusaurus/useBrokenLinks';
+import useIsBrowser from '@docusaurus/useIsBrowser';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
@@ -73,7 +74,7 @@ function Step({ n, children }: { n: number; children: ReactNode }) {
 
 export function StepList({ from, className = '' }: { from: number; className?: string }) {
   return (
-    <ol className={`bk-timeline ${className}`}>
+    <ol className={`bk-timeline ${className}`} start={from + 1}>
       {facts.sdlc.steps.slice(from, from + half).map((st, i) => (
         <Step key={st.name} n={from + i + 1}>
           <span className={`bk-tl-bullet phase-${st.phase}`} aria-hidden="true">{from + i + 1}</span>
@@ -133,12 +134,12 @@ const repoSteps: [string, string, string][] = [
 const host = ['Rules and the plugins: BenchKeeper, optionally Ponytail and Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
 const container = ['The agent (default), started with devcontainer exec', 'Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
-function CmdRow({ cmd, note, onCopy, copied }: { cmd: string; note: ReactNode; onCopy: (cmd: string) => void; copied: boolean }) {
+function CmdRow({ id, cmd, note, copy }: { id: string; cmd: string; note: ReactNode; copy: ReturnType<typeof useCopy> }) {
   return (
     <div className="bk-stack bk-gap-6">
       <div className="bk-row bk-nowrap">
         <pre className="bk-code cmd">{cmd}</pre>
-        <button type="button" className={`bk-icon-btn${copied ? ' copied' : ''}`} onClick={() => onCopy(cmd)} aria-label={`Copy command: ${cmd}`}>
+        <button type="button" className={`bk-icon-btn${copy.copied === id ? ' copied' : ''}`} onClick={() => copy.copy(id, cmd)} aria-label={`Copy command: ${cmd}`}>
           <Icon name="Copy" size={16} className="i-copy" /><Icon name="Check" size={16} className="i-done" />
         </button>
       </div>
@@ -147,20 +148,20 @@ function CmdRow({ cmd, note, onCopy, copied }: { cmd: string; note: ReactNode; o
   );
 }
 
-// Copy buttons share one live status line; the check mark and the status clear after 1.5 s.
+// Copy buttons share one live status line; the check mark (on the pressed button only) and the status clear after 1.5 s.
 function useCopy() {
   const [copied, setCopied] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const done = (msg: string, cmd: string | null) => {
+  const done = (msg: string, id: string | null) => {
     clearTimeout(timer.current);
-    setCopied(cmd); setStatus(msg);
+    setCopied(id); setStatus(msg);
     timer.current = setTimeout(() => { setCopied(null); setStatus(''); }, 1500);
   };
   // Clipboard needs a secure context (https or localhost).
-  const copy = (cmd: string) => {
+  const copy = (id: string, cmd: string) => {
     if (!navigator.clipboard) return done('Copy is not available. Select the command instead.', null);
-    navigator.clipboard.writeText(cmd).then(() => done('Copied', cmd), () => done('Copy failed. Select the command instead.', null));
+    navigator.clipboard.writeText(cmd).then(() => done('Copied', id), () => done('Copy failed. Select the command instead.', null));
   };
   return { copied, status, copy };
 }
@@ -168,10 +169,10 @@ function useCopy() {
 // Quick start tabs (WAI-ARIA tabs pattern). Without JavaScript both panels show under their own headings. With it, the
 // head script's `js` class shows the tab bar and the first panel from the first paint (custom.css), and hydration wires them.
 function QuickStart({ copy }: { copy: ReturnType<typeof useCopy> }) {
-  const [js, setJs] = useState(false);
+  // False while the server renders and during hydration, true afterwards and on client-side navigation.
+  const js = useIsBrowser();
   const [sel, setSel] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  useEffect(() => setJs(true), []);
   const paths = facts.quickstart.paths;
   const pick = (i: number, focus = false) => { setSel(i); if (focus) tabs.current[i]?.focus(); };
   return (
@@ -192,7 +193,7 @@ function QuickStart({ copy }: { copy: ReturnType<typeof useCopy> }) {
           {...(js ? { role: 'tabpanel', 'aria-labelledby': `qs-tab-${i}` } : {})}>
           <h3 className="bk-h3 qs-h">{p.name}</h3>
           <div className="bk-stack">
-            {p.steps.map((st) => <CmdRow key={st.command} cmd={st.command} note={md(st.text)} onCopy={copy.copy} copied={copy.copied === st.command} />)}
+            {p.steps.map((st, k) => <CmdRow key={st.command} id={`qs-${i}-${k}`} cmd={st.command} note={md(st.text)} copy={copy} />)}
           </div>
         </div>
       ))}
@@ -301,7 +302,7 @@ export default function Page() {
               <span className="bk-num" aria-hidden="true">{k + 1}</span>
               <div className="bk-stack bk-gap-6 bk-grow">
                 <span className="bk-strong">{title}</span>
-                <CmdRow cmd={cmd} note={note} onCopy={copy.copy} copied={copy.copied === cmd} />
+                <CmdRow id={`repo-${k}`} cmd={cmd} note={note} copy={copy} />
               </div>
             </li>
           ))}

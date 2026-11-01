@@ -56,6 +56,7 @@ const config: Config = {
   themeConfig: {
     image: 'og.png',
     metadata: [
+      { property: 'og:type', content: 'website' },
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
       { property: 'og:image:alt', content: 'BenchKeeper logo' },
@@ -65,7 +66,8 @@ const config: Config = {
       title: 'BenchKeeper',
       logo: { alt: '', src: 'logo.svg', width: 28, height: 28, className: 'logo' },
       items: [
-        ...SECTIONS.map(([id, label]) => ({ to: `/#${id}`, label, position: 'left' as const })),
+        // activeBaseRegex: a link to a section of the home page is never the current page.
+        ...SECTIONS.map(([id, label]) => ({ to: `/#${id}`, label, position: 'left' as const, activeBaseRegex: '^$' })),
         { to: '/overview/', label: 'Overview', position: 'left' },
         { to: '/app/', label: 'The app', position: 'left' },
         { type: 'custom-repo', position: 'right' },
@@ -79,7 +81,7 @@ const config: Config = {
         { label: 'Security policy', href: `${REPO}/blob/main/SECURITY.md` },
         { label: 'github.com/ESchuderer/BenchKeeper', href: REPO },
       ],
-      copyright: `BenchKeeper, MIT License${data.updated && data.commit ? `, updated ${data.updated} (<a href="${REPO}/commit/${data.commit}">${data.commit.slice(0, 7)}</a>)` : ''}`,
+      copyright: `BenchKeeper, MIT License${data.updated && data.commit ? `, updated ${data.updated} (<a href="${REPO}/commit/${data.commit}" target="_blank" rel="noopener noreferrer">${data.commit.slice(0, 7)}</a>)` : ''}`,
     },
   } satisfies Preset.ThemeConfig,
 };

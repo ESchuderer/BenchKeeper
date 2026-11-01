@@ -1,3 +1,4 @@
+import MDXContent from '@theme/MDXContent';
 import SitePage from './SitePage';
 import Changelog from '../pages/_generated/changelog.md';
 
@@ -7,7 +8,7 @@ export default function ChangelogPage() {
     <SitePage title="Changelog, BenchKeeper" description="The versions of BenchKeeper and what each one changed, from the changelogs of the app, the setup content and CHANGELOG.md.">
       <div className="bk-stack bk-wide">
         <h1 className="bk-title">Changelog</h1>
-        <div className="doc"><Changelog /></div>
+        <div className="doc"><MDXContent><Changelog /></MDXContent></div>
       </div>
     </SitePage>
   );

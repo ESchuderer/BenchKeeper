@@ -332,8 +332,11 @@ function launchGate(ctx, a, u, { dir, now, pick, confirmed, say }) {
 // Runs an agent as the account in the foreground, after the preflight. Returns the exit code; a refusal throws.
 // pick: the account was not named, so auto-pick may replace it. confirmed: the user said go on below the minimum.
 // used: called with the account the agent starts under.
-export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now(), used = () => {} } = {}) {
+// machine: { env, args } of a machine account session (machine.mjs): its variables over the account's environment and the agent's arguments; host accounts only.
+export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now(), used = () => {}, machine } = {}) {
   if (args[0] !== a.agent) throw new Error(`account ${a.name} is a ${a.agent} account: the command is ${a.agent}`);
+  // The gh wrapper and the credential helper are files of this machine, which a container does not see.
+  if (machine && a.mode !== 'host') throw new Error(`account ${a.name} runs in a dev container: --as-machine needs a host account`);
   let token;
   if (useToken) {
     if (a.agent !== 'claude' || !a.token) throw new Error(`account ${a.name} keeps no token (benchkeeper accounts login ${a.name} --token)`);
@@ -347,11 +350,13 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   for (const f of s.findings.filter((x) => x.level !== 'info')) say(`${f.level}: ${f.message} (${f.fix})`);
   for (const f of s.usage ? nearNotices(a.name, s.usage) : []) say(`notice: ${f.message} (${f.fix})`);
   const gate = s.usage ? launchGate(ctx, a, s.usage, { dir, now, pick, confirmed, say }) : null;
-  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed, used });
+  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed, used, machine });
   used(a);
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
-  if (a.mode === 'host') return ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' }).code;
+  // A machine session reaches GitHub only through its gh folder: a GitHub token that BENCHKEEPER_PASS_ENV lets through would win over it.
+  const env = Object.fromEntries(Object.entries(accountEnv(ctx, a, { token })).filter(([k]) => !(machine && /^(GH|GITHUB)_(ENTERPRISE_)?TOKEN$/i.test(k))));
+  if (a.mode === 'host') return ctx.run(machine ? machine.args(args) : args, { cwd: dir, env: { ...env, ...machine?.env }, stdio: 'inherit' }).code;
   const engine = engineOf(ctx), opts = { cwd: dir, env: baseEnv(ctx), timeout: 60e3 };
   if (!token) return ctx.run(execArgv(engine, dir, a, args), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
   const file = tokenFile(a);

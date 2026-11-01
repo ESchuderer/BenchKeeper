@@ -48,7 +48,8 @@ import { npxEnv, projectCtx, projectPlan, scopeCtx, tryState } from './steps/pro
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, exportScript, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
-import { undoableAutomation } from './orca/index.mjs';
+import { sessionRole, undoableAutomation } from './orca/index.mjs';
+import { PAGES, globalChanges, hostSlug, identity, machineEnv, machineStatus, removeMachine, setupMachine, shellEnv, trailerArgs } from './machine.mjs';
 import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -123,7 +124,7 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
@@ -267,10 +268,29 @@ Usage: benchkeeper <command> [options]
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
                                     asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
                                     access token piped on stdin goes to codex login --with-access-token
-  run [--account name] [--project dir] [--token] [--yes] -- claude|codex [args]
+  run [--account name] [--project dir] [--token] [--yes] [--as-machine [--role orchestrator|worker]] -- claude|codex [args]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
-                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec
+                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec.
+                                    --as-machine (host accounts): the session commits, pushes and uses gh as your machine
+                                    account (machine setup); Claude Code commits get the trailers Agent-Host and Agent-Role
+                                    (--role, else worker for a dispatched worker's prompt, else orchestrator)
+  machine setup [--repos owner/name,..] [--owner name] [--no-signing] [--no-browser] [--yes] [--project dir]
+                                    your GitHub machine account for agent sessions: you create it (GitHub's sign-up opens,
+                                    <your login>-agent is suggested) and gh signs it in into BenchKeeper's own gh folder; then
+                                    write access, never admin, on the repositories named (default: the folder's origin;
+                                    --owner: every repository of that user or organization, after a question) with your gh,
+                                    the invitations accepted with its gh, and an ssh signing key uploaded (--no-signing skips
+                                    it). Nothing goes into your git or gh config; the token stays in gh's store
+  machine status                    the machine and your own account (kept by id, logins read again), the sign-in, the key
+  machine enable|disable --global [--yes]
+                                    the machine account's variables in the user settings of Claude Code (env) and Codex
+                                    (shell_environment_policy.set): a plan with a diff, undo restores it. A project:
+                                    projects apply --machine on|off|none
+  machine shell [--project dir]     starts your shell as the machine account; nothing goes into shell start files
+  machine remove [--yes]            after a question: takes the variables out of the agent settings, signs the machine
+                                    account out of BenchKeeper's gh folder, deletes the signing key and config, and prints
+                                    the GitHub pages to delete the key and the account
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, versions behind; the session signal needs 20 sessions
@@ -338,6 +358,7 @@ const OPTIONS = {
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
+  'as-machine': { type: 'boolean' }, role: { type: 'string' }, repos: { type: 'string', multiple: true }, owner: { type: 'string' }, 'no-signing': { type: 'boolean' }, machine: { type: 'string' },
 };
 
 // A question that found the end of the input before any answer: the command stops before it changes anything.
@@ -556,7 +577,7 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
-const PLAN_FLAGS = 'agents env sandbox guards no-guards workflow-load no-workflow-load share local pack skill tier agent-file caller';
+const PLAN_FLAGS = 'agents env sandbox guards no-guards machine workflow-load no-workflow-load share local pack skill tier agent-file caller';
 // The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
 const FLAGS = {
   ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
@@ -582,7 +603,8 @@ const FLAGS = {
   'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
   'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
   'accounts limits': 'five-hour seven-day warn-five-hour warn-seven-day pool auto-pick when-none continue-below rotate-claude rotate-codex reset yes all',
-  'accounts login': 'token email no-browser project', run: 'account project token yes',
+  'accounts login': 'token email no-browser project', run: 'account project token yes as-machine role',
+  'machine setup': 'repos owner no-signing no-browser yes all project', 'machine status': '', 'machine enable': 'global yes all', 'machine disable': 'global yes all', 'machine shell': 'role project', 'machine remove': 'yes all',
   insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
   'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
   'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations export': 'param project',
@@ -969,6 +991,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, err, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'machine') return machineCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { err.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -1070,7 +1093,7 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
   const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
   if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
@@ -1240,7 +1263,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations', 'machine'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
@@ -1680,6 +1703,90 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
   return r.code ?? 0;
 }
 
+// ---- machine: the user's GitHub machine account for agent sessions (machine.mjs)
+
+// A known sign-in of another account (gh's shared keyring entry, a login by hand) would let git and gh act as that account
+// while commits name the machine: refused. An unknown one (offline) does not stop a launch.
+function signedInAsMachine(s) {
+  if (s.signedIn && s.signedIn.id !== s.config.machine.id) throw new Error(`BenchKeeper's gh folder is signed in as ${s.signedIn.login}, not the machine account ${s.config.machine.login}: benchkeeper machine remove, then machine setup`);
+}
+
+// The machine part of run --as-machine: its variables, with the login read again at the start (a rename changes the
+// address), and for Claude Code the trailers.
+function machineLaunch(ctx, args, role) {
+  const s = machineStatus(ctx);
+  if (!s.config) throw Object.assign(new Error('no machine account is set up on this machine: benchkeeper machine setup'), { status: 400 });
+  signedInAsMachine(s);
+  const r = role ?? sessionRole(args);
+  if (!['orchestrator', 'worker'].includes(r)) throw Object.assign(new Error('--role is orchestrator or worker'), { status: 400 });
+  return { env: machineEnv(ctx, s.config), args: (a) => (a[0] === 'claude' ? [a[0], ...trailerArgs(hostSlug(), r), ...a.slice(1)] : a) };
+}
+
+const MACHINE = ['setup', 'status', 'enable', 'disable', 'shell', 'remove'];
+async function machineCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub, ...rest] = positionals;
+  if (!MACHINE.includes(sub)) { out.write(`machine needs ${MACHINE.join(', ')}\n`); return 2; }
+  if (rest.length) { out.write(`unexpected argument ${rest[0]}\n`); return 2; }
+  const say = (l) => out.write(`${l}\n`), dir = resolve(o.project ?? '.');
+  // The global variables as a plan of the usual kind: the diff, a question (or --yes), a ledger run. sure: the user already said
+  // yes to a question that named this change (machine remove).
+  const settings = async (on, sure = false) => {
+    const changes = globalChanges(ctx, on);
+    if (!changes.length) { say('neither ~/.claude nor ~/.codex exists: no agent settings to change'); return 0; }
+    const plan = preview(changes.map((c, i) => ({ id: `machine-${i}`, ...c })));
+    if (!plan.length) { say(on ? 'the agent settings already have the machine account' : 'the agent settings have no machine account variables'); return 0; }
+    const { stop, select } = await chooseOrStop(plan, { o: sure ? { ...o, yes: true } : o, ask, out });
+    return stop ?? report(apply(plan, ctx, { scope: 'global', select }), out);
+  };
+  try {
+    if (sub === 'setup') {
+      const r = await setupMachine(ctx, { repos: o.repos, owner: o.owner, signing: !o['no-signing'], dir, yes: !!o.yes },
+        { say, open: (u) => (o['no-browser'] ? null : (ctx.openUrl ?? openBrowser)(u)), wait: (q) => ask.line(q), ask: (q) => ask(q) });
+      for (const x of r.access) say(x.ok ? `write access: ${x.repo}` : `no access to ${x.repo}: ${x.why} (an organization may forbid outside collaborators: an owner adds ${r.name} with the Write role, or the agent works through a fork)`);
+      say(`machine account ready: ${r.name} <${r.email}>, commits ${r.signing ? 'signed with its ssh key' : 'unsigned'}`);
+      say('use it: benchkeeper machine enable --global, projects apply --machine on, run --as-machine -- claude, or machine shell');
+      return r.access.some((x) => !x.ok) ? 1 : 0;
+    }
+    if (sub === 'status') {
+      const s = machineStatus(ctx), c = s.config;
+      if (!c) { say('no machine account is set up on this machine (benchkeeper machine setup)'); return 0; }
+      const id = identity(c);
+      say(`machine account: ${c.machine.login} (id ${c.machine.id})${s.renamed ? `, renamed from ${s.renamed[0]}` : ''}\nyour account: ${c.main.login} (id ${c.main.id})\nsigned in: ${s.signedIn ? `${s.signedIn.login}${s.signedIn.id === c.machine.id ? '' : ' (not the machine account)'}` : 'no (benchkeeper machine setup)'}\ncommits as: ${id.name} <${id.email}>\nsigning: ${c.signing ? (s.key ? 'on' : 'on, but the key is missing (benchkeeper machine setup)') : 'off'}\nin agent sessions: ${(ctx.env ?? process.env).BENCHKEEPER_MACHINE_EMAIL === id.email ? 'yes, in this environment' : 'not in this environment'}`);
+      return 0;
+    }
+    if (sub === 'enable' || sub === 'disable') {
+      if (!o.global) { say(`machine ${sub} needs --global; for one project: benchkeeper projects apply --machine ${sub === 'enable' ? 'on' : 'off'}`); return 2; }
+      return await settings(sub === 'enable');
+    }
+    if (sub === 'shell') {
+      const s = machineStatus(ctx);
+      if (!s.config) { say('no machine account is set up on this machine: benchkeeper machine setup'); return 2; }
+      signedInAsMachine(s);
+      const vars = shellEnv(ctx), shell = (ctx.env ?? process.env).SHELL || '/bin/sh';
+      say(`machine shell: ${shell} as ${vars.GIT_AUTHOR_NAME}; exit to leave it`);
+      ask.close();
+      return ctx.run([shell], { cwd: dir, env: vars, stdio: 'inherit' }).code;
+    }
+    let c = null;
+    try { c = machineStatus(ctx).config; } catch { c = { broken: true }; }
+    if (!c) { say('no machine account is set up on this machine'); return 0; }
+    if (!o.yes && !(await ask('Sign the machine account out of BenchKeeper, delete its signing key and config, and take its variables out of the agent settings? The account stays on GitHub.'))) return 1;
+    // The sign-out first: when gh keeps the login, nothing is deleted and the settings stay as they are.
+    removeMachine(ctx);
+    say('signed out and deleted the machine folder');
+    const code = await settings(false, true);
+    // The config is gone, so a second machine remove stops early: name the command that still works.
+    if (code) { say('the agent settings still have machine account variables: benchkeeper machine disable --global'); return code; }
+    say('a project set with --machine on keeps its variables in .claude/settings.local.json: run benchkeeper projects apply --machine none in each of them');
+    say(`on GitHub, signed in as the machine account: delete its signing key at ${PAGES.keys}, or the account at ${PAGES.account}; your repositories keep it as a collaborator until you remove it`);
+    return 0;
+  } catch (e) {
+    if (e instanceof Refused) throw e;
+    say(e.message);
+    return e.usage ? 2 : 1;
+  }
+}
+
 // ---- webhook: the run notification (webhook.mjs)
 
 async function webhookCommand(ctx, { o, positionals, out, ask }) {
@@ -1957,13 +2064,15 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
 async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
+  if (o.role !== undefined && !o['as-machine']) { out.write('--role belongs to run --as-machine\n'); return 2; }
   try {
     const problem = accountsProblem(ctx);
     if (problem) { out.write(`${problem}\n`); return 2; }
     const a = pickAccount(ctx, { name: o.account, agent: args[0] });
     // An account named with --account is never replaced by auto-pick.
     let ran = a;
-    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; } };
+    const dir = resolve(o.project ?? '.');
+    const opts = { dir, useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; }, ...(o['as-machine'] ? { machine: machineLaunch(ctx, args, o.role) } : {}) };
     let code;
     try { code = runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
       if (!(e instanceof NeedsConfirm)) throw e;

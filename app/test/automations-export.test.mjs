@@ -113,3 +113,17 @@ test('automations export prints the script, --json carries it, a missing id is a
   assert.equal(await cli(['automations', 'export']), 2);
   assert.match(lines.pop(), /export needs a template id/);
 });
+
+test('automations export: a bad --param exits 2 in the terminal and with --json, a template it cannot export 1 in both', async () => {
+  const s = setup(), lines = [];
+  const cli = (argv, ctx = s.ctx) => main(argv, { out: { write: (x) => { lines.push(x); } }, err: { write: () => {} }, ctx });
+  for (const param of ['nosuch=1', 'mode=x', 'flag=a;b']) {
+    assert.equal(await cli(['automations', 'export', 'probe', '--param', param]), 2, param);
+    assert.equal(await cli(['automations', 'export', 'probe', '--param', param, '--json']), 2, param);
+    assert.ok(JSON.parse(lines.pop()).error, param);
+  }
+  const gemini = setup({ agent: 'gemini' }).ctx;
+  assert.equal(await cli(['automations', 'export', 'probe'], gemini), 1);
+  assert.equal(await cli(['automations', 'export', 'probe', '--json'], gemini), 1);
+  assert.match(JSON.parse(lines.pop()).error, /claude or codex, not gemini/);
+});

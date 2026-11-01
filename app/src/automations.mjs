@@ -70,20 +70,22 @@ export function parse(source) {
 
 const placeholders = (t) => [...new Set([t.prompt, t.precheck].flatMap((s) => [...s.matchAll(PLACEHOLDER)].map((x) => x[1])))];
 
+// A bad parameter is a usage error (status 400): the CLI exits 2 for it, as for an unknown name.
+const usage = (message) => Object.assign(new Error(message), { status: 400 });
 // The prompt and the precheck with every placeholder replaced. Rejects an unknown or a missing parameter and a value with shell characters.
 export function fill(t, values = {}) {
   const known = { mode: t.mode, ...Object.fromEntries(Object.entries(t.parameters).map(([k, p]) => [k, p.default])) };
   const given = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]));
   const unknown = [...Object.keys(given), ...placeholders(t)].filter((k) => !own(known, k));
-  if (unknown.length) throw new Error(`unknown parameter: ${[...new Set(unknown)].join(', ')}`);
+  if (unknown.length) throw usage(`unknown parameter: ${[...new Set(unknown)].join(', ')}`);
   const all = { ...known, ...given };
   const missing = Object.keys(all).filter((k) => all[k] === undefined);
-  if (missing.length) throw new Error(`missing parameter: ${missing.join(', ')}`);
-  if (!MODES.includes(all.mode)) throw new Error('mode: report or act');
-  for (const [k, v] of Object.entries(all)) if (!SAFE_VALUE.test(v)) throw new Error(`parameter ${k}: only letters, digits and _ @ . / : , + = - are allowed`);
+  if (missing.length) throw usage(`missing parameter: ${missing.join(', ')}`);
+  if (!MODES.includes(all.mode)) throw usage('mode: report or act');
+  for (const [k, v] of Object.entries(all)) if (!SAFE_VALUE.test(v)) throw usage(`parameter ${k}: only letters, digits and _ @ . / : , + = - are allowed`);
   for (const [k, p] of Object.entries(t.parameters)) {
     const off = p.allow ? outside(p.allow, all[k]) : [];
-    if (off.length) throw new Error(`parameter ${k}: ${off.join(', ')} does not start with ${p.allow.join(', ')}`);
+    if (off.length) throw usage(`parameter ${k}: ${off.join(', ')} does not start with ${p.allow.join(', ')}`);
   }
   const sub = (s) => s.replace(PLACEHOLDER, (_, k) => all[k]);
   return { prompt: sub(t.prompt), precheck: sub(t.precheck), values: all };

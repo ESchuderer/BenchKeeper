@@ -1252,7 +1252,7 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
-  const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
+  const fail = (message, code = 2) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, code); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
   const registryFail = () => { const problem = registryProblem(ctx); return problem ? fail(problem) : undefined; };
   // The list commands take no more positional arguments than they read.
@@ -1305,7 +1305,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'automations') {
     const r = await automationsDoc(ctx, arg, positionals, o);
-    return r.error ? fail(r.error) : emit(r.doc, r.code ?? 0);
+    // The code the terminal gives for the same error: a bad --param 2, a template that cannot be exported 1.
+    return r.error ? fail(r.error, r.code) : emit(r.doc, r.code ?? 0);
   }
   if (textRead(cmd, arg)) {
     const r = await readDoc(ctx, { cmd, o, positionals, err });

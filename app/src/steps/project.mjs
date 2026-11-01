@@ -510,8 +510,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const adoptedBefore = new Set((readState(dir)?.skills ?? []).filter((x) => x.adopted === true).map((x) => x.name));
   const adoptedOwn = new Set();
   // A user skill the project picked whose name the library now has (#945): the library's files are held, the state keeps
-  // source user, until the skill is reset.
-  const hiddenMine = new Set((readState(dir)?.skills ?? []).filter((x) => x.source === 'user' && skills.some((s) => s.name === x.name && s.source !== 'user') && !a.reset.includes(x.name)).map((x) => x.name));
+  // source user, until a reset has written them all (clashFiles: the files a reset writes, path and content).
+  const clashing = new Set((readState(dir)?.skills ?? []).filter((x) => x.source === 'user' && skills.some((s) => s.name === x.name && s.source !== 'user')).map((x) => x.name));
+  const hiddenMine = new Set([...clashing].filter((n) => !a.reset.includes(n)));
+  const clashFiles = new Map();
+  const keepsUser = (n, run) => clashing.has(n) && (hiddenMine.has(n) || a.disabled.includes(n) || (!!run && (clashFiles.get(n) ?? []).some(([p, d]) => itemState(p, d, ctx) !== 'current')));
   const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -530,6 +533,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       for (const { dir: d } of rest) {
         for (const { file, text, from, bytes } of ownSkillFiles(skillFolder(ctx, s), a.paths[s.name])) {
           const path = join(d, s.name, file);
+          if (clashing.has(s.name)) clashFiles.set(s.name, [...(clashFiles.get(s.name) ?? []), [path, text ?? bytes]]);
           const found = itemState(path, text ?? bytes, ctx), hides = hiddenMine.has(s.name) && found !== 'current', held = hides || found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
           if (found === 'foreign' && held && !reseat && !hides) adoptedOwn.add(s.name);
           add(`skill:${s.name}`, `skill ${s.name} (${s.source === 'user' ? 'yours' : 'own'}) in ${d.slice(dir.length + 1)}${hides ? ` (your skill ${s.name} is hidden by the library skill of that name: reset the skill to take the library's)` : held ? ` (${file} differs from the ${s.source === 'user' ? 'copy in your skills' : 'library'}: reset the skill to replace it)` : ''}`, { kind: 'write', path, ...(from ? { from } : { after: text }), installUnit, ...(held && !reseat ? { selected: false, held: true } : {}) });
@@ -593,7 +597,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
   const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, dir, prev, ran: ranFw(run) }),
-    skills: skills.map((s) => ({ name: s.name, source: hiddenMine.has(s.name) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
+    skills: skills.map((s) => ({ name: s.name, source: keepsUser(s.name, run) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 

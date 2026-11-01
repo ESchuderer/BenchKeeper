@@ -424,8 +424,9 @@ function show(c, out) {
 
 // A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
-// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error.
-const lookupCode = (e) => ([400, 404].includes(e.status) ? 2 : 1);
+// The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error, a
+// file that cannot be read (unreadable) a read failure; both exit 2.
+const lookupCode = (e) => ([400, 404].includes(e.status) || e.unreadable ? 2 : 1);
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const named = () => { const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals; return [cmd, arg, sub]; };
@@ -1252,7 +1253,7 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
-  const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
+  const fail = (message, code = 2) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, code); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
   const registryFail = () => { const problem = registryProblem(ctx); return problem ? fail(problem) : undefined; };
   // The list commands take no more positional arguments than they read.
@@ -1305,7 +1306,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'automations') {
     const r = await automationsDoc(ctx, arg, positionals, o);
-    return r.error ? fail(r.error) : emit(r.doc, r.code ?? 0);
+    // The code the terminal gives for the same error: a bad --param 2, a template that cannot be exported 1.
+    return r.error ? fail(r.error, r.code) : emit(r.doc, r.code ?? 0);
   }
   if (textRead(cmd, arg)) {
     const r = await readDoc(ctx, { cmd, o, positionals, err });

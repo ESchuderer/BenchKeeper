@@ -2,7 +2,7 @@
 // duplicated lines (jscpd). A baseline may only shrink: a new finding fails, and so does a fixed one still listed.
 // Usage: node scripts/quality.mjs coverage <lcov file> | baselines [--write]. --write drops fixed findings, never adds one.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -90,7 +90,8 @@ const run = () => ({
   duplicatedLines: Object.fromEntries(Object.entries(AREAS).map(([area, args]) => [area, duplicated(args)])),
 });
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const [what, arg] = process.argv.slice(2);
   const quality = JSON.parse(readFileSync(QUALITY, 'utf8'));
   let problems;

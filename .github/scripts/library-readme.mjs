@@ -1,6 +1,6 @@
 // Writes the catalog tables of plugins/benchkeeper/library/README.md from library.json.
 // Usage: node .github/scripts/library-readme.mjs [--check]   (--check: exit 1 when the README differs)
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,7 +62,8 @@ export function update(readme, manifest) {
   return `${readme.slice(0, a + START.length)}\n${render(manifest)}\n${readme.slice(b)}`;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const manifest = JSON.parse(readFileSync(`${lib}/library.json`, 'utf8'));
   const readme = readFileSync(`${lib}/README.md`, 'utf8');
   const next = update(readme, manifest);

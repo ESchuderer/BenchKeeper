@@ -2,7 +2,7 @@
 // a Markdown file with `#<heading>` (as GitHub anchors it, outside a generated block), or a result in BenchKeeper-research,
 // or a list of these. Entries about another product may add its official https pages, next to a repository file for what BenchKeeper says.
 // Usage: node .github/scripts/claims.mjs   (exit 1 and one line per claim when evidence is missing or does not resolve)
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -100,7 +100,8 @@ export function check(facts, dir = root) {
   return errors;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Node runs the main module from its real path but leaves process.argv[1] as given (macOS /var is /private/var).
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const errors = check(JSON.parse(readFileSync(`${root}/web/src/data/facts.json`, 'utf8')));
   for (const e of errors) console.log(`::error file=web/src/data/facts.json::${e}`);
   if (errors.length) process.exit(1);

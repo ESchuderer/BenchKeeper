@@ -11,6 +11,8 @@ case "$mode" in report|act) ;; *) echo "mode must be report or act" >&2; exit 2 
 case "$limit" in ''|*[!0-9]*) echo "the limit must be a whole number of percent" >&2; exit 2 ;; esac
 top=$(git rev-parse --show-toplevel) || exit 2
 work=1 moved=
+nl='
+'
 tmp=${TMPDIR:-/tmp}
 used=$(df -P "$tmp" | awk 'NR == 2 { sub(/%/, "", $5); print $5 }')
 case "$used" in
@@ -59,9 +61,11 @@ ignored() {
     while IFS= read -r p; do
       copy "$1" "$p" && continue
       if [ -d "$1/$p" ] && [ ! -L "$1/$p" ]; then
-        # A folder that cannot be listed fails the scan: an empty list would read as all copied.
+        # A folder that cannot be listed fails the scan: an empty list would read as all copied. A name with a line break
+        # cannot be read back from the list, so its folder is never a copy.
+        odd=$(cd "$1" && find "./$p" -name "*$nl*" -print) || exit 1
         inner=$(cd "$1" && find "./$p" ! -type d) || exit 1
-        [ -n "$inner" ] && printf '%s\n' "$inner" | while IFS= read -r f; do copy "$1" "${f#./}" || { echo x; break; }; done | grep -q x || continue
+        [ -z "$odd" ] && { [ -z "$inner" ] || ! printf '%s\n' "$inner" | while IFS= read -r f; do copy "$1" "${f#./}" || { echo x; break; }; done | grep -q x; } && continue
       fi
       printf '%s\n' "$p"
     done

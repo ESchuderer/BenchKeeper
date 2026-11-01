@@ -47,7 +47,7 @@ test('quality: the baselines only shrink, a new finding or more duplicated lines
 });
 
 test('quality: coverage without an lcov file prints the usage and exits 2', () => {
-  const r = spawnSync(process.execPath, [new URL('../scripts/quality.mjs', import.meta.url).pathname, 'coverage'], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/quality.mjs', import.meta.url)), 'coverage'], { encoding: 'utf8' });
   assert.equal(r.status, 2);
   assert.match(r.stderr, /^usage: node scripts\/quality\.mjs coverage <lcov file>/);
 });

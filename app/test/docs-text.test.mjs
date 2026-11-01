@@ -14,3 +14,21 @@ test('the operating skill names every command whose effect undo does not reverse
     assert.ok(ask.includes(`\`${cmd}`), `ask list misses ${cmd}`);
   }
 });
+
+test('every test the security model cites exists in that file under that title', () => {
+  // A cited title is the test's title or a part of it; "..." stands for the words left out.
+  const doc = read('../../docs/security.md');
+  const dirs = ['./', '../../.github/scripts/', '../../plugins/benchkeeper/hooks/tier/'];
+  const missing = [];
+  for (const m of doc.matchAll(/`([\w.-]+\.test\.(?:mjs|tsx))`((?:\s*(?:,|and|or)?\s*"[^"\n]+")+)/g)) {
+    const source = dirs.map((d) => { try { return read(d + m[1]); } catch { return null; } }).find(Boolean);
+    if (!source) { missing.push(`${m[1]}: no such test file`); continue; }
+    const titles = [...source.matchAll(/\btest\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g)].map((t) => t[2].replace(/\\(.)/g, '$1').replaceAll('"', ''));
+    for (const [, cited] of m[2].matchAll(/"([^"\n]+)"/g)) {
+      const parts = cited.split(/\s*(?:\.\.\.|…)\s*/).filter(Boolean);
+      const found = titles.some((t) => { let at = 0; return parts.every((p) => { const i = t.indexOf(p, at); at = i + p.length; return i >= 0; }); });
+      if (!found) missing.push(`${m[1]} "${cited}"`);
+    }
+  }
+  assert.deepEqual(missing, []);
+});

@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { contentDir, library } from './content.mjs';
-import { exists, listFiles, move, readText, writeAtomic } from './fsx.mjs';
+import { exists, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
@@ -45,7 +45,8 @@ export const skippedLinks = (src) => listFiles(src).filter((file) => !isFile(joi
 export function ownSkillFiles(src, paths) {
   return listFiles(src).filter((file) => isFile(join(src, file))).map((file) => {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
-    if (!Buffer.from(text).equals(bytes)) return { file, from: join(src, file), bytes };
+    // The target of a link, not the link: the copy copies a link as a link.
+    if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
     return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
   });
 }

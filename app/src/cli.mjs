@@ -1057,7 +1057,7 @@ function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
   const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
-  if (unknown.length) throw new Refused(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`);
+  if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }

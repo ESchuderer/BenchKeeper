@@ -92,6 +92,10 @@ test('a preset that names an own skill blocks skills delete; a stored pick that 
   assert.ok(c.text.includes(`warning: ${warning}\n`), c.text);
   assert.deepEqual(readState(join(h, 'fresh')).singles, ['team-notes']);
   assert.ok(projectPlan({ ctx, dir: join(h, 'withnotes'), answers: {}, plugins: {} }).warnings.includes(warning));
+  // The warning's own fix works: skills remove takes the lost pick out.
+  const removed = await cli(ctx, ['skills', 'remove', 'team-notes', '--project', join(h, 'withnotes'), '--yes']);
+  assert.equal(removed.code, 0, removed.text);
+  assert.deepEqual(readState(join(h, 'withnotes')).singles, []);
 });
 
 test('the check recommends turning off a skill installed for all projects and adding a pack most projects with the agent use', () => {

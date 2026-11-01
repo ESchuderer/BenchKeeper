@@ -38,10 +38,10 @@ test('projects plan and apply refuse a --skill name that is neither a library sk
   const c = cli();
   const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
   execFileSync('git', ['-C', dir, 'init', '-q']);
-  for (const verb of ['plan', 'apply']) {
-    assert.equal(await c.exec(['projects', verb, dir, '--agents', 'claude', '--skill', 'nosuch', ...(verb === 'apply' ? ['--yes'] : [])]), 2, verb);
-    assert.match(c.err(), /unknown skill nosuch, see benchkeeper skills list --library\n$/);
-  }
+  // Thrown like an unknown pack: the command line prints it and exits 2; with --json it is the error document.
+  for (const verb of ['plan', 'apply']) await assert.rejects(c.exec(['projects', verb, dir, '--agents', 'claude', '--skill', 'nosuch', ...(verb === 'apply' ? ['--yes'] : [])]), /^Error: unknown skill nosuch, see benchkeeper skills list --library$/, verb);
+  assert.equal(await c.exec(['projects', 'plan', dir, '--agents', 'claude', '--skill', 'nosuch', '--json']), 2);
+  assert.equal(JSON.parse(c.text()).error, 'unknown skill nosuch, see benchkeeper skills list --library');
   assert.equal(existsSync(join(dir, '.benchkeeper')), false);
 });
 

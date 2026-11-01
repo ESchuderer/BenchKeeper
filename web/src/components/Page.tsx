@@ -30,7 +30,7 @@ const PART_ICONS: Record<string, ReactNode> = {
   ponytail: <IconFeather size={20} />, app: <IconRoute size={20} />, devcontainer: <IconContainer size={20} />,
 };
 // Backticks in facts.json become inline code and `[label](url)` a link, the same text the README renders.
-export const md = (t: string) => t.split(/(`[^`]*`|\[[^[\]]+\]\([^()\s]+\))/).map((part, i) => {
+export const md = (t: string) => t.split(/(`[^`]*`|\[[^[\]]+\]\((?:[^()\s]|\([^()\s]*\))+\))/).map((part, i) => {
   if (part.startsWith('`')) return <Code key={i}>{part.slice(1, -1)}</Code>;
   const link = /^\[(.+)\]\((.+)\)$/.exec(part);
   return link ? <Anchor key={i} href={link[2]}>{link[1]}</Anchor> : part;

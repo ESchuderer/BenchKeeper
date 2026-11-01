@@ -606,6 +606,8 @@ function checkArgs(o, positionals) {
   if (positionals.length > (ARGS[name] ?? Infinity)) return `unexpected argument ${positionals[ARGS[name]]}`;
   // doctor and verify check the folder they name: one that does not exist must not read as a clean check.
   if (['doctor', 'verify'].includes(name) && positionals[1] !== undefined && !isDir(resolve(positionals[1]))) return `${resolve(positionals[1])} is not a folder`;
+  // insights reads a project's proposals from --project: a folder that does not exist must not give the machine's findings alone.
+  if (name === 'insights' && o.project !== undefined && !isDir(resolve(o.project))) return `${resolve(o.project)} is not a folder`;
   return undefined;
 }
 

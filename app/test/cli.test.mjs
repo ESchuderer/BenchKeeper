@@ -343,3 +343,16 @@ test('doctor and verify refuse a folder that does not exist, exit 2 in the termi
   assert.notEqual(await v.exec(['verify', here, '--json']), 2);
   assert.ok(JSON.parse(v.text()).checks.length);
 });
+
+test('insights --json --project refuses a folder that does not exist, exit 2; an existing folder still runs', async () => {
+  const missing = join(mkdtempSync(join(tmpdir(), 'bk-cli-')), 'nope');
+  const j = cli();
+  assert.equal(await j.exec(['insights', '--json', '--project', missing]), 2);
+  assert.equal(JSON.parse(j.text()).error, `${missing} is not a folder`);
+  const t = cli();
+  assert.equal(await t.exec(['insights', '--project', missing]), 2);
+  assert.equal(t.text(), `${missing} is not a folder\n`);
+  const here = cli();
+  assert.notEqual(await here.exec(['insights', '--json', '--project', mkdtempSync(join(tmpdir(), 'bk-cli-'))]), 2);
+  assert.ok(Array.isArray(JSON.parse(here.text()).findings));
+});

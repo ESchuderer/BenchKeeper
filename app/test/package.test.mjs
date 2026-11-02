@@ -40,9 +40,13 @@ test('content.json: content version is the plugin version, minApp is not above t
   const [major, minor, patch] = appVersion.split('.').map(Number);
   assert.match(c.minApp, /^\d+\.\d+\.\d+$/);
   for (const v of [appVersion, `${major}.${minor}.${patch + 1}`]) assert.equal(contentRefusal(fileURLToPath(root), v), null, v);
+  // The major the text names: the coming release's while release-please-config.json sets release-as for the app (a major
+  // release changes the text before release-please changes the version files), else the app's own.
+  const releaseAs = json('../../release-please-config.json').packages.app['release-as'];
+  const expected = (releaseAs || appVersion).split('.')[0];
   for (const dir of ['skills', 'library', 'automations']) {
     for (const f of readdirSync(new URL(`${dir}/`, root), { recursive: true }).filter((x) => x.endsWith('.md'))) {
-      for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx (?:-y )?benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, appVersion.split('.')[0], `${dir}/${f}`);
+      for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx (?:-y )?benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, expected, `${dir}/${f}`);
     }
   }
 });

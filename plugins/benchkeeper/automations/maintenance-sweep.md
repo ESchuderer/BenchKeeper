@@ -5,7 +5,7 @@ agent = "claude"
 schedule = "0 7 1 * *"
 workspace = "project"
 reuse_session = false
-precheck = "! pgrep -f \"automation-[m]aintenance-sweep\" >/dev/null && k=$(npx -y benchkeeper@6 knowledge show --json) && maintenance-sweep/precheck.sh {{min_merged}} \"$k\""
+precheck = "! pgrep -f \"automation-[m]aintenance-sweep\" >/dev/null && k=$(npx -y benchkeeper@7 knowledge show --json) && maintenance-sweep/precheck.sh {{min_merged}} \"$k\""
 missed_run_grace_minutes = 1440
 mode = "report"
 helpers = ["maintenance-sweep/precheck.sh"]

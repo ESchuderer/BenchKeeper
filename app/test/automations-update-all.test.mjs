@@ -26,8 +26,8 @@ test('update-all: parameters projects and mode, report only by default', () => {
 });
 
 test('update-all precheck: starts the run only when the plan reports an outdated project', { skip: process.platform === 'win32' && 'sh precheck' }, () => {
-  assert.deepEqual(precheck({ projects: '/projects/a,/projects/b' }, plan), { code: 0, args: '-y benchkeeper@6 projects update --dry-run --unattended --json /projects/a /projects/b' });
-  assert.deepEqual(precheck({}, plan).args, '-y benchkeeper@6 projects update --dry-run --unattended --json');
+  assert.deepEqual(precheck({ projects: '/projects/a,/projects/b' }, plan), { code: 0, args: '-y benchkeeper@7 projects update --dry-run --unattended --json /projects/a /projects/b' });
+  assert.deepEqual(precheck({}, plan).args, '-y benchkeeper@7 projects update --dry-run --unattended --json');
   assert.equal(precheck({}, plan.replace('"ready": true', '"ready": false')).code, 1);
 });
 

@@ -31,6 +31,6 @@ Read only the sources above, each as https://<source>, and the release notes the
 1. Run `provider-changelog/versions.sh`. It prints one line `<agent> <version>` per installed agent CLI. The last report, {{file}} as it is now, names the versions it covered in lines of the same form; no report: cover the installed version only.
 2. Per installed agent, read the source of its provider and list the releases after the version the last report named, up to the installed version. No source for an agent: say so.
 3. Keep what affects the setup: settings keys and their defaults, hooks and their events and input, permissions and sandbox, plugins, skills, instruction files and MCP, deprecations and removals. Each item with the version, one sentence and the link to its release note.
-4. Per item, a proposal for the settings catalog (`npx -y benchkeeper@6 settings list`) or for Insights: what to add, change or retire, or none. Proposals only; apply none.
+4. Per item, a proposal for the settings catalog (`npx -y benchkeeper@7 settings list`) or for Insights: what to add, change or retire, or none. Proposals only; apply none.
 5. Write the report to {{file}}, replacing it: first the lines of step 1 exactly as printed, one per line, then the items per agent. Mode act changes nothing more than mode report.
 6. Answer with the path of the report and the number of items per agent.

@@ -8,7 +8,8 @@ import { Loading, Note, SCROLL_CUE, breakAt, icon, useApi } from './shell.jsx';
 const money = (x) => (x == null ? 'not recorded' : `$${x.toFixed(2)}`);
 const Scroll = ({ label, children }) => (
   <Table.ScrollContainer minWidth={560} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
-    <Table aria-label={label}>{children}</Table>
+    {/* One line per row: the table scrolls sideways instead of wrapping a task or a path into a taller row. */}
+    <Table aria-label={label} style={{ whiteSpace: 'nowrap' }}>{children}</Table>
   </Table.ScrollContainer>
 );
 // A section without data: one line with its title and the reason.

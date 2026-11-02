@@ -33,7 +33,7 @@ Observed version: 1.4.245 (`OBSERVED` in `app/src/orca/index.mjs`, `app/test/fix
 
 ## Automation behavior
 
-The ten tests of [#462](https://github.com/ESchuderer/BenchKeeper/issues/462), each in the Orca desktop app with a throwaway automation created disabled.
+The tests of [#462](https://github.com/ESchuderer/BenchKeeper/issues/462), each in the Orca desktop app with a throwaway automation created disabled.
 
 | Test | Check |
 |---|---|

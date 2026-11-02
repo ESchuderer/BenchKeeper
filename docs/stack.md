@@ -2,7 +2,7 @@
 
 BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](../plugins/benchkeeper)), plus the [app](../app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
 
-The components BenchKeeper sets up, where each file lives and why these were chosen. Install and update steps: [setup guide](setup.md).
+Install and update steps: [setup guide](setup.md).
 
 ## Components
 
@@ -14,7 +14,7 @@ The components BenchKeeper sets up, where each file lives and why these were cho
 | [workflow](../plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task kind (software change, docs pass, research) and tier (quick, standard, full), pre-push correctness review, security review for risky changes; uses installed skills that match a step |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo, committed: `.devcontainer/`, `AGENTS.md` (your own text), `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`. Local by default, listed in `.git/info/exclude` (committed with `--share`): `CLAUDE.local.md` (shared: `CLAUDE.md`), `AGENTS.override.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `.benchkeeper/`, and `.worktreeinclude`, which lists them for new worktrees (with `--share` it lists only the personal files).
+Per repo, committed: `.devcontainer/`, `AGENTS.md` (your own text), `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`. Local by default, listed in `.git/info/exclude` (committed with `--share`): `CLAUDE.local.md` (shared: `CLAUDE.md`), `AGENTS.override.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `.benchkeeper/`, and `.worktreeinclude`, which lists them for new worktrees ([per repo](setup.md#per-repo)).
 
 Global (per machine): the rules, the BenchKeeper plugin, the plugins of the packs chosen (Ponytail, Matt Pocock's skills), find-skills, settings.
 
@@ -35,7 +35,7 @@ With the `ponytail` pack, another Ponytail level for the current session: `/pony
 | [plugins/benchkeeper/skills/setting-up-projects](../plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/workflow](../plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes, docs passes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
 | [plugins/benchkeeper/skills/tier](../plugins/benchkeeper/skills/tier/SKILL.md) | sets the tier for the rest of the session (`quick`, `standard`, `full`, `research`, or `auto` to let the workflow pick) | plugin skill `/benchkeeper:tier`, user-invoked |
-| [plugins/benchkeeper/hooks/tier](../plugins/benchkeeper/hooks/tier/register.tsx) | the optional status band in the Claude Code terminal and desktop app: project, branch and Ponytail's level, the last test run and lint or type check with the edits since and a verdict for the tier, the tier of the last answer, buttons for `/benchkeeper:tier`, the sessions board and the doctor, the override kept through compaction and resume ([setup](setup.md#the-status-band)) | Claude Code plugin option `tierBand`, off by default |
+| [plugins/benchkeeper/hooks/tier](../plugins/benchkeeper/hooks/tier/register.tsx) | the optional status band in the Claude Code terminal and desktop app ([setup](setup.md#the-status-band)) | Claude Code plugin option `tierBand`, off by default |
 | [plugins/benchkeeper/skills/maintaining-repos](../plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code and duplicates, dependency cycles, test audit by mutation, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
 | [plugins/benchkeeper/skills/orchestrating-projects](../plugins/benchkeeper/skills/orchestrating-projects/SKILL.md) | the coordinator on request: one worker per project on labeled issues, projects in parallel, outcomes verified, merge and cleanup by each repository's written policy | plugin skill `benchkeeper:orchestrating-projects` |
 | [plugins/benchkeeper/skills/operating-benchkeeper](../plugins/benchkeeper/skills/operating-benchkeeper/SKILL.md) | how an agent manages its own setup through the CLI: plan, review, apply with `--yes`, read the JSON, undo, doctor, update one project | plugin skill `benchkeeper:operating-benchkeeper`, model-invoked |

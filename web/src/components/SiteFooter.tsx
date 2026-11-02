@@ -3,7 +3,6 @@ import { SLUG } from '../lib/repo-facts';
 
 const REPO = `https://github.com/${SLUG}`;
 
-// The footer of every page: license, the build's commit when known, what the app writes, the changelog, the benchmark, the repository and its security policy.
 export default function SiteFooter({ base, size = 'lg', updated, commit }: { base: string; size?: string; updated?: string; commit?: string }) {
   return (
     <Box component="footer" className="band" py="xl">

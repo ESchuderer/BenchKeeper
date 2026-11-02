@@ -66,7 +66,6 @@ function verdict(tier: string | null, testRun: Check | null, lintRun: Check | nu
   return tier === 'quick' ? 'ready' : 'ready, review is yours'
 }
 
-// The last tier line in a text, or null.
 export function lastTier(text: string): TierLine | null {
   const m = [...text.matchAll(TIER)].at(-1)
   return m ? { tier: m[1] ?? '', changeType: m[2] ?? null } : null

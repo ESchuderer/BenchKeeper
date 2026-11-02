@@ -1,10 +1,10 @@
 # Skills
 
-What each skill does, who starts it, when it runs and what it writes, so you can pick one without reading its `SKILL.md`. The tables come from each skill's front matter and from `plugins/benchkeeper/library/library.json`; CI fails when this page differs from them (`node .github/scripts/skills-doc.mjs` rewrites it).
+The tables come from each skill's front matter and from `plugins/benchkeeper/library/library.json`; CI fails when this page differs from them (`node .github/scripts/skills-doc.mjs` rewrites it).
 
 ## BenchKeeper's skills
 
-The BenchKeeper plugin installs these seven in Claude Code and Codex at every level. A skill that "you" start never starts on its own.
+The BenchKeeper plugin installs these in Claude Code and Codex at every level. A skill that "you" start never starts on its own.
 
 <!-- generated:skills -->
 | Skill | What it is for | Started by | When it runs | What it writes |

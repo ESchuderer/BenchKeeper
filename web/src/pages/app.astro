@@ -17,6 +17,6 @@ const shots = Object.fromEntries(VIEWS.flatMap(({ shot: v }) => ['light', 'dark'
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <SiteLayout title="The app, BenchKeeper"
-  description="What the BenchKeeper app shows, view by view with the matching CLI command: the starting screen, one-run setup, Dashboard health, Fix everything, projects and packs, skills, project setup, the Sessions board, Runs, Insights, Evals, Global setup, Rules, Extensions, Agent settings, Accounts, Automations, Preferences, History and undo and the Doctor, with screenshots of example data.">
+  description="What the BenchKeeper app shows, view by view, with the matching CLI command and screenshots of example data.">
   <AppPage base={base} shots={shots} />
 </SiteLayout>

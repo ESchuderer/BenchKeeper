@@ -5,7 +5,7 @@ description: "Designs and reviews technical UIs for people who know the domain: 
 
 # Designing technical UIs
 
-The reader knows the domain and came for the values. Every element earns its place by showing a value, taking an input, or preventing a real mistake. When the heading, the layout or the control already says it, the extra text goes.
+The reader knows the domain and came for the values. Every element earns its place by showing a value, taking an input, or preventing a real mistake.
 
 Work in this order: read the whole screen, list what the reader needs to see and do, then decide each element (keep, shorten, move, delete). An empty slot is better than a filler line.
 

@@ -8,7 +8,7 @@ writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/`, del
 
 # Orchestrating projects
 
-This session is the coordinator. Workers do the issue work in their own worktrees; the coordinator picks, specs, watches, verifies, merges by policy, cleans up and starts the next. The runner's commands are in [orca.md](orca.md); the runner's own guide stays the source for its mechanics. Everything below is runner-neutral.
+This session is the coordinator. Workers do the issue work in their own worktrees; the coordinator picks, specs, watches, verifies, merges by policy, cleans up and starts the next. The runner's commands are in [orca.md](orca.md).
 
 Projects: $ARGUMENTS (Codex: the paths after the skill name). Each is a repository with a GitHub remote and an `AGENTS.md`.
 
@@ -34,8 +34,8 @@ Settings, rulesets, secrets and other people's repositories are the owner's. A p
 1. **Pick**: per project, the oldest open issue with `startLabel` written by a trusted author that has no open or merged PR whose head branch names its number and no worker or outcome yet in this run. Read the issue's comments and milestone before its spec: a comment or milestone that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing. An issue starts once per run (a failed one retries once, below), so a verified no-change issue that stays open without `closeIssue` is not picked again. One issue per project and wave.
 2. **Spec**: copy [spec-template.md](spec-template.md) into the run folder and fill its fields. Build every spec from the template; a spec copied or edited from the previous one carries that issue's details into the next.
 3. **Start** one worker per project, up to `workersPerProject` and `hostWorkerLimit`. Projects run in parallel; a project with no free slot waits. Before each start, check the branch: when the issue's branch or an open PR for it exists, a follow-up goes to the worker that owns it as a runner message, and a new worker starts on that branch only after the owning one is released. Start every worker in its agent's default permission mode: write no flag that bypasses or skips permission prompts, for any agent.
-4. **Watch** until every worker has settled. A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner. Each wake-up checks three things: worker reports, worker state, and merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported). A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. Wake at least every `stallMinutes` / 2.
-5. **React** to each outcome (below), clean up, return to 1 for that project.
+4. **Watch** until every worker has settled. A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner. Each wake-up checks worker reports, worker state, and merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported). A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. Wake at least every `stallMinutes` / 2.
+5. **React** to each outcome (below), clean up without waiting to be asked, return to 1 for that project.
 6. **Report** per project: issue, outcome, evidence, and what was skipped or not checked.
 
 ### Waiting
@@ -68,8 +68,6 @@ A worker whose terminal a person typed in belongs to that person: skip every ste
 1. Stop the worker if it has not settled (an idle worker that sent no report is stopped first), then release it once the runner reports it releasable.
 2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies. Remove the dev containers right before the worktree: `<engine> rm -f <id>` for each id that `<engine> ps -aq --filter label=devcontainer.local_folder=<worktree path>` prints, with `podman` or `docker` as `<engine>`. Volumes stay.
 3. Delete the branch (local and remote) only when its PR is merged and `deleteMergedBranch` allows it.
-
-Cleanup of a finished worker happens as part of reacting to its outcome, without waiting to be asked.
 
 ## Recurring runs
 

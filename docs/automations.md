@@ -105,7 +105,7 @@ The runner is Orca, through its CLI. Without it the app lists the templates and 
 1. Open the Automations view of the app (`benchkeeper ui`), or run `benchkeeper automations list`.
 2. Install a template: in the view, Install, then a registered project and the parameter values (an empty field keeps the default); in a terminal, `benchkeeper automations install <id> --param name=value --project <dir>`. The plan shows the runner command and the record; nothing runs before Apply.
 3. The automation is created disabled and in mode `report`. Start it once with the runner's Run now and read the report, then enable it in the runner. Switching to `act` is a reinstall with `--param mode=act`: remove, then install.
-4. When a template changes, the view and `benchkeeper automations status` show it as outdated. Update shows the diff of the runner's automation against the template, then sets the runner's fields back to the template; the enabled state stays.
+4. When a template changes, the view and `benchkeeper automations status` show it as outdated. Update sets the runner's fields back to the template after showing the diff; the enabled state stays.
 5. Remove deletes the automation on the runner with its run history and drops the record. Undo in History restores the record only; install creates the automation again.
 
 The view shows per installed automation its state, whether it is enabled, its mode and project folder, the last run that was not skipped and how many runs the precheck or a missed time skipped since (from the runner's newest 20 runs). Every change is a plan with a diff and an undo in History, as in the other views.
@@ -120,7 +120,7 @@ The view shows per installed automation its state, whether it is enabled, its mo
 
 ## Without Orca
 
-`benchkeeper automations export <id> --param name=value --project <dir> > ~/bin/<id>.sh` writes one sh script per template for cron or a systemd timer. The script unpacks the template's helpers into a temporary folder, runs the precheck in the project folder and starts the agent only when the precheck exits 0. It removes the folder when it ends. The app writes no crontab and no systemd unit, and it keeps no record, so `status`, `update` and `doctor` do not see an exported automation.
+`benchkeeper automations export <id> --param name=value --project <dir> > ~/bin/<id>.sh` writes one sh script per template for cron or a systemd timer, which starts the agent only when the precheck exits 0 ([`automations export`](../app/README.md#commands)). The app writes no crontab and no systemd unit, and it keeps no record, so `status`, `update` and `doctor` do not see an exported automation.
 
 1. Export, make the script executable (`chmod +x`) and run it once by hand in mode `report`.
 2. Add the line from the script's header to `crontab -e`, with the script's absolute path. Cron starts with a short PATH, so put a `PATH=` line above it that includes the folders of `claude` or `codex` and `gh` (`command -v claude`); the script exits 127 when it does not find the agent. A systemd timer: a service with `ExecStart=` the script and a timer with `OnCalendar=` the same time ([systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)).

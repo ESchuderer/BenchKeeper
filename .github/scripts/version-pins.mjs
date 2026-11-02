@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { isMain } from './main.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Recorded history and benchmark arms keep the versions they name; skill text under plugins/ names the major (npx benchkeeper@6), not a pin.
+// Recorded history and benchmark arms keep the versions they name; skill text under plugins/ names the major (npx benchkeeper@<major>), not a pin.
 export const SKIP = /^(bench\/|evaluations\/|CHANGELOG\.md|app\/test\/|plugins\/)|package-lock\.json$/;
 
 export function pins(text, version) {

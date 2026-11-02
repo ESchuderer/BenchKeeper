@@ -32,7 +32,7 @@ Questions for the owner go to this terminal, not into an issue or a pull request
 The last digest is {{file}} as it is now; the time it was last changed is the start of this digest. No file: the last day.
 
 1. Read, per repository: pull requests merged since the start, open issues and pull requests that are blocked or wait for a decision of the owner (a blocking label, a question to the owner, a failing required check, a requested change), and what changed on them since the start.
-2. Read the workers: `npx -y benchkeeper@6 sessions list` (orchestrated runs), and the account headroom: `npx -y benchkeeper@6 accounts status`.
+2. Read the workers: `npx -y benchkeeper@7 sessions list` (orchestrated runs), and the account headroom: `npx -y benchkeeper@7 accounts status`.
 3. Write the digest to {{file}}, replacing it, in plain sentences, in this order: decisions for the owner, blocked items, merged pull requests, running workers, account headroom. Link each item. Leave out items that did not change since the start, counts of features and recaps.
 4. Notify true: send one desktop notification with the first line of the digest (`notify-send` on Linux, `osascript -e 'display notification ...'` on macOS); none available: say so in the answer. Notify false: none.
 5. Answer with the path of the digest and its first line. Change nothing else.

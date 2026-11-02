@@ -103,7 +103,7 @@ if pgrep -f "automation-[o]pen-pr-report" >/dev/null; then exit 1; fi
 The runner is Orca, through its CLI. Without it the app lists the templates and refuses install, update and remove.
 
 1. Open the Automations view of the app (`benchkeeper ui`), or run `benchkeeper automations list`.
-2. Install a template: in the view, Install, then a registered project and the parameter values; in a terminal, `benchkeeper automations install <id> --param name=value --project <dir>`. The plan shows the runner command and the record; nothing runs before Apply.
+2. Install a template: in the view, Install, then a registered project and the parameter values (an empty field keeps the default); in a terminal, `benchkeeper automations install <id> --param name=value --project <dir>`. The plan shows the runner command and the record; nothing runs before Apply.
 3. The automation is created disabled and in mode `report`. Start it once with the runner's Run now and read the report, then enable it in the runner. Switching to `act` is a reinstall with `--param mode=act`: remove, then install.
 4. When a template changes, the view and `benchkeeper automations status` show it as outdated. Update sets the runner's fields back to the template after showing the diff; the enabled state stays.
 5. Remove deletes the automation on the runner with its run history and drops the record. Undo in History restores the record only; install creates the automation again.

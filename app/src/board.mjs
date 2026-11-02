@@ -635,7 +635,8 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     for (const r of list) for (const s of r.skills) n.set(s, (n.get(s) ?? 0) + 1);
     const ranked = [...n].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 25);
     const max = ranked[0]?.[1] ?? 1;
-    $('skills').replaceChildren(table('Sessions that used each skill (top 25)', ['Skill', 'Sessions'], ranked.map(([s, c]) => [s, el('span', { class: 'rank' }, el('span', { class: 'rank-bar', style: `width:${(c / max) * 100}%` }), String(c))])));
+    // A full bar leaves room for its count and the gap, so the count of the top skill stays inside the cell.
+    $('skills').replaceChildren(table('Sessions that used each skill (top 25)', ['Skill', 'Sessions'], ranked.map(([s, c]) => [s, el('span', { class: 'rank' }, el('span', { class: 'rank-bar', style: `width:calc((100% - 4ch - 8px) * ${c / max})` }), String(c))])));
   }
 
   let current = [], last = null, announced = null;

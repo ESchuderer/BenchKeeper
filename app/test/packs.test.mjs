@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { library } from '../src/content.mjs';
-import { exportPack, globalSkillPacks, importPack, invalidPacks, libraryWith, overlap, ownPacks, removePack, savePack, scopeFile, scopeText, scopeWrite, storedScopes, warnings } from '../src/packs.mjs';
+import { copied, exportPack, globalSkillPacks, importPack, invalidPacks, libraryWith, overlap, ownPacks, ownSkillFiles, packScopes, removePack, savePack, scopeFile, scopeText, scopeWrite, storedScopes, userSkillDir, userSkillRemove, userSkills, userSkillWrite, warnings } from '../src/packs.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
@@ -31,6 +31,7 @@ test('a pack saved over an own pack of the same id leaves the old file in the ba
   assert.equal(ownPacks(ctx).find((p) => p.id === 'ui').title, 'New');
   const kept = readdirSync(join(ctx.config, 'backup', 'packs'));
   assert.equal(kept.length, 1);
+  assert.match(kept[0], /^ui-\d+-[0-9a-f]{8}\.json$/);
   assert.equal(JSON.parse(readFileSync(join(ctx.config, 'backup', 'packs', kept[0]), 'utf8')).title, 'Old');
 });
 
@@ -163,4 +164,78 @@ test('a project turns a skill off and on, uses an own pack, and drops a pack it 
   assert.equal(existsSync(skill), false);
   undo(last.run.id, ctx);
   assert.ok(existsSync(skill));
+});
+
+test('a pack file whose id only starts like a plain id is invalid', () => {
+  const ctx = ctxAt();
+  mkdirSync(join(ctx.config, 'packs'), { recursive: true });
+  writeFileSync(join(ctx.config, 'packs', 'a_b.json'), JSON.stringify({ id: 'a_b' }));
+  assert.deepEqual(invalidPacks(ctx), [{ file: 'a_b.json', reason: 'the id is not a plain id' }]);
+});
+
+test('overlap: the longer stop words count for nothing', () => {
+  assert.equal(overlap('for with has adds uses its alpha', 'for with has adds uses its beta'), false);
+});
+
+test('copied: own and user skills; no skill is not copied', () => {
+  assert.equal(copied(undefined), false);
+  assert.equal(copied({ source: 'user' }), true);
+  assert.equal(copied({ source: 'own' }), true);
+  assert.equal(copied({ source: 'skills' }), false);
+});
+
+test('ownSkillFiles: the path globs go under the description line of SKILL.md only', () => {
+  const src = mkdtempSync(join(TMP, 'bk-own-skill-'));
+  writeFileSync(join(src, 'SKILL.md'), '---\nname: mine\ndescription: Checks notes.\n---\nbody\n');
+  writeFileSync(join(src, 'notes.md'), 'description: not front matter\n');
+  const byFile = (paths) => Object.fromEntries(ownSkillFiles(src, paths).map((f) => [f.file, f.text]));
+  assert.deepEqual(byFile('src/**'), { 'SKILL.md': '---\nname: mine\ndescription: Checks notes.\npaths: src/**\n---\nbody\n', 'notes.md': 'description: not front matter\n' });
+  assert.equal(byFile(undefined)['SKILL.md'], '---\nname: mine\ndescription: Checks notes.\n---\nbody\n');
+  // A "description: " inside another key's value is not the description line.
+  writeFileSync(join(src, 'SKILL.md'), '---\nname: mine\nnote: "old description: none"\ndescription: Checks notes.\n---\n');
+  assert.equal(byFile('src/**')['SKILL.md'], '---\nname: mine\nnote: "old description: none"\ndescription: Checks notes.\npaths: src/**\n---\n');
+});
+
+test('user skills: front matter edge cases, the plan changes, and no skills folder', () => {
+  const ctx = ctxAt();
+  const text = (description) => `---\nname: mine\ndescription: ${description}\n---\n`;
+  assert.deepEqual(userSkills(ctx), []);
+  assert.ok(userSkillWrite(ctx, 'mine', '---\r\nname: mine\r\ndescription: d\r\n---\r\n', { isNew: true }));
+  assert.ok(userSkillWrite(ctx, 'mine', text('d'.repeat(1024)), { isNew: true }));
+  assert.throws(() => userSkillWrite(ctx, 'mine', `intro\n${text('d')}`, { isNew: true }), /name must be mine/);
+  assert.throws(() => userSkillWrite(ctx, 'mine', text('42'), { isNew: true }), /a description of 1 to 1024/);
+  assert.throws(() => userSkillWrite(ctx, 'mine', '---\nname: [\n---\n', { isNew: true }), (e) => /^SKILL.md front matter: /.test(e.message) && !/name must be/.test(e.message));
+  const path = join(userSkillDir(ctx, 'mine'), 'SKILL.md');
+  assert.deepEqual(userSkillWrite(ctx, 'mine', text('d'), { isNew: true }), { id: 'user-skill:mine', step: 'user-skill:mine', title: 'your skill mine: new SKILL.md', kind: 'write', path, after: text('d'), selected: true });
+  mkdirSync(userSkillDir(ctx, 'mine'), { recursive: true });
+  writeFileSync(path, text('"  Checks notes.  "'));
+  assert.equal(userSkills(ctx)[0].pickWhen, 'Checks notes.');
+  assert.equal(userSkillWrite(ctx, 'mine', text('d'), { isNew: false }).title, 'your skill mine: edited SKILL.md');
+  assert.deepEqual(userSkillRemove(ctx, 'mine'), { id: 'user-skill:mine', step: 'user-skill:mine', title: 'remove your skill mine', kind: 'remove', path: userSkillDir(ctx, 'mine'), selected: true });
+  assert.throws(() => userSkillRemove(ctx, 'mine', { usedBy: ['a', 'b'] }), /in use by a, b:/);
+});
+
+test('globalSkillPacks: skill packs with skills set to all projects, never plugin packs; packScopes says why only projects', () => {
+  const ctx = { ...ctxAt(), packScopes: { g: 'global', p: 'global', e: 'global' } };
+  const lib = { packs: [{ id: 's', skills: ['x'] }, { id: 'g', skills: ['y'] }, { id: 'p', plugins: { claude: {} }, skills: ['z'] }, { id: 'e' }] };
+  assert.deepEqual(globalSkillPacks(ctx, lib).map((p) => p.id), ['g']);
+  assert.match(packScopes({ skills: ['x'] }, 'gemini').fixed, /global folders of Claude Code and Codex only/);
+});
+
+test('removePack: the backup of an invalid file keeps its whole name before .json', () => {
+  const ctx = ctxAt();
+  mkdirSync(join(ctx.config, 'packs'), { recursive: true });
+  writeFileSync(join(ctx.config, 'packs', 'x.json5.json'), '{');
+  removePack(ctx, 'x.json5.json');
+  assert.match(readdirSync(join(ctx.config, 'backup', 'packs'))[0], /^x\.json5-\d+\.json$/);
+});
+
+test('exportPack: a pack naming own skills is refused with every own skill named', () => {
+  const ctx = ctxAt();
+  for (const name of ['mine-a', 'mine-b']) {
+    mkdirSync(userSkillDir(ctx, name), { recursive: true });
+    writeFileSync(join(userSkillDir(ctx, name), 'SKILL.md'), `---\nname: ${name}\ndescription: Notes ${name}.\n---\n`);
+  }
+  savePack(ctx, { id: 'mine', title: 'Mine', skills: ['mine-a', 'mine-b'] });
+  assert.throws(() => exportPack(ctx, 'mine'), /\(mine-a, mine-b\)/);
 });

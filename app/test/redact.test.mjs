@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { keyed, mask, maskStream, redactArgv, shown } from '../src/redact.mjs';
+import { keyed, lastLines, mask, maskStream, redactArgv, shown } from '../src/redact.mjs';
 
 test('mask: token shapes, Bearer values with any spacing, and no text', () => {
   assert.equal(mask('xoxb-abcdefgh12 xoxz-abcdefgh12', { keys: false }), '*** xoxz-abcdefgh12');
@@ -73,4 +73,42 @@ test('maskStream: a secret value cut by the kept tail stays masked until it ends
   assert.equal(shown(run(16, 'password =\n', `abc ${'z'.repeat(30)}`)), `password =\n${'z'.repeat(16)}`);
   assert.equal(shown(run(16, `x token=abc ${'z'.repeat(30)}`)), 'z'.repeat(16));
   assert.equal(shown(run(16, 'password =\n', '"a"', 'z'.repeat(16))), `password =\n${'z'.repeat(16)}`);
+});
+
+test('maskStream: a pending key and its Bearer value in any case; a key block indented on the next line; a value before a BEGIN on the same line', () => {
+  const feed = (...chunks) => chunks.reduce((s, c) => maskStream(s, c), { text: '', rest: '', end: null });
+  assert.equal(shown(feed('PASSWORD =\n', 'abc rest\n')), 'PASSWORD =\n*** rest\n');
+  assert.equal(shown(feed('password =\n', 'bearer abc rest\n')), 'password =\n*** rest\n');
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} RSA PRIVATE KEY-----`);
+  assert.equal(shown(feed(`key:\n  ${b}\nabc\n${e}\n`)), `key:\n  ${b}\n***\n${e}\n`);
+  // A value before a BEGIN on the same line is still the value.
+  assert.equal(shown(feed('password =\n', `abc ${b}\nxyz\n${e}\n`)), `password =\n*** ${b}\n***\n${e}\n`);
+});
+
+test('maskStream: the kept tail is cut at max for whole lines and for the unfinished line', () => {
+  const run = (max, ...chunks) => chunks.reduce((s, c) => maskStream(s, c, max), { text: '', rest: '', end: null });
+  assert.equal(run(8, 'abc\n', 'defghijkl\n').text, 'fghijkl\n');
+  // A line shorter than max stays whole.
+  assert.equal(shown(run(16, 'abcdefghij')), 'abcdefghij');
+  // A key value behind a quoted key, cut by the kept tail, stays masked.
+  assert.equal(shown(run(16, `x "secret": ${'v'.repeat(20)}`, 'w'.repeat(4))), '***');
+});
+
+test('maskStream: a BEGIN line before the cut stays in the head, one at the cut stays in the tail', () => {
+  const run = (max, ...chunks) => chunks.reduce((s, c) => maskStream(s, c, max), { text: '', rest: '', end: null });
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} RSA PRIVATE KEY-----`);
+  const head = run(64, `x ${b}`, 'A'.repeat(100));
+  assert.equal(head.rest, 'A'.repeat(64));
+  assert.equal(head.end, e);
+  const tail = run(b.length, `${'y'.repeat(20)}${b}`);
+  assert.equal(tail.rest, b);
+  assert.equal(tail.end, null);
+  assert.equal(shown(tail), b);
+});
+
+test('lastLines: the last n lines joined by a space, masked', () => {
+  assert.equal(lastLines('a\nb\nc\nd\n'), 'b c d');
+  assert.equal(lastLines('a\npassword=x\n', 1), 'password=***');
+  // Fewer lines than n: the first line is shown as it came.
+  assert.equal(lastLines('only line'), 'only line');
 });

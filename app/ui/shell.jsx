@@ -105,7 +105,7 @@ export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hi
 export const breakAt = (text) => String(text).split(/(?<=[./_-])|(?<=[a-z])(?=[A-Z])/).flatMap((part, n) => (n ? [<wbr key={n} />, part] : [part]));
 // A table wider than its column shows its scrollbar while it overflows, so a phone shows that more is to the side
 // (Mantine's default shows it on hover only, which touch has not).
-export const SCROLL_CUE = { type: 'auto', offsetScrollbars: 'x' };
+export const SCROLL_CUE = { type: 'auto' };
 const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
 // An Alert with the icon of its color. A teal title has 4.32:1 on the light teal background, so it takes the text color.
 const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };

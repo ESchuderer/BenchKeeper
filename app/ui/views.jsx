@@ -64,6 +64,9 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   );
 }
 
+// The Skills filters share one width: the whole line on a phone, side by side from xs.
+const FILTER_W = { base: '100%', xs: 220 };
+
 // The Catalog's first page: the library skills and the user's own to browse, each with its detail, the editor of the user's
 // skills, and the pack builder. A skill's state in a project is on that project's page.
 export function CatalogSkills({ catalog, params, refresh }) {
@@ -202,9 +205,6 @@ const GLOBAL_PARTS = [[['plugin', 'pack'], 'Plugins and packs', 'extensions', 'E
   [['ask', 'settings'], 'Settings', 'agent-settings', 'Agent settings'], [['tools'], 'Machine tools'], [['other'], 'Other global items']];
 
 // What the global setup installs, by part, with its state on disk; a part's items open on a button, open from the start when some need attention.
-// The Skills filters share one width: the whole line on a phone, side by side from xs.
-const FILTER_W = { base: '100%', xs: 220 };
-
 // An item that needs attention has a box: the ticked ones go into the plan. A removal ('foreign') starts unticked.
 const tickable = (i) => ATTENTION.includes(i.state) && i.state !== 'error';
 const itemKey = (i) => `${i.step}|${i.title}`;
@@ -225,7 +225,7 @@ function GlobalItems({ items, ticked, onTick, locked }) {
               <List.Item key={itemKey(i)} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
                 <Group gap="xs" wrap="nowrap">
                   {tickable(i) && <Checkbox size="xs" aria-label={i.title} checked={ticked.has(itemKey(i))} disabled={locked} onChange={() => onTick(i)} />}
-                  {/* One badge column, as wide as the longest state (UNTRACKED), so every item starts at the same x; in a narrow
+                  {/* One badge column, as wide as the longest state (UNTRACKED), so every item with a box starts at the same x; in a narrow
                       column (the plan beside it) it shrinks to the badge itself. */}
                   <Box style={{ flex: '0 1 112px', minWidth: 'min-content' }}><StateBadge state={i.state} /></Box>
                   <Text size="sm" style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>{i.title}</Text>

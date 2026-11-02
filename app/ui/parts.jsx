@@ -11,10 +11,10 @@ export const pct = (v) => (v == null ? null : Math.round(v * 100));
 // as --limit never splits at its hyphen, and its continuation lines are indented under the command. A word longer than
 // the line (a long --agents list) still breaks.
 const FLAG = /^\[?-/;
-const commandLines = (text) => String(text).split('\n').map((line, n) => (
-  <div key={n} style={{ paddingLeft: '2ch', textIndent: '-2ch' }}>
+const commandLines = (text) => [text].flat().join('').split('\n').map((line, n) => (
+  <span key={n} style={{ display: 'block', paddingLeft: '2ch', textIndent: '-2ch' }}>
     {line.split(/( +)/).map((part, k) => (FLAG.test(part) ? <span key={k} style={{ whiteSpace: 'nowrap' }}>{part}</span> : part))}
-  </div>
+  </span>
 ));
 export const Cli = ({ children }) => (
   <Stack gap={4}>

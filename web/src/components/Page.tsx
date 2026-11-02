@@ -1,15 +1,12 @@
-import {
-  ActionIcon, Alert, Anchor, Badge, Box, Button, Card, Code, Container, Group, List,
-  Paper, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, VisuallyHidden,
-} from '@mantine/core';
-import {
-  IconAlertTriangle, IconArrowDown, IconArrowRight, IconCheck, IconContainer, IconCopy, IconFeather, IconFileText,
-  IconListCheck, IconRoute, IconSchool,
-} from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import useBrokenLinks from '@docusaurus/useBrokenLinks';
+import useIsBrowser from '@docusaurus/useIsBrowser';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
-import { SiteShell } from './SiteShell';
+import { Icon, type IconName } from './icons';
+import SitePage from './SitePage';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
@@ -25,59 +22,105 @@ const MORE_FEATURES: [string, string, string][] = [
   ['Lite install', '#levels', 'Install only the BenchKeeper plugin with `--level lite`: nothing else is written besides the app\'s run record for undo.'],
   ['Benchmark evidence', '/benchmark/', 'Read the recorded benchmark results and the tooling that compares agent setups on the same task.'],
 ];
-const PART_ICONS: Record<string, ReactNode> = {
-  rules: <IconFileText size={20} />, workflow: <IconListCheck size={20} />, mattpocock: <IconSchool size={20} />,
-  ponytail: <IconFeather size={20} />, app: <IconRoute size={20} />, devcontainer: <IconContainer size={20} />,
-};
+const PART_ICONS: Record<string, IconName> = { rules: 'FileText', workflow: 'ListCheck', mattpocock: 'School', ponytail: 'Feather', app: 'Route', devcontainer: 'Container' };
 // Backticks in facts.json become inline code and `[label](url)` a link, the same text the README renders.
 export const md = (t: string) => t.split(/(`[^`]*`|\[[^[\]]+\]\((?:[^()\s]|\([^()\s]*\))+\))/).map((part, i) => {
-  if (part.startsWith('`')) return <Code key={i}>{part.slice(1, -1)}</Code>;
+  if (part.startsWith('`')) return <code key={i}>{part.slice(1, -1)}</code>;
   const link = /^\[([^[\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)$/.exec(part);
-  return link ? <Anchor key={i} href={link[2]}>{link[1]}</Anchor> : part;
+  return link ? <Link key={i} href={link[2]}>{link[1]}</Link> : part;
 });
+// An element id that a link may target: Docusaurus checks every link's anchor against the ids collected here.
+export function useAnchor(id: string) {
+  useBrokenLinks().collectAnchor(id);
+  return id;
+}
+// A link relative to the site base (`/app/#history`), or `#id` and absolute links as they are.
+export const siteLink = (href: string) => (href.startsWith('/') ? { to: href } : { href });
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
-    <Box component="section" id={id} className="band" py={{ base: 56, md: 80 }}>
-      <Container size="lg">
-        <Stack gap="xs" maw={720} mb={40}>
-          <Title order={2} fz={{ base: 28, md: 36 }}>{title}</Title>
-          {intro && <Text c="dimmed" size="lg">{intro}</Text>}
-        </Stack>
+    <section id={useAnchor(id)} className="band bk-section">
+      <div className="container">
+        <div className="bk-stack bk-narrow bk-section-head">
+          <h2 className="bk-h2">{title}</h2>
+          {intro && <p className="bk-dimmed bk-lead">{intro}</p>}
+        </div>
         {children}
-      </Container>
-    </Box>
+      </div>
+    </section>
   );
 }
 
-function Part({ icon, title, href, scope, children }: { icon: ReactNode; title: ReactNode; href?: string; scope: string; children: ReactNode }) {
+function Part({ icon, title, href, scope, children }: { icon: IconName; title: ReactNode; href?: string; scope: string; children: ReactNode }) {
   return (
-    <Card withBorder padding="lg">
-      <Group gap="sm" wrap="nowrap">
-        <ThemeIcon variant="light" size={38}>{icon}</ThemeIcon>
-        {href ? <Anchor href={href} fw={700} underline="hover">{title}</Anchor> : <Text fw={700}>{title}</Text>}
-      </Group>
-      <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt="md">{scope}</Text>
-      <Text size="sm" mt={6}>{children}</Text>
-    </Card>
+    <div className="bk-card">
+      <div className="bk-row">
+        <span className="bk-icon-box"><Icon name={icon} /></span>
+        {href ? <Link href={href} className="bk-strong">{title}</Link> : <span className="bk-strong">{title}</span>}
+      </div>
+      <p className="bk-scope">{scope}</p>
+      <p className="bk-small">{children}</p>
+    </div>
   );
 }
 
-const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
 export const half = Math.ceil(facts.sdlc.steps.length / 2);
 
 export const SDLC_INTRO = 'The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.';
 
-export function StepList({ from, className }: { from: number; className?: string }) {
+function Step({ n, children }: { n: number; children: ReactNode }) {
+  return <li id={useAnchor(`step-${n}`)} className="bk-tl-item">{children}</li>;
+}
+
+export function StepList({ from, className = '' }: { from: number; className?: string }) {
   return (
-    <Timeline active={facts.sdlc.steps.length} bulletSize={30} lineWidth={2} className={className}>
+    <ol className={`bk-timeline ${className}`} start={from + 1}>
       {facts.sdlc.steps.slice(from, from + half).map((st, i) => (
-        <Timeline.Item key={st.name} id={`step-${from + i + 1}`} color={phaseColor[st.phase]} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
-          title={<Group gap="xs"><Text fw={700}>{st.name}</Text>{st.human && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
-          <Text size="sm" c="dimmed">{md(from + i === 0 ? `${st.text} ${facts.sdlc.requirements}` : st.text)}</Text>
-        </Timeline.Item>
+        <Step key={st.name} n={from + i + 1}>
+          <span className={`bk-tl-bullet phase-${st.phase}`} aria-hidden="true">{from + i + 1}</span>
+          <div className="bk-tl-title">
+            <span className="bk-strong">{st.name}</span>
+            {st.human && <span className="bk-badge decide">human in the loop</span>}
+          </div>
+          <p className="bk-small bk-dimmed">{md(from + i === 0 ? `${st.text} ${facts.sdlc.requirements}` : st.text)}</p>
+        </Step>
       ))}
-    </Timeline>
+    </ol>
+  );
+}
+
+// The SDLC ring with its tooltip: it follows the cursor on hover devices; a tap or click on a step jumps to its description.
+export function Ring({ tip = true }: { tip?: boolean }) {
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const w = wrap.current, t = w?.querySelector<HTMLElement>('.ring-tip');
+    if (!w || !t) return undefined;
+    const place = (x: number, y: number) => {
+      const r = w.getBoundingClientRect(), tw = t.offsetWidth, th = t.offsetHeight;
+      let top = y - r.top + 16;
+      if (top + th > r.height) top = y - r.top - th - 12;
+      t.style.left = `${Math.max(4, Math.min(x - r.left + 16, r.width - tw - 4))}px`;
+      t.style.top = `${Math.max(4, top)}px`;
+    };
+    const off: (() => void)[] = [];
+    const on = (el: Element, ev: string, f: (e: Event) => void) => { el.addEventListener(ev, f); off.push(() => el.removeEventListener(ev, f)); };
+    for (const el of w.querySelectorAll('[data-tip]')) {
+      const show = (x: number, y: number) => { t.textContent = el.getAttribute('data-tip'); t.hidden = false; place(x, y); };
+      if (matchMedia('(hover: hover)').matches) {
+        on(el, 'mousemove', (e) => show((e as MouseEvent).clientX, (e as MouseEvent).clientY));
+        on(el, 'mouseleave', () => { t.hidden = true; });
+      }
+      on(el, 'focus', () => { const b = el.getBoundingClientRect(); show(b.right, b.top); });
+      on(el, 'blur', () => { t.hidden = true; });
+      on(el, 'click', () => { t.hidden = true; });
+    }
+    return () => off.forEach((f) => f());
+  }, []);
+  return (
+    <div className="ring-wrap" ref={wrap}>
+      <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
+      {tip && <div className="ring-tip" role="tooltip" hidden></div>}
+    </div>
   );
 }
 
@@ -88,160 +131,207 @@ const repoSteps: [string, string, string][] = [
   ['Track sessions', 'npx benchkeeper@6.25.0 sessions board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost (Claude Code as recorded, Codex estimated from tokens and OpenAI API prices, unpriced models left out), time and pull request links. The Sessions view in the browser app shows the same board.'],
 ];
 
-function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
-  return (
-    <Stack gap={6}>
-      <Group gap={6} wrap="nowrap">
-        <Code block className="cmd">{cmd}</Code>
-        <ActionIcon variant="default" size={36} data-copy={cmd} aria-label={`Copy command: ${cmd}`}>
-          <IconCopy size={16} className="i-copy" /><IconCheck size={16} className="i-done" />
-        </ActionIcon>
-      </Group>
-      <Text size="sm" c="dimmed">{note}</Text>
-    </Stack>
-  );
-}
-
 const host = ['Rules and the plugins: BenchKeeper, optionally Ponytail and Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
 const container = ['The agent (default), started with devcontainer exec', 'Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
-function Side({ label, color, items }: { label: string; color: string; items: string[] }) {
+function CmdRow({ id, cmd, note, copy }: { id: string; cmd: string; note: ReactNode; copy: ReturnType<typeof useCopy> }) {
   return (
-    <Paper withBorder p="lg" radius="lg" style={{ borderColor: `var(--mantine-color-${color}-6)`, borderWidth: 2 }}>
-      <Badge variant="outline" className={color === 'orange' ? 'decide' : undefined} mb="md">{label}</Badge>
-      <List size="sm" spacing={8}>{items.map((t) => <List.Item key={t}>{t}</List.Item>)}</List>
-    </Paper>
+    <div className="bk-stack bk-gap-6">
+      <div className="bk-row bk-nowrap">
+        <pre className="bk-code cmd">{cmd}</pre>
+        <button type="button" className={`bk-icon-btn${copy.copied === id ? ' copied' : ''}`} onClick={() => copy.copy(id, cmd)} aria-label={`Copy command: ${cmd}`}>
+          <Icon name="Copy" size={16} className="i-copy" /><Icon name="Check" size={16} className="i-done" />
+        </button>
+      </div>
+      <p className="bk-small bk-dimmed">{note}</p>
+    </div>
   );
 }
 
-export default function Page({ base, updated, commit }: { base: string; updated?: string; commit?: string }) {
+// Copy buttons share one live status line; the check mark (on the pressed button only) and the status clear after 1.5 s.
+function useCopy() {
+  const [copied, setCopied] = useState<string | null>(null);
+  const [status, setStatus] = useState('');
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const done = (msg: string, id: string | null) => {
+    clearTimeout(timer.current);
+    setCopied(id); setStatus(msg);
+    timer.current = setTimeout(() => { setCopied(null); setStatus(''); }, 1500);
+  };
+  // Clipboard needs a secure context (https or localhost).
+  const copy = (id: string, cmd: string) => {
+    if (!navigator.clipboard) return done('Copy is not available. Select the command instead.', null);
+    navigator.clipboard.writeText(cmd).then(() => done('Copied', id), () => done('Copy failed. Select the command instead.', null));
+  };
+  return { copied, status, copy };
+}
+
+// Quick start tabs (WAI-ARIA tabs pattern). Without JavaScript both panels show under their own headings. With it, the
+// head script's `js` class shows the tab bar and the first panel from the first paint (custom.css), and hydration wires them.
+function QuickStart({ copy }: { copy: ReturnType<typeof useCopy> }) {
+  // False while the server renders and during hydration, true afterwards and on client-side navigation.
+  const js = useIsBrowser();
+  const [sel, setSel] = useState(0);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const paths = facts.quickstart.paths;
+  const pick = (i: number, focus = false) => { setSel(i); if (focus) tabs.current[i]?.focus(); };
   return (
-    <SiteShell base={base} home updated={updated} commit={commit}>
-        <Box className="hero" py={{ base: 64, md: 112 }}>
-          <Container size="lg">
-            <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
-              <Stack gap="lg">
-                <Badge variant="light" size="lg">Setup for Claude Code and Codex</Badge>
-                <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02}><span className="grad">BenchKeeper</span></Title>
-                <Text size="xl" maw={560}>
-                  Short rules and a workflow skill that sizes each change for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
-                  Each repository adds its dev container, AGENTS.md and stack skills.
-                </Text>
-                <Group mt="sm">
-                  <Button component="a" href="#start" size="md">Set up your machine</Button>
-                  <Button component="a" href="#sdlc" size="md" variant="default">See the workflow</Button>
-                  <Button component="a" href={`${base}/overview/`} size="md" variant="default">What it brings</Button>
-                </Group>
-              </Stack>
-              <Box ta="center">
-                <img src={`${base}/logo.svg`} alt="BenchKeeper logo: a brain inside a gear, circled by a loop of arrows" className="logo" width={300} height={300} style={{ width: 'min(300px, 64vw)', height: 'auto' }} />
-              </Box>
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        <Section id="sdlc" title="One loop, sized to the change" intro={SDLC_INTRO}>
-          <div className="ring-wrap">
-            <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
-            <div className="ring-tip" role="tooltip" hidden></div>
+    <div className={`qs${js ? ' qs-js' : ''}`}>
+      <div role="tablist" aria-label="Install path" className="qs-tabs" hidden={!js}>
+          {paths.map((p, i) => (
+            <button key={p.name} ref={(b) => { tabs.current[i] = b; }} type="button" role="tab" id={`qs-tab-${i}`} aria-controls={`qs-panel-${i}`}
+              aria-selected={i === sel} tabIndex={i === sel ? 0 : -1} onClick={() => pick(i)}
+              onKeyDown={(e) => {
+                const n = ({ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: paths.length - 1 } as Record<string, number>)[e.key];
+                if (n === undefined) return;
+                e.preventDefault(); pick((n + paths.length) % paths.length, true);
+              }}>{p.name}</button>
+          ))}
+      </div>
+      {paths.map((p, i) => (
+        <div key={p.name} id={`qs-panel-${i}`} className="qs-panel" hidden={js && i !== sel}
+          {...(js ? { role: 'tabpanel', 'aria-labelledby': `qs-tab-${i}` } : {})}>
+          <h3 className="bk-h3 qs-h">{p.name}</h3>
+          <div className="bk-stack">
+            {p.steps.map((st, k) => <CmdRow key={st.command} id={`qs-${i}-${k}`} cmd={st.command} note={md(st.text)} copy={copy} />)}
           </div>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} verticalSpacing="xl" mt={40}>
-            <StepList from={0} className="steps-first" />
-            <StepList from={half} />
-          </SimpleGrid>
-        </Section>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-        <Section id="parts" title="What gets installed">
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            {facts.parts.map((p) => (
-              <Part key={p.id} icon={PART_ICONS[p.id]} title={md(p.title)} href={p.href} scope={p.scope}>{md(p.text)}</Part>
-            ))}
-          </SimpleGrid>
-        </Section>
+function Side({ label, decide = false, items }: { label: string; decide?: boolean; items: string[] }) {
+  return (
+    <div className={`bk-card bk-side${decide ? ' decide' : ''}`}>
+      <span className={`bk-badge${decide ? ' decide' : ''}`}>{label}</span>
+      <ul className="bk-list bk-small">{items.map((t) => <li key={t}>{t}</li>)}</ul>
+    </div>
+  );
+}
 
-        <Section id="features" title="Features">
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" verticalSpacing="lg">
-            {[...facts.overview.parts.map((p): [string, string, string] => [p.title, `/overview/#${p.id}`, `${p.text.split('. ')[0]}.`]), ...MORE_FEATURES].map(([title, href, text]) => (
-              <Stack key={title} gap={4}>
-                <Anchor href={href.startsWith('/') ? `${base}${href}` : href} fw={700}>{title}</Anchor>
-                <Text size="sm" c="dimmed">{md(text)}</Text>
-              </Stack>
-            ))}
-          </SimpleGrid>
-        </Section>
+function Feature({ title, href, text }: { title: string; href: string; text: string }) {
+  return (
+    <div className="bk-stack bk-gap-4">
+      <Link {...siteLink(href)} className="bk-strong">{title}</Link>
+      <p className="bk-small bk-dimmed">{md(text)}</p>
+    </div>
+  );
+}
 
-        <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
-          <SimpleGrid cols={{ base: 1, md: 3 }}>
-            {facts.levels.map((l) => (
-              <Paper key={l.name} withBorder p="lg" radius="lg">
-                <Title order={3} fz="lg">{l.name}</Title>
-                <Text size="sm" mt="xs">{md(l.contains)}</Text>
-                <Text size="sm" c="dimmed" mt="xs">Writes: {md(l.writes)}.</Text>
-                <Code block mt="sm" className="cmd">{l.command}</Code>
-              </Paper>
-            ))}
-          </SimpleGrid>
-        </Section>
-
-        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${SETUP}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
-          <Stack gap="lg" maw={760}>
-            <div className="qs">
-              <div role="tablist" aria-label="Install path" className="qs-tabs" hidden>
-                {facts.quickstart.paths.map((p, i) => (
-                  <button key={p.name} type="button" role="tab" id={`qs-tab-${i}`} aria-controls={`qs-panel-${i}`} aria-selected={i === 0} tabIndex={i === 0 ? 0 : -1}>{p.name}</button>
-                ))}
+export default function Page() {
+  const { tagline: description } = facts;
+  const copy = useCopy();
+  return (
+    <SitePage home title="BenchKeeper: rules, workflow and setup for Claude Code and Codex" description={description} imageAlt={`BenchKeeper logo. ${description}`}>
+      <div className="hero bk-hero">
+        <div className="container">
+          <div className="bk-grid cols-md-2 bk-center">
+            <div className="bk-stack bk-gap-lg">
+              <span className="bk-badge bk-badge-light">Setup for Claude Code and Codex</span>
+              <h1 className="bk-display"><span className="grad">BenchKeeper</span></h1>
+              <p className="bk-xl">
+                Short rules and a workflow skill that sizes each change for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
+                Each repository adds its dev container, AGENTS.md and stack skills.
+              </p>
+              <div className="bk-row bk-wrap">
+                <Link className="button button--primary button--lg" href="#start">Set up your machine</Link>
+                <Link className="button button--secondary button--lg" href="#sdlc">See the workflow</Link>
+                <Link className="button button--secondary button--lg" to="/overview/">What it brings</Link>
               </div>
-              {facts.quickstart.paths.map((p, i) => (
-                <div key={p.name} id={`qs-panel-${i}`} className="qs-panel">
-                  <Title order={3} fz="lg" mb="sm" className="qs-h">{p.name}</Title>
-                  <Stack gap="md">
-                    {p.steps.map((st) => <CmdRow key={st.command} cmd={st.command} note={md(st.text)} />)}
-                  </Stack>
-                </div>
-              ))}
             </div>
-            <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
-            <Group gap="md">
-              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : l.anchor === 'what-the-app-writes-and-what-it-never-does' ? `${base}/writes/` : `${SETUP}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
-            </Group>
-            <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
-          </Stack>
-        </Section>
+            <div className="bk-hero-logo">
+              <img src={useBaseUrl('/logo.svg')} alt="BenchKeeper logo: a brain inside a gear, circled by a loop of arrows" className="logo" width={300} height={300} />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <Section id="repos" title="Each repository, updates and sessions">
-          <Stack gap="lg" maw={760}>
-            {repoSteps.map(([title, cmd, note], k) => (
-              <Group key={title} gap="md" wrap="nowrap" align="flex-start">
-                <ThemeIcon variant="light" radius="xl" size={30}><Text size="sm" fw={700}>{k + 1}</Text></ThemeIcon>
-                <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
-                  <Text fw={700}>{title}</Text>
-                  <CmdRow cmd={cmd} note={note} />
-                </Stack>
-              </Group>
+      <Section id="sdlc" title="One loop, sized to the change" intro={SDLC_INTRO}>
+        <Ring />
+        <div className="bk-grid cols-sm-2 bk-mt-40">
+          <StepList from={0} className="steps-first" />
+          <StepList from={half} />
+        </div>
+      </Section>
+
+      <Section id="parts" title="What gets installed">
+        <div className="bk-grid cols-sm-2 cols-md-3">
+          {facts.parts.map((p) => <Part key={p.id} icon={PART_ICONS[p.id]} title={md(p.title)} href={p.href} scope={p.scope}>{md(p.text)}</Part>)}
+        </div>
+      </Section>
+
+      <Section id="features" title="Features">
+        <div className="bk-grid cols-sm-2">
+          {[...facts.overview.parts.map((p): [string, string, string] => [p.title, `/overview/#${p.id}`, `${p.text.split('. ')[0]}.`]), ...MORE_FEATURES].map(([title, href, text]) => (
+            <Feature key={title} title={title} href={href} text={text} />
+          ))}
+        </div>
+      </Section>
+
+      <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
+        <div className="bk-grid cols-md-3">
+          {facts.levels.map((l) => (
+            <div key={l.name} className="bk-card">
+              <h3 className="bk-h3">{l.name}</h3>
+              <p className="bk-small">{md(l.contains)}</p>
+              <p className="bk-small bk-dimmed">Writes: {md(l.writes)}.</p>
+              <pre className="bk-code cmd">{l.command}</pre>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Link href={`${SETUP}#prerequisites`}>Full list of tools.</Link> {facts.quickstart.choose} <Link to="/app/">The app, view by view, with screenshots.</Link></>}>
+        <div className="bk-stack bk-gap-lg bk-narrow">
+          <QuickStart copy={copy} />
+          <p className="bk-small">{facts.quickstart.next} {md(facts.quickstart.changes)}</p>
+          <div className="bk-row bk-wrap">
+            {facts.quickstart.links.map((l) => (
+              <Link key={l.anchor} className="bk-small" {...(l.anchor === 'levels' ? { href: '#levels' } : l.anchor === 'what-the-app-writes-and-what-it-never-does' ? { to: '/writes/' } : { href: `${SETUP}#${l.anchor}` })}>{l.label}</Link>
             ))}
-          </Stack>
-        </Section>
+          </div>
+          <span className="sr-only" aria-live="polite">{copy.status}</span>
+        </div>
+      </Section>
 
-        <Section id="selected" title="Why this stack">
-          <List spacing="sm" maw={760}>
-            {facts.stack.reasons.map((r) => <List.Item key={r.name}><Text span fw={700}>{r.name}:</Text> {r.text}</List.Item>)}
-          </List>
-        </Section>
+      <Section id="repos" title="Each repository, updates and sessions">
+        <ol className="bk-stack bk-gap-lg bk-narrow bk-plain">
+          {repoSteps.map(([title, cmd, note], k) => (
+            <li key={title} className="bk-row bk-nowrap bk-top">
+              <span className="bk-num" aria-hidden="true">{k + 1}</span>
+              <div className="bk-stack bk-gap-6 bk-grow">
+                <span className="bk-strong">{title}</span>
+                <CmdRow id={`repo-${k}`} cmd={cmd} note={note} copy={copy} />
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
-        <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
-            <Side label="Host, one per machine" color="teal" items={host} />
-            <Stack align="center" justify="center" gap={6}>
-              <ThemeIcon variant="light" size={44} radius="xl" visibleFrom="md"><IconArrowRight size={22} /></ThemeIcon>
-              <ThemeIcon variant="light" size={44} radius="xl" hiddenFrom="md"><IconArrowDown size={22} /></ThemeIcon>
-              <Text ff="monospace" size="sm" c="dimmed">devcontainer exec</Text>
-            </Stack>
-            <Side label="Devcontainer, one per repository" color="orange" items={container} />
-          </SimpleGrid>
-          <Alert mt="xl" variant="default" role="note" icon={<IconAlertTriangle size={20} />} title="Isolation">
-            In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, projects apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
-          </Alert>
-        </Section>
-    </SiteShell>
+      <Section id="selected" title="Why this stack">
+        <ul className="bk-list bk-narrow">
+          {facts.stack.reasons.map((r) => <li key={r.name}><span className="bk-strong">{r.name}:</span> {r.text}</li>)}
+        </ul>
+      </Section>
+
+      <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">
+        <div className="bk-grid cols-md-3">
+          <Side label="Host, one per machine" items={host} />
+          <div className="bk-stack bk-center bk-gap-6">
+            <span className="bk-num bk-num-lg"><Icon name="ArrowRight" size={22} className="bk-md-only" /><Icon name="ArrowDown" size={22} className="bk-sm-only" /></span>
+            <span className="bk-mono bk-small bk-dimmed">devcontainer exec</span>
+          </div>
+          <Side label="Devcontainer, one per repository" decide items={container} />
+        </div>
+        <div className="bk-alert bk-mt-xl" role="note">
+          <Icon name="AlertTriangle" />
+          <div>
+            <p className="bk-strong">Isolation</p>
+            <p className="bk-small">In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, projects apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.</p>
+          </div>
+        </div>
+      </Section>
+    </SitePage>
   );
 }

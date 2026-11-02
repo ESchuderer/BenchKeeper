@@ -1,5 +1,5 @@
-import { Anchor, Code, Stack, Table, Text, Title } from '@mantine/core';
-import { SiteShell } from './SiteShell';
+import Link from '@docusaurus/Link';
+import SitePage from './SitePage';
 
 const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const FILE = `${RESEARCH}/blob/main`;
@@ -13,35 +13,33 @@ const READING: [string, string, string][] = [
 ];
 
 // Statements come only from files in BenchKeeper-research; each names its source in a comment.
-export default function BenchmarkPage({ base }: { base: string }) {
+export default function BenchmarkPage() {
   return (
-    <SiteShell base={base}>
-      <Stack gap="md" maw={960}>
-        <Title order={1} fz={{ base: 34, md: 44 }}>How the benchmark works</Title>
+    <SitePage title="Benchmark, BenchKeeper" description="What the BenchKeeper benchmark measures, how a result is produced, how to read one, and where the recorded results and the method live.">
+      <div className="bk-stack bk-wide">
+        <h1 className="bk-title">How the benchmark works</h1>
         {/* research README.md */}
-        <Text>The benchmark measures what an agent setup does to the code an agent writes. The tooling, the reports and the recorded results live in <Anchor href={RESEARCH}>BenchKeeper-research</Anchor>.</Text>
+        <p>The benchmark measures what an agent setup does to the code an agent writes. The tooling, the reports and the recorded results live in <Link href={RESEARCH}>BenchKeeper-research</Link>.</p>
 
-        <Title order={2} fz={{ base: 24, md: 30 }}>How a result is produced</Title>
+        <h2 className="bk-h2-sm">How a result is produced</h2>
         {/* research bench/SCENARIOS.md, bench/results/2026-10-18-mistreevous.md "Method" */}
-        <Text>Each setup (an arm) gets the same brief, hidden tests, scorer, app review, timeout and follow-up rule, and each trial runs in its own container with only its arm's components. In a brownfield brief, each step runs in a new session on the repository state the previous step left, and a step's checks run after it ends. Minutes, cost and skills are reported, not scored.</Text>
+        <p>Each setup (an arm) gets the same brief, hidden tests, scorer, app review, timeout and follow-up rule, and each trial runs in its own container with only its arm's components. In a brownfield brief, each step runs in a new session on the repository state the previous step left, and a step's checks run after it ends. Minutes, cost and skills are reported, not scored.</p>
 
-        <Title order={2} fz={{ base: 24, md: 30 }}>How to read a result</Title>
-        <Table.ScrollContainer minWidth={0}>
-          <Table withTableBorder withColumnBorders verticalSpacing="sm" style={{ tableLayout: 'fixed' }}>
-            <Table.Thead>
-              <Table.Tr><Table.Th scope="col" w="20%">Column</Table.Th><Table.Th scope="col">What it is</Table.Th><Table.Th scope="col">How to compare it</Table.Th></Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {READING.map(([col, what, how]) => <Table.Tr key={col}><Table.Th scope="row">{col}</Table.Th><Table.Td>{what}</Table.Td><Table.Td>{how}</Table.Td></Table.Tr>)}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <h2 className="bk-h2-sm">How to read a result</h2>
+        <table className="bk-table">
+          <thead>
+            <tr><th scope="col" style={{ width: '20%' }}>Column</th><th scope="col">What it is</th><th scope="col">How to compare it</th></tr>
+          </thead>
+          <tbody>
+            {READING.map(([col, what, how]) => <tr key={col}><th scope="row">{col}</th><td>{what}</td><td>{how}</td></tr>)}
+          </tbody>
+        </table>
 
-        <Title order={2} fz={{ base: 24, md: 30 }}>Where the results and the method live</Title>
+        <h2 className="bk-h2-sm">Where the results and the method live</h2>
         {/* research README.md "Recorded results", research bench/ORIGIN.md and bench/PROTOCOL.md */}
-        <Text>The reports of the mistreevous brief, <Anchor href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Anchor> and <Anchor href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Anchor>, with the per-trial files they rest on next to them. The raw trial data was removed, so these tables cannot be recomputed.</Text>
-        <Text>The compared arms are in <Anchor href={`${FILE}/bench/SCENARIOS.md`}><Code>bench/SCENARIOS.md</Code></Anchor>, the source of every file in <Anchor href={`${FILE}/bench/ORIGIN.md`}><Code>bench/ORIGIN.md</Code></Anchor>, and the protocol in <Anchor href={`${FILE}/bench/PROTOCOL.md`}><Code>bench/PROTOCOL.md</Code></Anchor>. New runs go into the research repository.</Text>
-      </Stack>
-    </SiteShell>
+        <p>The reports of the mistreevous brief, <Link href={`${FILE}/bench/results/2026-10-18-mistreevous.md`}>on Sonnet 5.5</Link> and <Link href={`${FILE}/bench/results/2026-10-19-mistreevous-opusplan.md`}>on opusplan</Link>, with the per-trial files they rest on next to them. The raw trial data was removed, so these tables cannot be recomputed.</p>
+        <p>The compared arms are in <Link href={`${FILE}/bench/SCENARIOS.md`}><code>bench/SCENARIOS.md</code></Link>, the source of every file in <Link href={`${FILE}/bench/ORIGIN.md`}><code>bench/ORIGIN.md</code></Link>, and the protocol in <Link href={`${FILE}/bench/PROTOCOL.md`}><code>bench/PROTOCOL.md</code></Link>. New runs go into the research repository.</p>
+      </div>
+    </SitePage>
   );
 }

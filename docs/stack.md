@@ -42,7 +42,7 @@ With the `ponytail` pack, another Ponytail level for the current session: `/pony
 | [plugins/benchkeeper/skills/reviewing-rules](../plugins/benchkeeper/skills/reviewing-rules/SKILL.md) | reviews one rule file on request for contradictions, vague lines, lines a tool could enforce and lines that restate the code; changes nothing | plugin skill `/benchkeeper:reviewing-rules`, user-invoked |
 | [plugins/benchkeeper/library](../plugins/benchkeeper/library/README.md) | skills installed per project, grouped into packs (frontend, testing, security, science, docs, data, marketing, operations, Matt Pocock's) | installed into a project by `benchkeeper projects apply` or `setting-up-projects` |
 | [CHANGELOG.md](../CHANGELOG.md) | setup versions up to 6.25; then `app/CHANGELOG.md` (tags `app-v*`) and `plugins/benchkeeper/CHANGELOG.md` (tags `setup-v*`), see [Releasing](releasing.md) | not linked |
-| [web](../web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
+| [web](../web) | the site (Docusaurus 3, React), deployed to GitHub Pages | not linked |
 
 ## How this stack was selected
 

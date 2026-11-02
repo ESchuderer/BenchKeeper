@@ -1,14 +1,15 @@
-import { Stack, Title } from '@mantine/core';
-import { SiteShell } from './SiteShell';
+import MDXContent from '@theme/MDXContent';
+import SitePage from './SitePage';
+import Changelog from '../pages/_generated/changelog.md';
 
-// html: CHANGELOG.md, rendered at build time (pages/changelog.astro).
-export default function ChangelogPage({ base, html }: { base: string; html: string }) {
+// The changelogs of the app, the setup content and the versions up to 6.25, written by scripts/generate.mjs.
+export default function ChangelogPage() {
   return (
-    <SiteShell base={base}>
-      <Stack gap="xs" maw={960}>
-        <Title order={1} fz={{ base: 34, md: 44 }}>Changelog</Title>
-        <div className="doc" dangerouslySetInnerHTML={{ __html: html }} />
-      </Stack>
-    </SiteShell>
+    <SitePage title="Changelog, BenchKeeper" description="The versions of BenchKeeper and what each one changed, from the changelogs of the app, the setup content and CHANGELOG.md.">
+      <div className="bk-stack bk-wide">
+        <h1 className="bk-title">Changelog</h1>
+        <div className="doc"><MDXContent><Changelog /></MDXContent></div>
+      </div>
+    </SitePage>
   );
 }

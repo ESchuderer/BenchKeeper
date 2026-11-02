@@ -1,30 +1,33 @@
 {
   "name": "benchkeeper-site",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "astro dev --host 0.0.0.0",
-    "build": "astro build",
-    "preview": "astro preview --host 0.0.0.0",
+    "generate": "node scripts/generate.mjs",
+    "start": "node scripts/generate.mjs && docusaurus start --host 0.0.0.0",
+    "build": "node scripts/generate.mjs && docusaurus build --out-dir dist",
+    "serve": "docusaurus serve --dir dist --no-open",
+    "preview": "docusaurus serve --dir dist --host 0.0.0.0 --port 4321 --no-open",
     "test": "playwright test"
   },
   "dependencies": {
-    "@astrojs/react": "7.1.1",
-    "@fontsource-variable/inter": "5.3.0",
-    "@mantine/core": "9.7.3",
-    "@mantine/hooks": "9.7.3",
-    "@tabler/icons-react": "3.49.0",
-    "astro": "7.4.2",
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@mdx-js/react": "3.1.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "@docusaurus/tsconfig": "3.10.2",
+    "@docusaurus/types": "3.10.2",
     "@playwright/test": "1.64.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "postcss": "8.5.31",
-    "postcss-preset-mantine": "1.18.0",
-    "postcss-simple-vars": "7.0.1"
+    "sharp": "0.35.5"
+  },
+  "overrides": {
+    "tinypool": "2.1.2",
+    "serialize-javascript": "7.0.3"
   }
 }

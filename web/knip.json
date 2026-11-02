@@ -1,3 +1,3 @@
 {
-  "entry": ["scripts/readme.mjs"]
+  "entry": ["scripts/readme.mjs", "scripts/generate.mjs", "src/theme/**/*.tsx"]
 }

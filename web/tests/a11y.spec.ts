@@ -7,7 +7,7 @@ for (const [name, path] of [['main page', './'], ['app page', './app/'], ['overv
       test(`no axe violations on the ${name} in ${scheme} mode${width ? ` at ${width} px` : ''}`, async ({ page }) => {
         if (width) await page.setViewportSize({ width, height: 844 });
         await page.goto(path);
-        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+        await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
         expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
         if (width) expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);

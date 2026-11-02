@@ -1,9 +1,5 @@
 {
-  "extends": "astro/tsconfigs/strict",
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"],
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "react"
-  }
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": { "baseUrl": ".", "resolveJsonModule": true, "strict": true },
+  "exclude": ["dist", ".docusaurus", "build"]
 }

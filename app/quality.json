@@ -46,7 +46,7 @@
     "duplicatedLines": {
       "app": 0,
       "tests": 386,
-      "web": 6,
+      "web": 0,
       "plugins": 32
     }
   },

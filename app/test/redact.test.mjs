@@ -75,7 +75,7 @@ test('maskStream: a secret value cut by the kept tail stays masked until it ends
   assert.equal(shown(run(16, 'password =\n', '"a"', 'z'.repeat(16))), `password =\n${'z'.repeat(16)}`);
 });
 
-test('maskStream: a pending key and its Bearer value in any case; a key block indented on the next line; a quoted key', () => {
+test('maskStream: a pending key and its Bearer value in any case; a key block indented on the next line; a value before a BEGIN on the same line', () => {
   const feed = (...chunks) => chunks.reduce((s, c) => maskStream(s, c), { text: '', rest: '', end: null });
   assert.equal(shown(feed('PASSWORD =\n', 'abc rest\n')), 'PASSWORD =\n*** rest\n');
   assert.equal(shown(feed('password =\n', 'bearer abc rest\n')), 'password =\n*** rest\n');

@@ -9,7 +9,7 @@ BenchKeeper releases only when the owner merges the release pull request or star
 | App | `app/` (npm package `benchkeeper`) | semver: `fix` and `perf` raise the patch, `feat` the minor version | `app-v<x.y.z>` | `app/CHANGELOG.md` |
 | Content | `plugins/benchkeeper/` (rules, skills, plugin) | `<x.y>.0`: every release raises the minor version (`plugin.json` of both agents, `content.json` `contentVersion`) | `setup-v<x.y>` for the docs and the Release, `setup-v<x.y>.0` for release-please | `plugins/benchkeeper/CHANGELOG.md` |
 
-`CHANGELOG.md` at the repository root holds the single setup version up to 6.25. A major version releases both components, because skill text names `npx benchkeeper@<major>`; it is set with `release-as` in `release-please-config.json` for both packages (release-please then skips the versioning strategy, `always-bump-minor` included). A major release also changes the major in the skill and automation text under `plugins/` (`npx benchkeeper@<major>`, `npx -y benchkeeper@<major>`); the package test fails while any of it names a major other than the app's, so that change lands right before the release pull request is merged.
+`CHANGELOG.md` at the repository root holds the single setup version up to 6.25. A major version releases both components, because skill text names `npx benchkeeper@<major>`; it is set with `release-as` in `release-please-config.json` for both packages (release-please then skips the versioning strategy, `always-bump-minor` included). A major release also changes the major in the skill and automation text under `plugins/` (`npx benchkeeper@<major>`, `npx -y benchkeeper@<major>`); the package test (`app/test/package.test.mjs`) checks that this text names the major of `release-as` while it is set, else the app's, so the text changes together with `release-as`.
 
 ## Steps
 
@@ -23,7 +23,7 @@ BenchKeeper releases only when the owner merges the release pull request or star
    4. starts `.github/workflows/pages.yml`;
    5. labels the release pull request `autorelease: tagged`, so release-please opens the next one;
    6. starts the Release workflow once more, so release-please sees the new label even when a push during the release ran it before the label changed.
-5. After a major release: remove `release-as` from both packages in `release-please-config.json` (a pull request of its own; otherwise every later release pull request proposes the same version again), and add the upgrade notes to the two GitHub Releases. The changelogs cannot carry them: release-please writes upgrade notes only from `BREAKING CHANGE` footers, under a heading with a warning sign, which the Forbidden characters check of `.github/workflows/checks.yml` rejects. For 7.0 the notes are the next section:
+5. After a major release: remove `release-as` from both packages in `release-please-config.json` (a pull request of its own; otherwise every later release pull request proposes the same version again), and add the upgrade notes to the two GitHub Releases. The changelogs cannot carry them: release-please writes upgrade notes only from `BREAKING CHANGE` footers, under a heading with a warning sign, which the Forbidden characters check of `.github/workflows/checks.yml` rejects. For 7.0 the notes are the next section; the loop appends to the Release body, so run it once:
 
    ```sh
    awk '/^## Upgrading from 6.x to 7.0/{f=1; next} /^## /{f=0} f' docs/releasing.md > /tmp/upgrade.md
@@ -41,7 +41,7 @@ The owner starts `npm.yml` by hand (Actions, npm publish, Run workflow) with bot
 
 ## Upgrading from 6.x to 7.0
 
-7.0 does not migrate a 6.x machine: undo 6.x with the 6.x app, remove what its undo leaves, then set up 7.0 as on a new machine. The app and the content release apart from now on: the app as `app-vX.Y.Z` (npm package `benchkeeper`), the content (rules, skills, plugin) as `setup-vX.Y` ([Components](#components)).
+7.0 does not migrate a 6.x machine: undo 6.x with the 6.x app, remove what its undo leaves, then set up 7.0 as on a new machine. The app and the content release apart from now on: the app as `app-vX.Y.Z` (npm package `benchkeeper`), the content (rules, skills, plugin) as `setup-vX.Y` ([Components](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/releasing.md#components)).
 
 ### Renamed commands
 
@@ -67,7 +67,7 @@ The skill and automation text of the 7.0 content runs `npx benchkeeper@7`, and i
 
 ### Project state version 2
 
-`.benchkeeper/state.json` moves to `schemaVersion` 2: `appVersion` and `contentVersion` replace `setupVersion`. 7.0 reads a version 1 file with `setupVersion` as both values and writes version 2 on the next `projects apply`. A 6.x app finds no `setupVersion` in a version 2 file: its `update-all` skips that project as one without a state file, and its `project apply` writes the file back as version 1. On a repository with a shared setup (the state file is committed), everyone updates to 7.0 together.
+`.benchkeeper/state.json` moves to `schemaVersion` 2: `appVersion` and `contentVersion` replace `setupVersion`. 7.0 reads a version 1 file with `setupVersion` as both values and writes version 2 on the next `projects apply`. A 6.x app finds no `setupVersion` in a version 2 file: its `update-all` prints `no state file, skipped` for the project but still updates it, and both `update-all` and `project apply` write the file back as version 1 (`app/src/cli.mjs:400-412` and `app/src/steps/project.mjs:478` at `app-v6.25.0`). 7.0 reads that file again, but the 6.x run has changed the project's setup back to 6.x. So update every machine that works on a repository to 7.0 together, and run no 6.x `update-all` or `project apply` there after a 7.0 `projects apply`; on a repository with a shared setup (the state file is committed) that includes everyone who works on it.
 
 ### Uninstall 6.x
 
@@ -90,7 +90,7 @@ What the undo leaves (checked once on 2026-10-28 with 6.25.0, Claude Code 2.1.31
 | Empty bookkeeping of the agent CLIs (`enabledPlugins: {}`, `extraKnownMarketplaces: {}`, `installed_plugins.json`, `known_marketplaces.json`, an empty `config.toml`) | `~/.claude/settings.json`, `~/.claude/plugins/`, `~/.codex/config.toml` | written by `claude plugin` and `codex plugin` themselves; can stay |
 | The Dev Containers CLI, if the app installed it | global npm packages | `npm uninstall -g @devcontainers/cli` when nothing else uses it |
 
-Then set up 7.0: `npx benchkeeper@7 apply`, and `npx benchkeeper@7 projects apply` in each project ([setup guide](setup.md#levels)).
+Then set up 7.0: `npx benchkeeper@7 apply`, and `npx benchkeeper@7 projects apply` in each project ([setup guide](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/setup.md#levels)).
 
 ## Site
 

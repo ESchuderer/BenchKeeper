@@ -14,7 +14,7 @@ import { openBrowser } from '../src/server.mjs';
 const PORT = 4410, TOKEN = 'ui-test-token-0123456789';
 const app = resolve(fileURLToPath(import.meta.url), '../..');
 const out = resolve(app, '../web/public/app');
-// Chromium writes PNG only; sharp, which the site installs with Astro, writes the same pixels as lossless WebP in about
+// Chromium writes PNG only; sharp, a devDependency of the site (web/package.json), writes the same pixels as lossless WebP in about
 // a third of the bytes.
 let sharp;
 try { sharp = createRequire(resolve(out, '../../package.json'))('sharp'); } catch { throw new Error('sharp is missing: run npm ci in web/ first'); }

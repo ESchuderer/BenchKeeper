@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanDropped, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
 import { when } from './run.jsx';
-import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
+import { Dot, Loading, Note, SCROLL_CUE, breakAt, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
 const LOAD = { always: ['teal', 'loads'], 'path-scoped': ['blue', 'loads for matching files'], off: ['gray', 'off'], shadowed: ['yellow', 'not read'] };
@@ -79,7 +79,7 @@ function Findings({ findings, dir, onPlan, locked }) {
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Rule findings, scrollable' } }}>
+      <Table.ScrollContainer minWidth={560} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Rule findings, scrollable' } }}>
         <Table aria-label="Rule findings" verticalSpacing="xs">
           <Table.Thead><Table.Tr><Table.Th w={110}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
@@ -245,13 +245,13 @@ function Budget({ budget }) {
 // The auto memory folders with notes, in numbers only: read-only, the notes stay with Claude Code. With auto memory off
 // for a row's project nothing of it loads, so its badge does not judge the size.
 const Memory = ({ memory: { folders } }) => (
-  <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Auto memory per project, scrollable' } }}>
+  <Table.ScrollContainer minWidth={560} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Auto memory per project, scrollable' } }}>
     <Table aria-label="Auto memory per project" verticalSpacing="xs">
       <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th ta="right">Notes</Table.Th><Table.Th ta="right">Size</Table.Th><Table.Th>Last change</Table.Th><Table.Th>MEMORY.md</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>
         {folders.map((m) => (
           <Table.Tr key={m.path}>
-            <Table.Td><Code style={{ overflowWrap: 'anywhere' }}>{m.project}</Code></Table.Td>
+            <Table.Td><Code style={{ overflowWrap: 'break-word' }}>{breakAt(m.project)}</Code></Table.Td>
             <Table.Td ta="right">{number(m.notes)}</Table.Td>
             <Table.Td ta="right">{number(m.bytes)} bytes</Table.Td>
             <Table.Td>{when(m.changed)}</Table.Td>

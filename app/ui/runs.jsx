@@ -3,12 +3,13 @@ import { IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, PlanClose, PlanSwitch, Section } from './parts.jsx';
-import { Loading, Note, icon, useApi } from './shell.jsx';
+import { Loading, Note, SCROLL_CUE, breakAt, icon, useApi } from './shell.jsx';
 
 const money = (x) => (x == null ? 'not recorded' : `$${x.toFixed(2)}`);
 const Scroll = ({ label, children }) => (
-  <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
-    <Table aria-label={label}>{children}</Table>
+  <Table.ScrollContainer minWidth={560} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+    {/* One line per row: the table scrolls sideways instead of wrapping a task or a path into a taller row. */}
+    <Table aria-label={label} style={{ whiteSpace: 'nowrap' }}>{children}</Table>
   </Table.ScrollContainer>
 );
 // A section without data: one line with its title and the reason.
@@ -114,7 +115,7 @@ export function Surfaces() {
         const key = `${st.key}:${a.name}`;
         return (
           <Select key={a.name} label={`Status line of account ${a.name}`} maw={420} allowDeselect={false} disabled={running || asking}
-            description={pending(key) ? 'Apply or cancel in Changes below' : <>The plugin option in <Code>{a.file}</Code>, which this account's status line reads. Usage is recorded in every style.</>}
+            description={pending(key) ? 'Apply or cancel in Changes below' : <>The plugin option in <Code style={{ overflowWrap: 'break-word' }}>{breakAt(a.file)}</Code>, which this account's status line reads. Usage is recorded in every style.</>}
             data={[{ value: 'merged', label: 'Usage and Ponytail level' }, { value: 'plugin', label: 'Ponytail level only' }, { value: 'benchkeeper', label: 'Usage only' }, { value: 'none', label: 'Nothing' }]}
             value={pending(key)?.value ?? a.value} onChange={(v) => (v === a.value ? setPlan(null) : ask(key, v, `You chose the status line style ${v} for account ${a.name} in Preferences.`, undefined, '/api/status-style', { account: a.name, value: v }))} />
         );

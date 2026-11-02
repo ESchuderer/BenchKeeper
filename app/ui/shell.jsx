@@ -99,6 +99,13 @@ export function download(name, text) {
 
 // Decorative: the text next to an icon names the action, so screen readers skip the icon.
 export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hidden="true" />;
+
+// A long key or path breaks after . / _ - or between camelCase words, never inside a word; <wbr> adds no character to
+// copied text. A word longer than the line still breaks (overflow-wrap: break-word where it is used).
+export const breakAt = (text) => String(text).split(/(?<=[./_-])|(?<=[a-z])(?=[A-Z])/).flatMap((part, n) => (n ? [<wbr key={n} />, part] : [part]));
+// A table wider than its column shows its scrollbar while it overflows, so a phone shows that more is to the side
+// (Mantine's default shows it on hover only, which touch has not).
+export const SCROLL_CUE = { type: 'auto' };
 const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
 // An Alert with the icon of its color. A teal title has 4.32:1 on the light teal background, so it takes the text color.
 const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };

@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Divider, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconDeviceFloppy, IconDownload, IconFolderSearch, IconFolders, IconListCheck, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -12,7 +12,7 @@ import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
 import { AddNotices, BulkBar, CreateFromPreset, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
 import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
-import { Dot, Folded, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
+import { Dot, Folded, Loading, MOD, Note, SCROLL_CUE, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
@@ -64,6 +64,9 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   );
 }
 
+// The Skills filters share one width: the whole line on a phone, side by side from xs.
+const FILTER_W = { base: '100%', xs: 220 };
+
 // The Catalog's first page: the library skills and the user's own to browse, each with its detail, the editor of the user's
 // skills, and the pack builder. A skill's state in a project is on that project's page.
 export function CatalogSkills({ catalog, params, refresh }) {
@@ -101,17 +104,17 @@ export function CatalogSkills({ catalog, params, refresh }) {
       return (
         <Stack gap="lg">
           <Group align="flex-end">
-            <TextInput label="Search" value={q} onChange={(e) => setQ(e.currentTarget.value)} />
-            <Select label="Pack" placeholder="All packs" clearable value={pack} onChange={setPack} data={c.packs.filter((p) => p.skills).map((p) => ({ value: p.id, label: `${p.title ?? p.id}${p.own ? ' (own)' : ''}` }))} />
-            <Select label="Agent" placeholder="All agents" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
-            <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
+            <TextInput label="Search" w={FILTER_W} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+            <Select label="Pack" w={FILTER_W} placeholder="All packs" clearable value={pack} onChange={setPack} data={c.packs.filter((p) => p.skills).map((p) => ({ value: p.id, label: `${p.title ?? p.id}${p.own ? ' (own)' : ''}` }))} />
+            <Select label="Agent" w={FILTER_W} placeholder="All agents" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
+            <Select label="Install state" w={FILTER_W} placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
             {picked.length > 0 && <Button leftSection={icon(IconPackage)} variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>}
             <Button leftSection={icon(IconPlus)} onClick={() => openEditor({ op: 'new' })}>New skill</Button>
           </Group>
           {loadFailed && <Note color="red" title="Skill text not loaded">{loadFailed}</Note>}
           <SplitView list={
             <Table aria-label="Skills">
-              <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th><VisuallyHidden>Add to pack</VisuallyHidden></Table.Th><Table.Th>Skill</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
@@ -214,16 +217,18 @@ function GlobalItems({ items, ticked, onTick, locked }) {
       <Stack key={p.title} gap={4} component="section" aria-label={p.title}>
         <Group gap="xs" justify="space-between">
           <Text fw={600}>{p.title} ({p.rows.length}{attention ? `, ${attention} need attention` : ''})</Text>
-          {p.view && <Anchor href={href(p.view)} size="sm">Open {p.viewName}</Anchor>}
+          {p.view && <Anchor href={href(p.view)} size="sm" ml="auto">Open {p.viewName}</Anchor>}
         </Group>
         <Folded title={p.title} label={['Show items', 'Hide items']} name={`items of ${p.title}`} initial={attention > 0}>
           <List size="sm" listStyleType="none" spacing={4}>
             {p.rows.map((i) => (
-              <List.Item key={itemKey(i)}>
+              <List.Item key={itemKey(i)} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
                 <Group gap="xs" wrap="nowrap">
                   {tickable(i) && <Checkbox size="xs" aria-label={i.title} checked={ticked.has(itemKey(i))} disabled={locked} onChange={() => onTick(i)} />}
-                  <StateBadge state={i.state} />
-                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{i.title}</Text>
+                  {/* One badge column, as wide as the longest state (UNTRACKED), so every item with a box starts at the same x; in a narrow
+                      column (the plan beside it) it shrinks to the badge itself. */}
+                  <Box style={{ flex: '0 1 112px', minWidth: 'min-content' }}><StateBadge state={i.state} /></Box>
+                  <Text size="sm" style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>{i.title}</Text>
                 </Group>
               </List.Item>
             ))}
@@ -248,7 +253,7 @@ function followTicks(plan, items, ticked) {
 // the agents that are not installed show the sentences.
 function AgentTable({ label, agents, chosen, onCheck }) {
   return (
-    <Table.ScrollContainer minWidth={640} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
+    <Table.ScrollContainer minWidth={640} scrollAreaProps={{ ...SCROLL_CUE, viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label}>
         <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
@@ -500,7 +505,7 @@ export function ProjectList({ params, overview, refresh }) {
               ))}
             </SimpleGrid>
           ) : (
-            <Table.ScrollContainer minWidth={420}>
+            <Table.ScrollContainer minWidth={420} scrollAreaProps={SCROLL_CUE}>
               <Table aria-label="Projects" horizontalSpacing="xs">
                 <Table.Thead><Table.Tr>
                   <Table.Th w={32}><VisuallyHidden>Select</VisuallyHidden></Table.Th>

@@ -7,7 +7,7 @@ import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, EvalJob, Section, pct } from './parts.jsx';
 import { when } from './run.jsx';
-import { Loading, Note, SplitView, href, icon, useApi } from './shell.jsx';
+import { Loading, Note, SCROLL_CUE, SplitView, href, icon, useApi } from './shell.jsx';
 
 const rate = (v) => (v == null ? '-' : `${pct(v)}%`);
 const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
@@ -55,7 +55,7 @@ export function EvalResults({ results }) {
   return (
     <Stack gap="sm">
       <LineChart h={240} data={data} dataKey="time" series={MEASURES.map(({ key, ...m }) => m)} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend legendProps={LEGEND} connectNulls />
-      <Table.ScrollContainer minWidth={560}>
+      <Table.ScrollContainer minWidth={560} scrollAreaProps={SCROLL_CUE}>
         <Table aria-label="Eval runs">
           <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Model</Table.Th><Table.Th>App</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>

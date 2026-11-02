@@ -7,10 +7,19 @@ import { Dot, Folded, Loading, Note, STATE_COLOR, StatusBadge, href, icon, useAp
 
 export const pct = (v) => (v == null ? null : Math.round(v * 100));
 
+// One block per command, so nothing hides past the right edge on a phone: a long one wraps at its spaces, a flag such
+// as --limit never splits at its hyphen, and its continuation lines are indented under the command. A word longer than
+// the line (a long --agents list) still breaks.
+const FLAG = /^\[?-/;
+const commandLines = (text) => [text].flat().join('').split('\n').map((line, n) => (
+  <span key={n} style={{ display: 'block', paddingLeft: '2ch', textIndent: '-2ch' }}>
+    {line.split(/( +)/).map((part, k) => (FLAG.test(part) ? <span key={k} style={{ whiteSpace: 'nowrap' }}>{part}</span> : part))}
+  </span>
+));
 export const Cli = ({ children }) => (
   <Stack gap={4}>
     <Text size="sm" fw={600}>CLI</Text>
-    <Code block tabIndex={0}>{children}</Code>
+    <Code block tabIndex={0} style={{ whiteSpace: 'normal', overflowWrap: 'break-word' }}>{commandLines(children)}</Code>
   </Stack>
 );
 

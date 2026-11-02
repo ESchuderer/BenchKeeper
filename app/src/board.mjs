@@ -635,7 +635,8 @@ function draw({ periodFacts, changeText, toCsv, cardSvg }) {
     for (const r of list) for (const s of r.skills) n.set(s, (n.get(s) ?? 0) + 1);
     const ranked = [...n].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 25);
     const max = ranked[0]?.[1] ?? 1;
-    $('skills').replaceChildren(table('Sessions that used each skill (top 25)', ['Skill', 'Sessions'], ranked.map(([s, c]) => [s, el('span', { class: 'rank' }, el('span', { class: 'rank-bar', style: `width:${(c / max) * 100}%` }), String(c))])));
+    // A full bar leaves room for its count and the gap, so the count of the top skill stays inside the cell.
+    $('skills').replaceChildren(table('Sessions that used each skill (top 25)', ['Skill', 'Sessions'], ranked.map(([s, c]) => [s, el('span', { class: 'rank' }, el('span', { class: 'rank-bar', style: `width:calc((100% - 4ch - 8px) * ${c / max})` }), String(c))])));
   }
 
   let current = [], last = null, announced = null;
@@ -800,7 +801,9 @@ button:hover { border-color: var(--accent); }
 .pname { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .card[aria-pressed="true"] .pname { font-weight: 600; }
 .psub, .pcount { font-size: 12px; color: var(--ink-2); } .pcount { min-width: 2ch; text-align: right; } .card .spark { width: 42px; height: 14px; flex: none; }
 .dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--glow); }
-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin: 0 0 16px; overflow-x: auto; }
+/* A section wider than its card scrolls sideways: a shadow at the edge with more content shows it. The surface-colored
+   covers scroll with the content and hide each shadow once that edge is reached; nothing moves on its own. */
+section { background: var(--surface); background: linear-gradient(to right, var(--surface) 30%, transparent) left / 32px 100% no-repeat local, linear-gradient(to left, var(--surface) 30%, transparent) right / 32px 100% no-repeat local, radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--ink) 50%, transparent), transparent) left / 12px 100% no-repeat scroll, radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--ink) 50%, transparent), transparent) right / 12px 100% no-repeat scroll, var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin: 0 0 16px; overflow-x: auto; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .facts.small { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px; } .small .tile .value { font-size: 18px; }
 .tile { position: relative; isolation: isolate; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; overflow: hidden; }

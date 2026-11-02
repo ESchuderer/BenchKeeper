@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, Stack, Stepper, Table, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, Group, List, Progress, Stack, Stepper, Table, Text, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
@@ -6,7 +6,7 @@ import { api } from './api.js';
 import { splitSource } from './fixsource.js';
 import { updateProjects } from './update.js';
 import { ChangeList, RunProgress, SettingFactsOf, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
-import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
+import { Dot, Loading, Note, SCROLL_CUE, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
 export function fixAction(i) {
@@ -24,10 +24,13 @@ const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
 const levelBadge = (i) => <Badge variant="default" miw="max-content" leftSection={<Dot color={LEVEL_COLOR[i.level]} />}>{i.tag ?? i.level}</Badge>;
+// One badge column, wide enough for the longest label (OUTDATED), so every finding starts at the same x.
+const BADGE_COLUMN = 108;
 const actionButton = (action, onAction) => <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>;
 
 // The worst findings first (errors, then warnings, then info, in the doctor's order within a level), one line each: the
-// level, the finding cut to one line (in full on hover; below sm it wraps, as touch has no hover) and the action that fixes it.
+// level, the finding cut to one line (in full on hover) and the action that fixes it. Below sm the finding gets its own
+// full-width line under the level and the action, as touch has no hover.
 export function DoctorWorst({ found, n = 3 }) {
   const phone = useMediaQuery('(max-width: 47.99em)');
   const worst = Object.keys(LEVEL_COLOR).flatMap((l) => found.filter((i) => i.level === l)).slice(0, n);
@@ -37,11 +40,18 @@ export function DoctorWorst({ found, n = 3 }) {
         const action = fixAction(i);
         return (
           <List.Item key={k} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
-            <Group gap="sm" wrap="nowrap">
-              {levelBadge(i)}
-              <Text size="sm" truncate={!phone} title={i.message} style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.message}</Text>
-              {action && actionButton(action)}
-            </Group>
+            {phone ? (
+              <Stack gap={4}>
+                <Group gap="sm" justify="space-between" wrap="nowrap">{levelBadge(i)}{action && actionButton(action)}</Group>
+                <Text size="sm" style={{ overflowWrap: 'break-word' }}>{i.message}</Text>
+              </Stack>
+            ) : (
+              <Group gap="sm" wrap="nowrap">
+                <Box w={BADGE_COLUMN} style={{ flexShrink: 0 }}>{levelBadge(i)}</Box>
+                <Text size="sm" truncate title={i.message} style={{ flex: 1, minWidth: 0 }}>{i.message}</Text>
+                {action && actionButton(action)}
+              </Group>
+            )}
           </List.Item>
         );
       })}
@@ -54,7 +64,7 @@ function DoctorTable({ found, onAction, onDismiss }) {
   const phone = useMediaQuery('(max-width: 47.99em)');
   if (!found.length) return <Text>No findings.</Text>;
   return (
-    <Table.ScrollContainer minWidth={phone ? 0 : 560}>
+    <Table.ScrollContainer minWidth={phone ? 0 : 560} scrollAreaProps={SCROLL_CUE}>
       <Table aria-label="Doctor findings">
         <Table.Thead><Table.Tr>{phone ? <Table.Th>Finding</Table.Th> : <><Table.Th w={140}>Level</Table.Th><Table.Th>Finding</Table.Th><Table.Th>Fix</Table.Th></>}</Table.Tr></Table.Thead>
         <Table.Tbody>

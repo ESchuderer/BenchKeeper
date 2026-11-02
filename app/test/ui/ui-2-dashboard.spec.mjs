@@ -114,6 +114,29 @@ test.describe('views', () => {
     await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
   });
 
+  test('Dashboard: with nothing to fix it says Nothing needs attention, and with no agent installed what to install first', async ({ page }) => {
+    let agents = true;
+    await page.route(/\/api\/dashboard(\?|$)/, async (route) => {
+      const d = await (await route.fetch()).json();
+      const zero = (states) => states && Object.fromEntries(Object.keys(states).map((s) => [s, 0]));
+      d.global.states = zero(d.global.states);
+      d.projects = d.projects.map((p) => ({ ...p, states: zero(p.states) }));
+      return route.fulfill({ json: d });
+    });
+    await page.route(/\/api\/overview(\?|$)/, async (route) => {
+      const o = await (await route.fetch()).json();
+      if (!agents) o.agents = o.agents.map((a) => ({ ...a, installed: false }));
+      return route.fulfill({ json: o });
+    });
+    await page.reload();
+    await expect(page.getByText('Nothing needs attention.')).toBeVisible();
+    agents = false;
+    await page.reload();
+    await expect(page.getByText('No agent found.')).toBeVisible();
+    await expect(page.getByText(/^Install Claude Code, .+ or .+ first; Set up then installs the global setup and the projects you pick\.$/)).toBeVisible();
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
+  });
+
   test('Dashboard: a failed dashboard request shows one alert with one Try again, and the panels it feeds say Not loaded', async ({ page }) => {
     let fail = true;
     await page.route(/\/api\/dashboard(\?|$)/, (route) => (fail ? route.fulfill({ status: 500, json: { error: 'stubbed failure' } }) : route.fallback()));

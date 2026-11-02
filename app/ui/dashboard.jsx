@@ -7,7 +7,7 @@ import { levelCounts } from '../src/levels.mjs';
 import { OneRunMenu } from './onerun.jsx';
 import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
-import { Dot, Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
+import { Dot, Loading, RANK, SCROLL_CUE, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
 
 export const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -34,7 +34,7 @@ function Installed({ data, names }) {
   const packs = (ids) => (ids.length ? ids.map((id) => <Anchor key={id} href={packHref(data, id)} mr="sm">{id}</Anchor>) : 'none');
   const globalPacks = [...new Set(Object.values(data.global.packs).flat())];
   return (
-    <Table.ScrollContainer minWidth={420}>
+    <Table.ScrollContainer minWidth={420} scrollAreaProps={SCROLL_CUE}>
       <Table aria-label="Installed skills and packs" withTableBorder>
         <Table.Thead><Table.Tr><Table.Th>Scope</Table.Th><Table.Th>Skills per agent</Table.Th><Table.Th>Packs</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
@@ -67,7 +67,7 @@ function Health({ data }) {
   if (!all) return <Text size="sm">No items yet. Set up installs the global setup and the projects you pick.</Text>;
   return (
     <Stack gap="sm">
-      <Text size="sm"><span className="bk-num">{all}</span> items</Text>
+      <Text size="sm"><span className="bk-num">{all}</span> {all === 1 ? 'item' : 'items'}</Text>
       <div className="bk-stack" role="img" aria-label={`Items by state: ${summary}`}>{shown.map((s) => <span key={s} style={{ flex: total(s), backgroundColor: `var(--bk-h-${s})` }} />)}</div>
       <List listStyleType="none" aria-label="Items by state, all scopes" styles={{ root: { display: 'flex', flexWrap: 'wrap', gap: '4px 16px' } }}>
         {shown.map((s) => (
@@ -107,7 +107,8 @@ function Where({ data }) {
 const Big = ({ n, to, name, fz = 32 }) => (to ? <Anchor href={to} className="bk-num" fz={fz} fw={650} lh={1.1} aria-label={name}>{n}</Anchor> : <Text className="bk-num" fz={fz} fw={650} lh={1.1}>{n}</Text>);
 
 // The count of items that differ from the setup and the scopes it counts. A project that cannot be read has no states: it is listed here, not counted as clean.
-function Attention({ data }) {
+// With no agent installed nothing can be set up, so the panel says what to do first instead of "Nothing needs attention".
+function Attention({ data, agents }) {
   const where = scopes(data).filter((r) => needs(r.states));
   const n = where.reduce((t, r) => t + needs(r.states), 0);
   const unread = data.projects.filter((p) => p.error && !p.states);
@@ -116,7 +117,9 @@ function Attention({ data }) {
     <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0 }}>
       {!!n && <Big n={n} to={projects && where.some((r) => r.key === 'global') ? null : target('attention', projects)} name={`${n} items need attention, open what it counts`} />}
       <Stack gap={2} style={{ minWidth: 0 }}>
-        {!n && !unread.length && <Text fw={600}>Nothing needs attention.</Text>}
+        {!n && !unread.length && (agents && !agents.some((a) => a.installed)
+          ? <><Text fw={600}>No agent found.</Text><Text size="sm">Install {agents.map((a) => a.name).join(', ').replace(/, ([^,]*)$/, ' or $1')} first; Set up then installs the global setup and the projects you pick.</Text></>
+          : <Text fw={600}>Nothing needs attention.</Text>)}
         {!!n && <Text fw={600}>items need attention</Text>}
         {!!n && <Text size="sm">{where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.label}</Anchor> {needs(r.states)}</span>)}</Text>}
         {!!unread.length && <Text size="sm">Cannot be read: {unread.map((p, i) => <span key={p.path}>{i ? ', ' : ''}<Anchor href={projectHref(p.path)}>{label(p)}</Anchor></span>)}</Text>}
@@ -134,7 +137,7 @@ function PackCoverage({ data, names }) {
   const all = data.coverage.packs.filter((p) => !used(p) && global.has(p.id));
   return (
     <Stack gap="xs">
-      {!!packs.length && <Table.ScrollContainer minWidth={420}>
+      {!!packs.length && <Table.ScrollContainer minWidth={420} scrollAreaProps={SCROLL_CUE}>
         <Table aria-label="Pack coverage" withTableBorder>
           <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th>{agents.map((a) => <Table.Th key={a.id}>{a.name}</Table.Th>)}</Table.Tr></Table.Thead>
           <Table.Tbody>
@@ -179,7 +182,7 @@ function Parts({ items, agents }) {
   const cols = [...agents.map((a) => [a.id, a.name]), ['machine', 'Machine']];
   const rows = PARTS.filter((p) => items.some((i) => i.step.split(':')[0] === p));
   return (
-    <Table.ScrollContainer minWidth={420}>
+    <Table.ScrollContainer minWidth={420} scrollAreaProps={SCROLL_CUE}>
       <Table aria-label="Global setup by part" withTableBorder>
         <Table.Thead><Table.Tr><Table.Th>Part</Table.Th>{cols.map(([id, name]) => <Table.Th key={id}>{name}</Table.Th>)}</Table.Tr></Table.Thead>
         <Table.Tbody>
@@ -270,7 +273,7 @@ export function Dashboard({ overview, doctor, history, params }) {
       {dash.error && <Loading state={dash} label="dashboard data" />}
       <Paper withBorder p="md">
         <Group justify="space-between" align="center" gap="md">
-          {fromDash((d) => <Attention data={d} />)}
+          {fromDash((d) => <Attention data={d} agents={o?.agents} />)}
           <Group gap="xs"><FixEverythingButton /><OneRunMenu /></Group>
         </Group>
       </Paper>

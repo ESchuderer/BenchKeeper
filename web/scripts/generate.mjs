@@ -2,7 +2,7 @@
 // - tokens.css: the design tokens of app/src/tokens.mjs (shared with the app) as Infima variables, light and dark;
 // - data.json: the size of each app screenshot, the repository facts for the header, the last commit for the footer;
 // - changelog.md and writes.md: Markdown the changelog and writes pages import, with links into the repository made absolute.
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { TOKENS, SHAPE } from '../../app/src/tokens.mjs';
 
@@ -66,10 +66,14 @@ async function repoFacts() {
   return { tag: release?.tag_name ?? tags?.[0]?.name, stars: short(repo?.stargazers_count), forks: short(repo?.forks_count) };
 }
 
+// git from a system folder, as app/test/ui/serve.mjs and .github/scripts/version-pins.mjs run it: no PATH lookup.
+const GIT = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'].find((p) => existsSync(p));
+
 // Last commit for the footer; builds without git (e.g. a slim container) omit it.
 function lastCommit() {
+  if (!GIT) return {};
   try {
-    const [updated, commit] = execSync('git log -1 --format=%cs%n%H', { encoding: 'utf8' }).trim().split('\n');
+    const [updated, commit] = execFileSync(GIT, ['log', '-1', '--format=%cs%n%H'], { encoding: 'utf8' }).trim().split('\n');
     return { updated, commit };
   } catch { return {}; }
 }

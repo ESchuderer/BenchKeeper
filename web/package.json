@@ -6,6 +6,7 @@
     "start": "node scripts/generate.mjs && docusaurus start --host 0.0.0.0",
     "build": "node scripts/generate.mjs && docusaurus build --out-dir dist",
     "serve": "docusaurus serve --dir dist --no-open",
+    "preview": "docusaurus serve --dir dist --host 0.0.0.0 --port 4321 --no-open",
     "test": "playwright test"
   },
   "dependencies": {

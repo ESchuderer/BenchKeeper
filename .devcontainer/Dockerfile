@@ -4,7 +4,7 @@ FROM docker.io/library/node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39
 # shortcut: exact Debian versions stop resolving after the next bookworm security release; bump them when the build fails
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git=1:2.39.5-0+deb12u3 ca-certificates=20250419~deb12u2 \
-    bubblewrap=0.8.0-2+deb12u1 socat=1.7.4.4-2 ripgrep=13.0.0-4+b2 procps=2:4.0.2-3 \
+    bubblewrap=0.8.0-2+deb12u1 socat=1.7.4.4-2 ripgrep=13.0.0-4+b2 procps=2:4.0.2-3 openssh-client=1:9.2p1-2+deb12u10 \
   && rm -rf /var/lib/apt/lists/*
 
 # Playwright MCP with its Chromium, and the Chromium headless shell of the site's @playwright/test (keep 1.64.1 equal to

@@ -203,6 +203,30 @@ test('prerun: a sandbox that does not start is "unavailable", never a run withou
   assert.equal(commands, 1, 'not run again without the sandbox');
 });
 
+test('prerun: a sandbox start error names the bwrap line, also when npm notices follow it', async () => {
+  const stderr = [
+    "bwrap: Can't bind mount /oldroot/dev/null on /newroot/tmp/t/.gitconfig: Unable to remount destination with correct flags: Permission denied",
+    'npm notice', 'npm notice New major version of npm available! 10.9.9 -> 12.2.1',
+    'npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1', 'npm notice To update run: npm install -g npm@12.2.1', 'npm notice',
+  ].join('\n');
+  const run = (argv) => (argv[1]?.endsWith('verify.mjs') ? quiet : { code: 1, stdout: '', stderr });
+  const r = await rehearse({ home: tmpHome('notice'), run, sandbox: SANDBOX }, GLOBAL);
+  assert.equal(r.unavailable, true);
+  assert.match(r.error, /^the sandbox \(srt\) did not start: bwrap: Can't bind mount .*Permission denied$/);
+});
+
+test('prerun: a sandbox start error without a bwrap or srt line keeps the last lines without npm notices', async () => {
+  const stderr = [
+    'npm error code E404', 'npm error 404 Not Found - GET https://registry.npmjs.org/@anthropic-ai%2fsandbox-runtime',
+    'npm notice', 'npm notice New major version of npm available! 10.9.9 -> 12.2.1', 'npm warn exec The following package was not found', 'npm notice',
+  ].join('\n');
+  const run = (argv) => (argv[1]?.endsWith('verify.mjs') ? quiet : { code: 1, stdout: '', stderr });
+  const r = await rehearse({ home: tmpHome('npm-error'), run, sandbox: SANDBOX }, GLOBAL);
+  assert.equal(r.unavailable, true);
+  assert.match(r.error, /^the sandbox \(srt\) did not start: npm error code E404 npm error 404 Not Found/);
+  assert.doesNotMatch(r.error, /notice|warn/);
+});
+
 test('prerun: where no sandbox exists there is no preview; only the caller asking for one without it runs the command', async () => {
   const home = tmpHome('none');
   const calls = [];

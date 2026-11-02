@@ -190,7 +190,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           verified.add(c.verify.join(' '));
         }
         const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: childEnv(c.env) }, entry };
-        // Ended with an exit code: undone only when it succeeded, as before the journal.
+        // Ended with an exit code: undone only when it succeeded.
         entry.exit = r.code;
         // A failed command with a snapshot may have changed those paths: undo still restores them.
         if (r.code === 0 || !entry.snapshot) delete entry.touched;

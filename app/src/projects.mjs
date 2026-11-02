@@ -399,7 +399,6 @@ export function status(ctx, path) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path, own ? undefined : localAnswers(local)).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
-  // Per chosen agent, the skills in the project folder it reads.
   const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
@@ -455,8 +454,6 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), a
     try {
       if (!isDir(path)) throw new Error('folder not found: relocate the project or remove it from the list');
       const local = readState(path), repo = isRepo(ctx, path);
-      // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
-      // origin's.
       const setup = setupFor(ctx, path, local);
       if (!answers[path] && !setup) throw new Error(`no ${STATE}: set the project up first`);
       if (!(answers[path]?.share ?? setup?.share ?? false)) {
@@ -498,7 +495,7 @@ export function unshare(ctx, path) {
       branch: 'chore/agent-setup-local',
       work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: 'chore/agent-setup-local' } }),
       title: 'chore: keep the agent setup local',
-      body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper projects update`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper projects apply --agents ...` once.',
+      body: 'BenchKeeper keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper projects update`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper projects apply --agents ...` once.',
     });
   } catch (e) {
     result.status = 'stopped';

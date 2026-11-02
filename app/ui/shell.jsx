@@ -89,7 +89,6 @@ export function SplitView({ list, detail, empty, span = 5 }) {
   );
 }
 
-// A file for the browser to save, from text the server returned.
 export function download(name, text) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));

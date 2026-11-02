@@ -511,7 +511,7 @@ export function ProjectList({ params, overview, refresh }) {
             </Table.ScrollContainer>
           )}
         </Stack>
-      ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
+      ) : <Text>No projects yet: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
         <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit, which you push. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>

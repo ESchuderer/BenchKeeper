@@ -291,7 +291,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       )}
       {advanced && data.outside?.length > 0 && (
         <Section title="Not in the app's list">
-          <Text size="sm">Keys that neither the app nor the pinned schemas and reference know. They are shown as they are and kept: edits never rewrite or drop them.</Text>
+          <Text size="sm">Keys that neither the app nor the pinned schemas and reference know. Edits never rewrite or drop them.</Text>
           <Table aria-label="Keys outside the app's list" maw={640}>
             <Table.Thead><Table.Tr><Table.Th>Key</Table.Th><Table.Th>Value</Table.Th><Table.Th>Layer</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>{data.outside.map((x) => <Table.Tr key={`${x.layer}-${x.key}`}><Table.Td><Code>{x.key}</Code></Table.Td><Table.Td><Code>{text(x.value)}</Code></Table.Td><Table.Td>{x.layer}</Table.Td></Table.Tr>)}</Table.Tbody>

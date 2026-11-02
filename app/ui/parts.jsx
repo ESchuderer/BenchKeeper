@@ -14,7 +14,6 @@ export const Cli = ({ children }) => (
   </Stack>
 );
 
-// A command line with a copy button.
 function CommandLine({ command, name }) {
   const [copied, setCopied] = useState(null);
   // Without a clipboard (an insecure context) the call throws, which counts as a failed copy.

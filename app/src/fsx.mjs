@@ -84,7 +84,6 @@ export function copy(from, to) {
   } catch (e) { if (into !== to) rmSync(into, { recursive: true, force: true }); throw e; }
 }
 
-// True when p, after resolving the links of its existing ancestors, lies inside one of the roots.
 // A path with its links resolved as far as it exists (macOS: /var is /private/var).
 // follow false: a link as the last part of p stands for itself (removing it leaves its target alone).
 export function realish(p, follow = true) {
@@ -100,6 +99,7 @@ export function realish(p, follow = true) {
   return join(realpathSync(probe), ...rest);
 }
 
+// True when p, after resolving the links of its existing ancestors, lies inside one of the roots.
 export function inside(p, roots, follow = true) {
   const real = realish(p, follow);
   return roots.some((r) => {

@@ -901,7 +901,7 @@ export function projectActivity(rows, registered, now, days = 30) {
 // rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = [], keepDays = 30) {
-  // JSON in a script element: < as <, so no value can close the element.
+  // JSON in a script element: < as \u003c, so no value can close the element.
   const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), priceDate: CODEX_PRICES.date, now, registered, minSamples: MIN_SAMPLES, colors: TOKENS }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">

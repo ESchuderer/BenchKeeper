@@ -198,10 +198,10 @@ test.describe('views', () => {
     const fold = page.locator('details', { hasText: 'How evals work' });
     await expect(targets).toBeVisible();
     await expect(fold).not.toHaveAttribute('open');
-    await expect(page.getByText('Evals test exactly that.')).toBeHidden();
+    await expect(page.getByText('Evals test that.')).toBeHidden();
     await expect(page.getByText('benchkeeper evals run --all')).toBeHidden();
     await fold.getByText('How evals work').click();
-    await expect(page.getByText('Evals test exactly that.')).toBeVisible();
+    await expect(page.getByText('Evals test that.')).toBeVisible();
     await expect(fold.getByRole('listitem')).toHaveText([/^Miss: /, /^False trigger: /]);
     await expect(page.getByText('benchkeeper evals run --all')).toBeVisible();
     // The newest result is Codex's: its one target, no overview chart for a single target.

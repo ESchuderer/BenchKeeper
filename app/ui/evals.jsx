@@ -155,7 +155,7 @@ export function Evals({ params }) {
         <summary><Text component="span" fw={600}>How evals work</Text></summary>
         <Stack gap="lg" mt="md">
           <Stack gap={6} maw={720}>
-            <Text>A skill only helps when the agent loads it for the tasks it is meant for, and leaves it alone otherwise. Evals test exactly that.</Text>
+            <Text>A skill only helps when the agent loads it for the tasks it is meant for, and leaves it alone otherwise. Evals test that.</Text>
             <Text size="sm">Each case is a short task. BenchKeeper gives it to a real agent session in a throwaway folder and records whether the skill loaded. Two numbers come out, and lower is better for both:</Text>
             <List size="sm">
               <List.Item><b>Miss</b>: the task needed the skill, but the agent did not load it.</List.Item>

@@ -48,7 +48,6 @@ const packPlugins = (a) => library().packs.filter((p) => p.plugins?.[a]).map((p)
 });
 const OWN = { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] };
 export const PLUGINS = Object.fromEntries(['claude', 'codex'].map((a) => [a, [OWN, ...packPlugins(a)]]));
-// The ref and version a plugin is pinned to, for this app version.
 // BenchKeeper installed the plugin a removal argv names: the newest done, not undone command of the ledger on it installs it.
 function installedByApp(ctx, [a, , , id]) {
   for (const run of ctx.ledger.list()) {
@@ -58,6 +57,7 @@ function installedByApp(ctx, [a, , , id]) {
   return false;
 }
 
+// The ref and version a plugin is pinned to, for this app version.
 export function pin(p, appVersion) {
   return { ref: p.ref, version: p.version === 'app' ? appVersion : p.version };
 }

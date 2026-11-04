@@ -24,11 +24,21 @@ export function minAppPin(text, version) {
   return text.replace(/("minApp"\s*:\s*")\d+\.\d+\.\d+(")/, `$1${version}$2`);
 }
 
+// As Docker reads the file: comment lines (a whole line starting with #) dropped, then continued lines joined, so an
+// install command in a comment is not what the image runs and one spread over several lines is one command.
+const commands = (dockerfile) => dockerfile.replace(/^[ \t]*#.*\r?\n?/gm, '').replace(/\\\r?\n/g, ' ');
+
 // Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {
   // From the install command, not a comment; the whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
-  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
+  const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
   return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
+}
+
+// Dependabot raises pnpm in .github/pnpm (the CedarLoom CI) but not the pnpm the dev container installs.
+export function pnpmDrift(dockerfile, pinned) {
+  const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bpnpm@(\S+)/)?.[1];
+  return { image, drift: image !== pinned };
 }
 
 if (isMain(import.meta.url)) {
@@ -63,6 +73,12 @@ if (isMain(import.meta.url)) {
     }
     if (drift.length) {
       console.log(`::error::@playwright/test in ${drift.join(', ')} differs from playwright@${image} in .devcontainer/Dockerfile: set them equal`);
+      process.exit(1);
+    }
+    const pinned = JSON.parse(readFileSync(`${root}/.github/pnpm/package.json`, 'utf8')).dependencies?.pnpm;
+    const pnpm = pnpmDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), pinned);
+    if (pnpm.drift) {
+      console.log(`::error::pnpm@${pnpm.image} in .devcontainer/Dockerfile differs from pnpm ${pinned} in .github/pnpm/package.json: set them equal`);
       process.exit(1);
     }
   }

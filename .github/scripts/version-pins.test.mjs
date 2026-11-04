@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SKIP, minAppPin, pins, playwrightDrift } from './version-pins.mjs';
+import { SKIP, minAppPin, pins, playwrightDrift, pnpmDrift } from './version-pins.mjs';
 
 test('install commands get the current version, other version mentions stay', () => {
   const text = 'Run `npx benchkeeper@6.0.0 apply`, or `git clone --branch setup-v6.0 x`. setup-v3.3 took 8 minutes; benchkeeper@6.0.0 in prose.';
@@ -24,7 +24,18 @@ test('a package whose @playwright/test differs from the dev container is reporte
   assert.deepEqual(playwrightDrift(dockerfile, { 'web/package.json': pkg('1.64.1'), 'app/package.json': pkg('1.65.0') }).drift, ['app/package.json']);
   assert.deepEqual(playwrightDrift('npm i -g playwright@1.64.1-beta.0', { 'web/package.json': pkg('1.64.1') }).drift, ['web/package.json']);
   assert.equal(playwrightDrift('# was playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
+  assert.equal(playwrightDrift('  # RUN npm i -g playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
   assert.equal(playwrightDrift('no version', { 'web/package.json': pkg('1.64.1') }).image, undefined);
+});
+
+test('the dev container pnpm must equal the pnpm .github/pnpm pins for CI', () => {
+  const dockerfile = '# RUN npm i -g pnpm@12.0.0 was here\nRUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && npm cache clean --force';
+  assert.deepEqual(pnpmDrift(dockerfile, '12.16.1'), { image: '12.16.1', drift: false });
+  assert.deepEqual(pnpmDrift(dockerfile, '12.17.0'), { image: '12.16.1', drift: true });
+  assert.deepEqual(pnpmDrift('no pnpm', '12.16.1'), { image: undefined, drift: true });
+  // Docker drops comment lines, then joins continued lines: the version may sit on a later line of the same RUN.
+  assert.equal(pnpmDrift('RUN npm i -g --ignore-scripts \\\n  # pnpm@11.0.0 was here\n  pnpm@12.16.1 && npm cache clean --force', '12.16.1').image, '12.16.1');
+  assert.equal(pnpmDrift('RUN npm i -g --ignore-scripts \\\r\n  # pnpm@11.0.0 was here\r\n  pnpm@12.16.1 && npm cache clean --force', '12.16.1').image, '12.16.1');
 });
 
 test('minApp follows the release app version; other versions in content.json stay', () => {

@@ -1,9 +1,10 @@
-# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site and the app.
+# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site, the app and .github/pnpm.
 # Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, links, pages and npm workflows) and
-# the Node image of .devcontainer/Dockerfile, which must stay equal to it. Each version update waits until the release is 3
+# the Node image and pnpm of .devcontainer/Dockerfile, which follow NODE_VERSION of cedarloom.yml and .github/pnpm (Node 26;
+# BenchKeeper's own workflows stay on Node 22). Each version update waits until the release is 3
 # days old (cooldown): a release withdrawn within that time never reaches a version-update pull request. Security updates
 # are not delayed (the cooldown applies to version updates only), so they can name a newer release. The CedarLoom packages (pnpm workspace at
-# the root) pin typos and Node 26 in .github/workflows/cedarloom.yml, bumped by hand; pnpm in .github/pnpm.
+# the root) pin typos and Node 26 in .github/workflows/cedarloom.yml, bumped by hand; this file updates their pnpm in .github/pnpm.
 version: 2
 updates:
   - package-ecosystem: github-actions

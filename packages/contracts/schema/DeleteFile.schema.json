@@ -10,7 +10,7 @@
     "path": {
       "type": "string",
       "minLength": 1,
-      "description": "Absolute path of the file"
+      "description": "Absolute, normalized path of the file; apply refuses others"
     },
     "before": {
       "$ref": "Sha256.schema.json"

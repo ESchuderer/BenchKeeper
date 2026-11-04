@@ -109,6 +109,32 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "plan.path-not-absolute"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "plan.file-changed"
         },
         "params": {
@@ -142,6 +168,58 @@
             "path",
             "expected",
             "actual"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "apply.symlink"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "apply.not-text"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
           ],
           "additionalProperties": false
         }
@@ -378,36 +456,6 @@
         "code": {
           "type": "string",
           "const": "undo.backup-changed"
-        },
-        "params": {
-          "type": "object",
-          "properties": {
-            "runId": {
-              "type": "string"
-            },
-            "path": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "runId",
-            "path"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "code",
-        "params"
-      ],
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "string",
-          "const": "undo.not-text"
         },
         "params": {
           "type": "object",

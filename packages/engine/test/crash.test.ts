@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { recover, tempPath } from "@cedarloom/engine";
+import { planHash } from "@cedarloom/ledger";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { hash, plan, read, storeAt, undo, workspace } from "./helpers.ts";
@@ -28,16 +30,35 @@ test.each(Array.from({ length: OPERATIONS * PHASES + 1 }, (_, at) => at))(
       join(root, "plan.json"),
       String(at),
     ]);
-    const [code, signal] = await once(child, "exit");
-    expect(at === 0 ? code : signal).toBe(at === 0 ? 0 : "SIGKILL");
+    const [code] = await once(child, "exit");
+    // A killed process ends with no exit code on POSIX and with code 1 on Windows.
+    expect(code === 0).toBe(at === 0);
     // Never a torn file: each one holds its old bytes or its new ones.
     expect(["kept\n", "changed\n"]).toContain(state(kept));
     expect([null, "made\n"]).toContain(state(made));
     expect(["gone\n", null]).toContain(state(gone));
     const store = storeAt(dir);
+    recover(store);
+    expect(readdirSync(root).filter((name) => name.includes(".cedarloom-"))).toEqual([]);
     expect(store.runs()[0]?.status).toBe(at === 0 ? "applied" : "interrupted");
     expect(undo(store, store.runs()[0]?.id ?? null)).toMatchObject({ status: "applied", skipped: [] });
     expect([state(kept), state(made), state(gone)]).toEqual(["kept\n", null, "gone\n"]);
     store.close();
   },
 );
+
+test("recovery removes the temporary file a step killed inside its write left next to the target", () => {
+  const { root, state: dir, file } = workspace();
+  const path = file("secret.env", "TOKEN=1\n");
+  const value = plan({ kind: "write", path, before: hash("TOKEN=1\n"), content: "TOKEN=2\n" });
+  const store = storeAt(dir);
+  const begun = store.begin("apply", value, planHash(value));
+  if (!begun.ok) throw new Error(begun.finding.code);
+  store.start(begun.value, 0, true, 0o644);
+  writeFileSync(tempPath(path, begun.value, 0), "TOKEN=2\n");
+  store.close();
+  const reopened = storeAt(dir);
+  recover(reopened);
+  expect(readdirSync(root).filter((name) => name.includes(".cedarloom-"))).toEqual([]);
+  reopened.close();
+});

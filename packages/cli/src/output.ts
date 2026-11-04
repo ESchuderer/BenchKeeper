@@ -1,5 +1,5 @@
 import { type Finding, findingInfo, type Plan } from "@cedarloom/contracts";
-import { planHash } from "@cedarloom/ledger";
+import { planHash, sha256 } from "@cedarloom/ledger";
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -34,6 +34,16 @@ export const fail = (ctx: Context, format: string, findings: Finding[], code: nu
   report(ctx, findings);
   return code;
 };
+
+/** A plan as previews show it: no file contents, which can hold secrets, but their size and hash. */
+export const planSummary = (plan: Plan): Record<string, unknown> => ({
+  schemaVersion: plan.schemaVersion,
+  operations: plan.operations.map((op) => {
+    if (op.kind === "delete") return op;
+    const { content, ...rest } = op;
+    return { ...rest, after: sha256(content), bytes: Buffer.byteLength(content) };
+  }),
+});
 
 export const showPlan = (plan: Plan): string => {
   const lines = plan.operations.map((op) => {

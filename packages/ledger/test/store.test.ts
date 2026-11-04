@@ -225,3 +225,30 @@ test.skipIf(process.platform === "win32")(
     expect([statSync(dir).mode & 0o777, statSync(join(dir, "runs.sqlite")).mode & 0o777]).toEqual([0o755, 0o600]);
   },
 );
+
+test("a view tells which runs are left to deal with: interrupted or failed, not undone, and undo runs whose target is not undone", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  const begin = (kind: "apply" | "undo", undoes: string | null = null): string => {
+    const id = store.begin(kind, plan, planHash(plan), undoes);
+    if (!id.ok) throw new Error(id.finding.code);
+    return id.value;
+  };
+  const failed = begin("apply");
+  store.finish(failed, "failed");
+  const stopped = begin("undo", failed);
+  store.close();
+  open.length = 0;
+  const view = openRunView(dir);
+  if (!view.ok || view.value === null) throw new Error("no view");
+  expect(view.value.current().map((run) => run.status)).toEqual(["interrupted", "failed"]);
+  expect(view.value.problems()).toEqual([
+    { code: "run.interrupted", params: { runId: stopped, undoes: failed } },
+    { code: "run.failed", params: { runId: failed, undoes: null } },
+  ]);
+  const again = opened(dir);
+  const undone = again.begin("undo", plan, planHash(plan), failed);
+  again.finish(undone.ok ? undone.value : "", "applied");
+  expect(view.value.problems()).toEqual([]);
+  view.value.close();
+});

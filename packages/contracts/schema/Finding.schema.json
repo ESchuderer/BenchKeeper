@@ -490,10 +490,17 @@
           "properties": {
             "runId": {
               "type": "string"
+            },
+            "undoes": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
-            "runId"
+            "runId",
+            "undoes"
           ],
           "additionalProperties": false
         }
@@ -516,10 +523,17 @@
           "properties": {
             "runId": {
               "type": "string"
+            },
+            "undoes": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
-            "runId"
+            "runId",
+            "undoes"
           ],
           "additionalProperties": false
         }

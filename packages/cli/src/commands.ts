@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { type Finding, findingInfo, Plan, readDocument } from "@cedarloom/contracts";
 import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
-import { openRunStore, openRunView, planHash, type Run, type RunStore, type RunView } from "@cedarloom/ledger";
-import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
+import { openRunStore, openRunView, planHash, type RunStore, type RunView } from "@cedarloom/ledger";
+import { type Context, EXIT, emit, fail, planSummary, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
   let text: string;
@@ -53,9 +53,10 @@ const withView = (ctx: Context, work: (view: RunView | null) => number): number 
   }
 };
 
-const result = (ctx: Context, outcome: Outcome, skipped: Finding[] = []): number => {
+const result = (ctx: Context, outcome: Outcome, skipped: Finding[] = [], undoes: string | null = null): number => {
   const { runId, status } = outcome;
-  const stopped: Finding[] = status === "failed" && runId !== null ? [{ code: "run.failed", params: { runId } }] : [];
+  const stopped: Finding[] =
+    status === "failed" && runId !== null ? [{ code: "run.failed", params: { runId, undoes } }] : [];
   const findings = [...skipped, ...outcome.findings, ...stopped];
   emit(ctx, "run", { runId, status, findings }, status === "applied" ? `Run ${runId} applied.` : "");
   report(ctx, findings);
@@ -77,7 +78,7 @@ const ask = (plan: Plan): string =>
 export const plansShow = (ctx: Context, path: string): number => {
   const plan = loadPlan(ctx, path);
   if (typeof plan === "number") return plan;
-  emit(ctx, "plan", { planHash: planHash(plan), plan }, showPlan(plan));
+  emit(ctx, "plan", { planHash: planHash(plan), plan: planSummary(plan) }, showPlan(plan));
   return EXIT.ok;
 };
 
@@ -86,20 +87,16 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
   if (typeof plan === "number") return plan;
   const approved = approvedHash(approval, plan);
   if (approved === undefined) {
-    emit(ctx, "plan", { planHash: planHash(plan), plan }, ask(plan));
+    emit(ctx, "plan", { planHash: planHash(plan), plan: planSummary(plan) }, ask(plan));
     return EXIT.ok;
   }
   if (!ctx.json) ctx.io.out(`${showPlan(plan)}\n`);
   return withStore(ctx, (store) => result(ctx, apply(store, plan, approved)));
 };
 
-/** A run a dead process left running shows as interrupted, also before a store opened and marked it. */
-const statusOf = (run: Run, held: boolean): string => (run.status === "running" && !held ? "interrupted" : run.status);
-
 export const runsList = (ctx: Context): number =>
   withView(ctx, (view) => {
-    const held = view?.held() ?? false;
-    const runs = (view?.runs() ?? []).map((run) => ({ ...run, status: statusOf(run, held) }));
+    const runs = view?.current() ?? [];
     const lines = runs.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
     emit(ctx, "runs", { runs }, lines.length > 0 ? lines.join("\n") : "No runs yet.");
     return EXIT.ok;
@@ -110,7 +107,7 @@ export const runsShow = (ctx: Context, runId: string): number =>
     const detail = view?.run(runId);
     if (view === null || detail === undefined)
       return fail(ctx, "run", [{ code: "run.not-found", params: { runId } }], EXIT.refused);
-    const run = { ...detail.run, status: statusOf(detail.run, view.held()) };
+    const run = view.current().find((current) => current.id === runId) ?? detail.run;
     const steps = detail.steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);
     emit(
       ctx,
@@ -130,7 +127,7 @@ const previewUndo = (ctx: Context, runId: string): number =>
     emit(
       ctx,
       "plan",
-      { planHash: plan && planHash(plan), plan, findings: skipped },
+      { planHash: plan && planHash(plan), plan: plan && planSummary(plan), findings: skipped },
       plan ? ask(plan) : "Nothing to undo.",
     );
     report(ctx, skipped);
@@ -150,31 +147,15 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
     }
     if (!ctx.json) ctx.io.out(`${showPlan(plan)}\n`);
     const approved = approvedHash(approval, plan) ?? "";
-    return result(ctx, apply(store, plan, approved, { kind: "undo", undoes: runId }), skipped);
+    return result(ctx, apply(store, plan, approved, { kind: "undo", undoes: runId }), skipped, runId);
   });
-};
-
-/** Interrupted and failed runs that no applied undo run has undone. */
-const runFindings = (view: RunView): Finding[] => {
-  const held = view.held();
-  const runs = view.runs();
-  const undone = new Set(
-    runs.filter((run) => run.kind === "undo" && run.status === "applied").map((run) => run.undoes),
-  );
-  return runs
-    .filter((run) => !undone.has(run.id))
-    .flatMap((run): Finding[] => {
-      const status = statusOf(run, held);
-      if (status === "interrupted") return [{ code: "run.interrupted", params: { runId: run.id } }];
-      return status === "failed" ? [{ code: "run.failed", params: { runId: run.id } }] : [];
-    });
 };
 
 export const doctor = (ctx: Context): number => {
   const view = openRunView(ctx.state);
   const findings: Finding[] = view.ok ? [] : [view.finding];
   if (view.ok && view.value !== null) {
-    findings.push(...runFindings(view.value));
+    findings.push(...view.value.problems());
     view.value.close();
   }
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");

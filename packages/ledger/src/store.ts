@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { canonicalJson, PLAN_SCHEMA_VERSION, Plan, type Result, readDocument } from "@cedarloom/contracts";
+import {
+  canonicalJson,
+  type Finding,
+  PLAN_SCHEMA_VERSION,
+  Plan,
+  type Result,
+  readDocument,
+} from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
 import { Run, Step, TABLES } from "./rows.ts";
@@ -66,20 +73,56 @@ export class RunView {
     return join(this.dir, "backups", runId, String(index));
   }
 
-  /** Whether a process holds the store now; when none does, a run still marked running was interrupted. */
-  held(): boolean {
+  /**
+   * Runs `read` with whether a process holds the store. When none does, the probe keeps a shared lock until `read`
+   * returns: a process opening the store for writing waits it out (see openRunStore), so a run cannot start between
+   * the probe and the read and look interrupted.
+   */
+  #probe<T>(read: (held: boolean) => T): T {
     const path = join(this.dir, "lock.sqlite");
-    if (!existsSync(path)) return false;
-    // A shared lock for one read: a process opening the store for writing waits it out (see openRunStore).
+    if (!existsSync(path)) return read(false);
     const lock = new DatabaseSync(path, { readOnly: true });
     try {
-      lock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master; ROLLBACK");
-      return false;
-    } catch {
-      return true;
+      let held = false;
+      try {
+        lock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master");
+      } catch {
+        held = true;
+      }
+      return read(held);
     } finally {
       lock.close();
     }
+  }
+
+  /** Whether a process holds the store now; when none does, a run still marked running was interrupted. */
+  held(): boolean {
+    return this.#probe((held) => held);
+  }
+
+  /** The runs, newest first, as they stand: one still marked running while no process holds the store is interrupted. */
+  current(): Run[] {
+    return this.#probe((held) =>
+      this.runs().map((run) => (run.status === "running" && !held ? { ...run, status: "interrupted" } : run)),
+    );
+  }
+
+  /**
+   * Interrupted and failed runs left to deal with: not undone by an applied undo run, and for an undo run, its
+   * target not undone by another one.
+   */
+  problems(): Finding[] {
+    const runs = this.current();
+    const undone = new Set(
+      runs.filter((run) => run.kind === "undo" && run.status === "applied").map((run) => run.undoes),
+    );
+    return runs
+      .filter((run) => !undone.has(run.id) && !(run.undoes !== null && undone.has(run.undoes)))
+      .flatMap((run): Finding[] => {
+        const params = { runId: run.id, undoes: run.undoes };
+        if (run.status === "interrupted") return [{ code: "run.interrupted", params }];
+        return run.status === "failed" ? [{ code: "run.failed", params }] : [];
+      });
   }
 
   close(): void {

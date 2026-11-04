@@ -47,7 +47,10 @@ test("plans show prints the plan and its hash, and writes nothing", async () => 
     format: "cedarloom.plan",
     schemaVersion: 1,
     planHash: planHash(plan),
-    plan,
+    plan: {
+      schemaVersion: 1,
+      operations: [{ kind: "write", path: join(root, "notes.md"), before: null, after: sha256("hello\n"), bytes: 6 }],
+    },
   });
   expect(existsSync(state)).toBe(false);
 });
@@ -177,12 +180,20 @@ test("the state folder comes from CEDARLOOM_STATE_DIR, then XDG_STATE_HOME, then
   expect(stateDir({ CEDARLOOM_STATE_DIR: "/s" })).toBe("/s");
   expect(stateDir({ XDG_STATE_HOME: "/x" })).toBe(join("/x", "cedarloom"));
   expect(stateDir({})).toMatch(/[/\\]\.local[/\\]state[/\\]cedarloom$/);
+  // Empty and relative values are unset (XDG Base Directory spec), so the store never lands in the current folder.
+  for (const env of [
+    { CEDARLOOM_STATE_DIR: "", XDG_STATE_HOME: "" },
+    { CEDARLOOM_STATE_DIR: "state", XDG_STATE_HOME: "x" },
+  ]) {
+    expect(stateDir(env)).toBe(stateDir({}));
+  }
 });
 
 test("every finding code has an English sentence", () => {
   const examples = Finding.options.map((option) => option.shape.code.value);
   const params: Record<string, Record<string, unknown>> = {
     "document.invalid": { issues: [{ path: "", code: "invalid_json" }] },
+    "plan.chain-broken": { path: "/a.md", index: 1, expected: sha256("a"), found: null },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });
@@ -225,15 +236,17 @@ test("a replaced file shows as a replace, and an unreadable store is an internal
 
 test("a run that stops midway names itself and the undo; doctor reports it until it is undone", async () => {
   const { root, cli } = setup();
-  const path = join(root, "a.md");
-  const broken: Plan = {
+  const [path, binary] = [join(root, "a.md"), join(root, "b.bin")];
+  writeFileSync(binary, Buffer.from([0xff, 0x00]));
+  // The second operation stops at its backup: CedarLoom changes text files only.
+  const stopping: Plan = {
     schemaVersion: 1,
     operations: [
       { kind: "write", path, before: null, content: "1\n" },
-      { kind: "write", path, before: sha256("2\n"), content: "3\n" },
+      { kind: "write", path: binary, before: sha256(Buffer.from([0xff, 0x00])), content: "3\n" },
     ],
   };
-  const stopped = await cli("plans", "apply", planFile(root, broken), "--yes");
+  const stopped = await cli("plans", "apply", planFile(root, stopping), "--yes");
   const runId = /Run (\S+) stopped before its end/.exec(stopped.err)?.[1] ?? "";
   expect([
     stopped.code,
@@ -269,4 +282,47 @@ test("with --json, usage and internal errors print a JSON error object", async (
     schemaVersion: 1,
     error: "usage",
   });
+});
+
+test("JSON previews leave file contents out: a backed-up token never reaches stdout", async () => {
+  const { root, cli } = setup();
+  const env = join(root, ".env.local");
+  writeFileSync(env, "TOKEN=secret-123\n");
+  const plan: Plan = {
+    schemaVersion: 1,
+    operations: [{ kind: "write", path: env, before: sha256("TOKEN=secret-123\n"), content: "TOKEN=secret-456\n" }],
+  };
+  const file = planFile(root, plan);
+  for (const argv of [
+    ["plans", "show", file],
+    ["plans", "apply", file],
+  ]) {
+    expect((await cli("--json", ...argv)).out).not.toMatch(/secret/);
+  }
+  await cli("plans", "apply", file, "--yes");
+  const runId =
+    z.array(z.object({ id: z.string() })).parse(json((await cli("--json", "runs", "list")).out)["runs"])[0]?.id ?? "";
+  const preview = await cli("--json", "runs", "undo", runId);
+  expect(preview.out).not.toMatch(/secret/);
+  expect(json(preview.out)).toMatchObject({
+    plan: { operations: [{ path: env, after: sha256("TOKEN=secret-123\n"), bytes: 17 }] },
+  });
+});
+
+test("a plan whose chain of edits breaks is refused with exit 1 and writes nothing", async () => {
+  const { root, cli } = setup();
+  const path = join(root, "a.md");
+  const broken: Plan = {
+    schemaVersion: 1,
+    operations: [
+      { kind: "write", path, before: null, content: "1\n" },
+      { kind: "write", path, before: sha256("2\n"), content: "3\n" },
+    ],
+  };
+  const refused = await cli("plans", "apply", planFile(root, broken), "--yes");
+  expect([
+    refused.code,
+    refused.err.includes("the plan is inconsistent and nothing was written"),
+    existsSync(path),
+  ]).toEqual([EXIT.refused, true, false]);
 });

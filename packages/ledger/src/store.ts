@@ -9,7 +9,7 @@ import { Run, Step, TABLES } from "./rows.ts";
 
 const SCHEMA = 1;
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
-const STEP_COLUMNS = `"index", path, before, after, state, backup, mode`;
+const STEP_COLUMNS = `"index", path, before, after, state, backedUp, mode`;
 
 export interface RunDetail {
   run: Run;
@@ -65,7 +65,7 @@ export class RunStore {
       this.#db
         .prepare("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, NULL)")
         .run(id, kind, undoes, canonicalJson(plan), hash, approvedHash, this.epoch, now());
-      const step = this.#db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL)");
+      const step = this.#db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL)");
       plan.operations.forEach((op, index) => {
         step.run(id, index, op.path, op.before, op.kind === "write" ? sha256(op.content) : null);
       });
@@ -73,11 +73,11 @@ export class RunStore {
     return { ok: true, value: id };
   }
 
-  /** Journals a step as started, with its backup file (null: nothing to back up) and the mode of the file it replaces. */
-  start(runId: string, index: number, backup: string | null, mode: number | null): void {
+  /** Journals a step as started: whether its file was backed up, and the mode of that file. */
+  start(runId: string, index: number, backedUp: boolean, mode: number | null): void {
     this.#db
-      .prepare(`UPDATE steps SET state = 'running', backup = ?, mode = ? WHERE runId = ? AND "index" = ?`)
-      .run(backup, mode, runId, index);
+      .prepare(`UPDATE steps SET state = 'running', backedUp = ?, mode = ? WHERE runId = ? AND "index" = ?`)
+      .run(backedUp ? 1 : 0, mode, runId, index);
   }
 
   settle(runId: string, index: number, state: "done" | "skipped"): void {
@@ -101,7 +101,11 @@ export class RunStore {
     const plan = readDocument(Plan, 1, JSON.parse(String(row["plan"])));
     if (!plan.ok) throw new Error(`run ${id}: stored plan unreadable (${plan.finding.code})`);
     const steps = this.#db.prepare(`SELECT ${STEP_COLUMNS} FROM steps WHERE runId = ? ORDER BY "index"`).all(id);
-    return { run: Run.parse(row), plan: plan.value, steps: steps.map((step) => Step.parse(step)) };
+    return {
+      run: Run.parse(row),
+      plan: plan.value,
+      steps: steps.map((step) => Step.parse({ ...step, backedUp: step["backedUp"] === 1 })),
+    };
   }
 
   /** Where the backup of a step's file goes: inside this store's folder only. */

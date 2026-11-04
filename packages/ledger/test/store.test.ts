@@ -125,14 +125,17 @@ test("a run records its plan, approval and pending steps together; another plan'
       { index: 1, path: "/b", before: sha256("b\n"), after: null, state: "pending" },
     ],
   });
-  store.start(id.value, 0, null, null);
+  store.start(id.value, 0, false, null);
   store.settle(id.value, 0, "done");
-  store.start(id.value, 1, store.backupPath(id.value, 1), 0o644);
+  store.start(id.value, 1, true, 0o644);
   store.settle(id.value, 1, "skipped");
   store.finish(id.value, "failed");
   expect(store.run(id.value)).toMatchObject({
     run: { status: "failed" },
-    steps: [{ state: "done" }, { state: "skipped", mode: 0o644 }],
+    steps: [
+      { state: "done", backedUp: false },
+      { state: "skipped", backedUp: true, mode: 0o644 },
+    ],
   });
   expect(store.run("missing")).toBeUndefined();
 });

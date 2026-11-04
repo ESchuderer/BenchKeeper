@@ -709,14 +709,15 @@ test('a dangling state link is unreadable, not a missing setup', () => {
 test('the project block carries every rule that left the global file; bare skill names without plugin agents', () => {
   const before = read(new URL('./fixtures/rules-before-190.md', import.meta.url).pathname).split('\n').filter((l) => l.startsWith('- '));
   const global = read(join(contentDir, 'rules/global.md')).split('\n');
-  const moved = before.filter((l) => !global.includes(l));
-  assert.equal(moved.length, 3, 'workflow load, open questions and fix the cause moved');
+  // A rule may be reworded later, in either file; its trigger (the text before the first comma) stays.
+  const trigger = (l) => l.split(',')[0];
+  const moved = before.filter((l) => !global.some((g) => g.startsWith(trigger(l))));
+  assert.deepEqual(moved.map(trigger), ['- Before changing a repository', '- When goal', '- When a check fails'], 'workflow load, open questions and fix the cause moved');
   const r = repo();
   const { changes } = plan(r, { agents: ['claude'], env: 'host', share: true });
   assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.map((c) => c.id) }).status, 'done');
   const block = read(join(r.dir, 'AGENTS.md'));
-  // A moved rule may be reworded later; its trigger (the text before the first comma) stays.
-  for (const l of moved) assert.ok(block.includes(l.split(',')[0]), l);
+  for (const l of moved) assert.ok(block.includes(trigger(l)), l);
   const g = repo();
   const gp = plan(g, { agents: ['gemini'], env: 'host', share: true }).changes;
   apply(preview(gp), g.ctx, { scope: g.dir, select: gp.map((c) => c.id) });

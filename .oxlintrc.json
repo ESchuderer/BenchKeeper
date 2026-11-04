@@ -28,6 +28,18 @@
     {
       "files": ["packages/contracts/src/**"],
       "rules": {
+        "no-restricted-globals": [
+          "error",
+          "window",
+          "document",
+          "navigator",
+          "location",
+          "localStorage",
+          "sessionStorage",
+          "fetch",
+          "XMLHttpRequest",
+          "indexedDB"
+        ],
         "no-restricted-imports": [
           "error",
           {

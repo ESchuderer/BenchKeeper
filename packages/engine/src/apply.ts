@@ -28,16 +28,36 @@ const targetProblem = (op: Operation, actual: string | null): Finding | undefine
   return undefined;
 };
 
-/** Paths absolute and normalized, no symlink targets, and each path's first operation matching the file now. */
+/** A path's first operation: an absolute, normalized path to a regular file (or none) that hashes as the plan expects. */
+const firstProblem = (op: Operation): Finding | undefined => {
+  if (!isAbsolute(op.path) || resolve(op.path) !== op.path)
+    return { code: "plan.path-not-absolute", params: { path: op.path } };
+  try {
+    return targetProblem(op, hashFile(op.path));
+  } catch (error) {
+    return { code: "plan.not-a-file", params: { path: op.path, error: errorCode(error) } };
+  }
+};
+
+/**
+ * Every operation before anything is written: a path's first one against the file now, each later one against the
+ * hash the operations before it leave, so a plan whose chain breaks writes nothing.
+ */
+const operationProblem = (op: Operation, index: number, expected: string | null | undefined): Finding | undefined => {
+  if (expected === undefined) return firstProblem(op);
+  if (op.before === expected) return undefined;
+  return { code: "plan.chain-broken", params: { path: op.path, index, expected, found: op.before } };
+};
+
 const planProblems = (plan: Plan): Finding[] => {
-  const first = new Map<string, Operation>();
-  for (const op of plan.operations) if (!first.has(op.path)) first.set(op.path, op);
-  return [...first.values()].flatMap((op): Finding[] => {
-    if (!isAbsolute(op.path) || resolve(op.path) !== op.path)
-      return [{ code: "plan.path-not-absolute", params: { path: op.path } }];
-    const problem = targetProblem(op, hashFile(op.path));
-    return problem === undefined ? [] : [problem];
-  });
+  const next = new Map<string, string | null>();
+  const problems: Finding[] = [];
+  for (const [index, op] of plan.operations.entries()) {
+    const problem = operationProblem(op, index, next.get(op.path));
+    if (problem !== undefined) problems.push(problem);
+    next.set(op.path, op.kind === "write" ? sha256(op.content) : null);
+  }
+  return problems;
 };
 
 interface Run {
@@ -58,8 +78,7 @@ const change = (run: Run, index: number, op: Operation, mode: number | null): Fi
     return undefined;
   } catch (error) {
     const code = errorCode(error);
-    if (code !== "EEXIST" && code !== "ECHANGED")
-      return { code: "apply.write-failed", params: { path: op.path, error: code } };
+    if (code !== "ECHANGED") return { code: "apply.write-failed", params: { path: op.path, error: code } };
     return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
   }
 };
@@ -84,7 +103,7 @@ const step = (run: Run, index: number, op: Operation): Finding | undefined => {
   const mode = backup(run, index, op);
   if (mode !== null && typeof mode === "object") return mode;
   onPhase(index, "backed-up");
-  store.start(runId, index, op.before !== null, mode);
+  store.start(runId, index, mode);
   onPhase(index, "journaled");
   const failed = change(run, index, op, mode);
   if (failed !== undefined) return failed;
@@ -110,9 +129,9 @@ const steps = (run: Run, plan: Plan): Finding | undefined => {
 export const apply = (store: RunStore, plan: Plan, approvedHash: string, options: ApplyOptions = {}): Outcome => {
   const problems = planProblems(plan);
   if (problems.length > 0) return { runId: null, status: "refused", findings: problems };
-  store.prune(BACKUP_DAYS);
   const begun = store.begin(options.kind ?? "apply", plan, approvedHash, options.undoes ?? null);
   if (!begun.ok) return { runId: null, status: "refused", findings: [begun.finding] };
+  store.prune(BACKUP_DAYS);
   const runId = begun.value;
   let finding: Finding | undefined;
   try {

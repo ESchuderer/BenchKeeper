@@ -31,6 +31,12 @@ export function playwrightDrift(dockerfile, packages) {
   return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 
+// Dependabot raises pnpm in .github/pnpm (the CedarLoom CI) but not the pnpm the dev container installs.
+export function pnpmDrift(dockerfile, pinned) {
+  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bpnpm@(\S+)/)?.[1];
+  return { image, drift: image !== pinned };
+}
+
 if (isMain(import.meta.url)) {
   const { version } = JSON.parse(readFileSync(`${root}/app/package.json`, 'utf8'));
   const files = execFileSync('/usr/bin/git', ['ls-files', '*.md', '*.json', '*.tsx'], { cwd: root, encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
@@ -63,6 +69,12 @@ if (isMain(import.meta.url)) {
     }
     if (drift.length) {
       console.log(`::error::@playwright/test in ${drift.join(', ')} differs from playwright@${image} in .devcontainer/Dockerfile: set them equal`);
+      process.exit(1);
+    }
+    const pinned = JSON.parse(readFileSync(`${root}/.github/pnpm/package.json`, 'utf8')).dependencies?.pnpm;
+    const pnpm = pnpmDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), pinned);
+    if (pnpm.drift) {
+      console.log(`::error::pnpm@${pnpm.image} in .devcontainer/Dockerfile differs from pnpm ${pinned} in .github/pnpm/package.json: set them equal`);
       process.exit(1);
     }
   }

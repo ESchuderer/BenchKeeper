@@ -33,8 +33,11 @@ export const DeleteFile = z
 export const Operation = z.discriminatedUnion("kind", [WriteFile, DeleteFile]).register(contracts, { id: "Operation" });
 export type Operation = z.infer<typeof Operation>;
 
+/** The plan format this CedarLoom writes and reads; readers refuse a newer one. */
+export const PLAN_SCHEMA_VERSION = 1;
+
 /** A reviewable change: applied as approved, identified by the hash of its canonical JSON. */
 export const Plan = z
-  .strictObject({ schemaVersion: z.literal(1), operations: z.array(Operation).min(1) })
+  .strictObject({ schemaVersion: z.literal(PLAN_SCHEMA_VERSION), operations: z.array(Operation).min(1) })
   .register(contracts, { id: "Plan" });
 export type Plan = z.infer<typeof Plan>;

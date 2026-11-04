@@ -19,8 +19,6 @@ export const Step = z.object({
   before: z.string().nullable(),
   after: z.string().nullable(),
   state: z.enum(["pending", "running", "done", "skipped"]),
-  /** Whether the file was backed up; the backup is always `backupPath(runId, index)` in the store folder. */
-  backedUp: z.boolean(),
   mode: z.int().nullable(),
 });
 export type Step = z.infer<typeof Step>;
@@ -47,7 +45,6 @@ CREATE TABLE steps (
   before TEXT,
   after TEXT,
   state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'done', 'skipped')),
-  backedUp INTEGER NOT NULL CHECK (backedUp IN (0, 1)),
   mode INTEGER,
   PRIMARY KEY (runId, "index")
 ) STRICT;

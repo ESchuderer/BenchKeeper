@@ -33,6 +33,8 @@ test('the dev container pnpm must equal the pnpm .github/pnpm pins for CI', () =
   assert.deepEqual(pnpmDrift(dockerfile, '12.16.1'), { image: '12.16.1', drift: false });
   assert.deepEqual(pnpmDrift(dockerfile, '12.17.0'), { image: '12.16.1', drift: true });
   assert.deepEqual(pnpmDrift('no pnpm', '12.16.1'), { image: undefined, drift: true });
+  // Docker drops comment lines, then joins continued lines: the version may sit on a later line of the same RUN.
+  assert.equal(pnpmDrift('RUN npm i -g --ignore-scripts \\\n  # pnpm@11.0.0 was here\n  pnpm@12.16.1 && npm cache clean --force', '12.16.1').image, '12.16.1');
 });
 
 test('minApp follows the release app version; other versions in content.json stay', () => {

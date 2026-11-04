@@ -1,5 +1,6 @@
-# node:22.23.4-bookworm-slim, the same Node as CI
-FROM docker.io/library/node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+# node:26.13.0-bookworm-slim, the Node of the CedarLoom packages (.github/workflows/cedarloom.yml). BenchKeeper's own CI
+# stays on Node 22.23.4 (checks.yml and the others), which app/ and web/ still support (engines >=22).
+FROM docker.io/library/node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9
 
 # shortcut: exact Debian versions stop resolving after the next bookworm security release; bump them when the build fails
 RUN apt-get update \
@@ -16,5 +17,9 @@ RUN npm i -g --ignore-scripts --prefix /usr/local @playwright/mcp@0.0.83 \
   && npm i -g --ignore-scripts --prefix /tmp/pw playwright@1.64.1 && node /tmp/pw/lib/node_modules/playwright/cli.js install --only-shell chromium \
   && chown -R node:node /ms-playwright \
   && npm cache clean --force && rm -rf /tmp/pw /var/lib/apt/lists/*
+
+# pnpm for the CedarLoom workspace, the version .github/pnpm/package-lock.json pins for CI (keep both equal); its
+# platform binary comes as an optional dependency, so no install script runs
+RUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && npm cache clean --force
 
 USER node

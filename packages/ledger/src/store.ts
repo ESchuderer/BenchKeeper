@@ -274,7 +274,9 @@ export const openRunView = (dir: string): Result<RunView | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   const found = versionOf(db);
-  if (found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
+  if (found > 0 && found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
   db.close();
+  // Version 0: a first open created the file but not (yet) its schema, so no run was ever recorded.
+  if (found === 0) return { ok: true, value: null };
   return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
 };

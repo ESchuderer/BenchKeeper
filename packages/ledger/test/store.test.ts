@@ -197,6 +197,12 @@ test("a view reads the runs while another store holds them, changes no run data 
   expect(opened(dir).epoch).toBe(store.epoch + 1);
 });
 
+test("a view treats a store whose schema was never created (a first open cut off) as one without runs", () => {
+  const dir = fresh();
+  new DatabaseSync(join(dir, "runs.sqlite")).close();
+  expect(openRunView(dir)).toEqual({ ok: true, value: null });
+});
+
 test("a view refuses a store written by a newer CedarLoom", () => {
   const dir = fresh();
   opened(dir).close();

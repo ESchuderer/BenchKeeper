@@ -63,7 +63,10 @@ export class RunStore {
     const id = randomUUID();
     transaction(this.#db, () => {
       this.#db
-        .prepare("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, NULL)")
+        .prepare(
+          `INSERT INTO runs (id, kind, undoes, plan, planHash, approvedHash, status, epoch, startedAt)
+           VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)`,
+        )
         .run(id, kind, undoes, canonicalJson(plan), hash, approvedHash, this.epoch, now());
       const step = this.#db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', NULL)");
       plan.operations.forEach((op, index) => {
@@ -116,18 +119,23 @@ export class RunStore {
   /**
    * Deletes the backups of runs started more than `days` days ago and blanks the file contents in their stored plans,
    * so a rotated secret stays in neither; paths and hashes remain, and undo of such a run reports the missing backup.
+   * Each run is pruned once, all in one transaction.
    */
   prune(days: number): string[] {
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
-    const rows = this.#db.prepare("SELECT id, plan FROM runs WHERE startedAt < ?").all(cutoff);
-    const blank = this.#db.prepare("UPDATE runs SET plan = ? WHERE id = ?");
-    for (const row of rows) {
-      const id = String(row["id"]);
-      rmSync(join(this.dir, "backups", id), { recursive: true, force: true });
-      const plan: unknown = JSON.parse(String(row["plan"]), (key, value: unknown) => (key === "content" ? "" : value));
-      blank.run(JSON.stringify(plan), id);
-    }
-    return rows.map((row) => String(row["id"]));
+    return transaction(this.#db, () => {
+      const rows = this.#db.prepare("SELECT id, plan FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
+      const blank = this.#db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
+      for (const row of rows) {
+        const id = String(row["id"]);
+        rmSync(join(this.dir, "backups", id), { recursive: true, force: true });
+        const plan: unknown = JSON.parse(String(row["plan"]), (key, value: unknown) =>
+          key === "content" ? "" : value,
+        );
+        blank.run(JSON.stringify(plan), id);
+      }
+      return rows.map((row) => String(row["id"]));
+    });
   }
 
   close(): void {

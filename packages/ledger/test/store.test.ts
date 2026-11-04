@@ -147,6 +147,7 @@ test("run ids do not repeat, and prune drops the backups of old runs only", () =
   expect(store.runs()).toHaveLength(50);
   expect(store.prune(90)).toEqual([]);
   expect(store.prune(-1)).toHaveLength(50);
+  expect(store.prune(-1)).toEqual([]);
   const first = ids[0]?.ok ? ids[0].value : "";
   expect(store.run(first)?.plan.operations[0]).toEqual({ kind: "write", path: "/a", before: null, content: "" });
 });

@@ -78,6 +78,15 @@ export const backUp = (path: string, dest: string): { hash: string | null; mode:
   return { hash: sha256(bytes), mode: statSync(path).mode & 0o7777, text: isUtf8(bytes) };
 };
 
+/** Links a new file in; a file that appeared at the path meanwhile is a change, not a write error. */
+const link = (temp: string, path: string): void => {
+  try {
+    linkSync(temp, path);
+  } catch (error) {
+    throw errorCode(error) === "EEXIST" ? changed() : error;
+  }
+};
+
 export interface Target {
   path: string;
   /** Hash the file must still have right before the write; null: it must not exist. */
@@ -101,7 +110,7 @@ export const writeAtomic = ({ path, before, temp }: Target, content: string, mod
     } finally {
       closeSync(fd);
     }
-    if (before === null) linkSync(temp, path);
+    if (before === null) link(temp, path);
     else if (hashFile(path) === before) renameSync(temp, path);
     else throw changed();
   } finally {

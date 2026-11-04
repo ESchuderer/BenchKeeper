@@ -54,10 +54,13 @@ test("recovery removes the temporary file a step killed inside its write left ne
   const store = storeAt(dir);
   const begun = store.begin("apply", value, planHash(value));
   if (!begun.ok) throw new Error(begun.finding.code);
-  store.start(begun.value, 0, true, 0o644);
-  writeFileSync(tempPath(path, begun.value, 0), "TOKEN=2\n");
+  store.start(begun.value, 0, 0o644);
   store.close();
+  // An earlier open marked the run interrupted and the process died before recover ran.
+  storeAt(dir).close();
+  writeFileSync(tempPath(path, begun.value, 0), "TOKEN=2\n");
   const reopened = storeAt(dir);
+  expect(reopened.interrupted).toEqual([]);
   recover(reopened);
   expect(readdirSync(root).filter((name) => name.includes(".cedarloom-"))).toEqual([]);
   reopened.close();

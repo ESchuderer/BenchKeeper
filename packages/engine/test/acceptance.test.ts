@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, wr
 import { join, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Operation } from "@cedarloom/contracts";
-import { apply, hashFile } from "@cedarloom/engine";
+import { apply, hashFile, tempPath } from "@cedarloom/engine";
 import { planHash } from "@cedarloom/ledger";
 import { afterEach, expect, test } from "vitest";
 import { hash, modeOf, plan, read, run, storeAt, undo, workspace } from "./helpers.ts";
@@ -106,9 +106,42 @@ test.each(["edited", "deleted"])("a file %s during the run is not overwritten: t
   expect([read(a), existsSync(b) ? read(b) : null]).toEqual(["A\n", change === "edited" ? "edited\n" : null]);
 });
 
-test("a folder where a plan expects a file is an error, never a write", () => {
+test("a folder where a plan expects a file is refused with a finding, never a write", () => {
   const { store, root } = fresh();
-  expect(() => run(store, plan({ kind: "write", path: root, before: null, content: "x" }))).toThrow(/EISDIR|EPERM/);
+  expect(run(store, plan({ kind: "write", path: root, before: null, content: "x" }))).toMatchObject({
+    status: "refused",
+    findings: [{ code: "plan.not-a-file", params: { path: root } }],
+  });
+  expect(store.runs()).toEqual([]);
+});
+
+test("a plan whose chain of edits to one file breaks is refused before any operation is written", () => {
+  const { store, file } = fresh();
+  const [a, b] = [file("a.md", "a\n"), file("b.md")];
+  const broken = plan(
+    { kind: "write", path: a, before: hash("a\n"), content: "A\n" },
+    { kind: "write", path: b, before: null, content: "b\n" },
+    { kind: "write", path: a, before: hash("a\n"), content: "AA\n" },
+  );
+  expect(run(store, broken)).toEqual({
+    runId: null,
+    status: "refused",
+    findings: [{ code: "plan.chain-broken", params: { path: a, index: 2, expected: hash("A\n"), found: hash("a\n") } }],
+  });
+  expect([read(a), existsSync(b), store.runs()]).toEqual(["a\n", false, []]);
+});
+
+test("a temporary file in the way is a write error, not a change of the target", () => {
+  const { store, file } = fresh();
+  const path = file("new.md");
+  const block = (_: number, phase: string): void => {
+    if (phase === "journaled") writeFileSync(tempPath(path, store.runs()[0]?.id ?? "", 0), "stale");
+  };
+  expect(run(store, plan({ kind: "write", path, before: null, content: "x" }), { onPhase: block })).toMatchObject({
+    status: "failed",
+    findings: [{ code: "apply.write-failed", params: { error: "EEXIST" } }],
+  });
+  expect(existsSync(path)).toBe(false);
 });
 
 test("edits of one file still chain, and undo walks them back", () => {
@@ -133,7 +166,7 @@ test("undo is a run of its own that records each file before it moves anything, 
   const undone = undo(store, applied.runId);
   expect(store.run(undone.runId ?? "")).toMatchObject({
     run: { kind: "undo", undoes: applied.runId, status: "applied" },
-    steps: [{ path, before: hash("ours\n"), after: hash("mine\n"), state: "done", backedUp: true }],
+    steps: [{ path, before: hash("ours\n"), after: hash("mine\n"), state: "done" }],
   });
   expect(undo(store, undone.runId).status).toBe("applied");
   expect(read(path)).toBe("ours\n");
@@ -303,7 +336,10 @@ test("backups of runs older than 90 days go before the next apply; undo of such 
   const db = new DatabaseSync(join(state, "runs.sqlite"));
   db.prepare("UPDATE runs SET startedAt = '2000-01-01T00:00:00.000Z'").run();
   db.close();
-  run(store, plan({ kind: "write", path: file("b.md"), before: null, content: "b\n" }));
+  const other = plan({ kind: "write", path: file("b.md"), before: null, content: "b\n" });
+  expect(apply(store, other, hash("not this plan")).status).toBe("refused");
+  expect(existsSync(store.backupPath(old.runId ?? "", 0))).toBe(true);
+  run(store, other);
   expect(undo(store, old.runId)).toMatchObject({ status: "refused", findings: [{ code: "undo.backup-missing" }] });
 });
 

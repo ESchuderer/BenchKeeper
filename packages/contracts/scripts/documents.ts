@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { contracts } from "@cedarloom/contracts";
+import pkg from "../package.json" with { type: "json" };
 
 const withoutId = (schema: z.core.JSONSchema.BaseSchema): z.core.JSONSchema.BaseSchema => {
   const { $id: _id, $schema: _dialect, ...rest } = schema;
@@ -17,7 +18,7 @@ export const documents = (): Map<string, string> => {
   }).schemas;
   const openapi = {
     openapi: "3.1.1",
-    info: { title: "CedarLoom local API", version: "0.0.0" },
+    info: { title: "CedarLoom local API", version: pkg.version },
     paths: {},
     components: { schemas: Object.fromEntries(Object.entries(components).map(([id, s]) => [id, withoutId(s)])) },
   };

@@ -8,6 +8,7 @@ name: CedarLoom
 # zizmor (checks.yml), the Conventional Commit title (pr-title.yml).
 # shortcut: every job is inline; switch them to the shared reusable workflows, pinned by full commit SHA, once those exist.
 on:
+  # Every label change reruns all gates: a run that skipped them would leave a passing `check` on the head commit.
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
@@ -55,8 +56,10 @@ jobs:
           if [ -z "$BASE" ]; then echo 'filter=*' >> "$GITHUB_OUTPUT"; exit 0; fi
           read -ra paths <<< "$PATHS"
           changed=$(git diff --name-only "$BASE...HEAD" -- "${paths[@]}")
+          # An added or removed package changes the root checks too (release config, solution tsconfig).
+          added=$(git diff --name-only --diff-filter=AD "$BASE...HEAD" -- 'packages/*/package.json')
           if [ -z "$changed" ]; then filter=''
-          elif printf '%s\n' "$changed" | grep -qv '^packages/'; then filter='*'
+          elif [ -n "$added" ] || printf '%s\n' "$changed" | grep -qv '^packages/'; then filter='*'
           else filter="...[$BASE]"; fi
           echo "filter=$filter" | tee -a "$GITHUB_OUTPUT"
 
@@ -158,8 +161,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 
-  # Vulnerabilities and licenses of changed dependencies. The allow-list holds licenses compatible with shipping under
-  # ISC: permissive ones, MPL-2.0 and LGPL by default, EPL-2.0 for elkjs and AFL-2.1 for the libdbus election.
+  # Vulnerabilities and licenses of changed dependencies (checks.yml reviews vulnerabilities only). Allowed: permissive
+  # licenses, MPL-2.0, LGPL-2.1-or-later and LGPL-3.0-or-later, EPL-2.0 (elkjs) and AFL-2.1 (the libdbus license election).
   license-review:
     needs: areas
     if: github.event_name == 'pull_request' && needs.areas.outputs.filter != ''

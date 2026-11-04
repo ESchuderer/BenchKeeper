@@ -7,6 +7,9 @@
     { "type": "linked-versions", "groupName": "cedarloom", "components": ["contracts"] }
   ],
   "packages": {
-    "packages/contracts": { "component": "contracts" }
+    "packages/contracts": {
+      "component": "contracts",
+      "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
+    }
   }
 }

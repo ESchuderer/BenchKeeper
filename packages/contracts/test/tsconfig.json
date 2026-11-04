@@ -4,8 +4,9 @@
     "rootDir": "..",
     "outDir": "../dist/test",
     "emitDeclarationOnly": true,
-    "types": ["node"]
+    "types": ["node"],
+    "resolveJsonModule": true
   },
-  "include": [".", "../scripts"],
+  "include": [".", "../scripts", "../package.json"],
   "references": [{ "path": ".." }]
 }

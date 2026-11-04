@@ -84,6 +84,11 @@ test("a stale plan is refused with exit 1; JSON carries the code and parameters 
 test("unreadable, malformed, invalid and newer plan files exit 66 or 65", async () => {
   const { root, cli } = setup();
   expect((await cli("plans", "show", join(root, "missing.json"))).code).toBe(EXIT.noInput);
+  const missing = await cli("--json", "plans", "apply", join(root, "missing.json"), "--yes");
+  expect([missing.code, json(missing.out)["findings"]]).toEqual([
+    EXIT.noInput,
+    [{ code: "document.unreadable", params: { path: join(root, "missing.json"), error: "ENOENT" } }],
+  ]);
   writeFileSync(join(root, "broken.json"), "{");
   expect((await cli("plans", "show", join(root, "broken.json"))).code).toBe(EXIT.data);
   const invalid = await cli("plans", "show", planFile(root, { schemaVersion: 1, operations: [] }), "--json");

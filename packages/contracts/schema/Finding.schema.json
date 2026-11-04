@@ -7,6 +7,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "document.unreadable"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "document.newer-schema"
         },
         "params": {

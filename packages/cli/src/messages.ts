@@ -12,8 +12,13 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.invalid": (p) =>
     `The document does not match its schema: ${p.issues.map((i) => `${i.path || "(top)"} ${i.code}`).join(", ")}.`,
   "plan.not-approved": (p) => `The approval names plan ${short(p.approvedHash)}, not ${short(p.planHash)}.`,
+  "plan.path-not-absolute": (p) =>
+    `${p.path} is not an absolute, normalized path; plans name every file by its full path.`,
   "plan.file-changed": (p) =>
     `${p.path} changed since the plan was made (${short(p.expected)} expected, ${short(p.actual)} found); make the plan again.`,
+  "apply.symlink": (p) =>
+    `${p.path} is a symbolic link; CedarLoom changes regular files only, so the link stays as it is.`,
+  "apply.not-text": (p) => `${p.path} is not UTF-8 text; CedarLoom changes text files only, so it stays as it is.`,
   "apply.backup-failed": (p) => `The backup of ${p.path} failed (${p.error}); nothing was written to it.`,
   "apply.write-failed": (p) => `Writing ${p.path} failed (${p.error}); the file keeps its old content.`,
   "apply.write-mismatch": (p) =>
@@ -23,7 +28,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
-  "undo.not-text": (p) => `The backup of ${p.path} from run ${p.runId} is not UTF-8 text; nothing was undone.`,
   "store.busy": (p) => `Another CedarLoom process is applying changes in ${p.dir}; try again when it ends.`,
   "store.network-filesystem": (p) =>
     `The state folder ${p.dir} is on a network filesystem (${p.fsType}); use a local folder.`,

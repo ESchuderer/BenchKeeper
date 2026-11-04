@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { type Finding, findingInfo, Plan, readDocument } from "@cedarloom/contracts";
-import { apply, type Outcome, planUndo } from "@cedarloom/engine";
+import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
 import { openRunStore, openRunView, planHash, type Run, type RunStore, type RunView } from "@cedarloom/ledger";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
@@ -9,8 +9,12 @@ const loadPlan = (ctx: Context, path: string): Plan | number => {
   try {
     text = readFileSync(path, "utf8");
   } catch (error) {
-    const code = error instanceof Error && "code" in error ? String(error.code) : "unknown";
-    return fail(ctx, "plan", [{ code: "document.unreadable", params: { path, error: code } }], EXIT.noInput);
+    return fail(
+      ctx,
+      "plan",
+      [{ code: "document.unreadable", params: { path, error: errorCode(error) } }],
+      EXIT.noInput,
+    );
   }
   let json: unknown;
   try {
@@ -31,6 +35,7 @@ const withStore = (ctx: Context, work: (store: RunStore) => number): number => {
   const store = openRunStore(ctx.state);
   if (!store.ok) return fail(ctx, "run", [store.finding], EXIT.refused);
   try {
+    recover(store.value);
     return work(store.value);
   } finally {
     store.value.close();

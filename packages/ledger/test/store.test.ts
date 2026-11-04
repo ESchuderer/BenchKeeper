@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -34,6 +34,7 @@ const opened = (dir: string): RunStore => {
   return store.value;
 };
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const store of open.splice(0)) store.close();
 });
 
@@ -267,6 +268,18 @@ test("a backup path takes a run id only, never a path that leads out of the back
   }
 });
 
+test("prune deletes nothing outside the backups folder, even for a run id an edited journal holds", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.begin("apply", plan, planHash(plan));
+  const db = new DatabaseSync(join(dir, "runs.sqlite"), { enableForeignKeyConstraints: false });
+  db.prepare("UPDATE runs SET id = ?").run("../kept");
+  db.close();
+  mkdirSync(join(dir, "kept"));
+  expect(() => store.prune(-1)).toThrow(TypeError);
+  expect(existsSync(join(dir, "kept"))).toBe(true);
+});
+
 test("a failed open releases the lock, also when the store it finds is broken", () => {
   const dir = fresh();
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
@@ -285,6 +298,5 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
     if (sql === "COMMIT") throw failure;
   });
   expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
-  vi.restoreAllMocks();
   expect(store.runs()).toEqual([]);
 });

@@ -40,6 +40,12 @@ const transaction = <T>(db: DatabaseSync, work: () => T): T => {
 const now = (): string => new Date().toISOString();
 const RUN_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
+/** A run's backup folder: inside the store's folder only, also for an id read back from an edited journal. */
+const backupsOf = (dir: string, runId: string): string => {
+  if (!RUN_ID.test(runId)) throw new TypeError(`not a run id: ${JSON.stringify(runId)}`);
+  return join(dir, "backups", runId);
+};
+
 /** Read access to a run store: takes no lock and writes no run, so it works while an apply holds the store. */
 export class RunView {
   protected readonly db: DatabaseSync;
@@ -72,8 +78,7 @@ export class RunView {
 
   /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
   backupPath(runId: string, index: number): string {
-    if (!RUN_ID.test(runId)) throw new TypeError(`not a run id: ${JSON.stringify(runId)}`);
-    return join(this.dir, "backups", runId, String(index));
+    return join(backupsOf(this.dir, runId), String(index));
   }
 
   /**
@@ -202,7 +207,7 @@ export class RunStore extends RunView {
       const blank = this.db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
       for (const row of rows) {
         const id = String(row["id"]);
-        rmSync(join(this.dir, "backups", id), { recursive: true, force: true });
+        rmSync(backupsOf(this.dir, id), { recursive: true, force: true });
         const plan: unknown = JSON.parse(String(row["plan"]), (key, value: unknown) =>
           key === "content" ? "" : value,
         );

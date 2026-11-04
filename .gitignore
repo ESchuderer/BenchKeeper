@@ -1,2 +1,7 @@
 # Playwright MCP snapshots and logs
 .playwright-mcp/
+# CedarLoom workspace (pnpm)
+node_modules/
+packages/*/dist/
+coverage/
+*.tsbuildinfo

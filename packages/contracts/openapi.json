@@ -1,0 +1,18 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "CedarLoom local API",
+    "version": "0.0.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "SchemaVersion": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991,
+        "description": "Format version of a persisted JSON document"
+      }
+    }
+  }
+}

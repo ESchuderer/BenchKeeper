@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // zod's declarations name the URL global; .oxlintrc.json forbids the DOM globals in the source, so no DOM API is called.
+    "lib": ["es2025", "dom"]
+  },
+  "include": ["src"]
+}

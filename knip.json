@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "github-actions": { "config": [".github/workflows/cedarloom.yml"] },
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.test.ts"],
+      "project": ["*.ts", "scripts/*.ts"],
+      "node": false
+    },
+    "packages/*": { "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"] }
+  }
+}

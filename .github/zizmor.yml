@@ -1,0 +1,5 @@
+# The Dependabot cooldown is 3 days in every ecosystem (dependabot.yml), below the audit default of 7.
+rules:
+  dependabot-cooldown:
+    config:
+      days: 3

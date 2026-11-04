@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "packages/**",
+      "!packages/contracts/schema",
+      "!packages/contracts/openapi.json",
+      "*.json",
+      "*.ts",
+      "!.release-please-manifest.json",
+      "!release-please-config.json"
+    ]
+  },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "linter": { "enabled": false },
+  "assist": { "enabled": false }
+}

@@ -1,0 +1,3 @@
+# US spelling in the CedarLoom packages (the typos job of .github/workflows/cedarloom.yml checks packages/ only).
+[default]
+locale = "en-us"

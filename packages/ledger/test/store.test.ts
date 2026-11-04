@@ -103,6 +103,11 @@ test("mount tables of Linux and macOS give the type of the mount that holds a fo
   const mac = parseMounts("/dev/disk3s1 on / (apfs, local)\n//me@nas/share on /Volumes/share (smbfs, nodev)\n");
   expect(mountType("/Volumes/share/state", mac)).toBe("smbfs");
   expect(mountType("/Volumes/sharez", mac)).toBe("apfs");
+  expect(parseMounts("map -hosts on /net (autofs)\n")).toEqual([["/net", "autofs"]]);
+  // A hostile line parses in linear time (CodeQL js/polynomial-redos on an earlier regex).
+  const started = performance.now();
+  expect(parseMounts(`${"a on ".repeat(50_000)}x`)).toHaveLength(1);
+  expect(performance.now() - started).toBeLessThan(500);
   expect(isNetworkFilesystem("smbfs")).toBe(true);
   expect(isNetworkFilesystem("apfs")).toBe(false);
   expect(filesystemType("\\\\nas\\share\\state")).toBe("smb");

@@ -15,7 +15,7 @@ import {
   type RunStore,
   sha256,
 } from "@cedarloom/ledger";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 const plan: Plan = {
   schemaVersion: 1,
@@ -47,7 +47,8 @@ test("the store runs in WAL mode with synchronous FULL", () => {
 
 test.skipIf(process.platform === "win32")("the store folder, its backups and the database are private", () => {
   const store = opened(fresh());
-  const backup = store.backupPath("run", 0);
+  const id = store.begin("apply", plan, planHash(plan));
+  const backup = store.backupPath(id.ok ? id.value : "", 0);
   expect(statSync(store.dir).mode & 0o777).toBe(0o700);
   expect(statSync(join(backup, "..")).mode & 0o777).toBe(0o700);
   expect(statSync(join(store.dir, "runs.sqlite")).mode & 0o777).toBe(0o600);
@@ -193,3 +194,32 @@ test.skipIf(process.platform === "win32")(
     expect([statSync(dir).mode & 0o777, statSync(join(dir, "runs.sqlite")).mode & 0o777]).toEqual([0o755, 0o600]);
   },
 );
+
+test("a backup path takes a run id only, never a path that leads out of the backups folder", () => {
+  const store = opened(fresh());
+  for (const runId of ["../outside", "..", "", "a/b"]) {
+    expect(() => store.backupPath(runId, 0)).toThrow(TypeError);
+  }
+});
+
+test("a failed open releases the lock, also when the store it finds is broken", () => {
+  const dir = fresh();
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 1");
+  db.close();
+  expect(() => openRunStore(dir)).toThrow(/no such table/);
+  expect(() => openRunStore(dir)).toThrow(/no such table/);
+});
+
+test("a commit SQLite already rolled back (disk full, I/O error) reports that error, and nothing is recorded", () => {
+  const store = opened(fresh());
+  const failure = new Error("database or disk is full");
+  // COMMIT fails the way SQLite fails it on a full disk: the transaction is already rolled back.
+  vi.spyOn(DatabaseSync.prototype, "exec").mockImplementation(function (this: DatabaseSync, sql) {
+    this.prepare(sql === "COMMIT" ? "ROLLBACK" : sql).run();
+    if (sql === "COMMIT") throw failure;
+  });
+  expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
+  vi.restoreAllMocks();
+  expect(store.runs()).toEqual([]);
+});

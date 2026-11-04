@@ -10,6 +10,8 @@
     { "path": "packages/contracts" },
     { "path": "packages/contracts/test" },
     { "path": "packages/ledger" },
-    { "path": "packages/ledger/test" }
+    { "path": "packages/ledger/test" },
+    { "path": "packages/engine" },
+    { "path": "packages/engine/test" }
   ]
 }

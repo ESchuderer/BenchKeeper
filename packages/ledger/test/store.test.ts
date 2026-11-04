@@ -49,9 +49,10 @@ test("the store runs in WAL mode with synchronous FULL", () => {
 test.skipIf(process.platform === "win32")("the store folder, its backups and the database are private", () => {
   const store = opened(fresh());
   const id = store.begin("apply", plan, planHash(plan));
-  const backup = store.backupPath(id.ok ? id.value : "", 0);
+  const runId = id.ok ? id.value : "";
+  expect(store.backupPath(runId, 0)).toBe(join(store.dir, "backups", runId, "0"));
   expect(statSync(store.dir).mode & 0o777).toBe(0o700);
-  expect(statSync(join(backup, "..")).mode & 0o777).toBe(0o700);
+  expect(statSync(join(store.dir, "backups")).mode & 0o777).toBe(0o700);
   expect(statSync(join(store.dir, "runs.sqlite")).mode & 0o777).toBe(0o600);
 });
 
@@ -154,6 +155,9 @@ test("run ids do not repeat, and prune drops the backups of old runs only", () =
   expect(store.runs()).toHaveLength(50);
   expect(store.prune(90)).toEqual([]);
   expect(store.prune(-1)).toHaveLength(50);
+  expect(store.prune(-1)).toEqual([]);
+  const first = ids[0]?.ok ? ids[0].value : "";
+  expect(store.run(first)?.plan.operations[0]).toEqual({ kind: "write", path: "/a", before: null, content: "" });
 });
 
 test("a run that fails to record leaves nothing behind (one transaction)", () => {

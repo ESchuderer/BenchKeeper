@@ -11,7 +11,7 @@ export const Sha256 = z
 const path = z
   .string()
   .regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/)
-  .describe("Absolute path of the file: POSIX, drive letter or UNC");
+  .describe("Absolute, normalized path of the file (POSIX, drive letter or UNC); apply refuses others");
 
 /** Creates or replaces a UTF-8 text file. */
 export const WriteFile = z
@@ -23,7 +23,7 @@ export const WriteFile = z
     mode: z
       .int()
       .min(0)
-      .max(0o777)
+      .max(0o7777)
       .optional()
       .describe("Permission bits of a file the write creates; a replaced file keeps its own"),
   })

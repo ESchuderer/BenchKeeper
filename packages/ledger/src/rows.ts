@@ -36,7 +36,8 @@ CREATE TABLE runs (
   status TEXT NOT NULL CHECK (status IN ('running', 'applied', 'failed', 'interrupted')),
   epoch INTEGER NOT NULL,
   startedAt TEXT NOT NULL,
-  finishedAt TEXT
+  finishedAt TEXT,
+  pruned INTEGER NOT NULL DEFAULT 0 CHECK (pruned IN (0, 1))
 ) STRICT;
 CREATE TABLE steps (
   runId TEXT NOT NULL REFERENCES runs (id),

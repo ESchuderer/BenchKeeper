@@ -54,19 +54,25 @@ const withView = (ctx: Context, work: (view: RunView | null) => number): number 
 };
 
 const result = (ctx: Context, outcome: Outcome, skipped: Finding[] = []): number => {
-  const findings = [...skipped, ...outcome.findings];
-  const done = outcome.status === "applied";
-  emit(
-    ctx,
-    "run",
-    { runId: outcome.runId, status: outcome.status, findings },
-    done ? `Run ${outcome.runId} applied.` : "",
-  );
+  const { runId, status } = outcome;
+  const stopped: Finding[] = status === "failed" && runId !== null ? [{ code: "run.failed", params: { runId } }] : [];
+  const findings = [...skipped, ...outcome.findings, ...stopped];
+  emit(ctx, "run", { runId, status, findings }, status === "applied" ? `Run ${runId} applied.` : "");
   report(ctx, findings);
-  return done ? EXIT.ok : EXIT.refused;
+  return status === "applied" ? EXIT.ok : EXIT.refused;
 };
 
-const ASK = "Nothing changed. Run the command again with --yes to apply this plan.";
+/** `--yes` approves the plan computed now; `--approve <hash>` only the plan the preview showed. */
+export interface Approval {
+  yes?: true | undefined;
+  approve?: string | undefined;
+}
+
+const approvedHash = (approval: Approval, plan: Plan): string | undefined =>
+  approval.approve ?? (approval.yes ? planHash(plan) : undefined);
+
+const ask = (plan: Plan): string =>
+  `${showPlan(plan)}\nNothing changed. Run the command again with --yes, or with --approve ${planHash(plan)} to apply exactly this plan.`;
 
 export const plansShow = (ctx: Context, path: string): number => {
   const plan = loadPlan(ctx, path);
@@ -75,15 +81,16 @@ export const plansShow = (ctx: Context, path: string): number => {
   return EXIT.ok;
 };
 
-export const plansApply = (ctx: Context, path: string, yes: boolean): number => {
+export const plansApply = (ctx: Context, path: string, approval: Approval): number => {
   const plan = loadPlan(ctx, path);
   if (typeof plan === "number") return plan;
-  if (!yes) {
-    emit(ctx, "plan", { planHash: planHash(plan), plan }, `${showPlan(plan)}\n${ASK}`);
+  const approved = approvedHash(approval, plan);
+  if (approved === undefined) {
+    emit(ctx, "plan", { planHash: planHash(plan), plan }, ask(plan));
     return EXIT.ok;
   }
   if (!ctx.json) ctx.io.out(`${showPlan(plan)}\n`);
-  return withStore(ctx, (store) => result(ctx, apply(store, plan, planHash(plan))));
+  return withStore(ctx, (store) => result(ctx, apply(store, plan, approved)));
 };
 
 /** A run a dead process left running shows as interrupted, also before a store opened and marked it. */
@@ -124,14 +131,14 @@ const previewUndo = (ctx: Context, runId: string): number =>
       ctx,
       "plan",
       { planHash: plan && planHash(plan), plan, findings: skipped },
-      plan ? `${showPlan(plan)}\n${ASK}` : "Nothing to undo.",
+      plan ? ask(plan) : "Nothing to undo.",
     );
     report(ctx, skipped);
     return EXIT.ok;
   });
 
-export const runsUndo = (ctx: Context, runId: string, yes: boolean): number => {
-  if (!yes) return previewUndo(ctx, runId);
+export const runsUndo = (ctx: Context, runId: string, approval: Approval): number => {
+  if (!approval.yes && approval.approve === undefined) return previewUndo(ctx, runId);
   return withStore(ctx, (store) => {
     const planned = planUndo(store, runId);
     if (!planned.ok) return fail(ctx, "run", [planned.finding], EXIT.refused);
@@ -142,18 +149,32 @@ export const runsUndo = (ctx: Context, runId: string, yes: boolean): number => {
       return EXIT.ok;
     }
     if (!ctx.json) ctx.io.out(`${showPlan(plan)}\n`);
-    return result(ctx, apply(store, plan, planHash(plan), { kind: "undo", undoes: runId }), skipped);
+    const approved = approvedHash(approval, plan) ?? "";
+    return result(ctx, apply(store, plan, approved, { kind: "undo", undoes: runId }), skipped);
   });
+};
+
+/** Interrupted and failed runs that no applied undo run has undone. */
+const runFindings = (view: RunView): Finding[] => {
+  const held = view.held();
+  const runs = view.runs();
+  const undone = new Set(
+    runs.filter((run) => run.kind === "undo" && run.status === "applied").map((run) => run.undoes),
+  );
+  return runs
+    .filter((run) => !undone.has(run.id))
+    .flatMap((run): Finding[] => {
+      const status = statusOf(run, held);
+      if (status === "interrupted") return [{ code: "run.interrupted", params: { runId: run.id } }];
+      return status === "failed" ? [{ code: "run.failed", params: { runId: run.id } }] : [];
+    });
 };
 
 export const doctor = (ctx: Context): number => {
   const view = openRunView(ctx.state);
   const findings: Finding[] = view.ok ? [] : [view.finding];
   if (view.ok && view.value !== null) {
-    const held = view.value.held();
-    for (const run of view.value.runs()) {
-      if (statusOf(run, held) === "interrupted") findings.push({ code: "run.interrupted", params: { runId: run.id } });
-    }
+    findings.push(...runFindings(view.value));
     view.value.close();
   }
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");

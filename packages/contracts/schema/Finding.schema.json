@@ -425,6 +425,32 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "run.failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "runId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "undo.file-edited"
         },
         "params": {

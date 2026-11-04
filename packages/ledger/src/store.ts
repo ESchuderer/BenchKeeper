@@ -68,9 +68,12 @@ export class RunView {
 
   /** Whether a process holds the store now; when none does, a run still marked running was interrupted. */
   held(): boolean {
-    const lock = new DatabaseSync(join(this.dir, "lock.sqlite"));
+    const path = join(this.dir, "lock.sqlite");
+    if (!existsSync(path)) return false;
+    // A shared lock for one read: a process opening the store for writing waits it out (see openRunStore).
+    const lock = new DatabaseSync(path, { readOnly: true });
     try {
-      lock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE; ROLLBACK");
+      lock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master; ROLLBACK");
       return false;
     } catch {
       return true;
@@ -175,10 +178,11 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
   if (fsType !== undefined && isNetworkFilesystem(fsType)) {
     return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
   }
-  // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over.
+  // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
+  // outlasts a reader's probe (held); another writer keeps the lock for its whole run and is refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
-    lock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+    lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");
   } catch {
     lock.close();
     return { ok: false, finding: { code: "store.busy", params: { dir } } };

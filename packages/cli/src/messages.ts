@@ -20,11 +20,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.path} is a symbolic link; CedarLoom changes regular files only, so the link stays as it is.`,
   "apply.not-text": (p) => `${p.path} is not UTF-8 text; CedarLoom changes text files only, so it stays as it is.`,
   "apply.backup-failed": (p) => `The backup of ${p.path} failed (${p.error}); nothing was written to it.`,
-  "apply.write-failed": (p) => `Writing ${p.path} failed (${p.error}); the file keeps its old content.`,
+  "apply.write-failed": (p) => `Changing ${p.path} failed (${p.error}).`,
   "apply.write-mismatch": (p) =>
     `${p.path} does not hold what was written (${short(p.expected)} expected, ${short(p.actual)} found); another program may write it.`,
   "run.not-found": (p) => `No run ${p.runId} in this state folder.`,
   "run.interrupted": (p) => `Run ${p.runId} was interrupted. ${undoHint(p.runId)}`,
+  "run.failed": (p) => `Run ${p.runId} stopped before its end; earlier changes of it stay. ${undoHint(p.runId)}`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,

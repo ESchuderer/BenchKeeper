@@ -17,8 +17,9 @@ const plansGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .command("apply")
     .description("show a plan; with --yes, apply it as one run")
     .argument("<file>")
-    .option("--yes", "apply the plan shown")
-    .action((file, options) => done(plansApply(ctx(), file, options.yes ?? false)));
+    .option("--yes", "apply the plan as computed now")
+    .option("--approve <hash>", "apply only the plan with this hash, as the preview showed it")
+    .action((file, options) => done(plansApply(ctx(), file, options)));
 };
 
 const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -36,8 +37,9 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .command("undo")
     .description("show the undo plan of a run; with --yes, apply it as a run of its own")
     .argument("<run>")
-    .option("--yes", "apply the undo plan shown")
-    .action((run, options) => done(runsUndo(ctx(), run, options.yes ?? false)));
+    .option("--yes", "apply the undo plan as computed now")
+    .option("--approve <hash>", "apply only the undo plan with this hash, as the preview showed it")
+    .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
 /** Runs one command line (without the program name) and returns the exit code. */
@@ -68,9 +70,14 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   try {
     await program.parseAsync(argv, { from: "user" });
   } catch (error) {
-    if (error instanceof CommanderError) return error.exitCode === 0 ? EXIT.ok : EXIT.usage;
-    io.err(`internal error: ${String(error)}\n`);
-    return EXIT.internal;
+    if (error instanceof CommanderError && error.exitCode === 0) return EXIT.ok;
+    const usage = error instanceof CommanderError;
+    if (!usage) io.err(`internal error: ${String(error)}\n`);
+    if (program.opts().json)
+      io.out(
+        `${JSON.stringify({ format: "cedarloom.error", schemaVersion: 1, error: usage ? "usage" : "internal" })}\n`,
+      );
+    return usage ? EXIT.usage : EXIT.internal;
   }
   return exit;
 };

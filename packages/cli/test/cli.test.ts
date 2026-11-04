@@ -161,7 +161,8 @@ test("a store from a newer CedarLoom makes reads and doctor fail with exit 1", a
   db.exec("PRAGMA user_version = 5");
   db.close();
   expect((await cli("runs", "list")).code).toBe(EXIT.refused);
-  expect((await cli("doctor", "--json")).out).toContain("store.newer-schema");
+  const report = await cli("doctor", "--json");
+  expect([report.code, report.out.includes("store.newer-schema")]).toEqual([EXIT.refused, true]);
 });
 
 test("usage errors exit 64, help exits 0, and both command names point at one program", async () => {
@@ -220,4 +221,52 @@ test("a replaced file shows as a replace, and an unreadable store is an internal
     EXIT.internal,
     `internal error: Error: run ${id}: stored plan unreadable (document.invalid)\n`,
   ]);
+});
+
+test("a run that stops midway names itself and the undo; doctor reports it until it is undone", async () => {
+  const { root, cli } = setup();
+  const path = join(root, "a.md");
+  const broken: Plan = {
+    schemaVersion: 1,
+    operations: [
+      { kind: "write", path, before: null, content: "1\n" },
+      { kind: "write", path, before: sha256("2\n"), content: "3\n" },
+    ],
+  };
+  const stopped = await cli("plans", "apply", planFile(root, broken), "--yes");
+  const runId = /Run (\S+) stopped before its end/.exec(stopped.err)?.[1] ?? "";
+  expect([
+    stopped.code,
+    stopped.err.includes(`cedarloom runs undo ${runId} --yes`),
+    readFileSync(path, "utf8"),
+  ]).toEqual([EXIT.refused, true, "1\n"]);
+  expect(json((await cli("--json", "doctor")).out)).toMatchObject({
+    findings: [{ code: "run.failed", params: { runId } }],
+  });
+  await cli("runs", "undo", runId, "--yes");
+  expect([(await cli("doctor")).out, existsSync(path)]).toEqual(["No problems found.\n", false]);
+});
+
+test("--approve applies only the plan the preview showed", async () => {
+  const { root, cli } = setup();
+  const file = planFile(root, created(root));
+  const previewed = String(json((await cli("--json", "plans", "apply", file)).out)["planHash"]);
+  expect((await cli("plans", "apply", file, "--approve", sha256("another plan"))).err).toContain(
+    "error: The approval names plan",
+  );
+  expect((await cli("plans", "apply", file, "--approve", previewed)).code).toBe(EXIT.ok);
+  const runId =
+    z.array(z.object({ id: z.string() })).parse(json((await cli("--json", "runs", "list")).out)["runs"])[0]?.id ?? "";
+  const undoHash = String(json((await cli("--json", "runs", "undo", runId)).out)["planHash"]);
+  expect((await cli("runs", "undo", runId, "--approve", undoHash)).code).toBe(EXIT.ok);
+  expect(existsSync(join(root, "notes.md"))).toBe(false);
+});
+
+test("with --json, usage and internal errors print a JSON error object", async () => {
+  const { cli } = setup();
+  expect(json((await cli("--json", "frobnicate")).out)).toEqual({
+    format: "cedarloom.error",
+    schemaVersion: 1,
+    error: "usage",
+  });
 });

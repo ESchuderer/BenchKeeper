@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -168,9 +168,10 @@ test("a stored plan that no longer parses is an error, not a run without steps",
   expect(() => store.run(id.ok ? id.value : "")).toThrow(/stored plan unreadable \(document.invalid\)/);
 });
 
-test("a view reads the runs while another store holds them, writes nothing and tells whether the store is held", () => {
+test("a view reads the runs while another store holds them, changes no run data and tells whether the store is held", () => {
   const dir = fresh();
   expect(openRunView(dir)).toEqual({ ok: true, value: null });
+  expect(existsSync(dir) && readdirSync(dir).length > 0).toBe(false);
   const store = opened(dir);
   const id = store.begin("apply", plan, planHash(plan));
   const view = openRunView(dir);
@@ -181,7 +182,10 @@ test("a view reads the runs while another store holds them, writes nothing and t
   open.length = 0;
   expect(view.value.held()).toBe(false);
   expect(view.value.run(id.ok ? id.value : "")?.steps).toHaveLength(2);
+  rmSync(join(dir, "lock.sqlite"));
+  expect([view.value.held(), existsSync(join(dir, "lock.sqlite"))]).toEqual([false, false]);
   view.value.close();
+  expect(opened(dir).epoch).toBe(store.epoch + 1);
 });
 
 test("a view refuses a store written by a newer CedarLoom", () => {

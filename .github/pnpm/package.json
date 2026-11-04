@@ -1,0 +1,8 @@
+{
+  "name": "pnpm-ci",
+  "private": true,
+  "description": "The pnpm of .github/workflows/cedarloom.yml, pinned with its lockfile; Dependabot updates it.",
+  "dependencies": {
+    "pnpm": "12.16.1"
+  }
+}

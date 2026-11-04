@@ -113,9 +113,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
+      # pnpm's own install script links the runner's native binary (Windows has no other); it is the code the job runs next.
       - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
         working-directory: .github/pnpm
-        run: npm ci --ignore-scripts --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+        run: npm ci --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Types (tsc -b)
         run: if [ "$FILTER" = '*' ]; then pnpm run typecheck; else pnpm --filter "$FILTER" run typecheck; fi
@@ -155,9 +156,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
+      # pnpm's own install script links the runner's native binary (Windows has no other); it is the code the job runs next.
       - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
         working-directory: .github/pnpm
-        run: npm ci --ignore-scripts --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+        run: npm ci --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 

@@ -1,8 +1,9 @@
 // BenchKeeper's documented apply and undo behavior (docs/security.md, "Recovery and concurrency" and "Secrets"), one test
 // per row that applies to file plans, plus the undo, write and mode cases of BenchKeeper issue 1031.
-import { chmodSync, existsSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { Operation } from "@cedarloom/contracts";
 import { apply, hashFile } from "@cedarloom/engine";
 import { planHash } from "@cedarloom/ledger";
 import { afterEach, expect, test } from "vitest";
@@ -151,16 +152,93 @@ test("undo refuses a missing or changed backup", () => {
   expect(undo(store, "no-such-run")).toMatchObject({ status: "refused", findings: [{ code: "run.not-found" }] });
 });
 
-test("undo restores only text backups, and a run with nothing left to undo plans nothing", () => {
+test("apply refuses a file that is not UTF-8 text, since undo could not restore it", () => {
   const { store, file } = fresh();
   const path = file("a.bin");
   writeFileSync(path, Buffer.from([0xff, 0xfe, 0x00]));
   const applied = run(store, plan({ kind: "write", path, before: hashFile(path), content: "text\n" }));
-  expect(undo(store, applied.runId)).toMatchObject({ status: "refused", findings: [{ code: "undo.not-text" }] });
-  const other = file("b.md", "b\n");
-  const done = run(store, plan({ kind: "write", path: other, before: hash("b\n"), content: "B\n" }));
-  writeFileSync(other, "b\n");
-  expect(undo(store, done.runId)).toEqual({ runId: null, status: "applied", findings: [], skipped: [] });
+  expect(applied).toMatchObject({ status: "failed", findings: [{ code: "apply.not-text" }] });
+  expect(readFileSync(path)).toEqual(Buffer.from([0xff, 0xfe, 0x00]));
+});
+
+test("a byte order mark survives apply and undo, and a run with nothing left to undo plans nothing", () => {
+  const { store, file } = fresh();
+  const path = file("bom.cs");
+  writeFileSync(path, Buffer.from([0xef, 0xbb, 0xbf, 0x41, 0x0a]));
+  const applied = run(store, plan({ kind: "write", path, before: hashFile(path), content: "B\n" }));
+  expect(undo(store, applied.runId).status).toBe("applied");
+  expect(readFileSync(path)).toEqual(Buffer.from([0xef, 0xbb, 0xbf, 0x41, 0x0a]));
+  expect(undo(store, applied.runId)).toEqual({ runId: null, status: "applied", findings: [], skipped: [] });
+});
+
+test("a chained edit set back by hand to an in-between version is skipped, not overwritten", () => {
+  const { store, file } = fresh();
+  const path = file("g.md", "A\n");
+  const applied = run(
+    store,
+    plan(
+      { kind: "write", path, before: hash("A\n"), content: "B\n" },
+      { kind: "write", path, before: hash("B\n"), content: "C\n" },
+    ),
+  );
+  writeFileSync(path, "B\n");
+  expect(undo(store, applied.runId)).toMatchObject({ skipped: ["undo.file-edited"] });
+  expect(read(path)).toBe("B\n");
+});
+
+test.each(["create", "replace", "delete"])(
+  "a file that appears or changes while the step is journaled is not overwritten (%s)",
+  (kind) => {
+    const { store, file } = fresh();
+    const path = kind === "create" ? file("new.md") : file("old.md", "old\n");
+    const race = (_: number, phase: string): void => {
+      if (phase === "journaled") writeFileSync(path, "the owner's autosave\n");
+    };
+    const op: Operation =
+      kind === "delete"
+        ? { kind: "delete", path, before: hash("old\n") }
+        : { kind: "write", path, before: kind === "create" ? null : hash("old\n"), content: "ours\n" };
+    const applied = run(store, plan(op), { onPhase: race });
+    expect(applied).toMatchObject({ status: "failed", findings: [{ code: "plan.file-changed" }] });
+    expect(read(path)).toBe("the owner's autosave\n");
+    expect(undo(store, applied.runId)).toMatchObject({ skipped: ["undo.file-edited"] });
+    expect(read(path)).toBe("the owner's autosave\n");
+  },
+);
+
+test.skipIf(!posix)("a symlink at the target is refused: replacing it would cut the link", () => {
+  const { store, file, root } = fresh();
+  const real = file("real.md", "real\n");
+  const link = join(root, "link.md");
+  symlinkSync(real, link);
+  expect(run(store, plan({ kind: "write", path: link, before: hash("real\n"), content: "x\n" }))).toMatchObject({
+    status: "refused",
+    findings: [{ code: "apply.symlink" }],
+  });
+});
+
+test("a path that is relative or not normalized is refused", () => {
+  const { store, root } = fresh();
+  for (const path of ["notes.md", `${root}${sep}.${sep}notes.md`]) {
+    expect(run(store, plan({ kind: "write", path, before: null, content: "x" }))).toMatchObject({
+      status: "refused",
+      findings: [{ code: "plan.path-not-absolute", params: { path } }],
+    });
+  }
+});
+
+test("an unexpected error during a step marks the run failed before it reaches the caller", () => {
+  const { store, file } = fresh();
+  const [a, b] = [file("a.md", "a\n"), file("b.md")];
+  const race = (index: number, phase: string): void => {
+    if (index === 0 && phase === "settled") mkdirSync(b);
+  };
+  const value = plan(
+    { kind: "write", path: a, before: hash("a\n"), content: "A\n" },
+    { kind: "write", path: b, before: null, content: "b\n" },
+  );
+  expect(() => run(store, value, { onPhase: race })).toThrow(/EISDIR|EPERM/);
+  expect(store.runs()[0]?.status).toBe("failed");
 });
 
 test("undo skips and reports a file the owner edited after the run, and restores the others", () => {
@@ -202,7 +280,7 @@ test.skipIf(!posix)("issue 1031: a write that fails leaves the old file in place
 
 test.skipIf(!posix)("issue 1031: file modes survive apply and undo; a created file gets the planned mode", () => {
   const { store, file } = fresh();
-  const [secret, key, made] = [file(".env.local", "TOKEN=1\n", 0o600), file("key", "k\n", 0o600), file("new")];
+  const [secret, key, made] = [file(".env.local", "TOKEN=1\n", 0o600), file("run.sh", "k\n", 0o755), file("new")];
   const applied = run(
     store,
     plan(
@@ -215,7 +293,7 @@ test.skipIf(!posix)("issue 1031: file modes survive apply and undo; a created fi
     0o600, 0o600, 0o600,
   ]);
   undo(store, applied.runId);
-  expect([read(secret), modeOf(secret), read(key), modeOf(key)]).toEqual(["TOKEN=1\n", 0o600, "k\n", 0o600]);
+  expect([read(secret), modeOf(secret), read(key), modeOf(key)]).toEqual(["TOKEN=1\n", 0o600, "k\n", 0o755]);
 });
 
 test("backups of runs older than 90 days go before the next apply; undo of such a run reports the missing backup", () => {

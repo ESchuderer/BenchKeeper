@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Plan.schema.json",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "operations": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "Operation.schema.json"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "operations"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    {
+      "kind": "write",
+      "path": "/tmp/a",
+      "before": null,
+      "content": "",
+      "owner": "root"
+    }
+  ]
+}

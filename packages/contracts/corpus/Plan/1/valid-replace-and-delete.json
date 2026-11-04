@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    {
+      "kind": "write",
+      "path": "/home/user/.config/tool/settings.json",
+      "before": "0d06c09783915ac62d4ace2b822886003f3817c1e047fbd5537c94b1d840f1b1",
+      "content": "{\n  \"model\": \"o3\",\n  \"theme\": \"dark\"\n}\n"
+    },
+    {
+      "kind": "delete",
+      "path": "/home/user/.config/tool/old.md",
+      "before": "01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee"
+    }
+  ]
+}

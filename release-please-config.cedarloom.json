@@ -4,12 +4,13 @@
   "include-component-in-tag": true,
   "plugins": [
     { "type": "node-workspace", "merge": false },
-    { "type": "linked-versions", "groupName": "cedarloom", "components": ["contracts"] }
+    { "type": "linked-versions", "groupName": "cedarloom", "components": ["contracts", "ledger"] }
   ],
   "packages": {
     "packages/contracts": {
       "component": "contracts",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
-    }
+    },
+    "packages/ledger": { "component": "ledger" }
   }
 }

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    {
+      "kind": "delete",
+      "path": "/tmp/a",
+      "before": "CA978112CA1BBDCAFAC231B39A23DC4DA786EFF8147C4E72B9807785AFEE48BB"
+    }
+  ]
+}

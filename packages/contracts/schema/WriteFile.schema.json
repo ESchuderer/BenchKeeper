@@ -9,8 +9,8 @@
     },
     "path": {
       "type": "string",
-      "minLength": 1,
-      "description": "Absolute path of the file"
+      "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)",
+      "description": "Absolute path of the file: POSIX, drive letter or UNC"
     },
     "before": {
       "anyOf": [

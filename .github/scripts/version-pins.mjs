@@ -24,16 +24,19 @@ export function minAppPin(text, version) {
   return text.replace(/("minApp"\s*:\s*")\d+\.\d+\.\d+(")/, `$1${version}$2`);
 }
 
+// A Dockerfile comment is a whole line starting with #; an install command in one is not what the image runs.
+const commands = (dockerfile) => dockerfile.replace(/^[ \t]*#.*$/gm, '');
+
 // Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {
   // From the install command, not a comment; the whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
-  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
+  const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
   return { image, drift: Object.keys(packages).filter((f) => packages[f].devDependencies?.['@playwright/test'] !== image) };
 }
 
 // Dependabot raises pnpm in .github/pnpm (the CedarLoom CI) but not the pnpm the dev container installs.
 export function pnpmDrift(dockerfile, pinned) {
-  const image = dockerfile.match(/\bnpm i\b[^\n#]*?\bpnpm@(\S+)/)?.[1];
+  const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bpnpm@(\S+)/)?.[1];
   return { image, drift: image !== pinned };
 }
 

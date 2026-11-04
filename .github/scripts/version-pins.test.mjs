@@ -24,11 +24,12 @@ test('a package whose @playwright/test differs from the dev container is reporte
   assert.deepEqual(playwrightDrift(dockerfile, { 'web/package.json': pkg('1.64.1'), 'app/package.json': pkg('1.65.0') }).drift, ['app/package.json']);
   assert.deepEqual(playwrightDrift('npm i -g playwright@1.64.1-beta.0', { 'web/package.json': pkg('1.64.1') }).drift, ['web/package.json']);
   assert.equal(playwrightDrift('# was playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
+  assert.equal(playwrightDrift('  # RUN npm i -g playwright@1.64.1\nRUN npm i -g playwright@1.65.0', {}).image, '1.65.0');
   assert.equal(playwrightDrift('no version', { 'web/package.json': pkg('1.64.1') }).image, undefined);
 });
 
 test('the dev container pnpm must equal the pnpm .github/pnpm pins for CI', () => {
-  const dockerfile = '# pnpm@12.0.0 was here\nRUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && npm cache clean --force';
+  const dockerfile = '# RUN npm i -g pnpm@12.0.0 was here\nRUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && npm cache clean --force';
   assert.deepEqual(pnpmDrift(dockerfile, '12.16.1'), { image: '12.16.1', drift: false });
   assert.deepEqual(pnpmDrift(dockerfile, '12.17.0'), { image: '12.16.1', drift: true });
   assert.deepEqual(pnpmDrift('no pnpm', '12.16.1'), { image: undefined, drift: true });

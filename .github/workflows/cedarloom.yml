@@ -113,10 +113,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
-      # pnpm's own install script links the runner's native binary (Windows has no other); it is the code the job runs next.
+      # The runner's native pnpm comes as an optional dependency of the pinned package, so no install script needs to run.
       - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
         working-directory: .github/pnpm
-        run: npm ci --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
+          echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Types (tsc -b)
         run: if [ "$FILTER" = '*' ]; then pnpm run typecheck; else pnpm --filter "$FILTER" run typecheck; fi
@@ -156,10 +159,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
-      # pnpm's own install script links the runner's native binary (Windows has no other); it is the code the job runs next.
+      # The runner's native pnpm comes as an optional dependency of the pinned package, so no install script needs to run.
       - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
         working-directory: .github/pnpm
-        run: npm ci --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
+          echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 

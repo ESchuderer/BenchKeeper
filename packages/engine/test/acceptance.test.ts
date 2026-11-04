@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { Operation } from "@cedarloom/contracts";
 import { apply, hashFile, tempPath } from "@cedarloom/engine";
 import { planHash } from "@cedarloom/ledger";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { hash, modeOf, plan, read, run, storeAt, undo, workspace } from "./helpers.ts";
 
 const posix = process.platform !== "win32";
@@ -272,6 +272,16 @@ test("an unexpected error during a step marks the run failed before it reaches t
   );
   expect(() => run(store, value, { onPhase: race })).toThrow(/EISDIR|EPERM/);
   expect(store.runs()[0]?.status).toBe("failed");
+});
+
+test("a failed prune of old backups marks the new run failed before it reaches the caller, and writes nothing", () => {
+  const { store, file } = fresh();
+  const a = file("a.md", "a\n");
+  vi.spyOn(store, "prune").mockImplementation(() => {
+    throw new Error("EACCES: permission denied");
+  });
+  expect(() => run(store, plan({ kind: "write", path: a, before: hash("a\n"), content: "A\n" }))).toThrow(/EACCES/);
+  expect([store.runs()[0]?.status, read(a)]).toEqual(["failed", "a\n"]);
 });
 
 test("undo skips and reports a file the owner edited after the run, and restores the others", () => {

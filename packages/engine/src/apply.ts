@@ -131,10 +131,10 @@ export const apply = (store: RunStore, plan: Plan, approvedHash: string, options
   if (problems.length > 0) return { runId: null, status: "refused", findings: problems };
   const begun = store.begin(options.kind ?? "apply", plan, approvedHash, options.undoes ?? null);
   if (!begun.ok) return { runId: null, status: "refused", findings: [begun.finding] };
-  store.prune(BACKUP_DAYS);
   const runId = begun.value;
   let finding: Finding | undefined;
   try {
+    store.prune(BACKUP_DAYS);
     finding = steps({ store, runId, onPhase: options.onPhase ?? (() => undefined) }, plan);
   } catch (error) {
     store.finish(runId, "failed");

@@ -1,0 +1,59 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+// Mount types whose locking or write ordering SQLite's WAL mode cannot rely on.
+const NETWORK = new Set([
+  "9p",
+  "afpfs",
+  "afs",
+  "ceph",
+  "cifs",
+  "coda",
+  "davfs",
+  "fuse.rclone",
+  "fuse.s3fs",
+  "fuse.sshfs",
+  "glusterfs",
+  "gpfs",
+  "lustre",
+  "ncpfs",
+  "nfs",
+  "nfs4",
+  "smb",
+  "smb2",
+  "smb3",
+  "smbfs",
+  "sshfs",
+  "webdav",
+]);
+
+export const isNetworkFilesystem = (fsType: string): boolean => NETWORK.has(fsType);
+
+/** `[mount point, type]` pairs from Linux `/proc/self/mounts` (spaces escaped as `\040`) or macOS `mount` output. */
+export const parseMounts = (text: string): [string, string][] =>
+  text.split("\n").flatMap((line): [string, string][] => {
+    const mac = /^.+ on (.+) \(([^,)]+)/.exec(line);
+    if (mac?.[1] && mac[2]) return [[mac[1], mac[2]]];
+    const [, point, type] = line.split(" ");
+    return point && type ? [[point.replaceAll("\\040", " "), type]] : [];
+  });
+
+/** The type of the mount that holds `dir` (the longest mount point that contains it). */
+export const mountType = (dir: string, mounts: [string, string][]): string | undefined => {
+  const inside = mounts.filter(([point]) => dir === point || dir.startsWith(point === "/" ? "/" : `${point}/`));
+  return inside.toSorted(([a], [b]) => b.length - a.length)[0]?.[1];
+};
+
+// shortcut: Windows detects UNC paths only, not a mapped network drive letter; add GetDriveType through a probe if one shows up.
+export const filesystemType = (dir: string): string | undefined => {
+  if (dir.startsWith("\\\\")) return "smb";
+  return mountType(dir, parseMounts(mountTable()));
+};
+
+const mountTable = (): string => {
+  /* v8 ignore start -- each branch runs on its own platform only */
+  if (process.platform === "linux") return readFileSync("/proc/self/mounts", "utf8");
+  if (process.platform === "darwin") return execFileSync("/sbin/mount", { encoding: "utf8" });
+  return "";
+  /* v8 ignore stop */
+};

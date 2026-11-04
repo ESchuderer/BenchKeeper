@@ -16,6 +16,12 @@ export const WriteFile = z
     path,
     before: Sha256.nullable().describe("Hash the file must have when the plan applies; null: the file must not exist"),
     content: z.string(),
+    mode: z
+      .int()
+      .min(0)
+      .max(0o777)
+      .optional()
+      .describe("Permission bits of a file the write creates; a replaced file keeps its own"),
   })
   .register(contracts, { id: "WriteFile" });
 

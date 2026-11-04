@@ -6,5 +6,10 @@
     "types": ["node"]
   },
   "include": ["vitest.config.ts", "scripts/*.ts"],
-  "references": [{ "path": "packages/contracts" }, { "path": "packages/contracts/test" }]
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/contracts/test" },
+    { "path": "packages/ledger" },
+    { "path": "packages/ledger/test" }
+  ]
 }

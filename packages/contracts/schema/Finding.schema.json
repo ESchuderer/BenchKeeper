@@ -73,6 +73,126 @@
         "params"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "plan.not-approved"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "planHash": {
+              "$ref": "Sha256.schema.json"
+            },
+            "approvedHash": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "planHash",
+            "approvedHash"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "store.busy"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "dir": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "dir"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "store.network-filesystem"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "dir": {
+              "type": "string"
+            },
+            "fsType": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "dir",
+            "fsType"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "store.newer-schema"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "known": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "found",
+            "known"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
     }
   ]
 }

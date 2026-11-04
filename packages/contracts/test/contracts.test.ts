@@ -48,5 +48,5 @@ test("a newer schemaVersion is refused before the schema runs", () => {
 test("canonical JSON sorts keys at every depth, keeps array order and has no whitespace", () => {
   const a = canonicalJson({ b: [3, { y: null, x: true }], a: "é\n", "": 1 });
   expect(a).toBe('{"":1,"a":"é\\n","b":[3,{"x":true,"y":null}]}');
-  expect(canonicalJson({ a: "é\n", "": 1, b: [3, { x: true, y: null }] })).toBe(a);
+  expect(canonicalJson({ a: "é\n", "": 1, b: [3, { x: true, y: null }], gone: undefined })).toBe(a);
 });

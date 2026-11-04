@@ -1,6 +1,13 @@
 {
   "path": ["packages"],
-  "ignore": ["**/dist/**", "**/node_modules/**", "**/schema/**", "**/openapi.json"],
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/schema/**",
+    "**/openapi.json",
+    "**/package.json",
+    "**/tsconfig.json"
+  ],
   "threshold": 0,
   "exitCode": 1,
   "reporters": ["console"],

@@ -6,7 +6,7 @@
       "path": "/tmp/a",
       "before": null,
       "content": "",
-      "mode": 420
+      "owner": "root"
     }
   ]
 }

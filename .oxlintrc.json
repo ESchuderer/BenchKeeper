@@ -30,15 +30,22 @@
       "rules": {
         "no-restricted-globals": [
           "error",
-          "window",
-          "document",
-          "navigator",
-          "location",
-          "localStorage",
-          "sessionStorage",
-          "fetch",
-          "XMLHttpRequest",
-          "indexedDB"
+          {
+            "globals": [
+              "window",
+              "document",
+              "navigator",
+              "location",
+              "localStorage",
+              "sessionStorage",
+              "fetch",
+              "XMLHttpRequest",
+              "indexedDB",
+              "globalThis",
+              "self"
+            ],
+            "checkGlobalObject": true
+          }
         ],
         "no-restricted-imports": [
           "error",

@@ -31,12 +31,14 @@ const transaction = <T>(db: DatabaseSync, work: () => T): T => {
     db.exec("COMMIT");
     return result;
   } catch (error) {
-    db.exec("ROLLBACK");
+    // SQLite rolls back by itself on errors such as a full disk; a second ROLLBACK would hide the cause.
+    if (db.isTransaction) db.exec("ROLLBACK");
     throw error;
   }
 };
 
 const now = (): string => new Date().toISOString();
+const RUN_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
 /** Read access to a run store: takes no lock and writes no run, so it works while an apply holds the store. */
 export class RunView {
@@ -70,6 +72,7 @@ export class RunView {
 
   /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
   backupPath(runId: string, index: number): string {
+    if (!RUN_ID.test(runId)) throw new TypeError(`not a run id: ${JSON.stringify(runId)}`);
     return join(this.dir, "backups", runId, String(index));
   }
 
@@ -240,20 +243,25 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
     lock.close();
     return { ok: false, finding: { code: "store.busy", params: { dir } } };
   }
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  // Every failure below releases the lock, else each later open in this process would answer "busy".
   try {
-    chmodSync(join(dir, "runs.sqlite"), 0o600);
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-    const version = versionOf(db);
-    if (version > SCHEMA) return refuse(db, lock, version);
-    // One transaction: a crash halfway through leaves no partial schema that blocks the next open.
-    if (version === 0) transaction(db, () => db.exec(`${TABLES}; PRAGMA user_version = ${SCHEMA}`));
+    const db = new DatabaseSync(join(dir, "runs.sqlite"));
+    try {
+      chmodSync(join(dir, "runs.sqlite"), 0o600);
+      db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
+      const version = versionOf(db);
+      if (version > SCHEMA) return refuse(db, lock, version);
+      // One transaction: a crash halfway through leaves no partial schema that blocks the next open.
+      if (version === 0) transaction(db, () => db.exec(`${TABLES}; PRAGMA user_version = ${SCHEMA}`));
+      return { ok: true, value: new RunStore(dir, db, lock) };
+    } catch (error) {
+      db.close();
+      throw error;
+    }
   } catch (error) {
-    db.close();
     lock.close();
     throw error;
   }
-  return { ok: true, value: new RunStore(dir, db, lock) };
 };
 
 /** Opens a store for reading; null when no run was ever recorded in `dir`. */

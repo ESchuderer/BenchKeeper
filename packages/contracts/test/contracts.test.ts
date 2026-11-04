@@ -30,7 +30,7 @@ test("an invalid document names the path and code of each issue, no prose", () =
       code: "document.invalid",
       params: {
         issues: [
-          { path: "operations.0.path", code: "too_small" },
+          { path: "operations.0.path", code: "invalid_format" },
           { path: "operations.0.before", code: "invalid_format" },
         ],
       },

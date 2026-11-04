@@ -9,8 +9,8 @@
     },
     "path": {
       "type": "string",
-      "minLength": 1,
-      "description": "Absolute, normalized path of the file; apply refuses others"
+      "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)",
+      "description": "Absolute, normalized path of the file (POSIX, drive letter or UNC); apply refuses others"
     },
     "before": {
       "$ref": "Sha256.schema.json"

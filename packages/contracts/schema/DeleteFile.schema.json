@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "DeleteFile.schema.json",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "delete"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Absolute path of the file"
+    },
+    "before": {
+      "$ref": "Sha256.schema.json"
+    }
+  },
+  "required": [
+    "kind",
+    "path",
+    "before"
+  ],
+  "additionalProperties": false
+}

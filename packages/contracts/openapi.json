@@ -12,6 +12,175 @@
         "exclusiveMinimum": 0,
         "maximum": 9007199254740991,
         "description": "Format version of a persisted JSON document"
+      },
+      "Finding": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "document.newer-schema"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "found": {
+                    "$ref": "#/components/schemas/SchemaVersion"
+                  },
+                  "known": {
+                    "$ref": "#/components/schemas/SchemaVersion"
+                  }
+                },
+                "required": [
+                  "found",
+                  "known"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "document.invalid"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "issues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "issues"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Sha256": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "WriteFile": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "write"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path of the file"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hash the file must have when the plan applies; null: the file must not exist"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "before",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "DeleteFile": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "delete"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path of the file"
+          },
+          "before": {
+            "$ref": "#/components/schemas/Sha256"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "before"
+        ],
+        "additionalProperties": false
+      },
+      "Operation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WriteFile"
+          },
+          {
+            "$ref": "#/components/schemas/DeleteFile"
+          }
+        ]
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "operations": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "operations"
+        ],
+        "additionalProperties": false
       }
     }
   }

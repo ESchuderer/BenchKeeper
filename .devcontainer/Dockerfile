@@ -1,5 +1,5 @@
 # node:26.13.0-bookworm-slim, the Node of the CedarLoom packages (.github/workflows/cedarloom.yml). BenchKeeper's own CI
-# stays on Node 22.23.4 (checks.yml and the others), which app/ and web/ still support (engines >=22).
+# stays on Node 22.23.4 (checks.yml and the others), the floor app/ declares (engines >=22); web/ declares none.
 FROM docker.io/library/node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9
 
 # shortcut: exact Debian versions stop resolving after the next bookworm security release; bump them when the build fails

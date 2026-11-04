@@ -1,5 +1,5 @@
 import type { Finding, Operation, Plan, Result } from "@cedarloom/contracts";
-import { type RunStore, type Step, sha256 } from "@cedarloom/ledger";
+import { type RunView, type Step, sha256 } from "@cedarloom/ledger";
 import { hashFile, readOrNull } from "./files.ts";
 
 export interface UndoPlan {
@@ -12,7 +12,7 @@ export interface UndoPlan {
 // Apply refuses files that are not UTF-8, so a backup whose hash matches decodes; the byte order mark stays.
 const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
-const restore = (store: RunStore, runId: string, step: Step, actual: string | null): Result<Operation> => {
+const restore = (store: RunView, runId: string, step: Step, actual: string | null): Result<Operation> => {
   if (step.before === null && actual !== null)
     return { ok: true, value: { kind: "delete", path: step.path, before: actual } };
   const params = { runId, path: step.path };
@@ -38,7 +38,7 @@ const next = (step: Step, actual: string | null, original: string | null | undef
  * skipped and reported; one that already holds its content from before the run needs nothing.
  */
 interface Walk {
-  store: RunStore;
+  store: RunView;
   runId: string;
   /** Each path's hash before the run's first change to it. */
   original: Map<string, string | null>;
@@ -61,7 +61,7 @@ const visit = (walk: Walk, step: Step): Finding | undefined => {
   return undefined;
 };
 
-export const planUndo = (store: RunStore, runId: string): Result<UndoPlan> => {
+export const planUndo = (store: RunView, runId: string): Result<UndoPlan> => {
   const detail = store.run(runId);
   if (detail === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
   const started = detail.steps.filter((step) => step.state === "running" || step.state === "done");

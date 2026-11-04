@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -10,6 +10,7 @@ import {
   isNetworkFilesystem,
   mountType,
   openRunStore,
+  openRunView,
   parseMounts,
   planHash,
   type RunStore,
@@ -176,6 +177,45 @@ test("a stored plan that no longer parses is an error, not a run without steps",
   expect(() => store.run(id.ok ? id.value : "")).toThrow(/stored plan unreadable \(document.invalid\)/);
 });
 
+test("a view reads the runs while another store holds them, changes no run data and tells whether the store is held", () => {
+  const dir = fresh();
+  expect(openRunView(dir)).toEqual({ ok: true, value: null });
+  expect(existsSync(dir) && readdirSync(dir).length > 0).toBe(false);
+  const store = opened(dir);
+  const id = store.begin("apply", plan, planHash(plan));
+  const view = openRunView(dir);
+  if (!view.ok || view.value === null) throw new Error("no view");
+  expect(view.value.runs()).toMatchObject([{ id: id.ok ? id.value : "", status: "running" }]);
+  expect(view.value.held()).toBe(true);
+  store.close();
+  open.length = 0;
+  expect(view.value.held()).toBe(false);
+  expect(view.value.run(id.ok ? id.value : "")?.steps).toHaveLength(2);
+  rmSync(join(dir, "lock.sqlite"));
+  expect([view.value.held(), existsSync(join(dir, "lock.sqlite"))]).toEqual([false, false]);
+  view.value.close();
+  expect(opened(dir).epoch).toBe(store.epoch + 1);
+});
+
+test("a view treats a store whose schema was never created (a first open cut off) as one without runs", () => {
+  const dir = fresh();
+  new DatabaseSync(join(dir, "runs.sqlite")).close();
+  expect(openRunView(dir)).toEqual({ ok: true, value: null });
+});
+
+test("a view refuses a store written by a newer CedarLoom", () => {
+  const dir = fresh();
+  opened(dir).close();
+  open.length = 0;
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 3");
+  db.close();
+  expect(openRunView(dir)).toEqual({
+    ok: false,
+    finding: { code: "store.newer-schema", params: { found: 3, known: 1 } },
+  });
+});
+
 test("the schema is created in one transaction: a failure halfway leaves no partial schema to block the next open", () => {
   const dir = fresh();
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
@@ -199,6 +239,33 @@ test.skipIf(process.platform === "win32")(
     expect([statSync(dir).mode & 0o777, statSync(join(dir, "runs.sqlite")).mode & 0o777]).toEqual([0o755, 0o600]);
   },
 );
+
+test("a view tells which runs are left to deal with: interrupted or failed, not undone, and undo runs whose target is not undone", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  const begin = (kind: "apply" | "undo", undoes: string | null = null): string => {
+    const id = store.begin(kind, plan, planHash(plan), undoes);
+    if (!id.ok) throw new Error(id.finding.code);
+    return id.value;
+  };
+  const failed = begin("apply");
+  store.finish(failed, "failed");
+  const stopped = begin("undo", failed);
+  store.close();
+  open.length = 0;
+  const view = openRunView(dir);
+  if (!view.ok || view.value === null) throw new Error("no view");
+  expect(view.value.current().map((run) => run.status)).toEqual(["interrupted", "failed"]);
+  expect(view.value.problems()).toEqual([
+    { code: "run.interrupted", params: { runId: stopped, undoes: failed } },
+    { code: "run.failed", params: { runId: failed, undoes: null } },
+  ]);
+  const again = opened(dir);
+  const undone = again.begin("undo", plan, planHash(plan), failed);
+  again.finish(undone.ok ? undone.value : "", "applied");
+  expect(view.value.problems()).toEqual([]);
+  view.value.close();
+});
 
 test("a backup path takes a run id only, never a path that leads out of the backups folder", () => {
   const store = opened(fresh());

@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { canonicalJson, PLAN_SCHEMA_VERSION, Plan, type Result, readDocument } from "@cedarloom/contracts";
+import {
+  canonicalJson,
+  type Finding,
+  PLAN_SCHEMA_VERSION,
+  Plan,
+  type Result,
+  readDocument,
+} from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
 import { Run, Step, TABLES } from "./rows.ts";
@@ -39,19 +46,108 @@ const backupsOf = (dir: string, runId: string): string => {
   return join(dir, "backups", runId);
 };
 
-/** The run store of one state folder. One process holds it at a time; closing it or exiting releases it. */
-export class RunStore {
-  readonly #db: DatabaseSync;
-  readonly #lock: DatabaseSync;
+/** Read access to a run store: takes no lock and writes no run, so it works while an apply holds the store. */
+export class RunView {
+  protected readonly db: DatabaseSync;
   readonly dir: string;
+
+  constructor(dir: string, db: DatabaseSync) {
+    this.dir = dir;
+    this.db = db;
+  }
+
+  runs(): Run[] {
+    return this.db
+      .prepare(`SELECT ${RUN_COLUMNS} FROM runs ORDER BY startedAt DESC, rowid DESC`)
+      .all()
+      .map((row) => Run.parse(row));
+  }
+
+  run(id: string): RunDetail | undefined {
+    const row = this.db.prepare(`SELECT ${RUN_COLUMNS}, plan FROM runs WHERE id = ?`).get(id);
+    if (row === undefined) return undefined;
+    const plan = readDocument(Plan, PLAN_SCHEMA_VERSION, JSON.parse(String(row["plan"])));
+    if (!plan.ok) throw new Error(`run ${id}: stored plan unreadable (${plan.finding.code})`);
+    const steps = this.db.prepare(`SELECT ${STEP_COLUMNS} FROM steps WHERE runId = ? ORDER BY "index"`).all(id);
+    return {
+      run: Run.parse(row),
+      plan: plan.value,
+      steps: steps.map((step) => Step.parse(step)),
+    };
+  }
+
+  /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
+  backupPath(runId: string, index: number): string {
+    return join(backupsOf(this.dir, runId), String(index));
+  }
+
+  /**
+   * Runs `read` with whether a process holds the store. When none does, the probe keeps a shared lock until `read`
+   * returns: a process opening the store for writing waits it out (see openRunStore), so a run cannot start between
+   * the probe and the read and look interrupted.
+   */
+  #probe<T>(read: (held: boolean) => T): T {
+    const path = join(this.dir, "lock.sqlite");
+    if (!existsSync(path)) return read(false);
+    const lock = new DatabaseSync(path, { readOnly: true });
+    try {
+      let held = false;
+      try {
+        lock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master");
+      } catch {
+        held = true;
+      }
+      return read(held);
+    } finally {
+      lock.close();
+    }
+  }
+
+  /** Whether a process holds the store now; when none does, a run still marked running was interrupted. */
+  held(): boolean {
+    return this.#probe((held) => held);
+  }
+
+  /** The runs, newest first, as they stand: one still marked running while no process holds the store is interrupted. */
+  current(): Run[] {
+    return this.#probe((held) =>
+      this.runs().map((run) => (run.status === "running" && !held ? { ...run, status: "interrupted" } : run)),
+    );
+  }
+
+  /**
+   * Interrupted and failed runs left to deal with: not undone by an applied undo run, and for an undo run, its
+   * target not undone by another one.
+   */
+  problems(): Finding[] {
+    const runs = this.current();
+    const undone = new Set(
+      runs.filter((run) => run.kind === "undo" && run.status === "applied").map((run) => run.undoes),
+    );
+    return runs
+      .filter((run) => !undone.has(run.id) && !(run.undoes !== null && undone.has(run.undoes)))
+      .flatMap((run): Finding[] => {
+        const params = { runId: run.id, undoes: run.undoes };
+        if (run.status === "interrupted") return [{ code: "run.interrupted", params }];
+        return run.status === "failed" ? [{ code: "run.failed", params }] : [];
+      });
+  }
+
+  close(): void {
+    this.db.close();
+  }
+}
+
+/** The run store of one state folder. One process holds it at a time; closing it or exiting releases it. */
+export class RunStore extends RunView {
+  readonly #lock: DatabaseSync;
   /** Raised each time a process opens the store; every run records the epoch it ran under. */
   readonly epoch: number;
   /** Runs a process that died left running, marked `interrupted` when this store opened. */
   readonly interrupted: string[];
 
   constructor(dir: string, db: DatabaseSync, lock: DatabaseSync) {
-    this.dir = dir;
-    this.#db = db;
+    super(dir, db);
     this.#lock = lock;
     [this.epoch, this.interrupted] = transaction(db, () => {
       const epoch = Number(
@@ -69,14 +165,14 @@ export class RunStore {
       return { ok: false, finding: { code: "plan.not-approved", params: { planHash: hash, approvedHash } } };
     }
     const id = randomUUID();
-    transaction(this.#db, () => {
-      this.#db
+    transaction(this.db, () => {
+      this.db
         .prepare(
           `INSERT INTO runs (id, kind, undoes, plan, planHash, approvedHash, status, epoch, startedAt)
            VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)`,
         )
         .run(id, kind, undoes, canonicalJson(plan), hash, approvedHash, this.epoch, now());
-      const step = this.#db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', NULL)");
+      const step = this.db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', NULL)");
       plan.operations.forEach((op, index) => {
         step.run(id, index, op.path, op.before, op.kind === "write" ? sha256(op.content) : null);
       });
@@ -86,42 +182,17 @@ export class RunStore {
 
   /** Journals a step as started, with the mode of the file it replaces; its backup is `backupPath(runId, index)`. */
   start(runId: string, index: number, mode: number | null): void {
-    this.#db
+    this.db
       .prepare(`UPDATE steps SET state = 'running', mode = ? WHERE runId = ? AND "index" = ?`)
       .run(mode, runId, index);
   }
 
   settle(runId: string, index: number, state: "done" | "skipped"): void {
-    this.#db.prepare(`UPDATE steps SET state = ? WHERE runId = ? AND "index" = ?`).run(state, runId, index);
+    this.db.prepare(`UPDATE steps SET state = ? WHERE runId = ? AND "index" = ?`).run(state, runId, index);
   }
 
   finish(runId: string, status: "applied" | "failed"): void {
-    this.#db.prepare("UPDATE runs SET status = ?, finishedAt = ? WHERE id = ?").run(status, now(), runId);
-  }
-
-  runs(): Run[] {
-    return this.#db
-      .prepare(`SELECT ${RUN_COLUMNS} FROM runs ORDER BY startedAt DESC, rowid DESC`)
-      .all()
-      .map((row) => Run.parse(row));
-  }
-
-  run(id: string): RunDetail | undefined {
-    const row = this.#db.prepare(`SELECT ${RUN_COLUMNS}, plan FROM runs WHERE id = ?`).get(id);
-    if (row === undefined) return undefined;
-    const plan = readDocument(Plan, PLAN_SCHEMA_VERSION, JSON.parse(String(row["plan"])));
-    if (!plan.ok) throw new Error(`run ${id}: stored plan unreadable (${plan.finding.code})`);
-    const steps = this.#db.prepare(`SELECT ${STEP_COLUMNS} FROM steps WHERE runId = ? ORDER BY "index"`).all(id);
-    return {
-      run: Run.parse(row),
-      plan: plan.value,
-      steps: steps.map((step) => Step.parse(step)),
-    };
-  }
-
-  /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
-  backupPath(runId: string, index: number): string {
-    return join(backupsOf(this.dir, runId), String(index));
+    this.db.prepare("UPDATE runs SET status = ?, finishedAt = ? WHERE id = ?").run(status, now(), runId);
   }
 
   /**
@@ -131,9 +202,9 @@ export class RunStore {
    */
   prune(days: number): string[] {
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
-    return transaction(this.#db, () => {
-      const rows = this.#db.prepare("SELECT id, plan FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
-      const blank = this.#db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
+    return transaction(this.db, () => {
+      const rows = this.db.prepare("SELECT id, plan FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
+      const blank = this.db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
       for (const row of rows) {
         const id = String(row["id"]);
         rmSync(backupsOf(this.dir, id), { recursive: true, force: true });
@@ -146,8 +217,8 @@ export class RunStore {
     });
   }
 
-  close(): void {
-    this.#db.close();
+  override close(): void {
+    super.close();
     this.#lock.close();
   }
 }
@@ -168,10 +239,11 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
   if (fsType !== undefined && isNetworkFilesystem(fsType)) {
     return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
   }
-  // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over.
+  // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
+  // outlasts a reader's probe (held); another writer keeps the lock for its whole run and is refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
-    lock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+    lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");
   } catch {
     lock.close();
     return { ok: false, finding: { code: "store.busy", params: { dir } } };
@@ -195,4 +267,16 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
     lock.close();
     throw error;
   }
+};
+
+/** Opens a store for reading; null when no run was ever recorded in `dir`. */
+export const openRunView = (dir: string): Result<RunView | null> => {
+  if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
+  const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
+  const found = versionOf(db);
+  if (found > 0 && found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
+  db.close();
+  // Version 0: a first open created the file but not (yet) its schema, so no run was ever recorded.
+  if (found === 0) return { ok: true, value: null };
+  return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
 };

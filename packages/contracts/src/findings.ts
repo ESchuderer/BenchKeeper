@@ -8,6 +8,7 @@ const finding = <const C extends string, const P extends z.ZodRawShape>(code: C,
 /** A result of a check: a code and typed parameters; the text for people comes from the message catalog. */
 export const Finding = z
   .discriminatedUnion("code", [
+    finding("document.unreadable", { path: z.string(), error: z.string() }),
     finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
     finding("document.invalid", { issues: z.array(z.strictObject({ path: z.string(), code: z.string() })) }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
@@ -26,7 +27,8 @@ export const Finding = z
     finding("apply.write-failed", { path: z.string(), error: z.string() }),
     finding("apply.write-mismatch", { path: z.string(), expected: Sha256.nullable(), actual: Sha256.nullable() }),
     finding("run.not-found", { runId: z.string() }),
-    finding("run.interrupted", { runId: z.string() }),
+    finding("run.interrupted", { runId: z.string(), undoes: z.string().nullable() }),
+    finding("run.failed", { runId: z.string(), undoes: z.string().nullable() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -45,6 +47,7 @@ interface FindingInfo {
 }
 
 export const findingInfo: Record<FindingCode, FindingInfo> = {
+  "document.unreadable": { severity: "error", effort: "manual" },
   "document.newer-schema": { severity: "error", effort: "manual" },
   "document.invalid": { severity: "error", effort: "manual" },
   "plan.not-approved": { severity: "error", effort: "command" },
@@ -59,6 +62,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "apply.write-mismatch": { severity: "error", effort: "command" },
   "run.not-found": { severity: "error", effort: "manual" },
   "run.interrupted": { severity: "warning", effort: "command" },
+  "run.failed": { severity: "warning", effort: "command" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

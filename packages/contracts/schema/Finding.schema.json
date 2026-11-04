@@ -7,6 +7,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "document.unreadable"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "document.newer-schema"
         },
         "params": {
@@ -460,10 +490,50 @@
           "properties": {
             "runId": {
               "type": "string"
+            },
+            "undoes": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
-            "runId"
+            "runId",
+            "undoes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "run.failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "undoes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "runId",
+            "undoes"
           ],
           "additionalProperties": false
         }

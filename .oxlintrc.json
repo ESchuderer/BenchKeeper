@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
+  "categories": { "correctness": "error", "suspicious": "error" },
+  "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
+  "ignorePatterns": ["**/dist/**"],
+  "rules": {
+    "complexity": ["error", 10],
+    "max-depth": ["error", 3],
+    "max-lines-per-function": ["error", { "max": 50, "skipBlankLines": true, "skipComments": true }],
+    "max-params": ["error", 4],
+    "no-nested-ternary": "error",
+    "no-else-return": "error",
+    "no-lonely-if": "error",
+    "no-unneeded-ternary": "error",
+    "no-useless-return": "error",
+    "no-useless-catch": "error",
+    "prefer-const": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-boolean-literal-compare": "error",
+    "typescript/no-unnecessary-type-parameters": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/ban-ts-comment": "error",
+    "import/no-cycle": "error"
+  },
+  "overrides": [
+    {
+      "files": ["packages/contracts/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/*"],
+                "message": "contracts depend on no runtime and no other CedarLoom package"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

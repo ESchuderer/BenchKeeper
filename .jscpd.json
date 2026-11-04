@@ -1,0 +1,8 @@
+{
+  "path": ["packages"],
+  "ignore": ["**/dist/**", "**/node_modules/**", "**/schema/**", "**/openapi.json"],
+  "threshold": 0,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "gitignore": true
+}

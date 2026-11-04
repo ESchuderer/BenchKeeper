@@ -1,0 +1,193 @@
+name: CedarLoom
+
+# Gates of the CedarLoom pnpm workspace (packages/ and the root files in PATHS); app/ and web/ keep checks.yml.
+# `check` is the one aggregate result: it fails when a gate failed or was cancelled, and a gate skipped because no
+# CedarLoom path changed passes. A pull request builds and tests only the packages it changed plus their dependents
+# (pnpm's `...[<base>]` selector); a change to a root file, the weekly run and a manual run cover every package.
+# Repository-wide gates that cover these paths too run in their own workflows: CodeQL (codeql.yml), actionlint and
+# zizmor (checks.yml), the Conventional Commit title (pr-title.yml).
+# shortcut: every job is inline; switch them to the shared reusable workflows, pinned by full commit SHA, once those exist.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  merge_group:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Bumped by hand: Dependabot does not read these.
+  NODE_VERSION: 26.13.0
+  PNPM_VERSION: 12.16.1
+  PATHS: >-
+    packages pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json tsconfig.base.json vitest.config.ts
+    .oxlintrc.json biome.json knip.json .jscpd.json _typos.toml .gitattributes scripts/*.ts
+    release-please-config.cedarloom.json .release-please-manifest.cedarloom.json .github/workflows/cedarloom.yml
+
+jobs:
+  # filter: empty when no CedarLoom path changed, `*` for every package, otherwise the changed packages and their dependents.
+  areas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      filter: ${{ steps.areas.outputs.filter }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: areas
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          if [ -z "$BASE" ]; then echo 'filter=*' >> "$GITHUB_OUTPUT"; exit 0; fi
+          read -ra paths <<< "$PATHS"
+          changed=$(git diff --name-only "$BASE...HEAD" -- "${paths[@]}")
+          if [ -z "$changed" ]; then filter=''
+          elif printf '%s\n' "$changed" | grep -qv '^packages/'; then filter='*'
+          else filter="...[$BASE]"; fi
+          echo "filter=$filter" | tee -a "$GITHUB_OUTPUT"
+
+  # Change size: a warning above 15 files or 400 lines, a failure above 30 files or 1000 lines unless the owner sets the
+  # label size-override. Lockfiles and generated documents do not count.
+  size:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'size-override') }}
+        run: |
+          read -ra paths <<< "$PATHS"
+          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!packages/*/schema/**' ':!packages/*/openapi.json')
+          files=$(printf '%s' "$stat" | grep -c . || true)
+          lines=$(printf '%s' "$stat" | awk '{ n += $1 + $2 } END { print n + 0 }')
+          echo "CedarLoom paths: $files files, $lines changed lines"
+          if [ "$files" -gt 30 ] || [ "$lines" -gt 1000 ]; then
+            if [ "$OVERRIDE" = true ]; then echo "::warning::over 30 files or 1000 lines, lifted by the size-override label"; exit 0; fi
+            echo "::error::over 30 files or 1000 lines: split the change, or the owner sets the size-override label"; exit 1
+          fi
+          if [ "$files" -gt 15 ] || [ "$lines" -gt 400 ]; then echo "::warning::over 15 files or 400 lines"; fi
+
+  # Types, lint (type-aware), format, unused code and dependencies, duplicates, US spelling.
+  static:
+    needs: areas
+    if: needs.areas.outputs.filter != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      FILTER: ${{ needs.areas.outputs.filter }}
+    steps:
+      # The full history: pnpm's selector diffs against the base commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Types (tsc -b)
+        run: if [ "$FILTER" = '*' ]; then pnpm run typecheck; else pnpm --filter "$FILTER" run typecheck; fi
+      - name: Lint (Oxlint)
+        run: pnpm run lint
+      - name: Format (Biome)
+        run: pnpm run format:check
+      - name: Unused code and dependencies (knip)
+        run: pnpm run knip
+      - name: Duplicates (jscpd)
+        run: pnpm run jscpd
+      - name: US spelling (typos)
+        uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+        with:
+          files: ./packages
+
+  # Unit and contract tests with coverage floors (vitest.config.ts) on the three release platforms. The contracts tests
+  # compare the committed JSON Schema and OpenAPI documents with the ones the schemas generate.
+  test:
+    needs: areas
+    if: needs.areas.outputs.filter != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      FILTER: ${{ needs.areas.outputs.filter }}
+    steps:
+      # The full history: pnpm's selector diffs against the base commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
+
+  # Vulnerabilities and licenses of changed dependencies. The allow-list holds licenses compatible with shipping under
+  # ISC: permissive ones, MPL-2.0 and LGPL by default, EPL-2.0 for elkjs and AFL-2.1 for the libdbus election.
+  license-review:
+    needs: areas
+    if: github.event_name == 'pull_request' && needs.areas.outputs.filter != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
+          allow-licenses: >-
+            0BSD, AFL-2.1, Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC-BY-4.0, CC0-1.0, EPL-2.0, ISC,
+            LGPL-2.1-or-later, LGPL-3.0-or-later, MIT, MIT-0, MPL-2.0, Python-2.0, Unlicense, Zlib
+
+  # The one required result of this workflow (the name stays: a ruleset names it).
+  check:
+    if: always()
+    needs: [areas, size, static, test, license-review]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every gate passed or had nothing to check
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "::error::a gate ended as $r"; exit 1 ;; esac
+          done

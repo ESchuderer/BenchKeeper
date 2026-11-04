@@ -1,0 +1,11 @@
+# CedarLoom packages. app/ and web/ stay npm projects with their own lockfiles.
+packages:
+  - packages/*
+
+# A version must be 3 days old before an install resolves to it (the Dependabot cooldown, applied to transitive packages too).
+minimumReleaseAge: 4320
+strictPeerDependencies: true
+
+# One version per shared dependency: packages name it as "catalog:".
+catalog:
+  zod: 4.6.7

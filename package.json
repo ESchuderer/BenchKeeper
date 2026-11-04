@@ -1,0 +1,30 @@
+{
+  "name": "cedarloom-workspace",
+  "private": true,
+  "description": "Workspace root of the CedarLoom packages; app/ and web/ are separate npm projects.",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "lint": "oxlint packages scripts vitest.config.ts",
+    "format": "biome format --write",
+    "format:check": "biome format",
+    "knip": "knip --max-issues 0",
+    "jscpd": "jscpd",
+    "test": "pnpm -r run test && node --test scripts/*.test.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.0.5",
+    "jscpd": "5.4.2",
+    "knip": "6.44.1",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5",
+    "zod": "catalog:"
+  }
+}

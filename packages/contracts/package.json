@@ -1,0 +1,33 @@
+{
+  "name": "@cedarloom/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Typed contracts of CedarLoom: zod schemas and the JSON Schema and OpenAPI documents generated from them.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "generate": "node scripts/generate.ts"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  }
+}

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, statSync } from "node:fs";
+import { chmodSync, mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -97,8 +97,8 @@ test("a network filesystem is refused for the run store", () => {
 });
 
 test("mount tables of Linux and macOS give the type of the mount that holds a folder", () => {
-  const linux = parseMounts("/dev/sda1 / ext4 rw 0 0\nserver:/home /home/me\\040x nfs4 rw 0 0\n");
-  expect(mountType("/home/me x/state", linux)).toBe("nfs4");
+  const linux = parseMounts("/dev/sda1 / ext4 rw 0 0\nserver:/home /home/me\\040x\\011y nfs4 rw 0 0\n");
+  expect(mountType("/home/me x\ty/state", linux)).toBe("nfs4");
   expect(mountType("/home/other", linux)).toBe("ext4");
   const mac = parseMounts("/dev/disk3s1 on / (apfs, local)\n//me@nas/share on /Volumes/share (smbfs, nodev)\n");
   expect(mountType("/Volumes/share/state", mac)).toBe("smbfs");
@@ -125,16 +125,16 @@ test("a run records its plan, approval and pending steps together; another plan'
       { index: 1, path: "/b", before: sha256("b\n"), after: null, state: "pending" },
     ],
   });
-  store.start(id.value, 0, false, null);
+  store.start(id.value, 0, null);
   store.settle(id.value, 0, "done");
-  store.start(id.value, 1, true, 0o644);
+  store.start(id.value, 1, 0o644);
   store.settle(id.value, 1, "skipped");
   store.finish(id.value, "failed");
   expect(store.run(id.value)).toMatchObject({
     run: { status: "failed" },
     steps: [
-      { state: "done", backedUp: false },
-      { state: "skipped", backedUp: true, mode: 0o644 },
+      { state: "done", mode: null },
+      { state: "skipped", mode: 0o644 },
     ],
   });
   expect(store.run("missing")).toBeUndefined();
@@ -166,3 +166,27 @@ test("a stored plan that no longer parses is an error, not a run without steps",
   db.close();
   expect(() => store.run(id.ok ? id.value : "")).toThrow(/stored plan unreadable \(document.invalid\)/);
 });
+
+test("the schema is created in one transaction: a failure halfway leaves no partial schema to block the next open", () => {
+  const dir = fresh();
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("CREATE TABLE steps (x)");
+  db.close();
+  expect(() => openRunStore(dir)).toThrow(/steps already exists/);
+  const after = new DatabaseSync(join(dir, "runs.sqlite"));
+  expect(after.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()).toEqual([{ name: "steps" }]);
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 0 });
+  after.close();
+  // The failed open released its lock: the next one meets the same schema error, not "busy".
+  expect(() => openRunStore(dir)).toThrow(/steps already exists/);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a state folder that existed keeps its mode; the database in it is private",
+  () => {
+    const dir = fresh();
+    chmodSync(dir, 0o755);
+    opened(dir);
+    expect([statSync(dir).mode & 0o777, statSync(join(dir, "runs.sqlite")).mode & 0o777]).toEqual([0o755, 0o600]);
+  },
+);

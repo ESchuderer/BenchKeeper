@@ -29,13 +29,16 @@ const NETWORK = new Set([
 
 export const isNetworkFilesystem = (fsType: string): boolean => NETWORK.has(fsType);
 
-/** `[mount point, type]` pairs from Linux `/proc/self/mounts` (spaces escaped as `\040`) or macOS `mount` output. */
+/** `[mount point, type]` pairs from Linux `/proc/self/mounts` (space, tab, newline and backslash as octal escapes) or macOS `mount` output. */
 export const parseMounts = (text: string): [string, string][] =>
   text.split("\n").flatMap((line): [string, string][] => {
     const mac = /^.+ on (.+) \(([^,)]+)/.exec(line);
     if (mac?.[1] && mac[2]) return [[mac[1], mac[2]]];
     const [, point, type] = line.split(" ");
-    return point && type ? [[point.replaceAll("\\040", " "), type]] : [];
+    const unescaped = point?.replace(/\\([0-7]{3})/g, (_, octal: string) =>
+      String.fromCharCode(Number.parseInt(octal, 8)),
+    );
+    return unescaped && type ? [[unescaped, type]] : [];
   });
 
 /** The type of the mount that holds `dir` (the longest mount point that contains it). */

@@ -19,7 +19,8 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  # github.ref names the pull request (refs/pull/<n>/merge), so two pull requests from same-named branches never share a group.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -135,7 +136,7 @@ jobs:
       - name: Duplicates (jscpd)
         run: pnpm run jscpd
       - name: US spelling (typos)
-        run: pipx run --spec "typos==$TYPOS_VERSION" typos packages
+        run: pipx run --spec "typos==$TYPOS_VERSION" typos packages scripts ./*.json ./*.ts ./*.yaml _typos.toml .github/workflows/cedarloom.yml
 
   # Unit and contract tests with coverage floors (vitest.config.ts) on the three release platforms. The contracts tests
   # compare the committed JSON Schema and OpenAPI documents with the ones the schemas generate.

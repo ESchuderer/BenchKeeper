@@ -29,11 +29,21 @@ const NETWORK = new Set([
 
 export const isNetworkFilesystem = (fsType: string): boolean => NETWORK.has(fsType);
 
+/** A macOS `mount` line, `<device> on <mount point> (<type>, <options>)`, by plain slicing (no backtracking regex). */
+const macMount = (line: string): [string, string] | undefined => {
+  const on = line.indexOf(" on ");
+  const options = line.lastIndexOf(" (");
+  if (on === -1 || options < on || !line.endsWith(")")) return undefined;
+  const inside = line.slice(options + 2, -1);
+  const comma = inside.indexOf(",");
+  return [line.slice(on + 4, options), comma === -1 ? inside : inside.slice(0, comma)];
+};
+
 /** `[mount point, type]` pairs from Linux `/proc/self/mounts` (space, tab, newline and backslash as octal escapes) or macOS `mount` output. */
 export const parseMounts = (text: string): [string, string][] =>
   text.split("\n").flatMap((line): [string, string][] => {
-    const mac = /^.+ on (.+) \(([^,)]+)/.exec(line);
-    if (mac?.[1] && mac[2]) return [[mac[1], mac[2]]];
+    const mac = macMount(line);
+    if (mac) return [mac];
     const [, point, type] = line.split(" ");
     const unescaped = point?.replace(/\\([0-7]{3})/g, (_, octal: string) =>
       String.fromCharCode(Number.parseInt(octal, 8)),

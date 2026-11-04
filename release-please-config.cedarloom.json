@@ -4,9 +4,10 @@
   "include-component-in-tag": true,
   "plugins": [
     { "type": "node-workspace", "merge": false },
-    { "type": "linked-versions", "groupName": "cedarloom", "components": ["contracts", "engine", "ledger"] }
+    { "type": "linked-versions", "groupName": "cedarloom", "components": ["cli", "contracts", "engine", "ledger"] }
   ],
   "packages": {
+    "packages/cli": { "component": "cli" },
     "packages/contracts": {
       "component": "contracts",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]

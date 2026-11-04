@@ -1,5 +1,5 @@
 import type { Finding, Operation, Plan, Result } from "@cedarloom/contracts";
-import { type RunStore, type Step, sha256 } from "@cedarloom/ledger";
+import { type RunView, type Step, sha256 } from "@cedarloom/ledger";
 import { hashFile, readOrNull } from "./files.ts";
 
 export interface UndoPlan {
@@ -11,7 +11,7 @@ export interface UndoPlan {
 
 const text = new TextDecoder("utf-8", { fatal: true });
 
-const restore = (store: RunStore, runId: string, step: Step, actual: string | null): Result<Operation> => {
+const restore = (store: RunView, runId: string, step: Step, actual: string | null): Result<Operation> => {
   if (step.before === null && actual !== null)
     return { ok: true, value: { kind: "delete", path: step.path, before: actual } };
   const params = { runId, path: step.path };
@@ -32,7 +32,7 @@ const restore = (store: RunStore, runId: string, step: Step, actual: string | nu
  * The plan that undoes a run, newest step first. Every step the run started counts, whatever its state: its file is
  * restored only while it still hashes as the run left it; a file edited since is skipped and reported.
  */
-export const planUndo = (store: RunStore, runId: string): Result<UndoPlan> => {
+export const planUndo = (store: RunView, runId: string): Result<UndoPlan> => {
   const detail = store.run(runId);
   if (detail === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
   const simulated = new Map<string, string | null>();

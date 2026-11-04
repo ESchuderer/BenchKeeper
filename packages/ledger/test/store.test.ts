@@ -10,6 +10,7 @@ import {
   isNetworkFilesystem,
   mountType,
   openRunStore,
+  openRunView,
   parseMounts,
   planHash,
   type RunStore,
@@ -163,4 +164,33 @@ test("a stored plan that no longer parses is an error, not a run without steps",
   db.prepare("UPDATE runs SET plan = ?").run('{"schemaVersion":1,"operations":[]}');
   db.close();
   expect(() => store.run(id.ok ? id.value : "")).toThrow(/stored plan unreadable \(document.invalid\)/);
+});
+
+test("a view reads the runs while another store holds them, writes nothing and tells whether the store is held", () => {
+  const dir = fresh();
+  expect(openRunView(dir)).toEqual({ ok: true, value: null });
+  const store = opened(dir);
+  const id = store.begin("apply", plan, planHash(plan));
+  const view = openRunView(dir);
+  if (!view.ok || view.value === null) throw new Error("no view");
+  expect(view.value.runs()).toMatchObject([{ id: id.ok ? id.value : "", status: "running" }]);
+  expect(view.value.held()).toBe(true);
+  store.close();
+  open.length = 0;
+  expect(view.value.held()).toBe(false);
+  expect(view.value.run(id.ok ? id.value : "")?.steps).toHaveLength(2);
+  view.value.close();
+});
+
+test("a view refuses a store written by a newer CedarLoom", () => {
+  const dir = fresh();
+  opened(dir).close();
+  open.length = 0;
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 3");
+  db.close();
+  expect(openRunView(dir)).toEqual({
+    ok: false,
+    finding: { code: "store.newer-schema", params: { found: 3, known: 1 } },
+  });
 });

@@ -8,6 +8,7 @@ const finding = <const C extends string, const P extends z.ZodRawShape>(code: C,
 /** A result of a check: a code and typed parameters; the text for people comes from the message catalog. */
 export const Finding = z
   .discriminatedUnion("code", [
+    finding("document.unreadable", { path: z.string(), error: z.string() }),
     finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
     finding("document.invalid", { issues: z.array(z.strictObject({ path: z.string(), code: z.string() })) }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
@@ -36,6 +37,7 @@ interface FindingInfo {
 }
 
 export const findingInfo: Record<FindingCode, FindingInfo> = {
+  "document.unreadable": { severity: "error", effort: "manual" },
   "document.newer-schema": { severity: "error", effort: "manual" },
   "document.invalid": { severity: "error", effort: "manual" },
   "plan.not-approved": { severity: "error", effort: "command" },

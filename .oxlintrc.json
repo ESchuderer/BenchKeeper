@@ -40,7 +40,9 @@
               "sessionStorage",
               "fetch",
               "XMLHttpRequest",
-              "indexedDB"
+              "indexedDB",
+              "globalThis",
+              "self"
             ],
             "checkGlobalObject": true
           }

@@ -108,9 +108,8 @@ export class RunStore {
     };
   }
 
-  /** Where the backup of a step's file goes: inside this store's folder only. */
+  /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
   backupPath(runId: string, index: number): string {
-    mkdirSync(join(this.dir, "backups", runId), { recursive: true, mode: 0o700 });
     return join(this.dir, "backups", runId, String(index));
   }
 

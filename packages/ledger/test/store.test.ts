@@ -47,9 +47,9 @@ test("the store runs in WAL mode with synchronous FULL", () => {
 
 test.skipIf(process.platform === "win32")("the store folder, its backups and the database are private", () => {
   const store = opened(fresh());
-  const backup = store.backupPath("run", 0);
+  expect(store.backupPath("run", 0)).toBe(join(store.dir, "backups", "run", "0"));
   expect(statSync(store.dir).mode & 0o777).toBe(0o700);
-  expect(statSync(join(backup, "..")).mode & 0o777).toBe(0o700);
+  expect(statSync(join(store.dir, "backups")).mode & 0o777).toBe(0o700);
   expect(statSync(join(store.dir, "runs.sqlite")).mode & 0o777).toBe(0o600);
 });
 

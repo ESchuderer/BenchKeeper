@@ -1,0 +1,33 @@
+{
+  "name": "@cedarloom/engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Applies CedarLoom plans crash-ordered and undoes them as runs of their own.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*",
+    "@cedarloom/ledger": "workspace:*"
+  }
+}

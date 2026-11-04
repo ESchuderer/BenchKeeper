@@ -33,6 +33,12 @@ const transaction = <T>(db: DatabaseSync, work: () => T): T => {
 const now = (): string => new Date().toISOString();
 const RUN_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
+/** A run's backup folder: inside the store's folder only, also for an id read back from an edited journal. */
+const backupsOf = (dir: string, runId: string): string => {
+  if (!RUN_ID.test(runId)) throw new TypeError(`not a run id: ${JSON.stringify(runId)}`);
+  return join(dir, "backups", runId);
+};
+
 /** The run store of one state folder. One process holds it at a time; closing it or exiting releases it. */
 export class RunStore {
   readonly #db: DatabaseSync;
@@ -112,9 +118,9 @@ export class RunStore {
 
   /** Where the backup of a step's file goes: inside this store's folder only. */
   backupPath(runId: string, index: number): string {
-    if (!RUN_ID.test(runId)) throw new TypeError(`not a run id: ${JSON.stringify(runId)}`);
-    mkdirSync(join(this.dir, "backups", runId), { recursive: true, mode: 0o700 });
-    return join(this.dir, "backups", runId, String(index));
+    const folder = backupsOf(this.dir, runId);
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    return join(folder, String(index));
   }
 
   /** Deletes the backups of runs started more than `days` days ago; their undo then reports the missing backup. */
@@ -124,7 +130,7 @@ export class RunStore {
       .prepare("SELECT id FROM runs WHERE startedAt < ?")
       .all(cutoff)
       .map((row) => String(row["id"]));
-    for (const id of ids) rmSync(join(this.dir, "backups", id), { recursive: true, force: true });
+    for (const id of ids) rmSync(backupsOf(this.dir, id), { recursive: true, force: true });
     return ids;
   }
 

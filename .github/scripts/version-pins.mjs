@@ -26,7 +26,7 @@ export function minAppPin(text, version) {
 
 // As Docker reads the file: comment lines (a whole line starting with #) dropped, then continued lines joined, so an
 // install command in a comment is not what the image runs and one spread over several lines is one command.
-const commands = (dockerfile) => dockerfile.replace(/^[ \t]*#.*\n?/gm, '').replace(/\\\r?\n/g, ' ');
+const commands = (dockerfile) => dockerfile.replace(/^[ \t]*#.*\r?\n?/gm, '').replace(/\\\r?\n/g, ' ');
 
 // Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {

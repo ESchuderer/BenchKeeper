@@ -1,9 +1,9 @@
-import { execFile, spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck } from "@cedarloom/agent-contracts";
+import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionError } from "@cedarloom/agent-contracts";
+import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
-import { streamParser } from "./stream.ts";
+import { lines, streamParser } from "./stream.ts";
 
 export { type ClaudeLaunch, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
 
@@ -12,8 +12,27 @@ type Command = readonly [string, ...string[]];
 // Enough to name a failure; the stream carries everything else.
 const STDERR_TAIL = 4096;
 
+// Far above any line the CLI should write (unverified), far below the string limit that ends the host process.
+const MAX_LINE_BYTES = 64 * 1024 * 1024;
+
 // The probe asks for the shortest answer, so a check spends little of the account's usage.
 const PROBE_PROMPT = "Reply with the single word OK.";
+
+// On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at most
+// (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
+// at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
+// ends the whole tree there, also at once and without the CLI's SessionEnd hooks.
+const stop = (child: ChildProcess): void => {
+  /* v8 ignore start -- Windows only; the Windows CI leg runs it */
+  if (process.platform === "win32" && child.pid !== undefined) {
+    execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, (failed) => {
+      if (failed !== null) child.kill();
+    });
+    return;
+  }
+  /* v8 ignore stop */
+  child.kill();
+};
 
 const run = (
   command: Command,
@@ -24,12 +43,12 @@ const run = (
   const [file, ...prefix] = command;
   const args = [...prefix, ...launchArgs(launch), ...extraArgs];
   const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), windowsHide: true });
-  let error: string | null = null;
+  let error: SessionError | null = null;
   let stderr = "";
   const exited = new Promise<void>((resolve) => {
     child.once("exit", () => resolve());
     child.on("error", (cause) => {
-      error = cause.message;
+      error = { code: "process", message: cause.message };
       resolve();
     });
   });
@@ -45,31 +64,38 @@ const run = (
   });
   async function* events(): AsyncGenerator<AgentEvent> {
     const parse = streamParser(verified);
-    for await (const line of createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY })) {
-      if (line.trim() !== "") yield parse(line);
+    for await (const line of lines(child.stdout, MAX_LINE_BYTES)) {
+      if (line === null) {
+        error = { code: "line-too-long", limitBytes: MAX_LINE_BYTES };
+        stop(child);
+      } else if (line.trim() !== "") yield parse(line);
     }
     const [code, signal] = await closed;
     yield { type: "exit", code, signal, error, stderr };
   }
   return {
     events: events(),
-    // On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at
-    // most (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm).
     cancel: async () => {
-      child.kill();
+      stop(child);
       await exited;
     },
   };
 };
 
-/** Checks a probe's events: the version ran, at least one usage window with a share, and a successful result. */
+/**
+ * Checks a probe's events: the version ran, at least one usage window with a share and a reset time (without one, nothing
+ * ages the reading out), and a successful result.
+ */
 const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const events: AgentEvent[] = [];
   for await (const event of session.events) events.push(event);
   const init = events.find((event) => event.type === "init");
   const passed = {
     init: init !== undefined,
-    usage: events.some((event) => event.type === "usage" && event.windows.some((window) => window.percent !== null)),
+    usage: events.some(
+      (event) =>
+        event.type === "usage" && event.windows.some((window) => window.percent !== null && window.resetsAt !== null),
+    ),
     result: events.some((event) => event.type === "result" && event.ok),
   };
   return {
@@ -96,7 +122,11 @@ export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<Claud
       usage: "partial",
     },
     version: async (env) => {
-      const { stdout } = await promisify(execFile)(file, [...prefix, "--version"], { env, windowsHide: true });
+      const { stdout } = await promisify(execFile)(file, [...prefix, "--version"], {
+        env,
+        windowsHide: true,
+        timeout: 10_000,
+      });
       const match = /^\d+\.\d+\.\d+\S*/.exec(stdout.trim());
       if (match === null) throw new Error(`unrecognized claude --version output: ${stdout.trim()}`);
       return match[0];
@@ -106,7 +136,11 @@ export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<Claud
       return contractCheck(run(command, probe, [], () => true));
     },
     start,
-    resume: (sessionId, launch) => run(command, launch, ["--resume", sessionId]),
+    // The CLI reads a value that starts with `-` as a flag, and `--resume` also takes a title or a transcript path.
+    resume: (sessionId, launch) => {
+      if (!z.uuid().safeParse(sessionId).success) throw new Error(`not a session ID: ${sessionId}`);
+      return run(command, launch, ["--resume", sessionId]);
+    },
     handover: async (from, to) => {
       launchArgs(to); // refuses a bad launch while `from` still runs
       await from.cancel();

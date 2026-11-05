@@ -1,7 +1,12 @@
-import type { Launch } from "@cedarloom/agent-contracts";
+import { statSync } from "node:fs";
+import { isAbsolute } from "node:path";
+import type { Effort, Launch } from "@cedarloom/agent-contracts";
 
-/** Claude Code permission modes a session may run in; `bypassPermissions` is left out, because CedarLoom never bypasses. */
-export type PermissionMode = "manual" | "acceptEdits" | "plan" | "dontAsk" | "auto";
+// Claude Code permission modes a session may run in; `bypassPermissions` is left out, because CedarLoom never bypasses.
+const PERMISSION_MODES = ["manual", "acceptEdits", "plan", "dontAsk", "auto"] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+const MODES = new Set<string>(PERMISSION_MODES);
+const EFFORTS = new Set<string>(["low", "medium", "high", "xhigh"] satisfies Effort[]);
 
 /** Launch options of a Claude Code session. */
 export interface ClaudeLaunch extends Launch {
@@ -29,15 +34,27 @@ export const FRESH_INSTALL_PHASES = {
 
 const FULL_MODEL_ID = /^claude-[a-z0-9-]+$/;
 
+// Refuses what the types cannot keep out of a launch built from JSON, such as settings or a shared workflow. On 2.1.316 an
+// empty CLAUDE_CONFIG_DIR runs on the machine's default login, a relative one creates the folder in the working directory,
+// and a missing one runs logged out.
+const refuse = (launch: ClaudeLaunch): void => {
+  for (const model of [launch.model, launch.subagentModel]) {
+    if (!FULL_MODEL_ID.test(model)) throw new Error(`not a full Claude model ID: ${model}`);
+  }
+  if (!MODES.has(launch.permissionMode)) throw new Error(`not an allowed permission mode: ${launch.permissionMode}`);
+  if (!EFFORTS.has(launch.effort)) throw new Error(`not an allowed effort: ${launch.effort}`);
+  if (!isAbsolute(launch.home) || statSync(launch.home, { throwIfNoEntry: false })?.isDirectory() !== true) {
+    throw new Error(`not an existing absolute config folder: "${launch.home}"`);
+  }
+};
+
 /**
  * The arguments after the command. Never `--bare`: it skips the account's login, CLAUDE.md and auto memory
  * (https://code.claude.com/docs/en/headless#start-faster-with-bare-mode). `--permission-prompts none` denies what nobody
  * can answer and tells Claude not to retry it (https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs).
  */
 export const launchArgs = (launch: ClaudeLaunch): string[] => {
-  for (const model of [launch.model, launch.subagentModel]) {
-    if (!FULL_MODEL_ID.test(model)) throw new Error(`not a full Claude model ID: ${model}`);
-  }
+  refuse(launch);
   return [
     "-p",
     "--output-format",
@@ -56,7 +73,8 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 // Dropped from the launch's environment, without regard to case, because Windows names ignore it: the names the adapter
 // sets, CLAUDE_CODE_SIMPLE, which is equivalent to --bare (https://code.claude.com/docs/en/env-vars), and the login
 // variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
-const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_)/i;
+// CLAUDE_CODE_USE_POWERSHELL_TOOL is kept: it turns a tool on or off and selects no login.
+const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_TOOL$))/i;
 const OWN_NAMES = new Set([
   "CLAUDE_CODE_SIMPLE",
   "CLAUDE_CONFIG_DIR",

@@ -55,6 +55,33 @@ const parseJson = (line: string): Json => {
 };
 
 /**
+ * Splits stdout into lines, and ends with `null` in place of a line longer than `max` bytes: a string past the engine's
+ * limit (https://nodejs.org/api/buffer.html#bufferconstantsmax_string_length) throws where no caller can catch it. The
+ * size is checked per chunk, so a line passes `max` by one chunk at most.
+ */
+export async function* lines(input: AsyncIterable<Buffer>, max: number): AsyncGenerator<string | null> {
+  let parts: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of input) {
+    let start = 0;
+    for (let end = chunk.indexOf("\n"); end !== -1; end = chunk.indexOf("\n", start)) {
+      parts.push(chunk.subarray(start, end));
+      yield Buffer.concat(parts).toString("utf8");
+      parts = [];
+      size = 0;
+      start = end + 1;
+    }
+    parts.push(chunk.subarray(start));
+    size += chunk.length - start;
+    if (size > max) {
+      yield null;
+      return;
+    }
+  }
+  if (size > 0) yield Buffer.concat(parts).toString("utf8");
+}
+
+/**
  * Turns stream-json lines into events, one call per line. A rate-limit line becomes a usage event only after the init
  * line named a version that `verified` accepts; otherwise, like every line it does not know, it stays `other`.
  */

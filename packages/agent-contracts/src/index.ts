@@ -11,7 +11,7 @@ export type Effort = "low" | "medium" | "high" | "xhigh";
 
 /** What every adapter needs to start a session; an adapter's launch options add its own settings. */
 export interface Launch {
-  /** The account's config folder, which selects its login. */
+  /** The account's config folder, which selects its login: an absolute path to an existing folder. */
   readonly home: string;
   readonly cwd: string;
   readonly prompt: string;
@@ -22,7 +22,8 @@ export interface Launch {
   readonly effort: Effort;
   /**
    * The whole environment of the agent process, without login variables; nothing of the caller's is inherited, except
-   * that on Windows libuv adds the system variables a process needs, PATH among them, when they are missing.
+   * that on Windows libuv adds the system variables a process needs, PATH among them, when they are missing
+   * (`required_vars` in https://github.com/libuv/libuv/blob/v1.x/src/win/process.c).
    */
   readonly env: Readonly<Record<string, string>>;
   /** CLI versions whose contract check passed: an undocumented reading such as usage is reported on these only. */
@@ -39,6 +40,11 @@ export interface UsageWindow {
   /** ISO time of the window's reset; null when the agent sent none. */
   readonly resetsAt: string | null;
 }
+
+/** Why a session ended in the adapter: the process failed to start or stop, or it wrote a line past the adapter's cap. */
+export type SessionError =
+  | { readonly code: "process"; readonly message: string }
+  | { readonly code: "line-too-long"; readonly limitBytes: number };
 
 /** What a session reports, in order; `raw` is the agent's own line, kept for the ledger. */
 export type AgentEvent =
@@ -61,8 +67,7 @@ export type AgentEvent =
       readonly type: "exit";
       readonly code: number | null;
       readonly signal: string | null;
-      /** Why the process could not start or be stopped, such as a missing command. */
-      readonly error: string | null;
+      readonly error: SessionError | null;
       /** The end of the process's error output. */
       readonly stderr: string;
     };

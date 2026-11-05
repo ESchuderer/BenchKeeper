@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { client, exchange } from "@cedarloom/client";
+import { client, exchange, type RunEvent, subscribe } from "@cedarloom/client";
 import { CSRF_HEADER } from "@cedarloom/contracts/http";
 import { sha256 } from "@cedarloom/ledger";
 import { type Started, startServer } from "@cedarloom/server";
@@ -17,7 +17,7 @@ afterEach(async () => {
 /** A server on a fresh state folder, with the base URL and token a page reads from the printed link. */
 const serve = async (): Promise<{ base: string; token: string; state: string }> => {
   const state = join(mkdtempSync(join(tmpdir(), "cedarloom-client-")), "state");
-  const server = await startServer({ state, log: () => undefined });
+  const server = await startServer({ state, every: 25, log: () => undefined });
   servers.push(server);
   const url = new URL(server.url);
   return { base: url.origin, token: url.hash.slice("#t=".length), state };
@@ -101,10 +101,65 @@ test("the CSRF token goes to the API's origin only, also when a request names an
   const api = client("http://127.0.0.1:9", "secret-csrf", spy);
   await api.GET("/api/runs");
   await api.GET("/api/runs", { baseUrl: "http://example.invalid" });
-  expect(sent.map((request) => [new URL(request.url).host, request.headers.get(CSRF_HEADER)])).toEqual([
-    ["127.0.0.1:9", "secret-csrf"],
-    ["example.invalid", null],
+  expect(
+    sent.map((request) => [new URL(request.url).host, request.headers.get(CSRF_HEADER), request.redirect]),
+  ).toEqual([
+    ["127.0.0.1:9", "secret-csrf", "error"],
+    ["example.invalid", null, "error"],
   ]);
+});
+
+test("subscribe hands over the runs at once and each change after, and ends quietly when the page stops it", async () => {
+  const { base, token, state } = await serve();
+  const tab = browser();
+  const csrf = await exchange(base, token, tab);
+  const stop = new AbortController();
+  const seen: RunEvent[] = [];
+  await subscribe(
+    base,
+    csrf,
+    (event) => {
+      seen.push(event);
+      if (seen.length === 1) written(state);
+      else stop.abort();
+    },
+    { signal: stop.signal, fetch: tab },
+  );
+  expect(seen).toMatchObject([
+    { event: "runs", runs: [] },
+    { event: "runs", runs: [{ kind: "apply", status: "applied" }] },
+  ]);
+  // Node's fetch keeps no cookie, so this stream has no session.
+  const fresh = { signal: new AbortController().signal };
+  await expect(subscribe(base, csrf, () => undefined, fresh)).rejects.toThrow("the event stream answered 401");
+});
+
+test("subscribe skips comments and unknown events, and reads refusals", async () => {
+  const body =
+    'event: other\ndata: {}\n\n: keep-alive\n\nevent: refusal\ndata: {"findings":[{"code":"store.busy"}]}\n\n';
+  const seen: RunEvent[] = [];
+  await subscribe("http://127.0.0.1:9", "csrf", (event) => seen.push(event), {
+    signal: new AbortController().signal,
+    fetch: async () => new Response(body),
+  });
+  expect(seen).toEqual([{ event: "refusal", findings: [{ code: "store.busy" }] }]);
+  // Fields of the wrong shape read as empty lists; a stream that breaks, without an abort, throws.
+  const odd = 'event: runs\ndata: 5\n\nevent: runs\ndata: {"runs":3}\n\n';
+  const shapes: RunEvent[] = [];
+  await subscribe("http://127.0.0.1:9", "csrf", (event) => shapes.push(event), {
+    signal: new AbortController().signal,
+    fetch: async () => new Response(odd),
+  });
+  expect(shapes).toEqual([
+    { event: "runs", runs: [] },
+    { event: "runs", runs: [] },
+  ]);
+  const broken = new ReadableStream({ start: (controller) => controller.error(new Error("connection reset")) });
+  const failing = subscribe("http://127.0.0.1:9", "csrf", () => undefined, {
+    signal: new AbortController().signal,
+    fetch: async () => new Response(broken),
+  });
+  await expect(failing).rejects.toThrow("connection reset");
 });
 
 test("with the platform's fetch the session needs a cookie store: Node's fetch keeps none, a browser tab does", async () => {

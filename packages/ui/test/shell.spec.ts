@@ -13,6 +13,7 @@ let server: Started;
 let context: BrowserContext;
 let page: Page;
 let file = "";
+let stateDir = "";
 const errors: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
@@ -23,7 +24,13 @@ test.beforeAll(async ({ browser }) => {
     { schemaVersion: 1, operations: [{ kind: "write", path: file, before: null, content: "hi\n" }] },
     { yes: true },
   );
-  server = await startServer({ state, ui: join(import.meta.dirname, "..", "dist"), log: (text) => errors.push(text) });
+  stateDir = state;
+  server = await startServer({
+    state,
+    ui: join(import.meta.dirname, "..", "dist"),
+    every: 100,
+    log: (text) => errors.push(text),
+  });
   // axe needs a page of a context the test made.
   context = await browser.newContext();
   page = await context.newPage();
@@ -114,6 +121,19 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   await expect(page.getByRole("status")).toBeFocused();
   await expect(page.getByText("Nothing to undo.")).toBeVisible();
   expect([existsSync(file), errors]).toEqual([false, []]);
+});
+
+test("a run another process applies appears without a reload", async () => {
+  const table = page.getByRole("table", { name: "Runs, newest first" });
+  const rows = await table.getByRole("row").count();
+  const other = join(stateDir, "..", "other.md");
+  applyPlan(
+    stateDir,
+    { schemaVersion: 1, operations: [{ kind: "write", path: other, before: null, content: "x\n" }] },
+    { yes: true },
+  );
+  await expect(table.getByRole("row")).toHaveCount(rows + 1);
+  expect(errors).toEqual([]);
 });
 
 test("a new tab has no session and says how to get one", async () => {

@@ -1,4 +1,4 @@
-import type { Api, components } from "@cedarloom/client";
+import type { Api, components, RunEvent } from "@cedarloom/client";
 import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title, useMatches } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users } from "lucide-react";
@@ -90,7 +90,9 @@ const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean;
 );
 
 /** One run's undo, applied only with the hash of the preview shown; focus lands on its heading, then on the result. */
-const RunDetail = ({ api, runId, onUndone }: { api: Api; runId: string; onUndone: () => void }): ReactNode => {
+type Detail = { api: Api; runId: string; revision: number; onUndone: () => void };
+
+const RunDetail = ({ api, runId, revision, onUndone }: Detail): ReactNode => {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -110,7 +112,7 @@ const RunDetail = ({ api, runId, onUndone }: { api: Api; runId: string; onUndone
     void show();
     // A later preview of this run replaces this one; an answer that arrives after it is dropped.
     return () => void (current = false);
-  }, [api, runId, version]);
+  }, [api, runId, version, revision]);
   const undo = async (approve: string): Promise<void> => {
     setBusy(true);
     const answer = await call(() => api.POST("/api/runs/{runId}/undo", { ...params, body: { approve } }));
@@ -136,7 +138,10 @@ const RunDetail = ({ api, runId, onUndone }: { api: Api; runId: string; onUndone
 };
 
 /** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
-const Runs = ({ api }: { api: Api }): ReactNode => {
+/** The page's session: the API client and its event stream. */
+export type Session = { api: Api; listen: (onEvent: (event: RunEvent) => void, signal: AbortSignal) => Promise<void> };
+
+const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -145,13 +150,32 @@ const Runs = ({ api }: { api: Api }): ReactNode => {
     if ("problem" in answer) setError(answer.problem);
     else setRuns(answer.data.runs);
   }, [api]);
+  const [revision, setRevision] = useState(0);
   useEffect(() => void load(), [load]);
+  // The first load names a lost session or a refusal; the stream then keeps the runs current, and its end means the
+  // server stopped.
+  const update = useCallback((event: RunEvent): void => {
+    if (event.event !== "runs") return;
+    setRuns(event.runs);
+    setRevision((value) => value + 1);
+  }, []);
+  useEffect(() => {
+    const stop = new AbortController();
+    const follow = async (): Promise<void> => {
+      await listen(update, stop.signal).catch(() => undefined);
+      if (!stop.signal.aborted) setError(t("error.unreachable"));
+    };
+    void follow();
+    return () => stop.abort();
+  }, [listen, update]);
   if (error !== "") return <Alert color="red">{error}</Alert>;
   if (runs === null) return null;
   if (runs.length === 0) return <Text>{t("runs.empty")}</Text>;
   return (
     <Stack>
-      {selected && <RunDetail key={selected} api={api} runId={selected} onUndone={() => void load()} />}
+      {selected && (
+        <RunDetail key={selected} api={api} runId={selected} revision={revision} onUndone={() => void load()} />
+      )}
       <RunsTable runs={runs} selected={selected} onSelect={setSelected} />
     </Stack>
   );
@@ -168,14 +192,14 @@ const VIEWS = [
 
 type View = (typeof VIEWS)[number]["id"];
 
-const content = (view: View, api: Api): ReactNode =>
-  view === "nav.runs" ? <Runs api={api} /> : <Text>{t("view.notBuilt")}</Text>;
+const content = (view: View, session: Session): ReactNode =>
+  view === "nav.runs" ? <Runs session={session} /> : <Text>{t("view.notBuilt")}</Text>;
 
 /**
  * The shell: the views in the navigation, the chosen one in the main region. Below the sm breakpoint the navigation sits
  * behind a menu button; whichever of the two is out of sight is inert, so neither focus nor a screen reader lands there.
  */
-export const App = ({ api }: { api: Api }): ReactNode => {
+export const App = ({ session }: { session: Session }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
   const [opened, { toggle, close }] = useDisclosure();
   // The theme's own sm breakpoint, as AppShell uses it: at exactly 48em the desktop navigation already shows.
@@ -220,7 +244,7 @@ export const App = ({ api }: { api: Api }): ReactNode => {
         <Title order={2} size="h4" mb="md">
           {t(view)}
         </Title>
-        {content(view, api)}
+        {content(view, session)}
       </AppShell.Main>
     </AppShell>
   );

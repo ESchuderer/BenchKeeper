@@ -2786,6 +2786,16 @@
           }
         }
       }
+    },
+    "/api/events": {
+      "get": {
+        "description": "text/event-stream: `runs` events with RunsEvent, `refusal` events with Refusal",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
     }
   }
 }

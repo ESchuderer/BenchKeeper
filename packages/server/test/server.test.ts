@@ -61,6 +61,8 @@ interface Client {
   /** A request with the session cookie and the CSRF header, once `login` ran. */
   api: (sent: Call) => Promise<Answer>;
   login: () => Promise<{ cookie: string; csrf: string }>;
+  /** The session cookie and CSRF header `login` set. */
+  auth: () => Record<string, string>;
 }
 
 /** Starts a server on a fresh state folder; `login` exchanges the URL token as the UI page does. */
@@ -73,6 +75,7 @@ const serve = async (
   const server = await startServer({
     state,
     ui,
+    every: 25,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
   });
@@ -89,7 +92,7 @@ const serve = async (
     return { cookie, csrf };
   };
   const api = (sent: Call): Promise<Answer> => call(port, { ...sent, headers: { ...auth, ...sent.headers } });
-  return { server, port, token, state, log, api, login };
+  return { server, port, token, state, log, api, login, auth: () => auth };
 };
 
 const sessionCookie = (port: number, value: string): string => `${cookieName(port)}=${value}`;
@@ -403,6 +406,65 @@ test("a busy or newer store is a 409 with its finding; a broken one a 500 whose 
   }
 });
 
+/** Reads the event stream with the given headers and hands each event to `next` until it returns true or `ms` pass. */
+const stream = (
+  port: number,
+  headers: Record<string, string>,
+  next: (event: string, data: unknown) => boolean,
+  ms = 5000,
+) =>
+  new Promise<number>((resolve, reject) => {
+    const req = request({
+      host: "127.0.0.1",
+      port,
+      path: "/api/events",
+      headers: { host: `127.0.0.1:${port}`, ...headers },
+    });
+    setTimeout(() => req.destroy(), ms);
+    req.on("response", (res) => {
+      let buffer = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => {
+        buffer += chunk;
+        for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+          const [event, data] = [/^event: (.*)$/m, /^data: (.*)$/m].map((line) => line.exec(buffer.slice(0, end))?.[1]);
+          buffer = buffer.slice(end + 2);
+          if (event !== undefined && data !== undefined && next(event, JSON.parse(data))) req.destroy();
+        }
+      });
+      res.on("close", () => resolve(res.statusCode ?? 0));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+
+test("the event stream sends the runs at once and again whenever they change, behind the session checks", async () => {
+  const client = await ready();
+  const { auth } = client;
+  const seen: unknown[] = [];
+  const done = stream(client.port, { accept: "text/event-stream", ...auth() }, (event, data) => {
+    seen.push([event, data]);
+    if (seen.length === 1) replaced(client);
+    return seen.length === 2;
+  });
+  expect(await done).toBe(200);
+  expect(seen).toMatchObject([
+    ["runs", { runs: [] }],
+    ["runs", { runs: [{ kind: "apply", status: "applied" }] }],
+  ]);
+  const { [CSRF_HEADER]: _csrf, ...cookieOnly } = auth();
+  expect(await stream(client.port, { accept: "text/event-stream", ...cookieOnly }, () => true)).toBe(403);
+  expect(await stream(client.port, { accept: "application/json", ...auth() }, () => true)).toBe(406);
+  const db = new DatabaseSync(join(client.state, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 4");
+  db.close();
+  // Unchanged reads send nothing: one refusal in 150 ms of reads every 25 ms.
+  const refused: unknown[] = [];
+  const keep = (event: string, data: unknown): boolean => refused.push([event, data]) < 0;
+  await stream(client.port, { accept: "text/event-stream", ...auth() }, keep, 150);
+  expect(refused).toMatchObject([["refusal", { findings: [{ code: "store.newer-schema" }] }]]);
+});
+
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));
@@ -412,5 +474,6 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
     "/api/runs/{runId}",
     "/api/doctor",
     "/api/runs/{runId}/undo",
+    "/api/events",
   ]);
 });

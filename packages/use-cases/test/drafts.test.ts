@@ -123,4 +123,9 @@ test("the list holds the drafts' files only, newest first, and a delete removes 
   mkdirSync(flat, { recursive: true });
   writeFileSync(join(flat, "drafts"), "");
   expect(() => listDrafts(flat)).toThrow(/ENOTDIR/);
+  // An id that is no workflow id names no file, inside the folder or outside it.
+  for (const id of ["../runs", "a/b", "", "1x"]) {
+    expect(() => readDraft(at, id)).toThrow(/not a workflow id/);
+  }
+  expect(() => saveDraft(at, "..", sample(), null)).toThrow(/not a workflow id/);
 });

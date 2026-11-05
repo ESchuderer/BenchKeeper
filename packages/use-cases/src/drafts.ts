@@ -23,7 +23,12 @@ export const DRAFT_LIMIT = 2 * 1024 * 1024;
 // that differ in case only anyway; the prefix keeps a Windows device name (con, nul) from being the file's name.
 const FOLDER = "drafts";
 const FILE = /^workflow-([a-z][a-z0-9_-]{0,63})\.json$/;
-const nameOf = (id: string): string => `workflow-${id.toLowerCase()}.json`;
+const nameOf = (id: string): string => {
+  const name = `workflow-${id.toLowerCase()}.json`;
+  // The routes take workflow ids only; any other caller gets no path outside the folder either.
+  if (!FILE.test(name)) throw new Error(`not a workflow id: ${JSON.stringify(id)}`);
+  return name;
+};
 
 const tooLarge = (id: string, bytes: number): Result<never> => ({
   ok: false,

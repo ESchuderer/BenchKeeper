@@ -1,9 +1,18 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Started, startServer } from "@cedarloom/server";
-import { type BrowserContext, expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  type APIResponse,
+  type BrowserContext,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import { accessible as check, openPage } from "./browser.ts";
 
 // One server per file, started inside the worker: its URL token works once.
@@ -184,11 +193,22 @@ test("handles connect from the keyboard: a dialog lists the outputs and the inpu
   await page.getByRole("button", { name: "New workflow" }).click();
   await page.getByRole("combobox", { name: "Node type" }).click();
   await page.getByRole("option", { name: "command.run" }).click();
-  await page.getByRole("button", { name: "Add node" }).click();
   const opener = page.getByRole("button", { name: "Connect handles" });
+  const dialog = page.getByRole("dialog", { name: "Connect two handles" });
+  // The trigger alone: no input can take its output, the To field says so, and Escape returns to the opener.
+  await opener.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "To input" })).toHaveAccessibleDescription(
+    "No input can take this output.",
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await page.getByRole("button", { name: "Add node" }).click();
   await opener.focus();
   await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Connect two handles" });
   await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
@@ -206,6 +226,45 @@ test("handles connect from the keyboard: a dialog lists the outputs and the inpu
   await expect(opener).toBeFocused();
 });
 
+const worker = /\/assets\/elk-worker\.min-[^/]+\.js$/;
+
+/** Answers the layout worker's script (not the small module that only names it) through `answer`. */
+const routeWorker = async (answer: (route: Route, response: APIResponse) => Promise<void>): Promise<void> => {
+  await context.route(worker, async (route) => {
+    const response = await route.fetch();
+    return (await response.body()).length < 1000 ? route.fulfill({ response }) : answer(route, response);
+  });
+};
+
+test("a layout worker that cannot load ends with the alert, and the next Auto layout starts anew", async () => {
+  await routeWorker((route) => route.fulfill({ status: 404, body: "" }));
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.click();
+  await expect(page.getByRole("alert")).toContainText("The layout did not finish");
+  await expect(button).toBeEnabled();
+  await context.unroute(worker);
+});
+
+test("a layout that ends after New is dropped, not applied to the new workflow", async () => {
+  // The worker loads slowly, so the layout of the imported workflow ends after the New below.
+  await routeWorker(async (route, response) => {
+    await delay(1500);
+    await route.fulfill({ response });
+  });
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.click();
+  await expect(button).toBeDisabled();
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await expect(button).toBeEnabled({ timeout: 10_000 });
+  await context.unroute(worker);
+  const saved = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export JSON" }).click();
+  const exported: { layout: unknown } = JSON.parse(await readFile(await (await saved).path(), "utf8"));
+  expect(exported.layout).toEqual({ nodes: { start: { x: 0, y: 0 } } });
+  await expect(said()).not.toHaveText(/laid out/);
+});
+
 test("auto layout runs ELK in a worker, moves only positions in one undo step, and its license ships with the page", async () => {
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
   await expect(card("merge")).toBeVisible();
@@ -215,8 +274,14 @@ test("auto layout runs ELK in a worker, moves only positions in one undo step, a
     return readFile(await (await saved).path(), "utf8");
   };
   const before = await exported();
-  await page.getByRole("button", { name: "Auto layout" }).click();
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.press("Enter");
   await expect(said()).toHaveText("The nodes were laid out; undo puts them back.");
+  // The button keeps the keyboard focus through its busy time.
+  await expect(button).toBeFocused();
+  // Laid out again, nothing moves: no undo step, and the status does not offer one.
+  await button.press("Enter");
+  await expect(said()).toHaveText("The nodes were laid out already; nothing moved.");
   const after: { nodes: unknown; edges: unknown; layout: { nodes: Record<string, { x: number }> } } = JSON.parse(
     await exported(),
   );
@@ -240,6 +305,13 @@ test("auto layout runs ELK in a worker, moves only positions in one undo step, a
     expect.stringContaining("Eclipse Public License - v 2.0"),
   ]);
   expect(await notice.text()).toContain("https://github.com/kieler/elkjs/tree/0.12.1");
+  // The copyright notices of elkjs's source ship in the notice file and in the bundled chunk (EPL-2.0, 3.3).
+  const copyright = "Copyright (c) 2017 Kiel University and others.";
+  expect(await notice.text()).toContain(copyright);
+  const chunk = await page.evaluate(
+    () => performance.getEntriesByType("resource").find((entry) => entry.name.includes("/assets/elk-api-"))?.name ?? "",
+  );
+  expect(await (await page.request.get(chunk)).text()).toContain(copyright);
   await expect(page.getByRole("link", { name: /Layout by elkjs/ })).toHaveAttribute("href", "licenses/elkjs.txt");
   await accessible();
   expect(errors).toEqual([]);

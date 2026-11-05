@@ -292,6 +292,10 @@ msgid "editor.laidOut"
 msgstr "The nodes were laid out; undo puts them back."
 
 #. js-lingui-explicit-id
+msgid "editor.alreadyLaidOut"
+msgstr "The nodes were laid out already; nothing moved."
+
+#. js-lingui-explicit-id
 msgid "editor.layoutFailed"
 msgstr "The layout did not finish: {reason}"
 

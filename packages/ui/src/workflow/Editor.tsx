@@ -1,6 +1,7 @@
 import "./jitless.ts";
 import "@xyflow/react/dist/style.css";
 import "./editor.css";
+import type { ELK } from "elkjs/lib/elk-api.js";
 import {
   findingInfo,
   formatWorkflow,
@@ -29,6 +30,7 @@ import {
   apply,
   canConnect,
   type Change,
+  edit as editWorkflow,
   type History,
   newWorkflow,
   open,
@@ -37,7 +39,7 @@ import {
   undo,
 } from "./document.ts";
 import { ConnectDialog } from "./ConnectDialog.tsx";
-import { autoLayout, type Engine, type Size } from "./layout.ts";
+import { autoLayout, type Size } from "./layout.ts";
 import { NodeCard } from "./NodeCard.tsx";
 import { describe } from "./problems.ts";
 import { type CardData, endsOf, isBoundary, project } from "./projection.ts";
@@ -106,15 +108,39 @@ const download = (workflow: WorkflowDefinition): void => {
 // Disabled but focusable, so focus stays on the button when its stack runs empty; a press then does nothing.
 const off = (disabled: boolean) => ({ "data-disabled": disabled, "aria-disabled": disabled });
 
-let engine: Promise<Engine> | undefined;
+type Layout = { elk: ELK; failed: Promise<never> };
+
+let engine: Promise<Layout> | undefined;
 
 // ELK loads on the first auto layout and runs in a Web Worker, unmodified from its package, so the page stays responsive.
-const layoutEngine = (): Promise<Engine> => {
-  engine ??= Promise.all([import("elkjs/lib/elk-api.js"), import("elkjs/lib/elk-worker.min.js?url")]).then(
-    // elk-api is CommonJS: its default export is the module, whose `default` is the constructor again (ELK.default = ELK).
-    ([api, worker]) => new api.default.default({ workerUrl: worker.default }),
-  );
-  return engine;
+// elk-api listens to the worker's messages only, so the worker's `error` (a script that cannot load, a crash) is turned
+// into `failed` here, raced against each layout.
+const start = async (): Promise<Layout> => {
+  const [api, worker] = await Promise.all([import("elkjs/lib/elk-api.js"), import("elkjs/lib/elk-worker.min.js?url")]);
+  const { promise: failed, reject } = Promise.withResolvers<never>();
+  // Handled where it is raced; a worker that fails while no layout runs is no unhandled rejection.
+  failed.catch(() => undefined);
+  const workerFactory = (url = worker.default): Worker => {
+    const created = new Worker(url);
+    created.addEventListener("error", (event) => reject(new Error(event.message || "the layout worker stopped")));
+    return created;
+  };
+  // elk-api is CommonJS: its default export is the module, whose `default` is the constructor again (ELK.default = ELK).
+  return { elk: new api.default.default({ workerUrl: worker.default, workerFactory }), failed };
+};
+
+/** New positions from ELK; any failure ends the worker, and the next layout starts a new one. */
+const layOut = async (workflow: WorkflowDefinition, sizes: Sizes): Promise<Record<string, Position>> => {
+  engine ??= start();
+  const started = engine;
+  try {
+    const { elk, failed } = await started;
+    return await Promise.race([autoLayout(elk, workflow, sizes), failed]);
+  } catch (error) {
+    engine = undefined;
+    void started.then(({ elk }) => elk.terminateWorker()).catch(() => undefined);
+    throw error;
+  }
 };
 
 type Notes = { onProblem: (text: string) => void; onStatus: (text: string) => void };
@@ -123,11 +149,19 @@ type Notes = { onProblem: (text: string) => void; onStatus: (text: string) => vo
 const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Sizes } & Notes): ReactNode => {
   const [busy, setBusy] = useState(false);
   const [connecting, dialog] = useDisclosure(false);
+  // The document as it stands when the layout answers: one changed meanwhile (New, Import, an edit) drops the layout.
+  const latest = useRef(edit.history.present);
+  latest.current = edit.history.present;
   const lay = async (): Promise<void> => {
+    if (busy) return;
+    const laid = edit.history.present;
     setBusy(true);
     try {
-      edit.change({ kind: "move", positions: await autoLayout(await layoutEngine(), edit.history.present, sizes) });
-      onStatus(t("editor.laidOut"));
+      const move: Change = { kind: "move", positions: await layOut(laid, sizes) };
+      if (latest.current !== laid) return;
+      // Positions it already has are no edit and no undo step, and the status says so.
+      edit.change(move);
+      onStatus(t(editWorkflow(laid, move) === laid ? "editor.alreadyLaidOut" : "editor.laidOut"));
     } catch (error) {
       onProblem(t("editor.layoutFailed", { reason: String(error) }));
     } finally {
@@ -136,7 +170,8 @@ const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
   };
   return (
     <>
-      <Button variant="default" onClick={() => void lay()} loading={busy}>
+      {/* Busy but focusable, so the keyboard focus stays on the button while ELK works. */}
+      <Button variant="default" onClick={() => void lay()} {...off(busy)}>
         {t("editor.autoLayout")}
       </Button>
       <Button variant="default" onClick={dialog.open}>

@@ -2,6 +2,7 @@
   "messages": {
     "app.title": ["CedarLoom"],
     "editor.addNode": ["Add node"],
+    "editor.alreadyLaidOut": ["The nodes were laid out already; nothing moved."],
     "editor.autoLayout": ["Auto layout"],
     "editor.canvas": ["Workflow graph"],
     "editor.close": ["Close"],

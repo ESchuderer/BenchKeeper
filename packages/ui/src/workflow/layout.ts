@@ -1,7 +1,7 @@
 import type { WorkflowDefinition } from "@cedarloom/contracts";
 import { NODE_TYPES, own } from "@cedarloom/engine/graph";
 import type { ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api.js";
-import type { Position } from "./document.ts";
+import { type Position, uniqueNodes } from "./document.ts";
 
 /** What auto layout needs of ELK: a layout of a graph. */
 export type Engine = { layout: (graph: ElkNode) => Promise<ElkNode> };
@@ -36,10 +36,7 @@ const ports = (node: string, type: string): ElkPort[] => {
  * out: they sit at the canvas edges.
  */
 export const elkGraph = (workflow: WorkflowDefinition, sizes: Readonly<Record<string, Size>>): ElkNode => {
-  const nodes = workflow.nodes.filter(
-    (node, index) => workflow.nodes.findIndex((item) => item.id === node.id) === index,
-  );
-  const children = nodes.map((node) => ({
+  const children = uniqueNodes(workflow).map((node) => ({
     id: node.id,
     ...(own(sizes, node.id) ?? estimate(node.type)),
     layoutOptions: { "elk.portConstraints": "FIXED_ORDER" },

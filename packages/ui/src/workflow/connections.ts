@@ -1,7 +1,7 @@
 import type { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
 import { NODE_TYPES, own } from "@cedarloom/engine/graph";
 import { t } from "../i18n.ts";
-import { canConnect } from "./document.ts";
+import { canConnect, uniqueNodes } from "./document.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 
@@ -10,8 +10,9 @@ export type Choice<End> = { value: string; label: string; end: End };
 
 const choice = <End>(end: End, label: string): Choice<End> => ({ value: JSON.stringify(end), label, end });
 
+// One option per handle: a second node with the same id would give options the same value, which the list refuses.
 const handles = (workflow: WorkflowDefinition, side: "inputs" | "outputs") =>
-  workflow.nodes.flatMap((node) =>
+  uniqueNodes(workflow).flatMap((node) =>
     Object.entries(own(NODE_TYPES, node.type)?.[side] ?? {}).map(([handle, { type }]) => ({
       node: node.id,
       handle,

@@ -85,3 +85,12 @@ test("the keyboard dialog offers every output, and for each only the inputs canC
   const runs = targets(workflow, node("start", "start")).map((item) => item.label);
   expect(runs).toEqual(["agent-run-1 · run (control)"]);
 });
+
+test("a workflow with two nodes of one id offers the handles of the first node of that id, each once", () => {
+  // The validator reports the duplicate id; the dialog's lists still need one value per option.
+  const twice = { ...newWorkflow(), nodes: [...newWorkflow().nodes, { id: "start", type: "trigger.manual" }] };
+  const values = sources(twice).map((item) => item.value);
+  expect(values).toEqual([...new Set(values)]);
+  expect(sources(twice).map((item) => item.label)).toEqual(["start · start (control)"]);
+  expect(elkGraph(twice, {}).children?.map((child) => child.id)).toEqual(["start"]);
+});

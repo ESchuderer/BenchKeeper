@@ -1,5 +1,5 @@
 import type { WorkflowDefinition } from "@cedarloom/contracts";
-import { Button, Modal, Select, type SelectProps, Stack, Text } from "@mantine/core";
+import { Button, Modal, Select, type SelectProps, Stack } from "@mantine/core";
 import { type ReactNode, useState } from "react";
 import { t } from "../i18n.ts";
 import { sources, targets } from "./connections.ts";
@@ -29,12 +29,17 @@ export const ConnectDialog = ({ workflow, opened, onClose, change, onDone }: Pro
   const source = outputs.find((item) => item.value === from);
   const inputs = source === undefined ? [] : targets(workflow, source.end);
   const target = inputs.find((item) => item.value === to);
+  // Each opening starts with empty fields.
+  const close = (): void => {
+    setFrom(null);
+    setTo(null);
+    onClose();
+  };
   const connect = (): void => {
     if (source === undefined || target === undefined) return;
     change({ kind: "connect", from: source.end, to: target.end });
     onDone(t("editor.connected", { from: source.label, to: target.label }));
-    setTo(null);
-    onClose();
+    close();
   };
   const choose = (value: string | null): void => {
     setFrom(value);
@@ -43,7 +48,7 @@ export const ConnectDialog = ({ workflow, opened, onClose, change, onDone }: Pro
   return (
     <Modal
       opened={opened}
-      onClose={onClose}
+      onClose={close}
       title={t("editor.connectTitle")}
       closeButtonProps={{ "aria-label": t("editor.close") }}
       // Mantine's header element would count as a second banner landmark next to the shell's; inside a dialog it is none.
@@ -51,8 +56,15 @@ export const ConnectDialog = ({ workflow, opened, onClose, change, onDone }: Pro
     >
       <Stack>
         <HandleSelect label={t("editor.connectFrom")} data={outputs} value={from} onChange={choose} data-autofocus />
-        <HandleSelect label={t("editor.connectTo")} data={inputs} value={to} onChange={setTo} disabled={!source} />
-        {source !== undefined && inputs.length === 0 && <Text>{t("editor.noTargets")}</Text>}
+        <HandleSelect
+          label={t("editor.connectTo")}
+          data={inputs}
+          value={to}
+          onChange={setTo}
+          disabled={!source}
+          // Tied to the field, so a screen reader on it hears why its list is empty.
+          description={source !== undefined && inputs.length === 0 ? t("editor.noTargets") : undefined}
+        />
         <Button onClick={connect} disabled={target === undefined}>
           {t("editor.connect")}
         </Button>

@@ -9,6 +9,7 @@ declare module "@lingui/core" {
 export interface MessageValues {
   "app.title": Record<never, never>;
   "editor.addNode": Record<never, never>;
+  "editor.alreadyLaidOut": Record<never, never>;
   "editor.autoLayout": Record<never, never>;
   "editor.canvas": Record<never, never>;
   "editor.close": Record<never, never>;

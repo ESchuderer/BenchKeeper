@@ -364,18 +364,14 @@ test("an edit is saved as a draft; after a reload it is offered, Restore brings 
   // A reload keeps the session and starts the editor anew, with the drafts on offer.
   await page.reload();
   await view("Workflows");
-  // The keyboard test's workflow was saved too; the workflows exported since have no draft.
+  // The earlier tests' workflows were exported since, which removed their drafts.
   await expect(offers()).toContainText("minimal, saved");
-  await expect(offers()).toContainText("workflow, saved");
-  await expect(offers().getByRole("button", { name: /^Restore/ })).toHaveCount(2);
+  await expect(offers().getByRole("button", { name: /^Restore/ })).toHaveCount(1);
   await accessible();
   await offers().getByRole("button", { name: "Restore the draft of minimal" }).click();
   await expect(card("command-run-1")).toBeVisible();
   await expect(page.getByText(/^Restored the draft saved at /)).toBeVisible();
-  await expect(offers()).not.toContainText("minimal");
-  await offers().getByRole("button", { name: "Discard the draft of workflow" }).click();
   await expect(offers()).toHaveCount(0);
-  expect(await stored()).not.toContain("workflow");
   const saved = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export JSON" }).click();
   await saved;

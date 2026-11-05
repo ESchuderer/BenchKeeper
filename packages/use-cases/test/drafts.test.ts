@@ -7,7 +7,9 @@ import { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft } from "@ced
 import { expect, test } from "vitest";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-const sample = (): WorkflowDefinition => JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+const sample = (id = "w"): WorkflowDefinition => ({ ...base, metadata: { ...base.metadata, id } });
+const otherId = { code: "document.invalid", params: { issues: [{ path: "metadata.id", code: "custom" }] } };
 const state = (): string => join(mkdtempSync(join(tmpdir(), "cedarloom-drafts-")), "state");
 const drafts = (at: string): string => join(at, "drafts");
 
@@ -21,10 +23,10 @@ const refused = <T>(result: Outcome<T>): unknown => (result.ok ? "ok" : result.f
 test("a draft is saved in the canonical file form, listed without contents, and read back with its hash", () => {
   const at = state();
   expect(listDrafts(at)).toEqual([]);
-  const saved = ok(saveDraft(at, "Build-And-Review", sample(), null));
+  const saved = ok(saveDraft(at, "Build-And-Review", sample("build-and-review"), null));
   const file = join(drafts(at), "workflow-build-and-review.json");
   const text = readFileSync(file, "utf8");
-  expect(text).toBe(formatWorkflow(sample()));
+  expect(text).toBe(formatWorkflow(sample("build-and-review")));
   expect(saved).toEqual({
     id: "build-and-review",
     savedAt: statSync(file).mtime.toISOString(),
@@ -38,7 +40,7 @@ test("a draft is saved in the canonical file form, listed without contents, and 
     id: "build-and-review",
     savedAt: saved.savedAt,
     hash: saved.hash,
-    workflow: sample(),
+    workflow: sample("build-and-review"),
   });
   // Only the draft is left in the folder: the temporary file of the write is gone.
   expect(readdirSync(drafts(at))).toEqual(["workflow-build-and-review.json"]);
@@ -75,6 +77,8 @@ test("a save is refused for no workflow, a value nested too deep, or a file over
     code: "draft.too-large",
     params: { id: "w", limit: DRAFT_LIMIT },
   });
+  // A draft holds the workflow of its own id only.
+  expect(refused(saveDraft(at, "foo", sample(), null))).toEqual(otherId);
   expect(listDrafts(at)).toEqual([]);
 });
 
@@ -86,6 +90,7 @@ test("a draft that is missing, over the limit, not JSON, no workflow or no file 
   put("text", "not json");
   put("old", JSON.stringify({ ...sample(), schemaVersion: 2 }));
   put("odd", JSON.stringify({ ...sample(), kind: "other" }));
+  put("foo", JSON.stringify(sample()));
   mkdirSync(join(drafts(at), "workflow-folder.json"));
   expect(refused(readDraft(at, "none"))).toEqual({ code: "draft.not-found", params: { id: "none" } });
   expect(refused(readDraft(at, "big"))).toEqual({
@@ -98,6 +103,7 @@ test("a draft that is missing, over the limit, not JSON, no workflow or no file 
   });
   expect(refused(readDraft(at, "old"))).toMatchObject({ code: "document.newer-schema" });
   expect(refused(readDraft(at, "odd"))).toMatchObject({ code: "document.invalid" });
+  expect(refused(readDraft(at, "foo"))).toEqual(otherId);
   expect(refused(readDraft(at, "folder"))).toEqual({
     code: "document.unreadable",
     params: { path: join("drafts", "workflow-folder.json"), error: "EISDIR" },
@@ -106,8 +112,8 @@ test("a draft that is missing, over the limit, not JSON, no workflow or no file 
 
 test("the list holds the drafts' files only, newest first, and a delete removes one", () => {
   const at = state();
-  ok(saveDraft(at, "older", sample(), null));
-  ok(saveDraft(at, "newer", sample(), null));
+  ok(saveDraft(at, "older", sample("older"), null));
+  ok(saveDraft(at, "newer", sample("newer"), null));
   utimesSync(join(drafts(at), "workflow-older.json"), new Date("2026-01-01"), new Date("2026-01-01"));
   // Neither a temporary file, a file of another name nor a folder is a draft.
   writeFileSync(join(drafts(at), ".workflow-x.json.cedarloom-1-0"), "{}");
@@ -124,7 +130,7 @@ test("the list holds the drafts' files only, newest first, and a delete removes 
   writeFileSync(join(flat, "drafts"), "");
   expect(() => listDrafts(flat)).toThrow(/ENOTDIR/);
   // An id that is no workflow id names no file, inside the folder or outside it.
-  for (const id of ["../runs", "a/b", "", "1x"]) {
+  for (const id of ["../runs", "a/b", "", "1x", "\u212a"]) {
     expect(() => readDraft(at, id)).toThrow(/not a workflow id/);
   }
   expect(() => saveDraft(at, "..", sample(), null)).toThrow(/not a workflow id/);

@@ -20,6 +20,7 @@ import {
   readDocument,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
+  WorkflowId,
 } from "@cedarloom/contracts";
 import { errorCode, hashFile, tempPath, writeAtomic } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
@@ -37,9 +38,9 @@ const pathOf = (state: string, id: string): string => {
   const name = `workflow-${id.toLowerCase()}.json`;
   const folder = resolve(state, FOLDER);
   const path = resolve(folder, name);
-  // The routes take workflow ids only; any other caller gets no path outside the folder either. The pattern alone
-  // ensures that; the prefix check is the form CodeQL's path-injection query recognizes.
-  if (!FILE.test(name) || !path.startsWith(folder + sep)) throw new Error(`not a workflow id: ${JSON.stringify(id)}`);
+  // The routes take workflow ids only; any other caller gets no path outside the folder either. The id's pattern (before
+  // lower case, which maps the Kelvin sign to k) ensures that; the prefix check is the form CodeQL recognizes.
+  if (!WorkflowId.safeParse(id).success || !path.startsWith(folder + sep)) throw new Error(`not a workflow id: ${id}`);
   return path;
 };
 
@@ -47,6 +48,14 @@ const tooLarge = (id: string, bytes: number): Result<never> => ({
   ok: false,
   finding: { code: "draft.too-large", params: { id, bytes, limit: DRAFT_LIMIT } },
 });
+
+/** The workflow in `json`, refused when it is none or of another id: a draft holds the workflow of its own id only. */
+const workflowOf = (json: unknown, id: string): Result<WorkflowDefinition> => {
+  const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, json);
+  if (!read.ok || read.value.metadata.id.toLowerCase() === id.toLowerCase()) return read;
+  const issues = [{ path: "metadata.id", code: "custom" }];
+  return { ok: false, finding: { code: "document.invalid", params: { issues } } };
+};
 
 const savedAt = (path: string): string => statSync(path).mtime.toISOString();
 
@@ -92,9 +101,7 @@ export const readDraft = (state: string, id: string): Result<Draft> => {
     return { ok: false, finding: { code: "document.unreadable", params } };
   }
   if (bytes === null) return tooLarge(id, info.size);
-  const read = parseDocument(bytes.toString("utf8"), (json) =>
-    readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, json),
-  );
+  const read = parseDocument(bytes.toString("utf8"), (json) => workflowOf(json, id));
   if (!read.ok) return read;
   return {
     ok: true,
@@ -113,12 +120,12 @@ export const saveDraft = (
   workflow: unknown,
   replaces: string | null,
 ): Result<DraftSaved> => {
-  const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, workflow);
+  const path = pathOf(state, id);
+  const read = workflowOf(workflow, id);
   if (!read.ok) return read;
   const text = formatWorkflow(read.value);
   const bytes = Buffer.byteLength(text);
   if (bytes > DRAFT_LIMIT) return tooLarge(id, bytes);
-  const path = pathOf(state, id);
   // The folder and the files only for this user: a draft can hold prompts and commands.
   mkdirSync(join(state, FOLDER), { recursive: true, mode: 0o700 });
   const before = hashFile(path);

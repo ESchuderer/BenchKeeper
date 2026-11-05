@@ -557,7 +557,7 @@ test("a draft that is missing, broken, no workflow or too large is refused with 
   const { api, state, workflow } = await drafting();
   await api({ method: "PUT", path: DRAFT, body: { workflow, replaces: null } });
   writeFileSync(join(state, "drafts", "workflow-broken.json"), "{");
-  const metadata = { id: "w", name: "W", version: "1.0.0" };
+  const metadata = { id: "build-and-review", name: "W", version: "1.0.0" };
   // Compact JSON under the body limit whose canonical file, one value per line, is over the draft limit.
   const long = { ...workflow, metadata: { ...metadata, list: Array(300_000).fill(1) } };
   const refusals: [Call, number, string][] = [

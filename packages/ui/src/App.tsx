@@ -160,14 +160,23 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   useEffect(() => {
     const stop = new AbortController();
     // When the stream ends or is refused, one request checks the API and shows what it answers wrong. The stream then
-    // opens again a second later, so a failed read, a store error or a server that comes back recovers on its own;
-    // only a lost session stays lost.
+    // opens again, so a failed read, a store error or a server that comes back recovers on its own; only a lost
+    // session stays lost. The wait is 1 s, doubled for each failed check in a row up to 30 s, so a store that stays
+    // unreadable is not read, and logged, every second; an event resets it.
+    let failures = 0;
+    const onEvent = (event: RunEvent): void => {
+      failures = 0;
+      update(event);
+    };
     const follow = async (): Promise<void> => {
-      await listen(update, stop.signal).catch(() => undefined);
+      await listen(onEvent, stop.signal).catch(() => undefined);
       if (stop.signal.aborted) return;
       const answer = await call(() => api.GET("/api/runs"));
-      if ("problem" in answer) setError(answer.problem);
-      if (!("problem" in answer && answer.problem === t("session.lost"))) setTimeout(() => void follow(), 1000);
+      const problem = "problem" in answer ? answer.problem : "";
+      if (problem !== "") setError(problem);
+      if (problem === t("session.lost")) return;
+      failures += problem === "" ? 0 : 1;
+      setTimeout(() => void follow(), Math.min(1000 * 2 ** failures, 30_000));
     };
     void follow();
     return () => stop.abort();

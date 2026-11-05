@@ -148,7 +148,7 @@ test("a run another process applies appears without a reload", async () => {
   expect(errors).toEqual([]);
 });
 
-test("a stream that ends opens again a second later, also after the API failed once, and the error goes", async () => {
+test("a stream that ends opens again, also after the API failed once, and the error goes", async () => {
   // The page's next stream ends at once, as one does after a store read that failed, and the check after it fails.
   // The 500 is set up only when that stream is asked for: Firefox lets the unloading page send its own check.
   const ended = async (route: Route): Promise<void> => {
@@ -161,6 +161,28 @@ test("a stream that ends opens again a second later, also after the API failed o
   await appliedElsewhere("again.md");
   await expect(page.getByRole("alert")).toHaveCount(0);
   // The browser may log the failed request; nothing else may show up.
+  expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
+  errors.length = 0;
+});
+
+test("while the API keeps failing, each check waits twice as long as the one before", async () => {
+  const checks: number[] = [];
+  const counted = (route: Route): Promise<void> => {
+    checks.push(Date.now());
+    return failed(route);
+  };
+  await page.route("**/api/events", failed);
+  await page.route("**/api/runs", counted);
+  await page.reload();
+  // 2 s, then 4 s. The last three only: in Firefox the unloading page sends a check of its own.
+  const doubling = (): boolean => {
+    const [first = 0, second = 0, third = 0] = checks.slice(-3);
+    return checks.length >= 3 && second - first > 1500 && third - second > 3500;
+  };
+  await expect.poll(doubling, { timeout: 10_000 }).toBe(true);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.reload();
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
   expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
   errors.length = 0;
 });

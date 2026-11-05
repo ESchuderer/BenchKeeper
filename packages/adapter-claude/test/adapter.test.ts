@@ -200,6 +200,12 @@ test("cancel stops the CLI with the command it runs, on Windows too", async () =
   await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 5000 });
 });
 
+test("cancel after the CLI has exited stops nothing, as its process ID may belong to another process", async () => {
+  const session = runtime.start(launch({}));
+  expect((await events(session)).at(-1)).toMatchObject({ type: "exit", code: 0 });
+  await expect(session.cancel()).resolves.toBeUndefined();
+});
+
 test("stops a CLI that writes a line past the cap, before the host runs out of string length", async () => {
   const all = await events(runtime.start(launch({ FAKE_LONG: String(65 * 1024 * 1024), FAKE_HANG: "1" })));
   expect(all.map((event) => event.type)).toEqual(["other", "exit"]);

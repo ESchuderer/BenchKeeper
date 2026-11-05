@@ -24,6 +24,8 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
 // ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
 const stop = (child: ChildProcess): void => {
+  // Once the CLI has exited, Windows may give its process ID to another process, whose tree taskkill would end.
+  if (child.exitCode !== null || child.signalCode !== null) return;
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
   if (process.platform === "win32" && child.pid !== undefined) {
     const taskkill = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");

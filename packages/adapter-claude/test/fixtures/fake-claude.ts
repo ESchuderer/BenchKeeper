@@ -16,7 +16,11 @@ if (args.includes("--version")) {
   const stream = process.env["FAKE_STREAM"];
   if (stream !== undefined) process.stdout.write(readFileSync(stream, "utf8"));
   if (process.env["FAKE_CHILD"] !== undefined) {
-    const command = spawn(process.execPath, ["-e", "setInterval(() => undefined, 60_000)"], { stdio: "ignore" });
+    // Detached, so on Windows it stays out of the job object that libuv ends with the fake: only taskkill /T reaches it.
+    const command = spawn(process.execPath, ["-e", "setInterval(() => undefined, 60_000)"], {
+      stdio: "ignore",
+      detached: true,
+    });
     // Like the CLI on SIGTERM: stops the running command, then exits.
     process.on("SIGTERM", () => {
       command.once("exit", () => process.exit(143));

@@ -177,7 +177,11 @@ test("reads work while a process holds the store; a run it left running shows as
   ]);
 });
 
-test("a store another process holds refuses changes; one from a newer CedarLoom refuses reads too", () => {
+// Each refusal waits out the store's 1 s busy timeout first, so the test takes over 2 s by design; a loaded CI runner
+// (macOS, 5.5 s once) needs more than Vitest's default 5 s.
+test("a store another process holds refuses changes; one from a newer CedarLoom refuses reads too", {
+  timeout: 15_000,
+}, () => {
   const { at, state } = folder();
   const held = openRunStore(state);
   const busy = { ok: false, finding: { code: "store.busy", params: { dir: state } } };

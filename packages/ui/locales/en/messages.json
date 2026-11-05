@@ -32,6 +32,7 @@
     "editor.refused": ["The file was not imported: ", ["reason"]],
     "editor.undo": ["Undo"],
     "editor.unreadable": ["The file could not be read, so nothing was imported."],
+    "editor.workerStopped": ["The layout worker stopped."],
     "editor.workflowInput": ["Workflow input ", ["name"], " (", ["type"], ")"],
     "editor.workflowOutput": ["Workflow output ", ["name"], " (", ["type"], ")"],
     "error.failed": ["The server answered ", ["status"], ": ", ["error"]],

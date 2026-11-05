@@ -122,7 +122,7 @@ const start = async (): Promise<Layout> => {
   failed.catch(() => undefined);
   const workerFactory = (url = worker.default): Worker => {
     const created = new Worker(url);
-    created.addEventListener("error", (event) => reject(new Error(event.message || "the layout worker stopped")));
+    created.addEventListener("error", (event) => reject(new Error(event.message || t("editor.workerStopped"))));
     return created;
   };
   // elk-api is CommonJS: its default export is the module, whose `default` is the constructor again (ELK.default = ELK).
@@ -163,7 +163,7 @@ const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
       edit.change(move);
       onStatus(t(editWorkflow(laid, move) === laid ? "editor.alreadyLaidOut" : "editor.laidOut"));
     } catch (error) {
-      onProblem(t("editor.layoutFailed", { reason: String(error) }));
+      onProblem(t("editor.layoutFailed", { reason: error instanceof Error ? error.message : String(error) }));
     } finally {
       setBusy(false);
     }

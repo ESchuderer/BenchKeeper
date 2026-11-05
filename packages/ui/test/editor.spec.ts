@@ -241,7 +241,7 @@ test("a layout worker that cannot load ends with the alert, and the next Auto la
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
   const button = page.getByRole("button", { name: "Auto layout" });
   await button.click();
-  await expect(page.getByRole("alert")).toContainText("The layout did not finish");
+  await expect(page.getByRole("alert")).toHaveText("The layout did not finish: The layout worker stopped.");
   await expect(button).toBeEnabled();
   await context.unroute(worker);
 });

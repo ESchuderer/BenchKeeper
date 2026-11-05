@@ -300,6 +300,10 @@ msgid "editor.layoutFailed"
 msgstr "The layout did not finish: {reason}"
 
 #. js-lingui-explicit-id
+msgid "editor.workerStopped"
+msgstr "The layout worker stopped."
+
+#. js-lingui-explicit-id
 msgid "editor.connectHandles"
 msgstr "Connect handles"
 

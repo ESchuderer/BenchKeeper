@@ -39,6 +39,7 @@ export interface MessageValues {
   "editor.refused": { reason: string | number };
   "editor.undo": Record<never, never>;
   "editor.unreadable": Record<never, never>;
+  "editor.workerStopped": Record<never, never>;
   "editor.workflowInput": { name: string | number; type: string | number };
   "editor.workflowOutput": { name: string | number; type: string | number };
   "error.failed": { status: string | number; error: string | number };

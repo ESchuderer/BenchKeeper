@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 120,
+    "sevenDay": 3
+  },
+  "accounts": [],
+  "pools": {}
+}

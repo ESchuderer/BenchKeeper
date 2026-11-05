@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "accounts": [
+    {
+      "name": "work",
+      "agent": "claude",
+      "label": "Work subscription",
+      "token": null,
+      "added": "2026-10-01T08:00:00.000Z",
+      "mode": "host",
+      "dir": "/home/dev/.local/share/benchkeeper/accounts/work",
+      "default": true,
+      "pool": "main",
+      "limits": {
+        "minimum": {
+          "fiveHour": 15
+        },
+        "warn": {
+          "fiveHour": 30
+        }
+      }
+    },
+    {
+      "name": "spare",
+      "agent": "claude",
+      "token": {
+        "created": "2026-09-01T08:00:00.000Z"
+      },
+      "mode": "host",
+      "dir": "/home/dev/.local/share/benchkeeper/accounts/spare",
+      "pool": "main",
+      "label": null
+    },
+    {
+      "name": "boxed",
+      "agent": "claude",
+      "token": null,
+      "added": "2026-10-02T08:00:00.000Z",
+      "mode": "container",
+      "volume": "benchkeeper-claude-boxed",
+      "mount": "/home/node/.claude-boxed"
+    },
+    {
+      "name": "codex-main",
+      "agent": "codex",
+      "token": null,
+      "added": "2026-10-03T08:00:00.000Z",
+      "mode": "host",
+      "dir": "/home/dev/.local/share/benchkeeper/accounts/codex-main",
+      "pool": "main",
+      "label": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "settings": {
+    "minimum": {
+      "sevenDay": 5
+    },
+    "autoPick": true,
+    "rotate": {
+      "claude": "handover"
+    }
+  }
+}

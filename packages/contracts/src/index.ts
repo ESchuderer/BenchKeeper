@@ -1,3 +1,4 @@
+export { ACCOUNTS_SCHEMA_VERSION, type Account, AccountRegistry, Agent } from "./accounts.ts";
 export {
   Draft,
   DraftInfo,

@@ -1,0 +1,36 @@
+{
+  "name": "@cedarloom/accounts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The account domain of CedarLoom: the registry of config folders, pools and minimums, the one-time import of BenchKeeper's registry, and the choice of the pool account with the most headroom.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "fast-check": "catalog:"
+  }
+}

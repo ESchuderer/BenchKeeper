@@ -51,6 +51,19 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
 
+  packages/accounts:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
+
   packages/adapter-claude:
     dependencies:
       '@cedarloom/agent-contracts':

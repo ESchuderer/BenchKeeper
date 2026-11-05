@@ -1,6 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  ACCOUNTS_SCHEMA_VERSION,
+  AccountRegistry,
   canonicalJson,
   type Json,
   formatWorkflow,
@@ -59,6 +61,29 @@ const promised: Record<string, string[]> = {
 
 const issuePaths = (read: Result<unknown>): string[] =>
   !read.ok && read.finding.code === "document.invalid" ? read.finding.params.issues.map((issue) => issue.path) : [];
+
+// Each invalid registry breaks in one place, the one its name promises; a credential is an unknown key.
+const promisedAccounts: Record<string, string[]> = {
+  "invalid-confirmed-codex-pool.json": ["pools.codex.main.confirmedAt"],
+  "invalid-duplicate-home.json": ["accounts.1.home"],
+  "invalid-duplicate-name.json": ["accounts.1.name"],
+  "invalid-inherited-pool.json": ["accounts.0.pool"],
+  "invalid-minimum-over-100.json": ["minimum.fiveHour"],
+  "invalid-pool-of-other-agent.json": ["accounts.0.pool"],
+  "invalid-proto-pool.json": ["pools.claude.__proto__"],
+  "invalid-relative-home.json": ["accounts.0.home"],
+  "invalid-token.json": ["accounts.0.token"],
+};
+
+describe("golden corpus of account registries", async () => {
+  for (const [version, name, text] of await corpus("AccountRegistry")) {
+    test(`${version}/${name}`, () => {
+      const read = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, JSON.parse(text));
+      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name, ACCOUNTS_SCHEMA_VERSION));
+      expect(issuePaths(read)).toEqual(promisedAccounts[name] ?? []);
+    });
+  }
+});
 
 describe("golden corpus of workflows: valid files are also in their canonical form", async () => {
   for (const [version, name, text] of await corpus("WorkflowDefinition")) {

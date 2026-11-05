@@ -27,7 +27,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/contracts/src/**"],
+      "files": ["packages/contracts/src/**", "packages/accounts/src/**"],
       "rules": {
         "no-restricted-globals": [
           "error",
@@ -47,7 +47,12 @@
             ],
             "checkGlobalObject": true
           }
-        ],
+        ]
+      }
+    },
+    {
+      "files": ["packages/contracts/src/**"],
+      "rules": {
         "no-restricted-imports": [
           "error",
           {
@@ -71,6 +76,22 @@
               {
                 "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/agent-contracts"],
                 "message": "the agent contract and the adapters depend on the contracts only, never on each other"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/accounts/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/*", "!@cedarloom/contracts"],
+                "message": "accounts is a pure domain package (D2): the contracts and zod only, no Node and no other package"
               }
             ]
           }

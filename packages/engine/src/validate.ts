@@ -1,5 +1,5 @@
 import { type Finding, type HandleType, JoinConfig, type WorkflowDefinition } from "@cedarloom/contracts";
-import { compatibility, NODE_TYPES, type NodeType } from "./graph.ts";
+import { compatibility, NODE_TYPES, type NodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
@@ -17,10 +17,6 @@ type Graph = {
   /** Node to node links of every edge between existing nodes, whatever its handles: one bad edge hides no node. */
   reach: Map<string, string[]>;
 };
-
-// Own keys only: a node type, handle or field named like an Object property (`constructor`) is none.
-const own = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
-  record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
 
 const duplicates = ({ workflow }: Graph): Finding[] =>
   (["node", "edge"] as const).flatMap((kind) => {

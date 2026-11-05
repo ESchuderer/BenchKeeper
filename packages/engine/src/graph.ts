@@ -25,6 +25,10 @@ const run = { run: control };
 // `failed` routes a failure along an edge instead of the run's failure policy.
 const ended = { done: branch, failed: branch };
 
+/** A record's own entry: a node type, handle or input named like an Object property (`constructor`) is none. */
+export const own = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
+  record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
+
 /** The node types of workflow schema version 1, with their handles. Their configuration and execution come later. */
 export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "trigger.manual": { inputs: {}, outputs: { start: control } },

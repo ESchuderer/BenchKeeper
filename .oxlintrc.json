@@ -106,6 +106,22 @@
       }
     },
     {
+      "files": ["packages/engine/src/validate.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/ledger", "./*", "!./graph.ts"],
+                "message": "the editor loads the validator in the browser: it takes the contracts and the graph module only"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/engine/src/graph.ts"],
       "rules": {
         "no-restricted-imports": [

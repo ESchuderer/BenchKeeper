@@ -117,7 +117,7 @@ export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOpt
   // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
   // as its own module.exports, which shares reply.sse with the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
-  await app.register(eventRoutes, { state, every });
+  await app.register(eventRoutes, { state, every, log });
   if (ui !== undefined && existsSync(join(ui, "index.html")))
     await app.register(serveStatic, { root: ui, dotfiles: "deny" });
   else if (ui !== undefined) log(`The web UI is not built in ${ui}, so only the API answers.\n`);

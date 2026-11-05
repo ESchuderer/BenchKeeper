@@ -90,13 +90,14 @@ const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean;
 );
 
 /** One run's undo, applied only with the hash of the preview shown; focus lands on its heading, then on the result. */
-type Detail = { api: Api; runId: string; revision: number; onUndone: () => void };
+type Detail = { api: Api; runId: string; revision: number };
 
-const RunDetail = ({ api, runId, revision, onUndone }: Detail): ReactNode => {
+const RunDetail = ({ api, runId, revision }: Detail): ReactNode => {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [problem, setProblem] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const announced = useRef<HTMLParagraphElement>(null);
   const params = { params: { path: { runId } } };
@@ -106,8 +107,8 @@ const RunDetail = ({ api, runId, revision, onUndone }: Detail): ReactNode => {
     const show = async (): Promise<void> => {
       const answer = await call(() => api.GET("/api/runs/{runId}/undo", params));
       if (!current) return;
-      if ("problem" in answer) setStatus(answer.problem);
-      else setPreview(previewOf(answer.data));
+      setProblem("problem" in answer ? answer.problem : "");
+      if ("data" in answer) setPreview(previewOf(answer.data));
     };
     void show();
     // A later preview of this run replaces this one; an answer that arrives after it is dropped.
@@ -121,7 +122,6 @@ const RunDetail = ({ api, runId, revision, onUndone }: Detail): ReactNode => {
     setStatus(undoRun === null ? text : t("run.undone", { runId: undoRun }));
     setBusy(false);
     setVersion((value) => value + 1);
-    onUndone();
     announced.current?.focus();
   };
   return (
@@ -129,6 +129,7 @@ const RunDetail = ({ api, runId, revision, onUndone }: Detail): ReactNode => {
       <Title order={3} size="h5" ref={heading} tabIndex={-1}>
         {t("run.title", { runId })}
       </Title>
+      {problem !== "" && <Alert color="red">{problem}</Alert>}
       {preview && <UndoOffer preview={preview} busy={busy} onUndo={(hash) => void undo(hash)} />}
       <Text role="status" ref={announced} tabIndex={-1}>
         {status}
@@ -145,37 +146,35 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const load = useCallback(async (): Promise<void> => {
-    const answer = await call(() => api.GET("/api/runs"));
-    if ("problem" in answer) setError(answer.problem);
-    else setRuns(answer.data.runs);
-  }, [api]);
   const [revision, setRevision] = useState(0);
-  useEffect(() => void load(), [load]);
-  // The first load names a lost session or a refusal; the stream then keeps the runs current, and its end means the
-  // server stopped.
+  // The stream gives the runs at once and on every change; a refusal names its findings.
   const update = useCallback((event: RunEvent): void => {
-    if (event.event !== "runs") return;
+    if (event.event === "refusal") {
+      setError(t("error.failed", { status: 409, error: event.findings.map((finding) => finding.code).join(", ") }));
+      return;
+    }
+    setError("");
     setRuns(event.runs);
     setRevision((value) => value + 1);
   }, []);
   useEffect(() => {
     const stop = new AbortController();
+    // When the stream ends or is refused, one request names why: a lost session, or a server that is gone.
     const follow = async (): Promise<void> => {
       await listen(update, stop.signal).catch(() => undefined);
-      if (!stop.signal.aborted) setError(t("error.unreachable"));
+      if (stop.signal.aborted) return;
+      const answer = await call(() => api.GET("/api/runs"));
+      setError("problem" in answer ? answer.problem : t("error.unreachable"));
     };
     void follow();
     return () => stop.abort();
-  }, [listen, update]);
+  }, [api, listen, update]);
   if (error !== "") return <Alert color="red">{error}</Alert>;
   if (runs === null) return null;
   if (runs.length === 0) return <Text>{t("runs.empty")}</Text>;
   return (
     <Stack>
-      {selected && (
-        <RunDetail key={selected} api={api} runId={selected} revision={revision} onUndone={() => void load()} />
-      )}
+      {selected && <RunDetail key={selected} api={api} runId={selected} revision={revision} />}
       <RunsTable runs={runs} selected={selected} onSelect={setSelected} />
     </Stack>
   );

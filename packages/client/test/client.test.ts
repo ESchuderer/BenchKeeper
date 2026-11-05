@@ -134,32 +134,42 @@ test("subscribe hands over the runs at once and each change after, and ends quie
   await expect(subscribe(base, csrf, () => undefined, fresh)).rejects.toThrow("the event stream answered 401");
 });
 
-test("subscribe skips comments and unknown events, and reads refusals", async () => {
-  const body =
-    'event: other\ndata: {}\n\n: keep-alive\n\nevent: refusal\ndata: {"findings":[{"code":"store.busy"}]}\n\n';
+/** The events subscribe() reads from a synthetic response body. */
+const eventsOf = async (body: ConstructorParameters<typeof Response>[0]): Promise<RunEvent[]> => {
   const seen: RunEvent[] = [];
   await subscribe("http://127.0.0.1:9", "csrf", (event) => seen.push(event), {
     signal: new AbortController().signal,
     fetch: async () => new Response(body),
   });
-  expect(seen).toEqual([{ event: "refusal", findings: [{ code: "store.busy" }] }]);
-  // Fields of the wrong shape read as empty lists; a stream that breaks, without an abort, throws.
-  const odd = 'event: runs\ndata: 5\n\nevent: runs\ndata: {"runs":3}\n\n';
-  const shapes: RunEvent[] = [];
-  await subscribe("http://127.0.0.1:9", "csrf", (event) => shapes.push(event), {
-    signal: new AbortController().signal,
-    fetch: async () => new Response(odd),
-  });
-  expect(shapes).toEqual([
+  return seen;
+};
+
+test("subscribe skips comments and unknown events, reads refusals, and treats fields of the wrong shape as empty", async () => {
+  const body =
+    'event: other\ndata: {}\n\n: keep-alive\n\nevent: refusal\ndata: {"findings":[{"code":"store.busy"}]}\n\n';
+  expect(await eventsOf(body)).toEqual([{ event: "refusal", findings: [{ code: "store.busy" }] }]);
+  expect(await eventsOf('event: runs\ndata: 5\n\nevent: runs\ndata: {"runs":3}\n\n')).toEqual([
     { event: "runs", runs: [] },
     { event: "runs", runs: [] },
   ]);
+  // A stream that breaks, without an abort, throws.
   const broken = new ReadableStream({ start: (controller) => controller.error(new Error("connection reset")) });
-  const failing = subscribe("http://127.0.0.1:9", "csrf", () => undefined, {
-    signal: new AbortController().signal,
-    fetch: async () => new Response(broken),
+  await expect(eventsOf(broken)).rejects.toThrow("connection reset");
+});
+
+test("subscribe joins events that arrive split across chunks, also inside a UTF-8 character", async () => {
+  const bytes = new TextEncoder().encode(
+    'event: runs\ndata: {"runs":[{"id":"r-\u00fc","status":"applied","startedAt":"t"}]}\n\n',
+  );
+  const cut = bytes.indexOf(0xc3) + 1;
+  const parts = [bytes.slice(0, 9), bytes.slice(9, cut), bytes.slice(cut)];
+  const body = new ReadableStream<Uint8Array>({
+    start: (controller) => {
+      for (const part of parts) controller.enqueue(part);
+      controller.close();
+    },
   });
-  await expect(failing).rejects.toThrow("connection reset");
+  expect(await eventsOf(body)).toMatchObject([{ event: "runs", runs: [{ id: "r-\u00fc" }] }]);
 });
 
 test("with the platform's fetch the session needs a cookie store: Node's fetch keeps none, a browser tab does", async () => {

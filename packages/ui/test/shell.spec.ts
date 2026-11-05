@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Started, startServer } from "@cedarloom/server";
 import { applyPlan } from "@cedarloom/services";
@@ -120,6 +121,9 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   await expect(page.getByRole("status")).toHaveText(/^The undo ran as run [0-9a-f-]{36}\.$/);
   await expect(page.getByRole("status")).toBeFocused();
   await expect(page.getByText("Nothing to undo.")).toBeVisible();
+  // The undo run arrives through the event stream.
+  const table = page.getByRole("table", { name: "Runs, newest first" });
+  await expect(table.getByRole("cell", { name: "Undo", exact: true })).toBeVisible();
   expect([existsSync(file), errors]).toEqual([false, []]);
 });
 
@@ -142,4 +146,12 @@ test("a new tab has no session and says how to get one", async () => {
   await expect(fresh.getByRole("alert")).toHaveText(/Run cedarloom ui again/);
   await accessible(fresh);
   await fresh.close();
+});
+
+test("a store the server cannot read any more is named in the page, live", async () => {
+  const db = new DatabaseSync(join(stateDir, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 9");
+  db.close();
+  await expect(page.getByRole("alert")).toContainText("store.newer-schema");
+  await accessible();
 });

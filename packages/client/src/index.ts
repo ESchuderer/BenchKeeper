@@ -97,5 +97,8 @@ export const subscribe = async (
   } catch (error) {
     // Aborting is how a page stops listening; anything else is a stream that broke.
     if (!options.signal.aborted) throw error;
+  } finally {
+    // Also after a handler threw: the connection closes instead of streaming into nothing.
+    await reader.cancel().catch(() => undefined);
   }
 };

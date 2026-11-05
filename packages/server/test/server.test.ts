@@ -413,7 +413,7 @@ const stream = (
   next: (event: string, data: unknown) => boolean,
   ms = 5000,
 ) =>
-  new Promise<number>((resolve, reject) => {
+  new Promise<string>((resolve, reject) => {
     const req = request({
       host: "127.0.0.1",
       port,
@@ -432,7 +432,7 @@ const stream = (
           if (event !== undefined && data !== undefined && next(event, JSON.parse(data))) req.destroy();
         }
       });
-      res.on("close", () => resolve(res.statusCode ?? 0));
+      res.on("close", () => resolve(`${res.statusCode} ${res.headers["cache-control"]}`));
     });
     req.on("error", reject);
     req.end();
@@ -447,14 +447,17 @@ test("the event stream sends the runs at once and again whenever they change, be
     if (seen.length === 1) replaced(client);
     return seen.length === 2;
   });
-  expect(await done).toBe(200);
+  expect(await done).toBe("200 no-store");
   expect(seen).toMatchObject([
     ["runs", { runs: [] }],
     ["runs", { runs: [{ kind: "apply", status: "applied" }] }],
   ]);
   const { [CSRF_HEADER]: _csrf, ...cookieOnly } = auth();
-  expect(await stream(client.port, { accept: "text/event-stream", ...cookieOnly }, () => true)).toBe(403);
-  expect(await stream(client.port, { accept: "application/json", ...auth() }, () => true)).toBe(406);
+  expect(await stream(client.port, { accept: "text/event-stream", ...cookieOnly }, () => true)).toMatch(/^403 /);
+  expect(await stream(client.port, { accept: "application/json", ...auth() }, () => true)).toMatch(/^406 /);
+  // A HEAD would hold a stream open: it has no route, so it is a 405 that names GET.
+  const head = await client.api({ method: "HEAD", path: "/api/events" });
+  expect([head.status, head.headers["allow"]]).toEqual([405, "GET"]);
   const db = new DatabaseSync(join(client.state, "runs.sqlite"));
   db.exec("PRAGMA user_version = 4");
   db.close();
@@ -463,6 +466,20 @@ test("the event stream sends the runs at once and again whenever they change, be
   const keep = (event: string, data: unknown): boolean => refused.push([event, data]) < 0;
   await stream(client.port, { accept: "text/event-stream", ...auth() }, keep, 150);
   expect(refused).toMatchObject([["refusal", { findings: [{ code: "store.newer-schema" }] }]]);
+});
+
+test("a store that turns unreadable ends the open stream and goes to the log; the server keeps answering", async () => {
+  const client = await ready();
+  replaced(client);
+  const seen: string[] = [];
+  const ended = stream(client.port, { accept: "text/event-stream", ...client.auth() }, (event) => {
+    seen.push(event);
+    writeFileSync(join(client.state, "runs.sqlite"), "not a database");
+    return false;
+  });
+  expect([await ended, seen]).toEqual(["200 no-store", ["runs"]]);
+  expect(client.log.join("")).toContain("The event stream stopped");
+  expect((await client.api({ path: "/nowhere" })).status).toBe(404);
 });
 
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {

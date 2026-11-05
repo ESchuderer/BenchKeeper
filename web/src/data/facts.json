@@ -6,14 +6,14 @@
       "name": "Lite",
       "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.25.0 apply --level lite",
+      "command": "npx benchkeeper@6.26.0 apply --level lite",
       "evidence": "app/test/level.test.mjs"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `projects apply` in",
-      "command": "npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply",
+      "command": "npx benchkeeper@6.26.0 apply --level standard && npx benchkeeper@6.26.0 projects apply",
       "evidence": [
         "app/test/level.test.mjs",
         "docs/setup.md#per-repo"
@@ -23,7 +23,7 @@
       "name": "Full",
       "contains": "standard plus the global rules, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.25.0 apply --level full",
+      "command": "npx benchkeeper@6.26.0 apply --level full",
       "evidence": [
         "app/test/level.test.mjs",
         "docs/setup.md#setup-details"
@@ -48,7 +48,7 @@
         "name": "App",
         "steps": [
           {
-            "command": "npx benchkeeper@6.25.0",
+            "command": "npx benchkeeper@6.26.0",
             "text": "Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.",
             "evidence": [
               "app/README.md#web-ui",
@@ -61,12 +61,12 @@
         "name": "CLI",
         "steps": [
           {
-            "command": "npx benchkeeper@6.25.0 plan",
+            "command": "npx benchkeeper@6.26.0 plan",
             "text": "Lists each change and writes nothing.",
             "evidence": "app/test/cli.test.mjs"
           },
           {
-            "command": "npx benchkeeper@6.25.0 apply",
+            "command": "npx benchkeeper@6.26.0 apply",
             "text": "Asks per change. `--yes` applies the default selection without questions.",
             "evidence": "app/test/cli.test.mjs"
           }
@@ -74,7 +74,7 @@
       }
     ],
     "next": "After either path, restart the agents.",
-    "changes": "`npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.",
+    "changes": "`npx benchkeeper@6.26.0 history` lists what changed, `npx benchkeeper@6.26.0 undo <run>` reverses a run.",
     "links": [
       { "label": "Lite level, the plugin alone", "anchor": "levels" },
       { "label": "Full setup description", "anchor": "setup-details" },
@@ -210,7 +210,7 @@
       {
         "id": "app",
         "title": "The app",
-        "text": "`npx benchkeeper@6.25.0` opens a local web app on 127.0.0.1 behind a one-time link. It sets up the machine and each repository, reports drift on the Dashboard and fixes it in one plan. Every change appears as a diff or a command line before Apply, and each run is recorded, so History can undo a run or a single step.",
+        "text": "`npx benchkeeper@6.26.0` opens a local web app on 127.0.0.1 behind a one-time link. It sets up the machine and each repository, reports drift on the Dashboard and fixes it in one plan. Every change appears as a diff or a command line before Apply, and each run is recorded, so History can undo a run or a single step.",
         "evidence": "app/README.md#web-ui"
       },
       {
@@ -345,7 +345,7 @@
       "title": "The app and the setup skills",
       "href": "https://github.com/ESchuderer/BenchKeeper/tree/main/app",
       "scope": "On request",
-      "text": "`npx benchkeeper@6.25.0` sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates the projects that are behind, and the Sessions board tracks tier, cost and outcome per session. `/benchkeeper:setting-up-projects` adds stack skills and the dev container, `/benchkeeper:maintaining-repos` runs a maintenance pass, `/benchkeeper:orchestrating-projects` coordinates workers on labeled issues across projects.",
+      "text": "`npx benchkeeper@6.26.0` sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates the projects that are behind, and the Sessions board tracks tier, cost and outcome per session. `/benchkeeper:setting-up-projects` adds stack skills and the dev container, `/benchkeeper:maintaining-repos` runs a maintenance pass, `/benchkeeper:orchestrating-projects` coordinates workers on labeled issues across projects.",
       "evidence": ["app/README.md#web-ui", "app/ui/fix.jsx", "docs/stack.md#contents"]
     },
     {

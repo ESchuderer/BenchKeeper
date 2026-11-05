@@ -79,12 +79,16 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      # The pull request's own changes, as GitHub counts them: from the merge base of the base branch's tip and the pushed
+      # head. HEAD is the merge commit and pull_request.base.sha keeps an older base, so that range would also count
+      # every commit merged to the base branch since then.
       - env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'size-override') }}
         run: |
           read -ra paths <<< "$PATHS"
-          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
+          stat=$(git diff --numstat "origin/$BASE_REF...$HEAD_SHA" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
           files=$(printf '%s' "$stat" | grep -c . || true)
           lines=$(printf '%s' "$stat" | awk '{ n += $1 + $2 } END { print n + 0 }')
           echo "CedarLoom paths: $files files, $lines changed lines"

@@ -9,7 +9,7 @@ export const ui = async (ctx: Context): Promise<number> => {
   const dist = join(dirname(fileURLToPath(import.meta.resolve("@cedarloom/ui/package.json"))), "dist");
   const server = await startServer({ state: ctx.state, ui: dist, log: ctx.io.err });
   emit(ctx, "ui", { url: server.url }, `Open ${server.url}\nThe link works once, within 10 minutes. Stop with Ctrl+C.`);
-  await new Promise((resolve) => ctx.io.stop.addEventListener("abort", resolve, { once: true }));
+  await ctx.io.untilStopped();
   await server.close();
   return EXIT.ok;
 };

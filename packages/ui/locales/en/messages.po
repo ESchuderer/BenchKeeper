@@ -12,6 +12,10 @@ msgid "nav.label"
 msgstr "Views"
 
 #. js-lingui-explicit-id
+msgid "nav.toggle"
+msgstr "Show the views"
+
+#. js-lingui-explicit-id
 msgid "nav.runs"
 msgstr "Runs"
 
@@ -41,7 +45,11 @@ msgstr "This view is not built yet."
 
 #. js-lingui-explicit-id
 msgid "session.lost"
-msgstr "This page has no session. Open the link the server printed, at http://127.0.0.1 and its port."
+msgstr "This page has no session. Run cedarloom ui again and open the link it prints: each link works once, in one tab."
+
+#. js-lingui-explicit-id
+msgid "error.unreachable"
+msgstr "The server cannot be reached. Run cedarloom ui again and open the link it prints."
 
 #. js-lingui-explicit-id
 msgid "error.failed"
@@ -72,10 +80,6 @@ msgid "runs.started"
 msgstr "Started"
 
 #. js-lingui-explicit-id
-msgid "run.steps"
-msgstr "{count, plural, one {# change} other {# changes}}"
-
-#. js-lingui-explicit-id
 msgid "run.undoPlan"
 msgstr "Undoing it changes {count, plural, one {# file} other {# files}}."
 
@@ -92,5 +96,9 @@ msgid "run.undone"
 msgstr "The undo ran as run {runId}."
 
 #. js-lingui-explicit-id
-msgid "run.refused"
-msgstr "The undo did not complete: {codes}"
+msgid "run.skipped"
+msgstr "{count, plural, one {# file was} other {# files were}} edited since the run and stay as they are."
+
+#. js-lingui-explicit-id
+msgid "run.title"
+msgstr "Run {runId}"

@@ -1,24 +1,39 @@
 import type { Api, components } from "@cedarloom/client";
-import { Alert, AppShell, Button, Group, NavLink, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type MessageId, t } from "./i18n.ts";
 
 type Run = components["schemas"]["Run"];
-type Preview = { planHash: string | null; count: number };
+type Preview = { planHash: string | null; count: number; skipped: number };
+type Fetched<T> = { data: T; error?: never; response: Response } | { data?: never; error: unknown; response: Response };
+
+/** The answer's data, or the sentence for the user: a lost session, a refusal with its codes, an unreachable server. */
+const call = async <T,>(request: () => Promise<Fetched<T>>): Promise<{ data: T } | { problem: string }> => {
+  try {
+    const { data, error, response } = await request();
+    if (data !== undefined) return { data };
+    if (response.status === 401) return { problem: t("session.lost") };
+    const codes = typeof error === "object" && error !== null && "findings" in error ? error.findings : null;
+    const detail = Array.isArray(codes) ? codes.map((finding: { code: string }) => finding.code).join(", ") : "";
+    return { problem: t("error.failed", { status: response.status, error: detail || JSON.stringify(error) }) };
+  } catch {
+    return { problem: t("error.unreachable") };
+  }
+};
 
 // openapi-fetch drops the null-typed properties of a preview with nothing to undo from its type; they are null at runtime.
-const previewOf = (data: object): Preview => {
+const previewOf = (data: { findings: unknown[] }): Preview => {
   const plan = "plan" in data ? data.plan : null;
   const operations = typeof plan === "object" && plan !== null && "operations" in plan ? plan.operations : [];
   const planHash = "planHash" in data && typeof data.planHash === "string" ? data.planHash : null;
-  return { planHash, count: Array.isArray(operations) ? operations.length : 0 };
+  return { planHash, count: Array.isArray(operations) ? operations.length : 0, skipped: data.findings.length };
 };
 
-const failure = (response: Response, error: unknown): string =>
-  t("error.failed", { status: response.status, error: JSON.stringify(error) });
+type Select = (runId: string) => void;
 
-const RunsTable = ({ runs, onSelect }: { runs: Run[]; onSelect: (runId: string) => void }): ReactNode => (
+const RunsTable = ({ runs, selected, onSelect }: { runs: Run[]; selected: string | null; onSelect: Select }) => (
   <Table striped highlightOnHover>
     <Table.Caption c="bright">{t("runs.caption")}</Table.Caption>
     <Table.Thead>
@@ -33,7 +48,13 @@ const RunsTable = ({ runs, onSelect }: { runs: Run[]; onSelect: (runId: string) 
       {runs.map((run) => (
         <Table.Tr key={run.id}>
           <Table.Td>
-            <Button variant="subtle" size="compact-sm" ff="monospace" onClick={() => onSelect(run.id)}>
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              ff="monospace"
+              aria-pressed={run.id === selected}
+              onClick={() => onSelect(run.id)}
+            >
               {run.id.slice(0, 8)}
             </Button>
           </Table.Td>
@@ -46,58 +67,81 @@ const RunsTable = ({ runs, onSelect }: { runs: Run[]; onSelect: (runId: string) 
   </Table>
 );
 
-/** One run: how many changes it made, and its undo, applied only with the hash of the preview shown here. */
+const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean; onUndo: (hash: string) => void }) => (
+  <Stack gap="xs">
+    {preview.planHash === null ? (
+      <Text>{t("run.nothingToUndo")}</Text>
+    ) : (
+      <Group>
+        <Text>{t("run.undoPlan", { count: preview.count })}</Text>
+        <Button
+          loading={busy}
+          leftSection={<Undo2 size={16} aria-hidden />}
+          onClick={() => onUndo(String(preview.planHash))}
+        >
+          {t("run.undo")}
+        </Button>
+      </Group>
+    )}
+    {preview.skipped > 0 && <Text>{t("run.skipped", { count: preview.skipped })}</Text>}
+  </Stack>
+);
+
+/** One run's undo, applied only with the hash of the preview shown; focus lands on its heading, then on the result. */
 const RunDetail = ({ api, runId, onUndone }: { api: Api; runId: string; onUndone: () => void }): ReactNode => {
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [version, setVersion] = useState(0);
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const heading = useRef<HTMLHeadingElement>(null);
+  const announced = useRef<HTMLParagraphElement>(null);
   const params = { params: { path: { runId } } };
+  useEffect(() => heading.current?.focus(), []);
   useEffect(() => {
+    let current = true;
     const show = async (): Promise<void> => {
-      const { data, error, response } = await api.GET("/api/runs/{runId}/undo", params);
-      if (data === undefined) setStatus(failure(response, error));
-      else setPreview(previewOf(data));
+      const answer = await call(() => api.GET("/api/runs/{runId}/undo", params));
+      if (!current) return;
+      if ("problem" in answer) setStatus(answer.problem);
+      else setPreview(previewOf(answer.data));
     };
     void show();
-  }, [api, runId, status]);
-  const undo = async (planHash: string): Promise<void> => {
-    const { data, error, response } = await api.POST("/api/runs/{runId}/undo", {
-      ...params,
-      body: { approve: planHash },
-    });
-    const codes = error !== undefined && "findings" in error ? error.findings.map((f) => f.code).join(", ") : "";
-    setStatus(
-      data === undefined
-        ? t("run.refused", { codes: codes || failure(response, error) })
-        : t("run.undone", { runId: data.runId }),
-    );
+    // A later preview of this run replaces this one; an answer that arrives after it is dropped.
+    return () => void (current = false);
+  }, [api, runId, version]);
+  const undo = async (approve: string): Promise<void> => {
+    setBusy(true);
+    const answer = await call(() => api.POST("/api/runs/{runId}/undo", { ...params, body: { approve } }));
+    const done = "data" in answer && answer.data.runId !== null;
+    const text = "problem" in answer ? answer.problem : t("run.nothingToUndo");
+    setStatus(done ? t("run.undone", { runId: answer.data.runId }) : text);
+    setBusy(false);
+    setVersion((value) => value + 1);
     onUndone();
+    announced.current?.focus();
   };
   return (
     <Stack gap="xs">
-      {preview?.planHash ? (
-        <Group>
-          <Text>{t("run.undoPlan", { count: preview.count })}</Text>
-          <Button leftSection={<Undo2 size={16} aria-hidden />} onClick={() => void undo(String(preview.planHash))}>
-            {t("run.undo")}
-          </Button>
-        </Group>
-      ) : (
-        preview && <Text>{t("run.nothingToUndo")}</Text>
-      )}
-      <Text role="status">{status}</Text>
+      <Title order={3} size="h5" ref={heading} tabIndex={-1}>
+        {t("run.title", { runId })}
+      </Title>
+      {preview && <UndoOffer preview={preview} busy={busy} onUndo={(hash) => void undo(hash)} />}
+      <Text role="status" ref={announced} tabIndex={-1}>
+        {status}
+      </Text>
     </Stack>
   );
 };
 
-/** The runs, newest first; choosing one shows its undo. */
+/** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
 const Runs = ({ api }: { api: Api }): ReactNode => {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const load = useCallback(async (): Promise<void> => {
-    const { data, error: refused, response } = await api.GET("/api/runs");
-    if (data === undefined) setError(failure(response, refused));
-    else setRuns(data.runs);
+    const answer = await call(() => api.GET("/api/runs"));
+    if ("problem" in answer) setError(answer.problem);
+    else setRuns(answer.data.runs);
   }, [api]);
   useEffect(() => void load(), [load]);
   if (error !== "") return <Alert color="red">{error}</Alert>;
@@ -105,8 +149,8 @@ const Runs = ({ api }: { api: Api }): ReactNode => {
   if (runs.length === 0) return <Text>{t("runs.empty")}</Text>;
   return (
     <Stack>
-      <RunsTable runs={runs} onSelect={setSelected} />
-      {selected && <RunDetail api={api} runId={selected} onUndone={() => void load()} />}
+      {selected && <RunDetail key={selected} api={api} runId={selected} onUndone={() => void load()} />}
+      <RunsTable runs={runs} selected={selected} onSelect={setSelected} />
     </Stack>
   );
 };
@@ -125,12 +169,18 @@ type View = (typeof VIEWS)[number]["id"];
 const content = (view: View, api: Api): ReactNode =>
   view === "nav.runs" ? <Runs api={api} /> : <Text>{t("view.notBuilt")}</Text>;
 
-/** The shell: the views in the navigation, the chosen one in the main region. */
+/** The shell: the views in the navigation (behind a menu button on narrow screens), the chosen one in the main region. */
 export const App = ({ api }: { api: Api }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
+  const [opened, { toggle, close }] = useDisclosure();
   return (
-    <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm" }} padding="md">
-      <AppShell.Header px="md" style={{ display: "flex", alignItems: "center" }}>
+    <AppShell
+      header={{ height: 56 }}
+      navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      padding="md"
+    >
+      <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t("nav.toggle")} />
         <Title order={1} size="h3">
           {t("app.title")}
         </Title>
@@ -144,7 +194,10 @@ export const App = ({ api }: { api: Api }): ReactNode => {
             leftSection={<Icon size={18} aria-hidden />}
             active={view === id}
             aria-current={view === id ? "page" : undefined}
-            onClick={() => setView(id)}
+            onClick={() => {
+              setView(id);
+              close();
+            }}
           />
         ))}
       </AppShell.Navbar>

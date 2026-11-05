@@ -1,6 +1,6 @@
 import "@mantine/core/styles.css";
 import { type Api, client, exchange } from "@cedarloom/client";
-import { Alert, createTheme, MantineProvider, type MantineColorsTuple } from "@mantine/core";
+import { Alert, Container, createTheme, MantineProvider, type MantineColorsTuple, Title } from "@mantine/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
@@ -42,9 +42,14 @@ root.render(
   <StrictMode>
     <MantineProvider theme={theme}>
       {api === null ? (
-        <Alert color="red" m="xl" role="alert">
-          {t("session.lost")}
-        </Alert>
+        <Container component="main" size="sm" py="xl">
+          <Title order={1} size="h3" mb="md">
+            {t("app.title")}
+          </Title>
+          <Alert color="red" role="alert">
+            {t("session.lost")}
+          </Alert>
+        </Container>
       ) : (
         <App api={api} />
       )}

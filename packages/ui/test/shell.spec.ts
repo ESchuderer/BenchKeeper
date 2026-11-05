@@ -38,8 +38,8 @@ test.afterAll(async () => {
   await server.close();
 });
 
-const accessible = async (): Promise<void> => {
-  const { violations } = await new AxeBuilder({ page }).analyze();
+const accessible = async (target: Page = page): Promise<void> => {
+  const { violations } = await new AxeBuilder({ page: target }).analyze();
   expect(
     violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(" ")}`),
   ).toEqual([]);
@@ -65,19 +65,35 @@ test("every view is reachable from the navigation and passes axe", async () => {
   }
 });
 
-test("a run's undo shows its plan and applies only that plan, announced in a status region", async () => {
+test("a narrow window keeps the views behind a menu button", async () => {
+  await page.setViewportSize({ width: 600, height: 800 });
+  await page.getByRole("button", { name: "Show the views" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Usage" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Usage" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Views" })).not.toBeInViewport();
+  await accessible();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Runs" }).click();
+});
+
+test("a run's undo is reached by keyboard, applies only the previewed plan, and announces its result", async () => {
   await page.getByRole("table", { name: "Runs, newest first" }).getByRole("button").first().click();
+  await expect(page.getByRole("heading", { level: 3, name: /^Run [0-9a-f-]{36}$/ })).toBeFocused();
   await expect(page.getByText("Undoing it changes 1 file.")).toBeVisible();
   await accessible();
-  await page.getByRole("button", { name: "Undo run" }).click();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Undo run" })).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toHaveText(/^The undo ran as run [0-9a-f-]{36}\.$/);
+  await expect(page.getByRole("status")).toBeFocused();
   await expect(page.getByText("Nothing to undo.")).toBeVisible();
   expect([existsSync(file), errors]).toEqual([false, []]);
 });
 
-test("a tab without a session says how to get one", async ({ browser }) => {
-  const fresh = await browser.newPage();
+test("a new tab has no session and says how to get one", async () => {
+  const fresh = await context.newPage();
   await fresh.goto(`${new URL(server.url).origin}/`);
-  await expect(fresh.getByRole("alert")).toHaveText(/Open the link the server printed/);
+  await expect(fresh.getByRole("alert")).toHaveText(/Run cedarloom ui again/);
+  await accessible(fresh);
   await fresh.close();
 });

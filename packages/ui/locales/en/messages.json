@@ -2,16 +2,21 @@
   "messages": {
     "app.title": ["CedarLoom"],
     "error.failed": ["The server answered ", ["status"], ": ", ["error"]],
+    "error.unreachable": ["The server cannot be reached. Run cedarloom ui again and open the link it prints."],
     "nav.accounts": ["Accounts"],
     "nav.label": ["Views"],
     "nav.memory": ["Memory"],
     "nav.runs": ["Runs"],
     "nav.sessions": ["Sessions"],
+    "nav.toggle": ["Show the views"],
     "nav.usage": ["Usage"],
     "nav.workItems": ["Work items"],
     "run.nothingToUndo": ["Nothing to undo."],
-    "run.refused": ["The undo did not complete: ", ["codes"]],
-    "run.steps": [["count", "plural", { "one": ["#", " change"], "other": ["#", " changes"] }]],
+    "run.skipped": [
+      ["count", "plural", { "one": ["#", " file was"], "other": ["#", " files were"] }],
+      " edited since the run and stay as they are."
+    ],
+    "run.title": ["Run ", ["runId"]],
     "run.undo": ["Undo run"],
     "run.undoPlan": [
       "Undoing it changes ",
@@ -25,7 +30,9 @@
     "runs.run": ["Run"],
     "runs.started": ["Started"],
     "runs.status": ["Status"],
-    "session.lost": ["This page has no session. Open the link the server printed, at http://127.0.0.1 and its port."],
+    "session.lost": [
+      "This page has no session. Run cedarloom ui again and open the link it prints: each link works once, in one tab."
+    ],
     "view.notBuilt": ["This view is not built yet."]
   }
 }

@@ -22,7 +22,7 @@ const setup = (): {
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state },
-      stop: new AbortController().signal,
+      untilStopped: () => Promise.resolve(),
     };
     return { code: await main(argv, io), out, err };
   };
@@ -334,14 +334,14 @@ test("a plan whose chain of edits breaks is refused with exit 1 and writes nothi
 
 test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, and prints the one-time link", async () => {
   const { state } = setup();
-  const stop = new AbortController();
+  const stopped = Promise.withResolvers<void>();
   let out = "";
-  const io = { out: (t: string) => (out += t), err: () => undefined, env: {}, stop: stop.signal };
+  const io = { out: (t: string) => (out += t), err: () => undefined, env: {}, untilStopped: () => stopped.promise };
   const running = main(["--state", state, "--json", "ui"], io);
   await vi.waitFor(() => expect(out).toContain("cedarloom.ui"));
   const { url } = z.object({ url: z.string() }).parse(JSON.parse(out));
   expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#t=[\w-]{43}$/);
   expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);
-  stop.abort();
+  stopped.resolve();
   expect(await running).toBe(EXIT.ok);
 });

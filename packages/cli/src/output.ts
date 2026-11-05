@@ -6,8 +6,8 @@ export interface Io {
   out: (text: string) => void;
   err: (text: string) => void;
   env: Record<string, string | undefined>;
-  /** Ends a long-running command such as `ui` (the program aborts it on SIGINT and SIGTERM). */
-  stop: AbortSignal;
+  /** Settles when a long-running command such as `ui` should end; the program waits for SIGINT or SIGTERM. */
+  untilStopped: () => Promise<void>;
 }
 
 export interface Context {

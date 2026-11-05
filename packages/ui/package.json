@@ -17,8 +17,8 @@
   "scripts": {
     "typecheck": "tsc -b",
     "build": "vite build",
-    "catalog": "lingui compile --namespace json",
-    "test:ui": "vite build && playwright test"
+    "catalog": "lingui compile --namespace json && biome format --write locales",
+    "test:ui": "vite build && playwright test --forbid-only"
   },
   "dependencies": {
     "@cedarloom/client": "workspace:*",

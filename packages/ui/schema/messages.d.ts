@@ -9,13 +9,26 @@ declare module "@lingui/core" {
 export interface MessageValues {
   "app.title": Record<never, never>;
   "editor.addNode": Record<never, never>;
+  "editor.autoLayout": Record<never, never>;
   "editor.canvas": Record<never, never>;
+  "editor.close": Record<never, never>;
+  "editor.connect": Record<never, never>;
+  "editor.connectFrom": Record<never, never>;
+  "editor.connectHandles": Record<never, never>;
+  "editor.connectTitle": Record<never, never>;
+  "editor.connectTo": Record<never, never>;
+  "editor.connected": { from: string | number; to: string | number };
   "editor.export": Record<never, never>;
+  "editor.handle": { node: string | number; handle: string | number; type: string | number };
   "editor.import": Record<never, never>;
   "editor.inputs": Record<never, never>;
   "editor.keepOne": Record<never, never>;
+  "editor.laidOut": Record<never, never>;
+  "editor.layoutFailed": { reason: string | number };
+  "editor.license": Record<never, never>;
   "editor.new": Record<never, never>;
   "editor.noProblems": Record<never, never>;
+  "editor.noTargets": Record<never, never>;
   "editor.nodeType": Record<never, never>;
   "editor.notJson": Record<never, never>;
   "editor.outputs": Record<never, never>;
@@ -24,6 +37,9 @@ export interface MessageValues {
   "editor.redo": Record<never, never>;
   "editor.refused": { reason: string | number };
   "editor.undo": Record<never, never>;
+  "editor.unreadable": Record<never, never>;
+  "editor.workflowInput": { name: string | number; type: string | number };
+  "editor.workflowOutput": { name: string | number; type: string | number };
   "error.failed": { status: string | number; error: string | number };
   "error.unreachable": Record<never, never>;
   "error.unreadable": { codes: string | number };

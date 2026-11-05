@@ -15,8 +15,9 @@ export const openPage = async (
   return { context, page };
 };
 
-/** No axe violation on the page as it stands. */
+/** No axe violation on the page as it stands, once its transitions have ended: colors in mid-fade are no measure. */
 export const accessible = async (page: Page): Promise<void> => {
+  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
   const { violations } = await new AxeBuilder({ page }).analyze();
   expect(
     violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(" ")}`),

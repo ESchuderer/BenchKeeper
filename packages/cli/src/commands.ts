@@ -145,8 +145,10 @@ export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, loaded.finding);
   const registry = loaded.value;
+  const confirmed = (agent: Agent, pool: string): boolean =>
+    registry !== null && useCases.isConfirmed(registry, { agent, pool });
   const pool = ({ agent, pool: name }: Account): string =>
-    name === null ? "-" : `${name} (${registry?.pools[agent]?.[name]?.confirmedAt ? "confirmed" : "not confirmed"})`;
+    name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
   const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}`);
   const none = "No accounts yet. Import BenchKeeper's with: cedarloom accounts import";
   emit(ctx, "accounts", { registry }, lines.length > 0 ? lines.join("\n") : none);

@@ -106,13 +106,14 @@ export type Reading = z.infer<typeof Reading>;
 
 /**
  * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first
- * launch), the account chosen, the pool's readings and each candidate's margin above its minimums.
+ * launch), the account chosen and why, the pool's readings and each candidate's margin above its minimums.
  */
 export const AccountSwitch = z.strictObject({
   at: z.iso.datetime(),
   task: z.string(),
   from: Name.nullable(),
   to: Name,
+  reason: z.enum(["most-headroom", "no-readings"]),
   readings: z.array(Reading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });

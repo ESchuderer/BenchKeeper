@@ -19,17 +19,22 @@ const registry: AccountRegistry = {
     pool: name === "solo" ? "single" : "main",
     added: AT,
   })),
-  pools: { claude: { main: { confirmedAt: AT }, single: { confirmedAt: AT } } },
+  pools: {
+    claude: {
+      main: { confirmedAt: AT, confirmedFor: ["work", "spare"] },
+      single: { confirmedAt: AT, confirmedFor: ["solo"] },
+    },
+  },
 };
 
-// A store with readings: work has 10 percent left in its 5-hour window, spare 80, solo none.
-const stateWithReadings = (): string => {
+// A store with readings; by default work has 10 percent left in both windows, spare 80, solo none.
+const stateWithReadings = (workUsed = 90, spareUsed = 20): string => {
   const state = mkdtempSync(join(tmpdir(), "cedarloom-accounts-"));
   const store = openRunStore(state);
   if (!store.ok) throw new Error(store.finding.code);
   for (const [account, used] of [
-    ["work", 90],
-    ["spare", 20],
+    ["work", workUsed],
+    ["spare", spareUsed],
   ] as const) {
     for (const window of ["fiveHour", "sevenDay"] as const) {
       store.value.recordReading({
@@ -67,6 +72,7 @@ test("a task's worker starts on the pool account with headroom, and the choice i
       task: "t1",
       from: "work",
       to: "spare",
+      reason: "most-headroom",
       readings: expect.arrayContaining([expect.objectContaining({ account: "spare" })]),
       candidates: [
         { account: "work", margin: 2 },
@@ -77,14 +83,15 @@ test("a task's worker starts on the pool account with headroom, and the choice i
   expect(rows[0]?.readings).toHaveLength(4);
 });
 
-test("a pool without an account to start on records no switch", () => {
+test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {
   const state = stateWithReadings();
-  const chosen = chooseAccount(state, registry, { task: "t2", agent: "claude", pool: "single", previous: null }, NOW);
-  expect(chosen).toEqual({
-    ok: true,
-    value: { ok: false, reason: "no-headroom", candidates: [{ account: "solo", margin: null }] },
-  });
-  expect(switches(state)).toEqual([]);
+  const stays = chooseAccount(state, registry, { task: "t2", agent: "claude", pool: "single", previous: null }, NOW);
+  expect(stays.ok && stays.value.ok && [stays.value.account.name, stays.value.reason]).toEqual(["solo", "no-readings"]);
+  expect(switches(state)).toMatchObject([{ task: "t2", from: null, to: "solo", reason: "no-readings", readings: [] }]);
+  const full = stateWithReadings(95, 95);
+  const none = chooseAccount(full, registry, { task: "t3", agent: "claude", pool: "main", previous: "work" }, NOW);
+  expect(none).toMatchObject({ ok: true, value: { ok: false, reason: "no-headroom" } });
+  expect(switches(full)).toEqual([]);
 });
 
 const host = (name: string, agent: string) => ({ name, agent, mode: "host", dir: `/accounts/${name}`, pool: "main" });
@@ -110,8 +117,8 @@ test("BenchKeeper's registry is imported once, as a plan that creates the regist
   expect(applyPlan(state, planned.value.plan, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
   const imported = loadRegistry(config);
   expect(imported.ok && imported.value?.pools).toEqual({
-    claude: { main: { confirmedAt: null } },
-    codex: { main: { confirmedAt: null } },
+    claude: { main: { confirmedAt: null, confirmedFor: [] } },
+    codex: { main: { confirmedAt: null, confirmedFor: [] } },
   });
   expect(planImport(config, from, AT)).toEqual({
     ok: false,
@@ -141,8 +148,10 @@ test("a pool is confirmed by a plan that replaces the registry; Codex pools and 
   const confirm = planConfirm(config, { agent: "claude", pool: "main" }, AT);
   if (!confirm.ok) throw new Error(confirm.finding.code);
   expect(applyPlan(state, confirm.value, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
+  // The confirmation names the pool's accounts as they are now.
   expect(JSON.parse(readFileSync(join(config, "accounts.json"), "utf8")).pools.claude.main).toEqual({
     confirmedAt: AT,
+    confirmedFor: ["work"],
   });
 });
 

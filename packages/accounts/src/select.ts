@@ -66,6 +66,23 @@ const confirmed = (settings: { confirmedAt: string | null; confirmedFor: readonl
   return settings.confirmedAt !== null && named.size === members.length && members.every((m) => named.has(m.name));
 };
 
+type PoolRef = { readonly agent: Agent; readonly pool: string };
+
+// Own keys only, so a pool named constructor, the one inherited property the name rule admits, is no pool.
+const settingsOf = (registry: AccountRegistry, { agent, pool }: PoolRef) => {
+  const pools = registry.pools[agent] ?? {};
+  return Object.hasOwn(pools, pool) ? pools[pool] : undefined;
+};
+
+const membersOf = (registry: AccountRegistry, { agent, pool }: PoolRef): Account[] =>
+  registry.accounts.filter((account) => account.agent === agent && account.pool === pool);
+
+/** Whether the pool exists and its confirmation covers the pool's accounts as they are now. */
+export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean => {
+  const settings = settingsOf(registry, ref);
+  return settings !== undefined && confirmed(settings, membersOf(registry, ref));
+};
+
 /**
  * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
@@ -74,16 +91,13 @@ const confirmed = (settings: { confirmedAt: string | null; confirmedFor: readonl
  */
 export const selectAccount = (
   registry: AccountRegistry,
-  { agent, pool, previous = null }: { readonly agent: Agent; readonly pool: string; readonly previous?: string | null },
+  { previous = null, ...ref }: PoolRef & { readonly previous?: string | null },
   readings: readonly Reading[],
   now: number,
 ): Selection => {
-  const pools = registry.pools[agent] ?? {};
-  // Own keys only, so a pool named constructor, the one inherited property the name rule admits, is no pool.
-  const settings = Object.hasOwn(pools, pool) ? pools[pool] : undefined;
-  if (settings === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };
-  const members = registry.accounts.filter((account) => account.agent === agent && account.pool === pool);
-  if (!confirmed(settings, members)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
+  if (settingsOf(registry, ref) === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };
+  if (!isConfirmed(registry, ref)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
+  const members = membersOf(registry, ref);
   const scored = members.map((account) => ({ account, margin: margin(registry, account, readings, now) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);

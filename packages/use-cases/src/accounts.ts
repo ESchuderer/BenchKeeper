@@ -69,7 +69,10 @@ export const planConfirm = (
   if (!Object.hasOwn(pools, pool)) {
     return { ok: false, finding: { code: "accounts.unknown-pool", params: { agent, pool } } };
   }
-  const next = { ...registry, pools: { ...registry.pools, [agent]: { ...pools, [pool]: { confirmedAt: now } } } };
+  // The confirmation names the accounts it covers; a later change to them makes the pool unconfirmed again.
+  const confirmedFor = registry.accounts.filter((a) => a.agent === agent && a.pool === pool).map((a) => a.name);
+  const confirmation = { confirmedAt: now, confirmedFor };
+  const next = { ...registry, pools: { ...registry.pools, [agent]: { ...pools, [pool]: confirmation } } };
   return {
     ok: true,
     value: {
@@ -106,6 +109,7 @@ export const chooseAccount = (
         task: request.task,
         from: request.previous,
         to: selection.account.name,
+        reason: selection.reason,
         readings: readings.filter((reading) => pool.has(reading.account)),
         candidates: [...selection.candidates],
       });

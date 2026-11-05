@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, sta
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Plan } from "@cedarloom/contracts";
+import type { AccountSwitch, Plan } from "@cedarloom/contracts";
 import {
   filesystemType,
   isNetworkFilesystem,
@@ -355,7 +355,7 @@ test("the latest reading per account and window stays; an older one arriving lat
   ]);
 });
 
-test("a switch row keeps its time, task, from, to, readings and candidates", () => {
+test("a switch row keeps its time, task, from, to, reason, readings and candidates", () => {
   const store = opened(fresh());
   const reading = {
     account: "spare",
@@ -364,19 +364,28 @@ test("a switch row keeps its time, task, from, to, readings and candidates", () 
     resetsAt: "2026-11-05T17:00:00.000Z",
     readAt: "2026-11-05T12:00:00.000Z",
   } as const;
-  const row = {
+  const row: Omit<AccountSwitch, "at"> = {
     task: "t1",
     from: null,
     to: "spare",
+    reason: "most-headroom",
     readings: [reading],
     candidates: [{ account: "spare", margin: 87 }],
   };
   store.recordSwitch(row);
-  store.recordSwitch({ ...row, from: "spare", to: "work", readings: [], candidates: [] });
+  const stayed: Omit<AccountSwitch, "at"> = {
+    ...row,
+    from: "spare",
+    to: "work",
+    reason: "no-readings",
+    readings: [],
+    candidates: [],
+  };
+  store.recordSwitch(stayed);
   const rows = store.switches();
   expect(rows).toEqual([
     { ...row, at: expect.any(String) },
-    { ...row, from: "spare", to: "work", readings: [], candidates: [], at: expect.any(String) },
+    { ...stayed, at: expect.any(String) },
   ]);
   expect(Date.parse(rows[0]?.at ?? "")).toBeGreaterThan(Date.now() - 60_000);
 });

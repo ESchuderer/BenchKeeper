@@ -244,12 +244,13 @@ export class RunStore extends RunView {
   /** Records a launch-time account choice, dated now. */
   recordSwitch(choice: Omit<AccountSwitch, "at">): void {
     this.db
-      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(
         now(),
         choice.task,
         choice.from,
         choice.to,
+        choice.reason,
         JSON.stringify(choice.readings),
         JSON.stringify(choice.candidates),
       );
@@ -259,7 +260,7 @@ export class RunStore extends RunView {
   switches(): AccountSwitch[] {
     return this.db
       .prepare(
-        `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount,
+        `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount, 'reason', reason,
          'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
       )
       .all()

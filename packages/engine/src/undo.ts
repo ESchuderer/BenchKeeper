@@ -1,4 +1,11 @@
-import type { Finding, Operation, Plan, Result, Step } from "@cedarloom/contracts";
+import {
+  type Finding,
+  type Operation,
+  PLAN_SCHEMA_VERSION,
+  type Plan,
+  type Result,
+  type Step,
+} from "@cedarloom/contracts";
 import { type RunView, sha256 } from "@cedarloom/ledger";
 import { hashFile, readOrNull } from "./files.ts";
 
@@ -74,6 +81,7 @@ export const planUndo = (store: RunView, requested: string): Result<UndoPlan> =>
     if (refused !== undefined) return { ok: false, finding: refused };
   }
   const skipped = [...walk.edited].map((path): Finding => ({ code: "undo.file-edited", params: { runId, path } }));
-  const plan: Plan | null = walk.operations.length > 0 ? { schemaVersion: 1, operations: walk.operations } : null;
+  const plan: Plan | null =
+    walk.operations.length > 0 ? { schemaVersion: PLAN_SCHEMA_VERSION, operations: walk.operations } : null;
   return { ok: true, value: { plan, skipped } };
 };

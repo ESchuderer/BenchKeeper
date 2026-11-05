@@ -235,8 +235,10 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Message catalog and its types match locales/en/messages.po
         run: pnpm --filter @cedarloom/ui run catalog && git diff --exit-code -- packages/ui/locales packages/ui/schema
+      # The browsers alone, without --with-deps: the runner image has the libraries both launch with. apt would only add
+      # fonts and Firefox's media codecs (libavcodec), which no test uses, and its font download stalls at the Ubuntu mirror.
       - name: Browsers (Chromium and Firefox of the pinned Playwright)
-        run: pnpm --filter @cedarloom/ui exec playwright install --with-deps chromium firefox
+        run: pnpm --filter @cedarloom/ui exec playwright install chromium firefox
       - name: Build and browser tests with axe (Chromium)
         run: pnpm --filter @cedarloom/ui run test:ui
       # The dev container has the libraries for Chromium only, so Firefox runs here.

@@ -15,6 +15,9 @@ export type CardData = { type: string; inputs: HandleView[]; outputs: HandleView
 export const INPUTS = "@inputs";
 export const OUTPUTS = "@outputs";
 
+/** Whether a canvas node is one of the two at the workflow's edges: they cannot be moved or deleted. */
+export const isBoundary = (id: string): boolean => id.startsWith("@");
+
 const [STEP, ROW] = [240, 160];
 
 const views = (handles: Readonly<Record<string, { type: HandleType }>> | undefined): HandleView[] =>

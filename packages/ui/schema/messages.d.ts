@@ -13,6 +13,7 @@ export interface MessageValues {
   "editor.export": Record<never, never>;
   "editor.import": Record<never, never>;
   "editor.inputs": Record<never, never>;
+  "editor.keepOne": Record<never, never>;
   "editor.new": Record<never, never>;
   "editor.noProblems": Record<never, never>;
   "editor.nodeType": Record<never, never>;
@@ -38,6 +39,7 @@ export interface MessageValues {
   "problem.danglingEdge": { edge: string | number; ref: string | number };
   "problem.documentInvalid": { issues: string | number };
   "problem.documentNewer": { found: string | number; known: string | number };
+  "problem.duplicateEdge": { edge: string | number; of: string | number };
   "problem.duplicateId": { kind: string | number; id: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
   "problem.incompatibleHandles": { edge: string | number; from: string | number; to: string | number };

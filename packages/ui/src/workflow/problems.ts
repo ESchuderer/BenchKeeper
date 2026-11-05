@@ -20,6 +20,7 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.unknown-node-type": (p) => t("problem.unknownNodeType", p),
   "workflow.invalid-config": (p) => t("problem.invalidConfig", { node: p.node, issues: issues(p.issues) }),
   "workflow.dangling-edge": (p) => t("problem.danglingEdge", p),
+  "workflow.duplicate-edge": (p) => t("problem.duplicateEdge", p),
   "workflow.unknown-handle": (p) => t("problem.unknownHandle", p),
   "workflow.incompatible-handles": (p) => t("problem.incompatibleHandles", p),
   "workflow.unchecked-handles": (p) => t("problem.uncheckedHandles", p),

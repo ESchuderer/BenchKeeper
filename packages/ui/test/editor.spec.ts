@@ -91,6 +91,12 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  // A workflow keeps one node: deleting the last one is refused, and the page says so.
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await card("start").click();
+  await page.keyboard.press("Backspace");
+  await expect(page.getByRole("alert")).toContainText("keeps at least one node");
+  await expect(card("start")).toBeVisible();
   await accessible();
 });
 

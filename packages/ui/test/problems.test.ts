@@ -23,7 +23,7 @@ test("every workflow finding and import refusal has a sentence in the problems p
   const shown = codes.filter(
     (code) => code.startsWith("workflow.") || code.startsWith("document.i") || code === "document.newer-schema",
   );
-  expect(shown.length).toBe(19);
+  expect(shown.length).toBe(20);
   for (const code of shown) {
     const finding = Finding.parse({ code, params: sample(code) });
     expect([code, describe(finding)]).toEqual([code, expect.stringMatching(/^\S.{15,}/s)]);

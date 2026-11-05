@@ -6,6 +6,7 @@
     "editor.export": ["Export JSON"],
     "editor.import": ["Import JSON"],
     "editor.inputs": ["Workflow inputs"],
+    "editor.keepOne": ["A workflow keeps at least one node, so nothing was removed."],
     "editor.new": ["New workflow"],
     "editor.noProblems": ["No problems."],
     "editor.nodeType": ["Node type"],
@@ -31,6 +32,13 @@
     "problem.danglingEdge": ["Edge ", ["edge"], " starts or ends at ", ["ref"], ", which does not exist."],
     "problem.documentInvalid": ["It does not match the workflow schema: ", ["issues"], "."],
     "problem.documentNewer": ["It has schema version ", ["found"], "; this CedarLoom reads up to ", ["known"], "."],
+    "problem.duplicateEdge": [
+      "Edge ",
+      ["edge"],
+      " joins the same output to the same input as edge ",
+      ["of"],
+      "; remove one."
+    ],
     "problem.duplicateId": ["More than one ", ["kind"], " has the id ", ["id"], "."],
     "problem.exclusiveSources": [
       "Input ",

@@ -191,13 +191,23 @@ const onCanvas = (
 });
 
 /** The graph, projected from the workflow: React Flow keeps nothing of its own but a drag in progress and the selection. */
-const Canvas = ({
-  workflow,
-  change,
-}: {
+type CanvasProps = {
   workflow: WorkflowDefinition;
   change: (change: Change) => void;
-}): ReactNode => {
+  onProblem: (text: string) => void;
+};
+
+/** A delete as one remove; a delete of every node is refused, since a workflow keeps one, and the page says why. */
+const remover =
+  ({ workflow, change, onProblem }: CanvasProps) =>
+  ({ nodes: gone, edges: cut }: { nodes: Node[]; edges: Edge[] }): void => {
+    const ids = new Set(gone.map((node) => node.id));
+    if (workflow.nodes.every((node) => ids.has(node.id))) onProblem(t("editor.keepOne"));
+    else change({ kind: "remove", nodes: [...ids], edges: cut.map((edge) => edge.id) });
+  };
+
+const Canvas = (props: CanvasProps): ReactNode => {
+  const { workflow, change } = props;
   const [drag, setDrag] = useState<Drag>({});
   const [sizes, setSizes] = useState<Sizes>({});
   const [nodesPicked, setNodesPicked] = useState<Set<string>>(new Set());
@@ -227,9 +237,7 @@ const Canvas = ({
           const found = ends(connection);
           return found !== undefined && canConnect(workflow, found.from, found.to);
         }}
-        onDelete={({ nodes: gone, edges: cut }) =>
-          change({ kind: "remove", nodes: gone.map((node) => node.id), edges: cut.map((edge) => edge.id) })
-        }
+        onDelete={remover(props)}
         fitView
       >
         <Background />
@@ -274,7 +282,7 @@ const Editor = (): ReactNode => {
     <Stack>
       <Toolbar edit={edit} onProblem={setProblem} />
       {problem !== "" && <Alert color="red">{problem}</Alert>}
-      <Canvas workflow={edit.history.present} change={edit.change} />
+      <Canvas workflow={edit.history.present} change={edit.change} onProblem={setProblem} />
       <Problems workflow={edit.history.present} />
     </Stack>
   );

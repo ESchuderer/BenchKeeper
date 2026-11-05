@@ -7,3 +7,5 @@ packages/*/test-results/
 packages/*/playwright-report/
 coverage/
 *.tsbuildinfo
+# Schemathesis reports (packages/server/scripts/schemathesis.ts)
+.schemathesis/

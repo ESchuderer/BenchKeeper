@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
@@ -107,7 +108,7 @@ test("the server listens on 127.0.0.1 with the token in the URL fragment, and an
   const { server, port, token, api, login } = await open();
   expect(server.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/#t=[A-Za-z0-9_-]{43}$`));
   expect(Buffer.from(token, "base64url")).toHaveLength(32);
-  // localhost, another port and a rebound DNS name all reach the same socket, and none of them is this origin.
+  // Host values a request for localhost, another port, a rebound DNS name or IPv6 loopback carries: none is this origin.
   for (const host of [`localhost:${port}`, `127.0.0.1:${port + 1}`, "attacker.example", `[::1]:${port}`]) {
     const answer = await api({ method: "POST", path: "/api/session", headers: { host }, body: { token } });
     expect([host, answer.status, answer.body]).toEqual([host, 421, { error: "wrong-host" }]);
@@ -173,14 +174,22 @@ test("every other request needs the session cookie and the CSRF header, unknown 
   expect((await call(port, { path: "/api/runs", headers: { cookie } })).status).toBe(403);
   expect((await call(port, { path: "/api/runs", headers: { [CSRF_HEADER]: csrf } })).status).toBe(401);
   expect(await api({ path: "/api/runs" })).toMatchObject({ status: 200, body: { runs: [] } });
-  expect((await api({ path: "/nowhere" })).status).toBe(404);
+  expect(await api({ path: "/nowhere" })).toMatchObject({ status: 404, body: { error: "not-found" } });
+  for (const method of ["PUT", "QUERY"]) {
+    const other = await api({ method, path: "/api/runs?x=1" });
+    expect([other.status, other.headers["allow"], other.body]).toEqual([
+      405,
+      "GET, HEAD",
+      { error: "method-not-allowed" },
+    ]);
+  }
 });
 
 test("a foreign Origin or a cross-site fetch is refused, and no request gets CORS headers", async () => {
   const { port, api, login } = await open();
   await login();
   // The undo too: refused before its handler runs, which would answer 404 for this unknown run.
-  const undo = { method: "POST", path: "/api/runs/r1/undo", body: { approve: "0".repeat(64) } };
+  const undo = { method: "POST", path: `/api/runs/${randomUUID()}/undo`, body: { approve: "0".repeat(64) } };
   for (const sent of [{ path: "/api/runs" }, undo]) {
     for (const origin of [`http://127.0.0.1:${port + 1}`, `http://localhost:${port}`, "null"]) {
       expect(await api({ ...sent, headers: { origin } })).toMatchObject({
@@ -215,7 +224,7 @@ test("a foreign Origin or a cross-site fetch is refused, and no request gets COR
     path: "/api/runs",
     headers: { ...own, "access-control-request-method": "POST" },
   });
-  expect([allowed.status, preflight.status]).toEqual([200, 404]);
+  expect([allowed.status, preflight.status]).toEqual([200, 405]);
   for (const answer of [allowed, preflight]) {
     expect(Object.keys(answer.headers).filter((name) => name.startsWith("access-control-"))).toEqual([]);
   }
@@ -251,18 +260,29 @@ test("answers carry the security headers and refuse large or malformed bodies", 
     "x-content-type-options": "nosniff",
     "content-security-policy": expect.stringContaining("default-src 'self'"),
   });
-  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(headers["content-security-policy"]).toBe(
+    "default-src 'self';style-src 'self' 'unsafe-inline';object-src 'none';base-uri 'none';form-action 'none';frame-ancestors 'none'",
+  );
   expect(headers["strict-transport-security"]).toBeUndefined();
 });
 
 test("the web UI's files load without a session, from this origin only; API paths still need one", async () => {
   const ui = mkdtempSync(join(tmpdir(), "cedarloom-ui-"));
   writeFileSync(join(ui, "index.html"), "<!doctype html><title>CedarLoom</title>");
+  writeFileSync(join(ui, ".hidden"), "not for the browser");
   const { port, api } = await open(undefined, ui);
   const page = await api({ path: "/" });
   expect([page.status, page.body]).toEqual([200, "<!doctype html><title>CedarLoom</title>"]);
-  expect(page.headers["content-security-policy"]).toContain("script-src 'self'");
-  expect(page.headers["content-security-policy"]).not.toContain("upgrade-insecure-requests");
+  expect(page.headers["content-security-policy"]).toMatch(/^default-src 'self';style-src 'self' 'unsafe-inline';/);
+  // A dotfile and path tricks reach only the file handler, which serves neither.
+  for (const path of ["/.hidden", "//api/runs", "/x/../api/runs"]) {
+    const answer = await api({ path });
+    expect([path, answer.status < 400, JSON.stringify(answer.body)]).toEqual([
+      path,
+      false,
+      expect.not.stringContaining("runs"),
+    ]);
+  }
   expect((await api({ path: "/index.html", headers: { host: `localhost:${port}` } })).status).toBe(421);
   expect((await api({ path: "/index.html", headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
   for (const path of ["/api/runs", "/api/nope"]) expect((await api({ path })).status).toBe(401);
@@ -303,9 +323,14 @@ test("the runs, a run with its steps and the doctor's findings, read without wri
     run: { id: runId },
     steps: [{ index: 0, path, state: "done", after: sha256("KEY=new-secret\n") }],
   });
-  expect(await client.api({ path: "/api/runs/nope" })).toMatchObject({
+  const unknown = randomUUID();
+  expect(await client.api({ path: `/api/runs/${unknown}` })).toMatchObject({
     status: 404,
-    body: { findings: [{ code: "run.not-found", params: { runId: "nope" } }] },
+    body: { findings: [{ code: "run.not-found", params: { runId: unknown } }] },
+  });
+  expect(await client.api({ path: "/api/runs/nope" })).toMatchObject({
+    status: 400,
+    body: { error: "invalid-request" },
   });
 });
 
@@ -330,9 +355,9 @@ test("an undo is previewed without file contents and applies only with the hash 
     findings: [],
   });
   expect(JSON.stringify(preview.body)).not.toContain("secret");
-  expect((await client.api({ method: "POST", path: "/api/runs/nope/undo", body: { approve: planHash } })).status).toBe(
-    404,
-  );
+  expect(
+    (await client.api({ method: "POST", path: `/api/runs/${randomUUID()}/undo`, body: { approve: planHash } })).status,
+  ).toBe(404);
 });
 
 test("a busy or newer store is a 409 with its finding; a broken one a 500 whose details stay in the log", async () => {

@@ -44,9 +44,29 @@ const description = [
   `value in the ${CSRF_HEADER} header.`,
 ].join(" ");
 
+/**
+ * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
+ * answers before the body is read, so a body-carrying method such as QUERY gets the same answer.
+ */
+const methods = (app: FastifyInstance): void => {
+  const routes: { method: string; path: RegExp }[] = [];
+  app.addHook("onRoute", ({ method, url }) => {
+    const path = new RegExp(`^${url.replaceAll(/:[^/]+/g, "[^/]+").replace("*", ".*")}$`);
+    for (const each of [method].flat()) routes.push({ method: each, path });
+  });
+  app.addHook("onRequest", async (req, reply) => {
+    if (req.routeOptions.url !== undefined) return undefined;
+    const path = req.url.replace(/\?.*$/s, "");
+    const allow = routes.filter((route) => route.path.test(path)).map((route) => route.method);
+    if (allow.length === 0) return reply.code(404).send({ error: "not-found" });
+    return reply.code(405).header("allow", allow.join(", ")).send({ error: "method-not-allowed" });
+  });
+};
+
 /** The local server's routes over the application services, with the session guard on every request. */
 export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise<FastifyInstance> => {
-  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors });
+  // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
+  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000 });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(swagger, {
@@ -58,29 +78,31 @@ export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise
     transform: createJsonSchemaTransform({ schemaRegistry: contracts }),
     transformObject: createJsonSchemaTransformObject({ schemaRegistry: contracts }),
   });
-  // Plain HTTP on loopback: no HSTS and no upgrade to https; scripts, fonts and images from this origin only. Mantine
-  // writes its CSS variables into a style element, so styles may be inline.
+  // Plain HTTP on loopback: no HSTS, and the whole CSP spelled out (helmet's defaults allow https: sources and upgrade
+  // requests to https). Mantine writes its CSS variables into a style element, so styles may be inline.
   await app.register(helmet, {
     hsts: false,
     contentSecurityPolicy: {
+      useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
         baseUri: ["'none'"],
         formAction: ["'none'"],
         frameAncestors: ["'none'"],
-        upgradeInsecureRequests: null,
       },
     },
   });
   app.addHook("onRequest", guard(session));
   app.addHook("onSend", async (_req, reply) => void reply.header("cache-control", "no-store"));
   errors(app, log);
+  methods(app);
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
-  if (ui !== undefined && existsSync(join(ui, "index.html"))) await app.register(serveStatic, { root: ui });
+  if (ui !== undefined && existsSync(join(ui, "index.html")))
+    await app.register(serveStatic, { root: ui, dotfiles: "deny" });
   else if (ui !== undefined) log(`The web UI is not built in ${ui}, so only the API answers.\n`);
   return app;
 };

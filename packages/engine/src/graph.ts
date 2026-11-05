@@ -11,15 +11,19 @@ export const compatibility = (from: HandleType, to: HandleType): Compatibility =
   return from === "json" ? "unchecked" : "no";
 };
 
-/** A handle of a node type; a `required` data input needs an edge. Control inputs take many edges, data inputs one. */
-type Handle = { type: HandleType; required?: true };
+/**
+ * A handle of a node type; a `required` data input needs an edge. Control inputs take many edges, data inputs one.
+ * Of a node's `exclusive` outputs exactly one fires; the nodes behind the others are skipped, and so on downstream.
+ */
+type Handle = { type: HandleType; required?: true; exclusive?: true };
 export type NodeType = { inputs: Record<string, Handle>; outputs: Record<string, Handle> };
 
 const control: Handle = { type: "control" };
+const branch: Handle = { type: "control", exclusive: true };
 const text: Handle = { type: "string" };
 const run = { run: control };
 // `failed` routes a failure along an edge instead of the run's failure policy.
-const ended = { done: control, failed: control };
+const ended = { done: branch, failed: branch };
 
 /** The node types of workflow schema version 1, with their handles. Their configuration and execution come later. */
 export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
@@ -31,9 +35,9 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "file.write": { inputs: { ...run, content: text }, outputs: ended },
   condition: {
     inputs: { ...run, value: { type: "boolean", required: true } },
-    outputs: { true: control, false: control },
+    outputs: { true: branch, false: branch },
   },
   join: { inputs: { branches: control }, outputs: { done: control } },
-  "human.approval": { inputs: run, outputs: { approved: control, rejected: control } },
+  "human.approval": { inputs: run, outputs: { approved: branch, rejected: branch } },
   "workflow.run": { inputs: run, outputs: ended },
 };

@@ -664,6 +664,28 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.exclusive-sources";
+            params: {
+                node: string;
+                handle: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.optional-input";
+            params: {
+                node: string;
+                handle: string;
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.schedule-input";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.unreachable";
             params: {
                 node: string;
@@ -1017,6 +1039,28 @@ export interface components {
             params: {
                 node: string;
                 count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.exclusive-sources";
+            params: {
+                node: string;
+                handle: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.optional-input";
+            params: {
+                node: string;
+                handle: string;
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.schedule-input";
+            params: {
+                input: string;
             };
         } | {
             /** @constant */

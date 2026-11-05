@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "open-metadata",
+    "name": "Open metadata",
+    "version": "1.0.0",
+    "owner": "team-a",
+    "tags": [
+      "nightly",
+      "docs"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "type": "trigger.manual"
+    }
+  ],
+  "edges": [],
+  "layout": {
+    "nodes": {
+      "start": {
+        "x": 0,
+        "y": 0,
+        "collapsed": true
+      }
+    },
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

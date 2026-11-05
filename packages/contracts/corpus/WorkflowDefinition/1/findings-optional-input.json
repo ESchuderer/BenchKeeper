@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "optional-input",
+    "name": "Optional input",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "flag": {
+      "type": "boolean"
+    }
+  },
+  "nodes": [
+    {
+      "id": "gate",
+      "type": "condition"
+    },
+    {
+      "id": "start",
+      "type": "trigger.manual"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "input": "flag"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "value"
+      }
+    }
+  ]
+}

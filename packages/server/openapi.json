@@ -1279,6 +1279,100 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "workflow.exclusive-sources"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "from"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.optional-input"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.schedule-input"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "workflow.unreachable"
               },
               "params": {
@@ -2965,6 +3059,100 @@
                 "required": [
                   "node",
                   "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.exclusive-sources"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "from"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.optional-input"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.schedule-input"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input"
                 ],
                 "additionalProperties": false
               }

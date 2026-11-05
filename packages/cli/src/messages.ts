@@ -62,6 +62,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.missing-source": (p) => `${handleName(p)} gets no edge, but it needs one.`,
   "workflow.cycle": (p) => `The nodes ${p.nodes.join(", ")} form a cycle; repeats need an explicit loop node.`,
   "workflow.join-branches": (p) => `Join ${p.node} has ${p.count} incoming branch edges; a join needs at least two.`,
+  "workflow.exclusive-sources": (p) =>
+    `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; merge them in a join with policy any.`,
+  "workflow.optional-input": (p) =>
+    `Input ${p.handle} of node ${p.node} needs a value, but the workflow input ${p.input} it comes from is optional and has no default.`,
+  "workflow.schedule-input": (p) =>
+    `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
 };

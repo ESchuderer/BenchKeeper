@@ -67,14 +67,67 @@ test.each(Object.entries(laws))("compatibility law: %s", (_, law) => {
   expect(() => fc.assert(fc.property(type, type, type, law))).not.toThrow();
 });
 
-test("every valid workflow of the golden corpus has a clean graph", async () => {
+// The graph findings of the golden workflows named findings-*; valid-* have none.
+const goldenFindings: Record<string, string[]> = {
+  "findings-exclusive-sources.json": ["workflow.exclusive-sources"],
+  "findings-optional-input.json": ["workflow.optional-input"],
+  "findings-schedule-input.json": ["workflow.schedule-input"],
+};
+
+test("the golden corpus: valid workflows have clean graphs, findings-* exactly the findings they are named for", async () => {
   const dir = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-  const valid = (await readdir(dir)).filter((name) => name.startsWith("valid-"));
-  expect(valid.length).toBeGreaterThan(0);
-  for (const name of valid) {
+  const names = (await readdir(dir)).filter((name) => !name.startsWith("invalid-"));
+  expect(Object.keys(goldenFindings).filter((name) => !names.includes(name))).toEqual([]);
+  for (const name of names) {
     const definition = WorkflowDefinition.parse(JSON.parse(await readFile(join(dir, name), "utf8")));
-    expect([name, validateWorkflow(definition)]).toEqual([name, []]);
+    expect([name, codes(definition)]).toEqual([name, goldenFindings[name] ?? []]);
   }
+});
+
+test("skips: exclusive outputs into one control input are a warning, unless a join with policy any merges them", () => {
+  const graph = workflow(
+    [start, "c:command.run", "a:human.approval", "x:command.run", 'm:join:{"policy":"any"}', 'k:join:{"policy":"all"}'],
+    ["start.start>c.run", "c.done>a.run", "c.failed>a.run", "a.approved>x.run", "a.rejected>x.run"].concat([
+      "a.approved>m.branches",
+      "a.rejected>m.branches",
+      "c.done>k.branches",
+      "c.failed>k.branches",
+    ]),
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.exclusive-sources", params: { node: "a", handle: "run", from: "c" } },
+    { code: "workflow.exclusive-sources", params: { node: "x", handle: "run", from: "a" } },
+    { code: "workflow.exclusive-sources", params: { node: "k", handle: "branches", from: "c" } },
+  ]);
+});
+
+test("inputs a run can lack: optional without a default into a required input, required without a default on a schedule", () => {
+  const inputs = {
+    loose: { type: "boolean" },
+    fallback: { type: "boolean", default: true },
+    given: { type: "boolean", required: true },
+    text: { type: "string" },
+  };
+  const graph = workflow(
+    ["start:trigger.schedule", "a:condition", "b:condition", "c:condition", "r:agent.run"],
+    [
+      "start.start>a.run",
+      "@loose>a.value",
+      "a.true>b.run",
+      "@fallback>b.value",
+      "b.true>c.run",
+      "@given>c.value",
+    ].concat(["c.true>r.run", "@text>r.context"]),
+    { inputs },
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.optional-input", params: { node: "a", handle: "value", input: "loose" } },
+    { code: "workflow.schedule-input", params: { input: "given" } },
+  ]);
+  // A manual trigger lets the person who starts the run give the required input.
+  expect(
+    codes({ ...graph, nodes: graph.nodes.map((n) => (n.id === "start" ? { ...n, type: "trigger.manual" } : n)) }),
+  ).toEqual(["workflow.optional-input"]);
 });
 
 test("duplicate ids, a missing or second trigger, unknown types and a join without its policy are found", () => {
@@ -116,7 +169,7 @@ test("typed handles: an incompatible edge is an error, json into a typed input a
   const graph = workflow(
     [start, "a:command.run", "r:agent.run", "c:condition"],
     ["start.start>a.run", "a.exitCode>r.context", "a.done>c.value", "@flag>c.value"],
-    { inputs: { flag: { type: "json" } } },
+    { inputs: { flag: { type: "json", required: true } } },
   );
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.incompatible-handles", params: { edge: "e2", from: "number", to: "string" } },
@@ -163,7 +216,7 @@ test("a cycle is found with its nodes in order, a self-loop too; policies and po
 
 test("a node no path from the trigger or an input reaches never runs; duplicate ids give each finding once", () => {
   const graph = workflow([start, "a:command.run", "c:condition", "c:condition"], ["@flag>c.value"], {
-    inputs: { flag: { type: "boolean" } },
+    inputs: { flag: { type: "boolean", required: true } },
   });
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.duplicate-id", params: { kind: "node", id: "c" } },

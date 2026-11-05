@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "schedule-input",
+    "name": "Schedule input",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "branch": {
+      "type": "string",
+      "required": true
+    }
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "type": "trigger.schedule",
+      "with": {
+        "cron": "0 3 * * *"
+      }
+    }
+  ],
+  "edges": []
+}

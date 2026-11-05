@@ -57,6 +57,20 @@ const WorkflowEdge = z
   })
   .register(fileFormats, { id: "WorkflowEdge" });
 
+// One input type with a default of that type, which fills the input when a run gives none.
+const inputOf = <T extends z.ZodType>(type: z.infer<typeof DataType>, value: T) =>
+  z.strictObject({ type: z.literal(type), required: z.boolean().optional(), default: value.optional(), description });
+
+/** An input of the workflow; its `default` has the input's type. */
+const WorkflowInput = z
+  .discriminatedUnion("type", [
+    inputOf("string", z.string()),
+    inputOf("number", z.number()),
+    inputOf("boolean", z.boolean()),
+    inputOf("json", JsonValue),
+  ])
+  .register(fileFormats, { id: "WorkflowInput" });
+
 const nodePolicy = z.strictObject({
   failurePolicy: FailurePolicy.optional(),
   timeoutSeconds: z.int().min(1).max(86_400).optional(),
@@ -66,22 +80,24 @@ const nodePolicy = z.strictObject({
 /**
  * A workflow: metadata, typed inputs and outputs, the graph (nodes and edges), then the execution policy and the
  * editor's layout, each in a section of its own, so moving a node or changing a policy leaves the graph untouched.
+ * The graph and the execution policy are strict; metadata and layout keep keys this version does not know (tools
+ * may add their own), and readers ignore them.
  */
 export const WorkflowDefinition = z
   .strictObject({
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
     schemaVersion: z.literal(WORKFLOW_SCHEMA_VERSION),
     kind: z.literal("cedarloom.workflow"),
-    metadata: z.strictObject({
-      id,
-      name: z.string().min(1).max(200),
-      version: semver,
-      description,
-      minApp: semver.optional().describe("The oldest CedarLoom version that runs this workflow"),
-    }),
-    inputs: z
-      .record(name, z.strictObject({ type: DataType, required: z.boolean().optional(), description }))
-      .optional(),
+    metadata: z
+      .object({
+        id,
+        name: z.string().min(1).max(200),
+        version: semver,
+        description,
+        minApp: semver.optional().describe("The oldest CedarLoom version that runs this workflow"),
+      })
+      .catchall(JsonValue),
+    inputs: z.record(name, WorkflowInput).optional(),
     outputs: z.record(name, z.strictObject({ type: DataType, description })).optional(),
     // Bounds for files from elsewhere: the editor and the validator stay quick, and recursion over paths shallow.
     nodes: z.array(WorkflowNode).min(1).max(1000),
@@ -93,7 +109,10 @@ export const WorkflowDefinition = z
         nodes: z.record(id, nodePolicy).optional(),
       })
       .optional(),
-    layout: z.strictObject({ nodes: z.record(id, z.strictObject({ x: z.number(), y: z.number() })) }).optional(),
+    layout: z
+      .object({ nodes: z.record(id, z.object({ x: z.number(), y: z.number() }).catchall(JsonValue)) })
+      .catchall(JsonValue)
+      .optional(),
   })
   .register(fileFormats, { id: "WorkflowDefinition" });
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinition>;

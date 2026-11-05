@@ -46,7 +46,9 @@
         "name",
         "version"
       ],
-      "additionalProperties": false
+      "additionalProperties": {
+        "$ref": "JsonValue.schema.json"
+      }
     },
     "inputs": {
       "type": "object",
@@ -55,23 +57,7 @@
         "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
       },
       "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "$ref": "DataType.schema.json"
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2000
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "additionalProperties": false
+        "$ref": "WorkflowInput.schema.json"
       }
     },
     "outputs": {
@@ -176,14 +162,18 @@
               "x",
               "y"
             ],
-            "additionalProperties": false
+            "additionalProperties": {
+              "$ref": "JsonValue.schema.json"
+            }
           }
         }
       },
       "required": [
         "nodes"
       ],
-      "additionalProperties": false
+      "additionalProperties": {
+        "$ref": "JsonValue.schema.json"
+      }
     }
   },
   "required": [

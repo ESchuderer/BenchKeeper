@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "exclusive-sources",
+    "name": "Exclusive sources",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "flag": {
+      "type": "boolean",
+      "required": true
+    }
+  },
+  "nodes": [
+    {
+      "id": "gate",
+      "type": "condition"
+    },
+    {
+      "id": "notes",
+      "type": "command.run",
+      "with": {
+        "command": "echo notes"
+      }
+    },
+    {
+      "id": "start",
+      "type": "trigger.manual"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "input": "flag"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "value"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "gate",
+        "handle": "true"
+      },
+      "to": {
+        "node": "notes",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "gate",
+        "handle": "false"
+      },
+      "to": {
+        "node": "notes",
+        "handle": "run"
+      }
+    }
+  ]
+}

@@ -17,7 +17,7 @@ const KNOWN = 1;
 
 const expectedCode = (version: string, name: string, known = KNOWN): string | undefined => {
   if (Number(version) > known) return "document.newer-schema";
-  return name.startsWith("valid-") ? undefined : "document.invalid";
+  return name.startsWith("invalid-") ? "document.invalid" : undefined;
 };
 
 /** The golden files of one contract as [version folder, file name, text]. */
@@ -46,6 +46,8 @@ describe("golden corpus of plans, one folder per schemaVersion", async () => {
 // Each invalid workflow breaks in one place, the one its name promises.
 const promised: Record<string, string[]> = {
   "invalid-bad-node-id.json": ["nodes.0.id"],
+  "invalid-default-type.json": ["inputs.count.default"],
+  "invalid-unknown-execution-key.json": ["execution"],
   "invalid-edge-without-id.json": ["edges.0.id"],
   "invalid-no-nodes.json": ["nodes"],
   "invalid-other-kind.json": ["kind"],

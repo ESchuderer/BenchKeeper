@@ -164,6 +164,49 @@ const strays = ({ workflow, types }: Graph): Finding[] =>
 
 type Item = Graph["resolved"][number];
 
+/**
+ * A control input fed by two exclusive outputs of one node (true and false, done and failed, approved and rejected)
+ * waits for an output that never fires, so its node is always skipped; a join with policy `any` merges them.
+ */
+const exclusiveSources = ({ nodes, types, resolved }: Graph): Finding[] => {
+  const merges = new Set(
+    nodes.filter((node) => node.type === "join" && node.with?.["policy"] === "any").map((n) => n.id),
+  );
+  const fed = new Map<string, { node: string; handle: string; from: string; outputs: Set<string> }>();
+  for (const { edge, to: type } of resolved) {
+    const { from, to } = edge;
+    if (!("node" in from) || !("node" in to) || type !== "control" || merges.has(to.node)) continue;
+    if (own(types.get(from.node)?.outputs, from.handle)?.exclusive !== true) continue;
+    const key = `${to.node}\0${to.handle}\0${from.node}`;
+    const entry = fed.get(key) ?? { node: to.node, handle: to.handle, from: from.node, outputs: new Set<string>() };
+    fed.set(key, { ...entry, outputs: entry.outputs.add(from.handle) });
+  }
+  return [...fed.values()]
+    .filter(({ outputs }) => outputs.size > 1)
+    .map(({ node, handle, from }): Finding => ({ code: "workflow.exclusive-sources", params: { node, handle, from } }));
+};
+
+/**
+ * Inputs a run can lack: a required node input fed by an optional workflow input without a default, and a required
+ * workflow input without a default when a schedule starts the run, which gives no inputs.
+ */
+const inputFindings = ({ workflow, nodes, types, edges }: Graph): Finding[] => {
+  const inputs = workflow.inputs ?? {};
+  const optional = edges.flatMap(({ from, to }): Finding[] => {
+    const input = "input" in from ? own(inputs, from.input) : undefined;
+    if (!("input" in from) || !("node" in to) || input === undefined) return [];
+    const unset = input.required !== true && input.default === undefined;
+    if (!unset || own(types.get(to.node)?.inputs, to.handle)?.required !== true) return [];
+    return [{ code: "workflow.optional-input", params: { node: to.node, handle: to.handle, input: from.input } }];
+  });
+  const scheduled = nodes.some((node) => node.type === "trigger.schedule");
+  const unfilled = Object.entries(inputs).filter(([, input]) => input.required === true && input.default === undefined);
+  return [
+    ...optional,
+    ...(scheduled ? unfilled : []).map(([input]): Finding => ({ code: "workflow.schedule-input", params: { input } })),
+  ];
+};
+
 /** Node to node links of the edges `keep` accepts. */
 const links = (resolved: Item[], keep: (item: Item) => boolean): Map<string, string[]> => {
   const next = new Map<string, string[]>();
@@ -198,6 +241,16 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
   const named = ({ edge: { from, to } }: Item): boolean =>
     "node" in from && "node" in to && types.has(from.node) && types.has(to.node);
   const graph = { ...lookup, nodes, edges, resolved, next: links(resolved, valid), reach: links(resolved, named) };
-  const checks = [duplicates, nodeFindings, edgeFindings, sourceFindings, cycle, unreachable, strays];
+  const checks = [
+    duplicates,
+    nodeFindings,
+    edgeFindings,
+    sourceFindings,
+    exclusiveSources,
+    inputFindings,
+    cycle,
+    unreachable,
+    strays,
+  ];
   return checks.flatMap((check) => check(graph));
 };

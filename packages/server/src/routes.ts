@@ -43,9 +43,9 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
   );
 };
 
-// shortcut: the use cases are synchronous, so an undo or a busy store (up to 1 s) holds the event loop, and the event
-// streams' reads wait meanwhile (they are fast: the lock probe does not wait); move the use cases to a worker when undos
-// get long or several tabs need answers during one.
+// shortcut: the use cases are synchronous, so an undo, a busy store or a read while another process cleans up the WAL
+// (each up to 1 s; the WAL cleanup usually takes milliseconds) holds the event loop, and the event streams' reads wait
+// meanwhile; move the use cases to a worker when undos get long or several tabs need answers during one.
 
 /** The runs, one run with its steps, and the doctor's findings; reads never write. */
 export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {

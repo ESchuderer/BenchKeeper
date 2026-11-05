@@ -1,6 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  type Stats,
+  statSync,
+  unlinkSync,
+} from "node:fs";
+import { basename, join, resolve, sep } from "node:path";
 import {
   type Draft,
   type DraftInfo,
@@ -23,11 +33,14 @@ export const DRAFT_LIMIT = 2 * 1024 * 1024;
 // that differ in case only anyway; the prefix keeps a Windows device name (con, nul) from being the file's name.
 const FOLDER = "drafts";
 const FILE = /^workflow-([a-z][a-z0-9_-]{0,63})\.json$/;
-const nameOf = (id: string): string => {
+const pathOf = (state: string, id: string): string => {
   const name = `workflow-${id.toLowerCase()}.json`;
-  // The routes take workflow ids only; any other caller gets no path outside the folder either.
-  if (!FILE.test(name)) throw new Error(`not a workflow id: ${JSON.stringify(id)}`);
-  return name;
+  const folder = resolve(state, FOLDER);
+  const path = resolve(folder, name);
+  // The routes take workflow ids only; any other caller gets no path outside the folder either. The pattern alone
+  // ensures that; the prefix check is the form CodeQL's path-injection query recognizes.
+  if (!FILE.test(name) || !path.startsWith(folder + sep)) throw new Error(`not a workflow id: ${JSON.stringify(id)}`);
+  return path;
 };
 
 const tooLarge = (id: string, bytes: number): Result<never> => ({
@@ -55,20 +68,30 @@ export const listDrafts = (state: string): DraftInfo[] => {
   return drafts.toSorted((a, b) => b.savedAt.localeCompare(a.savedAt) || a.id.localeCompare(b.id));
 };
 
+/** The file's status and, under the limit, its bytes, both from one open file, so a save meanwhile is never mixed in. */
+const load = (path: string): { info: Stats; bytes: Buffer | null } => {
+  const file = openSync(path, "r");
+  try {
+    const info = fstatSync(file);
+    return { info, bytes: info.size > DRAFT_LIMIT ? null : readFileSync(file) };
+  } finally {
+    closeSync(file);
+  }
+};
+
 /** A draft with its workflow; refused when there is none, when it is over the limit, or when it is no workflow. */
 export const readDraft = (state: string, id: string): Result<Draft> => {
-  const name = nameOf(id);
-  const path = join(state, FOLDER, name);
-  const info = statSync(path, { throwIfNoEntry: false });
-  if (info === undefined) return { ok: false, finding: { code: "draft.not-found", params: { id } } };
-  if (info.size > DRAFT_LIMIT) return tooLarge(id, info.size);
-  let bytes: Buffer;
+  const path = pathOf(state, id);
+  let info: Stats;
+  let bytes: Buffer | null;
   try {
-    bytes = readFileSync(path);
+    ({ info, bytes } = load(path));
   } catch (error) {
-    const params = { path: join(FOLDER, name), error: errorCode(error) };
+    if (errorCode(error) === "ENOENT") return { ok: false, finding: { code: "draft.not-found", params: { id } } };
+    const params = { path: join(FOLDER, basename(path)), error: errorCode(error) };
     return { ok: false, finding: { code: "document.unreadable", params } };
   }
+  if (bytes === null) return tooLarge(id, info.size);
   const read = parseDocument(bytes.toString("utf8"), (json) =>
     readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, json),
   );
@@ -95,7 +118,7 @@ export const saveDraft = (
   const text = formatWorkflow(read.value);
   const bytes = Buffer.byteLength(text);
   if (bytes > DRAFT_LIMIT) return tooLarge(id, bytes);
-  const path = join(state, FOLDER, nameOf(id));
+  const path = pathOf(state, id);
   // The folder and the files only for this user: a draft can hold prompts and commands.
   mkdirSync(join(state, FOLDER), { recursive: true, mode: 0o700 });
   const before = hashFile(path);
@@ -107,7 +130,7 @@ export const saveDraft = (
 /** Removes a draft: after an export, or when the user starts a new workflow or discards it. */
 export const deleteDraft = (state: string, id: string): Result<null> => {
   try {
-    unlinkSync(join(state, FOLDER, nameOf(id)));
+    unlinkSync(pathOf(state, id));
   } catch (error) {
     if (errorCode(error) === "ENOENT") return { ok: false, finding: { code: "draft.not-found", params: { id } } };
     throw error;

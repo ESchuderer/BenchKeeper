@@ -7,39 +7,40 @@
     "version": "1.0.0"
   },
   "inputs": {
-    "flag": {
-      "type": "boolean"
+    "verbose": {
+      "type": "boolean",
+      "description": "Whether the check prints details"
     }
   },
   "nodes": [
     {
-      "id": "gate",
-      "type": "condition"
+      "id": "begin",
+      "type": "trigger.manual"
     },
     {
-      "id": "start",
-      "type": "trigger.manual"
+      "id": "check",
+      "type": "condition"
     }
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "run-check",
       "from": {
-        "node": "start",
+        "node": "begin",
         "handle": "start"
       },
       "to": {
-        "node": "gate",
+        "node": "check",
         "handle": "run"
       }
     },
     {
-      "id": "e2",
+      "id": "verbose-value",
       "from": {
-        "input": "flag"
+        "input": "verbose"
       },
       "to": {
-        "node": "gate",
+        "node": "check",
         "handle": "value"
       }
     }

@@ -39,9 +39,9 @@ env:
     .github/pnpm .github/schemathesis
 
 jobs:
-  # base: the base branch commit the change applies to, a merge group's base or, for a pull request, the first parent of
-  # GitHub's merge commit (HEAD), which every job checks out. pull_request.base.sha keeps an older base, so diffing from it
-  # also counted everything merged to the base branch since.
+  # base: a merge group's base, or the tip of a pull request's base branch. git's `<base>...` and pnpm's `[<base>]` both
+  # start at its merge base with the checked-out commit, so they hold only the change's own files. pull_request.base.sha
+  # keeps an older base, and HEAD is a merge commit with the newer base branch, so diffing from it counted that too.
   # filter: empty when no CedarLoom path changed, `*` for every package, otherwise the changed packages and their dependents.
   areas:
     runs-on: ubuntu-latest
@@ -60,7 +60,7 @@ jobs:
         env:
           BASE: ${{ github.event.merge_group.base_sha }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then BASE=$(git rev-parse HEAD^1); fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then BASE=$(git rev-parse "origin/$GITHUB_BASE_REF"); fi
           if [ -z "$BASE" ]; then echo 'filter=*' >> "$GITHUB_OUTPUT"; exit 0; fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           read -ra paths <<< "$PATHS"

@@ -104,6 +104,22 @@
           }
         ]
       }
+    },
+    {
+      "files": ["packages/engine/src/graph.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/ledger"],
+                "message": "the graph module runs in the browser too: the editor checks edges with it"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

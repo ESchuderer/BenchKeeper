@@ -9,12 +9,17 @@ const undoHint = (p: { runId: string; undoes: string | null }): string =>
     ? `Undo it with: cedarloom runs undo ${p.runId} --yes`
     : `Plan the undo of run ${p.undoes} again with: cedarloom runs undo ${p.undoes} --yes`;
 
+const issueList = (issues: { path: string; code: string }[]): string =>
+  issues.map((i) => `${i.path || "(top)"} ${i.code}`).join(", ");
+// A node's input, or (node null) one of the workflow's own outputs.
+const handleName = (p: { node: string | null; handle: string }): string =>
+  p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
+
 // shortcut: English text in code until the Lingui catalog package exists; the codes and parameters are the contract.
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
   "document.newer-schema": (p) => `The document has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
-  "document.invalid": (p) =>
-    `The document does not match its schema: ${p.issues.map((i) => `${i.path || "(top)"} ${i.code}`).join(", ")}.`,
+  "document.invalid": (p) => `The document does not match its schema: ${issueList(p.issues)}.`,
   "plan.not-approved": (p) => `The approval names plan ${short(p.approvedHash)}, not ${short(p.planHash)}.`,
   "plan.path-not-absolute": (p) =>
     `${p.path} is not an absolute, normalized path; plans name every file by its full path.`,
@@ -40,6 +45,24 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "store.network-filesystem": (p) =>
     `The state folder ${p.dir} is on a network filesystem (${p.fsType}); use a local folder.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
+  "workflow.duplicate-id": (p) => `Two ${p.kind}s have the id ${p.id}; ids are unique within a workflow.`,
+  "workflow.trigger-count": (p) => `The workflow has ${p.count} trigger nodes; it needs exactly one.`,
+  "workflow.unknown-node-type": (p) => `Node ${p.node} has the type ${p.type}, which this CedarLoom does not know.`,
+  "workflow.invalid-config": (p) =>
+    `The configuration of node ${p.node} does not match its type: ${issueList(p.issues)}.`,
+  "workflow.dangling-edge": (p) =>
+    `Edge ${p.edge} starts or ends at ${p.ref} (its ${p.end} end), which does not exist.`,
+  "workflow.unknown-handle": (p) =>
+    `Edge ${p.edge} uses the handle ${p.handle} at its ${p.end} end, which that node type lacks.`,
+  "workflow.incompatible-handles": (p) =>
+    `Edge ${p.edge} joins a ${p.from} output to a ${p.to} input, which cannot take it.`,
+  "workflow.unchecked-handles": (p) =>
+    `Edge ${p.edge} passes ${p.from} to a ${p.to} input; the value is checked only when the workflow runs.`,
+  "workflow.many-sources": (p) => `${handleName(p)} gets ${p.count} edges; a data input takes one.`,
+  "workflow.missing-source": (p) => `${handleName(p)} gets no edge, but it needs one.`,
+  "workflow.cycle": (p) => `The nodes ${p.nodes.join(", ")} form a cycle; repeats need an explicit loop node.`,
+  "workflow.join-branches": (p) => `Join ${p.node} has ${p.count} incoming branch edges; a join needs at least two.`,
+  "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

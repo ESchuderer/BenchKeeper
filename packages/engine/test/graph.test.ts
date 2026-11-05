@@ -1,0 +1,190 @@
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
+import { compatibility, validateWorkflow } from "@cedarloom/engine/graph";
+import * as fc from "fast-check";
+import { expect, test } from "vitest";
+
+type Edge = WorkflowDefinition["edges"][number];
+
+const at = (end: string): { node: string; handle: string } => {
+  const [node = "", handle = ""] = end.split(".");
+  return { node, handle };
+};
+// "a.done>b.run" is an edge from handle done of a to handle run of b; "@x" is the workflow input or output x.
+const edge = (id: string, spec: string): Edge => {
+  const [from = "", to = ""] = spec.split(">");
+  return {
+    id,
+    from: from.startsWith("@") ? { input: from.slice(1) } : at(from),
+    to: to.startsWith("@") ? { output: to.slice(1) } : at(to),
+  };
+};
+
+const workflow = (nodes: string[], edges: string[], more: object = {}): WorkflowDefinition =>
+  WorkflowDefinition.parse({
+    schemaVersion: 1,
+    kind: "cedarloom.workflow",
+    metadata: { id: "w", name: "W", version: "1.0.0" },
+    // "id:type" or "id:type:json-of-with"
+    nodes: nodes.map((node) => {
+      const [id, type, ...config] = node.split(":");
+      return { id, type, ...(config.length === 0 ? {} : { with: JSON.parse(config.join(":")) }) };
+    }),
+    edges: edges.map((spec, index) => edge(`e${index + 1}`, spec)),
+    ...more,
+  });
+
+const codes = (definition: WorkflowDefinition): string[] => validateWorkflow(definition).map((f) => f.code);
+const start = "start:trigger.manual";
+
+test("compatibility: control only with control, json takes every data type, json into a typed input is checked later", () => {
+  const types = HandleType.options;
+  const table = Object.fromEntries(types.map((from) => [from, types.map((to) => compatibility(from, to)).join(" ")]));
+  expect(table).toEqual({
+    control: "yes no no no no",
+    string: "no yes no no yes",
+    number: "no no yes no yes",
+    boolean: "no no no yes yes",
+    json: "no unchecked unchecked unchecked yes",
+  });
+});
+
+const yes = (from: HandleType, to: HandleType): boolean => compatibility(from, to) === "yes";
+
+// Each law is an implication: not (premise), or (conclusion).
+const laws: Record<string, (a: HandleType, b: HandleType, c: HandleType) => boolean> = {
+  reflexive: (a) => yes(a, a),
+  antisymmetric: (a, b) => !(yes(a, b) && yes(b, a)) || a === b,
+  transitive: (a, b, c) => !(yes(a, b) && yes(b, c)) || yes(a, c),
+  "unchecked only from json": (a, b) => compatibility(a, b) !== "unchecked" || a === "json",
+  "control only with control": (a, b) => (a === "control") === (b === "control") || compatibility(a, b) === "no",
+};
+
+test.each(Object.entries(laws))("compatibility law: %s", (_, law) => {
+  const type = fc.constantFrom(...HandleType.options);
+  expect(() => fc.assert(fc.property(type, type, type, law))).not.toThrow();
+});
+
+test("every valid workflow of the golden corpus has a clean graph", async () => {
+  const dir = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+  const valid = (await readdir(dir)).filter((name) => name.startsWith("valid-"));
+  expect(valid.length).toBeGreaterThan(0);
+  for (const name of valid) {
+    const definition = WorkflowDefinition.parse(JSON.parse(await readFile(join(dir, name), "utf8")));
+    expect([name, validateWorkflow(definition)]).toEqual([name, []]);
+  }
+});
+
+test("duplicate ids, a missing or second trigger, unknown types and a join without its policy are found", () => {
+  const twice = workflow([start, "a:command.run", "a:command.run"], ["start.start>a.run", "start.start>a.run"]);
+  expect(validateWorkflow({ ...twice, edges: twice.edges.map((item) => ({ ...item, id: "e1" })) })).toEqual([
+    { code: "workflow.duplicate-id", params: { kind: "node", id: "a" } },
+    { code: "workflow.duplicate-id", params: { kind: "edge", id: "e1" } },
+  ]);
+  expect(codes(workflow(["a:command.run"], []))).toEqual(["workflow.trigger-count"]);
+  expect(validateWorkflow(workflow([start, "again:trigger.schedule"], []))).toEqual([
+    { code: "workflow.trigger-count", params: { count: 2 } },
+  ]);
+  // A type named like an Object property is no node type; edges of unknown nodes get no findings of their own.
+  expect(validateWorkflow(workflow([start, "x:constructor"], ["start.start>x.anything"]))).toEqual([
+    { code: "workflow.unknown-node-type", params: { node: "x", type: "constructor" } },
+  ]);
+  const joins = workflow([start, "j:join", 'k:join:{"policy":"some"}'], []);
+  expect(validateWorkflow(joins).filter((finding) => finding.code === "workflow.invalid-config")).toEqual([
+    { code: "workflow.invalid-config", params: { node: "j", issues: [{ path: "policy", code: "invalid_value" }] } },
+    { code: "workflow.invalid-config", params: { node: "k", issues: [{ path: "policy", code: "invalid_value" }] } },
+  ]);
+});
+
+test("edges must start and end at handles that exist, in the right direction", () => {
+  const graph = workflow(
+    [start, "a:command.run"],
+    ["gone.done>a.run", "@nope>a.run", "a.done>@nope", "a.run>a.run", "start.start>a.constructor"],
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.dangling-edge", params: { edge: "e1", end: "from", ref: "gone" } },
+    { code: "workflow.dangling-edge", params: { edge: "e2", end: "from", ref: "nope" } },
+    { code: "workflow.dangling-edge", params: { edge: "e3", end: "to", ref: "nope" } },
+    { code: "workflow.unknown-handle", params: { edge: "e4", end: "from", handle: "a.run" } },
+    { code: "workflow.unknown-handle", params: { edge: "e5", end: "to", handle: "a.constructor" } },
+  ]);
+});
+
+test("typed handles: an incompatible edge is an error, json into a typed input a warning", () => {
+  const graph = workflow(
+    [start, "a:command.run", "r:agent.run", "c:condition"],
+    ["start.start>a.run", "a.exitCode>r.context", "a.done>c.value", "@flag>c.value"],
+    { inputs: { flag: { type: "json" } } },
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.incompatible-handles", params: { edge: "e2", from: "number", to: "string" } },
+    { code: "workflow.incompatible-handles", params: { edge: "e3", from: "control", to: "boolean" } },
+    { code: "workflow.unchecked-handles", params: { edge: "e4", from: "json", to: "boolean" } },
+    { code: "workflow.many-sources", params: { node: "c", handle: "value", count: 2 } },
+  ]);
+});
+
+test("a data input and a workflow output take one edge; required ones need it; a join needs two branches", () => {
+  const graph = workflow(
+    [start, "a:command.run", "c:condition", 'j:join:{"policy":"all"}'],
+    ["start.start>a.run", "a.stdout>@log", "a.stdout>@log", "a.done>j.branches"],
+    { outputs: { log: { type: "string" }, unset: { type: "json" } } },
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.join-branches", params: { node: "j", count: 1 } },
+    { code: "workflow.many-sources", params: { node: null, handle: "log", count: 2 } },
+    { code: "workflow.missing-source", params: { node: null, handle: "unset" } },
+    { code: "workflow.missing-source", params: { node: "c", handle: "value" } },
+  ]);
+});
+
+test("a cycle is found with its nodes in order, a self-loop too; policies and positions of unknown nodes are strays", () => {
+  const loop = workflow(
+    [start, "a:command.run", "b:command.run"],
+    ["start.start>a.run", "a.done>b.run", "b.done>a.run"],
+  );
+  expect(validateWorkflow(loop)).toEqual([{ code: "workflow.cycle", params: { nodes: ["a", "b"] } }]);
+  expect(codes(workflow([start, "a:command.run"], ["a.done>a.run"]))).toEqual(["workflow.cycle"]);
+  const strays = workflow([start], [], {
+    execution: { nodes: { gone: { retries: 1 } } },
+    layout: { nodes: { start: { x: 0, y: 0 }, old: { x: 1, y: 1 } } },
+  });
+  expect(validateWorkflow(strays)).toEqual([
+    { code: "workflow.stray-entry", params: { section: "execution", node: "gone" } },
+    { code: "workflow.stray-entry", params: { section: "layout", node: "old" } },
+  ]);
+});
+
+// A chain of command nodes after the trigger, plus random forward edges: a DAG by construction.
+const dags = fc
+  .integer({ min: 1, max: 12 })
+  .chain((count) =>
+    fc.tuple(
+      fc.constant(count),
+      fc.array(fc.tuple(fc.nat(count - 1), fc.nat(count - 1)), { maxLength: 20 }),
+      fc.tuple(fc.nat(count - 1), fc.nat(count - 1)),
+    ),
+  );
+
+test("random DAGs have clean graphs, and one edge back along the chain makes exactly one cycle finding, a real cycle", () => {
+  fc.assert(
+    fc.property(dags, ([count, extra, [x, y]]) => {
+      const nodes = [start, ...Array.from({ length: count }, (_, index) => `c${index}:command.run`)];
+      const chain = Array.from({ length: count }, (_, index) =>
+        index === 0 ? "start.start>c0.run" : `c${index - 1}.done>c${index}.run`,
+      );
+      const forward = extra.filter(([a, b]) => a < b).map(([a, b]) => `c${a}.done>c${b}.run`);
+      expect(validateWorkflow(workflow(nodes, [...chain, ...forward]))).toEqual([]);
+      const [low, high] = [Math.min(x, y), Math.max(x, y)];
+      const back = workflow(nodes, [...chain, ...forward, `c${high}.done>c${low}.run`]);
+      const found = validateWorkflow(back);
+      expect(found.map((finding) => finding.code)).toEqual(["workflow.cycle"]);
+      const cycle = found[0]?.code === "workflow.cycle" ? found[0].params.nodes : [];
+      const linked = new Set(
+        back.edges.flatMap((e) => ("node" in e.from && "node" in e.to ? [`${e.from.node}>${e.to.node}`] : [])),
+      );
+      expect(cycle.every((node, index) => linked.has(`${node}>${cycle[(index + 1) % cycle.length]}`))).toBe(true);
+    }),
+  );
+});

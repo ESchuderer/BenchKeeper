@@ -122,6 +122,10 @@ importers:
       '@cedarloom/ledger':
         specifier: workspace:*
         version: link:../ledger
+    devDependencies:
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
 
   packages/ledger:
     dependencies:

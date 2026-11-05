@@ -1,16 +1,20 @@
 import { z } from "zod";
 import { Sha256 } from "./plan.ts";
 import { contracts, SchemaVersion } from "./registry.ts";
+import { HandleType } from "./workflow.ts";
 
 const finding = <const C extends string, const P extends z.ZodRawShape>(code: C, params: P) =>
   z.strictObject({ code: z.literal(code), params: z.strictObject(params) });
+
+// Where a document breaks its schema: the path and zod's issue code of each problem, no prose.
+const issues = z.array(z.strictObject({ path: z.string(), code: z.string() }));
 
 /** A result of a check: a code and typed parameters; the text for people comes from the message catalog. */
 export const Finding = z
   .discriminatedUnion("code", [
     finding("document.unreadable", { path: z.string(), error: z.string() }),
     finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
-    finding("document.invalid", { issues: z.array(z.strictObject({ path: z.string(), code: z.string() })) }),
+    finding("document.invalid", { issues }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
     finding("plan.path-not-absolute", { path: z.string() }),
     finding("plan.not-a-file", { path: z.string(), error: z.string() }),
@@ -35,6 +39,20 @@ export const Finding = z
     finding("store.busy", { dir: z.string() }),
     finding("store.network-filesystem", { dir: z.string(), fsType: z.string() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
+    // Graph findings of a workflow; `node: null` names one of the workflow's own outputs.
+    finding("workflow.duplicate-id", { kind: z.enum(["node", "edge"]), id: z.string() }),
+    finding("workflow.trigger-count", { count: z.int() }),
+    finding("workflow.unknown-node-type", { node: z.string(), type: z.string() }),
+    finding("workflow.invalid-config", { node: z.string(), issues }),
+    finding("workflow.dangling-edge", { edge: z.string(), end: z.enum(["from", "to"]), ref: z.string() }),
+    finding("workflow.unknown-handle", { edge: z.string(), end: z.enum(["from", "to"]), handle: z.string() }),
+    finding("workflow.incompatible-handles", { edge: z.string(), from: HandleType, to: HandleType }),
+    finding("workflow.unchecked-handles", { edge: z.string(), from: HandleType, to: HandleType }),
+    finding("workflow.many-sources", { node: z.string().nullable(), handle: z.string(), count: z.int() }),
+    finding("workflow.missing-source", { node: z.string().nullable(), handle: z.string() }),
+    finding("workflow.cycle", { nodes: z.array(z.string()) }),
+    finding("workflow.join-branches", { node: z.string(), count: z.int() }),
+    finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -69,4 +87,17 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "store.busy": { severity: "error", effort: "manual" },
   "store.network-filesystem": { severity: "error", effort: "manual" },
   "store.newer-schema": { severity: "error", effort: "manual" },
+  "workflow.duplicate-id": { severity: "error", effort: "manual" },
+  "workflow.trigger-count": { severity: "error", effort: "manual" },
+  "workflow.unknown-node-type": { severity: "error", effort: "manual" },
+  "workflow.invalid-config": { severity: "error", effort: "manual" },
+  "workflow.dangling-edge": { severity: "error", effort: "manual" },
+  "workflow.unknown-handle": { severity: "error", effort: "manual" },
+  "workflow.incompatible-handles": { severity: "error", effort: "manual" },
+  "workflow.unchecked-handles": { severity: "warning", effort: "manual" },
+  "workflow.many-sources": { severity: "error", effort: "manual" },
+  "workflow.missing-source": { severity: "error", effort: "manual" },
+  "workflow.cycle": { severity: "error", effort: "manual" },
+  "workflow.join-branches": { severity: "error", effort: "manual" },
+  "workflow.stray-entry": { severity: "warning", effort: "manual" },
 };

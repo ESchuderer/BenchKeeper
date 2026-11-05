@@ -830,6 +830,483 @@
               "params"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.duplicate-id"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "node",
+                      "edge"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.trigger-count"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unknown-node-type"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.invalid-config"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "issues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "node",
+                  "issues"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.dangling-edge"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "from",
+                      "to"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edge",
+                  "end",
+                  "ref"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unknown-handle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "from",
+                      "to"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edge",
+                  "end",
+                  "handle"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.incompatible-handles"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  },
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  }
+                },
+                "required": [
+                  "edge",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unchecked-handles"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  },
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  }
+                },
+                "required": [
+                  "edge",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.many-sources"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.missing-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.cycle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "nodes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.join-branches"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "node",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.stray-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "enum": [
+                      "execution",
+                      "layout"
+                    ]
+                  },
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "section",
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -2019,6 +2496,483 @@
                 "required": [
                   "found",
                   "known"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.duplicate-id"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "node",
+                      "edge"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.trigger-count"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unknown-node-type"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.invalid-config"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "issues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "node",
+                  "issues"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.dangling-edge"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "from",
+                      "to"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edge",
+                  "end",
+                  "ref"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unknown-handle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "from",
+                      "to"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "edge",
+                  "end",
+                  "handle"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.incompatible-handles"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  },
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  }
+                },
+                "required": [
+                  "edge",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unchecked-handles"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "edge": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  },
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "control",
+                      "string",
+                      "number",
+                      "boolean",
+                      "json"
+                    ]
+                  }
+                },
+                "required": [
+                  "edge",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.many-sources"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.missing-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.cycle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "nodes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.join-branches"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "node",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.stray-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "enum": [
+                      "execution",
+                      "layout"
+                    ]
+                  },
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "section",
+                  "node"
                 ],
                 "additionalProperties": false
               }

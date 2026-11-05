@@ -77,7 +77,7 @@
               {
                 "group": [
                   "node:*",
-                  "@cedarloom/services",
+                  "@cedarloom/use-cases",
                   "@cedarloom/server",
                   "@cedarloom/engine",
                   "@cedarloom/ledger"
@@ -98,7 +98,7 @@
             "patterns": [
               {
                 "group": ["@cedarloom/engine", "@cedarloom/ledger"],
-                "message": "the CLI and the server reach the engine and the run store only through @cedarloom/services"
+                "message": "the CLI and the server reach the engine and the run store only through @cedarloom/use-cases"
               }
             ]
           }

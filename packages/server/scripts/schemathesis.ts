@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CSRF_HEADER } from "@cedarloom/contracts";
 import { startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/services";
+import { applyPlan } from "@cedarloom/use-cases";
 import { z } from "zod";
 
 const [command = "schemathesis", ...prefix] = process.argv.slice(2);

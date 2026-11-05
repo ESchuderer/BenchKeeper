@@ -75,7 +75,7 @@ const methods = (app: FastifyInstance): void => {
   app.addHook("onRequest", async (req, reply) => (req.routeOptions.url === undefined ? answer(req, reply) : undefined));
 };
 
-/** The local server's routes over the application services, with the session guard on every request. */
+/** The local server's routes over the use cases, with the session guard on every request. */
 export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOptions): Promise<FastifyInstance> => {
   // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   // Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.

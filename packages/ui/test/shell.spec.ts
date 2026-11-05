@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Started, startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/services";
+import { applyPlan } from "@cedarloom/use-cases";
 import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
 
 // One server per file, started inside the worker: its URL token works once.

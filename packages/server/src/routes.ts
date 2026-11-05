@@ -8,7 +8,7 @@ import {
   Step,
   UndoPreview,
 } from "@cedarloom/contracts";
-import * as services from "@cedarloom/services";
+import * as useCases from "@cedarloom/use-cases";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { cookieName, portOf, type Session } from "./session.ts";
@@ -43,9 +43,9 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
   );
 };
 
-// shortcut: the services are synchronous, so an undo, a busy store or a read while another process cleans up the WAL
+// shortcut: the use cases are synchronous, so an undo, a busy store or a read while another process cleans up the WAL
 // (each up to 1 s; the WAL cleanup usually takes milliseconds) holds the event loop, and the event streams' reads wait
-// meanwhile; move the services to a worker when undos get long or several tabs need answers during one.
+// meanwhile; move the use cases to a worker when undos get long or several tabs need answers during one.
 
 /** The runs, one run with its steps, and the doctor's findings; reads never write. */
 export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
@@ -54,7 +54,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
     "/api/runs",
     { schema: { response: answers({ 200: z.strictObject({ runs: z.array(Run) }), 409: Refusal }) } },
     async (_req, reply) => {
-      const runs = services.listRuns(state);
+      const runs = useCases.listRuns(state);
       return runs.ok ? { runs: runs.value } : reply.code(409).send(refusal(runs.finding));
     },
   );
@@ -62,7 +62,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
     "/api/runs/:runId",
     { schema: { params: RunPath, response: answers({ 200: RunDetail, 404: Refusal, 409: Refusal }) } },
     async (req, reply) => {
-      const shown = services.showRun(state, req.params.runId);
+      const shown = useCases.showRun(state, req.params.runId);
       return shown.ok ? shown.value : reply.code(status(shown.finding)).send(refusal(shown.finding));
     },
   );
@@ -70,7 +70,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
     "/api/doctor",
     { schema: { response: answers({ 200: z.strictObject({ findings: z.array(FindingSchema) }) }) } },
     async () => ({
-      findings: services.doctor(state),
+      findings: useCases.doctor(state),
     }),
   );
 };
@@ -81,7 +81,7 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
     "/api/runs/:runId/undo",
     { schema: { params: RunPath, response: answers({ 200: UndoPreview, 404: Refusal, 409: Refusal }) } },
     async (req, reply) => {
-      const preview = services.previewUndo(state, req.params.runId);
+      const preview = useCases.previewUndo(state, req.params.runId);
       return preview.ok ? preview.value : reply.code(status(preview.finding)).send(refusal(preview.finding));
     },
   );
@@ -96,7 +96,7 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
       },
     },
     async (req, reply) => {
-      const undone = services.undoRun(state, req.params.runId, { approve: req.body.approve });
+      const undone = useCases.undoRun(state, req.params.runId, { approve: req.body.approve });
       if (!undone.ok) return reply.code(status(undone.finding)).send(refusal(undone.finding));
       const done = undone.value.status === "applied" || undone.value.status === "nothing-to-undo";
       return reply.code(done ? 200 : 409).send(undone.value);

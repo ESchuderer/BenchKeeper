@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/services";
+import { applyPlan } from "@cedarloom/use-cases";
 import { afterEach, expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };

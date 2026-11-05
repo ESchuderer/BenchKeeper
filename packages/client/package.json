@@ -35,7 +35,7 @@
   "devDependencies": {
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/server": "workspace:*",
-    "@cedarloom/services": "workspace:*",
+    "@cedarloom/use-cases": "workspace:*",
     "openapi-typescript": "7.13.0",
     "typescript": "npm:@typescript/typescript6@6.0.2"
   }

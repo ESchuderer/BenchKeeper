@@ -79,9 +79,26 @@ const edgeFindings = ({ resolved }: Graph): Finding[] =>
 const target = (node: string | null, handle: string): string => `${node ?? ""}\0${handle}`;
 
 /** One edge into each data input and workflow output (none for an optional input), two or more into a join. */
+// The edges of a graph without twins: one per output and input they join.
+const distinct = (edges: Edge[]): Edge[] =>
+  edges.filter((edge, index) => edges.findIndex((other) => pairOf(other) === pairOf(edge)) === index);
+
+const pairOf = ({ from, to }: Edge): string => JSON.stringify([from, to]);
+
+/** An edge that joins the same output to the same input as an earlier one adds nothing: a join it feeds gains no branch. */
+const twins = ({ edges }: Graph): Finding[] => {
+  const first = new Map<string, string>();
+  return edges.flatMap((edge): Finding[] => {
+    const of = first.get(pairOf(edge));
+    if (of === undefined) first.set(pairOf(edge), edge.id);
+    return of === undefined ? [] : [{ code: "workflow.duplicate-edge", params: { edge: edge.id, of } }];
+  });
+};
+
 const sourceFindings = ({ workflow, nodes, edges, types }: Graph): Finding[] => {
   const counts = new Map<string, number>();
-  for (const { to } of edges) {
+  // Twins count once, so a twin is one finding (duplicate-edge), not also many-sources.
+  for (const { to } of distinct(edges)) {
     const key = "output" in to ? target(null, to.output) : target(to.node, to.handle);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
@@ -241,6 +258,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     duplicates,
     nodeFindings,
     edgeFindings,
+    twins,
     sourceFindings,
     exclusiveSources,
     inputFindings,

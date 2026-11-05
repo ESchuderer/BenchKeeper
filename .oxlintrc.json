@@ -135,7 +135,7 @@
           {
             "patterns": [
               {
-                "group": ["node:*", "@cedarloom/ledger", "./*", "!./graph.ts"],
+                "group": ["node:*", "@cedarloom/ledger", "./**", "../**", "!./graph.ts"],
                 "message": "the editor loads the validator in the browser: it takes the contracts and the graph module only"
               }
             ]
@@ -151,7 +151,7 @@
           {
             "patterns": [
               {
-                "group": ["node:*", "@cedarloom/*", "./*", "../*"],
+                "group": ["*"],
                 "allowTypeImports": true,
                 "message": "the graph module runs in the browser: it takes types from the contracts, no zod and no Node"
               }

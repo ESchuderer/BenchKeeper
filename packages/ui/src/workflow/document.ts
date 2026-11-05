@@ -104,8 +104,11 @@ const remove = (workflow: WorkflowDefinition, nodes: Set<string>, edges: Set<str
   return next;
 };
 
+// The schema takes finite numbers only: NaN or Infinity would make the file unwritable.
+const finite = ({ x, y }: Position): boolean => Number.isFinite(x) && Number.isFinite(y);
+
 const addNode = (workflow: WorkflowDefinition, type: string, position: Position): WorkflowDefinition => {
-  if (workflow.nodes.length >= MAX_NODES || own(NODE_TYPES, type) === undefined) return workflow;
+  if (workflow.nodes.length >= MAX_NODES || own(NODE_TYPES, type) === undefined || !finite(position)) return workflow;
   const id = freeId(workflow, `${type.replaceAll(/[./]/g, "-")}-`);
   return withPositions({ ...workflow, nodes: [...workflow.nodes, { id, type }] }, { [id]: position });
 };
@@ -113,9 +116,10 @@ const addNode = (workflow: WorkflowDefinition, type: string, position: Position)
 // Moves of nodes that exist to where they are not yet; none of them: no change, so no empty undo step.
 const move = (workflow: WorkflowDefinition, positions: Record<string, Position>): WorkflowDefinition => {
   const placed = workflow.layout?.nodes ?? {};
-  const moved = Object.entries(positions).filter(([id, { x, y }]) => {
+  const moved = Object.entries(positions).filter(([id, position]) => {
     const at = own(placed, id);
-    return workflow.nodes.some((node) => node.id === id) && (at?.x !== x || at.y !== y);
+    const changed = at?.x !== position.x || at.y !== position.y;
+    return workflow.nodes.some((node) => node.id === id) && finite(position) && changed;
   });
   return moved.length === 0 ? workflow : withPositions(workflow, Object.fromEntries(moved));
 };

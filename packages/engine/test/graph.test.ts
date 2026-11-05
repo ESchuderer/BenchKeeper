@@ -100,6 +100,7 @@ test.each(Object.entries(laws))("compatibility law: %s", (_, law) => {
 
 // The graph findings of the golden workflows named findings-*; valid-* have none.
 const goldenFindings: Record<string, string[]> = {
+  "findings-duplicate-edge.json": ["workflow.duplicate-edge"],
   "findings-exclusive-sources.json": ["workflow.exclusive-sources"],
   "findings-optional-input.json": ["workflow.optional-input"],
   "findings-schedule-input.json": ["workflow.schedule-input"],
@@ -113,6 +114,22 @@ test("the golden corpus: valid workflows have clean graphs, findings-* exactly t
     const definition = WorkflowDefinition.parse(JSON.parse(await readFile(join(dir, name), "utf8")));
     expect([name, codes(definition)]).toEqual([name, goldenFindings[name] ?? []]);
   }
+});
+
+test("twin edges (one output to one input twice) are one finding; a join fed by twins has one branch", () => {
+  const graph = workflow(
+    [start, "a:command.run", "r:agent.run", 'j:join:{"policy":"all"}'],
+    ["start.start>a.run", "start.start>a.run", "a.stdout>r.context", "a.stdout>r.context", "a.done>r.run"].concat([
+      "a.done>j.branches",
+      "a.done>j.branches",
+    ]),
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.duplicate-edge", params: { edge: "e2", of: "e1" } },
+    { code: "workflow.duplicate-edge", params: { edge: "e4", of: "e3" } },
+    { code: "workflow.duplicate-edge", params: { edge: "e7", of: "e6" } },
+    { code: "workflow.join-branches", params: { node: "j", count: 1 } },
+  ]);
 });
 
 test("skips: exclusive outputs into one control input are a warning, unless a join with policy any merges them", () => {
@@ -213,8 +230,11 @@ test("typed handles: an incompatible edge is an error, json into a typed input a
 test("a data input and a workflow output take one edge; required ones need it; a join needs two branches", () => {
   const graph = workflow(
     [start, "a:command.run", "c:condition", 'j:join:{"policy":"all"}'],
-    ["start.start>a.run", "a.stdout>@log", "a.stdout>@log", "a.done>j.branches"],
-    { outputs: { log: { type: "string" }, unset: { type: "json" } } },
+    ["start.start>a.run", "a.stdout>@log", "@note>@log", "a.done>j.branches"],
+    {
+      inputs: { note: { type: "string", required: true } },
+      outputs: { log: { type: "string" }, unset: { type: "json" } },
+    },
   );
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.join-branches", params: { node: "j", count: 1 } },
@@ -292,7 +312,8 @@ test("random DAGs have clean graphs, and one edge back along the chain makes exa
       const chain = Array.from({ length: count }, (_, index) =>
         index === 0 ? "start.start>c0.run" : `c${index - 1}.done>c${index}.run`,
       );
-      const forward = extra.filter(([a, b]) => a < b).map(([a, b]) => `c${a}.done>c${b}.run`);
+      // Forward edges that skip ahead, once each: an edge along the chain again would be a twin.
+      const forward = [...new Set(extra.filter(([a, b]) => b > a + 1).map(([a, b]) => `c${a}.done>c${b}.run`))];
       expect(validateWorkflow(workflow(nodes, [...chain, ...forward]))).toEqual([]);
       const [low, high] = [Math.min(x, y), Math.max(x, y)];
       const back = workflow(nodes, [...chain, ...forward, `c${high}.done>c${low}.run`]);

@@ -123,6 +123,12 @@ test("moving keeps an editor's own keys of a layout entry, and the workflow stay
   const workflow = { ...built(), layout: { nodes: { "agent-run-1": { x: 0, y: 0, collapsed: true } } } };
   const moved = edit(workflow, { kind: "move", positions: { "agent-run-1": at(5, 6) } });
   expect(moved.layout?.nodes["agent-run-1"]).toEqual({ x: 5, y: 6, collapsed: true });
+  // A move along one axis only is a move too.
+  const down = edit(moved, { kind: "move", positions: { "agent-run-1": at(5, 9) } });
+  expect(down.layout?.nodes["agent-run-1"]).toEqual({ x: 5, y: 9, collapsed: true });
+  // Positions the schema cannot hold are refused.
+  expect(edit(moved, { kind: "move", positions: { "agent-run-1": at(Number.NaN, 0) } })).toBe(moved);
+  expect(edit(moved, { kind: "add-node", type: "join", position: at(0, Number.POSITIVE_INFINITY) })).toBe(moved);
   expect(WorkflowDefinition.parse(moved)).toEqual(moved);
   expect(edit(moved, { kind: "replace", workflow: newWorkflow() })).toEqual(newWorkflow());
 });
@@ -185,22 +191,34 @@ test("a canvas connection maps back to the edge ends it names", () => {
   expect(endsOf({ source: "a", sourceHandle: null, target: "b", targetHandle: "run" })).toBeUndefined();
 });
 
-// Edits as indices, resolved against the workflow they apply to: a node type, or nodes and handles by position.
+// Edits as indices, resolved against the workflow they apply to: a node type, or nodes, edges and handles by position.
 type Intent =
   | { op: "add"; type: string; x: number }
   | { op: "connect"; a: number; b: number; h: number; k: number }
+  | { op: "connect-in"; i: number; b: number; k: number }
+  | { op: "connect-out"; a: number; h: number; o: number }
   | { op: "remove"; a: number }
+  | { op: "cut"; e: number }
   | { op: "move"; a: number; x: number; y: number };
 
-const intents: fc.Arbitrary<Intent[]> = fc.array(
-  fc.oneof(
-    fc.record({ op: fc.constant("add" as const), type: fc.constantFrom(...Object.keys(NODE_TYPES)), x: fc.integer() }),
-    fc.record({ op: fc.constant("connect" as const), a: fc.nat(), b: fc.nat(), h: fc.nat(), k: fc.nat() }),
-    fc.record({ op: fc.constant("remove" as const), a: fc.nat() }),
-    fc.record({ op: fc.constant("move" as const), a: fc.nat(), x: fc.integer(), y: fc.integer() }),
-  ),
-  { maxLength: 30 },
+const anIntent: fc.Arbitrary<Intent> = fc.oneof(
+  fc.record({ op: fc.constant("add" as const), type: fc.constantFrom(...Object.keys(NODE_TYPES)), x: fc.integer() }),
+  fc.record({ op: fc.constant("connect" as const), a: fc.nat(), b: fc.nat(), h: fc.nat(), k: fc.nat() }),
+  fc.record({ op: fc.constant("connect-in" as const), i: fc.nat(), b: fc.nat(), k: fc.nat() }),
+  fc.record({ op: fc.constant("connect-out" as const), a: fc.nat(), h: fc.nat(), o: fc.nat() }),
+  fc.record({ op: fc.constant("remove" as const), a: fc.nat() }),
+  fc.record({ op: fc.constant("cut" as const), e: fc.nat() }),
+  fc.record({ op: fc.constant("move" as const), a: fc.nat(), x: fc.integer(), y: fc.integer() }),
 );
+
+/** The start of each run: inputs and outputs, and keys of an editor's own in metadata and layout. */
+const rich = (): WorkflowDefinition => ({
+  ...newWorkflow(),
+  metadata: { id: "workflow", name: "Workflow", version: "0.1.0", owner: "team-a" },
+  inputs: { flag: { type: "boolean" }, text: { type: "string" }, data: { type: "json" } },
+  outputs: { report: { type: "string" }, all: { type: "json" } },
+  layout: { nodes: {}, viewport: { zoom: 1 } },
+});
 
 const pick = <T>(items: T[], index: number): T | undefined => items[index % Math.max(items.length, 1)];
 
@@ -208,36 +226,115 @@ const pick = <T>(items: T[], index: number): T | undefined => items[index % Math
 const handleNames = (item: { type: string } | undefined, side: "inputs" | "outputs"): string[] =>
   Object.keys((item === undefined ? undefined : NODE_TYPES[item.type])?.[side] ?? {});
 
-const connectOf = (workflow: WorkflowDefinition, { a, b, h, k }: Extract<Intent, { op: "connect" }>): Change => {
-  const [from, to] = [pick(workflow.nodes, a), pick(workflow.nodes, b)];
-  const [output, input] = [pick(handleNames(from, "outputs"), h), pick(handleNames(to, "inputs"), k)];
-  return { kind: "connect", from: node(from?.id ?? "", output ?? ""), to: node(to?.id ?? "", input ?? "") };
+const handleOf = (workflow: WorkflowDefinition, index: number, handle: number, side: "inputs" | "outputs") => {
+  const item = pick(workflow.nodes, index);
+  return node(item?.id ?? "", pick(handleNames(item, side), handle) ?? "");
 };
+
+const connectOf = (workflow: WorkflowDefinition, intent: Intent): Change => {
+  const inputs = Object.keys(workflow.inputs ?? {});
+  const outputs = Object.keys(workflow.outputs ?? {});
+  if (intent.op === "connect-in") {
+    return {
+      kind: "connect",
+      from: { input: pick(inputs, intent.i) ?? "" },
+      to: handleOf(workflow, intent.b, intent.k, "inputs"),
+    };
+  }
+  if (intent.op === "connect-out") {
+    return {
+      kind: "connect",
+      from: handleOf(workflow, intent.a, intent.h, "outputs"),
+      to: { output: pick(outputs, intent.o) ?? "" },
+    };
+  }
+  const { a, b, h, k } = intent.op === "connect" ? intent : { a: 0, b: 0, h: 0, k: 0 };
+  return { kind: "connect", from: handleOf(workflow, a, h, "outputs"), to: handleOf(workflow, b, k, "inputs") };
+};
+
+// The id of the node or edge an index picks; "" when there is none, which every edit refuses.
+const idOf = (items: { id: string }[], index: number): string => pick(items, index)?.id ?? "";
 
 const resolve = (workflow: WorkflowDefinition, intent: Intent): Change => {
   if (intent.op === "add") return { kind: "add-node", type: intent.type, position: at(intent.x, 0) };
-  if (intent.op === "connect") return connectOf(workflow, intent);
-  const id = pick(workflow.nodes, intent.a)?.id ?? "";
-  return intent.op === "remove"
-    ? { kind: "remove", nodes: [id], edges: [] }
-    : { kind: "move", positions: { [id]: at(intent.x, intent.y) } };
+  if (intent.op === "cut") return { kind: "remove", nodes: [], edges: [idOf(workflow.edges, intent.e)] };
+  if (intent.op === "remove") return { kind: "remove", nodes: [idOf(workflow.nodes, intent.a)], edges: [] };
+  if (intent.op === "move")
+    return { kind: "move", positions: { [idOf(workflow.nodes, intent.a)]: at(intent.x, intent.y) } };
+  return connectOf(workflow, intent);
 };
 
-test("any sequence of edits gives a valid workflow; undo all restores the start, redo all the end", () => {
+/** Applies the edits and keeps a deep copy of the workflow after each one that took: a write into history shows. */
+const run = (steps: Intent[]): { history: History; states: WorkflowDefinition[] } => {
+  let history = open(rich());
+  const states = [structuredClone(history.present)];
+  for (const step of steps) {
+    const next = apply(history, resolve(history.present, step));
+    if (next !== history) states.push(structuredClone(next.present));
+    history = next;
+  }
+  return { history, states };
+};
+
+test("every edit is one step that undo and redo walk exactly, and an editor's own keys survive each edit", () => {
   fc.assert(
-    fc.property(intents, (steps) => {
-      const end = steps.reduce(
-        (history: History, intent) => apply(history, resolve(history.present, intent)),
-        open(newWorkflow()),
-      );
-      expect(WorkflowDefinition.parse(end.present)).toEqual(end.present);
-      // The editor refuses what the validator calls a cycle.
-      expect(validateWorkflow(end.present).map((finding) => finding.code)).not.toContain("workflow.cycle");
-      const undone = end.past.reduce(undo, end);
-      expect([undone.present, undone.past]).toEqual([newWorkflow(), []]);
-      const redone = undone.future.reduce(redo, undone);
-      expect([redone.present, redone.future]).toEqual([end.present, []]);
+    fc.property(fc.array(anIntent, { maxLength: 30 }), (steps) => {
+      const { history, states } = run(steps);
+      for (const state of states) {
+        expect(WorkflowDefinition.parse(state)).toEqual(state);
+        expect([state.metadata["owner"], state.layout?.["viewport"]]).toEqual(["team-a", { zoom: 1 }]);
+      }
+      let walk = history;
+      for (const state of states.toReversed()) {
+        expect(walk.present).toEqual(state);
+        walk = undo(walk);
+      }
+      expect(walk.past).toEqual([]);
+      for (const state of states) {
+        expect(walk.present).toEqual(state);
+        walk = redo(walk);
+      }
+      expect(walk).toEqual(history);
     }),
+  );
+});
+
+// The validator's findings about edges themselves: canConnect allows an edge exactly when it adds none of them.
+const EDGE_FINDINGS = new Set([
+  "workflow.dangling-edge",
+  "workflow.unknown-handle",
+  "workflow.incompatible-handles",
+  "workflow.many-sources",
+  "workflow.cycle",
+  "workflow.duplicate-edge",
+]);
+const edgeFindings = (workflow: WorkflowDefinition): string[] =>
+  validateWorkflow(workflow).flatMap((finding) => (EDGE_FINDINGS.has(finding.code) ? [JSON.stringify(finding)] : []));
+
+const candidates = (workflow: WorkflowDefinition) => ({
+  outs: [
+    ...Object.keys(workflow.inputs ?? {}).map((name) => ({ input: name })),
+    ...workflow.nodes.flatMap((item) => handleNames(item, "outputs").map((name) => node(item.id, name))),
+  ],
+  ins: [
+    ...Object.keys(workflow.outputs ?? {}).map((name) => ({ output: name })),
+    ...workflow.nodes.flatMap((item) => handleNames(item, "inputs").map((name) => node(item.id, name))),
+  ],
+});
+
+test("canConnect allows exactly the edges that give the validator no new finding about edges", () => {
+  fc.assert(
+    fc.property(fc.array(anIntent, { maxLength: 10 }), (steps) => {
+      const workflow = run(steps).history.present;
+      const before = new Set(edgeFindings(workflow));
+      const { outs, ins } = candidates(workflow);
+      for (const [from, to] of outs.flatMap((out) => ins.map((into) => [out, into] as const))) {
+        const added = { ...workflow, edges: [...workflow.edges, { id: "probe", from, to }] };
+        const fresh = edgeFindings(added).some((finding) => !before.has(finding));
+        expect([from, to, canConnect(workflow, from, to)]).toEqual([from, to, !fresh]);
+      }
+    }),
+    { numRuns: 30 },
   );
 });
 
@@ -247,6 +344,10 @@ test("an edit past the schema's bounds is refused: 1,000 nodes, 5,000 edges", ()
     nodes: Array.from({ length: 1000 }, (_, index) => ({ id: index === 0 ? "start" : `n${index}`, type: "join" })),
   };
   expect(edit(full, { kind: "add-node", type: "join", position: at(0, 0) })).toBe(full);
+  // The bounds are the schema's: 1,000 nodes parse, 1,001 do not.
+  expect(WorkflowDefinition.safeParse(full).success).toBe(true);
+  const over = { ...full, nodes: [...full.nodes, { id: "over", type: "join" }] };
+  expect(WorkflowDefinition.safeParse(over).success).toBe(false);
   const edges = Array.from({ length: 5000 }, (_, index) => ({
     id: `e${index}`,
     from: { input: "x" },
@@ -266,5 +367,7 @@ test("undo and redo at their ends change nothing; a new edit drops the redo step
     start,
   );
   expect(many.past.length).toBe(100);
+  // The oldest steps go: the first kept one is the state after move 20.
+  expect(many.past[0]?.layout?.nodes["start"]).toEqual(at(20, 0));
   expect(apply(start, { kind: "remove", nodes: [], edges: [] })).toBe(start);
 });

@@ -664,6 +664,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.duplicate-edge";
+            params: {
+                edge: string;
+                of: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.exclusive-sources";
             params: {
                 node: string;
@@ -1039,6 +1046,13 @@ export interface components {
             params: {
                 node: string;
                 count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-edge";
+            params: {
+                edge: string;
+                of: string;
             };
         } | {
             /** @constant */

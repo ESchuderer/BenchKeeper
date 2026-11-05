@@ -29,5 +29,8 @@
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "fast-check": "catalog:"
   }
 }

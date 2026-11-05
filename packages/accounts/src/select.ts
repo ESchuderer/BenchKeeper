@@ -20,7 +20,13 @@ export interface Candidate {
 }
 
 export type Selection =
-  | { readonly ok: true; readonly account: Account; readonly candidates: readonly Candidate[] }
+  | {
+      readonly ok: true;
+      readonly account: Account;
+      /** `no-readings`: no pool account had a known reading, so the task stays on its account and nothing switches. */
+      readonly reason: "most-headroom" | "no-readings";
+      readonly candidates: readonly Candidate[];
+    }
   | {
       readonly ok: false;
       readonly reason: "unknown-pool" | "unconfirmed-pool" | "no-headroom";
@@ -48,27 +54,39 @@ const most = <T extends { readonly margin: number | null }>(scored: readonly T[]
   return best;
 };
 
+// The confirmation that one person holds and pays for every account of the pool covers the accounts it named; once the
+// pool's accounts differ, the pool needs a new one (pending owner decision, 2026-11-05: the stricter choice).
+const confirmed = (settings: { confirmedAt: string | null; confirmedFor: readonly string[] }, members: Account[]) => {
+  const named = new Set(settings.confirmedFor);
+  return settings.confirmedAt !== null && named.size === members.length && members.every((m) => named.has(m.name));
+};
+
 /**
  * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
- * first one listed on a tie. `readings` holds the latest reading per account and window; `now` is in milliseconds.
+ * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
+ * or on the pool's first account (pending owner decision, 2026-11-05). `readings` holds the latest reading per account
+ * and window; `now` is in milliseconds.
  */
 export const selectAccount = (
   registry: AccountRegistry,
-  { agent, pool }: { readonly agent: Agent; readonly pool: string },
+  { agent, pool, previous = null }: { readonly agent: Agent; readonly pool: string; readonly previous?: string | null },
   readings: readonly Reading[],
   now: number,
 ): Selection => {
   const pools = registry.pools[agent] ?? {};
-  // Own keys only, so a pool named like an inherited property (constructor, tostring) is no pool.
+  // Own keys only, so a pool named constructor, the one inherited property the name rule admits, is no pool.
   const settings = Object.hasOwn(pools, pool) ? pools[pool] : undefined;
   if (settings === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };
-  // Switching needs the user's confirmation that one person holds and pays for every account of the pool (A5).
-  if (settings.confirmedAt === null) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
   const members = registry.accounts.filter((account) => account.agent === agent && account.pool === pool);
+  if (!confirmed(settings, members)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
   const scored = members.map((account) => ({ account, margin: margin(registry, account, readings, now) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);
-  return best === undefined
-    ? { ok: false, reason: "no-headroom", candidates }
-    : { ok: true, account: best.account, candidates };
+  if (best !== undefined) return { ok: true, account: best.account, reason: "most-headroom", candidates };
+  const [first] = members;
+  if (first !== undefined && scored.every((each) => each.margin === null)) {
+    const stay = members.find((member) => member.name === previous) ?? first;
+    return { ok: true, account: stay, reason: "no-readings", candidates };
+  }
+  return { ok: false, reason: "no-headroom", candidates };
 };

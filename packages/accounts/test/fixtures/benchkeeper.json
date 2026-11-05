@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "accounts": [
     {
       "name": "work",
@@ -10,15 +11,25 @@
       "dir": "/home/dev/.local/share/benchkeeper/accounts/work",
       "default": true,
       "pool": "main",
-      "limits": { "minimum": { "fiveHour": 15 }, "warn": { "fiveHour": 30 } }
+      "limits": {
+        "minimum": {
+          "fiveHour": 15
+        },
+        "warn": {
+          "fiveHour": 30
+        }
+      }
     },
     {
       "name": "spare",
       "agent": "claude",
-      "token": { "created": "2026-09-01T08:00:00.000Z" },
+      "token": {
+        "created": "2026-09-01T08:00:00.000Z"
+      },
       "mode": "host",
       "dir": "/home/dev/.local/share/benchkeeper/accounts/spare",
-      "pool": "main"
+      "pool": "main",
+      "label": null
     },
     {
       "name": "boxed",
@@ -36,8 +47,17 @@
       "added": "2026-10-03T08:00:00.000Z",
       "mode": "host",
       "dir": "/home/dev/.local/share/benchkeeper/accounts/codex-main",
-      "pool": "main"
+      "pool": "main",
+      "label": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }
   ],
-  "settings": { "minimum": { "sevenDay": 5 }, "autoPick": true, "rotate": { "claude": "handover" } }
+  "settings": {
+    "minimum": {
+      "sevenDay": 5
+    },
+    "autoPick": true,
+    "rotate": {
+      "claude": "handover"
+    }
+  }
 }

@@ -27,7 +27,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/contracts/src/**"],
+      "files": ["packages/contracts/src/**", "packages/accounts/src/**"],
       "rules": {
         "no-restricted-globals": [
           "error",
@@ -47,7 +47,12 @@
             ],
             "checkGlobalObject": true
           }
-        ],
+        ]
+      }
+    },
+    {
+      "files": ["packages/contracts/src/**"],
+      "rules": {
         "no-restricted-imports": [
           "error",
           {

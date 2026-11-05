@@ -16,7 +16,8 @@
   "pools": {
     "claude": {
       "main": {
-        "confirmedAt": null
+        "confirmedAt": null,
+        "confirmedFor": []
       }
     }
   }

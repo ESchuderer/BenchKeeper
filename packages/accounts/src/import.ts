@@ -10,7 +10,7 @@ const Windows = z.looseObject({ fiveHour: z.number().optional(), sevenDay: z.num
 const BenchKeeperAccount = z.looseObject({
   name: z.string(),
   agent: Agent,
-  label: z.string().optional(),
+  label: z.string().nullable().optional(),
   mode: z.enum(["host", "container"]),
   dir: z.string().optional(),
   pool: z.string().optional(),
@@ -55,7 +55,8 @@ const leftOf = (account: BenchKeeperAccount): Left[] =>
 const toAccount = (account: BenchKeeperAccount, now: string) => ({
   name: account.name,
   agent: account.agent,
-  ...(account.label === undefined ? {} : { label: account.label }),
+  // BenchKeeper reads a null label and a longer one, though it writes neither.
+  ...(account.label == null ? {} : { label: account.label.slice(0, 80) }),
   home: account.dir,
   pool: account.pool ?? null,
   ...(account.limits?.minimum === undefined ? {} : { minimum: account.limits.minimum }),
@@ -67,14 +68,14 @@ const toAccount = (account: BenchKeeperAccount, now: string) => ({
  * what stays behind. Pools start unconfirmed (owner, 2026-11-05). `now` dates an account BenchKeeper did not date.
  */
 export const importBenchKeeper = (value: unknown, now: string): Result<Imported> => {
-  // BenchKeeper's file has no schemaVersion, so no version is newer than the one known.
-  const file = readDocument(BenchKeeperFile, Number.POSITIVE_INFINITY, value);
+  // BenchKeeper writes schemaVersion 1; a newer file is refused rather than read loosely.
+  const file = readDocument(BenchKeeperFile, 1, value);
   if (!file.ok) return file;
   const { accounts, settings } = file.value;
   const host = accounts.filter((account) => account.mode === "host");
-  const pools: Partial<Record<Agent, Record<string, { confirmedAt: null }>>> = {};
+  const pools: Partial<Record<Agent, Record<string, { confirmedAt: null; confirmedFor: [] }>>> = {};
   for (const { agent, pool } of host) {
-    if (pool !== undefined) pools[agent] = { ...pools[agent], [pool]: { confirmedAt: null } };
+    if (pool !== undefined) pools[agent] = { ...pools[agent], [pool]: { confirmedAt: null, confirmedFor: [] } };
   }
   const registry = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, {
     schemaVersion: ACCOUNTS_SCHEMA_VERSION,

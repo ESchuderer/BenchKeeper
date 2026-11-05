@@ -126,10 +126,19 @@
                 }
               ],
               "description": "When the user confirmed that one person holds and pays for every account of the pool; null: no switching"
+            },
+            "confirmedFor": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              },
+              "description": "The accounts the confirmation named; once the pool's accounts differ, it counts as unconfirmed"
             }
           },
           "required": [
-            "confirmedAt"
+            "confirmedAt",
+            "confirmedFor"
           ],
           "additionalProperties": false
         }

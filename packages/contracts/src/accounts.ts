@@ -34,6 +34,9 @@ const Pool = z.strictObject({
     .describe(
       "When the user confirmed that one person holds and pays for every account of the pool; null: no switching",
     ),
+  confirmedFor: z
+    .array(Name)
+    .describe("The accounts the confirmation named; once the pool's accounts differ, it counts as unconfirmed"),
 });
 
 /**
@@ -57,12 +60,24 @@ export const AccountRegistry = z
         }
         seen[key].add(account[key]);
       }
-      // Own keys only: a pool named like an inherited property (constructor, tostring) must not pass as declared.
+      // Own keys only: a pool named constructor, the one inherited property the name rule admits, is not declared.
       if (account.pool !== null && !Object.hasOwn(registry.pools[account.agent] ?? {}, account.pool)) {
         ctx.addIssue({
           code: "custom",
           path: ["accounts", index, "pool"],
           message: "not a pool of the account's agent",
+        });
+      }
+    }
+  })
+  .superRefine((registry, ctx) => {
+    // Codex switching stays off (A40): no Codex pool is confirmed in format 1; lifting that loosens the format later.
+    for (const [name, pool] of Object.entries(registry.pools.codex ?? {})) {
+      if (pool.confirmedAt !== null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["pools", "codex", name, "confirmedAt"],
+          message: "Codex switching is off",
         });
       }
     }

@@ -6,6 +6,12 @@ packages:
 minimumReleaseAge: 4320
 strictPeerDependencies: true
 
+# openapi-typescript builds its output with the TypeScript compiler API, which TypeScript 7 does not have yet; it runs
+# on the TypeScript 6 compatibility package (packages/client), whose 6.x its peer range of 5.x does not name.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: "6"
+
 # One version per shared dependency: packages name it as "catalog:".
 catalog:
   zod: 4.6.7

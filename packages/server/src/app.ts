@@ -1,6 +1,6 @@
 import helmet from "@fastify/helmet";
 import swagger from "@fastify/swagger";
-import { contracts } from "@cedarloom/contracts";
+import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import {
   createJsonSchemaTransform,
@@ -10,7 +10,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
-import { CSRF_HEADER, frameworkErrors, guard, portOf, Session } from "./session.ts";
+import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
   /** The run store's folder. */

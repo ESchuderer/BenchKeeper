@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // openapi-fetch calls fetch, Request and Headers, which the browser and Node both provide.
+    "lib": ["es2025", "dom"]
+  },
+  "include": ["src", "schema"],
+  "references": [{ "path": "../contracts" }]
+}

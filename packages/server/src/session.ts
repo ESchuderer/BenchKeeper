@@ -1,9 +1,8 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AddressInfo } from "node:net";
+import { CSRF_HEADER } from "@cedarloom/contracts";
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 
-/** The header that carries the CSRF token the session exchange returned; a page of another origin cannot read it. */
-export const CSRF_HEADER = "x-cedarloom-csrf";
 /** The URL token works once and for this long, so a printed link does not stay valid while the server runs. */
 export const TOKEN_MS = 10 * 60_000;
 /** Named per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not take each other's. */

@@ -17,6 +17,8 @@
     { "path": "packages/services/test" },
     { "path": "packages/server" },
     { "path": "packages/server/test" },
+    { "path": "packages/client" },
+    { "path": "packages/client/test" },
     { "path": "packages/cli" },
     { "path": "packages/cli/test" }
   ]

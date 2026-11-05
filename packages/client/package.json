@@ -1,0 +1,42 @@
+{
+  "name": "@cedarloom/client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The typed client of the CedarLoom local API, generated from the server's OpenAPI document.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "generate": "node scripts/generate.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*",
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@cedarloom/ledger": "workspace:*",
+    "@cedarloom/server": "workspace:*",
+    "@cedarloom/services": "workspace:*",
+    "openapi-typescript": "7.13.0",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

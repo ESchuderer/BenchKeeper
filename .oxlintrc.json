@@ -3,7 +3,7 @@
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   "categories": { "correctness": "error", "suspicious": "error" },
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
-  "ignorePatterns": ["**/dist/**"],
+  "ignorePatterns": ["**/dist/**", "packages/*/schema/**"],
   "rules": {
     "complexity": ["error", 10],
     "max-depth": ["error", 3],

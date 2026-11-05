@@ -3,6 +3,9 @@ import { Finding } from "./findings.ts";
 import { DeleteFile, PLAN_SCHEMA_VERSION, Sha256, WriteFile } from "./plan.ts";
 import { contracts } from "./registry.ts";
 
+/** The header that carries the session's CSRF token; a page of another origin can neither read the token nor send it. */
+export const CSRF_HEADER = "x-cedarloom-csrf";
+
 // Run and Step parse rows of the run store too, so unknown columns are dropped, not refused.
 
 /** A run in the journal; `interrupted`: it was running when its process ended. */

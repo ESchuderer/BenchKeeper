@@ -1,7 +1,7 @@
 import { type Finding, findingInfo, type Plan, type PlanPreview, type RunResult } from "@cedarloom/contracts";
 import * as services from "@cedarloom/services";
 import type { Approval } from "@cedarloom/services";
-import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
+import { type Context, EXIT, emit, fail, report, type Shown, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
   const plan = services.loadPlan(path);
@@ -28,7 +28,7 @@ const result = (ctx: Context, { runId, status, findings }: RunResult): number =>
 
 const approved = (approval: Approval): boolean => approval.yes === true || approval.approve !== undefined;
 
-const ask = (preview: PlanPreview): string =>
+const ask = (preview: Shown): string =>
   `${showPlan(preview)}\nNothing changed. Run the command again with --yes, or with --approve ${preview.planHash} to apply exactly this plan.`;
 
 export const plansShow = (ctx: Context, path: string): number => {
@@ -82,9 +82,7 @@ const previewUndo = (ctx: Context, runId: string): number => {
     ctx,
     "plan",
     value,
-    value.plan === null || value.planHash === null
-      ? "Nothing to undo."
-      : ask({ planHash: value.planHash, plan: value.plan }),
+    value.plan === null ? "Nothing to undo." : ask({ planHash: value.planHash, plan: value.plan }),
   );
   report(ctx, value.findings);
   return EXIT.ok;

@@ -88,6 +88,13 @@ test("a narrow window keeps the views behind a menu button, out of the keyboard'
   await accessible();
   await page.getByRole("button", { name: "Show the views" }).click();
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Runs" }).click();
+  // At exactly 768 px (the sm breakpoint) the navigation shows without a menu button, and it takes focus.
+  await page.setViewportSize({ width: 768, height: 800 });
+  await expect(page.getByRole("button", { name: "Show the views" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Views" })).not.toHaveAttribute("inert");
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(true);
   // At 320 px the runs table scrolls inside its container, never the page.
   await page.setViewportSize({ width: 320, height: 640 });
   await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();

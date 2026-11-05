@@ -1,6 +1,6 @@
 import type { Api, components } from "@cedarloom/client";
-import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title, useMatches } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { MessageId } from "@lingui/core";
@@ -178,7 +178,8 @@ const content = (view: View, api: Api): ReactNode =>
 export const App = ({ api }: { api: Api }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
   const [opened, { toggle, close }] = useDisclosure();
-  const narrow = useMediaQuery("(max-width: 48em)");
+  // The theme's own sm breakpoint, as AppShell uses it: at exactly 48em the desktop navigation already shows.
+  const narrow = useMatches({ base: true, sm: false });
   return (
     <AppShell
       header={{ height: 56 }}

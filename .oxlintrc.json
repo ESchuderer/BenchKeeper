@@ -73,7 +73,18 @@
                 "message": "the client runs in the browser: import @cedarloom/contracts/http, the root brings zod"
               }
             ],
-            "patterns": [{ "group": ["node:*"], "message": "the client runs in the browser" }]
+            "patterns": [
+              {
+                "group": [
+                  "node:*",
+                  "@cedarloom/services",
+                  "@cedarloom/server",
+                  "@cedarloom/engine",
+                  "@cedarloom/ledger"
+                ],
+                "message": "the client runs in the browser: no Node module, directly or through a Node-only package"
+              }
+            ]
           }
         ]
       }

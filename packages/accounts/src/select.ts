@@ -34,15 +34,20 @@ export type Selection =
     };
 
 // A reading is unknown once its window resets, or when its reset time does not parse: it never makes an account qualify.
+// A known window below its minimum disqualifies the account even when the other window is unknown.
 const margin = (registry: AccountRegistry, account: Account, readings: readonly Reading[], now: number) => {
   let smallest = Number.POSITIVE_INFINITY;
+  let unknown = false;
   for (const window of WINDOWS) {
     const reading = readings.find((each) => each.account === account.name && each.window === window);
-    if (reading === undefined || !(Date.parse(reading.resetsAt) > now)) return null;
-    const minimum = account.minimum?.[window] ?? registry.minimum[window];
-    smallest = Math.min(smallest, 100 - reading.usedPercent - minimum);
+    if (reading === undefined || !(Date.parse(reading.resetsAt) > now)) unknown = true;
+    else
+      smallest = Math.min(
+        smallest,
+        100 - reading.usedPercent - (account.minimum?.[window] ?? registry.minimum[window]),
+      );
   }
-  return smallest;
+  return unknown && smallest >= 0 ? null : smallest;
 };
 
 // The candidate with the largest margin of at least 0, the first one on a tie.

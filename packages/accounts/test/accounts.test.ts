@@ -170,6 +170,17 @@ test("with no known reading in the pool nothing switches: the task stays on its 
     candidates: POOL.map((name) => ({ account: name, margin: null })),
   });
   expect([stays(null), stays("solo")].map((chosen) => chosen.ok && chosen.account.name)).toEqual(["one", "one"]);
+  // A known window below its minimum counts although the other window has reset: no account to stay on silently.
+  const exhausted = [...used("two", 0, 99).slice(1), ...used("two", 0, 0, IMPORTED_AT).slice(0, 1)];
+  expect(stays("two", exhausted)).toEqual({
+    ok: false,
+    reason: "no-headroom",
+    candidates: [
+      { account: "one", margin: null },
+      { account: "two", margin: -2 },
+      { account: "three", margin: null },
+    ],
+  });
   // An unparsable reset time is no known reading either.
   const unparsable = selectAccount(registry, { agent: "claude", pool: "spare" }, used("four", 0, 0, "x"), NOW);
   expect(unparsable).toMatchObject({

@@ -41,7 +41,8 @@ const description = [
 
 /** The local server's routes over the application services, with the session guard on every request. */
 export const buildApp = async ({ state, session, log }: AppOptions): Promise<FastifyInstance> => {
-  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors });
+  // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
+  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000 });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(swagger, {
@@ -53,16 +54,25 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
     transform: createJsonSchemaTransform({ schemaRegistry: contracts }),
     transformObject: createJsonSchemaTransformObject({ schemaRegistry: contracts }),
   });
-  // Plain HTTP on loopback: no HSTS, and a CSP that allows this origin only.
+  // Plain HTTP on loopback: no HSTS, and the whole CSP spelled out (helmet's defaults allow https: sources and upgrade
+  // requests to https).
   await app.register(helmet, {
     hsts: false,
     contentSecurityPolicy: {
-      directives: { defaultSrc: ["'self'"], baseUri: ["'none'"], formAction: ["'none'"], frameAncestors: ["'none'"] },
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
     },
   });
   app.addHook("onRequest", guard(session));
   app.addHook("onSend", async (_req, reply) => void reply.header("cache-control", "no-store"));
   errors(app, log);
+  app.setNotFoundHandler(async (_req, reply) => reply.code(404).send({ error: "not-found" }));
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });

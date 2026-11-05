@@ -250,7 +250,7 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
     return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
   }
   // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
-  // outlasts a reader's probe (held); another writer keeps the lock for its whole run and is refused.
+  // outlasts a reader's probe, whose read meets no WAL cleanup (writers close runs.sqlite first); others are refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
     lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");

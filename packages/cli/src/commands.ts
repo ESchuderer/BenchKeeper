@@ -29,8 +29,8 @@ const HUMAN: Record<RunResult["status"], (runId: string | null) => string> = {
   refused: () => "",
 };
 
-const result = (ctx: Context, { runId, status, findings }: RunResult): number => {
-  emit(ctx, "run", { runId, status, findings }, HUMAN[status](runId));
+const result = (ctx: Context, { runId, status, findings }: RunResult, data: object = {}): number => {
+  emit(ctx, "run", { runId, status, findings, ...data }, HUMAN[status](runId));
   report(ctx, findings);
   return status === "applied" || status === "nothing-to-undo" ? EXIT.ok : EXIT.refused;
 };
@@ -49,16 +49,17 @@ export const plansShow = (ctx: Context, path: string): number => {
 };
 
 // Prints what is applied (not with --json), applies it as one run and reports the run with `findings` first.
-const applyShown = (ctx: Context, plan: Plan, { shown, findings }: Shown, approval: Approval): number => {
+const applyShown = (ctx: Context, plan: Plan, { shown, findings, data }: Shown, approval: Approval): number => {
   if (!ctx.json) ctx.io.out(`${shown}\n`);
   const run = useCases.applyPlan(ctx.state, plan, approval);
   if (!run.ok) return fail(ctx, "run", [...findings, run.finding], EXIT.refused);
-  return result(ctx, { ...run.value, findings: [...findings, ...run.value.findings] });
+  return result(ctx, { ...run.value, findings: [...findings, ...run.value.findings] }, data);
 };
 
 interface Shown {
   readonly shown: string;
   readonly findings: Finding[];
+  readonly data: object;
 }
 
 export const plansApply = (ctx: Context, path: string, approval: Approval): number => {
@@ -69,7 +70,7 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
     emit(ctx, "plan", preview, ask(preview));
     return EXIT.ok;
   }
-  return applyShown(ctx, plan, { shown: showPlan(preview), findings: [] }, approval);
+  return applyShown(ctx, plan, { shown: showPlan(preview), findings: [], data: {} }, approval);
 };
 
 export const runsList = (ctx: Context): number => {
@@ -139,7 +140,7 @@ const refused = (ctx: Context, format: "accounts" | "plan", finding: Finding): n
  */
 const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
-  if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings }, { yes });
+  if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
   const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;
   emit(ctx, "plan", { ...preview, ...data, findings }, human);
   report(ctx, findings);

@@ -197,6 +197,9 @@ test("no account comes from a pool that is not the agent's, unconfirmed, or chan
     reason: "unknown-pool",
   });
   expect(selectAccount(registry, { agent: "codex", pool: "idle" }, [], NOW)).toMatchObject({ reason: "unknown-pool" });
+  // A Codex pool confirmed in a registry built in memory, past the format's check, still switches nothing.
+  const codex = { ...registry, pools: { codex: { main: { confirmedAt: CONFIRMED, confirmedFor: ["other"] } } } };
+  expect(selectAccount(codex, { agent: "codex", pool: "main" }, [], NOW)).toMatchObject({ reason: "unconfirmed-pool" });
   for (const pool of ["idle", "main"]) {
     const named = {
       claude: { ...registry.pools.claude, main: { confirmedAt: CONFIRMED, confirmedFor: ["one", "two"] } },

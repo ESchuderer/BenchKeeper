@@ -231,7 +231,15 @@ test("accounts: the one-time import is shown first and applied with --yes", asyn
       { account: "boxed", item: "container-account" },
     ],
   });
-  expect((await cli("accounts", "import", "--from", from, "--yes")).code).toBe(EXIT.ok);
+  // The applied run's JSON keeps the list of what was not imported.
+  expect(json((await cli("accounts", "import", "--from", from, "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+    left: [
+      { account: null, item: "autoPick" },
+      { account: "boxed", item: "container-account" },
+    ],
+  });
   expect((await cli("accounts", "list")).out).toBe(
     "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
   );

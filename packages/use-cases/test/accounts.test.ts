@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
@@ -85,7 +85,8 @@ test("a task's worker starts on the pool account with headroom, and the choice i
 
 test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {
   const state = stateWithReadings();
-  const stays = chooseAccount(state, registry, { task: "t2", agent: "claude", pool: "single", previous: null }, NOW);
+  // No time given: the choice is judged at the moment the store is held.
+  const stays = chooseAccount(state, registry, { task: "t2", agent: "claude", pool: "single", previous: null });
   expect(stays.ok && stays.value.ok && [stays.value.account.name, stays.value.reason]).toEqual(["solo", "no-readings"]);
   expect(switches(state)).toMatchObject([{ task: "t2", from: null, to: "solo", reason: "no-readings", readings: [] }]);
   const full = stateWithReadings(95, 95);
@@ -126,6 +127,13 @@ test("BenchKeeper's registry is imported once, as a plan that creates the regist
   });
   writeFileSync(join(config, "accounts.json"), "{}");
   expect(loadRegistry(config)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
+  // A registry the process cannot read is reported, not taken for none.
+  const unreadable = join(config, "folder-as-registry");
+  mkdirSync(join(unreadable, "accounts.json"), { recursive: true });
+  expect(loadRegistry(unreadable)).toMatchObject({
+    ok: false,
+    finding: { code: "document.unreadable", params: { error: "EISDIR" } },
+  });
 });
 
 test("a pool is confirmed by a plan that replaces the registry; Codex pools and unknown pools are refused", () => {

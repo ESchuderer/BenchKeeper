@@ -70,7 +70,8 @@ const membersOf = (registry: AccountRegistry, { agent, pool }: PoolRef): Account
 /** Whether the pool exists and its confirmation covers the pool's accounts as they are now. */
 export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean => {
   const settings = settingsOf(registry, ref);
-  return settings !== undefined && confirmed(settings, membersOf(registry, ref));
+  // Codex switching stays off (A40) also for a registry that was built in memory, without the format's check.
+  return ref.agent !== "codex" && settings !== undefined && confirmed(settings, membersOf(registry, ref));
 };
 
 /**

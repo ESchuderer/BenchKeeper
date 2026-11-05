@@ -26,10 +26,11 @@ const readRegistry = (path: string): Result<{ text: string; registry: AccountReg
 
 /** The account registry of the config folder; null when there is none yet. */
 export const loadRegistry = (config: string): Result<AccountRegistry | null> => {
-  const path = registryPath(config);
-  if (!existsSync(path)) return { ok: true, value: null };
-  const read = readRegistry(path);
-  return read.ok ? { ok: true, value: read.value.registry } : read;
+  const read = readRegistry(registryPath(config));
+  if (read.ok) return { ok: true, value: read.value.registry };
+  // Only a missing file is no registry; one the process cannot read is reported.
+  const missing = read.finding.code === "document.unreadable" && read.finding.params.error === "ENOENT";
+  return missing ? { ok: true, value: null } : read;
 };
 
 /**
@@ -97,15 +98,17 @@ export const chooseAccount = (
   state: string,
   registry: AccountRegistry,
   request: AccountRequest,
-  now: number = Date.now(),
+  now?: number,
 ): Result<Selection> =>
   withStore(state, (store) => {
     const readings = store.readings();
-    const selection = selectAccount(registry, request, readings, now);
+    // Judged once the store is held, so a reading that expired during the wait for the lock counts as expired.
+    const judged = now ?? Date.now();
+    const selection = selectAccount(registry, request, readings, judged);
     if (selection.ok) {
       const pool = new Set(selection.candidates.map((candidate) => candidate.account));
       store.recordSwitch({
-        at: new Date(now).toISOString(),
+        at: new Date(judged).toISOString(),
         task: request.task,
         from: request.previous,
         to: selection.account.name,

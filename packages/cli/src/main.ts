@@ -1,7 +1,18 @@
-import { Command, CommanderError } from "@commander-js/extra-typings";
-import { doctor, plansApply, plansShow, runsList, runsShow, runsUndo } from "./commands.ts";
+import { Agent } from "@cedarloom/contracts";
+import { Command, CommanderError, Option } from "@commander-js/extra-typings";
+import {
+  accountsConfirm,
+  accountsImport,
+  accountsList,
+  doctor,
+  plansApply,
+  plansShow,
+  runsList,
+  runsShow,
+  runsUndo,
+} from "./commands.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
-import { stateDir } from "./state.ts";
+import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
 
 type Done = (code: number) => void;
@@ -43,6 +54,33 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
+const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  const accounts = program
+    .command("accounts")
+    .description("agent accounts: config folders, pools and minimums, no credential");
+  accounts
+    .command("list")
+    .description("list the accounts and their pools")
+    .action(() => done(accountsList(ctx())));
+  accounts
+    .command("import")
+    .description("show the one-time import of BenchKeeper's registry; with --yes, create the registry from it")
+    .option("--from <file>", "BenchKeeper's registry file (default: ~/.config/benchkeeper/accounts.json)")
+    .option("--yes", "import as planned now")
+    .action((options) => done(accountsImport(ctx(), options)));
+  accounts
+    .command("pool")
+    .description("account pools")
+    .command("confirm")
+    .description(
+      "confirm that you hold and pay for every account of a pool; with --yes, new workers switch between them",
+    )
+    .argument("<pool>")
+    .addOption(new Option("--agent <agent>", "the pool's agent").choices(Agent.options).default("claude" as const))
+    .option("--yes", "confirm as planned now")
+    .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
+};
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -60,10 +98,11 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .configureOutput({ writeOut: io.out, writeErr: io.err });
   const ctx = (): Context => {
     const { json, state } = program.opts();
-    return { io, json: json ?? false, state: state ?? stateDir(io.env) };
+    return { io, json: json ?? false, state: state ?? stateDir(io.env), config: configDir(io.env) };
   };
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);
+  accountsGroup(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs and store problems")

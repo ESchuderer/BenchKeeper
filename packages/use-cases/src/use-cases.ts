@@ -30,7 +30,7 @@ const approvedHash = (approval: Approval, plan: Plan): string =>
   approval.approve ?? (approval.yes === true ? planHash(plan) : "");
 
 /** Opens the store for a change, removes what interrupted runs left, and closes it again. */
-const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
+export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
   const store = openRunStore(state);
   if (!store.ok) return store;
   try {
@@ -59,24 +59,28 @@ const settled = (outcome: Outcome, skipped: Finding[], undoes: string | null): R
   return { runId, status, findings: [...skipped, ...outcome.findings, ...stopped] };
 };
 
-/** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */
-export const loadPlan = (path: string): Result<Plan> => {
+/** Reads a JSON file with its text: `document.unreadable` when it cannot be read, `document.invalid` when it is no JSON. */
+export const readJson = (path: string): Result<{ text: string; json: unknown }> => {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch (error) {
     return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
   }
-  let json: unknown;
   try {
-    json = JSON.parse(text);
+    return { ok: true, value: { text, json: JSON.parse(text) } };
   } catch {
     return {
       ok: false,
       finding: { code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } },
     };
   }
-  return readDocument(Plan, PLAN_SCHEMA_VERSION, json);
+};
+
+/** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */
+export const loadPlan = (path: string): Result<Plan> => {
+  const file = readJson(path);
+  return file.ok ? readDocument(Plan, PLAN_SCHEMA_VERSION, file.value.json) : file;
 };
 
 export const previewPlan = (plan: Plan): PlanPreview => ({

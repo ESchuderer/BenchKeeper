@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, sta
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Plan } from "@cedarloom/contracts";
+import type { AccountSwitch, Plan } from "@cedarloom/contracts";
 import {
   filesystemType,
   isNetworkFilesystem,
@@ -99,17 +99,20 @@ test("reads and another process's runs, side by side, wait out each other's brie
   expect([code, failures]).toEqual([0, []]);
 }, 15_000);
 
-test("a store written by a newer CedarLoom is refused", () => {
+/** A store whose schema version only a newer CedarLoom knows. */
+const newerStore = (): string => {
   const dir = fresh();
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 2");
+  db.exec("PRAGMA user_version = 3");
   db.close();
-  expect(openRunStore(dir)).toEqual({
-    ok: false,
-    finding: { code: "store.newer-schema", params: { found: 2, known: 1 } },
-  });
+  return dir;
+};
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 3, known: 2 } } };
+
+test("a store written by a newer CedarLoom is refused", () => {
+  expect(openRunStore(newerStore())).toEqual(NEWER);
 });
 
 test("a network filesystem is refused for the run store", () => {
@@ -225,16 +228,7 @@ test("a view treats a store whose schema was never created (a first open cut off
 });
 
 test("a view refuses a store written by a newer CedarLoom", () => {
-  const dir = fresh();
-  opened(dir).close();
-  open.length = 0;
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 3");
-  db.close();
-  expect(openRunView(dir)).toEqual({
-    ok: false,
-    finding: { code: "store.newer-schema", params: { found: 3, known: 1 } },
-  });
+  expect(openRunView(newerStore())).toEqual(NEWER);
 });
 
 test("the schema is created in one transaction: a failure halfway leaves no partial schema to block the next open", () => {
@@ -326,4 +320,74 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   });
   expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
   expect(store.runs()).toEqual([]);
+});
+
+test("a store of schema 1 gains the account tables on open and keeps its runs", () => {
+  const dir = fresh();
+  const runId = opened(dir).begin("apply", plan, planHash(plan));
+  open.splice(0).forEach((store) => store.close());
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("DROP TABLE readings; DROP TABLE switches; PRAGMA user_version = 1");
+  db.close();
+  const store = opened(dir);
+  expect(store.readings()).toEqual([]);
+  expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
+  const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
+  after.close();
+});
+
+test("the latest reading per account and window stays; an older one arriving late, or no reading, never gets in", () => {
+  const store = opened(fresh());
+  const reading = {
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 40,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+  } as const;
+  store.recordReading({ ...reading, readAt: "2026-11-05T12:00:00.000Z" });
+  store.recordReading({ ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" });
+  store.recordReading({ ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" });
+  store.recordReading({ ...reading, usedPercent: 45, readAt: "2026-11-05T12:01:00.000Z" });
+  // A reset time that is no time, or a time without milliseconds (whose text would sort wrong), throws on write.
+  expect(() => store.recordReading({ ...reading, resetsAt: "not a date", readAt: "2026-11-05T12:06:00.000Z" })).toThrow(
+    /datetime/i,
+  );
+  expect(() => store.recordReading({ ...reading, readAt: "2026-11-05T12:06:00Z" })).toThrow(/datetime/i);
+  expect(store.readings()).toEqual([
+    { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" },
+    { ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" },
+  ]);
+});
+
+test("a switch row keeps its time, task, from, to, reason, readings and candidates", () => {
+  const store = opened(fresh());
+  const reading = {
+    account: "spare",
+    window: "fiveHour",
+    usedPercent: 5,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+    readAt: "2026-11-05T12:00:00.000Z",
+  } as const;
+  const row: AccountSwitch = {
+    at: "2026-11-05T12:00:00.000Z",
+    task: "t1",
+    from: null,
+    to: "spare",
+    reason: "most-headroom",
+    readings: [reading],
+    candidates: [{ account: "spare", margin: 87 }],
+  };
+  store.recordSwitch(row);
+  const stayed: AccountSwitch = {
+    ...row,
+    at: "2026-11-05T12:01:00.000Z",
+    from: "spare",
+    to: "work",
+    reason: "no-readings",
+    readings: [],
+    candidates: [],
+  };
+  store.recordSwitch(stayed);
+  expect(store.switches()).toEqual([row, stayed]);
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sortKeys } from "./json.ts";
 import { AbsolutePath } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 
@@ -85,3 +86,36 @@ export const AccountRegistry = z
   .register(fileFormats, { id: "AccountRegistry" });
 export type AccountRegistry = z.infer<typeof AccountRegistry>;
 export type Account = AccountRegistry["accounts"][number];
+
+/** The registry file's text: keys in schema order, pools sorted by name, two-space indentation. */
+export const formatRegistry = (registry: AccountRegistry): string =>
+  `${JSON.stringify(AccountRegistry.parse(sortKeys(registry)), null, 2)}\n`;
+
+/** The usage windows of the agent-neutral quota model. */
+export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);
+
+/** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
+export const Reading = z.strictObject({
+  account: Name,
+  window: QuotaWindow,
+  usedPercent: z.number(),
+  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
+  resetsAt: z.iso.datetime({ precision: 3 }),
+  readAt: z.iso.datetime({ precision: 3 }),
+});
+export type Reading = z.infer<typeof Reading>;
+
+/**
+ * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first
+ * launch), the account chosen and why, the pool's readings and each candidate's margin above its minimums.
+ */
+export const AccountSwitch = z.strictObject({
+  at: z.iso.datetime({ precision: 3 }),
+  task: z.string(),
+  from: Name.nullable(),
+  to: Name,
+  reason: z.enum(["most-headroom", "no-readings"]),
+  readings: z.array(Reading),
+  candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
+});
+export type AccountSwitch = z.infer<typeof AccountSwitch>;

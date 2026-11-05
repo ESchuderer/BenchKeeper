@@ -72,6 +72,18 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
+  "accounts.registry-exists": (p) =>
+    `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
+  "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
+  // Both quotes checked at their sources on 2026-11-06; the Usage Policy page is marked effective Nov 12, 2026.
+  "accounts.pool-terms": (p) =>
+    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy forbids ` +
+    'users to "intentionally bypass or interfere with capabilities, restrictions, or guardrails established within our ' +
+    'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
+    'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
+    "usage limit counts as one is not stated.",
+  "accounts.codex-switching-off": (p) =>
+    `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { importBenchKeeper, type Reading, type Selection, selectAccount } from "@cedarloom/accounts";
-import type { Account, AccountRegistry } from "@cedarloom/contracts";
+import { importBenchKeeper, type Selection, selectAccount } from "@cedarloom/accounts";
+import type { Account, AccountRegistry, Reading as Stored } from "@cedarloom/contracts";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
+
+type Reading = Omit<Stored, "readAt">;
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const IMPORTED_AT = "2026-11-05T12:00:00.000Z";
@@ -195,6 +197,9 @@ test("no account comes from a pool that is not the agent's, unconfirmed, or chan
     reason: "unknown-pool",
   });
   expect(selectAccount(registry, { agent: "codex", pool: "idle" }, [], NOW)).toMatchObject({ reason: "unknown-pool" });
+  // A Codex pool confirmed in a registry built in memory, past the format's check, still switches nothing.
+  const codex = { ...registry, pools: { codex: { main: { confirmedAt: CONFIRMED, confirmedFor: ["other"] } } } };
+  expect(selectAccount(codex, { agent: "codex", pool: "main" }, [], NOW)).toMatchObject({ reason: "unconfirmed-pool" });
   for (const pool of ["idle", "main"]) {
     const named = {
       claude: { ...registry.pools.claude, main: { confirmedAt: CONFIRMED, confirmedFor: ["one", "two"] } },

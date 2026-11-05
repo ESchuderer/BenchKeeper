@@ -184,6 +184,10 @@ msgid "problem.documentInvalid"
 msgstr "It does not match the workflow schema: {issues}."
 
 #. js-lingui-explicit-id
+msgid "problem.moreIssues"
+msgstr "{issues}, and {count} more"
+
+#. js-lingui-explicit-id
 msgid "problem.documentNewer"
 msgstr "It has schema version {found}; this CedarLoom reads up to {known}."
 
@@ -274,3 +278,75 @@ msgstr "A workflow keeps at least one node, so nothing was removed."
 #. js-lingui-explicit-id
 msgid "editor.problemCount"
 msgstr "{count, plural, one {# problem.} other {# problems.}}"
+
+#. js-lingui-explicit-id
+msgid "editor.unreadable"
+msgstr "The file could not be read, so nothing was imported."
+
+#. js-lingui-explicit-id
+msgid "editor.autoLayout"
+msgstr "Auto layout"
+
+#. js-lingui-explicit-id
+msgid "editor.laidOut"
+msgstr "The nodes were laid out; undo puts them back."
+
+#. js-lingui-explicit-id
+msgid "editor.alreadyLaidOut"
+msgstr "The nodes were laid out already; nothing moved."
+
+#. js-lingui-explicit-id
+msgid "editor.layoutFailed"
+msgstr "The layout did not finish: {reason}"
+
+#. js-lingui-explicit-id
+msgid "editor.workerStopped"
+msgstr "The layout worker stopped."
+
+#. js-lingui-explicit-id
+msgid "editor.connectHandles"
+msgstr "Connect handles"
+
+#. js-lingui-explicit-id
+msgid "editor.connectTitle"
+msgstr "Connect two handles"
+
+#. js-lingui-explicit-id
+msgid "editor.connectFrom"
+msgstr "From output"
+
+#. js-lingui-explicit-id
+msgid "editor.connectTo"
+msgstr "To input"
+
+#. js-lingui-explicit-id
+msgid "editor.noTargets"
+msgstr "No input can take this output."
+
+#. js-lingui-explicit-id
+msgid "editor.connect"
+msgstr "Connect"
+
+#. js-lingui-explicit-id
+msgid "editor.connected"
+msgstr "Connected {from} to {to}."
+
+#. js-lingui-explicit-id
+msgid "editor.handle"
+msgstr "{node} · {handle} ({type})"
+
+#. js-lingui-explicit-id
+msgid "editor.workflowInput"
+msgstr "Workflow input {name} ({type})"
+
+#. js-lingui-explicit-id
+msgid "editor.workflowOutput"
+msgstr "Workflow output {name} ({type})"
+
+#. js-lingui-explicit-id
+msgid "editor.license"
+msgstr "Layout by elkjs, under the Eclipse Public License 2.0"
+
+#. js-lingui-explicit-id
+msgid "editor.close"
+msgstr "Close"

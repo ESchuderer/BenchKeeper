@@ -38,6 +38,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@xyflow/react": "12.12.1",
+    "elkjs": "0.12.1",
     "fast-check": "catalog:",
     "lucide-react": "1.66.0",
     "react": "19.3.1",

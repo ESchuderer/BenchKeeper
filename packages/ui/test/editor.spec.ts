@@ -1,9 +1,18 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Started, startServer } from "@cedarloom/server";
-import { type BrowserContext, expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  type APIResponse,
+  type BrowserContext,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import { accessible as check, openPage } from "./browser.ts";
 
 // One server per file, started inside the worker: its URL token works once.
@@ -35,6 +44,8 @@ const problems = (): Locator => page.getByRole("region", { name: "Problems" });
 const view = (name: string): Promise<void> =>
   page.getByRole("navigation", { name: "Views" }).getByRole("button", { name }).click();
 const selected = /\bselected\b/;
+// The editor's status line; the problems panel's count, also a status, comes after it.
+const said = (): Locator => page.getByRole("status").first();
 
 /** Where a handle is once the canvas stopped moving: fit view applies its zoom over the next frames. */
 const settled = async (target: Locator): Promise<{ x: number; y: number; width: number; height: number }> => {
@@ -71,6 +82,13 @@ test("the Workflows view opens a new workflow with the attribution link, minimap
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
   await expect(page.locator(".react-flow__controls")).toBeVisible();
   await expect(problems().getByRole("status")).toHaveText("No problems.");
+  // An empty undo stack leaves focus on Undo: the button only says it is disabled.
+  await page.getByRole("button", { name: "Add node" }).click();
+  const undo = page.getByRole("button", { name: "Undo" });
+  await undo.press("Enter");
+  await expect(card("command-run-1")).toHaveCount(0);
+  await expect(undo).toBeFocused();
+  await expect(undo).toHaveAttribute("aria-disabled", "true");
   await accessible();
   expect(errors).toEqual([]);
 });
@@ -97,6 +115,12 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  for (const redo of ["ControlOrMeta+Shift+z", "ControlOrMeta+y"]) {
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(0);
+    await page.keyboard.press(redo);
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  }
   // A workflow keeps one node: deleting the last one is refused, and the page says so.
   await page.getByRole("button", { name: "New workflow" }).click();
   await card("start").click();
@@ -144,6 +168,151 @@ test("import reads a workflow file, export writes it back in its canonical form,
   await expect(page.getByRole("alert")).toContainText("execution.parallel");
   // The workflow stays as it was.
   await expect(card("review")).toBeVisible();
+  await accessible();
+  expect(errors).toEqual([]);
+});
+
+test("New and Import start the canvas over: nothing stays selected, and the new graph is fitted in view", async () => {
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await card("start").click();
+  await expect(card("start")).toHaveClass(selected);
+  // A new workflow's one node is fitted at the highest zoom. The imported row of eight is wider than the canvas at
+  // that zoom, so all of it is in view only when the canvas fits it anew.
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
+  for (const id of ["@inputs", "ask", "build", "fix", "gate", "merge", "notes", "start"]) {
+    await expect(card(id)).toBeInViewport();
+  }
+  await expect(card("start")).not.toHaveClass(selected);
+  await card("start").click();
+  await expect(card("start")).toHaveClass(selected);
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await expect(card("start")).not.toHaveClass(selected);
+});
+
+test("handles connect from the keyboard: a dialog lists the outputs and the inputs that can take them", async () => {
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await page.getByRole("combobox", { name: "Node type" }).click();
+  await page.getByRole("option", { name: "command.run" }).click();
+  const opener = page.getByRole("button", { name: "Connect handles" });
+  const dialog = page.getByRole("dialog", { name: "Connect two handles" });
+  // The trigger alone: no input can take its output, the To field says so, and Escape returns to the opener.
+  await opener.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "To input" })).toHaveAccessibleDescription(
+    "No input can take this output.",
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await page.getByRole("button", { name: "Add node" }).click();
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "From output" })).toHaveValue("start · start (control)");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("combobox", { name: "To input" })).toHaveValue("command-run-1 · run (control)");
+  await accessible();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await expect(said()).toHaveText("Connected start · start (control) to command-run-1 · run (control).");
+  await expect(opener).toBeFocused();
+});
+
+const worker = /\/assets\/elk-worker\.min-[^/]+\.js$/;
+
+/** Answers the layout worker's script (not the small module that only names it) through `answer`. */
+const routeWorker = async (answer: (route: Route, response: APIResponse) => Promise<void>): Promise<void> => {
+  await context.route(worker, async (route) => {
+    const response = await route.fetch();
+    return (await response.body()).length < 1000 ? route.fulfill({ response }) : answer(route, response);
+  });
+};
+
+test("a layout worker that cannot load ends with the alert, and the next Auto layout starts anew", async () => {
+  await routeWorker((route) => route.fulfill({ status: 404, body: "" }));
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.click();
+  await expect(page.getByRole("alert")).toHaveText("The layout did not finish: The layout worker stopped.");
+  await expect(button).toBeEnabled();
+  await context.unroute(worker);
+});
+
+test("a layout that ends after New is dropped, not applied to the new workflow", async () => {
+  // The worker loads slowly, so the layout of the imported workflow ends after the New below.
+  await routeWorker(async (route, response) => {
+    await delay(1500);
+    await route.fulfill({ response });
+  });
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.click();
+  await expect(button).toBeDisabled();
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await expect(button).toBeEnabled({ timeout: 10_000 });
+  await context.unroute(worker);
+  const saved = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export JSON" }).click();
+  const exported: { layout: unknown } = JSON.parse(await readFile(await (await saved).path(), "utf8"));
+  expect(exported.layout).toEqual({ nodes: { start: { x: 0, y: 0 } } });
+  await expect(said()).not.toHaveText(/laid out/);
+});
+
+test("auto layout runs ELK in a worker, moves only positions in one undo step, and its license ships with the page", async () => {
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
+  await expect(card("merge")).toBeVisible();
+  const exported = async (): Promise<string> => {
+    const saved = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export JSON" }).click();
+    return readFile(await (await saved).path(), "utf8");
+  };
+  const before = await exported();
+  const button = page.getByRole("button", { name: "Auto layout" });
+  await button.press("Enter");
+  await expect(said()).toHaveText("The nodes were laid out; undo puts them back.");
+  // The button keeps the keyboard focus through its busy time.
+  await expect(button).toBeFocused();
+  // Laid out again, nothing moves: no undo step, and the status does not offer one.
+  await button.press("Enter");
+  await expect(said()).toHaveText("The nodes were laid out already; nothing moved.");
+  const after: { nodes: unknown; edges: unknown; layout: { nodes: Record<string, { x: number }> } } = JSON.parse(
+    await exported(),
+  );
+  const original: typeof after = JSON.parse(before);
+  expect([after.nodes, after.edges]).toEqual([original.nodes, original.edges]);
+  expect(Object.keys(after.layout.nodes).toSorted()).toEqual([
+    "ask",
+    "build",
+    "fix",
+    "gate",
+    "merge",
+    "notes",
+    "start",
+  ]);
+  expect(after.layout.nodes["start"]?.x).toBeLessThan(after.layout.nodes["notes"]?.x ?? 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  expect(await exported()).toBe(before);
+  const notice = await page.request.get(new URL("/licenses/elkjs.txt", server.url).href);
+  expect([notice.status(), await notice.text()]).toEqual([
+    200,
+    expect.stringContaining("Eclipse Public License - v 2.0"),
+  ]);
+  expect(await notice.text()).toContain("https://github.com/kieler/elkjs/tree/0.12.1");
+  // The copyright notices of elkjs's source ship in the notice file and in the bundled chunk (EPL-2.0, 3.3).
+  const copyright = "Copyright (c) 2017 Kiel University and others.";
+  expect(await notice.text()).toContain(copyright);
+  const chunk = await page.evaluate(
+    () => performance.getEntriesByType("resource").find((entry) => entry.name.includes("/assets/elk-api-"))?.name ?? "",
+  );
+  expect(await (await page.request.get(chunk)).text()).toContain(copyright);
+  await expect(page.getByRole("link", { name: /Layout by elkjs/ })).toHaveAttribute("href", "licenses/elkjs.txt");
   await accessible();
   expect(errors).toEqual([]);
 });

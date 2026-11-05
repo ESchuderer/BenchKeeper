@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Started, startServer } from "@cedarloom/server";
 import { applyPlan } from "@cedarloom/services";
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
 
 // One server per file, started inside the worker: its URL token works once.
 test.describe.configure({ mode: "serial" });
@@ -127,6 +127,8 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   expect([existsSync(file), errors]).toEqual([false, []]);
 });
 
+const failed = (route: Route): Promise<void> => route.fulfill({ status: 500, json: { error: "internal" } });
+
 /** Applies a run from outside the page, as the CLI does, and waits for its row to appear without a reload. */
 const appliedElsewhere = async (name: string): Promise<void> => {
   const table = page.getByRole("table", { name: "Runs, newest first" });
@@ -146,15 +148,21 @@ test("a run another process applies appears without a reload", async () => {
   expect(errors).toEqual([]);
 });
 
-test("a stream that ends while the server still answers opens again, with nothing wrong in the page", async () => {
-  // The page's next stream ends at once, as one does after a store read that failed.
-  await page.route("**/api/events", (route) => route.fulfill({ contentType: "text/event-stream", body: "" }), {
-    times: 1,
-  });
+test("a stream that ends opens again a second later, also after the API failed once, and the error goes", async () => {
+  // The page's next stream ends at once, as one does after a store read that failed, and the check after it fails.
+  // The 500 is set up only when that stream is asked for: Firefox lets the unloading page send its own check.
+  const ended = async (route: Route): Promise<void> => {
+    await page.route("**/api/runs", failed, { times: 1 });
+    await route.fulfill({ contentType: "text/event-stream", body: "" });
+  };
+  await page.route("**/api/events", ended, { times: 1 });
   await page.reload();
+  await expect(page.getByRole("alert")).toContainText("The server answered 500");
   await appliedElsewhere("again.md");
   await expect(page.getByRole("alert")).toHaveCount(0);
-  expect(errors).toEqual([]);
+  // The browser may log the failed request; nothing else may show up.
+  expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
+  errors.length = 0;
 });
 
 test("a new tab has no session and says how to get one", async () => {

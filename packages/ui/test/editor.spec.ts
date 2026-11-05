@@ -405,6 +405,9 @@ test("a broken draft can only be discarded, and a save over a draft another tab 
   // An edit waits while a draft of its workflow is on offer; Discard then saves it.
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(said()).toHaveText("Not saved as a draft yet: restore or discard the earlier draft of workflow first.");
+  // The held edit outlives the view, as the document does.
+  await view("Runs");
+  await view("Workflows");
   await offers().getByRole("button", { name: "Discard the draft of workflow" }).press("Enter");
   await expect(offers()).toHaveCount(0);
   await expect.poll(async () => JSON.stringify(await request("/api/drafts/workflow"))).toContain("command-run-1");

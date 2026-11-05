@@ -18,6 +18,8 @@ const mine = new Map<string, string>();
 // Every workflow this tab saved or restored since the page loaded: its own drafts are no offer, even while a save that
 // started as the view closed has not answered yet.
 const ours = new Set<string>();
+// The last edit made while a draft of its workflow was on offer: Discard saves it, also after the view was left.
+let held: WorkflowDefinition | null = null;
 
 const idOf = (workflow: WorkflowDefinition): string => workflow.metadata.id.toLowerCase();
 
@@ -75,13 +77,12 @@ type Saving = {
 const useAutosave = ({ api, workflow, loads, onStatus, open }: Saving) => {
   const [saved, setSaved] = useState("");
   const pending = useRef<WorkflowDefinition | null>(null);
-  const held = useRef<WorkflowDefinition | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const seen = useRef({ loads, workflow });
   const save = async (next: WorkflowDefinition): Promise<void> => {
     const id = idOf(next);
     if (open.current.has(id)) {
-      held.current = next;
+      held = next;
       return onStatus(t("draft.waiting", { id }));
     }
     ours.add(id);
@@ -112,15 +113,15 @@ const useAutosave = ({ api, workflow, loads, onStatus, open }: Saving) => {
   // Leaving the view saves what is waiting.
   useEffect(() => flush, []);
   const cancel = (id: string): void => {
-    if (held.current !== null && idOf(held.current) === id) held.current = null;
+    if (held !== null && idOf(held) === id) held = null;
     if (pending.current === null || idOf(pending.current) !== id) return;
     clearTimeout(timer.current);
     pending.current = null;
   };
   const resume = (id: string): void => {
-    if (held.current === null || idOf(held.current) !== id) return;
-    void save(held.current);
-    held.current = null;
+    if (held === null || idOf(held) !== id) return;
+    void save(held);
+    held = null;
   };
   return { saved, setSaved, cancel, resume };
 };

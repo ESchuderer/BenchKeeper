@@ -44,6 +44,10 @@ const connect = async (): Promise<Session | null> => {
   };
 };
 
+// A chunk the server no longer has (CedarLoom was updated while this tab stayed open) cannot load, which would end the
+// page: load it anew, as Vite advises. The session survives a reload, and an open workflow comes back from its draft.
+window.addEventListener("vite:preloadError", () => location.reload());
+
 const root = createRoot(document.getElementById("root") ?? document.body);
 const session = await connect().catch(() => null);
 root.render(

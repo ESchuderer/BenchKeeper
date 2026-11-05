@@ -1,8 +1,9 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CSRF_HEADER } from "@cedarloom/contracts";
 import { type Started, startServer } from "@cedarloom/server";
 import {
   type APIResponse,
@@ -20,12 +21,13 @@ test.describe.configure({ mode: "serial" });
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 let server: Started;
+let state: string;
 let context: BrowserContext;
 let page: Page;
 const errors: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
-  const state = join(mkdtempSync(join(tmpdir(), "cedarloom-editor-")), "state");
+  state = join(mkdtempSync(join(tmpdir(), "cedarloom-editor-")), "state");
   server = await startServer({ state, ui: join(import.meta.dirname, "..", "dist"), log: (text) => errors.push(text) });
   ({ context, page } = await openPage(browser, errors, { width: 1280, height: 1000 }));
 });
@@ -46,6 +48,26 @@ const view = (name: string): Promise<void> =>
 const selected = /\bselected\b/;
 // The editor's status line; the problems panel's count, also a status, comes after it.
 const said = (): Locator => page.getByRole("status").first();
+const offers = (): Locator => page.getByRole("region", { name: "Unsaved drafts" });
+
+/** Sends a request of the page's own session, as another tab of it would, and returns the JSON answer. */
+const request = (path: string, init: { method?: string; body?: unknown } = {}): Promise<unknown> =>
+  page.evaluate(
+    async ({ url, options, header }) => {
+      const headers = { [header]: sessionStorage.getItem("cedarloom.csrf") ?? "", "content-type": "application/json" };
+      const body = options.body === undefined ? null : JSON.stringify(options.body);
+      const answer = await fetch(url, { method: options.method ?? "GET", headers, body });
+      return answer.json();
+    },
+    { url: path, options: init, header: CSRF_HEADER },
+  );
+
+/** The ids of the drafts in the state folder. */
+const stored = async (): Promise<string[]> => {
+  const answer = await request("/api/drafts");
+  const drafts = typeof answer === "object" && answer !== null && "drafts" in answer ? answer.drafts : [];
+  return Array.isArray(drafts) ? drafts.map((draft) => String(Object(draft).id)) : [];
+};
 
 /** Where a handle is once the canvas stopped moving: fit view applies its zoom over the next frames. */
 const settled = async (target: Locator): Promise<{ x: number; y: number; width: number; height: number }> => {
@@ -71,8 +93,24 @@ const connect = async (from: Locator, to: Locator): Promise<void> => {
   await page.mouse.up();
 };
 
-test("the Workflows view opens a new workflow with the attribution link, minimap and controls, and passes axe", async () => {
+test("a chunk that cannot load reloads the page, and the view opens after it", async () => {
   await page.goto(server.url);
+  // The server was updated while the tab stayed open: the editor's chunk (its preload and its import) is gone, and the
+  // new page finds it again.
+  const chunk = /\/assets\/Editor-[^/]+\.js$/;
+  await page.route(chunk, (route) => route.abort());
+  const reloaded = page.waitForEvent("load");
+  await view("Workflows");
+  await reloaded;
+  await page.unroute(chunk);
+  await view("Workflows");
+  await expect(card("start")).toBeVisible();
+  // The browser reports the aborted load; nothing else went wrong.
+  expect(errors.filter((text) => !/Editor-|ERR_FAILED|NS_ERROR|dynamically imported|import/i.test(text))).toEqual([]);
+  errors.length = 0;
+});
+
+test("the Workflows view opens a new workflow with the attribution link, minimap and controls, and passes axe", async () => {
   await view("Workflows");
   await expect(page.getByRole("region", { name: "Workflow graph" })).toBeVisible();
   await expect(card("start")).toContainText("trigger.manual");
@@ -315,4 +353,61 @@ test("auto layout runs ELK in a worker, moves only positions in one undo step, a
   await expect(page.getByRole("link", { name: /Layout by elkjs/ })).toHaveAttribute("href", "licenses/elkjs.txt");
   await accessible();
   expect(errors).toEqual([]);
+});
+
+test("an edit is saved as a draft; after a reload it is offered, Restore brings it back, an export removes it", async () => {
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-minimal.json"));
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(card("command-run-1")).toBeVisible();
+  await expect.poll(stored).toContain("minimal");
+  await expect(page.getByText(/^Saved as a draft at /)).toBeVisible();
+  // A reload keeps the session and starts the editor anew, with the drafts on offer.
+  await page.reload();
+  await view("Workflows");
+  // The keyboard test's workflow was saved too; the workflows exported since have no draft.
+  await expect(offers()).toContainText("minimal, saved");
+  await expect(offers()).toContainText("workflow, saved");
+  await expect(offers().getByRole("button", { name: /^Restore/ })).toHaveCount(2);
+  await accessible();
+  await offers().getByRole("button", { name: "Restore the draft of minimal" }).click();
+  await expect(card("command-run-1")).toBeVisible();
+  await expect(page.getByText(/^Restored the draft saved at /)).toBeVisible();
+  await expect(offers()).not.toContainText("minimal");
+  await offers().getByRole("button", { name: "Discard the draft of workflow" }).click();
+  await expect(offers()).toHaveCount(0);
+  expect(await stored()).not.toContain("workflow");
+  const saved = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export JSON" }).click();
+  await saved;
+  await expect.poll(stored).not.toContain("minimal");
+  expect(errors).toEqual([]);
+});
+
+test("a broken draft can only be discarded, and a save over a draft another tab changed says so", async () => {
+  writeFileSync(join(state, "drafts", "workflow-broken.json"), "{");
+  await page.reload();
+  await view("Workflows");
+  await offers().getByRole("button", { name: "Restore the draft of broken" }).click();
+  await expect(offers()).toContainText(
+    "It cannot be restored: It does not match the workflow schema: (top) invalid_json.",
+  );
+  await expect(offers().getByRole("button", { name: "Restore the draft of broken" })).toHaveCount(0);
+  await accessible();
+  await offers().getByRole("button", { name: "Discard the draft of broken" }).click();
+  await expect(offers()).toHaveCount(0);
+  expect(await stored()).not.toContain("broken");
+  // This tab saves the new workflow, another tab then saves its own version, and this tab saves again.
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(page.getByText(/^Saved as a draft at /)).toBeVisible();
+  const other = {
+    ...JSON.parse(readFileSync(join(corpus, "valid-minimal.json"), "utf8")),
+    metadata: { id: "workflow", name: "Other", version: "1.0.0" },
+  };
+  await request("/api/drafts/workflow", { method: "PUT", body: { workflow: other, replaces: null } });
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(said()).toHaveText(
+    "The draft of workflow had changed in another tab or an earlier session; this tab's version replaced it.",
+  );
+  // Chromium reports the 409 of the broken draft's read as a failed load; nothing else went wrong.
+  expect(errors.filter((text) => !text.includes("409"))).toEqual([]);
 });

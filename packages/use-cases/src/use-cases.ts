@@ -59,14 +59,8 @@ const settled = (outcome: Outcome, skipped: Finding[], undoes: string | null): R
   return { runId, status, findings: [...skipped, ...outcome.findings, ...stopped] };
 };
 
-/** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */
-export const loadPlan = (path: string): Result<Plan> => {
-  let text: string;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
-  }
+/** The document a file's text holds: `document.invalid` for text that is no JSON, else as `read` decides. */
+export const parseDocument = <T>(text: string, read: (json: unknown) => Result<T>): Result<T> => {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -76,7 +70,18 @@ export const loadPlan = (path: string): Result<Plan> => {
       finding: { code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } },
     };
   }
-  return readDocument(Plan, PLAN_SCHEMA_VERSION, json);
+  return read(json);
+};
+
+/** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */
+export const loadPlan = (path: string): Result<Plan> => {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
+  }
+  return parseDocument(text, (json) => readDocument(Plan, PLAN_SCHEMA_VERSION, json));
 };
 
 export const previewPlan = (plan: Plan): PlanPreview => ({

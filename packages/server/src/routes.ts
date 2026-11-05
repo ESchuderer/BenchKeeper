@@ -1,4 +1,7 @@
 import {
+  Draft,
+  DraftInfo,
+  DraftSaved,
   type Finding,
   Finding as FindingSchema,
   Refusal,
@@ -7,6 +10,8 @@ import {
   Sha256,
   Step,
   UndoPreview,
+  WorkflowId,
+  WorkflowJson,
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -18,7 +23,8 @@ const RunPath = z.strictObject({ runId: z.uuid() });
 const answers = <T extends object>(codes: T): T & { default: typeof Problem } => ({ ...codes, default: Problem });
 const Problem = z.object({ error: z.string() }).describe("A request the server refused, by error code");
 
-const status = (finding: Finding): 404 | 409 => (finding.code === "run.not-found" ? 404 : 409);
+const status = (finding: Finding): 404 | 409 =>
+  finding.code === "run.not-found" || finding.code === "draft.not-found" ? 404 : 409;
 const refusal = (finding: Finding): { findings: Finding[] } => ({ findings: [finding] });
 
 /** POST /api/session: the URL token, once, for the session cookie and the CSRF token. */
@@ -100,6 +106,54 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
       if (!undone.ok) return reply.code(status(undone.finding)).send(refusal(undone.finding));
       const done = undone.value.status === "applied" || undone.value.status === "nothing-to-undo";
       return reply.code(done ? 200 : 409).send(undone.value);
+    },
+  );
+};
+
+/**
+ * The editor's drafts in the state folder: the list, one draft with its workflow, a save (the last one wins and says
+ * whether it replaced another tab's), and a delete after an export, a new workflow or a discard.
+ */
+export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
+  const DraftPath = z.strictObject({ id: WorkflowId });
+  app.get(
+    "/api/drafts",
+    { schema: { response: answers({ 200: z.strictObject({ drafts: z.array(DraftInfo) }) }) } },
+    async () => ({ drafts: useCases.listDrafts(state) }),
+  );
+  app.get(
+    "/api/drafts/:id",
+    { schema: { params: DraftPath, response: answers({ 200: Draft, 404: Refusal, 409: Refusal }) } },
+    async (req, reply) => {
+      const read = useCases.readDraft(state, req.params.id);
+      return read.ok ? read.value : reply.code(status(read.finding)).send(refusal(read.finding));
+    },
+  );
+  app.put(
+    "/api/drafts/:id",
+    {
+      // A workflow's canonical file is larger than its compact JSON, so a body at this limit is checked again.
+      bodyLimit: useCases.DRAFT_LIMIT,
+      schema: {
+        params: DraftPath,
+        body: z.strictObject({
+          workflow: WorkflowJson,
+          replaces: Sha256.nullable().describe("The hash of the version this save replaces; null for a new draft"),
+        }),
+        response: answers({ 200: DraftSaved, 409: Refusal }),
+      },
+    },
+    async (req, reply) => {
+      const saved = useCases.saveDraft(state, req.params.id, req.body.workflow, req.body.replaces);
+      return saved.ok ? saved.value : reply.code(status(saved.finding)).send(refusal(saved.finding));
+    },
+  );
+  app.delete(
+    "/api/drafts/:id",
+    { schema: { params: DraftPath, response: answers({ 204: z.null().describe("Deleted"), 404: Refusal }) } },
+    async (req, reply) => {
+      const deleted = useCases.deleteDraft(state, req.params.id);
+      return deleted.ok ? reply.code(204).send(null) : reply.code(404).send(refusal(deleted.finding));
     },
   );
 };

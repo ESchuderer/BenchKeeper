@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Finding } from "./findings.ts";
 import { DeleteFile, PLAN_SCHEMA_VERSION, Sha256, WriteFile } from "./plan.ts";
 import { contracts } from "./registry.ts";
+import { WorkflowId } from "./workflow.ts";
 
 // Run and Step parse rows of the run store too, so unknown columns are dropped, not refused.
 
@@ -72,3 +73,32 @@ export const Refusal = z.strictObject({ findings }).register(contracts, { id: "R
 
 /** A `runs` event of the event stream (GET /api/events): the runs as they stand, sent whenever they change. */
 export const RunsEvent = z.strictObject({ runs: z.array(Run) }).register(contracts, { id: "RunsEvent" });
+
+const savedAt = z.iso.datetime().describe("When the draft was last saved");
+
+/**
+ * A workflow document (WorkflowDefinition.schema.json). The API passes it as JSON, and each side reads it with
+ * readDocument, which also refuses values nested over 32 levels before the schema runs.
+ */
+export const WorkflowJson = z.unknown().describe("A workflow document, as in WorkflowDefinition.schema.json");
+
+/**
+ * A draft as the list shows it, without its contents: the working copy of one workflow in the state folder, saved by
+ * the editor while it is open, so a reload or a closed window loses nothing.
+ */
+export const DraftInfo = z
+  .strictObject({ id: WorkflowId, savedAt, bytes: z.int().min(0) })
+  .register(contracts, { id: "DraftInfo" });
+export type DraftInfo = z.infer<typeof DraftInfo>;
+
+/** A draft with its workflow; a later save names `hash` as the version it replaces. */
+export const Draft = z
+  .strictObject({ id: WorkflowId, savedAt, hash: Sha256, workflow: WorkflowJson })
+  .register(contracts, { id: "Draft" });
+export type Draft = z.infer<typeof Draft>;
+
+/** A saved draft; `overwrote`: the draft had changed since the version the save named (another tab saved it). */
+export const DraftSaved = z
+  .strictObject({ id: WorkflowId, savedAt, hash: Sha256, bytes: z.int().min(0), overwrote: z.boolean() })
+  .register(contracts, { id: "DraftSaved" });
+export type DraftSaved = z.infer<typeof DraftSaved>;

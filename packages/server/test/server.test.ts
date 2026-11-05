@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/use-cases";
+import { applyPlan, DRAFT_LIMIT } from "@cedarloom/use-cases";
 import { afterEach, expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
@@ -515,6 +515,73 @@ test("a client that stops reading gets no queue of changed run lists, one send w
   expect(warnings).toEqual([]);
 });
 
+const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+const DRAFT = "/api/drafts/build-and-review";
+
+/** A logged-in client and a workflow from the corpus to save as a draft. */
+const drafting = async (): Promise<Client & { workflow: Record<string, unknown> }> => {
+  const client = await open();
+  await client.login();
+  const workflow: Record<string, unknown> = JSON.parse(
+    await readFile(join(corpus, "valid-build-and-review.json"), "utf8"),
+  );
+  return { ...client, workflow };
+};
+
+test("drafts are saved, listed, read and deleted behind the session checks; a save says when it replaced another", async () => {
+  const { api, workflow } = await drafting();
+  expect(await api({ path: "/api/drafts", headers: { cookie: "" } })).toMatchObject({ status: 401 });
+  expect(await api({ path: "/api/drafts" })).toMatchObject({ status: 200, body: { drafts: [] } });
+  const first = await api({ method: "PUT", path: DRAFT, body: { workflow, replaces: null } });
+  const { hash } = z.object({ hash: z.string() }).parse(first.body);
+  expect(first).toMatchObject({ status: 200, body: { id: "build-and-review", overwrote: false } });
+  expect(await api({ path: "/api/drafts" })).toMatchObject({ body: { drafts: [{ id: "build-and-review" }] } });
+  expect(await api({ path: DRAFT })).toMatchObject({ status: 200, body: { workflow, hash } });
+  // Two tabs save on the version both saw: both are written, and the second learns that it replaced the first's.
+  const renamed = { ...workflow, metadata: { id: "build-and-review", name: "Renamed", version: "1.0.0" } };
+  expect(await api({ method: "PUT", path: DRAFT, body: { workflow: renamed, replaces: hash } })).toMatchObject({
+    body: { overwrote: false },
+  });
+  const again = { method: "PUT", path: DRAFT, body: { workflow, replaces: hash } };
+  expect(await api(again)).toMatchObject({ body: { overwrote: true } });
+  // A save needs the CSRF header like every other request.
+  expect(await api({ ...again, headers: { [CSRF_HEADER]: "x" } })).toMatchObject({ status: 403 });
+  expect(await api({ method: "DELETE", path: DRAFT })).toMatchObject({ status: 204, body: "" });
+  expect(await api({ method: "DELETE", path: DRAFT })).toMatchObject({
+    status: 404,
+    body: { findings: [{ code: "draft.not-found" }] },
+  });
+});
+
+test("a draft that is missing, broken, no workflow or too large is refused with its finding", async () => {
+  const { api, state, workflow } = await drafting();
+  await api({ method: "PUT", path: DRAFT, body: { workflow, replaces: null } });
+  writeFileSync(join(state, "drafts", "workflow-broken.json"), "{");
+  const metadata = { id: "w", name: "W", version: "1.0.0" };
+  // Compact JSON under the body limit whose canonical file, one value per line, is over the draft limit.
+  const long = { ...workflow, metadata: { ...metadata, list: Array(300_000).fill(1) } };
+  const refusals: [Call, number, string][] = [
+    [{ path: "/api/drafts/broken" }, 409, "document.invalid"],
+    [{ path: "/api/drafts/none" }, 404, "draft.not-found"],
+    [{ method: "PUT", path: DRAFT, body: { workflow: { kind: "other" }, replaces: null } }, 409, "document.invalid"],
+    [{ method: "PUT", path: DRAFT, body: { workflow: long, replaces: null } }, 409, "draft.too-large"],
+  ];
+  for (const [sent, code, finding] of refusals) {
+    expect(await api(sent)).toMatchObject({ status: code, body: { findings: [{ code: finding }] } });
+  }
+  const huge = { ...workflow, metadata: { ...metadata, notes: "x".repeat(DRAFT_LIMIT) } };
+  expect(await api({ method: "PUT", path: DRAFT, body: { workflow: huge, replaces: null } })).toMatchObject({
+    status: 413,
+    body: { error: "FST_ERR_CTP_BODY_TOO_LARGE" },
+  });
+  expect(await api({ path: "/api/drafts/not%20an%20id" })).toMatchObject({
+    status: 400,
+    body: { error: "invalid-request" },
+  });
+  // The refused saves left the draft as it was.
+  expect(await api({ path: DRAFT })).toMatchObject({ status: 200, body: { workflow } });
+});
+
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));
@@ -524,6 +591,8 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
     "/api/runs/{runId}",
     "/api/doctor",
     "/api/runs/{runId}/undo",
+    "/api/drafts",
+    "/api/drafts/{id}",
     "/api/events",
   ]);
 });

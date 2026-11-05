@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "JoinPolicy.schema.json",
+  "type": "string",
+  "enum": [
+    "all",
+    "any"
+  ]
+}

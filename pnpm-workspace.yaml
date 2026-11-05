@@ -14,6 +14,7 @@ peerDependencyRules:
 
 # One version per shared dependency: packages name it as "catalog:".
 catalog:
+  fast-check: 4.10.2
   zod: 4.6.7
 
 # shortcut: thread-stream 4.2.0 (pino, through fastify) names a worker_threads type that @types/node 26 removed, which

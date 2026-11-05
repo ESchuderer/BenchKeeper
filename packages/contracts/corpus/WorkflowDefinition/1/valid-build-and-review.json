@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "build-and-review",
+    "name": "Build and review",
+    "version": "1.0.0",
+    "description": "Lint and test side by side, then an agent reviews the result before a person approves it.",
+    "minApp": "0.1.0"
+  },
+  "inputs": {
+    "focus": {
+      "type": "string",
+      "required": true,
+      "description": "What the review looks at"
+    }
+  },
+  "outputs": {
+    "report": {
+      "type": "string"
+    }
+  },
+  "nodes": [
+    {
+      "id": "approval",
+      "type": "human.approval",
+      "with": {
+        "message": "Accept the review?"
+      }
+    },
+    {
+      "id": "lint",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm lint"
+      }
+    },
+    {
+      "id": "review",
+      "type": "agent.run",
+      "with": {
+        "provider": "claude-code",
+        "task": "Review the changes and list findings."
+      }
+    },
+    {
+      "id": "start",
+      "type": "trigger.manual"
+    },
+    {
+      "id": "tests",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm test"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "lint",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "tests",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "lint",
+        "handle": "done"
+      },
+      "to": {
+        "node": "review",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "tests",
+        "handle": "done"
+      },
+      "to": {
+        "node": "review",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "input": "focus"
+      },
+      "to": {
+        "node": "review",
+        "handle": "context"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "review",
+        "handle": "done"
+      },
+      "to": {
+        "node": "approval",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "review",
+        "handle": "result"
+      },
+      "to": {
+        "output": "report"
+      }
+    }
+  ],
+  "execution": {
+    "maxConcurrency": 4,
+    "failurePolicy": "fail_fast",
+    "nodes": {
+      "review": {
+        "timeoutSeconds": 1800,
+        "retries": 1
+      }
+    }
+  },
+  "layout": {
+    "nodes": {
+      "approval": {
+        "x": 600,
+        "y": 80
+      },
+      "lint": {
+        "x": 200,
+        "y": 0
+      },
+      "review": {
+        "x": 400,
+        "y": 80
+      },
+      "start": {
+        "x": 0,
+        "y": 80
+      },
+      "tests": {
+        "x": 200,
+        "y": 160
+      }
+    }
+  }
+}

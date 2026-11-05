@@ -1,0 +1,18 @@
+{
+  "edges": [],
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "minimal",
+    "name": "Minimal",
+    "version": "1.0.0"
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "type": "trigger.manual",
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "schemaVersion": 1
+}

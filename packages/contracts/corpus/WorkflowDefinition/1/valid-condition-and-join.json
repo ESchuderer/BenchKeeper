@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "nightly-notes",
+    "name": "Nightly notes",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "publish": {
+      "type": "boolean"
+    }
+  },
+  "nodes": [
+    {
+      "id": "ask",
+      "type": "human.approval",
+      "with": {
+        "message": "Publish the notes?"
+      }
+    },
+    {
+      "id": "build",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm build"
+      }
+    },
+    {
+      "id": "fix",
+      "type": "agent.run",
+      "with": {
+        "task": "Explain why the build failed."
+      }
+    },
+    {
+      "id": "gate",
+      "type": "condition"
+    },
+    {
+      "id": "merge",
+      "type": "join",
+      "with": {
+        "policy": "any"
+      }
+    },
+    {
+      "id": "notes",
+      "type": "file.write",
+      "with": {
+        "path": "notes/build.md"
+      }
+    },
+    {
+      "id": "start",
+      "type": "trigger.schedule",
+      "with": {
+        "cron": "0 3 * * *"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "build",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "build",
+        "handle": "done"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "input": "publish"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "value"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "gate",
+        "handle": "true"
+      },
+      "to": {
+        "node": "ask",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "gate",
+        "handle": "false"
+      },
+      "to": {
+        "node": "merge",
+        "handle": "branches"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "ask",
+        "handle": "approved"
+      },
+      "to": {
+        "node": "merge",
+        "handle": "branches"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "merge",
+        "handle": "done"
+      },
+      "to": {
+        "node": "notes",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "build",
+        "handle": "stdout"
+      },
+      "to": {
+        "node": "notes",
+        "handle": "content"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "build",
+        "handle": "failed"
+      },
+      "to": {
+        "node": "fix",
+        "handle": "run"
+      }
+    }
+  ],
+  "execution": {
+    "failurePolicy": "continue_independent"
+  }
+}

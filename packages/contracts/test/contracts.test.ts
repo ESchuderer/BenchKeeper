@@ -1,9 +1,16 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { canonicalJson, Plan, readDocument } from "@cedarloom/contracts";
+import {
+  canonicalJson,
+  formatWorkflow,
+  Plan,
+  readDocument,
+  WORKFLOW_SCHEMA_VERSION,
+  WorkflowDefinition,
+} from "@cedarloom/contracts";
+import * as fc from "fast-check";
 import { describe, expect, test } from "vitest";
 
-const corpus = join(import.meta.dirname, "..", "corpus", "Plan");
 const KNOWN = 1;
 
 const expectedCode = (version: string, name: string): string | undefined => {
@@ -11,15 +18,88 @@ const expectedCode = (version: string, name: string): string | undefined => {
   return name.startsWith("valid-") ? undefined : "document.invalid";
 };
 
+/** The golden files of one contract as [version folder, file name, text]. */
+const corpus = async (contract: string): Promise<[string, string, string][]> => {
+  const root = join(import.meta.dirname, "..", "corpus", contract);
+  const versions = await readdir(root);
+  const files = await Promise.all(
+    versions.map(async (version) => (await readdir(join(root, version))).map((name) => [version, name] as const)),
+  );
+  return Promise.all(
+    files.flat().map(async ([version, name]): Promise<[string, string, string]> => {
+      return [version, name, await readFile(join(root, version, name), "utf8")];
+    }),
+  );
+};
+
 describe("golden corpus of plans, one folder per schemaVersion", async () => {
-  for (const version of await readdir(corpus)) {
-    for (const name of await readdir(join(corpus, version))) {
-      test(`${version}/${name}`, async () => {
-        const read = readDocument(Plan, KNOWN, JSON.parse(await readFile(join(corpus, version, name), "utf8")));
-        expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name));
-      });
-    }
+  for (const [version, name, text] of await corpus("Plan")) {
+    test(`${version}/${name}`, () => {
+      const read = readDocument(Plan, KNOWN, JSON.parse(text));
+      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name));
+    });
   }
+});
+
+describe("golden corpus of workflows: valid files are also in their canonical form", async () => {
+  for (const [version, name, text] of await corpus("WorkflowDefinition")) {
+    test(`${version}/${name}`, () => {
+      const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, JSON.parse(text));
+      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name));
+      expect(read.ok ? formatWorkflow(read.value) : text).toBe(text);
+    });
+  }
+});
+
+const id = fc.stringMatching(/^[a-z][a-z0-9-]{0,8}$/);
+const name = fc.stringMatching(/^[a-z][a-z0-9_]{0,8}$/);
+const workflows = fc
+  .record({
+    nodes: fc.uniqueArray(
+      fc.record({ id, type: fc.constantFrom("command.run", "join"), with: fc.dictionary(id, fc.jsonValue()) }),
+      {
+        selector: (node) => node.id,
+        minLength: 1,
+        maxLength: 8,
+      },
+    ),
+    edges: fc.uniqueArray(
+      fc.record({ id, from: fc.record({ node: id, handle: fc.constant("done") }), to: fc.record({ output: name }) }),
+      {
+        selector: (edge) => edge.id,
+        maxLength: 8,
+      },
+    ),
+    layout: fc.dictionary(id, fc.record({ x: fc.integer(), y: fc.integer() })),
+  })
+  .map(({ nodes, edges, layout }) =>
+    WorkflowDefinition.parse({
+      schemaVersion: 1,
+      kind: "cedarloom.workflow",
+      metadata: { id: "w", name: "W", version: "1.0.0" },
+      nodes,
+      edges,
+      layout: { nodes: layout },
+    }),
+  );
+
+test("the file format depends on the workflow only, not on the order of its nodes, edges or keys, and is stable", () => {
+  const reordered = workflows.chain((workflow) =>
+    fc.tuple(
+      fc.constant(workflow),
+      fc.shuffledSubarray(workflow.nodes, { minLength: workflow.nodes.length }),
+      fc.shuffledSubarray(workflow.edges, { minLength: workflow.edges.length }),
+    ),
+  );
+  fc.assert(
+    fc.property(reordered, ([workflow, nodes, edges]) => {
+      const text = formatWorkflow(workflow);
+      // Keys in reverse order, as an editor might write them.
+      const reversed = Object.fromEntries(Object.entries({ ...workflow, nodes, edges }).toReversed());
+      expect(formatWorkflow(WorkflowDefinition.parse(reversed))).toBe(text);
+      expect(formatWorkflow(WorkflowDefinition.parse(JSON.parse(text)))).toBe(text);
+    }),
+  );
 });
 
 test("an invalid document names the path and code of each issue, no prose", () => {

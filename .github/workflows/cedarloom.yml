@@ -32,12 +32,11 @@ env:
   # repository's allowed-actions list holds GitHub's own actions and a few named ones.
   NODE_VERSION: 26.13.0
   TYPOS_VERSION: 1.51.1
-  SCHEMATHESIS_VERSION: 4.33.0
   PATHS: >-
     packages pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json tsconfig.base.json vitest.config.ts
     .oxlintrc.json biome.json knip.json .jscpd.json _typos.toml .gitattributes scripts/*.ts
     release-please-config.cedarloom.json .release-please-manifest.cedarloom.json .github/workflows/cedarloom.yml
-    .github/pnpm
+    .github/pnpm .github/schemathesis
 
 jobs:
   # filter: empty when no CedarLoom path changed, `*` for every package, otherwise the changed packages and their dependents.
@@ -202,8 +201,13 @@ jobs:
           platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
           echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Wheels only and every file checked against its hash: no build script of a dependency runs.
+      - name: Install Schemathesis (pinned with hashes by .github/schemathesis/requirements.txt)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/schemathesis"
+          "$RUNNER_TEMP/schemathesis/bin/pip" install --require-hashes --no-deps --only-binary :all: -r .github/schemathesis/requirements.txt
       - name: Schemathesis against the local API
-        run: node packages/server/scripts/schemathesis.ts pipx run --spec "schemathesis==$SCHEMATHESIS_VERSION" schemathesis
+        run: node packages/server/scripts/schemathesis.ts "$RUNNER_TEMP/schemathesis/bin/schemathesis"
 
   # Vulnerabilities and licenses of changed dependencies (checks.yml reviews vulnerabilities only). Allowed: permissive
   # licenses, MPL-2.0, LGPL-2.1-or-later and LGPL-3.0-or-later, EPL-2.0 (elkjs) and AFL-2.1 (the libdbus license election).

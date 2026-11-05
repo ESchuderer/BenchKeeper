@@ -61,6 +61,23 @@
       }
     },
     {
+      "files": ["packages/client/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cedarloom/contracts",
+                "message": "the client runs in the browser: import @cedarloom/contracts/http, the root brings zod"
+              }
+            ],
+            "patterns": [{ "group": ["node:*"], "message": "the client runs in the browser" }]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/cli/src/**", "packages/server/src/**"],
       "rules": {
         "no-restricted-imports": [

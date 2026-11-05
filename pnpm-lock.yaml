@@ -50,12 +50,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@cedarloom/engine':
+      '@cedarloom/services':
         specifier: workspace:*
-        version: link:../engine
-      '@cedarloom/ledger':
-        specifier: workspace:*
-        version: link:../ledger
+        version: link:../services
       '@commander-js/extra-typings':
         specifier: 15.0.0
         version: 15.0.0(commander@15.0.0)
@@ -63,6 +60,9 @@ importers:
         specifier: 15.0.0
         version: 15.0.0
     devDependencies:
+      '@cedarloom/ledger':
+        specifier: workspace:*
+        version: link:../ledger
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -90,6 +90,18 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
+
+  packages/services:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@cedarloom/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@cedarloom/ledger':
+        specifier: workspace:*
+        version: link:../ledger
 
 packages:
 

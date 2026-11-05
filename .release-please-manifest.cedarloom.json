@@ -1,1 +1,7 @@
-{ "packages/cli": "0.0.0", "packages/contracts": "0.0.0", "packages/engine": "0.0.0", "packages/ledger": "0.0.0" }
+{
+  "packages/cli": "0.0.0",
+  "packages/contracts": "0.0.0",
+  "packages/engine": "0.0.0",
+  "packages/ledger": "0.0.0",
+  "packages/services": "0.0.0"
+}

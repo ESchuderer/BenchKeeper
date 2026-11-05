@@ -4,7 +4,11 @@
   "include-component-in-tag": true,
   "plugins": [
     { "type": "node-workspace", "merge": false },
-    { "type": "linked-versions", "groupName": "cedarloom", "components": ["cli", "contracts", "engine", "ledger"] }
+    {
+      "type": "linked-versions",
+      "groupName": "cedarloom",
+      "components": ["cli", "contracts", "engine", "ledger", "services"]
+    }
   ],
   "packages": {
     "packages/cli": { "component": "cli" },
@@ -13,6 +17,7 @@
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
     },
     "packages/engine": { "component": "engine" },
-    "packages/ledger": { "component": "ledger" }
+    "packages/ledger": { "component": "ledger" },
+    "packages/services": { "component": "services" }
   }
 }

@@ -59,6 +59,22 @@
           }
         ]
       }
+    },
+    {
+      "files": ["packages/cli/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@cedarloom/engine", "@cedarloom/ledger"],
+                "message": "the CLI reaches the engine and the run store only through @cedarloom/services"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

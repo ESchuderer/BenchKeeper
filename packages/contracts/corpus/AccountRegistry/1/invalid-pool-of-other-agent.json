@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 8,
+    "sevenDay": 3
+  },
+  "accounts": [
+    {
+      "name": "one",
+      "agent": "codex",
+      "home": "/a/one",
+      "pool": "main",
+      "added": "2026-11-02T09:00:00.000Z"
+    }
+  ],
+  "pools": {
+    "claude": {
+      "main": {
+        "confirmedAt": null
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 8,
+    "sevenDay": 3
+  },
+  "accounts": [
+    {
+      "name": "work",
+      "agent": "claude",
+      "home": "accounts/work",
+      "pool": null,
+      "added": "2026-11-02T09:00:00.000Z"
+    }
+  ],
+  "pools": {}
+}

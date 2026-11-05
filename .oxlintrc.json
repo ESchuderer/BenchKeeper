@@ -78,6 +78,22 @@
       }
     },
     {
+      "files": ["packages/accounts/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/*", "!@cedarloom/contracts"],
+                "message": "accounts is a pure domain package (D2): the contracts and zod only, no Node and no other package"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/client/src/**"],
       "rules": {
         "no-restricted-imports": [

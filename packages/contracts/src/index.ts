@@ -1,3 +1,4 @@
+export { ACCOUNTS_SCHEMA_VERSION, type Account, AccountRegistry, Agent } from "./accounts.ts";
 export { PlanPreview, Refusal, Run, RunResult, RunsEvent, Step, UndoPreview } from "./api.ts";
 export { type Result, readDocument } from "./documents.ts";
 export { canonicalJson, type Json } from "./json.ts";

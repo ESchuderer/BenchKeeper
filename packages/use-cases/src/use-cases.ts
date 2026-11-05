@@ -30,7 +30,7 @@ const approvedHash = (approval: Approval, plan: Plan): string =>
   approval.approve ?? (approval.yes === true ? planHash(plan) : "");
 
 /** Opens the store for a change, removes what interrupted runs left, and closes it again. */
-const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
+export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
   const store = openRunStore(state);
   if (!store.ok) return store;
   try {

@@ -85,3 +85,30 @@ export const AccountRegistry = z
   .register(fileFormats, { id: "AccountRegistry" });
 export type AccountRegistry = z.infer<typeof AccountRegistry>;
 export type Account = AccountRegistry["accounts"][number];
+
+/** The usage windows of the agent-neutral quota model. */
+export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);
+
+/** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
+export const Reading = z.strictObject({
+  account: Name,
+  window: QuotaWindow,
+  usedPercent: z.number(),
+  resetsAt: z.iso.datetime(),
+  readAt: z.iso.datetime(),
+});
+export type Reading = z.infer<typeof Reading>;
+
+/**
+ * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first
+ * launch), the account chosen, the pool's readings and each candidate's margin above its minimums.
+ */
+export const AccountSwitch = z.strictObject({
+  at: z.iso.datetime(),
+  task: z.string(),
+  from: Name.nullable(),
+  to: Name,
+  readings: z.array(Reading),
+  candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
+});
+export type AccountSwitch = z.infer<typeof AccountSwitch>;

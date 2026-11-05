@@ -25,3 +25,23 @@ CREATE TABLE steps (
   PRIMARY KEY (runId, "index")
 ) STRICT;
 `;
+
+/** Schema 2: the latest reading per account and usage window, and one row per launch-time account choice. */
+export const ACCOUNT_TABLES = `
+CREATE TABLE readings (
+  account TEXT NOT NULL,
+  "window" TEXT NOT NULL CHECK ("window" IN ('fiveHour', 'sevenDay')),
+  usedPercent REAL NOT NULL,
+  resetsAt TEXT NOT NULL,
+  readAt TEXT NOT NULL,
+  PRIMARY KEY (account, "window")
+) STRICT;
+CREATE TABLE switches (
+  at TEXT NOT NULL,
+  task TEXT NOT NULL,
+  fromAccount TEXT,
+  toAccount TEXT NOT NULL,
+  readings TEXT NOT NULL,
+  candidates TEXT NOT NULL
+) STRICT;
+`;

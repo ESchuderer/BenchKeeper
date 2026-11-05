@@ -99,17 +99,20 @@ test("reads and another process's runs, side by side, wait out each other's brie
   expect([code, failures]).toEqual([0, []]);
 }, 15_000);
 
-test("a store written by a newer CedarLoom is refused", () => {
+/** A store whose schema version only a newer CedarLoom knows. */
+const newerStore = (): string => {
   const dir = fresh();
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 2");
+  db.exec("PRAGMA user_version = 3");
   db.close();
-  expect(openRunStore(dir)).toEqual({
-    ok: false,
-    finding: { code: "store.newer-schema", params: { found: 2, known: 1 } },
-  });
+  return dir;
+};
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 3, known: 2 } } };
+
+test("a store written by a newer CedarLoom is refused", () => {
+  expect(openRunStore(newerStore())).toEqual(NEWER);
 });
 
 test("a network filesystem is refused for the run store", () => {
@@ -225,16 +228,7 @@ test("a view treats a store whose schema was never created (a first open cut off
 });
 
 test("a view refuses a store written by a newer CedarLoom", () => {
-  const dir = fresh();
-  opened(dir).close();
-  open.length = 0;
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 3");
-  db.close();
-  expect(openRunView(dir)).toEqual({
-    ok: false,
-    finding: { code: "store.newer-schema", params: { found: 3, known: 1 } },
-  });
+  expect(openRunView(newerStore())).toEqual(NEWER);
 });
 
 test("the schema is created in one transaction: a failure halfway leaves no partial schema to block the next open", () => {
@@ -326,4 +320,63 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   });
   expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
   expect(store.runs()).toEqual([]);
+});
+
+test("a store of schema 1 gains the account tables on open and keeps its runs", () => {
+  const dir = fresh();
+  const runId = opened(dir).begin("apply", plan, planHash(plan));
+  open.splice(0).forEach((store) => store.close());
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("DROP TABLE readings; DROP TABLE switches; PRAGMA user_version = 1");
+  db.close();
+  const store = opened(dir);
+  expect(store.readings()).toEqual([]);
+  expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
+  const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
+  after.close();
+});
+
+test("the latest reading per account and window stays; an older one arriving late does not replace it", () => {
+  const store = opened(fresh());
+  const reading = {
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 40,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+  } as const;
+  store.recordReading({ ...reading, readAt: "2026-11-05T12:00:00.000Z" });
+  store.recordReading({ ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" });
+  store.recordReading({ ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" });
+  store.recordReading({ ...reading, usedPercent: 45, readAt: "2026-11-05T12:01:00.000Z" });
+  expect(store.readings()).toEqual([
+    { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" },
+    { ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" },
+  ]);
+});
+
+test("a switch row keeps its time, task, from, to, readings and candidates", () => {
+  const store = opened(fresh());
+  const reading = {
+    account: "spare",
+    window: "fiveHour",
+    usedPercent: 5,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+    readAt: "2026-11-05T12:00:00.000Z",
+  } as const;
+  const row = {
+    task: "t1",
+    from: null,
+    to: "spare",
+    readings: [reading],
+    candidates: [{ account: "spare", margin: 87 }],
+  };
+  store.recordSwitch(row);
+  store.recordSwitch({ ...row, from: "spare", to: "work", readings: [], candidates: [] });
+  const rows = store.switches();
+  expect(rows).toEqual([
+    { ...row, at: expect.any(String) },
+    { ...row, from: "spare", to: "work", readings: [], candidates: [], at: expect.any(String) },
+  ]);
+  expect(Date.parse(rows[0]?.at ?? "")).toBeGreaterThan(Date.now() - 60_000);
 });

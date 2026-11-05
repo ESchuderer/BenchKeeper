@@ -3,10 +3,12 @@ import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs"
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
+  AccountSwitch,
   canonicalJson,
   type Finding,
   PLAN_SCHEMA_VERSION,
   Plan,
+  Reading,
   type Result,
   Run,
   readDocument,
@@ -14,9 +16,11 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { TABLES } from "./rows.ts";
+import { ACCOUNT_TABLES, TABLES } from "./rows.ts";
 
-const SCHEMA = 1;
+const SCHEMA = 2;
+// The schema changes in order: the one at index i takes a store from schema i to i + 1.
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES];
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -219,6 +223,49 @@ export class RunStore extends RunView {
     });
   }
 
+  /** Keeps the latest reading per account and window: a reading older than the stored one is dropped. */
+  recordReading(reading: Reading): void {
+    this.db
+      .prepare(
+        `INSERT INTO readings VALUES (?, ?, ?, ?, ?) ON CONFLICT (account, "window") DO UPDATE SET
+         usedPercent = excluded.usedPercent, resetsAt = excluded.resetsAt, readAt = excluded.readAt
+         WHERE excluded.readAt >= readings.readAt`,
+      )
+      .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
+  }
+
+  readings(): Reading[] {
+    return this.db
+      .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt FROM readings ORDER BY account, "window"`)
+      .all()
+      .map((row) => Reading.parse(row));
+  }
+
+  /** Records a launch-time account choice, dated now. */
+  recordSwitch(choice: Omit<AccountSwitch, "at">): void {
+    this.db
+      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?)")
+      .run(
+        now(),
+        choice.task,
+        choice.from,
+        choice.to,
+        JSON.stringify(choice.readings),
+        JSON.stringify(choice.candidates),
+      );
+  }
+
+  /** The account choices in the order they were made. */
+  switches(): AccountSwitch[] {
+    return this.db
+      .prepare(
+        `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount,
+         'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
+      )
+      .all()
+      .map((row) => AccountSwitch.parse(JSON.parse(String(row["row"]))));
+  }
+
   override close(): void {
     super.close();
     this.#lock.close();
@@ -267,7 +314,9 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
       const version = versionOf(db);
       if (version > SCHEMA) return refuse(db, lock, version);
       // One transaction: a crash halfway through leaves no partial schema that blocks the next open.
-      if (version === 0) transaction(db, () => db.exec(`${TABLES}; PRAGMA user_version = ${SCHEMA}`));
+      if (version < SCHEMA) {
+        transaction(db, () => db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`));
+      }
       return { ok: true, value: new RunStore(dir, db, lock) };
     } catch (error) {
       db.close();

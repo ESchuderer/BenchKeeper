@@ -272,6 +272,9 @@ importers:
 
   packages/use-cases:
     dependencies:
+      '@cedarloom/accounts':
+        specifier: workspace:*
+        version: link:../accounts
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts

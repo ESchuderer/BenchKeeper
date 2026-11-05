@@ -10,7 +10,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
-import { CSRF_HEADER, guard, portOf, Session } from "./session.ts";
+import { CSRF_HEADER, frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
   /** The run store's folder. */
@@ -41,7 +41,7 @@ const description = [
 
 /** The local server's routes over the application services, with the session guard on every request. */
 export const buildApp = async ({ state, session, log }: AppOptions): Promise<FastifyInstance> => {
-  const app = Fastify({ bodyLimit: BODY_LIMIT });
+  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(swagger, {

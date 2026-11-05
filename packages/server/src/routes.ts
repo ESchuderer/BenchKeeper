@@ -13,8 +13,10 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { cookieName, portOf, type Session } from "./session.ts";
 
-const Problem = z.strictObject({ error: z.string() });
 const RunPath = z.strictObject({ runId: z.string() });
+/** Every route can also answer 400, 401, 403, 413, 415 or 421 with an error code from the guard or the parser. */
+const answers = <T extends object>(codes: T): T & { default: typeof Problem } => ({ ...codes, default: Problem });
+const Problem = z.object({ error: z.string() }).describe("A request the server refused, by error code");
 
 const status = (finding: Finding): 404 | 409 => (finding.code === "run.not-found" ? 404 : 409);
 const refusal = (finding: Finding): { findings: Finding[] } => ({ findings: [finding] });
@@ -26,7 +28,7 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
     {
       schema: {
         body: z.strictObject({ token: z.string() }),
-        response: { 200: z.strictObject({ csrf: z.string() }), 401: Problem },
+        response: answers({ 200: z.strictObject({ csrf: z.string() }) }),
       },
     },
     async (req, reply) => {
@@ -49,7 +51,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
   const RunDetail = z.strictObject({ run: Run, steps: z.array(Step) });
   app.get(
     "/api/runs",
-    { schema: { response: { 200: z.strictObject({ runs: z.array(Run) }), 409: Refusal } } },
+    { schema: { response: answers({ 200: z.strictObject({ runs: z.array(Run) }), 409: Refusal }) } },
     async (_req, reply) => {
       const runs = services.listRuns(state);
       return runs.ok ? { runs: runs.value } : reply.code(409).send(refusal(runs.finding));
@@ -57,7 +59,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
   );
   app.get(
     "/api/runs/:runId",
-    { schema: { params: RunPath, response: { 200: RunDetail, 404: Refusal, 409: Refusal } } },
+    { schema: { params: RunPath, response: answers({ 200: RunDetail, 404: Refusal, 409: Refusal }) } },
     async (req, reply) => {
       const shown = services.showRun(state, req.params.runId);
       return shown.ok ? shown.value : reply.code(status(shown.finding)).send(refusal(shown.finding));
@@ -65,7 +67,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
   );
   app.get(
     "/api/doctor",
-    { schema: { response: { 200: z.strictObject({ findings: z.array(FindingSchema) }) } } },
+    { schema: { response: answers({ 200: z.strictObject({ findings: z.array(FindingSchema) }) }) } },
     async () => ({
       findings: services.doctor(state),
     }),
@@ -76,7 +78,7 @@ export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, {
 export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
   app.get(
     "/api/runs/:runId/undo",
-    { schema: { params: RunPath, response: { 200: UndoPreview, 404: Refusal, 409: Refusal } } },
+    { schema: { params: RunPath, response: answers({ 200: UndoPreview, 404: Refusal, 409: Refusal }) } },
     async (req, reply) => {
       const preview = services.previewUndo(state, req.params.runId);
       return preview.ok ? preview.value : reply.code(status(preview.finding)).send(refusal(preview.finding));
@@ -88,12 +90,15 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
       schema: {
         params: RunPath,
         body: z.strictObject({ approve: Sha256.describe("The planHash of the undo preview the user approved") }),
-        response: { 200: RunResult, 404: Refusal, 409: Refusal },
+        // 409 with a run result: refused (the files changed since the preview) or stopped midway.
+        response: answers({ 200: RunResult, 404: Refusal, 409: z.union([RunResult, Refusal]) }),
       },
     },
     async (req, reply) => {
       const undone = services.undoRun(state, req.params.runId, { approve: req.body.approve });
-      return undone.ok ? undone.value : reply.code(status(undone.finding)).send(refusal(undone.finding));
+      if (!undone.ok) return reply.code(status(undone.finding)).send(refusal(undone.finding));
+      const done = undone.value.status === "applied" || undone.value.status === "nothing-to-undo";
+      return reply.code(done ? 200 : 409).send(undone.value);
     },
   );
 };

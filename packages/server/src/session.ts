@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 
 /** The header that carries the CSRF token the session exchange returned; a page of another origin cannot read it. */
 export const CSRF_HEADER = "x-cedarloom-csrf";
@@ -84,6 +84,16 @@ const outside = (req: FastifyRequest, session: Session, port: number): Refusal =
   if (req.method === "POST" && req.routeOptions.url === "/api/session") return null;
   if (!session.hasCookie(cookieValues(req.headers.cookie, cookieName(port)))) return [401, "no-session"];
   return session.hasCsrf(req.headers[CSRF_HEADER]) ? null : [403, "csrf"];
+};
+
+/** Router errors (a malformed or overlong path) are answered before any hook runs: the origin rules first, no details. */
+export const frameworkErrors = (error: FastifyError, req: FastifyRequest, reply: FastifyReply): FastifyReply => {
+  const [code, text] = foreign(req, `127.0.0.1:${portOf(req.server.server)}`) ?? [error.statusCode ?? 400, error.code];
+  // These replies skip the onSend hooks, so the headers the other answers get from them are set here.
+  return reply
+    .code(code)
+    .headers({ "cache-control": "no-store", "x-content-type-options": "nosniff" })
+    .send({ error: text });
 };
 
 /** Checks every request, unknown paths too: the origin rules, then the session cookie and the CSRF header except for the exchange. */

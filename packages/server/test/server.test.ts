@@ -98,7 +98,7 @@ afterEach(async () => {
 });
 
 test("the server listens on 127.0.0.1 with the token in the URL fragment, and answers any other Host with 421", async () => {
-  const { server, port, token, api } = await open();
+  const { server, port, token, api, login } = await open();
   expect(server.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/#t=[A-Za-z0-9_-]{43}$`));
   expect(Buffer.from(token, "base64url")).toHaveLength(32);
   // localhost, another port and a rebound DNS name all reach the same socket, and none of them is this origin.
@@ -106,12 +106,28 @@ test("the server listens on 127.0.0.1 with the token in the URL fragment, and an
     const answer = await api({ method: "POST", path: "/api/session", headers: { host }, body: { token } });
     expect([host, answer.status, answer.body]).toEqual([host, 421, { error: "wrong-host" }]);
   }
+  // The router answers a malformed or overlong path before any hook: it gets the origin rules and no details too.
+  const malformed = { path: "/api/runs/%zz", headers: { host: "attacker.example" } };
+  const refused = await api(malformed);
+  expect([refused.status, refused.body, refused.headers["cache-control"]]).toEqual([
+    421,
+    { error: "wrong-host" },
+    "no-store",
+  ]);
+  expect((await api({ ...malformed, headers: { origin: "http://attacker.example" } })).status).toBe(403);
+  expect(await api({ path: "/api/runs/%zz" })).toMatchObject({ status: 400, body: { error: "FST_ERR_BAD_URL" } });
+  expect(await api({ path: `/api/runs/${"a".repeat(101)}` })).toMatchObject({
+    status: 414,
+    body: { error: "FST_ERR_MAX_PARAM_LENGTH" },
+  });
+  // None of these refusals spent the token.
+  await expect(login()).resolves.toMatchObject({ csrf: expect.any(String) });
 });
 
 test("the URL token is exchanged once, before it expires, for an HttpOnly SameSite=Strict cookie and a CSRF token", async () => {
   const { port, token, api, login } = await open();
   expect((await api({ method: "POST", path: "/api/session", body: { token: `${token}x` } })).status).toBe(401);
-  const exchanged = await api({ method: "POST", path: "/api/session", body: { token } });
+  const exchanged = await api({ method: "POST", path: "/api/session?from=link", body: { token } });
   expect(exchanged.status).toBe(200);
   expect(exchanged.headers["set-cookie"]).toEqual([
     expect.stringMatching(new RegExp(`^${cookieName(port)}=[A-Za-z0-9_-]{43}; HttpOnly; SameSite=Strict; Path=/$`)),
@@ -127,9 +143,21 @@ test("the URL token is exchanged once, before it expires, for an HttpOnly SameSi
 });
 
 test("every other request needs the session cookie and the CSRF header, unknown paths too", async () => {
-  const { port, api, login } = await open();
+  const { port, token, api, login } = await open();
   expect(await api({ path: "/api/runs" })).toMatchObject({ status: 401, body: { error: "no-session" } });
-  expect(await api({ path: "/nowhere" })).toMatchObject({ status: 401 });
+  // Before the exchange there is no cookie value or CSRF token to match, empty ones included.
+  const empty = { cookie: sessionCookie(port, ""), [CSRF_HEADER]: "" };
+  const unknown = [
+    { method: "GET", path: "/api/runs" },
+    { method: "HEAD", path: "/api/runs" },
+    { method: "OPTIONS", path: "/api/runs" },
+    { method: "GET", path: "/nowhere" },
+  ];
+  for (const sent of unknown) {
+    expect([sent, (await api({ ...sent, headers: empty })).status]).toEqual([sent, 401]);
+  }
+
+  expect((await api({ method: "POST", path: "/api/session/", body: { token } })).status).toBe(401);
   const { cookie, csrf } = await login();
   expect(await api({ path: "/api/runs", headers: { [CSRF_HEADER]: "" } })).toMatchObject({ status: 403 });
   expect(await api({ path: "/api/runs", headers: { [CSRF_HEADER]: `${csrf}x` } })).toMatchObject({
@@ -145,18 +173,35 @@ test("every other request needs the session cookie and the CSRF header, unknown 
 test("a foreign Origin or a cross-site fetch is refused, and no request gets CORS headers", async () => {
   const { port, api, login } = await open();
   await login();
-  for (const origin of [`http://127.0.0.1:${port + 1}`, `http://localhost:${port}`, "null"]) {
-    expect(await api({ path: "/api/runs", headers: { origin } })).toMatchObject({
+  // The undo too: refused before its handler runs, which would answer 404 for this unknown run.
+  const undo = { method: "POST", path: "/api/runs/r1/undo", body: { approve: "0".repeat(64) } };
+  for (const sent of [{ path: "/api/runs" }, undo]) {
+    for (const origin of [`http://127.0.0.1:${port + 1}`, `http://localhost:${port}`, "null"]) {
+      expect(await api({ ...sent, headers: { origin } })).toMatchObject({
+        status: 403,
+        body: { error: "foreign-origin" },
+      });
+    }
+    for (const site of ["same-site", "cross-site"]) {
+      expect(await api({ ...sent, headers: { "sec-fetch-site": site } })).toMatchObject({
+        status: 403,
+        body: { error: "cross-site" },
+      });
+    }
+    expect(await api({ ...sent, headers: { [CSRF_HEADER]: "" } })).toMatchObject({
       status: 403,
-      body: { error: "foreign-origin" },
+      body: { error: "csrf" },
     });
   }
-  for (const site of ["same-site", "cross-site"]) {
-    expect(await api({ path: "/api/runs", headers: { "sec-fetch-site": site } })).toMatchObject({
-      status: 403,
-      body: { error: "cross-site" },
-    });
-  }
+  expect((await api(undo)).status).toBe(404);
+  // Opening the printed link is a top-level navigation the user started: Sec-Fetch-Site none.
+  expect((await api({ path: "/api/runs", headers: { "sec-fetch-site": "none" } })).status).toBe(200);
+  const refusal = await api({ path: "/api/runs", headers: { origin: "null" } });
+  expect(refusal.headers).toMatchObject({
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "content-security-policy": expect.stringContaining("frame-ancestors 'none'"),
+  });
   const own = { origin: `http://127.0.0.1:${port}`, "sec-fetch-site": "same-origin" };
   const allowed = await api({ path: "/api/runs", headers: own });
   const preflight = await api({
@@ -249,7 +294,7 @@ test("an undo is previewed without file contents and applies only with the hash 
   const { planHash } = z.object({ planHash: z.string() }).parse(preview.body);
   const undo = (approve: unknown) => client.api({ method: "POST", path: `/api/runs/${runId}/undo`, body: { approve } });
   expect((await undo("yes")).status).toBe(400);
-  expect((await undo(sha256("another plan"))).body).toMatchObject({ status: "refused" });
+  expect(await undo(sha256("another plan"))).toMatchObject({ status: 409, body: { status: "refused" } });
   expect(await readFile(path, "utf8")).toBe("KEY=new-secret\n");
   expect(await undo(planHash)).toMatchObject({ status: 200, body: { status: "applied", findings: [] } });
   expect(await readFile(path, "utf8")).toBe("KEY=old-secret\n");

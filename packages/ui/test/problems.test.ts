@@ -13,7 +13,8 @@ const sample = (code: string): Record<string, unknown> => {
     if (key === "kind") return "node";
     if (key === "end") return "from";
     if (key === "section") return "layout";
-    return /from|to$/.test(key) && code.includes("handles") ? "string" : key;
+    // The handle types of the two handle findings; every other parameter gets its own name as text.
+    return (key === "from" || key === "to") && code.includes("handles") ? "string" : key;
   };
   return Object.fromEntries(Object.keys(shape).map((key) => [key, value(key)]));
 };

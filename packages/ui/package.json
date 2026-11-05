@@ -25,7 +25,7 @@
     "@axe-core/playwright": "4.14.0",
     "@cedarloom/client": "workspace:*",
     "@cedarloom/server": "workspace:*",
-    "@cedarloom/services": "workspace:*",
+    "@cedarloom/use-cases": "workspace:*",
     "@lingui/cli": "6.11.0",
     "@lingui/core": "6.11.0",
     "@lingui/format-po": "6.11.0",

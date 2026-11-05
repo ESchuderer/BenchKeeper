@@ -59,12 +59,12 @@ importers:
       '@cedarloom/server':
         specifier: workspace:*
         version: link:../server
-      '@cedarloom/services':
-        specifier: workspace:*
-        version: link:../services
       '@cedarloom/ui':
         specifier: workspace:*
         version: link:../ui
+      '@cedarloom/use-cases':
+        specifier: workspace:*
+        version: link:../use-cases
       '@commander-js/extra-typings':
         specifier: 15.0.0
         version: 15.0.0(commander@15.0.0)
@@ -94,9 +94,9 @@ importers:
       '@cedarloom/server':
         specifier: workspace:*
         version: link:../server
-      '@cedarloom/services':
+      '@cedarloom/use-cases':
         specifier: workspace:*
-        version: link:../services
+        version: link:../use-cases
       openapi-typescript:
         specifier: 7.13.0
         version: 7.13.0(@typescript/typescript6@6.0.2)
@@ -138,9 +138,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@cedarloom/services':
+      '@cedarloom/use-cases':
         specifier: workspace:*
-        version: link:../services
+        version: link:../use-cases
       '@fastify/helmet':
         specifier: 13.2.0
         version: 13.2.0
@@ -170,18 +170,6 @@ importers:
         specifier: workspace:*
         version: link:../ledger
 
-  packages/services:
-    dependencies:
-      '@cedarloom/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@cedarloom/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@cedarloom/ledger':
-        specifier: workspace:*
-        version: link:../ledger
-
   packages/ui:
     devDependencies:
       '@axe-core/playwright':
@@ -193,9 +181,9 @@ importers:
       '@cedarloom/server':
         specifier: workspace:*
         version: link:../server
-      '@cedarloom/services':
+      '@cedarloom/use-cases':
         specifier: workspace:*
-        version: link:../services
+        version: link:../use-cases
       '@lingui/cli':
         specifier: 6.11.0
         version: 6.11.0(rolldown@1.2.16)(supports-color@10.2.2)
@@ -232,6 +220,18 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)
+
+  packages/use-cases:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@cedarloom/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@cedarloom/ledger':
+        specifier: workspace:*
+        version: link:../ledger
 
 packages:
 

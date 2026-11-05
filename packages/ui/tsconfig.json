@@ -15,5 +15,5 @@
     "emitDeclarationOnly": true
   },
   "include": ["src", "test", "scripts", "schema", "lingui.config.ts", "vite.config.ts", "locales/en/messages.json"],
-  "references": [{ "path": "../client" }, { "path": "../server" }, { "path": "../services" }]
+  "references": [{ "path": "../client" }, { "path": "../server" }, { "path": "../use-cases" }]
 }

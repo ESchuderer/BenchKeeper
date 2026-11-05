@@ -2,7 +2,7 @@
   "name": "@cedarloom/server",
   "version": "0.0.0",
   "private": true,
-  "description": "The CedarLoom local server: the HTTP API over the application services on 127.0.0.1, with its session security and OpenAPI document.",
+  "description": "The CedarLoom local server: the HTTP API over the use cases on 127.0.0.1, with its session security and OpenAPI document.",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
-    "@cedarloom/services": "workspace:*",
+    "@cedarloom/use-cases": "workspace:*",
     "@fastify/helmet": "13.2.0",
     "@fastify/sse": "0.6.1",
     "@fastify/static": "10.1.8",

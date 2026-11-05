@@ -1,10 +1,10 @@
 import { type Finding, findingInfo, type Plan, type PlanPreview, type RunResult } from "@cedarloom/contracts";
-import * as services from "@cedarloom/services";
-import type { Approval } from "@cedarloom/services";
+import * as useCases from "@cedarloom/use-cases";
+import type { Approval } from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
-  const plan = services.loadPlan(path);
+  const plan = useCases.loadPlan(path);
   if (plan.ok) return plan.value;
   return fail(ctx, "plan", [plan.finding], plan.finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data);
 };
@@ -34,7 +34,7 @@ const ask = (preview: PlanPreview): string =>
 export const plansShow = (ctx: Context, path: string): number => {
   const plan = loadPlan(ctx, path);
   if (typeof plan === "number") return plan;
-  const preview = services.previewPlan(plan);
+  const preview = useCases.previewPlan(plan);
   emit(ctx, "plan", preview, showPlan(preview));
   return EXIT.ok;
 };
@@ -42,18 +42,18 @@ export const plansShow = (ctx: Context, path: string): number => {
 export const plansApply = (ctx: Context, path: string, approval: Approval): number => {
   const plan = loadPlan(ctx, path);
   if (typeof plan === "number") return plan;
-  const preview = services.previewPlan(plan);
+  const preview = useCases.previewPlan(plan);
   if (!approved(approval)) {
     emit(ctx, "plan", preview, ask(preview));
     return EXIT.ok;
   }
   if (!ctx.json) ctx.io.out(`${showPlan(preview)}\n`);
-  const run = services.applyPlan(ctx.state, plan, approval);
+  const run = useCases.applyPlan(ctx.state, plan, approval);
   return run.ok ? result(ctx, run.value) : fail(ctx, "run", [run.finding], EXIT.refused);
 };
 
 export const runsList = (ctx: Context): number => {
-  const runs = services.listRuns(ctx.state);
+  const runs = useCases.listRuns(ctx.state);
   if (!runs.ok) return fail(ctx, "runs", [runs.finding], EXIT.refused);
   const lines = runs.value.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
   emit(ctx, "runs", { runs: runs.value }, lines.length > 0 ? lines.join("\n") : "No runs yet.");
@@ -61,7 +61,7 @@ export const runsList = (ctx: Context): number => {
 };
 
 export const runsShow = (ctx: Context, runId: string): number => {
-  const shown = services.showRun(ctx.state, runId);
+  const shown = useCases.showRun(ctx.state, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);
   const { run, steps } = shown.value;
   const lines = steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);
@@ -75,7 +75,7 @@ export const runsShow = (ctx: Context, runId: string): number => {
 };
 
 const previewUndo = (ctx: Context, runId: string): number => {
-  const preview = services.previewUndo(ctx.state, runId);
+  const preview = useCases.previewUndo(ctx.state, runId);
   if (!preview.ok) return readFailed(ctx, preview.finding);
   const { value } = preview;
   emit(
@@ -95,12 +95,12 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
   const show = (preview: PlanPreview): void => {
     if (!ctx.json) ctx.io.out(`${showPlan(preview)}\n`);
   };
-  const undone = services.undoRun(ctx.state, runId, approval, show);
+  const undone = useCases.undoRun(ctx.state, runId, approval, show);
   return undone.ok ? result(ctx, undone.value) : fail(ctx, "run", [undone.finding], EXIT.refused);
 };
 
 export const doctor = (ctx: Context): number => {
-  const findings = services.doctor(ctx.state);
+  const findings = useCases.doctor(ctx.state);
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;

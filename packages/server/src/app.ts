@@ -1,9 +1,11 @@
 import helmet from "@fastify/helmet";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { fastifySSE } from "@fastify/sse";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
+import fp from "fastify-plugin";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
   createJsonSchemaTransform,
@@ -12,6 +14,7 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from "fastify-type-provider-zod";
+import { eventRoutes } from "./events.ts";
 import { runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
@@ -23,6 +26,8 @@ export interface AppOptions {
   log: (text: string) => void;
   /** The folder of the built web UI, served at /; without it the server answers the API only. */
   ui?: string | undefined;
+  /** How often the event streams read the run store, in ms (default 1000). */
+  every?: number | undefined;
 }
 
 // Requests carry ids, hashes and the session token, never file contents.
@@ -71,9 +76,10 @@ const methods = (app: FastifyInstance): void => {
 };
 
 /** The local server's routes over the application services, with the session guard on every request. */
-export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise<FastifyInstance> => {
+export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOptions): Promise<FastifyInstance> => {
   // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
-  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000 });
+  // Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
+  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000, forceCloseConnections: true });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(swagger, {
@@ -108,6 +114,10 @@ export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
+  // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
+  // as its own module.exports, which shares reply.sse with the routes beside it.
+  await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
+  await app.register(eventRoutes, { state, every, log });
   if (ui !== undefined && existsSync(join(ui, "index.html")))
     await app.register(serveStatic, { root: ui, dotfiles: "deny" });
   else if (ui !== undefined) log(`The web UI is not built in ${ui}, so only the API answers.\n`);

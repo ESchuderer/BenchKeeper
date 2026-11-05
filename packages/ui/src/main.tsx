@@ -1,9 +1,9 @@
 import "@mantine/core/styles.css";
-import { type Api, client, exchange } from "@cedarloom/client";
+import { client, exchange, subscribe } from "@cedarloom/client";
 import { Alert, Container, createTheme, MantineProvider, type MantineColorsTuple, Title } from "@mantine/core";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.tsx";
+import { App, type Session } from "./App.tsx";
 import { t } from "./i18n.ts";
 
 const KEY = "cedarloom.csrf";
@@ -28,7 +28,7 @@ const theme = createTheme({ primaryColor: "cedar", primaryShade: 7, colors: { ce
  * The URL token works once: the CSRF token it buys stays in this tab's sessionStorage, so a reload keeps the session,
  * and the token leaves the address bar and the history before anything else runs.
  */
-const connect = async (): Promise<Api | null> => {
+const connect = async (): Promise<Session | null> => {
   const token = new URLSearchParams(location.hash.slice(1)).get("t");
   history.replaceState(null, "", "/");
   try {
@@ -37,15 +37,19 @@ const connect = async (): Promise<Api | null> => {
     // A link used before, opened again: the session this tab already holds, if any, still works.
   }
   const csrf = sessionStorage.getItem(KEY);
-  return csrf === null ? null : client(location.origin, csrf);
+  if (csrf === null) return null;
+  return {
+    api: client(location.origin, csrf),
+    listen: (onEvent, signal) => subscribe(location.origin, csrf, onEvent, { signal }),
+  };
 };
 
 const root = createRoot(document.getElementById("root") ?? document.body);
-const api = await connect().catch(() => null);
+const session = await connect().catch(() => null);
 root.render(
   <StrictMode>
     <MantineProvider theme={theme}>
-      {api === null ? (
+      {session === null ? (
         <Container component="main" size="sm" py="xl">
           <Title order={1} size="h3" mb="md">
             {t("app.title")}
@@ -55,7 +59,7 @@ root.render(
           </Alert>
         </Container>
       ) : (
-        <App api={api} />
+        <App session={session} />
       )}
     </MantineProvider>
   </StrictMode>,

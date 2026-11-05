@@ -1,10 +1,11 @@
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Started, startServer } from "@cedarloom/server";
 import { applyPlan } from "@cedarloom/services";
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
 
 // One server per file, started inside the worker: its URL token works once.
 test.describe.configure({ mode: "serial" });
@@ -13,6 +14,7 @@ let server: Started;
 let context: BrowserContext;
 let page: Page;
 let file = "";
+let stateDir = "";
 const errors: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
@@ -23,7 +25,13 @@ test.beforeAll(async ({ browser }) => {
     { schemaVersion: 1, operations: [{ kind: "write", path: file, before: null, content: "hi\n" }] },
     { yes: true },
   );
-  server = await startServer({ state, ui: join(import.meta.dirname, "..", "dist"), log: (text) => errors.push(text) });
+  stateDir = state;
+  server = await startServer({
+    state,
+    ui: join(import.meta.dirname, "..", "dist"),
+    every: 100,
+    log: (text) => errors.push(text),
+  });
   // axe needs a page of a context the test made.
   context = await browser.newContext();
   page = await context.newPage();
@@ -113,7 +121,70 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   await expect(page.getByRole("status")).toHaveText(/^The undo ran as run [0-9a-f-]{36}\.$/);
   await expect(page.getByRole("status")).toBeFocused();
   await expect(page.getByText("Nothing to undo.")).toBeVisible();
+  // The undo run arrives through the event stream.
+  const table = page.getByRole("table", { name: "Runs, newest first" });
+  await expect(table.getByRole("cell", { name: "Undo", exact: true })).toBeVisible();
   expect([existsSync(file), errors]).toEqual([false, []]);
+});
+
+const failed = (route: Route): Promise<void> => route.fulfill({ status: 500, json: { error: "internal" } });
+
+/** Applies a run from outside the page, as the CLI does, and waits for its row to appear without a reload. */
+const appliedElsewhere = async (name: string): Promise<void> => {
+  const table = page.getByRole("table", { name: "Runs, newest first" });
+  await expect(table).toBeVisible();
+  const rows = await table.getByRole("row").count();
+  const path = join(stateDir, "..", name);
+  applyPlan(
+    stateDir,
+    { schemaVersion: 1, operations: [{ kind: "write", path, before: null, content: "x\n" }] },
+    { yes: true },
+  );
+  await expect(table.getByRole("row")).toHaveCount(rows + 1);
+};
+
+test("a run another process applies appears without a reload", async () => {
+  await appliedElsewhere("other.md");
+  expect(errors).toEqual([]);
+});
+
+test("a stream that ends opens again, also after the API failed once, and the error goes", async () => {
+  // The page's next stream ends at once, as one does after a store read that failed, and the check after it fails.
+  // The 500 is set up only when that stream is asked for: Firefox lets the unloading page send its own check.
+  const ended = async (route: Route): Promise<void> => {
+    await page.route("**/api/runs", failed, { times: 1 });
+    await route.fulfill({ contentType: "text/event-stream", body: "" });
+  };
+  await page.route("**/api/events", ended, { times: 1 });
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText("The server answered 500");
+  await appliedElsewhere("again.md");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  // The browser may log the failed request; nothing else may show up.
+  expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
+  errors.length = 0;
+});
+
+test("while the API keeps failing, each check waits twice as long as the one before", async () => {
+  const checks: number[] = [];
+  const counted = (route: Route): Promise<void> => {
+    checks.push(Date.now());
+    return failed(route);
+  };
+  await page.route("**/api/events", failed);
+  await page.route("**/api/runs", counted);
+  await page.reload();
+  // 2 s, then 4 s. The last three only: in Firefox the unloading page sends a check of its own.
+  const doubling = (): boolean => {
+    const [first = 0, second = 0, third = 0] = checks.slice(-3);
+    return checks.length >= 3 && second - first > 1500 && third - second > 3500;
+  };
+  await expect.poll(doubling, { timeout: 10_000 }).toBe(true);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.reload();
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
+  errors.length = 0;
 });
 
 test("a new tab has no session and says how to get one", async () => {
@@ -122,4 +193,12 @@ test("a new tab has no session and says how to get one", async () => {
   await expect(fresh.getByRole("alert")).toHaveText(/Run cedarloom ui again/);
   await accessible(fresh);
   await fresh.close();
+});
+
+test("a store the server cannot read any more is named in the page, live", async () => {
+  const db = new DatabaseSync(join(stateDir, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 9");
+  db.close();
+  await expect(page.getByRole("alert")).toContainText("store.newer-schema");
+  await accessible();
 });

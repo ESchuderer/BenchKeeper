@@ -43,8 +43,9 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
   );
 };
 
-// shortcut: the services are synchronous, so an apply or a busy store (up to 1 s) holds the event loop; move them to a
-// worker once a second request has to be answered meanwhile (the SSE run view).
+// shortcut: the services are synchronous, so an undo or a busy store (up to 1 s) holds the event loop, and the event
+// streams' reads wait meanwhile (they are fast: the lock probe does not wait); move the services to a worker when undos
+// get long or several tabs need answers during one.
 
 /** The runs, one run with its steps, and the doctor's findings; reads never write. */
 export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {

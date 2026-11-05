@@ -225,6 +225,13 @@ export class RunStore extends RunView {
   }
 }
 
+/**
+ * How long a connection to runs.sqlite waits when another one briefly locks it out: a writer's last close cleans up
+ * the WAL, and the next open recovers it. Without the wait, reads and opens alongside another process's runs fail
+ * with "database is locked". The lock file's probe does not wait (see #probe).
+ */
+const SETTLE_MS = 250;
+
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
 
 const refuse = (db: DatabaseSync, lock: DatabaseSync, found: number): Result<RunStore> => {
@@ -252,7 +259,7 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
   }
   // Every failure below releases the lock, else each later open in this process would answer "busy".
   try {
-    const db = new DatabaseSync(join(dir, "runs.sqlite"));
+    const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
     try {
       chmodSync(join(dir, "runs.sqlite"), 0o600);
       db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
@@ -274,7 +281,7 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
 /** Opens a store for reading; null when no run was ever recorded in `dir`. */
 export const openRunView = (dir: string): Result<RunView | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
-  const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
+  const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true, timeout: SETTLE_MS });
   const found = versionOf(db);
   if (found > 0 && found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
   db.close();

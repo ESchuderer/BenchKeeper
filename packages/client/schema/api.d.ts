@@ -350,6 +350,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description text/event-stream: `runs` events with RunsEvent, `refusal` events with Refusal */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -596,6 +630,9 @@ export interface components {
         RefusalInput: {
             findings: components["schemas"]["FindingInput"][];
         };
+        RunsEventInput: {
+            runs: components["schemas"]["RunInput"][];
+        };
         SchemaVersion: number;
         Sha256: string;
         WriteFile: {
@@ -837,6 +874,9 @@ export interface components {
         };
         Refusal: {
             findings: components["schemas"]["Finding"][];
+        };
+        RunsEvent: {
+            runs: components["schemas"]["Run"][];
         };
     };
     responses: never;

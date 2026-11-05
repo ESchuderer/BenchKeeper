@@ -18,7 +18,8 @@
     "typecheck": "tsc -b",
     "build": "vite build",
     "catalog": "lingui compile --namespace json && node scripts/catalog.ts && biome format --write locales",
-    "test:ui": "vite build && playwright test --forbid-only --browser=chromium"
+    "test:ui": "vite build && playwright test --forbid-only --browser=chromium",
+    "prepack": "vite build"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

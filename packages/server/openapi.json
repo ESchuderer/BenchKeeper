@@ -1190,6 +1190,21 @@
         ],
         "additionalProperties": false
       },
+      "RunsEventInput": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunInput"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "additionalProperties": false
+      },
       "SchemaVersion": {
         "type": "integer",
         "exclusiveMinimum": 0,
@@ -2374,6 +2389,21 @@
           "findings"
         ],
         "additionalProperties": false
+      },
+      "RunsEvent": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "additionalProperties": false
       }
     }
   },
@@ -2783,6 +2813,16 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "description": "text/event-stream: `runs` events with RunsEvent, `refusal` events with Refusal",
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }

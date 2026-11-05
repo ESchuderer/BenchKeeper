@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
@@ -61,6 +63,8 @@ interface Client {
   /** A request with the session cookie and the CSRF header, once `login` ran. */
   api: (sent: Call) => Promise<Answer>;
   login: () => Promise<{ cookie: string; csrf: string }>;
+  /** The session cookie and CSRF header `login` set. */
+  auth: () => Record<string, string>;
 }
 
 /** Starts a server on a fresh state folder; `login` exchanges the URL token as the UI page does. */
@@ -73,6 +77,7 @@ const serve = async (
   const server = await startServer({
     state,
     ui,
+    every: 25,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
   });
@@ -89,7 +94,7 @@ const serve = async (
     return { cookie, csrf };
   };
   const api = (sent: Call): Promise<Answer> => call(port, { ...sent, headers: { ...auth, ...sent.headers } });
-  return { server, port, token, state, log, api, login };
+  return { server, port, token, state, log, api, login, auth: () => auth };
 };
 
 const sessionCookie = (port: number, value: string): string => `${cookieName(port)}=${value}`;
@@ -403,6 +408,113 @@ test("a busy or newer store is a 409 with its finding; a broken one a 500 whose 
   }
 });
 
+/** Reads the event stream with the given headers and hands each event to `next` until it returns true or `ms` pass. */
+const stream = (
+  port: number,
+  headers: Record<string, string>,
+  next: (event: string, data: unknown) => boolean,
+  ms = 5000,
+) =>
+  new Promise<string>((resolve, reject) => {
+    const req = request({
+      host: "127.0.0.1",
+      port,
+      path: "/api/events",
+      headers: { host: `127.0.0.1:${port}`, ...headers },
+    });
+    setTimeout(() => req.destroy(), ms);
+    req.on("response", (res) => {
+      let buffer = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => {
+        buffer += chunk;
+        for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+          const [event, data] = [/^event: (.*)$/m, /^data: (.*)$/m].map((line) => line.exec(buffer.slice(0, end))?.[1]);
+          buffer = buffer.slice(end + 2);
+          if (event !== undefined && data !== undefined && next(event, JSON.parse(data))) req.destroy();
+        }
+      });
+      res.on("close", () => resolve(`${res.statusCode} ${res.headers["cache-control"]}`));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+
+test("the event stream sends the runs at once and again whenever they change, behind the session checks", async () => {
+  const client = await ready();
+  const { auth } = client;
+  const seen: unknown[] = [];
+  const done = stream(client.port, { accept: "text/event-stream", ...auth() }, (event, data) => {
+    seen.push([event, data]);
+    if (seen.length === 1) replaced(client);
+    return seen.length === 2;
+  });
+  expect(await done).toBe("200 no-store");
+  expect(seen).toMatchObject([
+    ["runs", { runs: [] }],
+    ["runs", { runs: [{ kind: "apply", status: "applied" }] }],
+  ]);
+  const { [CSRF_HEADER]: _csrf, ...cookieOnly } = auth();
+  expect(await stream(client.port, { accept: "text/event-stream", ...cookieOnly }, () => true)).toMatch(/^403 /);
+  expect(await stream(client.port, { accept: "application/json", ...auth() }, () => true)).toMatch(/^406 /);
+  // A HEAD would hold a stream open: it has no route, so it is a 405 that names GET.
+  const head = await client.api({ method: "HEAD", path: "/api/events" });
+  expect([head.status, head.headers["allow"]]).toEqual([405, "GET"]);
+  const db = new DatabaseSync(join(client.state, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 4");
+  db.close();
+  // Unchanged reads send nothing: one refusal in 150 ms of reads every 25 ms.
+  const refused: unknown[] = [];
+  const keep = (event: string, data: unknown): boolean => refused.push([event, data]) < 0;
+  await stream(client.port, { accept: "text/event-stream", ...auth() }, keep, 150);
+  expect(refused).toMatchObject([["refusal", { findings: [{ code: "store.newer-schema" }] }]]);
+});
+
+test("a store that turns unreadable ends the open stream and goes to the log; the server keeps answering", async () => {
+  const client = await ready();
+  replaced(client);
+  const seen: string[] = [];
+  const ended = stream(client.port, { accept: "text/event-stream", ...client.auth() }, (event) => {
+    seen.push(event);
+    writeFileSync(join(client.state, "runs.sqlite"), "not a database");
+    return false;
+  });
+  expect([await ended, seen]).toEqual(["200 no-store", ["runs"]]);
+  expect(client.log.join("")).toContain("The event stream stopped");
+  expect((await client.api({ path: "/nowhere" })).status).toBe(404);
+  // Unreadable at connect: no stream opens, and the error handler answers.
+  expect(await stream(client.port, { accept: "text/event-stream", ...client.auth() }, () => true)).toMatch(/^500 /);
+});
+
+test("a client that stops reading gets no queue of changed run lists, one send waits at most", async () => {
+  const client = await ready();
+  replaced(client);
+  // 3,000 runs make each event about 800 KB, so the socket buffers fill within a few changes.
+  const db = new DatabaseSync(join(client.state, "runs.sqlite"));
+  db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3000)
+    INSERT INTO runs (id, kind, plan, planHash, approvedHash, status, epoch, startedAt, finishedAt)
+    SELECT 'copy-' || i, kind, plan, planHash, approvedHash, status, epoch, startedAt, finishedAt FROM runs, n`);
+  // Every pending send waits on the socket's drain event; more than 10 waiting draws this warning.
+  const warnings: string[] = [];
+  const warned = (warning: Error): number => warnings.push(warning.name);
+  process.on("warning", warned);
+  const headers = { host: `127.0.0.1:${client.port}`, accept: "text/event-stream", ...client.auth() };
+  const socket = connect(client.port, "127.0.0.1").pause();
+  socket.write(
+    `GET /api/events HTTP/1.1\r\n${Object.entries(headers)
+      .map(([k, v]) => `${k}: ${v}\r\n`)
+      .join("")}\r\n`,
+  );
+  for (let i = 1; i <= 60; i += 1) {
+    db.prepare("UPDATE runs SET finishedAt = ? WHERE id = 'copy-1'").run(new Date(Date.now() + i * 1000).toISOString());
+    await delay(30);
+  }
+  socket.destroy();
+  db.close();
+  process.off("warning", warned);
+  expect(warnings).toEqual([]);
+});
+
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));
@@ -412,5 +524,6 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
     "/api/runs/{runId}",
     "/api/doctor",
     "/api/runs/{runId}/undo",
+    "/api/events",
   ]);
 });

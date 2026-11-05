@@ -10,7 +10,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 ### App
 
 ```sh
-npx benchkeeper@6.25.0
+npx benchkeeper@6.26.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -18,18 +18,18 @@ Opens the browser on the Dashboard with the doctor findings (the read-only check
 ### CLI
 
 ```sh
-npx benchkeeper@6.25.0 plan
+npx benchkeeper@6.26.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.25.0 apply
+npx benchkeeper@6.26.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.26.0 history` lists what changed, `npx benchkeeper@6.26.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details). [What the app writes and what it never does](../docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
@@ -38,7 +38,7 @@ After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists wh
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.25.0 <command>`. A clone of the branch `stable` runs the latest release (each release moves it); to run a change that is not on npm yet, clone the default branch (`--branch main`).
+- From npm: `npx benchkeeper@6.26.0 <command>`. A clone of the branch `stable` runs the latest release (each release moves it); to run a change that is not on npm yet, clone the default branch (`--branch main`).
 - From a clone: `git clone --depth 1 --branch stable https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML), [yaml](https://github.com/eemeli/yaml) 2.9.1 (workflow files for `projects audit`). The web UI (React, Mantine) is built into `dist/` and ships in the package.
@@ -167,7 +167,7 @@ The exit codes are the same with and without `--json`.
 
 ## Web UI
 
-`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link works once and for 10 minutes, and only as printed: at `http://127.0.0.1:<port>` with the printed port, not at `localhost` or through a forwarded port with another number. A used, expired or wrong-host link, and a tab left open after the server was started again, show what happened; start the app again (`npx benchkeeper@6.25.0`) and open the new link. The browser gets a file only you can read, which forwards to the link, so the token stays out of process arguments other local users can see. The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`) and an API key that the page keeps in its own origin's storage. API requests need both: browsers send the cookie to every server on `127.0.0.1`, the key stays with this page. The sessions board frame, which cannot send a header, loads with a one-time ticket the page asks for with the key. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and API requests without the key in the `x-benchkeeper` header. It stops with Ctrl+C in its terminal or with the Stop button in the header, which the server refuses while an apply or eval runs; scans and setup suggestions still running are cancelled. Recorded agent sessions run from the CLI only. Applies, evals and setup suggestions run on the server: while one runs, the header shows it and opens its progress, also after a reload.
+`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link works once and for 10 minutes, and only as printed: at `http://127.0.0.1:<port>` with the printed port, not at `localhost` or through a forwarded port with another number. A used, expired or wrong-host link, and a tab left open after the server was started again, show what happened; start the app again (`npx benchkeeper@6.26.0`) and open the new link. The browser gets a file only you can read, which forwards to the link, so the token stays out of process arguments other local users can see. The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`) and an API key that the page keeps in its own origin's storage. API requests need both: browsers send the cookie to every server on `127.0.0.1`, the key stays with this page. The sessions board frame, which cannot send a header, loads with a one-time ticket the page asks for with the key. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and API requests without the key in the `x-benchkeeper` header. It stops with Ctrl+C in its terminal or with the Stop button in the header, which the server refuses while an apply or eval runs; scans and setup suggestions still running are cancelled. Recorded agent sessions run from the CLI only. Applies, evals and setup suggestions run on the server: while one runs, the header shows it and opens its progress, also after a reload.
 
 The sidebar groups the views: Overview (Dashboard, History), Projects (Projects), Catalog (Skills, Packs), Analysis (Sessions, Runs, Insights, Evals), Agent configuration (Global setup, Agent settings, Rules, Extensions, Accounts), Machine (Automations, Preferences), and Advanced while Editors is on.
 

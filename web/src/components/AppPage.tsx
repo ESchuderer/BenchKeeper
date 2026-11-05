@@ -4,7 +4,7 @@ import { SiteShell } from './SiteShell';
 export type Shot = { width: number; height: number };
 
 // The CLI prefix of each view's commands; the release rewrites the version.
-const V = 'npx benchkeeper@6.25.0';
+const V = 'npx benchkeeper@6.26.0';
 
 // One section per view of the app; view is its route in the sidebar of app/ui/App.jsx. The screenshots are saved by app/scripts/screenshots.mjs.
 export const VIEWS: { id: string; view: string; title: string; shot: string; alt: string; text: string[]; cli: string[] }[] = [
@@ -211,7 +211,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>The app</Title>
           <Text size="lg">
-            <code>npx benchkeeper@6.25.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
+            <code>npx benchkeeper@6.26.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
             The same steps run on the command line, see the CLI tab of the <Anchor href={`${base}/#start`}>quick start</Anchor>.
           </Text>
           <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</Text>

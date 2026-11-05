@@ -565,6 +565,139 @@ export interface components {
                 found: number;
                 known: number;
             };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-id";
+            params: {
+                /** @enum {string} */
+                kind: "node" | "edge";
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.trigger-count";
+            params: {
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-node-type";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.invalid-config";
+            params: {
+                node: string;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.dangling-edge";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                ref: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-handle";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.incompatible-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unchecked-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.many-sources";
+            params: {
+                node: string | null;
+                handle: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.missing-source";
+            params: {
+                node: string | null;
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.cycle";
+            params: {
+                nodes: string[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.join-branches";
+            params: {
+                node: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.exclusive-sources";
+            params: {
+                node: string;
+                handle: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.optional-input";
+            params: {
+                node: string;
+                handle: string;
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.schedule-input";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unreachable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.stray-entry";
+            params: {
+                /** @enum {string} */
+                section: "execution" | "layout";
+                node: string;
+            };
         };
         RunInput: {
             id: string;
@@ -809,6 +942,139 @@ export interface components {
             params: {
                 found: number;
                 known: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-id";
+            params: {
+                /** @enum {string} */
+                kind: "node" | "edge";
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.trigger-count";
+            params: {
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-node-type";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.invalid-config";
+            params: {
+                node: string;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.dangling-edge";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                ref: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-handle";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.incompatible-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unchecked-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.many-sources";
+            params: {
+                node: string | null;
+                handle: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.missing-source";
+            params: {
+                node: string | null;
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.cycle";
+            params: {
+                nodes: string[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.join-branches";
+            params: {
+                node: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.exclusive-sources";
+            params: {
+                node: string;
+                handle: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.optional-input";
+            params: {
+                node: string;
+                handle: string;
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.schedule-input";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unreachable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.stray-entry";
+            params: {
+                /** @enum {string} */
+                section: "execution" | "layout";
+                node: string;
             };
         };
         Run: {

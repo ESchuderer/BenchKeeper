@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "FailurePolicy.schema.json",
+  "type": "string",
+  "enum": [
+    "fail_fast",
+    "continue_independent"
+  ]
+}

@@ -199,6 +199,21 @@ test("every finding code has an English sentence", () => {
   const params: Record<string, Record<string, unknown>> = {
     "document.invalid": { issues: [{ path: "", code: "invalid_json" }] },
     "plan.chain-broken": { path: "/a.md", index: 1, expected: sha256("a"), found: null },
+    "workflow.duplicate-id": { kind: "node", id: "lint" },
+    "workflow.trigger-count": { count: 0 },
+    "workflow.invalid-config": { node: "j", issues: [{ path: "", code: "invalid_value" }] },
+    "workflow.dangling-edge": { edge: "e1", end: "from", ref: "gone" },
+    "workflow.unknown-handle": { edge: "e1", end: "to", handle: "lint.nope" },
+    "workflow.incompatible-handles": { edge: "e1", from: "number", to: "string" },
+    "workflow.unchecked-handles": { edge: "e1", from: "json", to: "string" },
+    "workflow.many-sources": { node: null, handle: "report", count: 2 },
+    "workflow.missing-source": { node: "check", handle: "value" },
+    "workflow.cycle": { nodes: ["a", "b"] },
+    "workflow.join-branches": { node: "j", count: 1 },
+    "workflow.stray-entry": { section: "layout", node: "gone" },
+    "workflow.exclusive-sources": { node: "notes", handle: "run", from: "gate" },
+    "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
+    "workflow.schedule-input": { input: "branch" },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "optional-input",
+    "name": "Optional input",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "verbose": {
+      "type": "boolean",
+      "description": "Whether the check prints details"
+    }
+  },
+  "nodes": [
+    {
+      "id": "begin",
+      "type": "trigger.manual"
+    },
+    {
+      "id": "check",
+      "type": "condition"
+    }
+  ],
+  "edges": [
+    {
+      "id": "run-check",
+      "from": {
+        "node": "begin",
+        "handle": "start"
+      },
+      "to": {
+        "node": "check",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "verbose-value",
+      "from": {
+        "input": "verbose"
+      },
+      "to": {
+        "node": "check",
+        "handle": "value"
+      }
+    }
+  ]
+}

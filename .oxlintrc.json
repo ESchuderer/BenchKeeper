@@ -104,6 +104,23 @@
           }
         ]
       }
+    },
+    {
+      "files": ["packages/engine/src/graph.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/*", "./*", "../*"],
+                "allowTypeImports": true,
+                "message": "the graph module runs in the browser: it takes types from the contracts, no zod and no Node"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

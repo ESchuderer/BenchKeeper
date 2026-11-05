@@ -228,9 +228,10 @@ export class RunStore extends RunView {
 /**
  * How long a connection to runs.sqlite waits when another one briefly locks it out: a writer's last close cleans up
  * the WAL, and the next open recovers it. Without the wait, reads and opens alongside another process's runs fail
- * with "database is locked". The lock file's probe does not wait (see #probe).
+ * with "database is locked". As long as the store lock's own wait: 250 ms was too short on a loaded CI runner, where
+ * runs in a tight loop kept a reader out longer. The lock file's probe does not wait (see #probe).
  */
-const SETTLE_MS = 250;
+const SETTLE_MS = 1000;
 
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
 

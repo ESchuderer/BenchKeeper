@@ -13,7 +13,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { cookieName, portOf, type Session } from "./session.ts";
 
-const RunPath = z.strictObject({ runId: z.string() });
+const RunPath = z.strictObject({ runId: z.uuid() });
 /** Every route can also answer 400, 401, 403, 413, 415 or 421 with an error code from the guard or the parser. */
 const answers = <T extends object>(codes: T): T & { default: typeof Problem } => ({ ...codes, default: Problem });
 const Problem = z.object({ error: z.string() }).describe("A request the server refused, by error code");

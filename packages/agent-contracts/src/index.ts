@@ -20,7 +20,10 @@ export interface Launch {
   /** The model every subagent runs on, pinned for the phase. */
   readonly subagentModel: string;
   readonly effort: Effort;
-  /** The whole environment of the agent process, without login variables; nothing of the caller's is inherited. */
+  /**
+   * The whole environment of the agent process, without login variables; nothing of the caller's is inherited, except
+   * that on Windows libuv adds the system variables a process needs, PATH among them, when they are missing.
+   */
   readonly env: Readonly<Record<string, string>>;
   /** CLI versions whose contract check passed: an undocumented reading such as usage is reported on these only. */
   readonly verifiedVersions: readonly string[];

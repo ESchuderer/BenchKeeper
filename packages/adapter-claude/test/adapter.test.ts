@@ -7,15 +7,12 @@ import { z } from "zod";
 const fixtures = join(import.meta.dirname, "fixtures");
 const runtime = claudeRuntime([process.execPath, join(fixtures, "fake-claude.ts")]);
 
-// Windows needs SystemRoot to start a process; the adapter passes nothing of the test's own environment.
-const systemRoot = process.env["SystemRoot"] === undefined ? {} : { SystemRoot: process.env["SystemRoot"] };
-
 const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {}): ClaudeLaunch => ({
   ...FRESH_INSTALL_PHASES.implement,
   home: "/accounts/one",
   cwd: fixtures,
   prompt: "Do the task.",
-  env: { ...systemRoot, ...env },
+  env,
   verifiedVersions: ["2.1.316", "2.1.309"],
   ...change,
 });
@@ -41,7 +38,9 @@ test("runs claude -p with stream-json under the account's config folder and maps
     claude_config_dir: "/elsewhere",
     KEEP: "yes",
   };
+  vi.stubEnv("CEDARLOOM_PARENT_ONLY", "1");
   const all = await events(runtime.start(launch(env)));
+  vi.unstubAllEnvs();
   const fake = started(all);
   const flags = ["-p", "--output-format", "stream-json", "--verbose", "--include-hook-events"];
   const settings = ["--model", "claude-sonnet-5-5", "--permission-mode", "dontAsk", "--permission-prompts", "none"];
@@ -55,7 +54,7 @@ test("runs claude -p with stream-json under the account's config folder and maps
     CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5-5",
     CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1",
   });
-  for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "PATH", ...Object.keys(login)]) {
+  for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "CEDARLOOM_PARENT_ONLY", ...Object.keys(login)]) {
     expect(fake.env).not.toHaveProperty(name);
   }
   expect(all.slice(1).map((event) => event.type)).toEqual(["init", "other", "usage", "other", "result", "exit"]);
@@ -108,17 +107,18 @@ test("resumes a session by its ID", async () => {
 });
 
 test("reads the version of the CLI that a launch's environment runs", async () => {
-  await expect(runtime.version(systemRoot)).resolves.toBe("2.1.316");
-  const unknown = { ...systemRoot, FAKE_VERSION: "unknown" };
-  await expect(runtime.version(unknown)).rejects.toThrow("unrecognized claude --version output: unknown");
+  await expect(runtime.version({})).resolves.toBe("2.1.316");
+  await expect(runtime.version({ FAKE_VERSION: "unknown" })).rejects.toThrow(
+    "unrecognized claude --version output: unknown",
+  );
 });
 
 test("a contract check passes only with the version, a usage share and a successful result", async () => {
   const { prompt: _, verifiedVersions: __, ...probe } = launch(stream("stream.jsonl"), { verifiedVersions: [] });
   await expect(runtime.checkContract(probe)).resolves.toEqual({ version: "2.1.316", missing: [] });
-  const older = { ...probe, env: { ...systemRoot, ...stream("older.jsonl") } };
+  const older = { ...probe, env: stream("older.jsonl") };
   await expect(runtime.checkContract(older)).resolves.toEqual({ version: "2.1.309", missing: ["result"] });
-  await expect(runtime.checkContract({ ...probe, env: systemRoot })).resolves.toEqual({
+  await expect(runtime.checkContract({ ...probe, env: {} })).resolves.toEqual({
     version: null,
     missing: ["init", "usage", "result"],
   });

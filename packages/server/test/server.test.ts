@@ -169,6 +169,14 @@ test("every other request needs the session cookie and the CSRF header, unknown 
   expect((await call(port, { path: "/api/runs", headers: { [CSRF_HEADER]: csrf } })).status).toBe(401);
   expect(await api({ path: "/api/runs" })).toMatchObject({ status: 200, body: { runs: [] } });
   expect(await api({ path: "/nowhere" })).toMatchObject({ status: 404, body: { error: "not-found" } });
+  for (const method of ["PUT", "QUERY"]) {
+    const other = await api({ method, path: "/api/runs?x=1" });
+    expect([other.status, other.headers["allow"], other.body]).toEqual([
+      405,
+      "GET, HEAD",
+      { error: "method-not-allowed" },
+    ]);
+  }
 });
 
 test("a foreign Origin or a cross-site fetch is refused, and no request gets CORS headers", async () => {
@@ -210,7 +218,7 @@ test("a foreign Origin or a cross-site fetch is refused, and no request gets COR
     path: "/api/runs",
     headers: { ...own, "access-control-request-method": "POST" },
   });
-  expect([allowed.status, preflight.status]).toEqual([200, 404]);
+  expect([allowed.status, preflight.status]).toEqual([200, 405]);
   for (const answer of [allowed, preflight]) {
     expect(Object.keys(answer.headers).filter((name) => name.startsWith("access-control-"))).toEqual([]);
   }

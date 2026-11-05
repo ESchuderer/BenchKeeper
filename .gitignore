@@ -5,3 +5,5 @@ node_modules/
 packages/*/dist/
 coverage/
 *.tsbuildinfo
+# Schemathesis reports (packages/server/scripts/schemathesis.ts)
+.schemathesis/

@@ -6,6 +6,7 @@ import {
   canonicalJson,
   type Json,
   formatWorkflow,
+  PLAN_SCHEMA_VERSION,
   Plan,
   readDocument,
   type Result,
@@ -196,6 +197,13 @@ test("a newer schemaVersion is refused before the schema runs", () => {
     ok: false,
     finding: { code: "document.newer-schema", params: { found: 7, known: 1 } },
   });
+});
+
+// A reader that passes a literal instead of the schema's version constant fails the typecheck once the constant moves on.
+test("readDocument takes only the schema's own version as the known one", () => {
+  const next = PLAN_SCHEMA_VERSION + 1;
+  // @ts-expect-error a number, not the Plan schema's version
+  expect(readDocument(Plan, next, { schemaVersion: next }).ok).toBe(false);
 });
 
 test("canonical JSON sorts keys at every depth, keeps array order and has no whitespace", () => {

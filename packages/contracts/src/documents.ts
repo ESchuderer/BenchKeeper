@@ -25,11 +25,15 @@ const walk = (value: unknown): { deep: string | undefined; proto: string[] } => 
   return { deep: undefined, proto };
 };
 
+/** The `schemaVersion` a schema's documents carry, or any number for a schema that names none. */
+type VersionOf<T> = T extends { schemaVersion: infer V extends number } ? V : number;
+
 /**
  * Validates a persisted document: a `schemaVersion` above `known`, values nested deeper than 32 levels and `__proto__`
- * keys are refused before the schema is applied.
+ * keys are refused before the schema is applied. `known` has the schema's own version type, so a literal left behind
+ * when the schema's version constant moves on fails the typecheck.
  */
-export const readDocument = <T>(schema: z.ZodType<T>, known: number, value: unknown): Result<T> => {
+export const readDocument = <T>(schema: z.ZodType<T>, known: VersionOf<T>, value: unknown): Result<T> => {
   const head = z.looseObject({ schemaVersion: SchemaVersion }).safeParse(value);
   if (head.success && head.data.schemaVersion > known) {
     return { ok: false, finding: { code: "document.newer-schema", params: { found: head.data.schemaVersion, known } } };

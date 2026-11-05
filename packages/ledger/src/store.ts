@@ -228,9 +228,10 @@ export class RunStore extends RunView {
 /**
  * How long a connection to runs.sqlite waits when another one briefly locks it out: a writer's last close cleans up
  * the WAL, and the next open recovers it. Without the wait, reads and opens alongside another process's runs fail
- * with "database is locked". The lock file's probe does not wait (see #probe).
+ * with "database is locked". As long as the store lock's own wait: 250 ms was too short on a loaded CI runner, where
+ * runs in a tight loop kept a reader out longer. The lock file's probe does not wait (see #probe).
  */
-const SETTLE_MS = 250;
+const SETTLE_MS = 1000;
 
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
 
@@ -249,7 +250,7 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
     return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
   }
   // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
-  // outlasts a reader's probe (held); another writer keeps the lock for its whole run and is refused.
+  // outlasts a reader's probe, whose read meets no WAL cleanup (writers close runs.sqlite first); others are refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
     lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");

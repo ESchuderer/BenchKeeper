@@ -39,6 +39,9 @@ env:
     .github/pnpm .github/schemathesis
 
 jobs:
+  # base: a merge group's base, or the tip of a pull request's base branch. git's `<base>...` and pnpm's `[<base>]` both
+  # start at its merge base with the checked-out commit, so they hold only the change's own files. pull_request.base.sha
+  # keeps an older base, and HEAD is a merge commit with the newer base branch, so diffing from it counted that too.
   # filter: empty when no CedarLoom path changed, `*` for every package, otherwise the changed packages and their dependents.
   areas:
     runs-on: ubuntu-latest
@@ -46,6 +49,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      base: ${{ steps.areas.outputs.base }}
       filter: ${{ steps.areas.outputs.filter }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,9 +58,11 @@ jobs:
           fetch-depth: 0
       - id: areas
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          BASE: ${{ github.event.merge_group.base_sha }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then BASE=$(git rev-parse "origin/$GITHUB_BASE_REF"); fi
           if [ -z "$BASE" ]; then echo 'filter=*' >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
           read -ra paths <<< "$PATHS"
           changed=$(git diff --name-only "$BASE...HEAD" -- "${paths[@]}")
           # An added or removed package changes the root checks too (release config, solution tsconfig).
@@ -69,6 +75,7 @@ jobs:
   # Change size: a warning above 15 files or 400 lines, a failure above 30 files or 1000 lines unless the owner sets the
   # label size-override. Lockfiles and generated documents do not count.
   size:
+    needs: areas
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -79,16 +86,14 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      # The pull request's own changes, as GitHub counts them: from the merge base of the base branch's tip and the pushed
-      # head. HEAD is the merge commit and pull_request.base.sha keeps an older base, so that range would also count
-      # every commit merged to the base branch since then.
+      # The pull request's own changes, as GitHub counts them: from the merge base of the base commit and the pushed head.
       - env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE: ${{ needs.areas.outputs.base }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'size-override') }}
         run: |
           read -ra paths <<< "$PATHS"
-          stat=$(git diff --numstat "origin/$BASE_REF...$HEAD_SHA" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
+          stat=$(git diff --numstat "${BASE:?}...$HEAD_SHA" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
           files=$(printf '%s' "$stat" | grep -c . || true)
           lines=$(printf '%s' "$stat" | awk '{ n += $1 + $2 } END { print n + 0 }')
           echo "CedarLoom paths: $files files, $lines changed lines"

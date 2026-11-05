@@ -4,7 +4,7 @@ import { join } from "node:path";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
   createJsonSchemaTransform,
   createJsonSchemaTransformObject,
@@ -49,8 +49,8 @@ const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegE
 
 /**
  * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
- * answers before the body is read, so a body-carrying method such as QUERY gets the same answer. The web UI's files
- * (`/*`, any path) stay out of the table, so an unknown API path is a 404 whether or not the UI is served.
+ * answers before the body is read, so a body-carrying method such as QUERY gets the same answer, and it answers the
+ * files' misses too, so an API path the web UI's `/*` route caught (GET /api/session) still gets its 405.
  */
 const methods = (app: FastifyInstance): void => {
   const routes: { method: string; path: RegExp }[] = [];
@@ -59,18 +59,15 @@ const methods = (app: FastifyInstance): void => {
     const path = new RegExp(`^${url.split("/").map(segment).join("/")}$`);
     for (const each of [method].flat()) routes.push({ method: each, path });
   });
-  // The files' handler answers a missing file through this, in the API's shape.
-  app.setNotFoundHandler(async (_req, reply) => reply.code(404).send({ error: "not-found" }));
-  app.addHook("onRequest", async (req, reply) => {
-    if (req.routeOptions.url !== undefined) return undefined;
+  const answer = async (req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
     const path = req.url.replace(/\?.*$/s, "");
     const allow = new Set(routes.filter((route) => route.path.test(path)).map((route) => route.method));
     if (allow.size === 0) return reply.code(404).send({ error: "not-found" });
-    return reply
-      .code(405)
-      .header("allow", [...allow].toSorted().join(", "))
-      .send({ error: "method-not-allowed" });
-  });
+    const listed = [...allow].toSorted((a, b) => a.localeCompare(b)).join(", ");
+    return reply.code(405).header("allow", listed).send({ error: "method-not-allowed" });
+  };
+  app.setNotFoundHandler(answer);
+  app.addHook("onRequest", async (req, reply) => (req.routeOptions.url === undefined ? answer(req, reply) : undefined));
 };
 
 /** The local server's routes over the application services, with the session guard on every request. */

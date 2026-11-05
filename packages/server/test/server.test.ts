@@ -299,6 +299,9 @@ test("the web UI's files load without a session, from this origin only; API path
     ]);
   }
   expect((await api({ method: "PUT", path: "/api/runs" })).headers["allow"]).toBe("GET, HEAD");
+  // An API path the files' route caught for GET still names the methods it has.
+  const caught = await api({ path: "/api/session" });
+  expect([caught.status, caught.headers["allow"]]).toEqual([405, "POST"]);
   // A folder without a build serves nothing and says so in the log.
   const bare = await open(undefined, mkdtempSync(join(tmpdir(), "cedarloom-ui-")));
   expect([(await bare.api({ path: "/" })).status, bare.log.join("")]).toEqual([

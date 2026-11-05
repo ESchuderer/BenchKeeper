@@ -400,6 +400,14 @@ msgid "draft.restored"
 msgstr "Restored the draft saved at {time}."
 
 #. js-lingui-explicit-id
+msgid "draft.notRestored"
+msgstr "The draft of {id} was not restored: {reason}"
+
+#. js-lingui-explicit-id
+msgid "draft.discarded"
+msgstr "Discarded the draft of {id}."
+
+#. js-lingui-explicit-id
 msgid "draft.waiting"
 msgstr "Not saved as a draft yet: restore or discard the earlier draft of {id} first."
 

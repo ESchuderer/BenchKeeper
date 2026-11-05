@@ -3,6 +3,8 @@
     "app.title": ["CedarLoom"],
     "draft.discard": ["Discard"],
     "draft.discardOne": ["Discard the draft of ", ["id"]],
+    "draft.discarded": ["Discarded the draft of ", ["id"], "."],
+    "draft.notRestored": ["The draft of ", ["id"], " was not restored: ", ["reason"]],
     "draft.notSaved": ["Not saved as a draft: ", ["reason"]],
     "draft.offer": [["id"], ", saved ", ["time"]],
     "draft.overwrote": [

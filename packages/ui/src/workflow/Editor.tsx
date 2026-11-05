@@ -231,9 +231,8 @@ const Toolbar = ({ edit, sizes, onProblem, onStatus, onRelease }: ToolbarProps):
   const add = (): void => {
     if (type !== null) edit.change({ kind: "add-node", type, position: nextSpot(present.nodes.length) });
   };
-  // A new workflow and an export both end this tab's draft of the workflow open now.
+  // An export ends this tab's draft of the workflow open now; a new workflow keeps it, as an import does.
   const fresh = (): void => {
-    onRelease();
     edit.change({ kind: "replace", workflow: newWorkflow() });
   };
   const exported = (): void => {
@@ -429,16 +428,18 @@ const Editor = ({ api }: { api: Api }): ReactNode => {
   const [problem, setProblem] = useState<{ text: string; at: History } | null>(null);
   const raise = (text: string): void => setProblem({ text, at: edit.history });
   const [status, setStatus] = useState("");
+  const announced = useRef<HTMLParagraphElement>(null);
   // Node sizes as React Flow measured them: the canvas shows nodes with them, the auto layout spaces nodes by them.
   const [sizes, setSizes] = useState<Sizes>({});
   const workflow = edit.history.present;
-  const drafts = useDrafts({ api, workflow, loads: edit.loads, change: edit.change, onStatus: setStatus });
+  const focus = (): void => announced.current?.focus();
+  const drafts = useDrafts({ api, workflow, loads: edit.loads, change: edit.change, onStatus: setStatus, focus });
   return (
     <Stack>
       {drafts.offers}
       <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={setStatus} onRelease={drafts.release} />
       {problem?.at === edit.history && <Alert color="red">{problem.text}</Alert>}
-      <Text role="status" size="sm">
+      <Text role="status" size="sm" ref={announced} tabIndex={-1}>
         {status}
       </Text>
       <Text size="sm">{drafts.saved}</Text>

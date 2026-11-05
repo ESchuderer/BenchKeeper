@@ -360,18 +360,21 @@ test("an edit is saved as a draft; after a reload it is offered, Restore brings 
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(card("command-run-1")).toBeVisible();
   await expect.poll(stored).toContain("minimal");
-  await expect(page.getByText(/^Saved as a draft at /)).toBeVisible();
+  // New keeps the draft of the workflow open before, as Import does.
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect.poll(stored).toContain("workflow");
+  expect(await stored()).toContain("minimal");
   // A reload keeps the session and starts the editor anew, with the drafts on offer.
   await page.reload();
   await view("Workflows");
-  // The earlier tests' workflows were exported since, which removed their drafts.
   await expect(offers()).toContainText("minimal, saved");
-  await expect(offers().getByRole("button", { name: /^Restore/ })).toHaveCount(1);
   await accessible();
-  await offers().getByRole("button", { name: "Restore the draft of minimal" }).click();
+  await offers().getByRole("button", { name: "Restore the draft of minimal" }).press("Enter");
   await expect(card("command-run-1")).toBeVisible();
-  await expect(page.getByText(/^Restored the draft saved at /)).toBeVisible();
-  await expect(offers()).toHaveCount(0);
+  await expect(said()).toHaveText(/^Restored the draft saved at /);
+  await expect(said()).toBeFocused();
+  await expect(offers().getByRole("button", { name: /^Restore/ })).toHaveCount(1);
   const saved = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export JSON" }).click();
   await saved;
@@ -381,24 +384,31 @@ test("an edit is saved as a draft; after a reload it is offered, Restore brings 
 
 test("a broken draft can only be discarded, and a save over a draft another tab changed says so", async () => {
   writeFileSync(join(state, "drafts", "workflow-broken.json"), "{");
-  await page.reload();
-  await view("Workflows");
-  await offers().getByRole("button", { name: "Restore the draft of broken" }).click();
-  await expect(offers()).toContainText(
-    "It cannot be restored: It does not match the workflow schema: (top) invalid_json.",
-  );
-  await expect(offers().getByRole("button", { name: "Restore the draft of broken" })).toHaveCount(0);
-  await accessible();
-  await offers().getByRole("button", { name: "Discard the draft of broken" }).click();
-  await expect(offers()).toHaveCount(0);
-  expect(await stored()).not.toContain("broken");
-  // This tab saves the new workflow, another tab then saves its own version, and this tab saves again.
-  await page.getByRole("button", { name: "Add node" }).click();
-  await expect(page.getByText(/^Saved as a draft at /)).toBeVisible();
   const other = {
     ...JSON.parse(readFileSync(join(corpus, "valid-minimal.json"), "utf8")),
     metadata: { id: "workflow", name: "Other", version: "1.0.0" },
   };
+  await request("/api/drafts/workflow", { method: "PUT", body: { workflow: other, replaces: null } });
+  await page.reload();
+  await view("Workflows");
+  await offers().getByRole("button", { name: "Restore the draft of broken" }).press("Enter");
+  const reason = "It does not match the workflow schema: (top) invalid_json.";
+  await expect(offers()).toContainText(`It cannot be restored: ${reason}`);
+  await expect(said()).toHaveText(`The draft of broken was not restored: ${reason}`);
+  await expect(said()).toBeFocused();
+  await expect(offers().getByRole("button", { name: "Restore the draft of broken" })).toHaveCount(0);
+  await accessible();
+  await offers().getByRole("button", { name: "Discard the draft of broken" }).press("Enter");
+  await expect(said()).toHaveText("Discarded the draft of broken.");
+  await expect(said()).toBeFocused();
+  expect(await stored()).not.toContain("broken");
+  // An edit waits while a draft of its workflow is on offer; Discard then saves it.
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(said()).toHaveText("Not saved as a draft yet: restore or discard the earlier draft of workflow first.");
+  await offers().getByRole("button", { name: "Discard the draft of workflow" }).press("Enter");
+  await expect(offers()).toHaveCount(0);
+  await expect.poll(async () => JSON.stringify(await request("/api/drafts/workflow"))).toContain("command-run-1");
+  // Another tab then saves its own version, and this tab saves again.
   await request("/api/drafts/workflow", { method: "PUT", body: { workflow: other, replaces: null } });
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(said()).toHaveText(

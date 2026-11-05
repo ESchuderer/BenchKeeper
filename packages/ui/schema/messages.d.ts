@@ -10,6 +10,8 @@ export interface MessageValues {
   "app.title": Record<never, never>;
   "draft.discard": Record<never, never>;
   "draft.discardOne": { id: string | number };
+  "draft.discarded": { id: string | number };
+  "draft.notRestored": { id: string | number; reason: string | number };
   "draft.notSaved": { reason: string | number };
   "draft.offer": { id: string | number; time: string | number };
   "draft.overwrote": { id: string | number };

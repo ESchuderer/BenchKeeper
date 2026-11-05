@@ -71,15 +71,19 @@ type Saving = {
   open: RefObject<Set<string>>;
 };
 
-/** Saves each edit a second after the last one; `cancel` drops the save of that workflow, if one waits. */
+/** Saves each edit a second after the last; `cancel` drops what waits of a workflow, `resume` saves its held edit. */
 const useAutosave = ({ api, workflow, loads, onStatus, open }: Saving) => {
   const [saved, setSaved] = useState("");
   const pending = useRef<WorkflowDefinition | null>(null);
+  const held = useRef<WorkflowDefinition | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const seen = useRef({ loads, workflow });
   const save = async (next: WorkflowDefinition): Promise<void> => {
     const id = idOf(next);
-    if (open.current.has(id)) return setSaved(t("draft.waiting", { id }));
+    if (open.current.has(id)) {
+      held.current = next;
+      return onStatus(t("draft.waiting", { id }));
+    }
     ours.add(id);
     const body = { workflow: next, replaces: mine.get(id) ?? null };
     const answer = await ask(() => api.PUT("/api/drafts/{id}", { params: { path: { id } }, body }));
@@ -108,40 +112,58 @@ const useAutosave = ({ api, workflow, loads, onStatus, open }: Saving) => {
   // Leaving the view saves what is waiting.
   useEffect(() => flush, []);
   const cancel = (id: string): void => {
+    if (held.current !== null && idOf(held.current) === id) held.current = null;
     if (pending.current === null || idOf(pending.current) !== id) return;
     clearTimeout(timer.current);
     pending.current = null;
   };
-  return { saved, setSaved, cancel };
+  const resume = (id: string): void => {
+    if (held.current === null || idOf(held.current) !== id) return;
+    void save(held.current);
+    held.current = null;
+  };
+  return { saved, setSaved, cancel, resume };
 };
 
-type Props = Omit<Saving, "open"> & { change: (change: Change) => void };
+type Props = Omit<Saving, "open"> & { change: (change: Change) => void; focus: () => void };
 
 /**
  * The editor's drafts in the state folder: each edit is saved a second after the last one, the drafts found on opening
- * are offered to restore or discard, and `release` removes this tab's draft after an export or on a new workflow.
+ * are offered to restore or discard, and `release` removes this tab's draft after an export.
  */
-export const useDrafts = ({ change, ...props }: Props) => {
-  const { api, workflow } = props;
+export const useDrafts = ({ change, focus, ...props }: Props) => {
+  const { api, workflow, onStatus } = props;
   const { offers, open, settle } = useOffers(api);
-  const { saved, setSaved, cancel } = useAutosave({ ...props, open });
+  const { saved, setSaved, cancel, resume } = useAutosave({ ...props, open });
+  // Restore and Discard remove their button: their result is announced, and focus moves to it.
+  const announce = (text: string): void => {
+    onStatus(text);
+    focus();
+  };
+  const refuse = (id: string, reason: string): void => {
+    settle(id, reason);
+    announce(t("draft.notRestored", { id, reason }));
+  };
   const restore = async (id: string): Promise<void> => {
     const answer = await ask(() => api.GET("/api/drafts/{id}", { params: { path: { id } } }));
-    if ("problem" in answer) return settle(id, answer.problem);
+    if ("problem" in answer) return refuse(id, answer.problem);
     if (answer.data === undefined) return undefined;
     const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, answer.data.workflow);
-    if (!read.ok) return settle(id, describe(read.finding));
+    if (!read.ok) return refuse(id, describe(read.finding));
     // An edit of the same workflow that waits would write the version before the draft over it.
     cancel(id);
     ours.add(id);
     mine.set(id, answer.data.hash);
     change({ kind: "replace", workflow: read.value });
     settle(id);
-    setSaved(t("draft.restored", { time: when(answer.data.savedAt) }));
+    setSaved("");
+    announce(t("draft.restored", { time: when(answer.data.savedAt) }));
   };
   const discard = async (id: string): Promise<void> => {
-    await ask(() => api.DELETE("/api/drafts/{id}", { params: { path: { id } } }));
+    const answer = await ask(() => api.DELETE("/api/drafts/{id}", { params: { path: { id } } }));
     settle(id);
+    announce("problem" in answer ? answer.problem : t("draft.discarded", { id }));
+    resume(id);
   };
   const release = (): void => {
     const id = idOf(workflow);

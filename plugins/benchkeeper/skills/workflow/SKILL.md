@@ -6,6 +6,11 @@ writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; thr
 
 # Workflow
 
+Every tier:
+- Before the first edit, state the assumptions you work from and the check that proves each step done (a test, a command, a screenshot); loop until those checks pass.
+- Change only what the request needs: every changed line traces to it, neighboring code, comments and formatting stay as they are, unrelated dead code is named in the report, and what your own change left unused is removed.
+- Write the minimum code that solves the task, and keep validation at trust boundaries, error handling that prevents data loss, and security checks.
+
 1. **Classify.** Kind: software change, docs pass (several documents or product copy checked against the code; a one-file rewrite with no claim about code is a quick software change), research, or a mix (one item per kind). Tier of a software change:
 
    | Tier | When |

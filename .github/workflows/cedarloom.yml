@@ -84,7 +84,7 @@ jobs:
           OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'size-override') }}
         run: |
           read -ra paths <<< "$PATHS"
-          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!packages/*/schema/**' ':!packages/*/openapi.json')
+          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
           files=$(printf '%s' "$stat" | grep -c . || true)
           lines=$(printf '%s' "$stat" | awk '{ n += $1 + $2 } END { print n + 0 }')
           echo "CedarLoom paths: $files files, $lines changed lines"

@@ -9,10 +9,10 @@ const workflow = (name) => readFileSync(new URL(`../workflows/${name}`, import.m
 const npm = workflow('npm.yml');
 const release = workflow('release.yml');
 
-// The `run: |` block of the step with this name, without its indentation.
+// The `run: |` block of the step with this name (`- name:`, or `name:` after `- if:`), without its indentation.
 function runBlock(text, name) {
   const lines = text.split('\n');
-  const start = lines.findIndex((l) => l.trim() === `- name: ${name}`);
+  const start = lines.findIndex((l) => l.trim().replace(/^- /, '') === `name: ${name}`);
   assert.ok(start >= 0, `step ${name}`);
   const run = lines.findIndex((l, i) => i > start && /^ +run: \|$/.test(l));
   const indent = lines[run + 1].match(/^ */)[0].length;
@@ -107,4 +107,34 @@ test('release.yml starts release-please again after it marks the release pull re
   const again = release.indexOf('name: Run release-please again');
   assert.ok(tagged > 0 && again > tagged);
   assert.match(release.slice(again), /run: gh workflow run release\.yml --repo "\$REPO" --ref main/);
+});
+
+// 2026-11-05: npm listed 6.26.0 about 7 minutes after the publish. Stubs: npm view lists the version from second `at`
+// on and prints `prints`; sleep only advances bash's clock.
+function publish(at, prints = '6.26.0') {
+  const stubs = `sleep() { SECONDS=$((SECONDS + $1)); }
+npm() { [ "$SECONDS" -ge ${at} ] && echo '${prints}'; }
+gh() { echo "gh $1 $2" >&2; [ "$1 $2" = 'run list' ] && echo 1; true; }
+`;
+  const block = runBlock(release, 'Publish the app to npm and verify the registry');
+  return spawnSync('bash', ['-e', '-o', 'pipefail', '-c', stubs + block], { env: { ...process.env, V: '6.26.0' }, encoding: 'utf8' });
+}
+
+test('release.yml waits up to 20 minutes for npm view to list the exact version', () => {
+  const listed = publish(0);
+  assert.equal(listed.status, 0);
+  assert.doesNotMatch(listed.stderr, /gh workflow run/);
+  const late = publish(7 * 60);
+  assert.equal(late.status, 0, late.stdout + late.stderr);
+  assert.match(late.stderr, /gh workflow run/);
+  for (const out of [publish(21 * 60), publish(0, '6.25.0')]) {
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /::error::.*20 minutes/);
+  }
+});
+
+// gh pr edit removes the pending label before it fails on a missing one; the job then finds no release pull request.
+test('release.yml creates the tagged label before it marks the release pull request', () => {
+  const block = runBlock(release, 'Mark the release pull request as tagged');
+  assert.match(block, /^gh label create 'autorelease: tagged' .*--force\ngh pr edit /m);
 });

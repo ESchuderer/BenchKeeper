@@ -1,8 +1,8 @@
 {
-  "name": "@cedarloom/services",
+  "name": "@cedarloom/use-cases",
   "version": "0.0.0",
   "private": true,
-  "description": "The CedarLoom application services: plan, apply, undo and the doctor on the run store, shared by the CLI and the local server.",
+  "description": "The CedarLoom use cases: plan, apply, undo and the doctor on the run store, shared by the CLI and the local server.",
   "license": "MIT",
   "type": "module",
   "exports": {

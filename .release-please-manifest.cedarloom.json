@@ -5,6 +5,6 @@
   "packages/engine": "0.0.0",
   "packages/ledger": "0.0.0",
   "packages/server": "0.0.0",
-  "packages/services": "0.0.0",
-  "packages/ui": "0.0.0"
+  "packages/ui": "0.0.0",
+  "packages/use-cases": "0.0.0"
 }

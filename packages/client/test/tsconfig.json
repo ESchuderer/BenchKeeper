@@ -7,5 +7,10 @@
     "types": ["node"]
   },
   "include": ["."],
-  "references": [{ "path": ".." }, { "path": "../../server" }, { "path": "../../services" }, { "path": "../../ledger" }]
+  "references": [
+    { "path": ".." },
+    { "path": "../../server" },
+    { "path": "../../use-cases" },
+    { "path": "../../ledger" }
+  ]
 }

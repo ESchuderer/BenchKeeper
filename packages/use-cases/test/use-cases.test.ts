@@ -4,12 +4,21 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Plan, PlanPreview } from "@cedarloom/contracts";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
-import { applyPlan, doctor, listRuns, loadPlan, previewPlan, previewUndo, showRun, undoRun } from "@cedarloom/services";
+import {
+  applyPlan,
+  doctor,
+  listRuns,
+  loadPlan,
+  previewPlan,
+  previewUndo,
+  showRun,
+  undoRun,
+} from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 
 /** A temporary folder: files in it, the run store in `state/` (not created until a change needs it). */
 const folder = (): { at: (name: string) => string; state: string } => {
-  const root = mkdtempSync(join(tmpdir(), "cedarloom-services-"));
+  const root = mkdtempSync(join(tmpdir(), "cedarloom-use-cases-"));
   return { at: (name) => join(root, name), state: join(root, "state") };
 };
 
@@ -71,7 +80,7 @@ test("reads of a folder without a store find nothing and create nothing", () => 
 test("an approved plan applies as one run, which the reads then show", () => {
   const { at, state } = folder();
   const plan = creates(at("a.txt"));
-  // `approve` wins over `yes`, and no approval at all approves nothing: the services never apply an unapproved plan.
+  // `approve` wins over `yes`, and no approval at all approves nothing: the use cases never apply an unapproved plan.
   expect(ok(applyPlan(state, plan, { yes: true, approve: sha256("another plan") }))).toMatchObject({
     runId: null,
     status: "refused",

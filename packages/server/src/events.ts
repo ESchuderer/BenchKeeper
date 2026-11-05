@@ -1,6 +1,6 @@
 import { inspect } from "node:util";
 import { Refusal, RunsEvent } from "@cedarloom/contracts";
-import * as services from "@cedarloom/services";
+import * as useCases from "@cedarloom/use-cases";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 
 type Options = { state: string; every: number; log: (text: string) => void };
@@ -15,7 +15,7 @@ type Message = { event: string; data: unknown };
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";
   return () => {
-    const runs = services.listRuns(state);
+    const runs = useCases.listRuns(state);
     const [event, data] = runs.ok ? ["runs", { runs: runs.value }] : ["refusal", { findings: [runs.finding] }];
     const text = JSON.stringify(data);
     if (text === last) return undefined;

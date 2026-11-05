@@ -6,7 +6,7 @@ import { client, exchange, type RunEvent, subscribe } from "@cedarloom/client";
 import { CSRF_HEADER } from "@cedarloom/contracts/http";
 import { sha256 } from "@cedarloom/ledger";
 import { type Started, startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/services";
+import { applyPlan } from "@cedarloom/use-cases";
 import { afterEach, expect, test } from "vitest";
 
 const servers: Started[] = [];

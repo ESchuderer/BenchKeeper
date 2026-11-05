@@ -6,8 +6,7 @@ export type { components, paths } from "../schema/api.d.ts";
 
 /**
  * A typed client of the local API: `api.GET("/api/runs")` and so on, with the paths, bodies and answers of its OpenAPI
- * document. openapi-fetch drops properties typed exactly `null` from `data`: an undo preview with nothing to undo
- * arrives typed as `{ findings }` while it holds `planHash: null` and `plan: null`, so check `data.plan` before use.
+ * document. A refusal (4xx) arrives in `error`, as the 409 of an undo the files changed under.
  */
 export type Api = Client<paths>;
 

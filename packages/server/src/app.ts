@@ -44,6 +44,9 @@ const description = [
   `value in the ${CSRF_HEADER} header.`,
 ].join(" ");
 
+// One segment of a route pattern as a regular expression: `:name` matches any one segment, anything else itself.
+const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegExp.escape(part));
+
 /**
  * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
  * answers before the body is read, so a body-carrying method such as QUERY gets the same answer.
@@ -51,7 +54,7 @@ const description = [
 const methods = (app: FastifyInstance): void => {
   const routes: { method: string; path: RegExp }[] = [];
   app.addHook("onRoute", ({ method, url }) => {
-    const path = new RegExp(`^${url.replaceAll(/:[^/]+/g, "[^/]+").replace("*", ".*")}$`);
+    const path = new RegExp(`^${url.split("/").map(segment).join("/")}$`);
     for (const each of [method].flat()) routes.push({ method: each, path });
   });
   app.addHook("onRequest", async (req, reply) => {

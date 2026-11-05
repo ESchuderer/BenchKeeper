@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { client, exchange } from "@cedarloom/client";
@@ -63,13 +63,24 @@ test("the client reads runs and undoes one only with the previewed hash; a refus
   const shown = await api.GET("/api/runs/{runId}", params);
   expect(shown.data?.steps.map((step) => [step.state, step.after])).toEqual([["done", sha256("hi\n")]]);
   const preview = await api.GET("/api/runs/{runId}/undo", params);
-  const approve = preview.data && "planHash" in preview.data ? preview.data.planHash : "";
+  // planHash and plan are typed nullable, so they read without casts or `in` checks.
+  expect(preview.data?.plan?.operations.map((op) => op.kind)).toEqual(["delete"]);
+  const approve = preview.data?.planHash ?? "";
   const refused = await api.POST("/api/runs/{runId}/undo", { ...params, body: { approve: sha256("x") } });
   expect([refused.response.status, refused.error]).toEqual([409, expect.objectContaining({ status: "refused" })]);
   expect((await api.POST("/api/runs/{runId}/undo", { ...params, body: { approve } })).data?.status).toBe("applied");
   expect(existsSync(path)).toBe(false);
-  // Nothing left to undo: openapi-fetch types this answer as { findings }, and the nulls are there at runtime.
-  expect((await api.GET("/api/runs/{runId}/undo", params)).data).toEqual({ planHash: null, plan: null, findings: [] });
+});
+
+test("a preview with nothing left to undo has planHash and plan null, in its type as at runtime", async () => {
+  const { base, token, state } = await serve();
+  const tab = browser();
+  const api = client(base, await exchange(base, token, tab), tab);
+  const { path, params } = written(state);
+  rmSync(path);
+  const { data } = await api.GET("/api/runs/{runId}/undo", params);
+  const plan: { operations: unknown[] } | null | undefined = data?.plan;
+  expect([data?.planHash, plan, data?.findings]).toEqual([null, null, []]);
 });
 
 test("a reloaded page keeps working with its stored CSRF token; a request without it is refused", async () => {

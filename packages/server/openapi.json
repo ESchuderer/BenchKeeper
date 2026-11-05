@@ -1042,14 +1042,21 @@
         "additionalProperties": false
       },
       "UndoPreviewInput": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "planHash": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "anyOf": [
+              {
                 "$ref": "#/components/schemas/Sha256Input"
               },
-              "plan": {
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
                 "type": "object",
                 "properties": {
                   "schemaVersion": {
@@ -1117,44 +1124,24 @@
                 ],
                 "additionalProperties": false
               },
-              "findings": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/FindingInput"
-                }
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "planHash",
-              "plan",
-              "findings"
-            ],
-            "additionalProperties": false
+            ]
           },
-          {
-            "type": "object",
-            "properties": {
-              "planHash": {
-                "type": "null"
-              },
-              "plan": {
-                "type": "null"
-              },
-              "findings": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/FindingInput"
-                }
-              }
-            },
-            "required": [
-              "planHash",
-              "plan",
-              "findings"
-            ],
-            "additionalProperties": false
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingInput"
+            }
           }
-        ]
+        },
+        "required": [
+          "planHash",
+          "plan",
+          "findings"
+        ],
+        "additionalProperties": false
       },
       "RunResultInput": {
         "type": "object",
@@ -2240,14 +2227,21 @@
         "additionalProperties": false
       },
       "UndoPreview": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "planHash": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "anyOf": [
+              {
                 "$ref": "#/components/schemas/Sha256"
               },
-              "plan": {
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
                 "type": "object",
                 "properties": {
                   "schemaVersion": {
@@ -2315,44 +2309,24 @@
                 ],
                 "additionalProperties": false
               },
-              "findings": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Finding"
-                }
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "planHash",
-              "plan",
-              "findings"
-            ],
-            "additionalProperties": false
+            ]
           },
-          {
-            "type": "object",
-            "properties": {
-              "planHash": {
-                "type": "null"
-              },
-              "plan": {
-                "type": "null"
-              },
-              "findings": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Finding"
-                }
-              }
-            },
-            "required": [
-              "planHash",
-              "plan",
-              "findings"
-            ],
-            "additionalProperties": false
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
           }
-        ]
+        },
+        "required": [
+          "planHash",
+          "plan",
+          "findings"
+        ],
+        "additionalProperties": false
       },
       "RunResult": {
         "type": "object",

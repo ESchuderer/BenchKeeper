@@ -571,7 +571,7 @@ export interface components {
             };
         };
         UndoPreviewInput: {
-            planHash: components["schemas"]["Sha256Input"];
+            planHash: components["schemas"]["Sha256Input"] | null;
             plan: {
                 /** @constant */
                 schemaVersion: 1;
@@ -584,11 +584,7 @@ export interface components {
                     after: components["schemas"]["Sha256Input"];
                     bytes: number;
                 })[];
-            };
-            findings: components["schemas"]["FindingInput"][];
-        } | {
-            planHash: null;
-            plan: null;
+            } | null;
             findings: components["schemas"]["FindingInput"][];
         };
         RunResultInput: {
@@ -817,7 +813,7 @@ export interface components {
             };
         };
         UndoPreview: {
-            planHash: components["schemas"]["Sha256"];
+            planHash: components["schemas"]["Sha256"] | null;
             plan: {
                 /** @constant */
                 schemaVersion: 1;
@@ -830,11 +826,7 @@ export interface components {
                     after: components["schemas"]["Sha256"];
                     bytes: number;
                 })[];
-            };
-            findings: components["schemas"]["Finding"][];
-        } | {
-            planHash: null;
-            plan: null;
+            } | null;
             findings: components["schemas"]["Finding"][];
         };
         RunResult: {

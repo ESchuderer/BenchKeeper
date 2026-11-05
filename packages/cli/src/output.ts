@@ -1,5 +1,8 @@
 import { type Finding, findingInfo } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
+
+/** A plan to show: an undo preview names its plan with a nullable hash, which is null only when there is no plan. */
+export type Shown = { planHash: string | null; plan: PlanPreview["plan"] };
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -37,7 +40,7 @@ export const fail = (ctx: Context, format: string, findings: Finding[], code: nu
   return code;
 };
 
-export const showPlan = ({ planHash, plan }: PlanPreview): string => {
+export const showPlan = ({ planHash, plan }: Shown): string => {
   const lines = plan.operations.map((op) => {
     if (op.kind === "delete") return `  delete  ${op.path}`;
     const how = op.before === null ? "create" : "replace";

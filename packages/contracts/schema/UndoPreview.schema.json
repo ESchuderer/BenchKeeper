@@ -1,14 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "UndoPreview.schema.json",
-  "anyOf": [
-    {
-      "type": "object",
-      "properties": {
-        "planHash": {
+  "type": "object",
+  "properties": {
+    "planHash": {
+      "anyOf": [
+        {
           "$ref": "Sha256.schema.json"
         },
-        "plan": {
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "plan": {
+      "anyOf": [
+        {
           "type": "object",
           "properties": {
             "schemaVersion": {
@@ -79,42 +86,22 @@
           ],
           "additionalProperties": false
         },
-        "findings": {
-          "type": "array",
-          "items": {
-            "$ref": "Finding.schema.json"
-          }
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "planHash",
-        "plan",
-        "findings"
-      ],
-      "additionalProperties": false
+      ]
     },
-    {
-      "type": "object",
-      "properties": {
-        "planHash": {
-          "type": "null"
-        },
-        "plan": {
-          "type": "null"
-        },
-        "findings": {
-          "type": "array",
-          "items": {
-            "$ref": "Finding.schema.json"
-          }
-        }
-      },
-      "required": [
-        "planHash",
-        "plan",
-        "findings"
-      ],
-      "additionalProperties": false
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "Finding.schema.json"
+      }
     }
-  ]
+  },
+  "required": [
+    "planHash",
+    "plan",
+    "findings"
+  ],
+  "additionalProperties": false
 }

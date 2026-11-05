@@ -113,8 +113,8 @@
           {
             "patterns": [
               {
-                "group": ["node:*", "@cedarloom/ledger"],
-                "message": "the graph module runs in the browser too: the editor checks edges with it"
+                "group": ["node:*", "@cedarloom/ledger", "./*", "../*"],
+                "message": "the graph module runs in the browser too: the editor checks edges with it, so it imports only the contracts"
               }
             ]
           }

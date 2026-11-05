@@ -52,6 +52,7 @@ export const Finding = z
     finding("workflow.missing-source", { node: z.string().nullable(), handle: z.string() }),
     finding("workflow.cycle", { nodes: z.array(z.string()) }),
     finding("workflow.join-branches", { node: z.string(), count: z.int() }),
+    finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
@@ -99,5 +100,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.missing-source": { severity: "error", effort: "manual" },
   "workflow.cycle": { severity: "error", effort: "manual" },
   "workflow.join-branches": { severity: "error", effort: "manual" },
+  "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
 };

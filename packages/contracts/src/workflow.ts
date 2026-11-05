@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sortKeys } from "./json.ts";
+import { canonicalJson, type Json, sortKeys } from "./json.ts";
 import { fileFormats } from "./registry.ts";
 
 /** The workflow format this CedarLoom writes and reads; readers refuse a newer one. */
@@ -73,6 +73,7 @@ const nodePolicy = z.strictObject({
  */
 export const WorkflowDefinition = z
   .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
     schemaVersion: z.literal(WORKFLOW_SCHEMA_VERSION),
     kind: z.literal("cedarloom.workflow"),
     metadata: z.strictObject({
@@ -86,8 +87,9 @@ export const WorkflowDefinition = z
       .record(name, z.strictObject({ type: DataType, required: z.boolean().optional(), description }))
       .optional(),
     outputs: z.record(name, z.strictObject({ type: DataType, description })).optional(),
-    nodes: z.array(WorkflowNode).min(1),
-    edges: z.array(WorkflowEdge),
+    // Bounds for files from elsewhere: the editor and the validator stay quick, and recursion over paths shallow.
+    nodes: z.array(WorkflowNode).min(1).max(1000),
+    edges: z.array(WorkflowEdge).max(5000),
     execution: z
       .strictObject({
         maxConcurrency: z.int().min(1).max(64).optional(),
@@ -100,7 +102,10 @@ export const WorkflowDefinition = z
   .register(fileFormats, { id: "WorkflowDefinition" });
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinition>;
 
-const byId = <T extends { id: string }>(items: T[]): T[] => items.toSorted((a, b) => (a.id < b.id ? -1 : 1));
+const order = (a: string, b: string): number => (a < b ? -1 : Number(a > b));
+// By id; repeated ids (a validation finding) by their whole content, so the order of the input never shows.
+const byId = <T extends { id: string } & Json>(items: T[]): T[] =>
+  items.toSorted((a, b) => order(a.id, b.id) || order(canonicalJson(a), canonicalJson(b)));
 
 /**
  * The file text of a workflow: nodes and edges sorted by id, each object's keys in the schema's order and the keys of

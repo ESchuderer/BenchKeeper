@@ -13,8 +13,8 @@ import { describe, expect, test } from "vitest";
 
 const KNOWN = 1;
 
-const expectedCode = (version: string, name: string): string | undefined => {
-  if (Number(version) > KNOWN) return "document.newer-schema";
+const expectedCode = (version: string, name: string, known = KNOWN): string | undefined => {
+  if (Number(version) > known) return "document.newer-schema";
   return name.startsWith("valid-") ? undefined : "document.invalid";
 };
 
@@ -45,7 +45,7 @@ describe("golden corpus of workflows: valid files are also in their canonical fo
   for (const [version, name, text] of await corpus("WorkflowDefinition")) {
     test(`${version}/${name}`, () => {
       const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, JSON.parse(text));
-      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name));
+      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name, WORKFLOW_SCHEMA_VERSION));
       expect(read.ok ? formatWorkflow(read.value) : text).toBe(text);
     });
   }
@@ -100,6 +100,20 @@ test("the file format depends on the workflow only, not on the order of its node
       expect(formatWorkflow(WorkflowDefinition.parse(JSON.parse(text)))).toBe(text);
     }),
   );
+});
+
+test("repeated ids, which the validator reports, still give one file whatever their order", () => {
+  const twice = WorkflowDefinition.parse({
+    schemaVersion: 1,
+    kind: "cedarloom.workflow",
+    metadata: { id: "w", name: "W", version: "1.0.0" },
+    nodes: [
+      { id: "a", type: "join" },
+      { id: "a", type: "command.run" },
+    ],
+    edges: [],
+  });
+  expect(formatWorkflow({ ...twice, nodes: twice.nodes.toReversed() })).toBe(formatWorkflow(twice));
 });
 
 test("an invalid document names the path and code of each issue, no prose", () => {

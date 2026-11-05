@@ -1279,6 +1279,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "workflow.unreachable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "workflow.stray-entry"
               },
               "params": {
@@ -2939,6 +2965,32 @@
                 "required": [
                   "node",
                   "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.unreachable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node"
                 ],
                 "additionalProperties": false
               }

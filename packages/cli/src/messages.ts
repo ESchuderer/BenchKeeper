@@ -45,7 +45,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "store.network-filesystem": (p) =>
     `The state folder ${p.dir} is on a network filesystem (${p.fsType}); use a local folder.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
-  "workflow.duplicate-id": (p) => `Two ${p.kind}s have the id ${p.id}; ids are unique within a workflow.`,
+  "workflow.duplicate-id": (p) => `More than one ${p.kind} has the id ${p.id}; ids are unique within a workflow.`,
   "workflow.trigger-count": (p) => `The workflow has ${p.count} trigger nodes; it needs exactly one.`,
   "workflow.unknown-node-type": (p) => `Node ${p.node} has the type ${p.type}, which this CedarLoom does not know.`,
   "workflow.invalid-config": (p) =>
@@ -62,6 +62,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.missing-source": (p) => `${handleName(p)} gets no edge, but it needs one.`,
   "workflow.cycle": (p) => `The nodes ${p.nodes.join(", ")} form a cycle; repeats need an explicit loop node.`,
   "workflow.join-branches": (p) => `Join ${p.node} has ${p.count} incoming branch edges; a join needs at least two.`,
+  "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
 };
 

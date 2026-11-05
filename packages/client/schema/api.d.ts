@@ -664,6 +664,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.unreachable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.stray-entry";
             params: {
                 /** @enum {string} */
@@ -1011,6 +1017,12 @@ export interface components {
             params: {
                 node: string;
                 count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unreachable";
+            params: {
+                node: string;
             };
         } | {
             /** @constant */

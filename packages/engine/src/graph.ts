@@ -38,9 +38,19 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "workflow.run": { inputs: run, outputs: ended },
 };
 
-type Graph = { workflow: WorkflowDefinition; types: Map<string, NodeType | undefined> };
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
+type Resolved = HandleType | Finding | null;
+type Graph = {
+  workflow: WorkflowDefinition;
+  /** One node per id, the first of duplicates (a finding of its own), in document order. */
+  nodes: WorkflowDefinition["nodes"];
+  types: Map<string, NodeType | undefined>;
+  /** Each edge with the types of its ends, a finding for an end that names nothing, or null for an unknown node type. */
+  resolved: { edge: Edge; from: Resolved; to: Resolved }[];
+  /** Node to node links of the edges without a finding of their own. */
+  next: Map<string, string[]>;
+};
 
 // Own keys only: a node type, handle or field named like an Object property (`constructor`) is none.
 const own = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
@@ -53,11 +63,13 @@ const duplicates = ({ workflow }: Graph): Finding[] =>
     return [...new Set(twice)].map((id): Finding => ({ code: "workflow.duplicate-id", params: { kind, id } }));
   });
 
-const nodeFindings = ({ workflow }: Graph): Finding[] => {
-  const triggers = workflow.nodes.filter((node) => node.type.startsWith("trigger.")).length;
+const isTrigger = (node: { type: string }): boolean => node.type.startsWith("trigger.");
+
+const nodeFindings = ({ nodes }: Graph): Finding[] => {
+  const triggers = nodes.filter(isTrigger).length;
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
-    ...workflow.nodes.flatMap((node): Finding[] => {
+    ...nodes.flatMap((node): Finding[] => {
       if (own(NODE_TYPES, node.type) === undefined) {
         return [{ code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } }];
       }
@@ -80,19 +92,19 @@ const field = (
   return own(fields, ref)?.type ?? { code: "workflow.dangling-edge", params: { edge, end, ref } };
 };
 
-/** The type of the handle an edge end names, a finding when it names none, or null when its node's type is unknown. */
-const resolve = (graph: Graph, edge: string, end: "from" | "to", at: End): HandleType | Finding | null => {
-  if (!("node" in at)) return field(graph.workflow, edge, end, at);
-  if (!graph.types.has(at.node)) return { code: "workflow.dangling-edge", params: { edge, end, ref: at.node } };
-  const type = graph.types.get(at.node);
+type Lookup = Pick<Graph, "workflow" | "types">;
+
+const resolve = ({ workflow, types }: Lookup, edge: string, end: "from" | "to", at: End): Resolved => {
+  if (!("node" in at)) return field(workflow, edge, end, at);
+  if (!types.has(at.node)) return { code: "workflow.dangling-edge", params: { edge, end, ref: at.node } };
+  const type = types.get(at.node);
   if (type === undefined) return null;
   const handle = own(end === "from" ? type.outputs : type.inputs, at.handle);
   return handle?.type ?? { code: "workflow.unknown-handle", params: { edge, end, handle: `${at.node}.${at.handle}` } };
 };
 
-const edgeFindings = (graph: Graph): Finding[] =>
-  graph.workflow.edges.flatMap((edge): Finding[] => {
-    const [from, to] = [resolve(graph, edge.id, "from", edge.from), resolve(graph, edge.id, "to", edge.to)];
+const edgeFindings = ({ resolved }: Graph): Finding[] =>
+  resolved.flatMap(({ edge, from, to }): Finding[] => {
     if (typeof from !== "string" || typeof to !== "string") {
       return [from, to].filter((item): item is Finding => typeof item === "object" && item !== null);
     }
@@ -105,14 +117,14 @@ const edgeFindings = (graph: Graph): Finding[] =>
 const target = (node: string | null, handle: string): string => `${node ?? ""}\0${handle}`;
 
 /** One edge into each data input and workflow output (none for an optional input), two or more into a join. */
-const sourceFindings = ({ workflow, types }: Graph): Finding[] => {
+const sourceFindings = ({ workflow, nodes, types }: Graph): Finding[] => {
   const counts = new Map<string, number>();
   for (const { to } of workflow.edges) {
     const key = "output" in to ? target(null, to.output) : target(to.node, to.handle);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const count = (node: string | null, handle: string): number => counts.get(target(node, handle)) ?? 0;
-  const joins = workflow.nodes
+  const joins = nodes
     .filter((node) => node.type === "join" && count(node.id, "branches") < 2)
     .map(
       (node): Finding => ({
@@ -122,7 +134,7 @@ const sourceFindings = ({ workflow, types }: Graph): Finding[] => {
     );
   const data = [
     ...Object.keys(workflow.outputs ?? {}).map((handle) => ({ node: null, handle, required: true })),
-    ...workflow.nodes.flatMap((node) =>
+    ...nodes.flatMap((node) =>
       Object.entries(types.get(node.id)?.inputs ?? {})
         .filter(([, spec]) => spec.type !== "control")
         .map(([handle, spec]) => ({ node: node.id, handle, required: spec.required === true })),
@@ -138,16 +150,11 @@ const sourceFindings = ({ workflow, types }: Graph): Finding[] => {
   ];
 };
 
-/** The first cycle of edges between nodes, in document order, or none: the normal path is a DAG. */
-const cycle = (graph: Graph): Finding[] => {
-  const next = new Map<string, string[]>();
-  // Edges with a finding of their own (a missing node or handle) do not count.
-  for (const { id, from, to } of graph.workflow.edges) {
-    const valid = [resolve(graph, id, "from", from), resolve(graph, id, "to", to)].every(
-      (type) => typeof type === "string",
-    );
-    if (valid && "node" in from && "node" in to) next.set(from.node, [...(next.get(from.node) ?? []), to.node]);
-  }
+/**
+ * The first cycle of edges between nodes, in document order, or none: the normal path is a DAG. The recursion is as
+ * deep as the longest path, which the schema's 1,000 nodes bound.
+ */
+const cycle = ({ nodes, next }: Graph): Finding[] => {
   const state = new Map<string, "open" | "done">();
   const visit = (node: string, path: string[]): string[] | undefined => {
     // The path ends with this node a second time; the cycle is the stretch from its first visit.
@@ -158,8 +165,28 @@ const cycle = (graph: Graph): Finding[] => {
     state.set(node, "done");
     return found;
   };
-  const nodes = graph.workflow.nodes.map((node) => visit(node.id, [node.id])).find((item) => item !== undefined);
-  return nodes === undefined ? [] : [{ code: "workflow.cycle", params: { nodes } }];
+  const found = nodes.map((node) => visit(node.id, [node.id])).find((item) => item !== undefined);
+  return found === undefined ? [] : [{ code: "workflow.cycle", params: { nodes: found } }];
+};
+
+/** Nodes of a known type that no path from the trigger or a workflow input reaches: they would never run. */
+const unreachable = ({ nodes, types, resolved, next }: Graph): Finding[] => {
+  const triggers = nodes.filter(isTrigger);
+  if (triggers.length !== 1) return [];
+  const inputs = resolved.flatMap(({ edge, to }) =>
+    "input" in edge.from && "node" in edge.to && typeof to === "string" ? [edge.to.node] : [],
+  );
+  const seen = new Set([...triggers.map((node) => node.id), ...inputs]);
+  const queue = [...seen];
+  for (const node of queue) {
+    for (const to of (next.get(node) ?? []).filter((item) => !seen.has(item))) {
+      seen.add(to);
+      queue.push(to);
+    }
+  }
+  return nodes
+    .filter((node) => !seen.has(node.id) && types.get(node.id) !== undefined)
+    .map((node): Finding => ({ code: "workflow.unreachable", params: { node: node.id } }));
 };
 
 const strays = ({ workflow, types }: Graph): Finding[] =>
@@ -169,14 +196,34 @@ const strays = ({ workflow, types }: Graph): Finding[] =>
       .map((node): Finding => ({ code: "workflow.stray-entry", params: { section, node } })),
   );
 
+const links = (resolved: Graph["resolved"]): Map<string, string[]> => {
+  const next = new Map<string, string[]>();
+  for (const { edge, from, to } of resolved) {
+    const valid = typeof from === "string" && typeof to === "string";
+    if (valid && "node" in edge.from && "node" in edge.to) {
+      next.set(edge.from.node, [...(next.get(edge.from.node) ?? []), edge.to.node]);
+    }
+  }
+  return next;
+};
+
 /**
  * The findings of a workflow's graph, beyond its schema: duplicate ids, one trigger, known node types, edges between
- * existing, compatible handles, one source per data input and output, joins with branches, and no cycle. Nodes of an
- * unknown type get no further findings for their edges. None with severity `error`: the editor and the CLI accept it.
+ * existing, compatible handles, one source per data input and output, joins with branches, no cycle, and every node
+ * reached. Edges of nodes of an unknown type get no further findings. None with severity `error`: the editor and the
+ * CLI accept the workflow.
  */
 export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
-  // Of two nodes with one id (a finding of its own), the first counts.
-  const types = new Map(workflow.nodes.toReversed().map((node) => [node.id, own(NODE_TYPES, node.type)]));
-  const graph = { workflow, types };
-  return [duplicates, nodeFindings, edgeFindings, sourceFindings, cycle, strays].flatMap((check) => check(graph));
+  const nodes = workflow.nodes.filter(
+    (node, index) => workflow.nodes.findIndex((item) => item.id === node.id) === index,
+  );
+  const lookup = { workflow, types: new Map(nodes.map((node) => [node.id, own(NODE_TYPES, node.type)])) };
+  const resolved = workflow.edges.map((edge) => ({
+    edge,
+    from: resolve(lookup, edge.id, "from", edge.from),
+    to: resolve(lookup, edge.id, "to", edge.to),
+  }));
+  const graph = { ...lookup, nodes, resolved, next: links(resolved) };
+  const checks = [duplicates, nodeFindings, edgeFindings, sourceFindings, cycle, unreachable, strays];
+  return checks.flatMap((check) => check(graph));
 };

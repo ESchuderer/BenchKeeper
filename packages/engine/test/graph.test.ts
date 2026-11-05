@@ -136,6 +136,7 @@ test("a data input and a workflow output take one edge; required ones need it; a
     { code: "workflow.many-sources", params: { node: null, handle: "log", count: 2 } },
     { code: "workflow.missing-source", params: { node: null, handle: "unset" } },
     { code: "workflow.missing-source", params: { node: "c", handle: "value" } },
+    { code: "workflow.unreachable", params: { node: "c" } },
   ]);
 });
 
@@ -145,7 +146,10 @@ test("a cycle is found with its nodes in order, a self-loop too; policies and po
     ["start.start>a.run", "a.done>b.run", "b.done>a.run"],
   );
   expect(validateWorkflow(loop)).toEqual([{ code: "workflow.cycle", params: { nodes: ["a", "b"] } }]);
-  expect(codes(workflow([start, "a:command.run"], ["a.done>a.run"]))).toEqual(["workflow.cycle"]);
+  expect(codes(workflow([start, "a:command.run"], ["a.done>a.run"]))).toEqual([
+    "workflow.cycle",
+    "workflow.unreachable",
+  ]);
   const strays = workflow([start], [], {
     execution: { nodes: { gone: { retries: 1 } } },
     layout: { nodes: { start: { x: 0, y: 0 }, old: { x: 1, y: 1 } } },
@@ -154,6 +158,18 @@ test("a cycle is found with its nodes in order, a self-loop too; policies and po
     { code: "workflow.stray-entry", params: { section: "execution", node: "gone" } },
     { code: "workflow.stray-entry", params: { section: "layout", node: "old" } },
   ]);
+});
+
+test("a node no path from the trigger or an input reaches never runs; duplicate ids give each finding once", () => {
+  const graph = workflow([start, "a:command.run", "c:condition", "c:condition"], ["@flag>c.value"], {
+    inputs: { flag: { type: "boolean" } },
+  });
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.duplicate-id", params: { kind: "node", id: "c" } },
+    { code: "workflow.unreachable", params: { node: "a" } },
+  ]);
+  // Without one trigger, reach is not judged: the trigger count is the finding.
+  expect(codes(workflow(["a:command.run"], []))).toEqual(["workflow.trigger-count"]);
 });
 
 // A chain of command nodes after the trigger, plus random forward edges: a DAG by construction.

@@ -64,6 +64,7 @@ export interface MessageValues {
   "problem.joinBranches": { node: string | number; count: string | number };
   "problem.manySources": { target: string | number; count: string | number };
   "problem.missingSource": { target: string | number };
+  "problem.moreIssues": { issues: string | number; count: string | number };
   "problem.nodeInput": { handle: string | number; node: string | number };
   "problem.optionalInput": { handle: string | number; node: string | number; input: string | number };
   "problem.scheduleInput": { input: string | number };

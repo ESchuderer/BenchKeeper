@@ -81,6 +81,7 @@
     "problem.joinBranches": ["Join ", ["node"], " has ", ["count"], " incoming branches; a join needs at least two."],
     "problem.manySources": [["target"], " gets ", ["count"], " edges; it takes one."],
     "problem.missingSource": [["target"], " gets no edge, but it needs one."],
+    "problem.moreIssues": [["issues"], ", and ", ["count"], " more"],
     "problem.nodeInput": ["Input ", ["handle"], " of node ", ["node"]],
     "problem.optionalInput": [
       "Input ",

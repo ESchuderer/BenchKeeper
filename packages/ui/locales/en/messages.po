@@ -184,6 +184,10 @@ msgid "problem.documentInvalid"
 msgstr "It does not match the workflow schema: {issues}."
 
 #. js-lingui-explicit-id
+msgid "problem.moreIssues"
+msgstr "{issues}, and {count} more"
+
+#. js-lingui-explicit-id
 msgid "problem.documentNewer"
 msgstr "It has schema version {found}; this CedarLoom reads up to {known}."
 

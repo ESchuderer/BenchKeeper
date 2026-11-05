@@ -5,8 +5,16 @@ type Params = { [F in Finding as F["code"]]: F["params"] };
 /** The findings the editor shows: the validator's, and why an imported file was refused. */
 type Shown = Extract<Finding["code"], `workflow.${string}` | "document.invalid" | "document.newer-schema">;
 
-const issues = (list: { path: string; code: string }[]): string =>
-  list.map((issue) => `${issue.path || "(top)"} ${issue.code}`).join(", ");
+// A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
+const SHOWN = 10;
+
+const issues = (list: { path: string; code: string }[]): string => {
+  const named = list
+    .slice(0, SHOWN)
+    .map((issue) => `${issue.path || "(top)"} ${issue.code}`)
+    .join(", ");
+  return list.length > SHOWN ? t("problem.moreIssues", { issues: named, count: list.length - SHOWN }) : named;
+};
 
 // A node's input, or (node null) one of the workflow's own outputs.
 const target = ({ node, handle }: { node: string | null; handle: string }): string =>

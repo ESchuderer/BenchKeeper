@@ -163,6 +163,23 @@ test("import reads a workflow file, export writes it back in its canonical form,
   expect(errors).toEqual([]);
 });
 
+test("New and Import start the canvas over: nothing stays selected, and the new graph is fitted in view", async () => {
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await card("start").click();
+  await expect(card("start")).toHaveClass(selected);
+  // A new workflow's one node is fitted at the highest zoom. The imported row of eight is wider than the canvas at
+  // that zoom, so all of it is in view only when the canvas fits it anew.
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
+  for (const id of ["@inputs", "ask", "build", "fix", "gate", "merge", "notes", "start"]) {
+    await expect(card(id)).toBeInViewport();
+  }
+  await expect(card("start")).not.toHaveClass(selected);
+  await card("start").click();
+  await expect(card("start")).toHaveClass(selected);
+  await page.getByRole("button", { name: "New workflow" }).click();
+  await expect(card("start")).not.toHaveClass(selected);
+});
+
 test("handles connect from the keyboard: a dialog lists the outputs and the inputs that can take them", async () => {
   await page.getByRole("button", { name: "New workflow" }).click();
   await page.getByRole("combobox", { name: "Node type" }).click();

@@ -24,7 +24,7 @@ import {
   type NodeChange,
   ReactFlow,
 } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { t } from "../i18n.ts";
 import {
   apply,
@@ -150,8 +150,11 @@ const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
   const [busy, setBusy] = useState(false);
   const [connecting, dialog] = useDisclosure(false);
   // The document as it stands when the layout answers: one changed meanwhile (New, Import, an edit) drops the layout.
+  // Set in the commit, so a render React discards never counts as the document.
   const latest = useRef(edit.history.present);
-  latest.current = edit.history.present;
+  useLayoutEffect(() => {
+    latest.current = edit.history.present;
+  }, [edit.history.present]);
   const lay = async (): Promise<void> => {
     if (busy) return;
     const laid = edit.history.present;

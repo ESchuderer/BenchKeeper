@@ -114,6 +114,7 @@ export const WorkflowDefinition = z
       .catchall(JsonValue)
       .optional(),
   })
+  .describe("A CedarLoom workflow; readers also refuse values nested over 32 levels deep, which JSON Schema can't say")
   .register(fileFormats, { id: "WorkflowDefinition" });
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinition>;
 

@@ -183,5 +183,6 @@
     "nodes",
     "edges"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "A CedarLoom workflow; readers also refuse values nested over 32 levels deep, which JSON Schema can't say"
 }

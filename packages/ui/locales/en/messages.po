@@ -114,3 +114,151 @@ msgstr "{count, plural, one {# file was} other {# files were}} edited since the 
 #. js-lingui-explicit-id
 msgid "run.title"
 msgstr "Run {runId}"
+
+#. js-lingui-explicit-id
+msgid "nav.workflows"
+msgstr "Workflows"
+
+#. js-lingui-explicit-id
+msgid "editor.canvas"
+msgstr "Workflow graph"
+
+#. js-lingui-explicit-id
+msgid "editor.nodeType"
+msgstr "Node type"
+
+#. js-lingui-explicit-id
+msgid "editor.addNode"
+msgstr "Add node"
+
+#. js-lingui-explicit-id
+msgid "editor.undo"
+msgstr "Undo"
+
+#. js-lingui-explicit-id
+msgid "editor.redo"
+msgstr "Redo"
+
+#. js-lingui-explicit-id
+msgid "editor.new"
+msgstr "New workflow"
+
+#. js-lingui-explicit-id
+msgid "editor.import"
+msgstr "Import JSON"
+
+#. js-lingui-explicit-id
+msgid "editor.export"
+msgstr "Export JSON"
+
+#. js-lingui-explicit-id
+msgid "editor.problems"
+msgstr "Problems"
+
+#. js-lingui-explicit-id
+msgid "editor.noProblems"
+msgstr "No problems."
+
+#. js-lingui-explicit-id
+msgid "editor.notJson"
+msgstr "The file is not JSON, so nothing was imported."
+
+#. js-lingui-explicit-id
+msgid "editor.refused"
+msgstr "The file was not imported: {reason}"
+
+#. js-lingui-explicit-id
+msgid "editor.inputs"
+msgstr "Workflow inputs"
+
+#. js-lingui-explicit-id
+msgid "editor.outputs"
+msgstr "Workflow outputs"
+
+#. js-lingui-explicit-id
+msgid "problem.severity"
+msgstr "{severity, select, error {Error} warning {Warning} other {Note}}"
+
+#. js-lingui-explicit-id
+msgid "problem.documentInvalid"
+msgstr "It does not match the workflow schema: {issues}."
+
+#. js-lingui-explicit-id
+msgid "problem.documentNewer"
+msgstr "It has schema version {found}; this CedarLoom reads up to {known}."
+
+#. js-lingui-explicit-id
+msgid "problem.duplicateId"
+msgstr "More than one {kind} has the id {id}."
+
+#. js-lingui-explicit-id
+msgid "problem.triggerCount"
+msgstr "The workflow has {count} trigger nodes; it needs exactly one."
+
+#. js-lingui-explicit-id
+msgid "problem.unknownNodeType"
+msgstr "Node {node} has the type {type}, which this CedarLoom does not know."
+
+#. js-lingui-explicit-id
+msgid "problem.invalidConfig"
+msgstr "The configuration of node {node} does not match its type: {issues}."
+
+#. js-lingui-explicit-id
+msgid "problem.danglingEdge"
+msgstr "Edge {edge} starts or ends at {ref}, which does not exist."
+
+#. js-lingui-explicit-id
+msgid "problem.unknownHandle"
+msgstr "Edge {edge} uses the handle {handle}, which that node type lacks."
+
+#. js-lingui-explicit-id
+msgid "problem.incompatibleHandles"
+msgstr "Edge {edge} joins a {from} output to a {to} input, which cannot take it."
+
+#. js-lingui-explicit-id
+msgid "problem.uncheckedHandles"
+msgstr "Edge {edge} passes {from} to a {to} input; the value is checked only when the workflow runs."
+
+#. js-lingui-explicit-id
+msgid "problem.manySources"
+msgstr "{target} gets {count} edges; it takes one."
+
+#. js-lingui-explicit-id
+msgid "problem.missingSource"
+msgstr "{target} gets no edge, but it needs one."
+
+#. js-lingui-explicit-id
+msgid "problem.cycle"
+msgstr "The nodes {nodes} form a cycle; repeats need an explicit loop node."
+
+#. js-lingui-explicit-id
+msgid "problem.joinBranches"
+msgstr "Join {node} has {count} incoming branches; a join needs at least two."
+
+#. js-lingui-explicit-id
+msgid "problem.exclusiveSources"
+msgstr "Input {handle} of node {node} waits for outputs of {from} of which only one fires, so {node} is always skipped; merge them in a join with policy any."
+
+#. js-lingui-explicit-id
+msgid "problem.optionalInput"
+msgstr "Input {handle} of node {node} needs a value, but the workflow input {input} is optional and has no default."
+
+#. js-lingui-explicit-id
+msgid "problem.scheduleInput"
+msgstr "A schedule starts this workflow without inputs, so the required input {input} needs a default."
+
+#. js-lingui-explicit-id
+msgid "problem.unreachable"
+msgstr "Nothing leads to node {node} from the trigger or an input, so it never runs."
+
+#. js-lingui-explicit-id
+msgid "problem.strayEntry"
+msgstr "The {section} section names node {node}, which the workflow does not have."
+
+#. js-lingui-explicit-id
+msgid "problem.nodeInput"
+msgstr "Input {handle} of node {node}"
+
+#. js-lingui-explicit-id
+msgid "problem.workflowOutput"
+msgstr "The workflow output {handle}"

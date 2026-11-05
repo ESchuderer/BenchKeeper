@@ -23,7 +23,7 @@
     "typescript/no-explicit-any": "error",
     "typescript/ban-ts-comment": "error",
     "import/no-cycle": "error",
-    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "**/jitless.ts"] }]
   },
   "overrides": [
     {

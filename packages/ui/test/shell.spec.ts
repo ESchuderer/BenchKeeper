@@ -2,10 +2,10 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AxeBuilder } from "@axe-core/playwright";
 import { type Started, startServer } from "@cedarloom/server";
 import { applyPlan } from "@cedarloom/use-cases";
 import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
+import { accessible as check, openPage } from "./browser.ts";
 
 // One server per file, started inside the worker: its URL token works once.
 test.describe.configure({ mode: "serial" });
@@ -32,13 +32,7 @@ test.beforeAll(async ({ browser }) => {
     every: 100,
     log: (text) => errors.push(text),
   });
-  // axe needs a page of a context the test made.
-  context = await browser.newContext();
-  page = await context.newPage();
-  // A CSP violation or a failed request shows up here.
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
+  ({ context, page } = await openPage(browser, errors));
 });
 
 test.afterAll(async () => {
@@ -46,12 +40,7 @@ test.afterAll(async () => {
   await server.close();
 });
 
-const accessible = async (target: Page = page): Promise<void> => {
-  const { violations } = await new AxeBuilder({ page: target }).analyze();
-  expect(
-    violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(" ")}`),
-  ).toEqual([]);
-};
+const accessible = (target: Page = page): Promise<void> => check(target);
 
 test("the printed link opens the shell, leaves the address bar without its token, and survives a reload", async () => {
   await page.goto(server.url);
@@ -67,7 +56,7 @@ test("the printed link opens the shell, leaves the address bar without its token
 
 test("every view is reachable from the navigation and passes axe", async () => {
   const nav = page.getByRole("navigation", { name: "Views" });
-  for (const view of ["Sessions", "Accounts", "Memory", "Work items", "Usage", "Runs"]) {
+  for (const view of ["Workflows", "Sessions", "Accounts", "Memory", "Work items", "Usage", "Runs"]) {
     await nav.getByRole("button", { name: view }).click();
     await expect(page.getByRole("heading", { level: 2, name: view })).toBeVisible();
     await expect(nav.getByRole("button", { name: view })).toHaveAttribute("aria-current", "page");

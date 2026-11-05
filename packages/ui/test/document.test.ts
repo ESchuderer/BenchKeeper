@@ -108,12 +108,19 @@ test("removing a node removes its edges, position and policy; removing nothing o
   };
   const removed = edit(withPolicy, { kind: "remove", nodes: ["command-run-1"], edges: [] });
   expect(removed.nodes.map((item) => item.id)).toEqual(["start", "agent-run-1"]);
-  expect([removed.edges, Object.keys(removed.layout?.nodes ?? {})]).toEqual([[], ["agent-run-1"]]);
+  expect([removed.edges, Object.keys(removed.layout?.nodes ?? {})]).toEqual([[], ["start", "agent-run-1"]]);
   expect(removed.execution).toEqual({ failurePolicy: "fail_fast", nodes: { "agent-run-1": { retries: 1 } } });
   expect(edit(withPolicy, { kind: "remove", nodes: [], edges: ["e1"] }).edges).toEqual([]);
   const lone = edit(withPolicy, { kind: "remove", nodes: ["command-run-1", "agent-run-1"], edges: [] });
   expect(edit(lone, { kind: "remove", nodes: ["start"], edges: [] })).toBe(lone);
-  const bare = { ...newWorkflow(), nodes: [...newWorkflow().nodes, { id: "x", type: "join" }] };
+  const { schemaVersion, kind, metadata } = newWorkflow();
+  const bare: WorkflowDefinition = {
+    schemaVersion,
+    kind,
+    metadata,
+    nodes: [...newWorkflow().nodes, { id: "x", type: "join" }],
+    edges: [],
+  };
   expect(edit(bare, { kind: "remove", nodes: ["x"], edges: [] })).not.toHaveProperty("layout");
   expect(edit(withPolicy, { kind: "remove", nodes: [], edges: [] })).toBe(withPolicy);
   expect(edit(withPolicy, { kind: "move", positions: { gone: at(1, 1) } })).toBe(withPolicy);

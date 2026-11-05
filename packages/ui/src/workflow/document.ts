@@ -22,13 +22,14 @@ const LIMIT = 100;
 // The schema's bounds: an edit that would pass them, or leave no node, is refused.
 const [MAX_NODES, MAX_EDGES] = [1000, 5000];
 
-/** A new workflow: a manual trigger and nothing else. */
+/** A new workflow: a manual trigger, placed, so that nodes added next to it never move it. */
 export const newWorkflow = (): WorkflowDefinition => ({
   schemaVersion: 1,
   kind: "cedarloom.workflow",
   metadata: { id: "workflow", name: "Workflow", version: "0.1.0" },
   nodes: [{ id: "start", type: "trigger.manual" }],
   edges: [],
+  layout: { nodes: { start: { x: 0, y: 0 } } },
 });
 
 export const open = (workflow: WorkflowDefinition): History => ({ past: [], present: workflow, future: [] });

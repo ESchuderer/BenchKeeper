@@ -24,7 +24,6 @@ export interface MessageValues {
   "editor.redo": Record<never, never>;
   "editor.refused": { reason: string | number };
   "editor.undo": Record<never, never>;
-  "editor.unreadable": Record<never, never>;
   "error.failed": { status: string | number; error: string | number };
   "error.unreachable": Record<never, never>;
   "error.unreadable": { codes: string | number };

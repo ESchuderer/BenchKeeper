@@ -101,9 +101,6 @@ const download = (workflow: WorkflowDefinition): void => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-// Disabled but focusable, so focus stays on the button when its stack runs empty; a press then does nothing.
-const off = (disabled: boolean) => ({ "data-disabled": disabled, "aria-disabled": disabled });
-
 const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) => void }): ReactNode => {
   const [type, setType] = useState<string | null>("command.run");
   // The file input forgets its file, so picking the same file again (fixed after a refusal) imports it again.
@@ -112,7 +109,7 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
   const take = async (file: File | null): Promise<void> => {
     reset.current?.();
     if (file === null) return;
-    const found = await file.text().then(importOf, () => ({ problem: t("editor.unreadable") }));
+    const found = importOf(await file.text());
     if ("problem" in found) onProblem(found.problem);
     else edit.change({ kind: "replace", workflow: found.workflow });
   };
@@ -123,15 +120,10 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
     <Group align="end">
       <Select label={t("editor.nodeType")} data={TYPES} value={type} onChange={setType} allowDeselect={false} />
       <Button onClick={add}>{t("editor.addNode")}</Button>
-      <Button variant="default" onClick={edit.undo} {...off(past.length === 0)} aria-keyshortcuts="Control+Z Meta+Z">
+      <Button variant="default" onClick={edit.undo} disabled={past.length === 0}>
         {t("editor.undo")}
       </Button>
-      <Button
-        variant="default"
-        onClick={edit.redo}
-        {...off(future.length === 0)}
-        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y"
-      >
+      <Button variant="default" onClick={edit.redo} disabled={future.length === 0}>
         {t("editor.redo")}
       </Button>
       <Button variant="default" onClick={() => edit.change({ kind: "replace", workflow: newWorkflow() })}>
@@ -185,10 +177,7 @@ const picked = (changes: (NodeChange | EdgeChange)[], selected: Set<string>): Se
   return next;
 };
 
-/**
- * The selected ids among the items on the canvas: an id that left the workflow (deleted, undone) leaves the selection,
- * so a new node that gets the id again is not selected.
- */
+// The selected ids still on the canvas: an id that left (deleted, undone) is not selected again when given out anew.
 const useSelection = (items: { id: string }[]) => {
   const [ids, setIds] = useState<Set<string>>(new Set());
   const live = new Set(items.map((item) => item.id));

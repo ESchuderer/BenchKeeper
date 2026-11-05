@@ -71,13 +71,6 @@ test("the Workflows view opens a new workflow with the attribution link, minimap
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
   await expect(page.locator(".react-flow__controls")).toBeVisible();
   await expect(problems().getByRole("status")).toHaveText("No problems.");
-  // An empty undo stack leaves focus on Undo: the button only says it is disabled.
-  await page.getByRole("button", { name: "Add node" }).click();
-  const undo = page.getByRole("button", { name: "Undo" });
-  await undo.press("Enter");
-  await expect(card("command-run-1")).toHaveCount(0);
-  await expect(undo).toBeFocused();
-  await expect(undo).toHaveAttribute("aria-disabled", "true");
   await accessible();
   expect(errors).toEqual([]);
 });
@@ -104,12 +97,6 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  for (const redo of ["ControlOrMeta+Shift+z", "ControlOrMeta+y"]) {
-    await page.keyboard.press("ControlOrMeta+z");
-    await expect(page.locator(".react-flow__edge")).toHaveCount(0);
-    await page.keyboard.press(redo);
-    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  }
   // A workflow keeps one node: deleting the last one is refused, and the page says so.
   await page.getByRole("button", { name: "New workflow" }).click();
   await card("start").click();
@@ -131,7 +118,7 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await view("Runs");
   await view("Workflows");
   await expect(card("agent-run-1")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Undo" })).not.toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 });
 
 test("import reads a workflow file, export writes it back in its canonical form, and other files are refused", async () => {

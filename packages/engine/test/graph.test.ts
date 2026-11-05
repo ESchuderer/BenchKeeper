@@ -1,7 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
-import { compatibility, validateWorkflow } from "@cedarloom/engine/graph";
+import { validateWorkflow } from "@cedarloom/engine";
+import { compatibility } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
@@ -170,6 +171,23 @@ test("a node no path from the trigger or an input reaches never runs; duplicate 
   ]);
   // Without one trigger, reach is not judged: the trigger count is the finding.
   expect(codes(workflow(["a:command.run"], []))).toEqual(["workflow.trigger-count"]);
+});
+
+test("one mistake gives one finding: nodes behind a bad edge or unknown node stay reached, duplicates report once", () => {
+  const unknown = workflow([start, "x:git.commit", "a:command.run"], ["start.start>x.run", "x.done>a.run"]);
+  expect(codes(unknown)).toEqual(["workflow.unknown-node-type"]);
+  expect(codes(workflow([start, "a:command.run"], ["start.start>a.rn"]))).toEqual(["workflow.unknown-handle"]);
+  expect(codes(workflow(["w:trigger.webhook", "a:command.run"], ["w.start>a.run"]))).toEqual([
+    "workflow.unknown-node-type",
+  ]);
+  // Without deduplication each copy of node c would report its missing value.
+  expect(codes(workflow([start, "c:condition", "c:condition"], ["start.start>c.run"]))).toEqual([
+    "workflow.duplicate-id",
+    "workflow.missing-source",
+  ]);
+  const twice = workflow([start, "a:command.run"], ["start.start>a.run", "gone.done>a.run", "gone.done>a.run"]);
+  const edges = twice.edges.map((item, index) => (index === 0 ? item : { ...item, id: "e2" }));
+  expect(codes({ ...twice, edges })).toEqual(["workflow.duplicate-id", "workflow.dangling-edge"]);
 });
 
 // A chain of command nodes after the trigger, plus random forward edges: a DAG by construction.

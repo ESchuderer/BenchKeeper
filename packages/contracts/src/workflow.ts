@@ -16,25 +16,23 @@ const description = z.string().max(2000).optional();
 const JsonValue = z.json().register(fileFormats, { id: "JsonValue" });
 
 /** What a data handle carries; `json` takes any JSON value. */
-export const DataType = z.enum(["string", "number", "boolean", "json"]).register(fileFormats, { id: "DataType" });
+const DataType = z.enum(["string", "number", "boolean", "json"]).register(fileFormats, { id: "DataType" });
 
 /** What a handle carries: `control` orders nodes and carries no data. */
 export const HandleType = z.enum(["control", ...DataType.options]).register(fileFormats, { id: "HandleType" });
 export type HandleType = z.infer<typeof HandleType>;
 
 /** When a join lets the run continue: once all its branches ended, or once the first did. */
-export const JoinPolicy = z.enum(["all", "any"]).register(fileFormats, { id: "JoinPolicy" });
+const JoinPolicy = z.enum(["all", "any"]).register(fileFormats, { id: "JoinPolicy" });
 
 /** The configuration of a `join` node. */
 export const JoinConfig = z.strictObject({ policy: JoinPolicy }).register(fileFormats, { id: "JoinConfig" });
 
 /** What a failed node does to the run, unless an edge from its `failed` handle routes the failure. */
-export const FailurePolicy = z
-  .enum(["fail_fast", "continue_independent"])
-  .register(fileFormats, { id: "FailurePolicy" });
+const FailurePolicy = z.enum(["fail_fast", "continue_independent"]).register(fileFormats, { id: "FailurePolicy" });
 
 /** One node of the graph: its type names its handles, `with` its configuration. */
-export const WorkflowNode = z
+const WorkflowNode = z
   .strictObject({
     id,
     type: z
@@ -47,19 +45,17 @@ export const WorkflowNode = z
       .describe("The node's configuration; the engine checks it against the node type"),
   })
   .register(fileFormats, { id: "WorkflowNode" });
-export type WorkflowNode = z.infer<typeof WorkflowNode>;
 
 const handleEnd = z.strictObject({ node: id, handle: name });
 
 /** A directed connection from an output handle (or a workflow input) to an input handle (or a workflow output). */
-export const WorkflowEdge = z
+const WorkflowEdge = z
   .strictObject({
     id,
     from: z.union([handleEnd, z.strictObject({ input: name })]),
     to: z.union([handleEnd, z.strictObject({ output: name })]),
   })
   .register(fileFormats, { id: "WorkflowEdge" });
-export type WorkflowEdge = z.infer<typeof WorkflowEdge>;
 
 const nodePolicy = z.strictObject({
   failurePolicy: FailurePolicy.optional(),

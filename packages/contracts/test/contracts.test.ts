@@ -2,9 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   canonicalJson,
+  type Json,
   formatWorkflow,
   Plan,
   readDocument,
+  type Result,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
@@ -41,15 +43,46 @@ describe("golden corpus of plans, one folder per schemaVersion", async () => {
   }
 });
 
+// Each invalid workflow breaks in one place, the one its name promises.
+const promised: Record<string, string[]> = {
+  "invalid-bad-node-id.json": ["nodes.0.id"],
+  "invalid-edge-without-id.json": ["edges.0.id"],
+  "invalid-no-nodes.json": ["nodes"],
+  "invalid-other-kind.json": ["kind"],
+  "invalid-position-in-node.json": ["nodes.0"],
+  "invalid-string-version.json": ["schemaVersion"],
+  "invalid-too-deep.json": [`nodes.0.with.args.${Array.from({ length: 28 }, () => "0").join(".")}`],
+  "invalid-unknown-data-type.json": ["inputs.when.type"],
+};
+
+const issuePaths = (read: Result<unknown>): string[] =>
+  !read.ok && read.finding.code === "document.invalid" ? read.finding.params.issues.map((issue) => issue.path) : [];
+
 describe("golden corpus of workflows: valid files are also in their canonical form", async () => {
   for (const [version, name, text] of await corpus("WorkflowDefinition")) {
     test(`${version}/${name}`, () => {
       const read = readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, JSON.parse(text));
       expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name, WORKFLOW_SCHEMA_VERSION));
+      expect(issuePaths(read)).toEqual(promised[name] ?? []);
       expect(read.ok ? formatWorkflow(read.value) : text).toBe(text);
     });
   }
 });
+
+test("values nested deeper than 32 levels are refused before the schema runs, without overflowing the stack", () => {
+  let deep: Json = "x";
+  for (let level = 0; level < 2000; level += 1) deep = [deep];
+  const read = readDocument(Plan, KNOWN, { schemaVersion: 1, operations: deep });
+  expect([read.ok ? "" : read.finding.code, issuePaths(read)[0]?.split(".").length]).toEqual(["document.invalid", 32]);
+});
+
+// Keys in reverse order at every depth, as an editor might write them.
+const reverseKeys = (value: Json): Json => {
+  if (Array.isArray(value)) return value.map(reverseKeys);
+  if (value === null || typeof value !== "object") return value;
+  const entries = Object.entries(value).flatMap(([key, item]) => (item === undefined ? [] : [[key, item] as const]));
+  return Object.fromEntries(entries.toReversed().map(([key, item]) => [key, reverseKeys(item)]));
+};
 
 const id = fc.stringMatching(/^[a-z][a-z0-9-]{0,8}$/);
 const name = fc.stringMatching(/^[a-z][a-z0-9_]{0,8}$/);
@@ -94,8 +127,7 @@ test("the file format depends on the workflow only, not on the order of its node
   fc.assert(
     fc.property(reordered, ([workflow, nodes, edges]) => {
       const text = formatWorkflow(workflow);
-      // Keys in reverse order, as an editor might write them.
-      const reversed = Object.fromEntries(Object.entries({ ...workflow, nodes, edges }).toReversed());
+      const reversed = reverseKeys({ ...workflow, nodes, edges });
       expect(formatWorkflow(WorkflowDefinition.parse(reversed))).toBe(text);
       expect(formatWorkflow(WorkflowDefinition.parse(JSON.parse(text)))).toBe(text);
     }),

@@ -13,6 +13,8 @@
     { "path": "packages/ledger/test" },
     { "path": "packages/engine" },
     { "path": "packages/engine/test" },
+    { "path": "packages/services" },
+    { "path": "packages/services/test" },
     { "path": "packages/cli" },
     { "path": "packages/cli/test" }
   ]

@@ -8,5 +8,5 @@
     "resolveJsonModule": true
   },
   "include": [".", "../package.json"],
-  "references": [{ "path": ".." }]
+  "references": [{ "path": ".." }, { "path": "../../ledger" }]
 }

@@ -36,12 +36,12 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
-    "@cedarloom/engine": "workspace:*",
-    "@cedarloom/ledger": "workspace:*",
+    "@cedarloom/services": "workspace:*",
     "@commander-js/extra-typings": "15.0.0",
     "commander": "15.0.0"
   },
   "devDependencies": {
+    "@cedarloom/ledger": "workspace:*",
     "zod": "catalog:"
   }
 }

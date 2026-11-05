@@ -1,4 +1,5 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionError } from "@cedarloom/agent-contracts";
 import { z } from "zod";
@@ -21,11 +22,12 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at most
 // (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
 // at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
-// ends the whole tree there, also at once and without the CLI's SessionEnd hooks.
+// ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
 const stop = (child: ChildProcess): void => {
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
   if (process.platform === "win32" && child.pid !== undefined) {
-    execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, (failed) => {
+    const taskkill = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
+    execFile(taskkill, ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, (failed) => {
       if (failed !== null) child.kill();
     });
     return;

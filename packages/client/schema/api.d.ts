@@ -730,6 +730,12 @@ export interface components {
             params: {
                 pool: string;
             };
+        } | {
+            /** @constant */
+            code: "launch.gh-login";
+            params: {
+                error: string | null;
+            };
         };
         RunInput: {
             id: string;
@@ -1139,6 +1145,12 @@ export interface components {
             code: "accounts.pool-terms";
             params: {
                 pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.gh-login";
+            params: {
+                error: string | null;
             };
         };
         Run: {

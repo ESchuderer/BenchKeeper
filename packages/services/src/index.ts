@@ -9,6 +9,6 @@ export {
   previewUndo,
   type RunResult,
   showRun,
-  type UndoResult,
+  type UndoPreview,
   undoRun,
 } from "./services.ts";

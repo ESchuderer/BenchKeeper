@@ -75,27 +75,21 @@ export const runsShow = (ctx: Context, runId: string): number => {
 };
 
 const previewUndo = (ctx: Context, runId: string): number => {
-  const planned = services.previewUndo(ctx.state, runId);
-  if (!planned.ok) return readFailed(ctx, planned.finding);
-  const { plan, skipped } = planned.value;
-  const preview = plan === null ? null : services.previewPlan(plan);
-  emit(
-    ctx,
-    "plan",
-    { planHash: preview?.planHash ?? null, plan: preview?.plan ?? null, findings: skipped },
-    preview ? ask(preview) : "Nothing to undo.",
-  );
-  report(ctx, skipped);
+  const preview = services.previewUndo(ctx.state, runId);
+  if (!preview.ok) return readFailed(ctx, preview.finding);
+  const { value } = preview;
+  emit(ctx, "plan", value, value.plan === null ? "Nothing to undo." : ask(value));
+  report(ctx, value.findings);
   return EXIT.ok;
 };
 
 export const runsUndo = (ctx: Context, runId: string, approval: Approval): number => {
   if (!approved(approval)) return previewUndo(ctx, runId);
-  const undone = services.undoRun(ctx.state, runId, approval);
-  if (!undone.ok) return fail(ctx, "run", [undone.finding], EXIT.refused);
-  const { plan, ...run } = undone.value;
-  if (plan !== null && !ctx.json) ctx.io.out(`${showPlan(services.previewPlan(plan))}\n`);
-  return result(ctx, run);
+  const show = (preview: PlanPreview): void => {
+    if (!ctx.json) ctx.io.out(`${showPlan(preview)}\n`);
+  };
+  const undone = services.undoRun(ctx.state, runId, approval, show);
+  return undone.ok ? result(ctx, undone.value) : fail(ctx, "run", [undone.finding], EXIT.refused);
 };
 
 export const doctor = (ctx: Context): number => {

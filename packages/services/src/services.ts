@@ -7,7 +7,7 @@ import {
   type Result,
   readDocument,
 } from "@cedarloom/contracts";
-import { apply, errorCode, type Outcome, planUndo, recover, type UndoPlan } from "@cedarloom/engine";
+import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
 import {
   openRunStore,
   openRunView,
@@ -43,10 +43,8 @@ export interface RunResult {
   findings: Finding[];
 }
 
-/** An undo's result with the plan it applied: null when nothing was left to undo. */
-export interface UndoResult extends RunResult {
-  plan: Plan | null;
-}
+/** The plan that would undo a run, as previews show it, and the files it would leave because they were edited since. */
+export type UndoPreview = (PlanPreview | { planHash: null; plan: null }) & { findings: Finding[] };
 
 const notFound = (runId: string): Result<never> => ({
   ok: false,
@@ -55,7 +53,7 @@ const notFound = (runId: string): Result<never> => ({
 
 // An empty hash approves no plan, so a call without an approval is refused by the run store.
 const approvedHash = (approval: Approval, plan: Plan): string =>
-  approval.approve ?? (approval.yes ? planHash(plan) : "");
+  approval.approve ?? (approval.yes === true ? planHash(plan) : "");
 
 /** Opens the store for a change, removes what interrupted runs left, and closes it again. */
 const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
@@ -138,19 +136,33 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
     return { ok: true, value: { run, steps: detail.steps } };
   });
 
-/** The plan that would undo a run and the files it would leave because they were edited since; writes nothing. */
-export const previewUndo = (state: string, runId: string): Result<UndoPlan> =>
-  withView(state, (view) => (view === null ? notFound(runId) : planUndo(view, runId)));
+/** Plans the undo of a run and writes nothing. */
+export const previewUndo = (state: string, runId: string): Result<UndoPreview> =>
+  withView(state, (view) => {
+    const planned = view === null ? notFound(runId) : planUndo(view, runId);
+    if (!planned.ok) return planned;
+    const { plan, skipped: findings } = planned.value;
+    return { ok: true, value: { ...(plan === null ? { planHash: null, plan: null } : previewPlan(plan)), findings } };
+  });
 
-/** Plans the undo of a run under the store's lock and applies it, as approved, as a run of its own. */
-export const undoRun = (state: string, runId: string, approval: Approval): Result<UndoResult> =>
-  withStore<UndoResult>(state, (store) => {
+/**
+ * Plans the undo of a run under the store's lock and applies it, as approved, as a run of its own; `onPlan` sees the
+ * plan before anything is written.
+ */
+export const undoRun = (
+  state: string,
+  runId: string,
+  approval: Approval,
+  onPlan: (preview: PlanPreview) => void = () => undefined,
+): Result<RunResult> =>
+  withStore<RunResult>(state, (store) => {
     const planned = planUndo(store, runId);
     if (!planned.ok) return planned;
     const { plan, skipped } = planned.value;
-    if (plan === null) return { ok: true, value: { plan, runId: null, status: "nothing-to-undo", findings: skipped } };
+    if (plan === null) return { ok: true, value: { runId: null, status: "nothing-to-undo", findings: skipped } };
+    onPlan(previewPlan(plan));
     const outcome = apply(store, plan, approvedHash(approval, plan), { kind: "undo", undoes: runId });
-    return { ok: true, value: { plan, ...settled(outcome, skipped, runId) } };
+    return { ok: true, value: settled(outcome, skipped, runId) };
   });
 
 /** Interrupted and failed runs no undo has dealt with, and a store this CedarLoom cannot read. */

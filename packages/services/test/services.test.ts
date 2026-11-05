@@ -1,10 +1,20 @@
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Plan } from "@cedarloom/contracts";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
-import { applyPlan, doctor, listRuns, loadPlan, previewPlan, previewUndo, showRun, undoRun } from "@cedarloom/services";
+import {
+  applyPlan,
+  doctor,
+  listRuns,
+  loadPlan,
+  type PlanPreview,
+  previewPlan,
+  previewUndo,
+  showRun,
+  undoRun,
+} from "@cedarloom/services";
 import { expect, test } from "vitest";
 
 /** A temporary folder: files in it, the run store in `state/` (not created until a change needs it). */
@@ -71,12 +81,12 @@ test("reads of a folder without a store find nothing and create nothing", () => 
 test("an approved plan applies as one run, which the reads then show", () => {
   const { at, state } = folder();
   const plan = creates(at("a.txt"));
-  expect(ok(applyPlan(state, plan, { approve: sha256("another plan") }))).toMatchObject({
+  // `approve` wins over `yes`, and no approval at all approves nothing: the services never apply an unapproved plan.
+  expect(ok(applyPlan(state, plan, { yes: true, approve: sha256("another plan") }))).toMatchObject({
     runId: null,
     status: "refused",
     findings: [{ code: "plan.not-approved" }],
   });
-  // No approval at all is refused the same way: the services never apply a plan nobody approved.
   expect(ok(applyPlan(state, plan, {})).findings).toMatchObject([{ params: { approvedHash: "" } }]);
   const run = ok(applyPlan(state, plan, { yes: true }));
   expect(run).toMatchObject({ status: "applied", findings: [] });
@@ -88,7 +98,31 @@ test("an approved plan applies as one run, which the reads then show", () => {
   expect(doctor(state)).toEqual([]);
 });
 
-test("a run that stops midway names itself; its undo is previewed, applied as a run of its own, then done", () => {
+test("an undo restores a replaced file only as approved, and no result carries the old or new contents", () => {
+  const { at, state } = folder();
+  writeFileSync(at(".env"), "TOKEN=old-secret\n");
+  const replace: Plan = {
+    schemaVersion: 1,
+    operations: [
+      { kind: "write", path: at(".env"), before: sha256("TOKEN=old-secret\n"), content: "TOKEN=new-secret\n" },
+    ],
+  };
+  const runId = String(ok(applyPlan(state, replace, { yes: true })).runId);
+  const preview = ok(previewUndo(state, runId));
+  expect(preview).toMatchObject({ plan: { operations: [{ after: sha256("TOKEN=old-secret\n"), bytes: 17 }] } });
+  const refused = ok(undoRun(state, runId, { approve: sha256("another plan") }));
+  expect([refused.status, readFileSync(at(".env"), "utf8")]).toEqual(["refused", "TOKEN=new-secret\n"]);
+  const shown: PlanPreview[] = [];
+  const undone = ok(undoRun(state, runId, { approve: String(preview.planHash) }, (plan) => shown.push(plan)));
+  expect([undone.status, shown, readFileSync(at(".env"), "utf8")]).toEqual([
+    "applied",
+    [{ planHash: preview.planHash, plan: preview.plan }],
+    "TOKEN=old-secret\n",
+  ]);
+  expect(JSON.stringify([preview, refused, shown, undone])).not.toContain("secret");
+});
+
+test("a run that stops midway names itself until an undo run has undone it", () => {
   const { at, state } = folder();
   writeFileSync(at("b.bin"), Buffer.from([0xfe, 0x01]));
   const stopping: Plan = {
@@ -100,32 +134,57 @@ test("a run that stops midway names itself; its undo is previewed, applied as a 
   };
   const stopped = ok(applyPlan(state, stopping, { yes: true }));
   const runId = String(stopped.runId);
-  expect(stopped).toMatchObject({
-    status: "failed",
-    findings: [{ code: "apply.not-text" }, { code: "run.failed", params: { runId, undoes: null } }],
-  });
-  expect(doctor(state)).toEqual([{ code: "run.failed", params: { runId, undoes: null } }]);
-  const { plan, skipped } = ok(previewUndo(state, runId));
-  expect([plan?.operations, skipped]).toEqual([[{ kind: "delete", path: at("a.txt"), before: sha256("1\n") }], []]);
-  const undone = ok(undoRun(state, runId, { approve: plan ? planHash(plan) : "" }));
-  expect(undone).toMatchObject({ plan, status: "applied", findings: [] });
+  const failed = { code: "run.failed", params: { runId, undoes: null } };
+  expect(stopped).toMatchObject({ status: "failed", findings: [{ code: "apply.not-text" }, failed] });
+  expect(doctor(state)).toEqual([failed]);
+  expect(ok(undoRun(state, runId, { yes: true }))).toMatchObject({ status: "applied", findings: [] });
   expect([existsSync(at("a.txt")), doctor(state)]).toEqual([false, []]);
-  expect(ok(undoRun(state, runId, { yes: true }))).toEqual({
-    plan: null,
-    runId: null,
-    status: "nothing-to-undo",
-    findings: [],
-  });
+  expect(ok(undoRun(state, runId, { yes: true }))).toEqual({ runId: null, status: "nothing-to-undo", findings: [] });
 });
 
-test("a file edited after its run is left as it is and reported by the undo", () => {
+test("an undo leaves a file edited since its run, and stops at a backup that is gone", () => {
   const { at, state } = folder();
   const runId = String(ok(applyPlan(state, creates(at("a.txt")), { yes: true })).runId);
   writeFileSync(at("a.txt"), "mine\n");
   const edited = { code: "undo.file-edited", params: { runId, path: at("a.txt") } };
-  expect(ok(previewUndo(state, runId))).toEqual({ plan: null, skipped: [edited] });
+  expect(ok(previewUndo(state, runId))).toEqual({ planHash: null, plan: null, findings: [edited] });
   expect(ok(undoRun(state, runId, { yes: true }))).toMatchObject({ status: "nothing-to-undo", findings: [edited] });
   expect(undoRun(state, "r3", { yes: true })).toMatchObject({ ok: false, finding: { code: "run.not-found" } });
+  const replaced = ok(
+    applyPlan(
+      state,
+      {
+        ...creates(at("a.txt"), "ours\n"),
+        operations: [{ kind: "write", path: at("a.txt"), before: sha256("mine\n"), content: "ours\n" }],
+      },
+      { yes: true },
+    ),
+  );
+  rmSync(join(state, "backups", String(replaced.runId), "0"));
+  expect(previewUndo(state, String(replaced.runId))).toMatchObject({
+    ok: false,
+    finding: { code: "undo.backup-missing" },
+  });
+});
+
+test("reads work while a process holds the store; a run it left running shows as interrupted once it is gone", () => {
+  const { at, state } = folder();
+  const held = openRunStore(state);
+  if (!held.ok) throw new Error(held.finding.code);
+  const plan = creates(at("a.txt"));
+  const begun = held.value.begin("apply", plan, planHash(plan));
+  const runId = begun.ok ? begun.value : "";
+  expect([ok(listRuns(state))[0]?.status, ok(showRun(state, runId)).run.status, doctor(state)]).toEqual([
+    "running",
+    "running",
+    [],
+  ]);
+  held.value.close();
+  expect([ok(listRuns(state))[0]?.status, ok(showRun(state, runId)).run.status, doctor(state)]).toEqual([
+    "interrupted",
+    "interrupted",
+    [{ code: "run.interrupted", params: { runId, undoes: null } }],
+  ]);
 });
 
 test("a store another process holds refuses changes; one from a newer CedarLoom refuses reads too", () => {

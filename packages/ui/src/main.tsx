@@ -31,7 +31,11 @@ const theme = createTheme({ primaryColor: "cedar", primaryShade: 7, colors: { ce
 const connect = async (): Promise<Api | null> => {
   const token = new URLSearchParams(location.hash.slice(1)).get("t");
   history.replaceState(null, "", "/");
-  if (token !== null) sessionStorage.setItem(KEY, await exchange(location.origin, token));
+  try {
+    if (token !== null) sessionStorage.setItem(KEY, await exchange(location.origin, token));
+  } catch {
+    // A link used before, opened again: the session this tab already holds, if any, still works.
+  }
   const csrf = sessionStorage.getItem(KEY);
   return csrf === null ? null : client(location.origin, csrf);
 };

@@ -1,9 +1,10 @@
 import type { Api, components } from "@cedarloom/client";
 import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { type MessageId, t } from "./i18n.ts";
+import type { MessageId } from "@lingui/core";
+import { t, when } from "./i18n.ts";
 
 type Run = components["schemas"]["Run"];
 type Preview = { planHash: string | null; count: number; skipped: number };
@@ -23,48 +24,49 @@ const call = async <T,>(request: () => Promise<Fetched<T>>): Promise<{ data: T }
   }
 };
 
-// openapi-fetch drops the null-typed properties of a preview with nothing to undo from its type; they are null at runtime.
-const previewOf = (data: { findings: unknown[] }): Preview => {
-  const plan = "plan" in data ? data.plan : null;
-  const operations = typeof plan === "object" && plan !== null && "operations" in plan ? plan.operations : [];
-  const planHash = "planHash" in data && typeof data.planHash === "string" ? data.planHash : null;
-  return { planHash, count: Array.isArray(operations) ? operations.length : 0, skipped: data.findings.length };
-};
+const previewOf = ({ planHash, plan, findings }: components["schemas"]["UndoPreview"]): Preview => ({
+  planHash,
+  count: plan?.operations.length ?? 0,
+  skipped: findings.length,
+});
 
 type Select = (runId: string) => void;
 
 const RunsTable = ({ runs, selected, onSelect }: { runs: Run[]; selected: string | null; onSelect: Select }) => (
-  <Table striped highlightOnHover>
-    <Table.Caption c="bright">{t("runs.caption")}</Table.Caption>
-    <Table.Thead>
-      <Table.Tr>
-        <Table.Th>{t("runs.run")}</Table.Th>
-        <Table.Th>{t("runs.kind")}</Table.Th>
-        <Table.Th>{t("runs.status")}</Table.Th>
-        <Table.Th>{t("runs.started")}</Table.Th>
-      </Table.Tr>
-    </Table.Thead>
-    <Table.Tbody>
-      {runs.map((run) => (
-        <Table.Tr key={run.id}>
-          <Table.Td>
-            <Button
-              variant="subtle"
-              size="compact-sm"
-              ff="monospace"
-              aria-pressed={run.id === selected}
-              onClick={() => onSelect(run.id)}
-            >
-              {run.id.slice(0, 8)}
-            </Button>
-          </Table.Td>
-          <Table.Td>{run.kind}</Table.Td>
-          <Table.Td>{run.status}</Table.Td>
-          <Table.Td>{new Date(run.startedAt).toLocaleString()}</Table.Td>
+  // Narrow windows scroll the table, not the page.
+  <Table.ScrollContainer minWidth={480}>
+    <Table striped highlightOnHover>
+      <Table.Caption c="bright">{t("runs.caption")}</Table.Caption>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>{t("runs.run")}</Table.Th>
+          <Table.Th>{t("runs.kind")}</Table.Th>
+          <Table.Th>{t("runs.status")}</Table.Th>
+          <Table.Th>{t("runs.started")}</Table.Th>
         </Table.Tr>
-      ))}
-    </Table.Tbody>
-  </Table>
+      </Table.Thead>
+      <Table.Tbody>
+        {runs.map((run) => (
+          <Table.Tr key={run.id}>
+            <Table.Td>
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                ff="monospace"
+                aria-pressed={run.id === selected}
+                onClick={() => onSelect(run.id)}
+              >
+                {run.id.slice(0, 8)}
+              </Button>
+            </Table.Td>
+            <Table.Td>{t("run.kind", { kind: run.kind })}</Table.Td>
+            <Table.Td>{t("run.status", { status: run.status })}</Table.Td>
+            <Table.Td>{when(run.startedAt)}</Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  </Table.ScrollContainer>
 );
 
 const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean; onUndo: (hash: string) => void }) => (
@@ -112,9 +114,9 @@ const RunDetail = ({ api, runId, onUndone }: { api: Api; runId: string; onUndone
   const undo = async (approve: string): Promise<void> => {
     setBusy(true);
     const answer = await call(() => api.POST("/api/runs/{runId}/undo", { ...params, body: { approve } }));
-    const done = "data" in answer && answer.data.runId !== null;
+    const undoRun = "data" in answer ? answer.data.runId : null;
     const text = "problem" in answer ? answer.problem : t("run.nothingToUndo");
-    setStatus(done ? t("run.undone", { runId: answer.data.runId }) : text);
+    setStatus(undoRun === null ? text : t("run.undone", { runId: undoRun }));
     setBusy(false);
     setVersion((value) => value + 1);
     onUndone();
@@ -169,10 +171,14 @@ type View = (typeof VIEWS)[number]["id"];
 const content = (view: View, api: Api): ReactNode =>
   view === "nav.runs" ? <Runs api={api} /> : <Text>{t("view.notBuilt")}</Text>;
 
-/** The shell: the views in the navigation (behind a menu button on narrow screens), the chosen one in the main region. */
+/**
+ * The shell: the views in the navigation, the chosen one in the main region. Below the sm breakpoint the navigation sits
+ * behind a menu button; whichever of the two is out of sight is inert, so neither focus nor a screen reader lands there.
+ */
 export const App = ({ api }: { api: Api }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
   const [opened, { toggle, close }] = useDisclosure();
+  const narrow = useMediaQuery("(max-width: 48em)");
   return (
     <AppShell
       header={{ height: 56 }}
@@ -180,12 +186,20 @@ export const App = ({ api }: { api: Api }): ReactNode => {
       padding="md"
     >
       <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t("nav.toggle")} />
+        <Burger
+          opened={opened}
+          onClick={toggle}
+          hiddenFrom="sm"
+          size="sm"
+          aria-label={t("nav.toggle")}
+          aria-expanded={opened}
+          aria-controls="views"
+        />
         <Title order={1} size="h3">
           {t("app.title")}
         </Title>
       </AppShell.Header>
-      <AppShell.Navbar p="xs" component="nav" aria-label={t("nav.label")}>
+      <AppShell.Navbar p="xs" component="nav" id="views" aria-label={t("nav.label")} inert={narrow && !opened}>
         {VIEWS.map(({ id, icon: Icon }) => (
           <NavLink
             key={id}
@@ -201,7 +215,7 @@ export const App = ({ api }: { api: Api }): ReactNode => {
           />
         ))}
       </AppShell.Navbar>
-      <AppShell.Main>
+      <AppShell.Main inert={narrow && opened}>
         <Title order={2} size="h4" mb="md">
           {t(view)}
         </Title>

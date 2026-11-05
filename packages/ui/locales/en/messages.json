@@ -11,10 +11,24 @@
     "nav.toggle": ["Show the views"],
     "nav.usage": ["Usage"],
     "nav.workItems": ["Work items"],
+    "run.kind": [["kind", "select", { "apply": ["Apply"], "undo": ["Undo"], "other": [["kind"]] }]],
     "run.nothingToUndo": ["Nothing to undo."],
     "run.skipped": [
       ["count", "plural", { "one": ["#", " file was"], "other": ["#", " files were"] }],
       " edited since the run and stay as they are."
+    ],
+    "run.status": [
+      [
+        "status",
+        "select",
+        {
+          "running": ["Running"],
+          "applied": ["Applied"],
+          "failed": ["Failed"],
+          "interrupted": ["Interrupted"],
+          "other": [["status"]]
+        }
+      ]
     ],
     "run.title": ["Run ", ["runId"]],
     "run.undo": ["Undo run"],

@@ -17,27 +17,25 @@
   "scripts": {
     "typecheck": "tsc -b",
     "build": "vite build",
-    "catalog": "lingui compile --namespace json && biome format --write locales",
-    "test:ui": "vite build && playwright test --forbid-only"
-  },
-  "dependencies": {
-    "@cedarloom/client": "workspace:*",
-    "@lingui/core": "6.11.0",
-    "@mantine/core": "9.7.4",
-    "@mantine/hooks": "9.7.4",
-    "lucide-react": "1.66.0",
-    "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "catalog": "lingui compile --namespace json && node scripts/catalog.ts && biome format --write locales",
+    "test:ui": "vite build && playwright test --forbid-only --browser=chromium"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@cedarloom/client": "workspace:*",
     "@cedarloom/server": "workspace:*",
     "@cedarloom/services": "workspace:*",
     "@lingui/cli": "6.11.0",
+    "@lingui/core": "6.11.0",
     "@lingui/format-po": "6.11.0",
+    "@mantine/core": "9.7.4",
+    "@mantine/hooks": "9.7.4",
     "@playwright/test": "1.64.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "lucide-react": "1.66.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "vite": "8.3.5"
   }
 }

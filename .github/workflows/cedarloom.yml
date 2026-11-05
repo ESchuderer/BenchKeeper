@@ -233,12 +233,15 @@ jobs:
           platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
           echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Message catalog (lingui compile) matches locales/en/messages.po
-        run: pnpm --filter @cedarloom/ui run catalog && git diff --exit-code -- packages/ui/locales
-      - name: Browser (Chromium of the pinned Playwright)
-        run: pnpm --filter @cedarloom/ui exec playwright install --with-deps chromium
-      - name: Build and browser tests with axe
+      - name: Message catalog and its types match locales/en/messages.po
+        run: pnpm --filter @cedarloom/ui run catalog && git diff --exit-code -- packages/ui/locales packages/ui/schema
+      - name: Browsers (Chromium and Firefox of the pinned Playwright)
+        run: pnpm --filter @cedarloom/ui exec playwright install --with-deps chromium firefox
+      - name: Build and browser tests with axe (Chromium)
         run: pnpm --filter @cedarloom/ui run test:ui
+      # The dev container has the libraries for Chromium only, so Firefox runs here.
+      - name: Browser tests with axe (Firefox)
+        run: pnpm --filter @cedarloom/ui exec playwright test --forbid-only --browser=firefox
 
   # Vulnerabilities and licenses of changed dependencies (checks.yml reviews vulnerabilities only). Allowed: permissive
   # licenses, MPL-2.0, LGPL-2.1-or-later and LGPL-3.0-or-later, EPL-2.0 (elkjs) and AFL-2.1 (the libdbus license election).

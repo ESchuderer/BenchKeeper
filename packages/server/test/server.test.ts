@@ -288,9 +288,17 @@ test("the web UI's files load without a session, from this origin only; API path
   for (const path of ["/api/runs", "/api/nope"]) expect((await api({ path })).status).toBe(401);
   expect((await api({ method: "POST", path: "/index.html" })).status).toBe(401);
   await login();
-  // The files' route takes GET and HEAD on every path, so another method there is a 405.
-  const put = await api({ method: "PUT", path: "/index.html" });
-  expect([put.status, put.headers["allow"]]).toEqual([405, "GET, HEAD"]);
+  // With the files served, an unknown API path is still a 404 in the API's shape, whatever the method.
+  for (const method of ["GET", "POST", "PUT"]) {
+    const answer = await api({ method, path: "/api/nope" });
+    expect([method, answer.status, answer.headers["allow"], answer.body]).toEqual([
+      method,
+      404,
+      undefined,
+      { error: "not-found" },
+    ]);
+  }
+  expect((await api({ method: "PUT", path: "/api/runs" })).headers["allow"]).toBe("GET, HEAD");
   // A folder without a build serves nothing and says so in the log.
   const bare = await open(undefined, mkdtempSync(join(tmpdir(), "cedarloom-ui-")));
   expect([(await bare.api({ path: "/" })).status, bare.log.join("")]).toEqual([

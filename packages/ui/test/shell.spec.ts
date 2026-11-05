@@ -50,6 +50,8 @@ test("the printed link opens the shell, leaves the address bar without its token
   await expect(page.getByRole("heading", { level: 1, name: "CedarLoom" })).toBeVisible();
   expect(page.url()).toBe(`${new URL(server.url).origin}/`);
   await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  // Kind and status come from the catalog, not as the API's raw values.
+  await expect(page.getByRole("cell", { name: "Applied", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
   expect(errors).toEqual([]);
@@ -65,15 +67,32 @@ test("every view is reachable from the navigation and passes axe", async () => {
   }
 });
 
-test("a narrow window keeps the views behind a menu button", async () => {
+test("a narrow window keeps the views behind a menu button, out of the keyboard's way until it opens", async () => {
   await page.setViewportSize({ width: 600, height: 800 });
-  await page.getByRole("button", { name: "Show the views" }).click();
+  const menu = page.getByRole("button", { name: "Show the views" });
+  const inNav = (): Promise<boolean> => page.evaluate(() => document.activeElement?.closest("nav") !== null);
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toHaveAttribute("aria-controls", "views");
+  // Closed: Tab from the title goes into the main region, past the off-screen views.
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(false);
+  // Open: the views take focus and the covered main region is inert.
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(true);
+  await expect(page.getByRole("main")).toHaveAttribute("inert", "");
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Usage" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Usage" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Views" })).not.toBeInViewport();
   await accessible();
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: "Show the views" }).click();
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Runs" }).click();
+  // At 320 px the runs table scrolls inside its container, never the page.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 test("a run's undo is reached by keyboard, applies only the previewed plan, and announces its result", async () => {

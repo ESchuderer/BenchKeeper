@@ -88,6 +88,14 @@ msgid "run.undo"
 msgstr "Undo run"
 
 #. js-lingui-explicit-id
+msgid "run.kind"
+msgstr "{kind, select, apply {Apply} undo {Undo} other {{kind}}}"
+
+#. js-lingui-explicit-id
+msgid "run.status"
+msgstr "{status, select, running {Running} applied {Applied} failed {Failed} interrupted {Interrupted} other {{status}}}"
+
+#. js-lingui-explicit-id
 msgid "run.nothingToUndo"
 msgstr "Nothing to undo."
 

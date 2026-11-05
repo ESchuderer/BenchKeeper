@@ -200,7 +200,7 @@ test("a store another process holds refuses changes; one from a newer CedarLoom 
   const db = new DatabaseSync(join(state, "runs.sqlite"));
   db.exec("PRAGMA user_version = 7");
   db.close();
-  const newer = { code: "store.newer-schema", params: { found: 7, known: 1 } };
+  const newer = { code: "store.newer-schema", params: { found: 7, known: 2 } };
   for (const result of [listRuns(state), showRun(state, "r4"), previewUndo(state, "r4")]) {
     expect(result).toEqual({ ok: false, finding: newer });
   }

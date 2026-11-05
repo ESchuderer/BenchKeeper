@@ -27,6 +27,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
+    "@cedarloom/accounts": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
     "@cedarloom/ledger": "workspace:*"

@@ -190,6 +190,10 @@ test('skillCounts: per agent, the skill files below the folder that agent reads'
   assert.deepEqual(skillCounts(dir, []), {});
 });
 
+// claude and codex answer as on a machine without them, as in CI: their plugin lists come from the host's own config
+// folder, not from the test's home, so a host with plugins installed would change the results.
+const noAgentCli = (argv, o) => (['claude', 'codex'].includes(argv[0]) ? { code: 127, stdout: '', stderr: `spawnSync ${argv[0]} ENOENT` } : runCommand(argv, o));
+
 // No network: the signature check passes, the skills CLI writes the skill's folder (only a README.md and exit 1 while
 // fails() is true), the source has no known commit.
 const skillsCli = (fails = () => false) => (argv, o) => {
@@ -201,7 +205,7 @@ const skillsCli = (fails = () => false) => (argv, o) => {
     return fails() ? { code: 1, stdout: '', stderr: 'fetch failed: ECONNRESET' } : { code: 0, stdout: '', stderr: '' };
   }
   if (argv.includes('ls-remote')) return { code: 2, stdout: '', stderr: 'offline' };
-  return runCommand(argv, o);
+  return noAgentCli(argv, o);
 };
 
 test('projectInstalls: per pack and skill the scope hint and the worst state on disk; global packs and skills', () => {
@@ -233,7 +237,7 @@ test('projectInstalls: per pack and skill the scope hint and the worst state on 
 
 test('projectInstalls: a pack at global scope reads the user\'s skill folder; a turned-off skill is off', () => {
   const h = home(), dir = folder();
-  const ctx = { ...context({ home: h, roots: [h, dir] }), packScopes: { frontend: 'global' } };
+  const ctx = { ...context({ home: h, roots: [h, dir], run: noAgentCli }), packScopes: { frontend: 'global' } };
   const skill = (n) => { mkdirSync(join(h, '.claude/skills', n), { recursive: true }); writeFileSync(join(h, '.claude/skills', n, 'SKILL.md'), `---\nname: ${n}\n---\n`); };
   skill('frontend-design');
   skill('accessibility');

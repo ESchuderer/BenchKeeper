@@ -1,7 +1,16 @@
-import { type Finding, findingInfo, type Plan, type PlanPreview, type RunResult } from "@cedarloom/contracts";
+import {
+  type Account,
+  Agent,
+  type Finding,
+  findingInfo,
+  type Plan,
+  type PlanPreview,
+  type RunResult,
+} from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
+import { benchKeeperRegistry } from "./state.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
   const plan = useCases.loadPlan(path);
@@ -20,8 +29,8 @@ const HUMAN: Record<RunResult["status"], (runId: string | null) => string> = {
   refused: () => "",
 };
 
-const result = (ctx: Context, { runId, status, findings }: RunResult): number => {
-  emit(ctx, "run", { runId, status, findings }, HUMAN[status](runId));
+const result = (ctx: Context, { runId, status, findings }: RunResult, data: object = {}): number => {
+  emit(ctx, "run", { runId, status, findings, ...data }, HUMAN[status](runId));
   report(ctx, findings);
   return status === "applied" || status === "nothing-to-undo" ? EXIT.ok : EXIT.refused;
 };
@@ -39,6 +48,20 @@ export const plansShow = (ctx: Context, path: string): number => {
   return EXIT.ok;
 };
 
+// Prints what is applied (not with --json), applies it as one run and reports the run with `findings` first.
+const applyShown = (ctx: Context, plan: Plan, { shown, findings, data }: Shown, approval: Approval): number => {
+  if (!ctx.json) ctx.io.out(`${shown}\n`);
+  const run = useCases.applyPlan(ctx.state, plan, approval);
+  if (!run.ok) return fail(ctx, "run", [...findings, run.finding], EXIT.refused);
+  return result(ctx, { ...run.value, findings: [...findings, ...run.value.findings] }, data);
+};
+
+interface Shown {
+  readonly shown: string;
+  readonly findings: Finding[];
+  readonly data: object;
+}
+
 export const plansApply = (ctx: Context, path: string, approval: Approval): number => {
   const plan = loadPlan(ctx, path);
   if (typeof plan === "number") return plan;
@@ -47,9 +70,7 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
     emit(ctx, "plan", preview, ask(preview));
     return EXIT.ok;
   }
-  if (!ctx.json) ctx.io.out(`${showPlan(preview)}\n`);
-  const run = useCases.applyPlan(ctx.state, plan, approval);
-  return run.ok ? result(ctx, run.value) : fail(ctx, "run", [run.finding], EXIT.refused);
+  return applyShown(ctx, plan, { shown: showPlan(preview), findings: [], data: {} }, approval);
 };
 
 export const runsList = (ctx: Context): number => {
@@ -104,4 +125,69 @@ export const doctor = (ctx: Context): number => {
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;
+};
+
+// A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
+// expected document 65, a rule 1.
+const refused = (ctx: Context, format: "accounts" | "plan", finding: Finding): number => {
+  const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
+  return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
+};
+
+/**
+ * Shows a planned change with `note` below it and its findings, or with --yes applies it as one run; `data` joins the
+ * plan's JSON, and the findings join the plan's and the run's, so every output form carries them.
+ */
+const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
+  const preview = useCases.previewPlan(plan);
+  if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
+  const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;
+  emit(ctx, "plan", { ...preview, ...data, findings }, human);
+  report(ctx, findings);
+  return EXIT.ok;
+};
+
+interface Change {
+  readonly note: string;
+  readonly data: object;
+  readonly findings: Finding[];
+}
+
+export const accountsList = (ctx: Context): number => {
+  const loaded = useCases.loadRegistry(ctx.config);
+  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  const registry = loaded.value;
+  const confirmed = (agent: Agent, pool: string): boolean =>
+    registry !== null && useCases.isConfirmed(registry, { agent, pool });
+  const pool = ({ agent, pool: name }: Account): string =>
+    name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
+  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}`);
+  const none = "No accounts yet. Import BenchKeeper's with: cedarloom accounts import";
+  // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
+  const pools = Agent.options.flatMap((agent) =>
+    Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
+  );
+  emit(
+    ctx,
+    "accounts",
+    { registry, confirmed: pools.filter((p) => confirmed(p.agent, p.pool)) },
+    lines.length > 0 ? lines.join("\n") : none,
+  );
+  return EXIT.ok;
+};
+
+export const accountsImport = (ctx: Context, { from, yes }: { from?: string; yes?: true }): number => {
+  const planned = useCases.planImport(ctx.config, from ?? benchKeeperRegistry());
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, left } = planned.value;
+  const note = left.map(
+    (each) => `\n  not imported: ${each.item}${each.account === null ? "" : ` of ${each.account}`}`,
+  );
+  return change(ctx, plan, { note: note.join(""), data: { left }, findings: [] }, yes);
+};
+
+export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { agent: Agent; yes?: true }): number => {
+  const planned = useCases.planConfirm(ctx.config, { agent, pool });
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
 };

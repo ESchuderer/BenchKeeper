@@ -14,6 +14,7 @@ export interface Context {
   io: Io;
   json: boolean;
   state: string;
+  config: string;
 }
 
 /** sysexits: 64 usage, 65 data, 66 missing input, 70 internal; 1 when a rule refused the change. */

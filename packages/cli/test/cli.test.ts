@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { Finding, type Plan } from "@cedarloom/contracts";
-import { describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
+import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -21,7 +21,7 @@ const setup = (): {
     const io = {
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
-      env: { CEDARLOOM_STATE_DIR: state },
+      env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => Promise.resolve(),
     };
     return { code: await main(argv, io), out, err };
@@ -192,6 +192,87 @@ test("the state folder comes from CEDARLOOM_STATE_DIR, then XDG_STATE_HOME, then
   ]) {
     expect(stateDir(env)).toBe(stateDir({}));
   }
+});
+
+test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config; BenchKeeper's is fixed", () => {
+  expect(configDir({ CEDARLOOM_CONFIG_DIR: "/c", XDG_CONFIG_HOME: "/x" })).toBe("/c");
+  expect(configDir({ CEDARLOOM_CONFIG_DIR: "c", XDG_CONFIG_HOME: "/x" })).toBe(join("/x", "cedarloom"));
+  expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
+  expect(benchKeeperRegistry()).toBe(join(homedir(), ".config", "benchkeeper", "accounts.json"));
+});
+
+const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "host", dir: `/accounts/${name}`, pool });
+
+// A temporary setup with BenchKeeper's registry file: one pooled and one single host account, one container account.
+const withBenchKeeper = () => {
+  const { root, cli } = setup();
+  const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
+  const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
+  return { root, cli, from: planFile(root, registry, "benchkeeper.json") };
+};
+
+test("accounts: the one-time import is shown first and applied with --yes", async () => {
+  const { root, cli, from } = withBenchKeeper();
+  expect(await cli("accounts", "list")).toMatchObject({
+    code: EXIT.ok,
+    out: expect.stringContaining("No accounts yet"),
+  });
+  expect((await cli("accounts", "import", "--from", join(root, "none.json"))).code).toBe(EXIT.noInput);
+  const shown = await cli("accounts", "import", "--from", from);
+  expect([shown.code, shown.out]).toEqual([
+    EXIT.ok,
+    expect.stringContaining("not imported: container-account of boxed"),
+  ]);
+  expect(existsSync(join(root, "config", "accounts.json"))).toBe(false);
+  expect(json((await cli("accounts", "import", "--from", from, "--json")).out)).toMatchObject({
+    format: "cedarloom.plan",
+    left: [
+      { account: null, item: "autoPick" },
+      { account: "boxed", item: "container-account" },
+    ],
+  });
+  // The applied run's JSON keeps the list of what was not imported.
+  expect(json((await cli("accounts", "import", "--from", from, "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+    left: [
+      { account: null, item: "autoPick" },
+      { account: "boxed", item: "container-account" },
+    ],
+  });
+  expect((await cli("accounts", "list")).out).toBe(
+    "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
+  );
+  // Once: the default file is never read, as the registry exists.
+  expect(await cli("accounts", "import")).toMatchObject({ code: EXIT.refused, err: expect.stringContaining("once") });
+  writeFileSync(join(root, "config", "accounts.json"), "{}");
+  expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
+});
+
+test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
+  const { cli, from } = withBenchKeeper();
+  await cli("accounts", "import", "--from", from, "--yes");
+  const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
+  expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
+  const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
+  const preview = await cli("accounts", "pool", "confirm", "main");
+  expect([preview.out, preview.err]).toEqual([
+    expect.stringContaining("Nothing changed"),
+    expect.stringContaining("warning: Confirm pool main only if you hold and pay for every account in it yourself"),
+  ]);
+  expect(json((await cli("accounts", "pool", "confirm", "main", "--json")).out)).toMatchObject({
+    format: "cedarloom.plan",
+    findings: [terms],
+  });
+  expect(json((await cli("accounts", "pool", "confirm", "main", "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+    findings: [terms],
+  });
+  expect((await cli("accounts", "list")).out).toContain("main (confirmed)");
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({
+    confirmed: [{ agent: "claude", pool: "main" }],
+  });
 });
 
 test("every finding code has an English sentence", () => {

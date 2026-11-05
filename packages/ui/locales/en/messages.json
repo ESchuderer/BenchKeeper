@@ -1,0 +1,52 @@
+{
+  "messages": {
+    "app.title": ["CedarLoom"],
+    "error.failed": ["The server answered ", ["status"], ": ", ["error"]],
+    "error.unreachable": ["The server cannot be reached. Run cedarloom ui again and open the link it prints."],
+    "nav.accounts": ["Accounts"],
+    "nav.label": ["Views"],
+    "nav.memory": ["Memory"],
+    "nav.runs": ["Runs"],
+    "nav.sessions": ["Sessions"],
+    "nav.toggle": ["Show the views"],
+    "nav.usage": ["Usage"],
+    "nav.workItems": ["Work items"],
+    "run.kind": [["kind", "select", { "apply": ["Apply"], "undo": ["Undo"], "other": [["kind"]] }]],
+    "run.nothingToUndo": ["Nothing to undo."],
+    "run.skipped": [
+      ["count", "plural", { "one": ["#", " file was"], "other": ["#", " files were"] }],
+      " edited since the run and stay as they are."
+    ],
+    "run.status": [
+      [
+        "status",
+        "select",
+        {
+          "running": ["Running"],
+          "applied": ["Applied"],
+          "failed": ["Failed"],
+          "interrupted": ["Interrupted"],
+          "other": [["status"]]
+        }
+      ]
+    ],
+    "run.title": ["Run ", ["runId"]],
+    "run.undo": ["Undo run"],
+    "run.undoPlan": [
+      "Undoing it changes ",
+      ["count", "plural", { "one": ["#", " file"], "other": ["#", " files"] }],
+      "."
+    ],
+    "run.undone": ["The undo ran as run ", ["runId"], "."],
+    "runs.caption": ["Runs, newest first"],
+    "runs.empty": ["No runs yet."],
+    "runs.kind": ["Kind"],
+    "runs.run": ["Run"],
+    "runs.started": ["Started"],
+    "runs.status": ["Status"],
+    "session.lost": [
+      "This page has no session. Run cedarloom ui again and open the link it prints: each link works once, in one tab."
+    ],
+    "view.notBuilt": ["This view is not built yet."]
+  }
+}

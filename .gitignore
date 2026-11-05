@@ -3,6 +3,8 @@
 # CedarLoom workspace (pnpm)
 node_modules/
 packages/*/dist/
+packages/*/test-results/
+packages/*/playwright-report/
 coverage/
 *.tsbuildinfo
 # Schemathesis reports (packages/server/scripts/schemathesis.ts)

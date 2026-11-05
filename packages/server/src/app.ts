@@ -1,7 +1,10 @@
 import helmet from "@fastify/helmet";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
   createJsonSchemaTransform,
   createJsonSchemaTransformObject,
@@ -18,6 +21,8 @@ export interface AppOptions {
   session: Session;
   /** Where errors the client does not see go, such as the server's terminal. */
   log: (text: string) => void;
+  /** The folder of the built web UI, served at /; without it the server answers the API only. */
+  ui?: string | undefined;
 }
 
 // Requests carry ids, hashes and the session token, never file contents.
@@ -44,25 +49,29 @@ const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegE
 
 /**
  * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
- * answers before the body is read, so a body-carrying method such as QUERY gets the same answer.
+ * answers before the body is read, so a body-carrying method such as QUERY gets the same answer, and it answers the
+ * files' misses too, so an API path the web UI's `/*` route caught (GET /api/session) still gets its 405.
  */
 const methods = (app: FastifyInstance): void => {
   const routes: { method: string; path: RegExp }[] = [];
   app.addHook("onRoute", ({ method, url }) => {
+    if (url === "/*") return;
     const path = new RegExp(`^${url.split("/").map(segment).join("/")}$`);
     for (const each of [method].flat()) routes.push({ method: each, path });
   });
-  app.addHook("onRequest", async (req, reply) => {
-    if (req.routeOptions.url !== undefined) return undefined;
+  const answer = async (req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
     const path = req.url.replace(/\?.*$/s, "");
-    const allow = routes.filter((route) => route.path.test(path)).map((route) => route.method);
-    if (allow.length === 0) return reply.code(404).send({ error: "not-found" });
-    return reply.code(405).header("allow", allow.join(", ")).send({ error: "method-not-allowed" });
-  });
+    const allow = new Set(routes.filter((route) => route.path.test(path)).map((route) => route.method));
+    if (allow.size === 0) return reply.code(404).send({ error: "not-found" });
+    const listed = [...allow].toSorted((a, b) => a.localeCompare(b)).join(", ");
+    return reply.code(405).header("allow", listed).send({ error: "method-not-allowed" });
+  };
+  app.setNotFoundHandler(answer);
+  app.addHook("onRequest", async (req, reply) => (req.routeOptions.url === undefined ? answer(req, reply) : undefined));
 };
 
 /** The local server's routes over the application services, with the session guard on every request. */
-export const buildApp = async ({ state, session, log }: AppOptions): Promise<FastifyInstance> => {
+export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise<FastifyInstance> => {
   // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000 });
   app.setValidatorCompiler(validatorCompiler);
@@ -77,13 +86,14 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
     transformObject: createJsonSchemaTransformObject({ schemaRegistry: contracts }),
   });
   // Plain HTTP on loopback: no HSTS, and the whole CSP spelled out (helmet's defaults allow https: sources and upgrade
-  // requests to https).
+  // requests to https). Mantine writes its CSS variables into a style element, so styles may be inline.
   await app.register(helmet, {
     hsts: false,
     contentSecurityPolicy: {
       useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
         formAction: ["'none'"],
@@ -98,6 +108,9 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
+  if (ui !== undefined && existsSync(join(ui, "index.html")))
+    await app.register(serveStatic, { root: ui, dotfiles: "deny" });
+  else if (ui !== undefined) log(`The web UI is not built in ${ui}, so only the API answers.\n`);
   return app;
 };
 

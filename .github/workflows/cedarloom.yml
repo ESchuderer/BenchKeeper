@@ -209,6 +209,40 @@ jobs:
       - name: Schemathesis against the local API
         run: node packages/server/scripts/schemathesis.ts "$RUNNER_TEMP/schemathesis/bin/schemathesis"
 
+  # The web UI in a browser: the message catalog against its PO source, the build, and the Playwright tests with axe.
+  ui:
+    needs: areas
+    if: needs.areas.outputs.filter != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      # The runner's native pnpm comes as an optional dependency of the pinned package, so no install script needs to run.
+      - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
+        working-directory: .github/pnpm
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
+          echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Message catalog and its types match locales/en/messages.po
+        run: pnpm --filter @cedarloom/ui run catalog && git diff --exit-code -- packages/ui/locales packages/ui/schema
+      - name: Browsers (Chromium and Firefox of the pinned Playwright)
+        run: pnpm --filter @cedarloom/ui exec playwright install --with-deps chromium firefox
+      - name: Build and browser tests with axe (Chromium)
+        run: pnpm --filter @cedarloom/ui run test:ui
+      # The dev container has the libraries for Chromium only, so Firefox runs here.
+      - name: Browser tests with axe (Firefox)
+        run: pnpm --filter @cedarloom/ui exec playwright test --forbid-only --browser=firefox
+
   # Vulnerabilities and licenses of changed dependencies (checks.yml reviews vulnerabilities only). Allowed: permissive
   # licenses, MPL-2.0, LGPL-2.1-or-later and LGPL-3.0-or-later, EPL-2.0 (elkjs) and AFL-2.1 (the libdbus license election).
   license-review:
@@ -234,7 +268,7 @@ jobs:
   # The one required result of this workflow (the name stays: a ruleset names it).
   check:
     if: always()
-    needs: [areas, size, static, test, api, license-review]
+    needs: [areas, size, static, test, api, ui, license-review]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

@@ -1,3 +1,8 @@
 # US spelling in the CedarLoom packages (the typos job of .github/workflows/cedarloom.yml checks packages/ only).
 [default]
 locale = "en-us"
+
+# Names of tools, not English words: axe-core and its AxeBuilder.
+[default.extend-words]
+axe = "axe"
+Axe = "Axe"

@@ -36,7 +36,9 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
+    "@cedarloom/server": "workspace:*",
     "@cedarloom/services": "workspace:*",
+    "@cedarloom/ui": "workspace:*",
     "@commander-js/extra-typings": "15.0.0",
     "commander": "15.0.0"
   },

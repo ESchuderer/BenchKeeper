@@ -7,6 +7,6 @@
       "project": ["*.ts", "scripts/*.ts"],
       "node": false
     },
-    "packages/*": { "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"] }
+    "packages/*": { "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"] }
   }
 }

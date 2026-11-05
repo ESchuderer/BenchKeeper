@@ -1,0 +1,125 @@
+import { existsSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AxeBuilder } from "@axe-core/playwright";
+import { type Started, startServer } from "@cedarloom/server";
+import { applyPlan } from "@cedarloom/services";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+
+// One server per file, started inside the worker: its URL token works once.
+test.describe.configure({ mode: "serial" });
+
+let server: Started;
+let context: BrowserContext;
+let page: Page;
+let file = "";
+const errors: string[] = [];
+
+test.beforeAll(async ({ browser }) => {
+  const state = join(mkdtempSync(join(tmpdir(), "cedarloom-ui-")), "state");
+  file = join(state, "..", "notes.md");
+  applyPlan(
+    state,
+    { schemaVersion: 1, operations: [{ kind: "write", path: file, before: null, content: "hi\n" }] },
+    { yes: true },
+  );
+  server = await startServer({ state, ui: join(import.meta.dirname, "..", "dist"), log: (text) => errors.push(text) });
+  // axe needs a page of a context the test made.
+  context = await browser.newContext();
+  page = await context.newPage();
+  // A CSP violation or a failed request shows up here.
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+});
+
+test.afterAll(async () => {
+  await context.close();
+  await server.close();
+});
+
+const accessible = async (target: Page = page): Promise<void> => {
+  const { violations } = await new AxeBuilder({ page: target }).analyze();
+  expect(
+    violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(" ")}`),
+  ).toEqual([]);
+};
+
+test("the printed link opens the shell, leaves the address bar without its token, and survives a reload", async () => {
+  await page.goto(server.url);
+  await expect(page.getByRole("heading", { level: 1, name: "CedarLoom" })).toBeVisible();
+  expect(page.url()).toBe(`${new URL(server.url).origin}/`);
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  // Kind and status come from the catalog, not as the API's raw values.
+  await expect(page.getByRole("cell", { name: "Applied", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("every view is reachable from the navigation and passes axe", async () => {
+  const nav = page.getByRole("navigation", { name: "Views" });
+  for (const view of ["Sessions", "Accounts", "Memory", "Work items", "Usage", "Runs"]) {
+    await nav.getByRole("button", { name: view }).click();
+    await expect(page.getByRole("heading", { level: 2, name: view })).toBeVisible();
+    await expect(nav.getByRole("button", { name: view })).toHaveAttribute("aria-current", "page");
+    await accessible();
+  }
+});
+
+test("a narrow window keeps the views behind a menu button, out of the keyboard's way until it opens", async () => {
+  await page.setViewportSize({ width: 600, height: 800 });
+  const menu = page.getByRole("button", { name: "Show the views" });
+  const inNav = (): Promise<boolean> => page.evaluate(() => document.activeElement?.closest("nav") !== null);
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toHaveAttribute("aria-controls", "views");
+  // Closed: Tab from the title goes into the main region, past the off-screen views.
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(false);
+  // Open: the views take focus and the covered main region is inert.
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(true);
+  await expect(page.getByRole("main")).toHaveAttribute("inert", "");
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Usage" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Usage" })).toBeVisible();
+  await accessible();
+  await page.getByRole("button", { name: "Show the views" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Runs" }).click();
+  // At exactly 768 px (the sm breakpoint) the navigation shows without a menu button, and it takes focus.
+  await page.setViewportSize({ width: 768, height: 800 });
+  await expect(page.getByRole("button", { name: "Show the views" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Views" })).not.toHaveAttribute("inert");
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("Tab");
+  expect(await inNav()).toBe(true);
+  // At 320 px the runs table scrolls inside its container, never the page.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+test("a run's undo is reached by keyboard, applies only the previewed plan, and announces its result", async () => {
+  await page.getByRole("table", { name: "Runs, newest first" }).getByRole("button").first().click();
+  await expect(page.getByRole("heading", { level: 3, name: /^Run [0-9a-f-]{36}$/ })).toBeFocused();
+  await expect(page.getByText("Undoing it changes 1 file.")).toBeVisible();
+  await accessible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Undo run" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toHaveText(/^The undo ran as run [0-9a-f-]{36}\.$/);
+  await expect(page.getByRole("status")).toBeFocused();
+  await expect(page.getByText("Nothing to undo.")).toBeVisible();
+  expect([existsSync(file), errors]).toEqual([false, []]);
+});
+
+test("a new tab has no session and says how to get one", async () => {
+  const fresh = await context.newPage();
+  await fresh.goto(`${new URL(server.url).origin}/`);
+  await expect(fresh.getByRole("alert")).toHaveText(/Run cedarloom ui again/);
+  await accessible(fresh);
+  await fresh.close();
+});

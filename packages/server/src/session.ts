@@ -79,8 +79,12 @@ const foreign = (req: FastifyRequest, self: string): Refusal => {
   return null;
 };
 
+// The web UI's files hold no data, and a browser loads them before it has a session.
+const page = (req: FastifyRequest): boolean =>
+  (req.method === "GET" || req.method === "HEAD") && req.routeOptions.url === "/*" && !req.url.startsWith("/api/");
+
 const outside = (req: FastifyRequest, session: Session, port: number): Refusal => {
-  if (req.method === "POST" && req.routeOptions.url === "/api/session") return null;
+  if ((req.method === "POST" && req.routeOptions.url === "/api/session") || page(req)) return null;
   if (!session.hasCookie(cookieValues(req.headers.cookie, cookieName(port)))) return [401, "no-session"];
   return session.hasCsrf(req.headers[CSRF_HEADER]) ? null : [403, "csrf"];
 };
@@ -95,7 +99,7 @@ export const frameworkErrors = (error: FastifyError, req: FastifyRequest, reply:
     .send({ error: text });
 };
 
-/** Checks every request, unknown paths too: the origin rules, then the session cookie and the CSRF header except for the exchange. */
+/** Checks every request, unknown paths too: the origin rules, then the session cookie and the CSRF header, except for the exchange and the web UI's files. */
 export const guard =
   (session: Session) =>
   async (req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | undefined> => {

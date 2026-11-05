@@ -39,7 +39,11 @@ const call = (port: number, { method = "GET", path, headers = {}, body }: Call):
         res.setEncoding("utf8");
         res.on("data", (chunk: string) => (text += chunk));
         res.on("end", () =>
-          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: JSON.parse(text || "null") }),
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            body: text !== "" && res.headers["content-type"]?.includes("json") ? JSON.parse(text) : text,
+          }),
         );
       },
     );
@@ -63,10 +67,12 @@ interface Client {
 const serve = async (
   tokenMs?: number,
   state = join(mkdtempSync(join(tmpdir(), "cedarloom-server-")), "state"),
+  ui?: string,
 ): Promise<Client> => {
   const log: string[] = [];
   const server = await startServer({
     state,
+    ui,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
   });
@@ -89,8 +95,8 @@ const serve = async (
 const sessionCookie = (port: number, value: string): string => `${cookieName(port)}=${value}`;
 
 const started: Client[] = [];
-const open = async (tokenMs?: number): Promise<Client> => {
-  const client = await serve(tokenMs);
+const open = async (tokenMs?: number, ui?: string): Promise<Client> => {
+  const client = await serve(tokenMs, undefined, ui);
   started.push(client);
   return client;
 };
@@ -255,9 +261,53 @@ test("answers carry the security headers and refuse large or malformed bodies", 
     "content-security-policy": expect.stringContaining("default-src 'self'"),
   });
   expect(headers["content-security-policy"]).toBe(
-    "default-src 'self';object-src 'none';base-uri 'none';form-action 'none';frame-ancestors 'none'",
+    "default-src 'self';style-src 'self' 'unsafe-inline';object-src 'none';base-uri 'none';form-action 'none';frame-ancestors 'none'",
   );
   expect(headers["strict-transport-security"]).toBeUndefined();
+});
+
+test("the web UI's files load without a session, from this origin only; API paths still need one", async () => {
+  const ui = mkdtempSync(join(tmpdir(), "cedarloom-ui-"));
+  writeFileSync(join(ui, "index.html"), "<!doctype html><title>CedarLoom</title>");
+  writeFileSync(join(ui, ".hidden"), "not for the browser");
+  const { port, api, login } = await open(undefined, ui);
+  const page = await api({ path: "/" });
+  expect([page.status, page.body]).toEqual([200, "<!doctype html><title>CedarLoom</title>"]);
+  expect(page.headers["content-security-policy"]).toMatch(/^default-src 'self';style-src 'self' 'unsafe-inline';/);
+  // A dotfile and path tricks reach only the file handler, which serves neither.
+  for (const path of ["/.hidden", "//api/runs", "/x/../api/runs"]) {
+    const answer = await api({ path });
+    expect([path, answer.status < 400, JSON.stringify(answer.body)]).toEqual([
+      path,
+      false,
+      expect.not.stringContaining("runs"),
+    ]);
+  }
+  expect((await api({ path: "/index.html", headers: { host: `localhost:${port}` } })).status).toBe(421);
+  expect((await api({ path: "/index.html", headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
+  for (const path of ["/api/runs", "/api/nope"]) expect((await api({ path })).status).toBe(401);
+  expect((await api({ method: "POST", path: "/index.html" })).status).toBe(401);
+  await login();
+  // With the files served, an unknown API path is still a 404 in the API's shape, whatever the method.
+  for (const method of ["GET", "POST", "PUT"]) {
+    const answer = await api({ method, path: "/api/nope" });
+    expect([method, answer.status, answer.headers["allow"], answer.body]).toEqual([
+      method,
+      404,
+      undefined,
+      { error: "not-found" },
+    ]);
+  }
+  expect((await api({ method: "PUT", path: "/api/runs" })).headers["allow"]).toBe("GET, HEAD");
+  // An API path the files' route caught for GET still names the methods it has.
+  const caught = await api({ path: "/api/session" });
+  expect([caught.status, caught.headers["allow"]]).toEqual([405, "POST"]);
+  // A folder without a build serves nothing and says so in the log.
+  const bare = await open(undefined, mkdtempSync(join(tmpdir(), "cedarloom-ui-")));
+  expect([(await bare.api({ path: "/" })).status, bare.log.join("")]).toEqual([
+    401,
+    expect.stringContaining("not built"),
+  ]);
 });
 
 const ready = async (): Promise<Client> => {

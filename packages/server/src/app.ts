@@ -44,8 +44,12 @@ const description = [
   `value in the ${CSRF_HEADER} header.`,
 ].join(" ");
 
-// One segment of a route pattern as a regular expression: `:name` matches any one segment, anything else itself.
-const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegExp.escape(part));
+// One segment of a route pattern as a regular expression: `:name` matches any one segment, the static files' `*` the
+// rest of the path, anything else itself (escaped).
+const segment = (part: string): string => {
+  if (part.startsWith(":")) return "[^/]+";
+  return part === "*" ? ".*" : RegExp.escape(part);
+};
 
 /**
  * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
@@ -62,7 +66,7 @@ const methods = (app: FastifyInstance): void => {
     const path = req.url.replace(/\?.*$/s, "");
     const allow = routes.filter((route) => route.path.test(path)).map((route) => route.method);
     if (allow.length === 0) return reply.code(404).send({ error: "not-found" });
-    return reply.code(405).header("allow", allow.join(", ")).send({ error: "method-not-allowed" });
+    return reply.code(405).header("allow", allow.toSorted().join(", ")).send({ error: "method-not-allowed" });
   });
 };
 

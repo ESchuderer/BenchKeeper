@@ -270,7 +270,7 @@ test("the web UI's files load without a session, from this origin only; API path
   const ui = mkdtempSync(join(tmpdir(), "cedarloom-ui-"));
   writeFileSync(join(ui, "index.html"), "<!doctype html><title>CedarLoom</title>");
   writeFileSync(join(ui, ".hidden"), "not for the browser");
-  const { port, api } = await open(undefined, ui);
+  const { port, api, login } = await open(undefined, ui);
   const page = await api({ path: "/" });
   expect([page.status, page.body]).toEqual([200, "<!doctype html><title>CedarLoom</title>"]);
   expect(page.headers["content-security-policy"]).toMatch(/^default-src 'self';style-src 'self' 'unsafe-inline';/);
@@ -287,6 +287,10 @@ test("the web UI's files load without a session, from this origin only; API path
   expect((await api({ path: "/index.html", headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
   for (const path of ["/api/runs", "/api/nope"]) expect((await api({ path })).status).toBe(401);
   expect((await api({ method: "POST", path: "/index.html" })).status).toBe(401);
+  await login();
+  // The files' route takes GET and HEAD on every path, so another method there is a 405.
+  const put = await api({ method: "PUT", path: "/index.html" });
+  expect([put.status, put.headers["allow"]]).toEqual([405, "GET, HEAD"]);
   // A folder without a build serves nothing and says so in the log.
   const bare = await open(undefined, mkdtempSync(join(tmpdir(), "cedarloom-ui-")));
   expect([(await bare.api({ path: "/" })).status, bare.log.join("")]).toEqual([

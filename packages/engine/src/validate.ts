@@ -83,7 +83,10 @@ const target = (node: string | null, handle: string): string => `${node ?? ""}\0
 const distinct = (edges: Edge[]): Edge[] =>
   edges.filter((edge, index) => edges.findIndex((other) => pairOf(other) === pairOf(edge)) === index);
 
-const pairOf = ({ from, to }: Edge): string => JSON.stringify([from, to]);
+// A node end by its fields in a fixed order; a workflow input or output end has one key, so its text is fixed too.
+const endKey = (end: End): string => JSON.stringify("node" in end ? [end.node, end.handle] : end);
+
+const pairOf = ({ from, to }: Edge): string => JSON.stringify([endKey(from), endKey(to)]);
 
 /** An edge that joins the same output to the same input as an earlier one adds nothing: a join it feeds gains no branch. */
 const twins = ({ edges }: Graph): Finding[] => {

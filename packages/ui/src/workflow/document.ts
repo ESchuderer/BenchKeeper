@@ -129,12 +129,19 @@ const connect = (workflow: WorkflowDefinition, from: From, to: To): WorkflowDefi
     ? { ...workflow, edges: [...workflow.edges, { id: freeId(workflow, "e"), from, to }] }
     : workflow;
 
+// A workflow the editor may hold: nodes within the schema's bounds and positions it can write.
+const fits = (workflow: WorkflowDefinition): boolean =>
+  workflow.nodes.length > 0 &&
+  workflow.nodes.length <= MAX_NODES &&
+  workflow.edges.length <= MAX_EDGES &&
+  Object.values(workflow.layout?.nodes ?? {}).every(finite);
+
 /** The workflow after a change; the same object when the change changes nothing (a refused connection, say). */
 export const edit = (workflow: WorkflowDefinition, change: Change): WorkflowDefinition => {
   if (change.kind === "add-node") return addNode(workflow, change.type, change.position);
   if (change.kind === "move") return move(workflow, change.positions);
   if (change.kind === "connect") return connect(workflow, change.from, change.to);
-  if (change.kind === "replace") return change.workflow;
+  if (change.kind === "replace") return fits(change.workflow) ? change.workflow : workflow;
   const next = remove(workflow, new Set(change.nodes), new Set(change.edges));
   const same = next.nodes.length === workflow.nodes.length && next.edges.length === workflow.edges.length;
   return same || next.nodes.length === 0 ? workflow : next;

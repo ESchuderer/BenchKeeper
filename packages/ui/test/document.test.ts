@@ -131,6 +131,10 @@ test("moving keeps an editor's own keys of a layout entry, and the workflow stay
   expect(edit(moved, { kind: "add-node", type: "join", position: at(0, Number.POSITIVE_INFINITY) })).toBe(moved);
   expect(WorkflowDefinition.parse(moved)).toEqual(moved);
   expect(edit(moved, { kind: "replace", workflow: newWorkflow() })).toEqual(newWorkflow());
+  // A replacement the editor could not write back is refused: no nodes, or a position that is no finite number.
+  expect(edit(moved, { kind: "replace", workflow: { ...newWorkflow(), nodes: [] } })).toBe(moved);
+  const broken = { ...newWorkflow(), layout: { nodes: { start: at(Number.NaN, 0) } } };
+  expect(edit(moved, { kind: "replace", workflow: broken })).toBe(moved);
 });
 
 test("the canvas shows every node at its layout position, the workflow's inputs and outputs at its edges", () => {

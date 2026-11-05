@@ -124,6 +124,12 @@ test("twin edges (one output to one input twice) are one finding; a join fed by 
       "a.done>j.branches",
     ]),
   );
+  // An end written with its keys in another order is the same end.
+  const swapped = {
+    ...graph,
+    edges: graph.edges.map((item, index) => (index === 1 ? { ...item, to: { handle: "run", node: "a" } } : item)),
+  };
+  expect(validateWorkflow(swapped)).toEqual(validateWorkflow(graph));
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.duplicate-edge", params: { edge: "e2", of: "e1" } },
     { code: "workflow.duplicate-edge", params: { edge: "e4", of: "e3" } },

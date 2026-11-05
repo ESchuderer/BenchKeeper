@@ -23,7 +23,7 @@ import {
   type NodeChange,
   ReactFlow,
 } from "@xyflow/react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../i18n.ts";
 import {
   apply,
@@ -38,16 +38,24 @@ import {
 } from "./document.ts";
 import { NodeCard } from "./NodeCard.tsx";
 import { describe } from "./problems.ts";
-import { type CardData, endsOf, project } from "./projection.ts";
+import { type CardData, endsOf, isBoundary, project } from "./projection.ts";
 
 const nodeTypes = { card: NodeCard };
 const TYPES = Object.keys(NODE_TYPES);
 
-type Edit = { history: History; change: (change: Change) => void; undo: () => void; redo: () => void };
+/** The document, its history, and how many documents were opened (New, Import): the canvas starts over for each. */
+type Edit = { history: History; loads: number; change: (change: Change) => void; undo: () => void; redo: () => void };
+
+// The document outlives the view: Runs and back keeps the workflow and its undo history (a reload does not).
+let kept: History | undefined;
 
 /** The document and its history; Mod+Z undoes, Mod+Shift+Z and Mod+Y redo (not inside text fields). */
 const useDocument = (): Edit => {
-  const [history, setHistory] = useState<History>(() => open(newWorkflow()));
+  const [history, setHistory] = useState<History>(() => kept ?? open(newWorkflow()));
+  const [loads, setLoads] = useState(0);
+  useEffect(() => {
+    kept = history;
+  }, [history]);
   const back = (): void => setHistory(undo);
   const forward = (): void => setHistory(redo);
   useHotkeys([
@@ -55,10 +63,15 @@ const useDocument = (): Edit => {
     ["mod+shift+Z", forward],
     ["mod+Y", forward],
   ]);
-  return { history, change: (change) => setHistory((current) => apply(current, change)), undo: back, redo: forward };
+  const change = (next: Change): void => {
+    if (next.kind === "replace") setLoads((count) => count + 1);
+    setHistory((current) => apply(current, next));
+  };
+  return { history, loads, change, undo: back, redo: forward };
 };
 
-// A new node goes to the next free spot of a grid, five to a row.
+// A new node goes to a grid spot by the node count, five to a row.
+// shortcut: after a delete a new node can cover another, look for a free spot if Auto layout (next PR) is not enough.
 const nextSpot = (count: number): Position => ({ x: 240 * (count % 5), y: 200 * Math.floor(count / 5) });
 
 const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
@@ -88,14 +101,20 @@ const download = (workflow: WorkflowDefinition): void => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
+// Disabled but focusable, so focus stays on the button when its stack runs empty; a press then does nothing.
+const off = (disabled: boolean) => ({ "data-disabled": disabled, "aria-disabled": disabled });
+
 const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) => void }): ReactNode => {
   const [type, setType] = useState<string | null>("command.run");
+  // The file input forgets its file, so picking the same file again (fixed after a refusal) imports it again.
+  const reset = useRef<() => void>(null);
   const { past, present, future } = edit.history;
   const take = async (file: File | null): Promise<void> => {
+    reset.current?.();
     if (file === null) return;
-    const found = importOf(await file.text());
-    onProblem("problem" in found ? found.problem : "");
-    if ("workflow" in found) edit.change({ kind: "replace", workflow: found.workflow });
+    const found = await file.text().then(importOf, () => ({ problem: t("editor.unreadable") }));
+    if ("problem" in found) onProblem(found.problem);
+    else edit.change({ kind: "replace", workflow: found.workflow });
   };
   const add = (): void => {
     if (type !== null) edit.change({ kind: "add-node", type, position: nextSpot(present.nodes.length) });
@@ -104,16 +123,21 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
     <Group align="end">
       <Select label={t("editor.nodeType")} data={TYPES} value={type} onChange={setType} allowDeselect={false} />
       <Button onClick={add}>{t("editor.addNode")}</Button>
-      <Button variant="default" onClick={edit.undo} disabled={past.length === 0}>
+      <Button variant="default" onClick={edit.undo} {...off(past.length === 0)} aria-keyshortcuts="Control+Z Meta+Z">
         {t("editor.undo")}
       </Button>
-      <Button variant="default" onClick={edit.redo} disabled={future.length === 0}>
+      <Button
+        variant="default"
+        onClick={edit.redo}
+        {...off(future.length === 0)}
+        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y"
+      >
         {t("editor.redo")}
       </Button>
       <Button variant="default" onClick={() => edit.change({ kind: "replace", workflow: newWorkflow() })}>
         {t("editor.new")}
       </Button>
-      <FileButton onChange={(file) => void take(file)} accept="application/json,.json">
+      <FileButton resetRef={reset} onChange={(file) => void take(file)} accept="application/json,.json">
         {(props) => (
           <Button variant="default" {...props}>
             {t("editor.import")}
@@ -161,6 +185,20 @@ const picked = (changes: (NodeChange | EdgeChange)[], selected: Set<string>): Se
   return next;
 };
 
+/**
+ * The selected ids among the items on the canvas: an id that left the workflow (deleted, undone) leaves the selection,
+ * so a new node that gets the id again is not selected.
+ */
+const useSelection = (items: { id: string }[]) => {
+  const [ids, setIds] = useState<Set<string>>(new Set());
+  const live = new Set(items.map((item) => item.id));
+  const still = [...ids].filter((id) => live.has(id));
+  if (still.length !== ids.size) setIds(new Set(still));
+  return [ids, (changes: (NodeChange | EdgeChange)[]) => setIds((current) => picked(changes, current))] as const;
+};
+
+const DELETE_KEYS = ["Backspace", "Delete"];
+
 const ends = (connection: Connection | Edge) =>
   endsOf({
     source: connection.source,
@@ -168,9 +206,6 @@ const ends = (connection: Connection | Edge) =>
     target: connection.target,
     targetHandle: connection.targetHandle ?? null,
   });
-
-// The workflow's own inputs and outputs sit at the canvas edges: they cannot be moved or deleted.
-const boundary = (id: string): boolean => id.startsWith("@");
 
 /** The projected canvas with a drag in progress and the selection applied. */
 const onCanvas = (
@@ -184,8 +219,8 @@ const onCanvas = (
     position: local.drag[node.id] ?? node.position,
     ...(local.sizes[node.id] === undefined ? {} : { measured: local.sizes[node.id] }),
     selected: nodesPicked.has(node.id),
-    draggable: !boundary(node.id),
-    deletable: !boundary(node.id),
+    draggable: !isBoundary(node.id),
+    deletable: !isBoundary(node.id),
   })),
   edges: projected.edges.map((edge) => ({ ...edge, selected: edgesPicked.has(edge.id) })),
 });
@@ -210,15 +245,15 @@ const Canvas = (props: CanvasProps): ReactNode => {
   const { workflow, change } = props;
   const [drag, setDrag] = useState<Drag>({});
   const [sizes, setSizes] = useState<Sizes>({});
-  const [nodesPicked, setNodesPicked] = useState<Set<string>>(new Set());
-  const [edgesPicked, setEdgesPicked] = useState<Set<string>>(new Set());
   const projected = useMemo(() => project(workflow), [workflow]);
+  const [nodesPicked, pickNodes] = useSelection(projected.nodes);
+  const [edgesPicked, pickEdges] = useSelection(projected.edges);
   const { nodes, edges } = onCanvas(projected, { drag, sizes }, nodesPicked, edgesPicked);
   const onNodesChange = (changes: NodeChange<Node<CardData>>[]): void => {
     const moved = dragged(changes, drag);
     setDrag(moved.drag);
     if (Object.keys(moved.drop).length > 0) change({ kind: "move", positions: moved.drop });
-    setNodesPicked((current) => picked(changes, current));
+    pickNodes(changes);
     setSizes((current) => measured(changes, current));
   };
   return (
@@ -228,7 +263,8 @@ const Canvas = (props: CanvasProps): ReactNode => {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
-        onEdgesChange={(changes) => setEdgesPicked((current) => picked(changes, current))}
+        onEdgesChange={pickEdges}
+        deleteKeyCode={DELETE_KEYS}
         onConnect={(connection) => {
           const found = ends(connection);
           if (found !== undefined) change({ kind: "connect", ...found });
@@ -256,9 +292,11 @@ const Problems = ({ workflow }: { workflow: WorkflowDefinition }): ReactNode => 
       <Title order={3} size="h5" id="workflow-problems" mb="xs">
         {t("editor.problems")}
       </Title>
-      {findings.length === 0 ? (
-        <Text>{t("editor.noProblems")}</Text>
-      ) : (
+      {/* The count is announced after each edit; the list is not, so an edit does not read every finding out. */}
+      <Text role="status">
+        {findings.length === 0 ? t("editor.noProblems") : t("editor.problemCount", { count: findings.length })}
+      </Text>
+      {findings.length > 0 && (
         <List>
           {findings.map((finding, index) => (
             <List.Item key={`${finding.code}-${index}`}>
@@ -277,12 +315,14 @@ const Problems = ({ workflow }: { workflow: WorkflowDefinition }): ReactNode => 
  */
 const Editor = (): ReactNode => {
   const edit = useDocument();
-  const [problem, setProblem] = useState("");
+  // A refusal shows until the document changes: it is kept with the history it was raised on.
+  const [problem, setProblem] = useState<{ text: string; at: History } | null>(null);
+  const raise = (text: string): void => setProblem({ text, at: edit.history });
   return (
     <Stack>
-      <Toolbar edit={edit} onProblem={setProblem} />
-      {problem !== "" && <Alert color="red">{problem}</Alert>}
-      <Canvas workflow={edit.history.present} change={edit.change} onProblem={setProblem} />
+      <Toolbar edit={edit} onProblem={raise} />
+      {problem?.at === edit.history && <Alert color="red">{problem.text}</Alert>}
+      <Canvas key={edit.loads} workflow={edit.history.present} change={edit.change} onProblem={raise} />
       <Problems workflow={edit.history.present} />
     </Stack>
   );

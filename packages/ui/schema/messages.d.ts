@@ -19,10 +19,12 @@ export interface MessageValues {
   "editor.nodeType": Record<never, never>;
   "editor.notJson": Record<never, never>;
   "editor.outputs": Record<never, never>;
+  "editor.problemCount": { count: number };
   "editor.problems": Record<never, never>;
   "editor.redo": Record<never, never>;
   "editor.refused": { reason: string | number };
   "editor.undo": Record<never, never>;
+  "editor.unreadable": Record<never, never>;
   "error.failed": { status: string | number; error: string | number };
   "error.unreachable": Record<never, never>;
   "error.unreadable": { codes: string | number };

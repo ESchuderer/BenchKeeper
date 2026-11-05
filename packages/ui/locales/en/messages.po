@@ -270,3 +270,11 @@ msgstr "Edge {edge} joins the same output to the same input as edge {of}; remove
 #. js-lingui-explicit-id
 msgid "editor.keepOne"
 msgstr "A workflow keeps at least one node, so nothing was removed."
+
+#. js-lingui-explicit-id
+msgid "editor.problemCount"
+msgstr "{count, plural, one {# problem.} other {# problems.}}"
+
+#. js-lingui-explicit-id
+msgid "editor.unreadable"
+msgstr "The file could not be read, so nothing was imported."

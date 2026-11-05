@@ -1,8 +1,7 @@
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { t } from "../i18n.ts";
-import type { CardData } from "./projection.ts";
-import { INPUTS, OUTPUTS } from "./projection.ts";
+import { type CardData, INPUTS, isBoundary, OUTPUTS } from "./projection.ts";
 
 type Row = CardData["inputs"][number];
 
@@ -26,7 +25,7 @@ export const NodeCard = ({ id, data }: NodeProps<Node<CardData>>): ReactNode => 
   <div className="cedar-card">
     <div className="cedar-card-title">
       <strong>{titleOf(id)}</strong>
-      {id.startsWith("@") ? null : <small>{data.type}</small>}
+      {isBoundary(id) ? null : <small>{data.type}</small>}
     </div>
     {data.inputs.map((handle) => (
       <HandleRow key={`in-${handle.name}`} handle={handle} side="target" />

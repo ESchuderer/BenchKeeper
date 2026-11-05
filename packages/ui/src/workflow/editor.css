@@ -33,3 +33,8 @@
 .cedar-handle-source {
   text-align: right;
 }
+
+/* React Flow's default grey at 10px reaches about 2.85:1; the link needs 4.5:1 (WCAG 2.2 SC 1.4.3). */
+.react-flow__attribution a {
+  color: var(--mantine-color-text);
+}

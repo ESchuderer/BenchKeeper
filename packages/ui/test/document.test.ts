@@ -14,7 +14,7 @@ import {
   redo,
   undo,
 } from "../src/workflow/document.ts";
-import { endsOf, INPUTS, OUTPUTS, project } from "../src/workflow/projection.ts";
+import { endsOf, INPUTS, isBoundary, OUTPUTS, project } from "../src/workflow/projection.ts";
 
 const at = (x: number, y: number) => ({ x, y });
 const node = (id: string, handle: string) => ({ node: id, handle });
@@ -188,6 +188,7 @@ test("the canvas shows every node at its layout position, the workflow's inputs 
     { id: "e3", source: "agent-run-1", sourceHandle: "result", target: OUTPUTS, targetHandle: "report" },
   ]);
   expect(project(newWorkflow()).nodes.map((item) => item.id)).toEqual(["start"]);
+  expect(nodes.filter((item) => isBoundary(item.id)).map((item) => item.id)).toEqual([INPUTS, OUTPUTS]);
 });
 
 test("a canvas connection maps back to the edge ends it names", () => {

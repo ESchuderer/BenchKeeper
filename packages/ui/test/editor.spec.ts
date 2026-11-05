@@ -32,6 +32,9 @@ const card = (id: string): Locator => page.locator(`.react-flow__node[data-id="$
 const handle = (node: string, name: string): Locator =>
   page.locator(`.react-flow__handle[data-nodeid="${node}"][data-handleid="${name}"]`);
 const problems = (): Locator => page.getByRole("region", { name: "Problems" });
+const view = (name: string): Promise<void> =>
+  page.getByRole("navigation", { name: "Views" }).getByRole("button", { name }).click();
+const selected = /\bselected\b/;
 
 /** Where a handle is once the canvas stopped moving: fit view applies its zoom over the next frames. */
 const settled = async (target: Locator): Promise<{ x: number; y: number; width: number; height: number }> => {
@@ -59,13 +62,22 @@ const connect = async (from: Locator, to: Locator): Promise<void> => {
 
 test("the Workflows view opens a new workflow with the attribution link, minimap and controls, and passes axe", async () => {
   await page.goto(server.url);
-  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Workflows" }).click();
+  await view("Workflows");
   await expect(page.getByRole("region", { name: "Workflow graph" })).toBeVisible();
   await expect(card("start")).toContainText("trigger.manual");
   await expect(page.getByRole("link", { name: "React Flow" })).toBeVisible();
+  // The attribution link in the text color, not React Flow's light grey.
+  await expect(page.getByRole("link", { name: "React Flow" })).toHaveCSS("color", "rgb(0, 0, 0)");
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
   await expect(page.locator(".react-flow__controls")).toBeVisible();
-  await expect(problems()).toContainText("No problems.");
+  await expect(problems().getByRole("status")).toHaveText("No problems.");
+  // An empty undo stack leaves focus on Undo: the button only says it is disabled.
+  await page.getByRole("button", { name: "Add node" }).click();
+  const undo = page.getByRole("button", { name: "Undo" });
+  await undo.press("Enter");
+  await expect(card("command-run-1")).toHaveCount(0);
+  await expect(undo).toBeFocused();
+  await expect(undo).toHaveAttribute("aria-disabled", "true");
   await accessible();
   expect(errors).toEqual([]);
 });
@@ -74,9 +86,10 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(card("command-run-1")).toBeVisible();
   await expect(problems()).toContainText("Nothing leads to node command-run-1");
+  await expect(problems().getByRole("status")).toHaveText("1 problem.");
   await connect(handle("start", "start"), handle("command-run-1", "run"));
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await expect(problems()).toContainText("No problems.");
+  await expect(problems().getByRole("status")).toHaveText("No problems.");
   await page.getByRole("combobox", { name: "Node type" }).click();
   await page.getByRole("option", { name: "agent.run" }).click();
   await page.getByRole("button", { name: "Add node" }).click();
@@ -91,6 +104,12 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  for (const redo of ["ControlOrMeta+Shift+z", "ControlOrMeta+y"]) {
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(0);
+    await page.keyboard.press(redo);
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  }
   // A workflow keeps one node: deleting the last one is refused, and the page says so.
   await page.getByRole("button", { name: "New workflow" }).click();
   await card("start").click();
@@ -98,12 +117,29 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(page.getByRole("alert")).toContainText("keeps at least one node");
   await expect(card("start")).toBeVisible();
   await accessible();
+  // The next edit that applies retires the refusal.
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  // Delete removes a selected node as Backspace does, and the id given out again comes unselected.
+  await card("agent-run-1").click();
+  await expect(card("agent-run-1")).toHaveClass(selected);
+  await page.keyboard.press("Delete");
+  await expect(card("agent-run-1")).toHaveCount(0);
+  await page.getByRole("button", { name: "Add node" }).click();
+  await expect(card("agent-run-1")).not.toHaveClass(selected);
+  // The document and its history outlive a visit to another view.
+  await view("Runs");
+  await view("Workflows");
+  await expect(card("agent-run-1")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo" })).not.toHaveAttribute("aria-disabled", "true");
 });
 
 test("import reads a workflow file, export writes it back in its canonical form, and other files are refused", async () => {
   const file = join(corpus, "valid-build-and-review.json");
   await page.locator('input[type="file"]').setInputFiles(file);
   await expect(card("review")).toContainText("agent.run");
+  // The input forgets the file, so the same file can be picked again.
+  await expect(page.locator('input[type="file"]')).toHaveValue("");
   await expect(card("@inputs")).toContainText("focus");
   await expect(problems()).toContainText("No problems.");
   const saved = page.waitForEvent("download");
@@ -117,6 +153,8 @@ test("import reads a workflow file, export writes it back in its canonical form,
   await expect(page.getByRole("alert")).toContainText("not JSON");
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "invalid-string-version.json"));
   await expect(page.getByRole("alert")).toContainText("does not match the workflow schema: schemaVersion");
+  await page.locator('input[type="file"]').setInputFiles(join(corpus, "invalid-unknown-execution-key.json"));
+  await expect(page.getByRole("alert")).toContainText("execution.parallel");
   // The workflow stays as it was.
   await expect(card("review")).toBeVisible();
   await accessible();

@@ -22,7 +22,7 @@ const sample = (code: string): Record<string, unknown> => {
 test("every workflow finding and import refusal has a sentence in the problems panel; other codes show as the code", () => {
   const codes = Finding.options.map((option) => option.shape.code.value);
   const shown = codes.filter(
-    (code) => code.startsWith("workflow.") || code.startsWith("document.i") || code === "document.newer-schema",
+    (code) => code.startsWith("workflow.") || code === "document.invalid" || code === "document.newer-schema",
   );
   expect(shown.length).toBe(20);
   for (const code of shown) {

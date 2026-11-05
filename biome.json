@@ -5,7 +5,7 @@
     "includes": [
       "packages/**",
       "!packages/contracts/schema",
-      "!packages/contracts/openapi.json",
+      "!packages/*/openapi.json",
       "*.json",
       "*.ts",
       "!.release-please-manifest.json",

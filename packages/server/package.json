@@ -1,0 +1,42 @@
+{
+  "name": "@cedarloom/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The CedarLoom local server: the HTTP API over the application services on 127.0.0.1, with its session security and OpenAPI document.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "generate": "node scripts/generate.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*",
+    "@cedarloom/services": "workspace:*",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/swagger": "9.9.3",
+    "fastify": "5.12.7",
+    "fastify-type-provider-zod": "7.0.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cedarloom/ledger": "workspace:*"
+  }
+}

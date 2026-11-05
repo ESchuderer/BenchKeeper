@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Step.schema.json",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "path": {
+      "type": "string"
+    },
+    "before": {
+      "anyOf": [
+        {
+          "$ref": "Sha256.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "after": {
+      "anyOf": [
+        {
+          "$ref": "Sha256.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "done",
+        "skipped"
+      ]
+    },
+    "mode": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "index",
+    "path",
+    "before",
+    "after",
+    "state",
+    "mode"
+  ],
+  "additionalProperties": false
+}

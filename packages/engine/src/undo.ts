@@ -1,5 +1,5 @@
-import type { Finding, Operation, Plan, Result } from "@cedarloom/contracts";
-import { type RunView, type Step, sha256 } from "@cedarloom/ledger";
+import type { Finding, Operation, Plan, Result, Step } from "@cedarloom/contracts";
+import { type RunView, sha256 } from "@cedarloom/ledger";
 import { hashFile, readOrNull } from "./files.ts";
 
 export interface UndoPlan {

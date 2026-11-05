@@ -1,6 +1,6 @@
-import { type Finding, findingInfo, type Plan } from "@cedarloom/contracts";
+import { type Finding, findingInfo, type Plan, type PlanPreview, type RunResult } from "@cedarloom/contracts";
 import * as services from "@cedarloom/services";
-import type { Approval, PlanPreview, RunResult } from "@cedarloom/services";
+import type { Approval } from "@cedarloom/services";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {

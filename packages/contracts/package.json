@@ -2,7 +2,7 @@
   "name": "@cedarloom/contracts",
   "version": "0.0.0",
   "private": true,
-  "description": "Typed contracts of CedarLoom: zod schemas and the JSON Schema and OpenAPI documents generated from them.",
+  "description": "Typed contracts of CedarLoom: zod schemas, also of the local HTTP API, and the JSON Schema documents generated from them.",
   "license": "MIT",
   "type": "module",
   "exports": {

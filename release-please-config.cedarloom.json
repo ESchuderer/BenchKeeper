@@ -7,17 +7,18 @@
     {
       "type": "linked-versions",
       "groupName": "cedarloom",
-      "components": ["cli", "contracts", "engine", "ledger", "services"]
+      "components": ["cli", "contracts", "engine", "ledger", "server", "services"]
     }
   ],
   "packages": {
     "packages/cli": { "component": "cli" },
-    "packages/contracts": {
-      "component": "contracts",
-      "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
-    },
+    "packages/contracts": { "component": "contracts" },
     "packages/engine": { "component": "engine" },
     "packages/ledger": { "component": "ledger" },
+    "packages/server": {
+      "component": "server",
+      "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
+    },
     "packages/services": { "component": "services" }
   }
 }

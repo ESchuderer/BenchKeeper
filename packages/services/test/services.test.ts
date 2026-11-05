@@ -2,19 +2,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Plan } from "@cedarloom/contracts";
+import type { Plan, PlanPreview } from "@cedarloom/contracts";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
-import {
-  applyPlan,
-  doctor,
-  listRuns,
-  loadPlan,
-  type PlanPreview,
-  previewPlan,
-  previewUndo,
-  showRun,
-  undoRun,
-} from "@cedarloom/services";
+import { applyPlan, doctor, listRuns, loadPlan, previewPlan, previewUndo, showRun, undoRun } from "@cedarloom/services";
 import { expect, test } from "vitest";
 
 /** A temporary folder: files in it, the run store in `state/` (not created until a change needs it). */

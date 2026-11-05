@@ -1,50 +1,24 @@
 import { readFileSync } from "node:fs";
 import {
   type Finding,
-  type Operation,
   PLAN_SCHEMA_VERSION,
   Plan,
+  type PlanPreview,
   type Result,
+  type Run,
+  type RunResult,
   readDocument,
+  type Step,
+  type UndoPreview,
 } from "@cedarloom/contracts";
 import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
-import {
-  openRunStore,
-  openRunView,
-  planHash,
-  type Run,
-  type RunStore,
-  type RunView,
-  sha256,
-  type Step,
-} from "@cedarloom/ledger";
-
-type WriteFile = Extract<Operation, { kind: "write" }>;
-
-/** A plan as previews show it: no file contents, which can hold secrets, but their hash and size. */
-export type PlanPreview = {
-  planHash: string;
-  plan: {
-    schemaVersion: Plan["schemaVersion"];
-    operations: (Exclude<Operation, WriteFile> | (Omit<WriteFile, "content"> & { after: string; bytes: number }))[];
-  };
-};
+import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
 
 /** `yes` approves the plan as computed now, `approve` only the plan with that hash (it wins when both are given). */
 export interface Approval {
   yes?: true | undefined;
   approve?: string | undefined;
 }
-
-/** How a change ended; a run that stopped midway carries a `run.failed` finding that names it and its undo. */
-export interface RunResult {
-  runId: string | null;
-  status: Outcome["status"] | "nothing-to-undo";
-  findings: Finding[];
-}
-
-/** The plan that would undo a run, as previews show it, and the files it would leave because they were edited since. */
-export type UndoPreview = (PlanPreview | { planHash: null; plan: null }) & { findings: Finding[] };
 
 const notFound = (runId: string): Result<never> => ({
   ok: false,

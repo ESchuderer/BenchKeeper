@@ -9,3 +9,8 @@ strictPeerDependencies: true
 # One version per shared dependency: packages name it as "catalog:".
 catalog:
   zod: 4.6.7
+
+# shortcut: thread-stream 4.2.0 (pino, through fastify) names a worker_threads type that @types/node 26 removed, which
+# tsc reports with skipLibCheck off; 4.2.1 has the same one-line fix. Drop the patch when the lockfile moves to 4.2.1.
+patchedDependencies:
+  thread-stream@4.2.0: patches/thread-stream@4.2.0.patch

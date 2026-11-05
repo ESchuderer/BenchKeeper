@@ -1,5 +1,5 @@
 import { type Finding, findingInfo } from "@cedarloom/contracts";
-import type { PlanPreview } from "@cedarloom/services";
+import type { PlanPreview } from "@cedarloom/contracts";
 import { describe } from "./messages.ts";
 
 export interface Io {

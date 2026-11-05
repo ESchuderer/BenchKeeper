@@ -1,5 +1,5 @@
-import type { Finding, Operation, Plan, Result } from "@cedarloom/contracts";
-import { type RunView, type Step, sha256 } from "@cedarloom/ledger";
+import type { Finding, Operation, Plan, Result, Step } from "@cedarloom/contracts";
+import { type RunView, sha256 } from "@cedarloom/ledger";
 import { hashFile, readOrNull } from "./files.ts";
 
 export interface UndoPlan {
@@ -61,9 +61,11 @@ const visit = (walk: Walk, step: Step): Finding | undefined => {
   return undefined;
 };
 
-export const planUndo = (store: RunView, runId: string): Result<UndoPlan> => {
-  const detail = store.run(runId);
-  if (detail === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+export const planUndo = (store: RunView, requested: string): Result<UndoPlan> => {
+  const detail = store.run(requested);
+  if (detail === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId: requested } } };
+  // Backup paths are built from the id the journal holds, never from the caller's text (an HTTP path parameter).
+  const runId = detail.run.id;
   const started = detail.steps.filter((step) => step.state === "running" || step.state === "done");
   const walk: Walk = { store, runId, original: new Map(), now: new Map(), edited: new Set(), operations: [] };
   for (const step of started) if (!walk.original.has(step.path)) walk.original.set(step.path, step.before);

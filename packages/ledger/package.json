@@ -27,7 +27,6 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@cedarloom/contracts": "workspace:*",
-    "zod": "catalog:"
+    "@cedarloom/contracts": "workspace:*"
   }
 }

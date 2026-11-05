@@ -8,11 +8,13 @@ import {
   PLAN_SCHEMA_VERSION,
   Plan,
   type Result,
+  Run,
   readDocument,
+  Step,
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { Run, Step, TABLES } from "./rows.ts";
+import { TABLES } from "./rows.ts";
 
 const SCHEMA = 1;
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";

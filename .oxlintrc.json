@@ -22,7 +22,8 @@
     "typescript/no-non-null-assertion": "error",
     "typescript/no-explicit-any": "error",
     "typescript/ban-ts-comment": "error",
-    "import/no-cycle": "error"
+    "import/no-cycle": "error",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
   },
   "overrides": [
     {

@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    // Declarations nobody imports; dist/ belongs to Vite's build.
+    "outDir": "node_modules/.tsc",
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    // Mantine 9.7.4's input props and @types/react 19.3 disagree under exactOptionalPropertyTypes, which stays on for
+    // this package's code; only the libraries' declarations go unchecked here.
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src", "test", "lingui.config.ts", "vite.config.ts", "locales/en/messages.json"],
+  "references": [{ "path": "../client" }, { "path": "../server" }, { "path": "../services" }]
+}

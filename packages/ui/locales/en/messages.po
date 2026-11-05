@@ -1,0 +1,96 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=utf-8\n"
+"Language: en\n"
+
+#. js-lingui-explicit-id
+msgid "app.title"
+msgstr "CedarLoom"
+
+#. js-lingui-explicit-id
+msgid "nav.label"
+msgstr "Views"
+
+#. js-lingui-explicit-id
+msgid "nav.runs"
+msgstr "Runs"
+
+#. js-lingui-explicit-id
+msgid "nav.sessions"
+msgstr "Sessions"
+
+#. js-lingui-explicit-id
+msgid "nav.accounts"
+msgstr "Accounts"
+
+#. js-lingui-explicit-id
+msgid "nav.memory"
+msgstr "Memory"
+
+#. js-lingui-explicit-id
+msgid "nav.workItems"
+msgstr "Work items"
+
+#. js-lingui-explicit-id
+msgid "nav.usage"
+msgstr "Usage"
+
+#. js-lingui-explicit-id
+msgid "view.notBuilt"
+msgstr "This view is not built yet."
+
+#. js-lingui-explicit-id
+msgid "session.lost"
+msgstr "This page has no session. Open the link the server printed, at http://127.0.0.1 and its port."
+
+#. js-lingui-explicit-id
+msgid "error.failed"
+msgstr "The server answered {status}: {error}"
+
+#. js-lingui-explicit-id
+msgid "runs.empty"
+msgstr "No runs yet."
+
+#. js-lingui-explicit-id
+msgid "runs.caption"
+msgstr "Runs, newest first"
+
+#. js-lingui-explicit-id
+msgid "runs.run"
+msgstr "Run"
+
+#. js-lingui-explicit-id
+msgid "runs.kind"
+msgstr "Kind"
+
+#. js-lingui-explicit-id
+msgid "runs.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+msgid "runs.started"
+msgstr "Started"
+
+#. js-lingui-explicit-id
+msgid "run.steps"
+msgstr "{count, plural, one {# change} other {# changes}}"
+
+#. js-lingui-explicit-id
+msgid "run.undoPlan"
+msgstr "Undoing it changes {count, plural, one {# file} other {# files}}."
+
+#. js-lingui-explicit-id
+msgid "run.undo"
+msgstr "Undo run"
+
+#. js-lingui-explicit-id
+msgid "run.nothingToUndo"
+msgstr "Nothing to undo."
+
+#. js-lingui-explicit-id
+msgid "run.undone"
+msgstr "The undo ran as run {runId}."
+
+#. js-lingui-explicit-id
+msgid "run.refused"
+msgstr "The undo did not complete: {codes}"

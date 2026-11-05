@@ -7,7 +7,7 @@
     {
       "type": "linked-versions",
       "groupName": "cedarloom",
-      "components": ["cli", "client", "contracts", "engine", "ledger", "server", "services"]
+      "components": ["cli", "client", "contracts", "engine", "ledger", "server", "services", "ui"]
     }
   ],
   "packages": {
@@ -20,6 +20,7 @@
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
     },
-    "packages/services": { "component": "services" }
+    "packages/services": { "component": "services" },
+    "packages/ui": { "component": "ui" }
   }
 }

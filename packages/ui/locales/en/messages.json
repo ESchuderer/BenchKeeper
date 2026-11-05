@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "app.title": ["CedarLoom"],
+    "error.failed": ["The server answered ", ["status"], ": ", ["error"]],
+    "nav.accounts": ["Accounts"],
+    "nav.label": ["Views"],
+    "nav.memory": ["Memory"],
+    "nav.runs": ["Runs"],
+    "nav.sessions": ["Sessions"],
+    "nav.usage": ["Usage"],
+    "nav.workItems": ["Work items"],
+    "run.nothingToUndo": ["Nothing to undo."],
+    "run.refused": ["The undo did not complete: ", ["codes"]],
+    "run.steps": [["count", "plural", { "one": ["#", " change"], "other": ["#", " changes"] }]],
+    "run.undo": ["Undo run"],
+    "run.undoPlan": [
+      "Undoing it changes ",
+      ["count", "plural", { "one": ["#", " file"], "other": ["#", " files"] }],
+      "."
+    ],
+    "run.undone": ["The undo ran as run ", ["runId"], "."],
+    "runs.caption": ["Runs, newest first"],
+    "runs.empty": ["No runs yet."],
+    "runs.kind": ["Kind"],
+    "runs.run": ["Run"],
+    "runs.started": ["Started"],
+    "runs.status": ["Status"],
+    "session.lost": ["This page has no session. Open the link the server printed, at http://127.0.0.1 and its port."],
+    "view.notBuilt": ["This view is not built yet."]
+  }
+}

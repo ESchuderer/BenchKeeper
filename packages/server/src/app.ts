@@ -1,4 +1,7 @@
 import helmet from "@fastify/helmet";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
@@ -18,6 +21,8 @@ export interface AppOptions {
   session: Session;
   /** Where errors the client does not see go, such as the server's terminal. */
   log: (text: string) => void;
+  /** The folder of the built web UI, served at /; without it the server answers the API only. */
+  ui?: string | undefined;
 }
 
 // Requests carry ids, hashes and the session token, never file contents.
@@ -40,7 +45,7 @@ const description = [
 ].join(" ");
 
 /** The local server's routes over the application services, with the session guard on every request. */
-export const buildApp = async ({ state, session, log }: AppOptions): Promise<FastifyInstance> => {
+export const buildApp = async ({ state, session, log, ui }: AppOptions): Promise<FastifyInstance> => {
   const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -53,11 +58,20 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
     transform: createJsonSchemaTransform({ schemaRegistry: contracts }),
     transformObject: createJsonSchemaTransformObject({ schemaRegistry: contracts }),
   });
-  // Plain HTTP on loopback: no HSTS, and a CSP that allows this origin only.
+  // Plain HTTP on loopback: no HSTS and no upgrade to https; scripts, fonts and images from this origin only. Mantine
+  // writes its CSS variables into a style element, so styles may be inline.
   await app.register(helmet, {
     hsts: false,
     contentSecurityPolicy: {
-      directives: { defaultSrc: ["'self'"], baseUri: ["'none'"], formAction: ["'none'"], frameAncestors: ["'none'"] },
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'", "data:"],
+        baseUri: ["'none'"],
+        formAction: ["'none'"],
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: null,
+      },
     },
   });
   app.addHook("onRequest", guard(session));
@@ -66,6 +80,8 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
+  if (ui !== undefined && existsSync(join(ui, "index.html"))) await app.register(serveStatic, { root: ui });
+  else if (ui !== undefined) log(`The web UI is not built in ${ui}, so only the API answers.\n`);
   return app;
 };
 

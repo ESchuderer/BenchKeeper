@@ -2,6 +2,7 @@ import { Command, CommanderError } from "@commander-js/extra-typings";
 import { doctor, plansApply, plansShow, runsList, runsShow, runsUndo } from "./commands.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { stateDir } from "./state.ts";
+import { ui } from "./ui.ts";
 
 type Done = (code: number) => void;
 type Ctx = () => Context;
@@ -67,6 +68,10 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .command("doctor")
     .description("report interrupted runs and store problems")
     .action(() => done(doctor(ctx())));
+  program
+    .command("ui")
+    .description("serve the web UI on 127.0.0.1 and print the link that opens it; runs until stopped")
+    .action(async () => done(await ui(ctx())));
   try {
     await program.parseAsync(argv, { from: "user" });
   } catch (error) {

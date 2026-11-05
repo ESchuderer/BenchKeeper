@@ -1,17 +1,7 @@
-import type { Account, AccountRegistry, Agent } from "@cedarloom/contracts";
+import { type Account, type AccountRegistry, type Agent, QuotaWindow, type Reading } from "@cedarloom/contracts";
 
-/** The usage windows of the agent-neutral quota model. */
-export type Window = "fiveHour" | "sevenDay";
-
-const WINDOWS: readonly Window[] = ["fiveHour", "sevenDay"];
-
-/** One usage window of an account as last read: the used share in percent and when the window resets. */
-export interface Reading {
-  readonly account: string;
-  readonly window: Window;
-  readonly usedPercent: number;
-  readonly resetsAt: string;
-}
+/** What the choice reads of a reading: the time it was read is not needed. */
+type Current = Omit<Reading, "readAt">;
 
 /** A pool account as the choice saw it: its smallest margin above its minimums, null when a window is unknown. */
 export interface Candidate {
@@ -23,7 +13,7 @@ export type Selection =
   | {
       readonly ok: true;
       readonly account: Account;
-      /** `no-readings`: no pool account had a known reading, so the task stays on its account and nothing switches. */
+      /** `no-readings`: no pool account had both windows known, so the task stays on its account and nothing switches. */
       readonly reason: "most-headroom" | "no-readings";
       readonly candidates: readonly Candidate[];
     }
@@ -35,10 +25,10 @@ export type Selection =
 
 // A reading is unknown once its window resets, or when its reset time does not parse: it never makes an account qualify.
 // A known window below its minimum disqualifies the account even when the other window is unknown.
-const margin = (registry: AccountRegistry, account: Account, readings: readonly Reading[], now: number) => {
+const margin = (registry: AccountRegistry, account: Account, readings: readonly Current[], now: number) => {
   let smallest = Number.POSITIVE_INFINITY;
   let unknown = false;
-  for (const window of WINDOWS) {
+  for (const window of QuotaWindow.options) {
     const reading = readings.find((each) => each.account === account.name && each.window === window);
     if (reading === undefined || !(Date.parse(reading.resetsAt) > now)) unknown = true;
     else
@@ -92,7 +82,7 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
 export const selectAccount = (
   registry: AccountRegistry,
   { previous = null, ...ref }: PoolRef & { readonly previous?: string | null },
-  readings: readonly Reading[],
+  readings: readonly Current[],
   now: number,
 ): Selection => {
   if (settingsOf(registry, ref) === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };

@@ -68,7 +68,7 @@ test("a task's worker starts on the pool account with headroom, and the choice i
   const rows = switches(state);
   expect(rows).toEqual([
     {
-      at: expect.any(String),
+      at: new Date(NOW).toISOString(),
       task: "t1",
       from: "work",
       to: "spare",
@@ -147,7 +147,8 @@ test("a pool is confirmed by a plan that replaces the registry; Codex pools and 
   });
   const confirm = planConfirm(config, { agent: "claude", pool: "main" }, AT);
   if (!confirm.ok) throw new Error(confirm.finding.code);
-  expect(applyPlan(state, confirm.value, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
+  expect(confirm.value.findings).toEqual([{ code: "accounts.pool-terms", params: { pool: "main" } }]);
+  expect(applyPlan(state, confirm.value.plan, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
   // The confirmation names the pool's accounts as they are now.
   expect(JSON.parse(readFileSync(join(config, "accounts.json"), "utf8")).pools.claude.main).toEqual({
     confirmedAt: AT,

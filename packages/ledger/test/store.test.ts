@@ -337,7 +337,7 @@ test("a store of schema 1 gains the account tables on open and keeps its runs", 
   after.close();
 });
 
-test("the latest reading per account and window stays; an older one arriving late does not replace it", () => {
+test("the latest reading per account and window stays; an older one arriving late, or no reading, never gets in", () => {
   const store = opened(fresh());
   const reading = {
     account: "work",
@@ -349,6 +349,11 @@ test("the latest reading per account and window stays; an older one arriving lat
   store.recordReading({ ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" });
   store.recordReading({ ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" });
   store.recordReading({ ...reading, usedPercent: 45, readAt: "2026-11-05T12:01:00.000Z" });
+  // A reset time that is no time, or a time without milliseconds (whose text would sort wrong), throws on write.
+  expect(() => store.recordReading({ ...reading, resetsAt: "not a date", readAt: "2026-11-05T12:06:00.000Z" })).toThrow(
+    /datetime/i,
+  );
+  expect(() => store.recordReading({ ...reading, readAt: "2026-11-05T12:06:00Z" })).toThrow(/datetime/i);
   expect(store.readings()).toEqual([
     { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" },
     { ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" },
@@ -364,7 +369,8 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     resetsAt: "2026-11-05T17:00:00.000Z",
     readAt: "2026-11-05T12:00:00.000Z",
   } as const;
-  const row: Omit<AccountSwitch, "at"> = {
+  const row: AccountSwitch = {
+    at: "2026-11-05T12:00:00.000Z",
     task: "t1",
     from: null,
     to: "spare",
@@ -373,8 +379,9 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     candidates: [{ account: "spare", margin: 87 }],
   };
   store.recordSwitch(row);
-  const stayed: Omit<AccountSwitch, "at"> = {
+  const stayed: AccountSwitch = {
     ...row,
+    at: "2026-11-05T12:01:00.000Z",
     from: "spare",
     to: "work",
     reason: "no-readings",
@@ -382,10 +389,5 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     candidates: [],
   };
   store.recordSwitch(stayed);
-  const rows = store.switches();
-  expect(rows).toEqual([
-    { ...row, at: expect.any(String) },
-    { ...stayed, at: expect.any(String) },
-  ]);
-  expect(Date.parse(rows[0]?.at ?? "")).toBeGreaterThan(Date.now() - 60_000);
+  expect(store.switches()).toEqual([row, stayed]);
 });

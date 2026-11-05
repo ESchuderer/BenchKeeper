@@ -62,6 +62,8 @@ export const Finding = z
     finding("accounts.unknown-pool", { agent: z.string(), pool: z.string() }),
     // A40: Codex switching stays off until the owner has read OpenAI's terms, so no Codex pool can be confirmed.
     finding("accounts.codex-switching-off", { pool: z.string() }),
+    // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
+    finding("accounts.pool-terms", { pool: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -117,4 +119,5 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.registry-exists": { severity: "error", effort: "manual" },
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
+  "accounts.pool-terms": { severity: "warning", effort: "manual" },
 };

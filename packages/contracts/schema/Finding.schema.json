@@ -1432,6 +1432,32 @@
         "params"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "accounts.pool-terms"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "pool": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pool"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
     }
   ]
 }

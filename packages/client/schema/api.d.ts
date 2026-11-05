@@ -724,6 +724,12 @@ export interface components {
             params: {
                 pool: string;
             };
+        } | {
+            /** @constant */
+            code: "accounts.pool-terms";
+            params: {
+                pool: string;
+            };
         };
         RunInput: {
             id: string;
@@ -1125,6 +1131,12 @@ export interface components {
         } | {
             /** @constant */
             code: "accounts.codex-switching-off";
+            params: {
+                pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.pool-terms";
             params: {
                 pool: string;
             };

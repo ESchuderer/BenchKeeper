@@ -99,8 +99,9 @@ export const Reading = z.strictObject({
   account: Name,
   window: QuotaWindow,
   usedPercent: z.number(),
-  resetsAt: z.iso.datetime(),
-  readAt: z.iso.datetime(),
+  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
+  resetsAt: z.iso.datetime({ precision: 3 }),
+  readAt: z.iso.datetime({ precision: 3 }),
 });
 export type Reading = z.infer<typeof Reading>;
 
@@ -109,7 +110,7 @@ export type Reading = z.infer<typeof Reading>;
  * launch), the account chosen and why, the pool's readings and each candidate's margin above its minimums.
  */
 export const AccountSwitch = z.strictObject({
-  at: z.iso.datetime(),
+  at: z.iso.datetime({ precision: 3 }),
   task: z.string(),
   from: Name.nullable(),
   to: Name,

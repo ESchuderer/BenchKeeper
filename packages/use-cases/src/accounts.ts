@@ -5,6 +5,7 @@ import {
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   type Agent,
+  type Finding,
   formatRegistry,
   type Plan,
   type Result,
@@ -53,13 +54,13 @@ export const planImport = (
 
 /**
  * Plans the user's confirmation that one person holds and pays for every account of the pool, which lets new workers
- * switch between them. A Codex pool is refused before anything is read.
+ * switch between them, with the terms it answers to as a finding. A Codex pool is refused before anything is read.
  */
 export const planConfirm = (
   config: string,
   { agent, pool }: { readonly agent: Agent; readonly pool: string },
   now: string = new Date().toISOString(),
-): Result<Plan> => {
+): Result<{ plan: Plan; findings: Finding[] }> => {
   if (agent === "codex") return { ok: false, finding: { code: "accounts.codex-switching-off", params: { pool } } };
   const path = registryPath(config);
   const read = readRegistry(path);
@@ -73,13 +74,11 @@ export const planConfirm = (
   const confirmedFor = registry.accounts.filter((a) => a.agent === agent && a.pool === pool).map((a) => a.name);
   const confirmation = { confirmedAt: now, confirmedFor };
   const next = { ...registry, pools: { ...registry.pools, [agent]: { ...pools, [pool]: confirmation } } };
-  return {
-    ok: true,
-    value: {
-      schemaVersion: 1,
-      operations: [{ kind: "write", path, before: sha256(text), content: formatRegistry(next) }],
-    },
+  const plan: Plan = {
+    schemaVersion: 1,
+    operations: [{ kind: "write", path, before: sha256(text), content: formatRegistry(next) }],
   };
+  return { ok: true, value: { plan, findings: [{ code: "accounts.pool-terms", params: { pool } }] } };
 };
 
 export interface AccountRequest {
@@ -106,6 +105,7 @@ export const chooseAccount = (
     if (selection.ok) {
       const pool = new Set(selection.candidates.map((candidate) => candidate.account));
       store.recordSwitch({
+        at: new Date(now).toISOString(),
         task: request.task,
         from: request.previous,
         to: selection.account.name,

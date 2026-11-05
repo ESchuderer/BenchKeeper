@@ -223,8 +223,12 @@ export class RunStore extends RunView {
     });
   }
 
-  /** Keeps the latest reading per account and window: a reading older than the stored one is dropped. */
-  recordReading(reading: Reading): void {
+  /**
+   * Keeps the latest reading per account and window: a reading older than the stored one is dropped. A reading that is
+   * no Reading throws here, so one bad row cannot break every later choice.
+   */
+  recordReading(input: Reading): void {
+    const reading = Reading.parse(input);
     this.db
       .prepare(
         `INSERT INTO readings VALUES (?, ?, ?, ?, ?) ON CONFLICT (account, "window") DO UPDATE SET
@@ -241,12 +245,13 @@ export class RunStore extends RunView {
       .map((row) => Reading.parse(row));
   }
 
-  /** Records a launch-time account choice, dated now. */
-  recordSwitch(choice: Omit<AccountSwitch, "at">): void {
+  /** Records a launch-time account choice, dated when its readings were judged; one that is no AccountSwitch throws. */
+  recordSwitch(input: AccountSwitch): void {
+    const choice = AccountSwitch.parse(input);
     this.db
       .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(
-        now(),
+        choice.at,
         choice.task,
         choice.from,
         choice.to,

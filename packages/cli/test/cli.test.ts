@@ -203,11 +203,16 @@ test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, t
 
 const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "host", dir: `/accounts/${name}`, pool });
 
-test("accounts: the one-time import and a pool's confirmation are shown first and applied with --yes", async () => {
+// A temporary setup with BenchKeeper's registry file: one pooled and one single host account, one container account.
+const withBenchKeeper = () => {
   const { root, cli } = setup();
   const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
   const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
-  const from = planFile(root, registry, "benchkeeper.json");
+  return { root, cli, from: planFile(root, registry, "benchkeeper.json") };
+};
+
+test("accounts: the one-time import is shown first and applied with --yes", async () => {
+  const { root, cli, from } = withBenchKeeper();
   expect(await cli("accounts", "list")).toMatchObject({
     code: EXIT.ok,
     out: expect.stringContaining("No accounts yet"),
@@ -232,18 +237,34 @@ test("accounts: the one-time import and a pool's confirmation are shown first an
   );
   // Once: the default file is never read, as the registry exists.
   expect(await cli("accounts", "import")).toMatchObject({ code: EXIT.refused, err: expect.stringContaining("once") });
+  writeFileSync(join(root, "config", "accounts.json"), "{}");
+  expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
+});
+
+test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
+  const { cli, from } = withBenchKeeper();
+  await cli("accounts", "import", "--from", from, "--yes");
   const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
   expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
-  expect((await cli("accounts", "pool", "confirm", "main")).out).toContain(
-    "hold and pay for every account of pool main",
-  );
+  const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
+  const preview = await cli("accounts", "pool", "confirm", "main");
+  expect([preview.out, preview.err]).toEqual([
+    expect.stringContaining("Nothing changed"),
+    expect.stringContaining("warning: Confirm pool main only if you hold and pay for every account in it yourself"),
+  ]);
+  expect(json((await cli("accounts", "pool", "confirm", "main", "--json")).out)).toMatchObject({
+    format: "cedarloom.plan",
+    findings: [terms],
+  });
   expect(json((await cli("accounts", "pool", "confirm", "main", "--yes", "--json")).out)).toMatchObject({
     format: "cedarloom.run",
     status: "applied",
+    findings: [terms],
   });
   expect((await cli("accounts", "list")).out).toContain("main (confirmed)");
-  writeFileSync(join(root, "config", "accounts.json"), "{}");
-  expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({
+    confirmed: [{ agent: "claude", pool: "main" }],
+  });
 });
 
 test("every finding code has an English sentence", () => {

@@ -1,6 +1,6 @@
 import {
   type Account,
-  type Agent,
+  Agent,
   type Finding,
   findingInfo,
   type Plan,
@@ -48,12 +48,18 @@ export const plansShow = (ctx: Context, path: string): number => {
   return EXIT.ok;
 };
 
-// Prints what is applied (not with --json), applies it as one run and reports the run.
-const applyShown = (ctx: Context, plan: Plan, shown: string, approval: Approval): number => {
+// Prints what is applied (not with --json), applies it as one run and reports the run with `findings` first.
+const applyShown = (ctx: Context, plan: Plan, { shown, findings }: Shown, approval: Approval): number => {
   if (!ctx.json) ctx.io.out(`${shown}\n`);
   const run = useCases.applyPlan(ctx.state, plan, approval);
-  return run.ok ? result(ctx, run.value) : fail(ctx, "run", [run.finding], EXIT.refused);
+  if (!run.ok) return fail(ctx, "run", [...findings, run.finding], EXIT.refused);
+  return result(ctx, { ...run.value, findings: [...findings, ...run.value.findings] });
 };
+
+interface Shown {
+  readonly shown: string;
+  readonly findings: Finding[];
+}
 
 export const plansApply = (ctx: Context, path: string, approval: Approval): number => {
   const plan = loadPlan(ctx, path);
@@ -63,7 +69,7 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
     emit(ctx, "plan", preview, ask(preview));
     return EXIT.ok;
   }
-  return applyShown(ctx, plan, showPlan(preview), approval);
+  return applyShown(ctx, plan, { shown: showPlan(preview), findings: [] }, approval);
 };
 
 export const runsList = (ctx: Context): number => {
@@ -120,30 +126,35 @@ export const doctor = (ctx: Context): number => {
   return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;
 };
 
-// A finding before any plan: an unreadable file exits 66, a file that is not the expected document 65, a rule 1.
-const refused = (ctx: Context, finding: Finding): number => {
+// A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
+// expected document 65, a rule 1.
+const refused = (ctx: Context, format: "accounts" | "plan", finding: Finding): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
-  return fail(ctx, "accounts", [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
+  return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
 
-/** Shows a planned change with `note` below it, or with --yes applies it as one run; `data` joins the JSON output. */
-const change = (ctx: Context, plan: Plan, { note, data }: { note: string; data: object }, yes?: true): number => {
+/**
+ * Shows a planned change with `note` below it and its findings, or with --yes applies it as one run; `data` joins the
+ * plan's JSON, and the findings join the plan's and the run's, so every output form carries them.
+ */
+const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
-  if (yes !== true) {
-    emit(
-      ctx,
-      "plan",
-      { ...preview, ...data },
-      `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`,
-    );
-    return EXIT.ok;
-  }
-  return applyShown(ctx, plan, `${showPlan(preview)}${note}`, { yes });
+  if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings }, { yes });
+  const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;
+  emit(ctx, "plan", { ...preview, ...data, findings }, human);
+  report(ctx, findings);
+  return EXIT.ok;
 };
+
+interface Change {
+  readonly note: string;
+  readonly data: object;
+  readonly findings: Finding[];
+}
 
 export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
-  if (!loaded.ok) return refused(ctx, loaded.finding);
+  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
   const confirmed = (agent: Agent, pool: string): boolean =>
     registry !== null && useCases.isConfirmed(registry, { agent, pool });
@@ -151,28 +162,31 @@ export const accountsList = (ctx: Context): number => {
     name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
   const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}`);
   const none = "No accounts yet. Import BenchKeeper's with: cedarloom accounts import";
-  emit(ctx, "accounts", { registry }, lines.length > 0 ? lines.join("\n") : none);
+  // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
+  const pools = Agent.options.flatMap((agent) =>
+    Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
+  );
+  emit(
+    ctx,
+    "accounts",
+    { registry, confirmed: pools.filter((p) => confirmed(p.agent, p.pool)) },
+    lines.length > 0 ? lines.join("\n") : none,
+  );
   return EXIT.ok;
 };
 
 export const accountsImport = (ctx: Context, { from, yes }: { from?: string; yes?: true }): number => {
   const planned = useCases.planImport(ctx.config, from ?? benchKeeperRegistry());
-  if (!planned.ok) return refused(ctx, planned.finding);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
   const { plan, left } = planned.value;
   const note = left.map(
     (each) => `\n  not imported: ${each.item}${each.account === null ? "" : ` of ${each.account}`}`,
   );
-  return change(ctx, plan, { note: note.join(""), data: { left } }, yes);
+  return change(ctx, plan, { note: note.join(""), data: { left }, findings: [] }, yes);
 };
-
-// Anthropic's usage policy forbids several accounts "to evade detection or circumvent platform safeguards"
-// (https://support.claude.com/en/articles/12005017); whether a usage limit is such a safeguard is not stated.
-const terms = (pool: string): string =>
-  `\nConfirm only if you hold and pay for every account of pool ${pool} yourself. Anthropic's usage policy forbids ` +
-  "several accounts used to evade detection or circumvent platform safeguards " +
-  "(https://support.claude.com/en/articles/12005017); whether a usage limit counts as one is not stated.";
 
 export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { agent: Agent; yes?: true }): number => {
   const planned = useCases.planConfirm(ctx.config, { agent, pool });
-  return planned.ok ? change(ctx, planned.value, { note: terms(pool), data: {} }, yes) : refused(ctx, planned.finding);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
 };

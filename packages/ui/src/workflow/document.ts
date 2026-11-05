@@ -34,6 +34,16 @@ export const newWorkflow = (): WorkflowDefinition => ({
 
 export const open = (workflow: WorkflowDefinition): History => ({ past: [], present: workflow, future: [] });
 
+/** The nodes, the first of each id: a later node with an id taken (the validator reports it) is left out. */
+export const uniqueNodes = (workflow: WorkflowDefinition): WorkflowDefinition["nodes"] => {
+  const seen = new Set<string>();
+  return workflow.nodes.filter((node) => {
+    if (seen.has(node.id)) return false;
+    seen.add(node.id);
+    return true;
+  });
+};
+
 const sameEnd = (a: From | To, b: From | To): boolean =>
   "node" in a && "node" in b ? a.node === b.node && a.handle === b.handle : JSON.stringify(a) === JSON.stringify(b);
 

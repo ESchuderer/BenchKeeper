@@ -35,3 +35,14 @@ test("every workflow finding and import refusal has a sentence in the problems p
   const output = Finding.parse({ code: "workflow.missing-source", params: { node: null, handle: "report" } });
   expect(describe(output)).toBe("The workflow output report gets no edge, but it needs one.");
 });
+
+test("a file refused for thousands of issues names the first ten and counts the rest", () => {
+  const issues = Array.from({ length: 2000 }, (_, index) => ({
+    path: `nodes.${Math.floor(index / 2)}.${index % 2 === 0 ? "x" : "y"}`,
+    code: "unrecognized_keys",
+  }));
+  const named = issues.slice(0, 10).map((issue) => `${issue.path} unrecognized_keys`);
+  expect(describe(Finding.parse({ code: "document.invalid", params: { issues } }))).toBe(
+    `It does not match the workflow schema: ${named.join(", ")}, and 1990 more.`,
+  );
+});

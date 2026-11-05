@@ -1,6 +1,7 @@
 import "./jitless.ts";
 import "@xyflow/react/dist/style.css";
 import "./editor.css";
+import type { ELK } from "elkjs/lib/elk-api.js";
 import {
   findingInfo,
   formatWorkflow,
@@ -10,8 +11,8 @@ import {
 } from "@cedarloom/contracts";
 import { NODE_TYPES } from "@cedarloom/engine/graph";
 import { validateWorkflow } from "@cedarloom/engine/validate";
-import { Alert, Button, FileButton, Group, List, Select, Stack, Text, Title } from "@mantine/core";
-import { useHotkeys } from "@mantine/hooks";
+import { Alert, Anchor, Button, FileButton, Group, List, Select, Stack, Text, Title } from "@mantine/core";
+import { useDisclosure, useHotkeys } from "@mantine/hooks";
 import {
   Background,
   type Connection,
@@ -23,12 +24,13 @@ import {
   type NodeChange,
   ReactFlow,
 } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { t } from "../i18n.ts";
 import {
   apply,
   canConnect,
   type Change,
+  edit as editWorkflow,
   type History,
   newWorkflow,
   open,
@@ -36,6 +38,8 @@ import {
   redo,
   undo,
 } from "./document.ts";
+import { ConnectDialog } from "./ConnectDialog.tsx";
+import { autoLayout, type Size } from "./layout.ts";
 import { NodeCard } from "./NodeCard.tsx";
 import { describe } from "./problems.ts";
 import { type CardData, endsOf, isBoundary, project } from "./projection.ts";
@@ -71,7 +75,7 @@ const useDocument = (): Edit => {
 };
 
 // A new node goes to a grid spot by the node count, five to a row.
-// shortcut: after a delete a new node can cover another, look for a free spot if Auto layout (next PR) is not enough.
+// shortcut: after a delete a new node can cover another, look for a free spot if Auto layout is not enough.
 const nextSpot = (count: number): Position => ({ x: 240 * (count % 5), y: 200 * Math.floor(count / 5) });
 
 const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
@@ -101,7 +105,93 @@ const download = (workflow: WorkflowDefinition): void => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) => void }): ReactNode => {
+// Disabled but focusable, so focus stays on the button when its stack runs empty; a press then does nothing.
+const off = (disabled: boolean) => ({ "data-disabled": disabled, "aria-disabled": disabled });
+
+type Layout = { elk: ELK; failed: Promise<never> };
+
+let engine: Promise<Layout> | undefined;
+
+// ELK loads on the first auto layout and runs in a Web Worker, unmodified from its package, so the page stays responsive.
+// elk-api listens to the worker's messages only, so the worker's `error` (a script that cannot load, a crash) is turned
+// into `failed` here, raced against each layout.
+const start = async (): Promise<Layout> => {
+  const [api, worker] = await Promise.all([import("elkjs/lib/elk-api.js"), import("elkjs/lib/elk-worker.min.js?url")]);
+  const { promise: failed, reject } = Promise.withResolvers<never>();
+  // Handled where it is raced; a worker that fails while no layout runs is no unhandled rejection.
+  failed.catch(() => undefined);
+  const workerFactory = (url = worker.default): Worker => {
+    const created = new Worker(url);
+    created.addEventListener("error", (event) => reject(new Error(event.message || t("editor.workerStopped"))));
+    return created;
+  };
+  // elk-api is CommonJS: its default export is the module, whose `default` is the constructor again (ELK.default = ELK).
+  return { elk: new api.default.default({ workerUrl: worker.default, workerFactory }), failed };
+};
+
+/** New positions from ELK; any failure ends the worker, and the next layout starts a new one. */
+const layOut = async (workflow: WorkflowDefinition, sizes: Sizes): Promise<Record<string, Position>> => {
+  engine ??= start();
+  const started = engine;
+  try {
+    const { elk, failed } = await started;
+    return await Promise.race([autoLayout(elk, workflow, sizes), failed]);
+  } catch (error) {
+    engine = undefined;
+    void started.then(({ elk }) => elk.terminateWorker()).catch(() => undefined);
+    throw error;
+  }
+};
+
+type Notes = { onProblem: (text: string) => void; onStatus: (text: string) => void };
+
+/** Auto layout (one undo step that writes only positions) and the keyboard path to a connection. */
+const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Sizes } & Notes): ReactNode => {
+  const [busy, setBusy] = useState(false);
+  const [connecting, dialog] = useDisclosure(false);
+  // The document as it stands when the layout answers: one changed meanwhile (New, Import, an edit) drops the layout.
+  // Set in the commit, so a render React discards never counts as the document.
+  const latest = useRef(edit.history.present);
+  useLayoutEffect(() => {
+    latest.current = edit.history.present;
+  }, [edit.history.present]);
+  const lay = async (): Promise<void> => {
+    if (busy) return;
+    const laid = edit.history.present;
+    setBusy(true);
+    try {
+      const move: Change = { kind: "move", positions: await layOut(laid, sizes) };
+      if (latest.current !== laid) return;
+      // Positions it already has are no edit and no undo step, and the status says so.
+      edit.change(move);
+      onStatus(t(editWorkflow(laid, move) === laid ? "editor.alreadyLaidOut" : "editor.laidOut"));
+    } catch (error) {
+      onProblem(t("editor.layoutFailed", { reason: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {/* Busy but focusable, so the keyboard focus stays on the button while ELK works. */}
+      <Button variant="default" onClick={() => void lay()} {...off(busy)}>
+        {t("editor.autoLayout")}
+      </Button>
+      <Button variant="default" onClick={dialog.open}>
+        {t("editor.connectHandles")}
+      </Button>
+      <ConnectDialog
+        workflow={edit.history.present}
+        opened={connecting}
+        onClose={dialog.close}
+        change={edit.change}
+        onDone={onStatus}
+      />
+    </>
+  );
+};
+
+const Toolbar = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Sizes } & Notes): ReactNode => {
   const [type, setType] = useState<string | null>("command.run");
   // The file input forgets its file, so picking the same file again (fixed after a refusal) imports it again.
   const reset = useRef<() => void>(null);
@@ -109,7 +199,7 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
   const take = async (file: File | null): Promise<void> => {
     reset.current?.();
     if (file === null) return;
-    const found = importOf(await file.text());
+    const found = await file.text().then(importOf, () => ({ problem: t("editor.unreadable") }));
     if ("problem" in found) onProblem(found.problem);
     else edit.change({ kind: "replace", workflow: found.workflow });
   };
@@ -120,10 +210,15 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
     <Group align="end">
       <Select label={t("editor.nodeType")} data={TYPES} value={type} onChange={setType} allowDeselect={false} />
       <Button onClick={add}>{t("editor.addNode")}</Button>
-      <Button variant="default" onClick={edit.undo} disabled={past.length === 0}>
+      <Button variant="default" onClick={edit.undo} {...off(past.length === 0)} aria-keyshortcuts="Control+Z Meta+Z">
         {t("editor.undo")}
       </Button>
-      <Button variant="default" onClick={edit.redo} disabled={future.length === 0}>
+      <Button
+        variant="default"
+        onClick={edit.redo}
+        {...off(future.length === 0)}
+        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y"
+      >
         {t("editor.redo")}
       </Button>
       <Button variant="default" onClick={() => edit.change({ kind: "replace", workflow: newWorkflow() })}>
@@ -139,12 +234,13 @@ const Toolbar = ({ edit, onProblem }: { edit: Edit; onProblem: (text: string) =>
       <Button variant="default" onClick={() => download(present)}>
         {t("editor.export")}
       </Button>
+      <Arrange edit={edit} sizes={sizes} onProblem={onProblem} onStatus={onStatus} />
     </Group>
   );
 };
 
 type Drag = Record<string, Position>;
-type Sizes = Record<string, { width: number; height: number }>;
+type Sizes = Record<string, Size>;
 
 // React Flow shows a node once it is measured: the sizes it reports are kept with the canvas, not in the workflow.
 const measured = (changes: NodeChange<Node<CardData>>[], sizes: Sizes): Sizes => {
@@ -219,6 +315,8 @@ type CanvasProps = {
   workflow: WorkflowDefinition;
   change: (change: Change) => void;
   onProblem: (text: string) => void;
+  sizes: Sizes;
+  onSizes: (update: (current: Sizes) => Sizes) => void;
 };
 
 /** A delete as one remove; a delete of every node is refused, since a workflow keeps one, and the page says why. */
@@ -231,9 +329,8 @@ const remover =
   };
 
 const Canvas = (props: CanvasProps): ReactNode => {
-  const { workflow, change } = props;
+  const { workflow, change, sizes, onSizes } = props;
   const [drag, setDrag] = useState<Drag>({});
-  const [sizes, setSizes] = useState<Sizes>({});
   const projected = useMemo(() => project(workflow), [workflow]);
   const [nodesPicked, pickNodes] = useSelection(projected.nodes);
   const [edgesPicked, pickEdges] = useSelection(projected.edges);
@@ -243,7 +340,7 @@ const Canvas = (props: CanvasProps): ReactNode => {
     setDrag(moved.drag);
     if (Object.keys(moved.drop).length > 0) change({ kind: "move", positions: moved.drop });
     pickNodes(changes);
-    setSizes((current) => measured(changes, current));
+    onSizes((current) => measured(changes, current));
   };
   return (
     <div className="cedar-canvas" role="region" aria-label={t("editor.canvas")}>
@@ -307,12 +404,29 @@ const Editor = (): ReactNode => {
   // A refusal shows until the document changes: it is kept with the history it was raised on.
   const [problem, setProblem] = useState<{ text: string; at: History } | null>(null);
   const raise = (text: string): void => setProblem({ text, at: edit.history });
+  const [status, setStatus] = useState("");
+  // Node sizes as React Flow measured them: the canvas shows nodes with them, the auto layout spaces nodes by them.
+  const [sizes, setSizes] = useState<Sizes>({});
+  const workflow = edit.history.present;
   return (
     <Stack>
-      <Toolbar edit={edit} onProblem={raise} />
+      <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={setStatus} />
       {problem?.at === edit.history && <Alert color="red">{problem.text}</Alert>}
-      <Canvas key={edit.loads} workflow={edit.history.present} change={edit.change} onProblem={raise} />
-      <Problems workflow={edit.history.present} />
+      <Text role="status" size="sm">
+        {status}
+      </Text>
+      <Canvas
+        key={edit.loads}
+        workflow={workflow}
+        change={edit.change}
+        onProblem={raise}
+        sizes={sizes}
+        onSizes={setSizes}
+      />
+      <Anchor href="licenses/elkjs.txt" target="_blank" rel="noreferrer" size="sm">
+        {t("editor.license")}
+      </Anchor>
+      <Problems workflow={workflow} />
     </Stack>
   );
 };

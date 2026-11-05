@@ -1,5 +1,5 @@
 import { type Finding, type HandleType, JoinConfig, type WorkflowDefinition } from "@cedarloom/contracts";
-import { compatibility, NODE_TYPES, type NodeType } from "./graph.ts";
+import { compatibility, NODE_TYPES, type NodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
@@ -17,10 +17,6 @@ type Graph = {
   /** Node to node links of every edge between existing nodes, whatever its handles: one bad edge hides no node. */
   reach: Map<string, string[]>;
 };
-
-// Own keys only: a node type, handle or field named like an Object property (`constructor`) is none.
-const own = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
-  record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
 
 const duplicates = ({ workflow }: Graph): Finding[] =>
   (["node", "edge"] as const).flatMap((kind) => {
@@ -82,10 +78,31 @@ const edgeFindings = ({ resolved }: Graph): Finding[] =>
 
 const target = (node: string | null, handle: string): string => `${node ?? ""}\0${handle}`;
 
+// The edges of a graph without twins: the first per output and input they join, one key lookup each.
+const distinct = (edges: Edge[]): Edge[] => [
+  ...new Map(edges.toReversed().map((edge) => [pairOf(edge), edge])).values(),
+];
+
+// A node end by its fields in a fixed order; a workflow input or output end has one key, so its text is fixed too.
+const endKey = (end: End): string => JSON.stringify("node" in end ? [end.node, end.handle] : end);
+
+const pairOf = ({ from, to }: Edge): string => JSON.stringify([endKey(from), endKey(to)]);
+
+/** An edge that joins the same output to the same input as an earlier one adds nothing: a join it feeds gains no branch. */
+const twins = ({ edges }: Graph): Finding[] => {
+  const first = new Map<string, string>();
+  return edges.flatMap((edge): Finding[] => {
+    const of = first.get(pairOf(edge));
+    if (of === undefined) first.set(pairOf(edge), edge.id);
+    return of === undefined ? [] : [{ code: "workflow.duplicate-edge", params: { edge: edge.id, of } }];
+  });
+};
+
 /** One edge into each data input and workflow output (none for an optional input), two or more into a join. */
 const sourceFindings = ({ workflow, nodes, edges, types }: Graph): Finding[] => {
   const counts = new Map<string, number>();
-  for (const { to } of edges) {
+  // Twins count once, so a twin is one finding (duplicate-edge), not also many-sources.
+  for (const { to } of distinct(edges)) {
     const key = "output" in to ? target(null, to.output) : target(to.node, to.handle);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
@@ -245,6 +262,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     duplicates,
     nodeFindings,
     edgeFindings,
+    twins,
     sourceFindings,
     exclusiveSources,
     inputFindings,

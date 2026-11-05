@@ -23,7 +23,7 @@
     "typescript/no-explicit-any": "error",
     "typescript/ban-ts-comment": "error",
     "import/no-cycle": "error",
-    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "**/jitless.ts"] }]
   },
   "overrides": [
     {
@@ -55,6 +55,22 @@
               {
                 "group": ["node:*", "@cedarloom/*"],
                 "message": "contracts depend on no runtime and no other CedarLoom package"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/agent-contracts/src/**", "packages/adapter-*/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/agent-contracts"],
+                "message": "the agent contract and the adapters depend on the contracts only, never on each other"
               }
             ]
           }
@@ -106,6 +122,44 @@
       }
     },
     {
+      "files": ["packages/ui/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cedarloom/engine",
+                "message": "the engine's root carries Node code; the browser takes @cedarloom/engine/graph or /validate"
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/ledger", "@cedarloom/use-cases", "@cedarloom/server"],
+                "message": "the web UI runs in the browser and reaches the server through @cedarloom/client"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/engine/src/validate.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/ledger", "./**", "../**", "!./graph.ts"],
+                "message": "the editor loads the validator in the browser: it takes the contracts and the graph module only"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/engine/src/graph.ts"],
       "rules": {
         "no-restricted-imports": [
@@ -113,7 +167,7 @@
           {
             "patterns": [
               {
-                "group": ["node:*", "@cedarloom/*", "./*", "../*"],
+                "group": ["*"],
                 "allowTypeImports": true,
                 "message": "the graph module runs in the browser: it takes types from the contracts, no zod and no Node"
               }

@@ -1,0 +1,9 @@
+not json
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"five_hour","utilization":0.2}}
+{"type":"system","subtype":"init","session_id":"00000000-0000-4000-8000-000000000002","model":"claude-sonnet-5-5","claude_code_version":"2.1.309"}
+
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1793906400,"rateLimitType":"five_hour","utilization":0.15}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"seven_day"}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"five_hour","utilization":15}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"five_hour","resetsAt":1793906400000}}
+{"type":"result","subtype":"error_max_turns","is_error":true}

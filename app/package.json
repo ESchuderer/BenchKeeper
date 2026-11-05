@@ -63,6 +63,9 @@
     "vite": "8.3.5"
   },
   "overrides": {
-    "qs": "6.16.1"
+    "qs": "6.16.1",
+    "@stryker-mutator/core@10.1.1": {
+      "minimatch": "11.0.4"
+    }
   }
 }

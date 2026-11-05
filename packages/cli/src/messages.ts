@@ -62,6 +62,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.missing-source": (p) => `${handleName(p)} gets no edge, but it needs one.`,
   "workflow.cycle": (p) => `The nodes ${p.nodes.join(", ")} form a cycle; repeats need an explicit loop node.`,
   "workflow.join-branches": (p) => `Join ${p.node} has ${p.count} incoming branch edges; a join needs at least two.`,
+  "workflow.duplicate-edge": (p) =>
+    `Edge ${p.edge} joins the same output to the same input as edge ${p.of}; remove one.`,
   "workflow.exclusive-sources": (p) =>
     `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; merge them in a join with policy any.`,
   "workflow.optional-input": (p) =>

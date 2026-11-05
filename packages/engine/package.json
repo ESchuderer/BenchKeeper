@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./graph": "./src/graph.ts"
+    "./graph": "./src/graph.ts",
+    "./validate": "./src/validate.ts"
   },
   "publishConfig": {
     "exports": {
@@ -18,6 +19,10 @@
       "./graph": {
         "types": "./dist/graph.d.ts",
         "default": "./dist/graph.js"
+      },
+      "./validate": {
+        "types": "./dist/validate.d.ts",
+        "default": "./dist/validate.js"
       }
     }
   },

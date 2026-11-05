@@ -1,8 +1,8 @@
 import type { Api, components, RunEvent } from "@cedarloom/client";
 import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title, useMatches } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users, Workflow } from "lucide-react";
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { MessageId } from "@lingui/core";
 import { t, when } from "./i18n.ts";
 
@@ -194,6 +194,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
 
 const VIEWS = [
   { id: "nav.runs", icon: History },
+  { id: "nav.workflows", icon: Workflow },
   { id: "nav.sessions", icon: MessagesSquare },
   { id: "nav.accounts", icon: Users },
   { id: "nav.memory", icon: Brain },
@@ -203,8 +204,20 @@ const VIEWS = [
 
 type View = (typeof VIEWS)[number]["id"];
 
-const content = (view: View, session: Session): ReactNode =>
-  view === "nav.runs" ? <Runs session={session} /> : <Text>{t("view.notBuilt")}</Text>;
+// The editor and the zod schemas it needs load only when its view opens, so the shell and Runs stay small.
+const WorkflowEditor = lazy(() => import("./workflow/Editor.tsx"));
+
+const content = (view: View, session: Session): ReactNode => {
+  if (view === "nav.runs") return <Runs session={session} />;
+  if (view === "nav.workflows") {
+    return (
+      <Suspense fallback={null}>
+        <WorkflowEditor />
+      </Suspense>
+    );
+  }
+  return <Text>{t("view.notBuilt")}</Text>;
+};
 
 /**
  * The shell: the views in the navigation, the chosen one in the main region. Below the sm breakpoint the navigation sits

@@ -14,6 +14,21 @@
     "noEmit": false,
     "emitDeclarationOnly": true
   },
-  "include": ["src", "test", "scripts", "schema", "lingui.config.ts", "vite.config.ts", "locales/en/messages.json"],
-  "references": [{ "path": "../client" }, { "path": "../server" }, { "path": "../use-cases" }]
+  "include": [
+    "src",
+    "test",
+    "scripts",
+    "schema",
+    "lingui.config.ts",
+    "playwright.config.ts",
+    "vite.config.ts",
+    "locales/en/messages.json"
+  ],
+  "references": [
+    { "path": "../client" },
+    { "path": "../contracts" },
+    { "path": "../engine" },
+    { "path": "../server" },
+    { "path": "../use-cases" }
+  ]
 }

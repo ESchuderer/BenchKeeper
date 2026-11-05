@@ -47,11 +47,11 @@ describe("golden corpus of plans, one folder per schemaVersion", async () => {
 const promised: Record<string, string[]> = {
   "invalid-bad-node-id.json": ["nodes.0.id"],
   "invalid-default-type.json": ["inputs.count.default"],
-  "invalid-unknown-execution-key.json": ["execution"],
+  "invalid-unknown-execution-key.json": ["execution.parallel"],
   "invalid-edge-without-id.json": ["edges.0.id"],
   "invalid-no-nodes.json": ["nodes"],
   "invalid-other-kind.json": ["kind"],
-  "invalid-position-in-node.json": ["nodes.0"],
+  "invalid-position-in-node.json": ["nodes.0.x", "nodes.0.y"],
   "invalid-string-version.json": ["schemaVersion"],
   "invalid-too-deep.json": [`nodes.0.with.args.${Array.from({ length: 28 }, () => "0").join(".")}`],
   "invalid-unknown-data-type.json": ["inputs.when.type"],

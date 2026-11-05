@@ -35,6 +35,12 @@ export const readDocument = <T>(schema: z.ZodType<T>, known: number, value: unkn
   }
   const parsed = schema.safeParse(value);
   if (parsed.success) return { ok: true, value: parsed.data };
-  const issues = parsed.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
+  // An unknown key is one issue per key, at the key's own path, so the reader learns which key to remove.
+  const issues = parsed.error.issues.flatMap((issue) =>
+    (issue.code === "unrecognized_keys" ? issue.keys.map((key) => [...issue.path, key]) : [issue.path]).map((path) => ({
+      path: path.join("."),
+      code: issue.code,
+    })),
+  );
   return { ok: false, finding: { code: "document.invalid", params: { issues } } };
 };

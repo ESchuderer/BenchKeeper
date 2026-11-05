@@ -1,4 +1,10 @@
-export { type AccountRequest, chooseAccount } from "./accounts.ts";
+export {
+  type AccountRequest,
+  chooseAccount,
+  loadRegistry,
+  planConfirm,
+  planImport,
+} from "./accounts.ts";
 export {
   type Approval,
   applyPlan,

@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { Finding, type Plan } from "@cedarloom/contracts";
-import { describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
+import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -21,7 +21,7 @@ const setup = (): {
     const io = {
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
-      env: { CEDARLOOM_STATE_DIR: state },
+      env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => Promise.resolve(),
     };
     return { code: await main(argv, io), out, err };
@@ -192,6 +192,58 @@ test("the state folder comes from CEDARLOOM_STATE_DIR, then XDG_STATE_HOME, then
   ]) {
     expect(stateDir(env)).toBe(stateDir({}));
   }
+});
+
+test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config; BenchKeeper's is fixed", () => {
+  expect(configDir({ CEDARLOOM_CONFIG_DIR: "/c", XDG_CONFIG_HOME: "/x" })).toBe("/c");
+  expect(configDir({ CEDARLOOM_CONFIG_DIR: "c", XDG_CONFIG_HOME: "/x" })).toBe(join("/x", "cedarloom"));
+  expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
+  expect(benchKeeperRegistry()).toBe(join(homedir(), ".config", "benchkeeper", "accounts.json"));
+});
+
+const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "host", dir: `/accounts/${name}`, pool });
+
+test("accounts: the one-time import and a pool's confirmation are shown first and applied with --yes", async () => {
+  const { root, cli } = setup();
+  const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
+  const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
+  const from = planFile(root, registry, "benchkeeper.json");
+  expect(await cli("accounts", "list")).toMatchObject({
+    code: EXIT.ok,
+    out: expect.stringContaining("No accounts yet"),
+  });
+  expect((await cli("accounts", "import", "--from", join(root, "none.json"))).code).toBe(EXIT.noInput);
+  const shown = await cli("accounts", "import", "--from", from);
+  expect([shown.code, shown.out]).toEqual([
+    EXIT.ok,
+    expect.stringContaining("not imported: container-account of boxed"),
+  ]);
+  expect(existsSync(join(root, "config", "accounts.json"))).toBe(false);
+  expect(json((await cli("accounts", "import", "--from", from, "--json")).out)).toMatchObject({
+    format: "cedarloom.plan",
+    left: [
+      { account: null, item: "autoPick" },
+      { account: "boxed", item: "container-account" },
+    ],
+  });
+  expect((await cli("accounts", "import", "--from", from, "--yes")).code).toBe(EXIT.ok);
+  expect((await cli("accounts", "list")).out).toBe(
+    "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
+  );
+  // Once: the default file is never read, as the registry exists.
+  expect(await cli("accounts", "import")).toMatchObject({ code: EXIT.refused, err: expect.stringContaining("once") });
+  const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
+  expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
+  expect((await cli("accounts", "pool", "confirm", "main")).out).toContain(
+    "hold and pay for every account of pool main",
+  );
+  expect(json((await cli("accounts", "pool", "confirm", "main", "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+  });
+  expect((await cli("accounts", "list")).out).toContain("main (confirmed)");
+  writeFileSync(join(root, "config", "accounts.json"), "{}");
+  expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
 });
 
 test("every finding code has an English sentence", () => {

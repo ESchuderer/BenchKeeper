@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sortKeys } from "./json.ts";
 import { AbsolutePath } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 
@@ -85,6 +86,10 @@ export const AccountRegistry = z
   .register(fileFormats, { id: "AccountRegistry" });
 export type AccountRegistry = z.infer<typeof AccountRegistry>;
 export type Account = AccountRegistry["accounts"][number];
+
+/** The registry file's text: keys in schema order, pools sorted by name, two-space indentation. */
+export const formatRegistry = (registry: AccountRegistry): string =>
+  `${JSON.stringify(AccountRegistry.parse(sortKeys(registry)), null, 2)}\n`;
 
 /** The usage windows of the agent-neutral quota model. */
 export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);

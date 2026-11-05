@@ -4,6 +4,7 @@ import {
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   canonicalJson,
+  formatRegistry,
   type Json,
   formatWorkflow,
   Plan,
@@ -75,12 +76,13 @@ const promisedAccounts: Record<string, string[]> = {
   "invalid-token.json": ["accounts.0.token"],
 };
 
-describe("golden corpus of account registries", async () => {
+describe("golden corpus of account registries: valid files are also in their written form", async () => {
   for (const [version, name, text] of await corpus("AccountRegistry")) {
     test(`${version}/${name}`, () => {
       const read = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, JSON.parse(text));
       expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name, ACCOUNTS_SCHEMA_VERSION));
       expect(issuePaths(read)).toEqual(promisedAccounts[name] ?? []);
+      expect(read.ok ? formatRegistry(read.value) : text).toBe(text);
     });
   }
 });

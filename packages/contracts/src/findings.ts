@@ -58,6 +58,10 @@ export const Finding = z
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
+    finding("accounts.registry-exists", { path: z.string() }),
+    finding("accounts.unknown-pool", { agent: z.string(), pool: z.string() }),
+    // A40: Codex switching stays off until the owner has read OpenAI's terms, so no Codex pool can be confirmed.
+    finding("accounts.codex-switching-off", { pool: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -110,4 +114,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.schedule-input": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
+  "accounts.registry-exists": { severity: "error", effort: "manual" },
+  "accounts.unknown-pool": { severity: "error", effort: "manual" },
+  "accounts.codex-switching-off": { severity: "error", effort: "manual" },
 };

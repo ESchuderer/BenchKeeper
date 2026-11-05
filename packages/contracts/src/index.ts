@@ -4,6 +4,7 @@ export {
   AccountRegistry,
   AccountSwitch,
   Agent,
+  formatRegistry,
   QuotaWindow,
   Reading,
 } from "./accounts.ts";

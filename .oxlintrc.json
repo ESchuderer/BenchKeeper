@@ -106,6 +106,28 @@
       }
     },
     {
+      "files": ["packages/ui/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cedarloom/engine",
+                "message": "the engine's root carries Node code; the browser takes @cedarloom/engine/graph or /validate"
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*", "@cedarloom/ledger", "@cedarloom/use-cases", "@cedarloom/server"],
+                "message": "the web UI runs in the browser and reaches the server through @cedarloom/client"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/engine/src/validate.ts"],
       "rules": {
         "no-restricted-imports": [

@@ -1,4 +1,4 @@
-import type { HandleType } from "@cedarloom/contracts";
+import type { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
 
 /** Whether an edge may join two handles: `unchecked` passes a `json` value on to a typed input, checked when it runs. */
 export type Compatibility = "yes" | "unchecked" | "no";
@@ -44,4 +44,29 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   join: { inputs: { branches: control }, outputs: { done: control } },
   "human.approval": { inputs: run, outputs: { approved: branch, rejected: branch } },
   "workflow.run": { inputs: run, outputs: ended },
+};
+
+type End = WorkflowDefinition["edges"][number]["from"] | WorkflowDefinition["edges"][number]["to"];
+
+type Field = { input: string } | { output: string };
+
+// A workflow input starts edges only, a workflow output ends them only.
+const fieldType = (workflow: Pick<WorkflowDefinition, "inputs" | "outputs">, end: Field, side: "from" | "to") => {
+  if ("input" in end) return side === "from" ? own(workflow.inputs, end.input)?.type : undefined;
+  return side === "to" ? own(workflow.outputs, end.output)?.type : undefined;
+};
+
+/**
+ * The type an edge end names: at the start of an edge a node's output or a workflow input, at its end a node's input
+ * or a workflow output; undefined when the end names none. The editor checks connections with it.
+ */
+export const endType = (
+  workflow: Pick<WorkflowDefinition, "nodes" | "inputs" | "outputs">,
+  end: End,
+  side: "from" | "to",
+): HandleType | undefined => {
+  if (!("node" in end)) return fieldType(workflow, end, side);
+  const node = workflow.nodes.find((item) => item.id === end.node);
+  const type = node === undefined ? undefined : own(NODE_TYPES, node.type);
+  return own(side === "from" ? type?.outputs : type?.inputs, end.handle)?.type;
 };

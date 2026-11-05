@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
-import { compatibility } from "@cedarloom/engine/graph";
+import { compatibility, endType } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
@@ -49,6 +49,37 @@ test("compatibility: control only with control, json takes every data type, json
     boolean: "no no no yes yes",
     json: "no unchecked unchecked unchecked yes",
   });
+});
+
+test("endType names the type of an edge end: outputs and workflow inputs start edges, inputs and outputs end them", () => {
+  const graph = workflow([start, "a:agent.run", "x:nope.unknown"], [], {
+    inputs: { focus: { type: "string" } },
+    outputs: { report: { type: "string" } },
+  });
+  const ends = [
+    [{ node: "a", handle: "result" }, "from"],
+    [{ node: "a", handle: "context" }, "to"],
+    [{ node: "a", handle: "context" }, "from"],
+    [{ node: "gone", handle: "run" }, "to"],
+    [{ node: "x", handle: "run" }, "to"],
+    [{ input: "focus" }, "from"],
+    [{ input: "focus" }, "to"],
+    [{ output: "report" }, "to"],
+    [{ output: "report" }, "from"],
+    [{ input: "constructor" }, "from"],
+  ] as const;
+  expect(ends.map(([end, side]) => endType(graph, end, side) ?? "none")).toEqual([
+    "string",
+    "string",
+    "none",
+    "none",
+    "none",
+    "string",
+    "none",
+    "string",
+    "none",
+    "none",
+  ]);
 });
 
 const yes = (from: HandleType, to: HandleType): boolean => compatibility(from, to) === "yes";

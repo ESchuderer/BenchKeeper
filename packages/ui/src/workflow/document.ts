@@ -1,5 +1,5 @@
-import type { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
-import { compatibility, NODE_TYPES, type NodeType, own } from "@cedarloom/engine/graph";
+import type { WorkflowDefinition } from "@cedarloom/contracts";
+import { compatibility, endType, NODE_TYPES, own } from "@cedarloom/engine/graph";
 
 type Edge = WorkflowDefinition["edges"][number];
 type From = Edge["from"];
@@ -33,40 +33,48 @@ export const newWorkflow = (): WorkflowDefinition => ({
 
 export const open = (workflow: WorkflowDefinition): History => ({ past: [], present: workflow, future: [] });
 
-const handlesOf = (workflow: WorkflowDefinition, id: string): NodeType | undefined => {
-  const node = workflow.nodes.find((item) => item.id === id);
-  return node === undefined ? undefined : own(NODE_TYPES, node.type);
-};
-
-// The type an edge's start names: a node's output or a workflow input.
-const output = (workflow: WorkflowDefinition, from: From): HandleType | undefined =>
-  "node" in from
-    ? own(handlesOf(workflow, from.node)?.outputs, from.handle)?.type
-    : own(workflow.inputs, from.input)?.type;
-
-// The type an edge's end names: a node's input or a workflow output.
-const input = (workflow: WorkflowDefinition, to: To): HandleType | undefined =>
-  "node" in to ? own(handlesOf(workflow, to.node)?.inputs, to.handle)?.type : own(workflow.outputs, to.output)?.type;
-
 const sameEnd = (a: From | To, b: From | To): boolean =>
   "node" in a && "node" in b ? a.node === b.node && a.handle === b.handle : JSON.stringify(a) === JSON.stringify(b);
 
+/** Whether a path of edges leads from node `start` to node `goal` (a node leads to itself). */
+const leads = (workflow: WorkflowDefinition, start: string, goal: string): boolean => {
+  const next = new Map<string, string[]>();
+  for (const { from, to } of workflow.edges) {
+    if ("node" in from && "node" in to) next.set(from.node, [...(next.get(from.node) ?? []), to.node]);
+  }
+  const seen = new Set([start]);
+  for (const id of seen) {
+    for (const to of next.get(id) ?? []) seen.add(to);
+  }
+  return seen.has(goal);
+};
+
 /**
- * Whether an edge may join an output to an input: both exist, the engine's compatibility rule does not say no, and
- * the input is free (a data input or workflow output takes one edge; a control input takes each source once).
+ * Whether an edge may join an output to an input: both exist, the engine's compatibility rule does not say no, the
+ * edge closes no cycle, and the input is free (a data input or workflow output takes one edge, a control input
+ * each source once). Two exclusive outputs into one input stay allowed: the problems panel warns about them.
  */
 export const canConnect = (workflow: WorkflowDefinition, from: From, to: To): boolean => {
-  const [source, target] = [output(workflow, from), input(workflow, to)];
+  const [source, target] = [endType(workflow, from, "from"), endType(workflow, to, "to")];
   if (source === undefined || target === undefined || compatibility(source, target) === "no") return false;
   if (workflow.edges.length >= MAX_EDGES) return false;
+  if ("node" in from && "node" in to && leads(workflow, to.node, from.node)) return false;
   const into = workflow.edges.filter((edge) => sameEnd(edge.to, to));
   return target === "control" ? !into.some((edge) => sameEnd(edge.from, from)) : into.length === 0;
 };
 
-/** The first of `prefix1`, `prefix2` … that no node or edge uses: ids stay unique without a counter in the file. */
-const freeId = (taken: string[], prefix: string): string => {
+/**
+ * The first of `prefix1`, `prefix2` … that no node, edge, position or policy uses: a new node never takes over an
+ * entry left behind in the layout or execution section.
+ */
+const freeId = (workflow: WorkflowDefinition, prefix: string): string => {
+  const taken = new Set([
+    ...[...workflow.nodes, ...workflow.edges].map((item) => item.id),
+    ...Object.keys(workflow.layout?.nodes ?? {}),
+    ...Object.keys(workflow.execution?.nodes ?? {}),
+  ]);
   let n = 1;
-  while (taken.includes(`${prefix}${n}`)) n += 1;
+  while (taken.has(`${prefix}${n}`)) n += 1;
   return `${prefix}${n}`;
 };
 
@@ -96,22 +104,25 @@ const remove = (workflow: WorkflowDefinition, nodes: Set<string>, edges: Set<str
   return next;
 };
 
-const ids = (workflow: WorkflowDefinition): string[] => [...workflow.nodes, ...workflow.edges].map((item) => item.id);
-
 const addNode = (workflow: WorkflowDefinition, type: string, position: Position): WorkflowDefinition => {
-  if (workflow.nodes.length >= MAX_NODES) return workflow;
-  const id = freeId(ids(workflow), `${type.replaceAll(/[./]/g, "-")}-`);
+  if (workflow.nodes.length >= MAX_NODES || own(NODE_TYPES, type) === undefined) return workflow;
+  const id = freeId(workflow, `${type.replaceAll(/[./]/g, "-")}-`);
   return withPositions({ ...workflow, nodes: [...workflow.nodes, { id, type }] }, { [id]: position });
 };
 
+// Moves of nodes that exist to where they are not yet; none of them: no change, so no empty undo step.
 const move = (workflow: WorkflowDefinition, positions: Record<string, Position>): WorkflowDefinition => {
-  const known = Object.entries(positions).filter(([id]) => workflow.nodes.some((node) => node.id === id));
-  return known.length === 0 ? workflow : withPositions(workflow, Object.fromEntries(known));
+  const placed = workflow.layout?.nodes ?? {};
+  const moved = Object.entries(positions).filter(([id, { x, y }]) => {
+    const at = own(placed, id);
+    return workflow.nodes.some((node) => node.id === id) && (at?.x !== x || at.y !== y);
+  });
+  return moved.length === 0 ? workflow : withPositions(workflow, Object.fromEntries(moved));
 };
 
 const connect = (workflow: WorkflowDefinition, from: From, to: To): WorkflowDefinition =>
   canConnect(workflow, from, to)
-    ? { ...workflow, edges: [...workflow.edges, { id: freeId(ids(workflow), "e"), from, to }] }
+    ? { ...workflow, edges: [...workflow.edges, { id: freeId(workflow, "e"), from, to }] }
     : workflow;
 
 /** The workflow after a change; the same object when the change changes nothing (a refused connection, say). */
@@ -120,9 +131,9 @@ export const edit = (workflow: WorkflowDefinition, change: Change): WorkflowDefi
   if (change.kind === "move") return move(workflow, change.positions);
   if (change.kind === "connect") return connect(workflow, change.from, change.to);
   if (change.kind === "replace") return change.workflow;
-  const [nodes, edges] = [new Set(change.nodes), new Set(change.edges)];
-  const left = workflow.nodes.filter((item) => !nodes.has(item.id)).length;
-  return nodes.size + edges.size === 0 || left === 0 ? workflow : remove(workflow, nodes, edges);
+  const next = remove(workflow, new Set(change.nodes), new Set(change.edges));
+  const same = next.nodes.length === workflow.nodes.length && next.edges.length === workflow.edges.length;
+  return same || next.nodes.length === 0 ? workflow : next;
 };
 
 /** Applies a change as one undo step; a change that changes nothing adds no step. */

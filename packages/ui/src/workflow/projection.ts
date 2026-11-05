@@ -15,7 +15,7 @@ export type CardData = { type: string; inputs: HandleView[]; outputs: HandleView
 export const INPUTS = "@inputs";
 export const OUTPUTS = "@outputs";
 
-const STEP = 240;
+const [STEP, ROW] = [240, 160];
 
 const views = (handles: Readonly<Record<string, { type: HandleType }>> | undefined): HandleView[] =>
   Object.entries(handles ?? {}).map(([name, { type }]) => ({ name, type }));
@@ -23,16 +23,19 @@ const views = (handles: Readonly<Record<string, { type: HandleType }>> | undefin
 const card = (id: string, data: CardData, position: Position): Node<CardData> => ({ id, type: "card", position, data });
 
 /**
- * The canvas of a workflow: a node per workflow node, at its `layout` position (a row by document order when it has
- * none), and an edge per workflow edge. Nothing else of the canvas is kept: the workflow is the only source.
+ * The canvas of a workflow: a node per workflow node at its `layout` position, nodes without one in a row below the
+ * placed ones, and an edge per workflow edge. Nothing else of the canvas is kept: the workflow is the only source.
  */
 export const project = (workflow: WorkflowDefinition): { nodes: Node<CardData>[]; edges: Edge[] } => {
   const placed = workflow.layout?.nodes ?? {};
-  const nodes = workflow.nodes.map((node, index) => {
+  const ys = workflow.nodes.flatMap((node) => own(placed, node.id)?.y ?? []);
+  const below = Math.max(-ROW, ...ys) + ROW;
+  let unplaced = 0;
+  const nodes = workflow.nodes.map((node) => {
     const at = own(placed, node.id);
     const type = own(NODE_TYPES, node.type);
     const data = { type: node.type, inputs: views(type?.inputs), outputs: views(type?.outputs) };
-    return card(node.id, data, at === undefined ? { x: index * STEP, y: 0 } : { x: at.x, y: at.y });
+    return card(node.id, data, at === undefined ? { x: STEP * unplaced++, y: below } : { x: at.x, y: at.y });
   });
   const xs = nodes.map((node) => node.position.x);
   const [left, right] = [Math.min(0, ...xs) - STEP, Math.max(0, ...xs) + STEP];

@@ -74,6 +74,30 @@ test("a connection is refused when a handle is missing, the types are incompatib
   );
 });
 
+test("a connection that would close a cycle is refused, a self-loop too", () => {
+  const chained = edit(built(), {
+    kind: "connect",
+    from: node("command-run-1", "done"),
+    to: node("agent-run-1", "run"),
+  });
+  expect(canConnect(chained, node("agent-run-1", "done"), node("command-run-1", "run"))).toBe(false);
+  expect(canConnect(chained, node("agent-run-1", "failed"), node("agent-run-1", "run"))).toBe(false);
+  expect(canConnect(chained, node("command-run-1", "failed"), node("agent-run-1", "run"))).toBe(true);
+});
+
+test("new nodes skip ids left in layout or execution; unknown types, unchanged moves and empty removes change nothing", () => {
+  const stale: WorkflowDefinition = {
+    ...newWorkflow(),
+    layout: { nodes: { "join-1": { x: 0, y: 0, collapsed: true } } },
+    execution: { nodes: { "join-2": { retries: 9 } } },
+  };
+  expect(edit(stale, { kind: "add-node", type: "join", position: at(1, 1) }).nodes.at(-1)?.id).toBe("join-3");
+  expect(edit(stale, { kind: "add-node", type: "nope.unknown", position: at(1, 1) })).toBe(stale);
+  const placed = edit(newWorkflow(), { kind: "move", positions: { start: at(5, 5) } });
+  expect(edit(placed, { kind: "move", positions: { start: at(5, 5) } })).toBe(placed);
+  expect(edit(placed, { kind: "remove", nodes: ["gone"], edges: ["e9"] })).toBe(placed);
+});
+
 test("removing a node removes its edges, position and policy; removing nothing or moving nothing changes nothing", () => {
   const withPolicy: WorkflowDefinition = {
     ...built(),
@@ -105,7 +129,8 @@ test("moving keeps an editor's own keys of a layout entry, and the workflow stay
 
 test("the canvas shows every node at its layout position, the workflow's inputs and outputs at its edges", () => {
   const workflow: WorkflowDefinition = {
-    ...edit(built(), { kind: "add-node", type: "nope.unknown", position: at(0, 300) }),
+    ...built(),
+    nodes: [...built().nodes, { id: "nope-1", type: "nope.unknown" }],
     inputs: { focus: { type: "string" } },
     outputs: { report: { type: "string" } },
     layout: { nodes: { "agent-run-1": at(480, 0) } },
@@ -117,11 +142,11 @@ test("the canvas shows every node at its layout position, the workflow's inputs 
   const { nodes, edges } = project(workflow);
   expect(nodes.map((item) => [item.id, item.position.x, item.position.y])).toEqual([
     [INPUTS, -240, 0],
-    [OUTPUTS, 960, 0],
-    ["start", 0, 0],
-    ["command-run-1", 240, 0],
+    [OUTPUTS, 720, 0],
+    ["start", 0, 160],
+    ["command-run-1", 240, 160],
     ["agent-run-1", 480, 0],
-    ["nope-unknown-1", 720, 0],
+    ["nope-1", 480, 160],
   ]);
   expect(nodes.find((item) => item.id === "agent-run-1")?.data).toEqual({
     type: "agent.run",
@@ -135,7 +160,7 @@ test("the canvas shows every node at its layout position, the workflow's inputs 
       { name: "result", type: "string" },
     ],
   });
-  expect(nodes.find((item) => item.id === "nope-unknown-1")?.data).toEqual({
+  expect(nodes.find((item) => item.id === "nope-1")?.data).toEqual({
     type: "nope.unknown",
     inputs: [],
     outputs: [],
@@ -206,6 +231,8 @@ test("any sequence of edits gives a valid workflow; undo all restores the start,
         open(newWorkflow()),
       );
       expect(WorkflowDefinition.parse(end.present)).toEqual(end.present);
+      // The editor refuses what the validator calls a cycle.
+      expect(validateWorkflow(end.present).map((finding) => finding.code)).not.toContain("workflow.cycle");
       const undone = end.past.reduce(undo, end);
       expect([undone.present, undone.past]).toEqual([newWorkflow(), []]);
       const redone = undone.future.reduce(redo, undone);

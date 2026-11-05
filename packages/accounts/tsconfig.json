@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // A pure package (D2): no Node types. zod's declarations name the URL global; .oxlintrc.json forbids the DOM globals.
+    "lib": ["es2025", "dom"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../contracts" }]
+}

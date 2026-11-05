@@ -8,6 +8,7 @@
       "type": "linked-versions",
       "groupName": "cedarloom",
       "components": [
+        "accounts",
         "adapter-claude",
         "agent-contracts",
         "cli",
@@ -22,6 +23,7 @@
     }
   ],
   "packages": {
+    "packages/accounts": { "component": "accounts" },
     "packages/adapter-claude": { "component": "adapter-claude" },
     "packages/agent-contracts": { "component": "agent-contracts" },
     "packages/cli": { "component": "cli" },

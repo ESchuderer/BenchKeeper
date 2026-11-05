@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 8,
+    "sevenDay": 3
+  },
+  "accounts": [],
+  "pools": {
+    "codex": {
+      "main": {
+        "confirmedAt": "2026-11-05T10:00:00.000Z",
+        "confirmedFor": []
+      }
+    }
+  }
+}

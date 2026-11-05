@@ -7,11 +7,12 @@ export const Sha256 = z
   .regex(/^[0-9a-f]{64}$/)
   .register(contracts, { id: "Sha256" });
 
-// No node:path in the contracts: a plan written on one system names the paths of another (POSIX, drive letter or UNC).
-const path = z
-  .string()
-  .regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/)
-  .describe("Absolute, normalized path of the file (POSIX, drive letter or UNC); apply refuses others");
+// No node:path in the contracts: a file written on one system names the paths of another (POSIX, drive letter or UNC).
+export const AbsolutePath = z.string().regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/);
+
+const path = AbsolutePath.describe(
+  "Absolute, normalized path of the file (POSIX, drive letter or UNC); apply refuses others",
+);
 
 /** Creates or replaces a UTF-8 text file. */
 export const WriteFile = z

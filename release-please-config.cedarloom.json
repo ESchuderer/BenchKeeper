@@ -7,10 +7,23 @@
     {
       "type": "linked-versions",
       "groupName": "cedarloom",
-      "components": ["cli", "client", "contracts", "engine", "ledger", "server", "ui", "use-cases"]
+      "components": [
+        "adapter-claude",
+        "agent-contracts",
+        "cli",
+        "client",
+        "contracts",
+        "engine",
+        "ledger",
+        "server",
+        "ui",
+        "use-cases"
+      ]
     }
   ],
   "packages": {
+    "packages/adapter-claude": { "component": "adapter-claude" },
+    "packages/agent-contracts": { "component": "agent-contracts" },
     "packages/cli": { "component": "cli" },
     "packages/client": { "component": "client" },
     "packages/contracts": { "component": "contracts" },

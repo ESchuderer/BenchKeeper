@@ -1,0 +1,116 @@
+import { execFile, spawn } from "node:child_process";
+import { createInterface } from "node:readline";
+import { promisify } from "node:util";
+import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck } from "@cedarloom/agent-contracts";
+import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
+import { streamParser } from "./stream.ts";
+
+export { type ClaudeLaunch, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
+
+type Command = readonly [string, ...string[]];
+
+// Enough to name a failure; the stream carries everything else.
+const STDERR_TAIL = 4096;
+
+// The probe asks for the shortest answer, so a check spends little of the account's usage.
+const PROBE_PROMPT = "Reply with the single word OK.";
+
+const run = (
+  command: Command,
+  launch: ClaudeLaunch,
+  extraArgs: readonly string[] = [],
+  verified = (version: string) => launch.verifiedVersions.includes(version),
+): AgentSession => {
+  const [file, ...prefix] = command;
+  const args = [...prefix, ...launchArgs(launch), ...extraArgs];
+  const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), windowsHide: true });
+  let error: string | null = null;
+  let stderr = "";
+  const exited = new Promise<void>((resolve) => {
+    child.once("exit", () => resolve());
+    child.on("error", (cause) => {
+      error = cause.message;
+      resolve();
+    });
+  });
+  const closed = new Promise<[number | null, string | null]>((resolve) => {
+    child.once("close", (code, signal) => resolve([code, signal]));
+  });
+  // A process that exits before it reads the prompt makes the write fail; its exit event reports why.
+  child.stdin.on("error", () => undefined);
+  child.stdin.end(launch.prompt);
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderr = (stderr + chunk).slice(-STDERR_TAIL);
+  });
+  async function* events(): AsyncGenerator<AgentEvent> {
+    const parse = streamParser(verified);
+    for await (const line of createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY })) {
+      if (line.trim() !== "") yield parse(line);
+    }
+    const [code, signal] = await closed;
+    yield { type: "exit", code, signal, error, stderr };
+  }
+  return {
+    events: events(),
+    // On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at
+    // most (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm).
+    cancel: async () => {
+      child.kill();
+      await exited;
+    },
+  };
+};
+
+/** Checks a probe's events: the version ran, at least one usage window with a share, and a successful result. */
+const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
+  const events: AgentEvent[] = [];
+  for await (const event of session.events) events.push(event);
+  const init = events.find((event) => event.type === "init");
+  const passed = {
+    init: init !== undefined,
+    usage: events.some((event) => event.type === "usage" && event.windows.some((window) => window.percent !== null)),
+    result: events.some((event) => event.type === "result" && event.ok),
+  };
+  return {
+    version: init?.agentVersion ?? null,
+    missing: (["init", "usage", "result"] as const).filter((part) => !passed[part]),
+  };
+};
+
+/**
+ * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the
+ * CLI and any arguments before its own; a bare name is looked up on the PATH of the launch's environment.
+ */
+export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<ClaudeLaunch> => {
+  const [file, ...prefix] = command;
+  const start = (launch: ClaudeLaunch): AgentSession => run(command, launch);
+  return {
+    // Usage is partial: the CLI does not document its rate-limit lines, so they are read only on checked versions.
+    capabilities: {
+      start: "supported",
+      observe: "supported",
+      cancel: "supported",
+      resume: "supported",
+      handover: "supported",
+      usage: "partial",
+    },
+    version: async (env) => {
+      const { stdout } = await promisify(execFile)(file, [...prefix, "--version"], { env, windowsHide: true });
+      const match = /^\d+\.\d+\.\d+\S*/.exec(stdout.trim());
+      if (match === null) throw new Error(`unrecognized claude --version output: ${stdout.trim()}`);
+      return match[0];
+    },
+    checkContract: async (launch) => {
+      const probe = { ...launch, prompt: PROBE_PROMPT, verifiedVersions: [] };
+      return contractCheck(run(command, probe, [], () => true));
+    },
+    start,
+    resume: (sessionId, launch) => run(command, launch, ["--resume", sessionId]),
+    handover: async (from, to) => {
+      launchArgs(to); // refuses a bad launch while `from` still runs
+      await from.cancel();
+      return start(to);
+    },
+  };
+};

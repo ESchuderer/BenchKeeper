@@ -9,6 +9,9 @@
   "references": [
     { "path": "packages/contracts" },
     { "path": "packages/contracts/test" },
+    { "path": "packages/agent-contracts" },
+    { "path": "packages/adapter-claude" },
+    { "path": "packages/adapter-claude/test" },
     { "path": "packages/ledger" },
     { "path": "packages/ledger/test" },
     { "path": "packages/engine" },

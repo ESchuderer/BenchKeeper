@@ -78,6 +78,27 @@ test("a killed process releases the store, and its running run is marked interru
   expect(store.runs()).toMatchObject([{ id: store.interrupted[0], status: "interrupted" }]);
 });
 
+test("reads and another process's runs, side by side, wait out each other's brief locks instead of failing", async () => {
+  const dir = fresh();
+  opened(dir).close();
+  open.length = 0;
+  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "write.ts"), dir, "2000"], {
+    stdio: "pipe",
+  });
+  await once(child.stdout, "data");
+  const failures: string[] = [];
+  for (let reads = 0, end = Date.now() + 1500; Date.now() < end; reads += 1) {
+    try {
+      const view = openRunView(dir);
+      if (view.ok) view.value?.close();
+    } catch (error) {
+      failures.push(String(error));
+    }
+  }
+  const [code] = await once(child, "exit");
+  expect([code, failures]).toEqual([0, []]);
+}, 15_000);
+
 test("a store written by a newer CedarLoom is refused", () => {
   const dir = fresh();
   opened(dir).close();

@@ -3,6 +3,7 @@
     "app.title": ["CedarLoom"],
     "error.failed": ["The server answered ", ["status"], ": ", ["error"]],
     "error.unreachable": ["The server cannot be reached. Run cedarloom ui again and open the link it prints."],
+    "error.unreadable": ["The server cannot read the runs: ", ["codes"]],
     "nav.accounts": ["Accounts"],
     "nav.label": ["Views"],
     "nav.memory": ["Memory"],

@@ -56,6 +56,10 @@ msgid "error.failed"
 msgstr "The server answered {status}: {error}"
 
 #. js-lingui-explicit-id
+msgid "error.unreadable"
+msgstr "The server cannot read the runs: {codes}"
+
+#. js-lingui-explicit-id
 msgid "runs.empty"
 msgstr "No runs yet."
 

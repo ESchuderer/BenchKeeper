@@ -144,13 +144,13 @@ const eventsOf = async (body: ConstructorParameters<typeof Response>[0]): Promis
   return seen;
 };
 
-test("subscribe skips comments and unknown events, reads refusals, and treats fields of the wrong shape as empty", async () => {
+test("subscribe skips comments, unknown events and events without data, and keeps a U+2028 inside the data", async () => {
   const body =
-    'event: other\ndata: {}\n\n: keep-alive\n\nevent: refusal\ndata: {"findings":[{"code":"store.busy"}]}\n\n';
+    'event: other\ndata: {}\n\n: keep-alive\n\nevent: runs\n\nevent: refusal\ndata: {"findings":[{"code":"store.busy"}]}\n\n';
   expect(await eventsOf(body)).toEqual([{ event: "refusal", findings: [{ code: "store.busy" }] }]);
-  expect(await eventsOf('event: runs\ndata: 5\n\nevent: runs\ndata: {"runs":3}\n\n')).toEqual([
-    { event: "runs", runs: [] },
-    { event: "runs", runs: [] },
+  // JSON.stringify leaves U+2028 as it is; SSE lines end at LF only.
+  expect(await eventsOf('event: runs\ndata: {"runs":[{"id":"r\u2028x"}]}\n\n')).toMatchObject([
+    { event: "runs", runs: [{ id: "r\u2028x" }] },
   ]);
   // A stream that breaks, without an abort, throws.
   const broken = new ReadableStream({ start: (controller) => controller.error(new Error("connection reset")) });

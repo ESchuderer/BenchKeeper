@@ -36,27 +36,23 @@ export const client = (baseUrl: string, csrf: string, fetch?: typeof globalThis.
   return api;
 };
 
-/** A run as the API and the event stream give it. */
-type Run = components["schemas"]["Run"];
+type Schemas = components["schemas"];
 /** An event of the stream: the runs as they stand, or the findings that say why they cannot be read. */
-export type RunEvent = { event: "runs"; runs: Run[] } | { event: "refusal"; findings: { code: string }[] };
+export type RunEvent = ({ event: "runs" } & Schemas["RunsEvent"]) | ({ event: "refusal" } & Schemas["Refusal"]);
 
-// An array field of a parsed event, or none.
-const list = (data: unknown, key: string): unknown[] => {
-  const value: unknown = typeof data === "object" && data !== null ? Reflect.get(data, key) : undefined;
-  return Array.isArray(value) ? value : [];
-};
-const isRun = (value: unknown): value is Run =>
-  typeof value === "object" && value !== null && "id" in value && "status" in value && "startedAt" in value;
-const isFinding = (value: unknown): value is { code: string } =>
-  typeof value === "object" && value !== null && "code" in value && typeof value.code === "string";
-
-// The server writes `event:` and one `data:` line of JSON per event (packages/server/src/events.ts).
+/**
+ * The server writes `event:` and one `data:` line of JSON per event, parsed with its contract before it goes out
+ * (packages/server/src/events.ts), so the data is trusted as the openapi-fetch answers are. Lines end at LF only, as
+ * in SSE: a U+2028 inside a run id stays in the data.
+ */
 const parse = (block: string): RunEvent | undefined => {
-  const event = /^event: (.*)$/m.exec(block)?.[1];
-  const data: unknown = JSON.parse(/^data: (.*)$/m.exec(block)?.[1] ?? "null");
-  if (event === "runs") return { event, runs: list(data, "runs").filter(isRun) };
-  return event === "refusal" ? { event, findings: list(data, "findings").filter(isFinding) } : undefined;
+  const lines = block.split("\n");
+  const field = (name: string): string | undefined =>
+    lines.find((line) => line.startsWith(`${name}: `))?.slice(name.length + 2);
+  const [event, data] = [field("event"), field("data")];
+  if ((event !== "runs" && event !== "refusal") || data === undefined) return undefined;
+  const value: RunEvent = { ...JSON.parse(data), event };
+  return value;
 };
 
 /** Hands each complete event of `buffer` (they end with a blank line) to `onEvent` and returns the incomplete rest. */

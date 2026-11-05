@@ -1190,6 +1190,21 @@
         ],
         "additionalProperties": false
       },
+      "RunsEventInput": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunInput"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "additionalProperties": false
+      },
       "SchemaVersion": {
         "type": "integer",
         "exclusiveMinimum": 0,
@@ -2372,6 +2387,21 @@
         },
         "required": [
           "findings"
+        ],
+        "additionalProperties": false
+      },
+      "RunsEvent": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            }
+          }
+        },
+        "required": [
+          "runs"
         ],
         "additionalProperties": false
       }

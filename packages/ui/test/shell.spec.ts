@@ -127,16 +127,33 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   expect([existsSync(file), errors]).toEqual([false, []]);
 });
 
-test("a run another process applies appears without a reload", async () => {
+/** Applies a run from outside the page, as the CLI does, and waits for its row to appear without a reload. */
+const appliedElsewhere = async (name: string): Promise<void> => {
   const table = page.getByRole("table", { name: "Runs, newest first" });
+  await expect(table).toBeVisible();
   const rows = await table.getByRole("row").count();
-  const other = join(stateDir, "..", "other.md");
+  const path = join(stateDir, "..", name);
   applyPlan(
     stateDir,
-    { schemaVersion: 1, operations: [{ kind: "write", path: other, before: null, content: "x\n" }] },
+    { schemaVersion: 1, operations: [{ kind: "write", path, before: null, content: "x\n" }] },
     { yes: true },
   );
   await expect(table.getByRole("row")).toHaveCount(rows + 1);
+};
+
+test("a run another process applies appears without a reload", async () => {
+  await appliedElsewhere("other.md");
+  expect(errors).toEqual([]);
+});
+
+test("a stream that ends while the server still answers opens again, with nothing wrong in the page", async () => {
+  // The page's next stream ends at once, as one does after a store read that failed.
+  await page.route("**/api/events", (route) => route.fulfill({ contentType: "text/event-stream", body: "" }), {
+    times: 1,
+  });
+  await page.reload();
+  await appliedElsewhere("again.md");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

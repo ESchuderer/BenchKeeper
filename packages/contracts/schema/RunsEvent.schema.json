@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "RunsEvent.schema.json",
+  "type": "object",
+  "properties": {
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "Run.schema.json"
+      }
+    }
+  },
+  "required": [
+    "runs"
+  ],
+  "additionalProperties": false
+}

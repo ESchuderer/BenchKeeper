@@ -69,3 +69,6 @@ export type RunResult = z.infer<typeof RunResult>;
 
 /** Why a request was refused: the findings, codes and parameters only. */
 export const Refusal = z.strictObject({ findings }).register(contracts, { id: "Refusal" });
+
+/** A `runs` event of the event stream (GET /api/events): the runs as they stand, sent whenever they change. */
+export const RunsEvent = z.strictObject({ runs: z.array(Run) }).register(contracts, { id: "RunsEvent" });

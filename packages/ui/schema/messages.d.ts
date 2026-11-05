@@ -10,6 +10,7 @@ export interface MessageValues {
   "app.title": Record<never, never>;
   "error.failed": { status: string | number; error: string | number };
   "error.unreachable": Record<never, never>;
+  "error.unreadable": { codes: string | number };
   "nav.accounts": Record<never, never>;
   "nav.label": Record<never, never>;
   "nav.memory": Record<never, never>;

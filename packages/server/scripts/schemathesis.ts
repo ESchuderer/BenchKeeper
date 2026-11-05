@@ -32,10 +32,10 @@ const { csrf } = z.object({ csrf: z.string() }).parse(await exchanged.json());
 const document = join(import.meta.dirname, "..", "openapi.json");
 const session = ["-H", `cookie: ${cookie}`, "-H", `${CSRF_HEADER}: ${csrf}`];
 // The event stream never ends, so Schemathesis would wait on it until its timeout; the server tests cover it.
-const only = ["--exclude-path", "/api/events"];
+const skip = ["--exclude-path", "/api/events"];
 const child = spawn(
   command,
-  [...prefix, "--config-file", config, "run", document, "--url", origin, ...only, ...session],
+  [...prefix, "--config-file", config, "run", document, "--url", origin, ...skip, ...session],
   {
     stdio: "inherit",
   },

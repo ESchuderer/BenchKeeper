@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
@@ -480,6 +482,37 @@ test("a store that turns unreadable ends the open stream and goes to the log; th
   expect([await ended, seen]).toEqual(["200 no-store", ["runs"]]);
   expect(client.log.join("")).toContain("The event stream stopped");
   expect((await client.api({ path: "/nowhere" })).status).toBe(404);
+  // Unreadable at connect: no stream opens, and the error handler answers.
+  expect(await stream(client.port, { accept: "text/event-stream", ...client.auth() }, () => true)).toMatch(/^500 /);
+});
+
+test("a client that stops reading gets no queue of changed run lists, one send waits at most", async () => {
+  const client = await ready();
+  replaced(client);
+  // 3,000 runs make each event about 800 KB, so the socket buffers fill within a few changes.
+  const db = new DatabaseSync(join(client.state, "runs.sqlite"));
+  db.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3000)
+    INSERT INTO runs (id, kind, plan, planHash, approvedHash, status, epoch, startedAt, finishedAt)
+    SELECT 'copy-' || i, kind, plan, planHash, approvedHash, status, epoch, startedAt, finishedAt FROM runs, n`);
+  // Every pending send waits on the socket's drain event; more than 10 waiting draws this warning.
+  const warnings: string[] = [];
+  const warned = (warning: Error): number => warnings.push(warning.name);
+  process.on("warning", warned);
+  const headers = { host: `127.0.0.1:${client.port}`, accept: "text/event-stream", ...client.auth() };
+  const socket = connect(client.port, "127.0.0.1").pause();
+  socket.write(
+    `GET /api/events HTTP/1.1\r\n${Object.entries(headers)
+      .map(([k, v]) => `${k}: ${v}\r\n`)
+      .join("")}\r\n`,
+  );
+  for (let i = 1; i <= 60; i += 1) {
+    db.prepare("UPDATE runs SET finishedAt = ? WHERE id = 'copy-1'").run(new Date(Date.now() + i * 1000).toISOString());
+    await delay(30);
+  }
+  socket.destroy();
+  db.close();
+  process.off("warning", warned);
+  expect(warnings).toEqual([]);
 });
 
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {

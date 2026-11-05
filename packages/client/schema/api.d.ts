@@ -630,6 +630,9 @@ export interface components {
         RefusalInput: {
             findings: components["schemas"]["FindingInput"][];
         };
+        RunsEventInput: {
+            runs: components["schemas"]["RunInput"][];
+        };
         SchemaVersion: number;
         Sha256: string;
         WriteFile: {
@@ -871,6 +874,9 @@ export interface components {
         };
         Refusal: {
             findings: components["schemas"]["Finding"][];
+        };
+        RunsEvent: {
+            runs: components["schemas"]["Run"][];
         };
     };
     responses: never;

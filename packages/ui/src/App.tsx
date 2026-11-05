@@ -89,9 +89,9 @@ const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean;
   </Stack>
 );
 
-/** One run's undo, applied only with the hash of the preview shown; focus lands on its heading, then on the result. */
 type Detail = { api: Api; runId: string; revision: number };
 
+/** One run's undo, applied only with the hash of the preview shown; focus lands on its heading, then on the result. */
 const RunDetail = ({ api, runId, revision }: Detail): ReactNode => {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [version, setVersion] = useState(0);
@@ -138,10 +138,10 @@ const RunDetail = ({ api, runId, revision }: Detail): ReactNode => {
   );
 };
 
-/** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
 /** The page's session: the API client and its event stream. */
 export type Session = { api: Api; listen: (onEvent: (event: RunEvent) => void, signal: AbortSignal) => Promise<void> };
 
+/** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
 const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState("");
@@ -150,7 +150,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   // The stream gives the runs at once and on every change; a refusal names its findings.
   const update = useCallback((event: RunEvent): void => {
     if (event.event === "refusal") {
-      setError(t("error.failed", { status: 409, error: event.findings.map((finding) => finding.code).join(", ") }));
+      setError(t("error.unreadable", { codes: event.findings.map((finding) => finding.code).join(", ") }));
       return;
     }
     setError("");
@@ -159,12 +159,14 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   }, []);
   useEffect(() => {
     const stop = new AbortController();
-    // When the stream ends or is refused, one request names why: a lost session, or a server that is gone.
+    // When the stream ends or is refused, one request names why: a lost session, or a server that is gone. While the
+    // API still answers, the stream ended for another reason (a read that failed), so it opens again a second later.
     const follow = async (): Promise<void> => {
       await listen(update, stop.signal).catch(() => undefined);
       if (stop.signal.aborted) return;
       const answer = await call(() => api.GET("/api/runs"));
-      setError("problem" in answer ? answer.problem : t("error.unreachable"));
+      if ("problem" in answer) setError(answer.problem);
+      else setTimeout(() => void follow(), 1000);
     };
     void follow();
     return () => stop.abort();

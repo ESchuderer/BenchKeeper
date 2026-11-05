@@ -128,9 +128,10 @@ jobs:
         env:
           V: ${{ steps.v.outputs.app }}
         run: |
-          registry() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://registry.npmjs.org/benchkeeper/$V"; }
-          code=$(registry)
-          if [ "$code" = 404 ]; then
+          # npm view reads the registry's package document, as npx does; after a publish it can lag for minutes
+          # (7 on 2026-11-05).
+          on_npm() { [ "$(npm view "benchkeeper@$V" version 2>/dev/null)" = "$V" ]; }
+          if ! on_npm; then
             since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             gh workflow run npm.yml --repo "$REPO" --ref main -f "version=$V" -f "sha=$SHA"
             run=
@@ -141,14 +142,15 @@ jobs:
             done
             if [ -z "$run" ]; then echo "::error::npm.yml did not start"; exit 1; fi
             gh run watch "$run" --repo "$REPO" --exit-status --interval 30
-            # The registry can answer 404 for a short time after the publish.
-            for _ in $(seq 20); do
-              code=$(registry)
-              [ "$code" = 200 ] && break
-              sleep 15
+            deadline=$((SECONDS + 20 * 60))
+            until on_npm; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::npm.yml published benchkeeper@$V, but npm view has not listed it for 20 minutes. Rerun this job once \`npm view benchkeeper@$V version\` prints it; the rerun skips the publish."
+                exit 1
+              fi
+              sleep 30
             done
           fi
-          if [ "$code" != 200 ]; then echo "::error::registry answered $code for benchkeeper@$V"; exit 1; fi
           echo "benchkeeper@$V is on npm"
       # release-please finds a component's last release by the tag <component>-v<x.y.z>: content gets setup-v<x.y.0>
       # for it and the Release on setup-v<x.y>, the tag that the docs and older releases use.
@@ -177,12 +179,15 @@ jobs:
       - if: ${{ steps.v.outputs.app != '' || steps.v.outputs.content != '' }}
         name: Rebuild the site
         run: gh workflow run pages.yml --repo "$REPO" --ref main
-      # release-please opens no new release pull request while a merged one is still pending.
+      # release-please opens no new release pull request while a merged one is still pending. gh pr edit fails on a
+      # label the repository lacks, after it has removed the pending one: create the label first (--force: no error if
+      # it exists).
       - if: ${{ steps.pr.outputs.number != '' }}
         name: Mark the release pull request as tagged
         env:
           PR: ${{ steps.pr.outputs.number }}
         run: |
+          gh label create 'autorelease: tagged' --repo "$REPO" --color ededed --description 'release-please: release created' --force
           gh pr edit "$PR" --repo "$REPO" --remove-label 'autorelease: pending' --add-label 'autorelease: tagged'
       # A push during the release ran release-please while the pull request was still pending, and that run opened no
       # release pull request; the job release-please of this run is its own group, so it can run before the label

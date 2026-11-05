@@ -36,7 +36,7 @@ env:
     packages pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json tsconfig.base.json vitest.config.ts
     .oxlintrc.json biome.json knip.json .jscpd.json _typos.toml .gitattributes scripts/*.ts
     release-please-config.cedarloom.json .release-please-manifest.cedarloom.json .github/workflows/cedarloom.yml
-    .github/pnpm
+    .github/pnpm .github/schemathesis
 
 jobs:
   # filter: empty when no CedarLoom path changed, `*` for every package, otherwise the changed packages and their dependents.
@@ -84,7 +84,7 @@ jobs:
           OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'size-override') }}
         run: |
           read -ra paths <<< "$PATHS"
-          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!packages/*/schema/**' ':!packages/*/openapi.json')
+          stat=$(git diff --numstat "$BASE...HEAD" -- "${paths[@]}" ':!pnpm-lock.yaml' ':!**/package-lock.json' ':!.github/schemathesis/requirements.txt' ':!packages/*/schema/**' ':!packages/*/openapi.json')
           files=$(printf '%s' "$stat" | grep -c . || true)
           lines=$(printf '%s' "$stat" | awk '{ n += $1 + $2 } END { print n + 0 }')
           echo "CedarLoom paths: $files files, $lines changed lines"
@@ -176,6 +176,39 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 
+  # Schemathesis against a started server with a live session: every answer it provokes must match the committed
+  # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.
+  api:
+    needs: areas
+    if: needs.areas.outputs.filter != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      # The runner's native pnpm comes as an optional dependency of the pinned package, so no install script needs to run.
+      - name: Install pnpm (pinned by .github/pnpm/package-lock.json)
+        working-directory: .github/pnpm
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          platform=$(printf '%s' "$RUNNER_OS-$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]' | sed 's/^macos/darwin/; s/^windows/win32/')
+          echo "$PWD/node_modules/@pnpm/exe.$platform" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Wheels only and every file checked against its hash: no build script of a dependency runs.
+      - name: Install Schemathesis (pinned with hashes by .github/schemathesis/requirements.txt)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/schemathesis"
+          "$RUNNER_TEMP/schemathesis/bin/pip" install --require-hashes --no-deps --only-binary :all: -r .github/schemathesis/requirements.txt
+      - name: Schemathesis against the local API
+        run: node packages/server/scripts/schemathesis.ts "$RUNNER_TEMP/schemathesis/bin/schemathesis"
+
   # Vulnerabilities and licenses of changed dependencies (checks.yml reviews vulnerabilities only). Allowed: permissive
   # licenses, MPL-2.0, LGPL-2.1-or-later and LGPL-3.0-or-later, EPL-2.0 (elkjs) and AFL-2.1 (the libdbus license election).
   license-review:
@@ -193,11 +226,15 @@ jobs:
           allow-licenses: >-
             0BSD, AFL-2.1, Apache-2.0, BlueOak-1.0.0, BSD-2-Clause, BSD-3-Clause, CC-BY-4.0, CC0-1.0, EPL-2.0, ISC,
             LGPL-2.1-or-later, LGPL-3.0-or-later, MIT, MIT-0, MPL-2.0, Python-2.0, Unlicense, Zlib
+          # typing-extensions is PSF-2.0 (pypi.org/project/typing-extensions), reached only through the CI tool Schemathesis;
+          # the license scan reads the PSF text's history as GPL-1.0-or-later. Pinned to the reviewed version, so an update
+          # is reviewed again (pending owner decision).
+          allow-dependencies-licenses: pkg:pypi/typing-extensions@4.16.0
 
   # The one required result of this workflow (the name stays: a ruleset names it).
   check:
     if: always()
-    needs: [areas, size, static, test, license-review]
+    needs: [areas, size, static, test, api, license-review]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

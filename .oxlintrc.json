@@ -3,7 +3,7 @@
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   "categories": { "correctness": "error", "suspicious": "error" },
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
-  "ignorePatterns": ["**/dist/**"],
+  "ignorePatterns": ["**/dist/**", "packages/*/schema/**"],
   "rules": {
     "complexity": ["error", 10],
     "max-depth": ["error", 3],
@@ -56,6 +56,23 @@
                 "message": "contracts depend on no runtime and no other CedarLoom package"
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/client/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@cedarloom/contracts",
+                "message": "the client runs in the browser: import @cedarloom/contracts/http, the root brings zod"
+              }
+            ],
+            "patterns": [{ "group": ["node:*"], "message": "the client runs in the browser" }]
           }
         ]
       }

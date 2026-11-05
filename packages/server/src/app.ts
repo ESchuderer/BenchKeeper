@@ -1,6 +1,6 @@
 import helmet from "@fastify/helmet";
 import swagger from "@fastify/swagger";
-import { contracts } from "@cedarloom/contracts";
+import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import {
   createJsonSchemaTransform,
@@ -10,7 +10,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
-import { CSRF_HEADER, frameworkErrors, guard, portOf, Session } from "./session.ts";
+import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
   /** The run store's folder. */
@@ -38,6 +38,28 @@ const description = [
   "POST /api/session once; every other request then needs the cookie cedarloom_session_<port> it sets and its csrf",
   `value in the ${CSRF_HEADER} header.`,
 ].join(" ");
+
+// One segment of a route pattern as a regular expression: `:name` matches any one segment, anything else itself.
+const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegExp.escape(part));
+
+/**
+ * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
+ * answers before the body is read, so a body-carrying method such as QUERY gets the same answer.
+ */
+const methods = (app: FastifyInstance): void => {
+  const routes: { method: string; path: RegExp }[] = [];
+  app.addHook("onRoute", ({ method, url }) => {
+    const path = new RegExp(`^${url.split("/").map(segment).join("/")}$`);
+    for (const each of [method].flat()) routes.push({ method: each, path });
+  });
+  app.addHook("onRequest", async (req, reply) => {
+    if (req.routeOptions.url !== undefined) return undefined;
+    const path = req.url.replace(/\?.*$/s, "");
+    const allow = routes.filter((route) => route.path.test(path)).map((route) => route.method);
+    if (allow.length === 0) return reply.code(404).send({ error: "not-found" });
+    return reply.code(405).header("allow", allow.join(", ")).send({ error: "method-not-allowed" });
+  });
+};
 
 /** The local server's routes over the application services, with the session guard on every request. */
 export const buildApp = async ({ state, session, log }: AppOptions): Promise<FastifyInstance> => {
@@ -72,7 +94,7 @@ export const buildApp = async ({ state, session, log }: AppOptions): Promise<Fas
   app.addHook("onRequest", guard(session));
   app.addHook("onSend", async (_req, reply) => void reply.header("cache-control", "no-store"));
   errors(app, log);
-  app.setNotFoundHandler(async (_req, reply) => reply.code(404).send({ error: "not-found" }));
+  methods(app);
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });

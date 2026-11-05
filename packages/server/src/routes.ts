@@ -27,7 +27,7 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
     "/api/session",
     {
       schema: {
-        body: z.strictObject({ token: z.string() }),
+        body: z.strictObject({ token: z.string().max(64) }),
         response: answers({ 200: z.strictObject({ csrf: z.string() }) }),
       },
     },

@@ -4,7 +4,7 @@
   "files": {
     "includes": [
       "packages/**",
-      "!packages/contracts/schema",
+      "!packages/*/schema",
       "!packages/*/openapi.json",
       "*.json",
       "*.ts",

@@ -48,9 +48,12 @@ export type PlanPreview = z.infer<typeof PlanPreview>;
 
 const findings = z.array(Finding);
 
-/** The plan that would undo a run, or none, and the files it leaves because they were edited since. */
+/**
+ * The plan that would undo a run, or none (`planHash` and `plan` both null), and the files it leaves because they were
+ * edited since. One object with nullable fields, not a union: generated clients drop properties typed only as null.
+ */
 export const UndoPreview = z
-  .union([PlanPreview.extend({ findings }), z.strictObject({ planHash: z.null(), plan: z.null(), findings })])
+  .strictObject({ planHash: Sha256.nullable(), plan: summary.nullable(), findings })
   .register(contracts, { id: "UndoPreview" });
 export type UndoPreview = z.infer<typeof UndoPreview>;
 

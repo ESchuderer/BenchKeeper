@@ -7,11 +7,12 @@
     {
       "type": "linked-versions",
       "groupName": "cedarloom",
-      "components": ["cli", "contracts", "engine", "ledger", "server", "services"]
+      "components": ["cli", "client", "contracts", "engine", "ledger", "server", "services"]
     }
   ],
   "packages": {
     "packages/cli": { "component": "cli" },
+    "packages/client": { "component": "client" },
     "packages/contracts": { "component": "contracts" },
     "packages/engine": { "component": "engine" },
     "packages/ledger": { "component": "ledger" },

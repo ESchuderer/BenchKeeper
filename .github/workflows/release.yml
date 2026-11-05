@@ -128,8 +128,9 @@ jobs:
         env:
           V: ${{ steps.v.outputs.app }}
         run: |
-          # npm view reads the package document that npx resolves; after a publish it can lag for minutes (7 on 2026-11-05).
-          on_npm() { [ "$(npm view "benchkeeper@$V" version --prefer-online 2>/dev/null)" = "$V" ]; }
+          # npm view reads the registry's package document, as npx does; after a publish it can lag for minutes
+          # (7 on 2026-11-05).
+          on_npm() { [ "$(npm view "benchkeeper@$V" version 2>/dev/null)" = "$V" ]; }
           if ! on_npm; then
             since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             gh workflow run npm.yml --repo "$REPO" --ref main -f "version=$V" -f "sha=$SHA"
@@ -178,8 +179,9 @@ jobs:
       - if: ${{ steps.v.outputs.app != '' || steps.v.outputs.content != '' }}
         name: Rebuild the site
         run: gh workflow run pages.yml --repo "$REPO" --ref main
-      # release-please opens no new release pull request while a merged one is still pending. gh pr edit fails on a label
-      # the repository lacks, after it has removed the pending one: create the label first (--force: no error if it exists).
+      # release-please opens no new release pull request while a merged one is still pending. gh pr edit fails on a
+      # label the repository lacks, after it has removed the pending one: create the label first (--force: no error if
+      # it exists).
       - if: ${{ steps.pr.outputs.number != '' }}
         name: Mark the release pull request as tagged
         env:

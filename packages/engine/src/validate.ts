@@ -78,10 +78,10 @@ const edgeFindings = ({ resolved }: Graph): Finding[] =>
 
 const target = (node: string | null, handle: string): string => `${node ?? ""}\0${handle}`;
 
-/** One edge into each data input and workflow output (none for an optional input), two or more into a join. */
-// The edges of a graph without twins: one per output and input they join.
-const distinct = (edges: Edge[]): Edge[] =>
-  edges.filter((edge, index) => edges.findIndex((other) => pairOf(other) === pairOf(edge)) === index);
+// The edges of a graph without twins: the first per output and input they join, one key lookup each.
+const distinct = (edges: Edge[]): Edge[] => [
+  ...new Map(edges.toReversed().map((edge) => [pairOf(edge), edge])).values(),
+];
 
 // A node end by its fields in a fixed order; a workflow input or output end has one key, so its text is fixed too.
 const endKey = (end: End): string => JSON.stringify("node" in end ? [end.node, end.handle] : end);
@@ -98,6 +98,7 @@ const twins = ({ edges }: Graph): Finding[] => {
   });
 };
 
+/** One edge into each data input and workflow output (none for an optional input), two or more into a join. */
 const sourceFindings = ({ workflow, nodes, edges, types }: Graph): Finding[] => {
   const counts = new Map<string, number>();
   // Twins count once, so a twin is one finding (duplicate-edge), not also many-sources.

@@ -1172,6 +1172,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "workflow.duplicate-edge"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "edge": {
+              "type": "string"
+            },
+            "of": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "edge",
+            "of"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "workflow.exclusive-sources"
         },
         "params": {

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "duplicate-edge",
+    "name": "Duplicate edge",
+    "version": "1.0.0"
+  },
+  "nodes": [
+    {
+      "id": "begin",
+      "type": "trigger.manual"
+    },
+    {
+      "id": "build",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm build"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "first",
+      "from": {
+        "node": "begin",
+        "handle": "start"
+      },
+      "to": {
+        "node": "build",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "twin",
+      "from": {
+        "node": "begin",
+        "handle": "start"
+      },
+      "to": {
+        "node": "build",
+        "handle": "run"
+      }
+    }
+  ]
+}

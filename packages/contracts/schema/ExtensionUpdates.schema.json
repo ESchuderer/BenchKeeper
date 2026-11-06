@@ -25,7 +25,8 @@
         "properties": {
           "commit": {
             "type": "string",
-            "pattern": "^[0-9a-f]{40}$"
+            "pattern": "^[0-9a-f]{40}$",
+            "description": "The commit, never a branch or tag that can move"
           },
           "seen": {
             "type": "string",

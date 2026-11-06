@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
+import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
   ACCOUNTS_SCHEMA_VERSION,
@@ -13,7 +14,7 @@ import {
   readDocument,
   sameFolder,
 } from "@cedarloom/contracts";
-import { sha256 } from "@cedarloom/ledger";
+import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
 import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
@@ -205,6 +206,68 @@ export const loginAccount = (
   if (ran.code === 0) return { ok: true, value: { home } };
   const error = ran.error ?? `exit code ${ran.code}`;
   return { ok: false, finding: { code: "accounts.login-failed", params: { account: account.name, error } } };
+};
+
+/** Where the doctor checks logins: the launcher's environment and platform, and `status`, the agent's own check. */
+export interface StatusHost {
+  readonly parent: Readonly<Record<string, string | undefined>>;
+  readonly platform: NodeJS.Platform;
+  readonly status: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
+}
+
+// What one home's login status shows to be wrong.
+const problems = (account: string, home: string, login: LoginStatus): Finding[] => {
+  if (login.kind === "unknown") return [{ code: "doctor.login-unchecked", params: { account, error: login.error } }];
+  if (login.kind === "logged-out") return [{ code: "doctor.logged-out", params: { account, home } }];
+  const { authMethod: method, configDirectory } = login;
+  const elsewhere = configDirectory !== null && configDirectory !== home;
+  return [
+    ...(elsewhere ? [{ code: "doctor.login-elsewhere" as const, params: { account, home, configDirectory } }] : []),
+    ...(method === "claude.ai" ? [] : [{ code: "doctor.login-method" as const, params: { account, method } }]),
+  ];
+};
+
+// One account's check, while the ledger holds the account for it. A home that is not the account's own, or is a link,
+// is reported and never checked: the check can write into it.
+const checkOne = async (state: string, account: Account, host: StatusHost): Promise<Result<Finding[]>> => {
+  const { name } = account;
+  const folder = ownFolder(state, account, { create: false });
+  if (!folder.ok) return { ok: true, value: [folder.finding] };
+  const home = folder.value;
+  const store = openRunStore(state);
+  if (!store.ok) return store;
+  let held: ReturnType<typeof store.value.checkAccount>;
+  try {
+    held = store.value.checkAccount(name);
+  } finally {
+    store.value.close();
+  }
+  if (held === null) return { ok: true, value: [{ code: "doctor.login-skipped", params: { account: name } }] };
+  try {
+    // The check can renew the login over the network, as the login does.
+    const env = { ...cleanEnv(host.parent, host.platform, NETWORK_SETTINGS), CLAUDE_CONFIG_DIR: home };
+    return { ok: true, value: problems(name, home, await host.status(env)) };
+  } finally {
+    held.release();
+  }
+};
+
+/**
+ * Checks the login of each Claude Code account in its own home, one at a time: the doctor's login check. The check can
+ * renew a login, so it never runs beside a worker on the account, and no worker starts on it meanwhile (owner decision
+ * "Worker homes", 2026-11-06). An account outside its own home is reported instead.
+ */
+export const checkLogins = async (state: string, config: string, host: StatusHost): Promise<Result<Finding[]>> => {
+  const loaded = loadRegistry(config);
+  if (!loaded.ok) return loaded;
+  const findings: Finding[] = [];
+  for (const account of (loaded.value?.accounts ?? []).filter((each) => each.agent === "claude")) {
+    // One at a time, so no two checks of logins run at once.
+    const found = await checkOne(state, account, host);
+    if (!found.ok) return found;
+    findings.push(...found.value);
+  }
+  return { ok: true, value: findings };
 };
 
 /** How many workers run on one account at once: two per Claude Code account, one per Codex home. */

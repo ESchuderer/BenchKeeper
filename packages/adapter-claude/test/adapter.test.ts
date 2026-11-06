@@ -1,7 +1,13 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeLogin, claudeRuntime, type ClaudeLaunch, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
+import {
+  claudeAuthStatus,
+  claudeLogin,
+  claudeRuntime,
+  type ClaudeLaunch,
+  FRESH_INSTALL_PHASES,
+} from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -98,6 +104,39 @@ test("the login runs claude auth login with the account's environment, and tells
   expect(login({ CLAUDE_CONFIG_DIR: "/other" })).toEqual({ code: 3 });
   expect(claudeLogin([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
     code: null,
+    error: expect.stringContaining("ENOENT"),
+  });
+});
+
+// Answers `auth status` by the config folder, as Claude Code does: JSON, exit 0 when logged in and 1 when not.
+const statusCli = `
+const dir = process.env.CLAUDE_CONFIG_DIR;
+if (process.argv.slice(-2).join(" ") !== "auth status") process.exit(9);
+const say = (json, code) => { console.log(JSON.stringify(json)); process.exit(code); };
+if (dir === "/out") say({ loggedIn: false, authMethod: "none" }, 1);
+if (dir === "/bad") { console.log("not json"); process.exit(0); }
+if (dir === "/crash") process.exit(2);
+if (dir === "/crash1") process.exit(1);
+if (dir === "/hang") setInterval(() => undefined, 60_000);
+if (dir === "/old") say({ loggedIn: true, authMethod: "claude.ai" }, 0);
+if (dir !== "/hang") say({ loggedIn: true, authMethod: "claude.ai", configDirectory: dir, subscriptionType: "max" }, 0);
+`;
+
+test("the login status of a home is read from claude auth status, and anything else is unknown", async () => {
+  const status = claudeAuthStatus([process.execPath, "-e", statusCli]);
+  const of = (dir: string) => status({ CLAUDE_CONFIG_DIR: dir });
+  expect(await of("/h")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: "/h" });
+  // Before Claude Code 2.1.268 the status names no config folder.
+  expect(await of("/old")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: null });
+  expect(await of("/out")).toEqual({ kind: "logged-out" });
+  expect(await of("/bad")).toEqual({ kind: "unknown", error: "exit code 0 with output that is no login status" });
+  expect(await of("/crash")).toEqual({ kind: "unknown", error: "exit code 2 with output that is no login status" });
+  // Exit 1 is logged out only with the status JSON; a crash that also exits 1 is unknown.
+  expect(await of("/crash1")).toEqual({ kind: "unknown", error: "exit code 1 with output that is no login status" });
+  const hung = claudeAuthStatus([process.execPath, "-e", statusCli], 200);
+  expect(await hung({ CLAUDE_CONFIG_DIR: "/hang" })).toEqual({ kind: "unknown", error: "timed out after 0.2 s" });
+  expect(await claudeAuthStatus([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
+    kind: "unknown",
     error: expect.stringContaining("ENOENT"),
   });
 });

@@ -39,6 +39,12 @@
           "description": "The oldest CedarLoom version that runs this workflow",
           "type": "string",
           "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+        },
+        "license": {
+          "description": "The workflow's own license, which an import keeps",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$"
         }
       },
       "required": [

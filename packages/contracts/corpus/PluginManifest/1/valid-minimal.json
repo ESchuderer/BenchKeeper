@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.plugin",
+  "id": "me.hello",
+  "version": "0.1.0",
+  "name": "Hello",
+  "api": "1.0",
+  "runtime": { "kind": "node", "entry": "main.mjs" },
+  "contributes": { "actions": { "greet": { "title": "Greet" } } }
+}

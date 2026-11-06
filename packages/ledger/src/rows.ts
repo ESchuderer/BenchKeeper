@@ -81,3 +81,8 @@ CREATE TABLE mode_switches (
   level TEXT CHECK (level IN ('supervised', 'checkpoint', 'auto'))
 ) STRICT;
 `;
+
+/** Schema 6: the settings each launch ran with (A90), as JSON; null on a launch from before. */
+export const LABEL_TABLES = `
+ALTER TABLE launches ADD COLUMN labels TEXT;
+`;

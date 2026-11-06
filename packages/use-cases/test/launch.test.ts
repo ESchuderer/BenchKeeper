@@ -67,6 +67,7 @@ const request = (work: string, fake: Fake = {}): WorkerRequest<ClaudeLaunch> => 
     previous: null,
     prompt: "Do the task.",
     ghToken: null,
+    labels: { phase: "implement", mode: "dontAsk", review: true, level: "checkpoint" },
     runtime,
     launch: (decided) => {
       const run = (built += 1) > 1;
@@ -117,6 +118,8 @@ test("a worker runs end to end: account, version check, lease, readings, and the
   ]);
   expect(launches[0]?.runId).toBe(outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null);
   expect(launches[0]?.finishedAt).not.toBeNull();
+  // The settings it ran with: the request's phase, mode, review and level, and the built launch's models and effort.
+  expect(launches[0]?.labels).toEqual(LABELS);
   expect(withLedger(state, (store) => store.readings().map((reading) => reading.window))).toEqual([
     "fiveHour",
     "sevenDay",
@@ -172,8 +175,26 @@ test("a run whose stream holds no init line proves nothing, so it failed whateve
   expect(withLedger(state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
 });
 
+const LABELS = {
+  phase: "implement",
+  model: "claude-sonnet-5-5",
+  subagentModel: "claude-sonnet-5-5",
+  effort: "high",
+  mode: "dontAsk",
+  review: true,
+  level: "checkpoint",
+} as const;
 const lease = (runId: string, account: string) =>
-  ({ runId, task: "t0", agent: "claude", account, version: "2.1.316", pid: process.pid, startedAt: AT }) as const;
+  ({
+    runId,
+    task: "t0",
+    agent: "claude",
+    account,
+    version: "2.1.316",
+    pid: process.pid,
+    startedAt: AT,
+    labels: LABELS,
+  }) as const;
 const runIdOf = (n: number) => `0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6${n}`;
 // Takes the account's leases, as other launchers that run, and holds them.
 const fill = (state: string, account: string, from: number) =>

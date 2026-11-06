@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Agent, AgentVersion } from "./accounts.ts";
+import { AutomationLevel } from "./automation.ts";
 import { fileFormats } from "./registry.ts";
 
 /** The result file format this CedarLoom reads; a worker's newer one is refused. */
@@ -26,6 +27,22 @@ export type WorkerResult = z.infer<typeof WorkerResult>;
  * One worker launch as the ledger keeps it; while it runs (finishedAt null) it holds a lease on its account. `failed`:
  * no valid result of this run; `interrupted`: its launcher ended before it did.
  */
+/**
+ * The settings a run ran with, so runs can be compared by them (A90): the workflow phase, the models, the effort, the
+ * agent's permission mode, whether a fresh reviewer runs, and the automation level at the start. The CLI version is
+ * the record's own column.
+ */
+export const RunLabels = z.strictObject({
+  phase: z.enum(["plan", "implement", "review"]),
+  model: z.string().min(1),
+  subagentModel: z.string().min(1),
+  effort: z.enum(["low", "medium", "high", "xhigh"]),
+  mode: z.string().min(1).max(64),
+  review: z.boolean(),
+  level: AutomationLevel,
+});
+export type RunLabels = z.infer<typeof RunLabels>;
+
 export const LaunchRecord = z.strictObject({
   runId: z.uuid(),
   task: z.string(),
@@ -36,5 +53,7 @@ export const LaunchRecord = z.strictObject({
   startedAt: z.iso.datetime({ precision: 3 }),
   finishedAt: z.iso.datetime({ precision: 3 }).nullable(),
   verdict: z.enum([...Verdict.options, "failed", "interrupted"]).nullable(),
+  // Null on a launch from before the labels (ledger schema 6).
+  labels: RunLabels.nullable(),
 });
 export type LaunchRecord = z.infer<typeof LaunchRecord>;

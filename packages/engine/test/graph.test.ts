@@ -1,8 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
+import { HandleType, NODE_CONFIGS, WorkflowDefinition } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
-import { compatibility, endType } from "@cedarloom/engine/graph";
+import { compatibility, endType, NODE_TYPES } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
@@ -22,15 +22,30 @@ const edge = (id: string, spec: string): Edge => {
   };
 };
 
+// A valid configuration for each node type that needs one, so a test about the graph meets no configuration finding.
+const configured: Record<string, object> = {
+  "trigger.schedule": { cron: "0 3 * * *", precheck: "true" },
+  "agent.run": { task: "Review." },
+  "command.run": { command: "true" },
+  "file.read": { path: "in.md" },
+  "file.write": { path: "out.md" },
+  "human.approval": { message: "Go on?" },
+  "workflow.run": { workflow: "child.json" },
+};
+
+// An own entry only: a type named like an Object property (`constructor`) has no configuration here.
+const preset = (type: string): object | undefined => (Object.hasOwn(configured, type) ? configured[type] : undefined);
+
 const workflow = (nodes: string[], edges: string[], more: object = {}): WorkflowDefinition =>
   WorkflowDefinition.parse({
     schemaVersion: 1,
     kind: "cedarloom.workflow",
     metadata: { id: "w", name: "W", version: "1.0.0" },
-    // "id:type" or "id:type:json-of-with"
+    // "id:type" (with the type's valid configuration, if it needs one) or "id:type:json-of-with"
     nodes: nodes.map((node) => {
-      const [id, type, ...config] = node.split(":");
-      return { id, type, ...(config.length === 0 ? {} : { with: JSON.parse(config.join(":")) }) };
+      const [id = "", type = "", ...config] = node.split(":");
+      const given = config.length === 0 ? preset(type) : JSON.parse(config.join(":"));
+      return { id, type, ...(given === undefined ? {} : { with: given }) };
     }),
     edges: edges.map((spec, index) => edge(`e${index + 1}`, spec)),
     ...more,
@@ -104,6 +119,8 @@ const goldenFindings: Record<string, string[]> = {
   "findings-exclusive-sources.json": ["workflow.exclusive-sources"],
   "findings-optional-input.json": ["workflow.optional-input"],
   "findings-schedule-input.json": ["workflow.schedule-input"],
+  "findings-report-only-write.json": ["workflow.report-only-write"],
+  "findings-node-configs.json": Array.from({ length: 8 }, () => "workflow.invalid-config"),
 };
 
 test("the golden corpus: valid workflows have clean graphs, findings-* exactly the findings they are named for", async () => {
@@ -180,7 +197,7 @@ test("inputs a run can lack: optional without a default into a required input, r
   ]);
   // A manual trigger lets the person who starts the run give the required input.
   expect(
-    codes({ ...graph, nodes: graph.nodes.map((n) => (n.id === "start" ? { ...n, type: "trigger.manual" } : n)) }),
+    codes({ ...graph, nodes: graph.nodes.map((n) => (n.id === "start" ? { id: n.id, type: "trigger.manual" } : n)) }),
   ).toEqual(["workflow.optional-input"]);
 });
 
@@ -340,6 +357,49 @@ test("random DAGs have clean graphs, and one edge back along the chain makes exa
       expect(cycle.every((node, index) => linked.has(`${node}>${cycle[(index + 1) % cycle.length]}`))).toBe(true);
     }),
   );
+});
+
+test("every node type has a configuration schema, and a node's `with` is checked against its type's", () => {
+  expect(Object.keys(NODE_CONFIGS).toSorted()).toEqual(Object.keys(NODE_TYPES).toSorted());
+  const graph = workflow(
+    [
+      'start:trigger.manual:{"precheck":"test -d .git"}',
+      "a:command.run:{}",
+      'b:command.run:{"command":"pnpm test","cwd":"../up"}',
+      'c:agent.run:{"task":"Plan it.","phase":"plan","provider":"claude-code"}',
+      'd:file.read:{"path":"/etc/hosts"}',
+    ],
+    ["start.start>a.run", "start.start>b.run", "start.start>c.run", "start.start>d.run"],
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    { code: "workflow.invalid-config", params: { node: "a", issues: [{ path: "command", code: "invalid_type" }] } },
+    {
+      code: "workflow.invalid-config",
+      // The pattern refuses the `..` part, and normalized against the project the path steps above it.
+      params: {
+        node: "b",
+        issues: [
+          { path: "cwd", code: "invalid_format" },
+          { path: "cwd", code: "custom" },
+        ],
+      },
+    },
+    { code: "workflow.invalid-config", params: { node: "d", issues: [{ path: "path", code: "invalid_format" }] } },
+  ]);
+});
+
+test("A28: a workflow a schedule starts may not write a file; the same graph started by hand may", () => {
+  const nodes = ["start:trigger.schedule", "w:file.write"];
+  expect(validateWorkflow(workflow(nodes, ["start.start>w.run"]))).toEqual([
+    { code: "workflow.report-only-write", params: { node: "w" } },
+  ]);
+  expect(validateWorkflow(workflow([start, "w:file.write"], ["start.start>w.run"]))).toEqual([]);
+  // A child workflow could write, and the validator cannot see it: under a schedule, workflow.run is refused too.
+  expect(codes(workflow(["start:trigger.schedule", "c:workflow.run"], ["start.start>c.run"]))).toEqual([
+    "workflow.report-only-write",
+  ]);
+  // A schedule needs its cron and its precheck (Q13).
+  expect(codes(workflow(["start:trigger.schedule:{}"], []))).toEqual(["workflow.invalid-config"]);
 });
 
 test("only control edges from the trigger make a node run: a node that data alone reaches is unreachable", () => {

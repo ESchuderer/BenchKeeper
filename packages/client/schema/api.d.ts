@@ -928,6 +928,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.report-only-write";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.unreachable";
             params: {
                 node: string;
@@ -1403,6 +1409,12 @@ export interface components {
             code: "workflow.schedule-input";
             params: {
                 input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.report-only-write";
+            params: {
+                node: string;
             };
         } | {
             /** @constant */

@@ -1,4 +1,4 @@
-import { type Finding, type HandleType, JoinConfig, type WorkflowDefinition } from "@cedarloom/contracts";
+import { type Finding, type HandleType, NODE_CONFIGS, type WorkflowDefinition } from "@cedarloom/contracts";
 import { compatibility, NODE_TYPES, type NodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
@@ -35,10 +35,13 @@ const nodeFindings = ({ nodes }: Graph): Finding[] => {
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
     ...nodes.flatMap((node): Finding[] => {
-      if (own(NODE_TYPES, node.type) === undefined) {
+      const schema = own(NODE_CONFIGS, node.type);
+      // NODE_CONFIGS names the same types as NODE_TYPES (a test checks it).
+      if (own(NODE_TYPES, node.type) === undefined || schema === undefined) {
         return [{ code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } }];
       }
-      const config = node.type === "join" ? JoinConfig.safeParse(node.with ?? {}) : { success: true as const };
+      // A node without `with` is checked as `{}`, so a type that needs configuration says what is missing.
+      const config = schema.safeParse(node.with ?? {});
       if (config.success) return [];
       const issues = config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
       return [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];
@@ -175,6 +178,17 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
     .map((node): Finding => ({ code: "workflow.unreachable", params: { node: node.id } }));
 };
 
+/**
+ * A28: a run a schedule starts only reports in 0.1.0, so its workflow has no node that may write a file: no file.write,
+ * and no workflow.run, whose child the validator cannot see.
+ */
+const reportOnly = ({ nodes }: Graph): Finding[] =>
+  nodes.some((node) => node.type === "trigger.schedule")
+    ? nodes
+        .filter((node) => node.type === "file.write" || node.type === "workflow.run")
+        .map((node): Finding => ({ code: "workflow.report-only-write", params: { node: node.id } }))
+    : [];
+
 const strays = ({ workflow, types }: Graph): Finding[] =>
   (["execution", "layout"] as const).flatMap((section) =>
     Object.keys(workflow[section]?.nodes ?? {})
@@ -276,6 +290,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     cycle,
     unreachable,
     strays,
+    reportOnly,
   ];
   return checks.flatMap((check) => check(graph));
 };

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
+import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
 import {
   type Account,
   ACCOUNTS_SCHEMA_VERSION,
@@ -188,7 +188,8 @@ export interface AccountRequest {
 
 /**
  * Chooses the account a new worker of the task starts on, under the store's lock, and records the choice in the ledger
- * with the pool's readings and each candidate's margin. A pool that yields no account records nothing.
+ * with the pool's readings as the choice counted them and each candidate's margin. A pool that yields no account
+ * records nothing.
  */
 export const chooseAccount = (
   state: string,
@@ -212,7 +213,7 @@ export const chooseAccount = (
         from: request.previous,
         to: selection.account.name,
         reason: selection.reason,
-        readings: readings.filter((reading) => pool.has(reading.account)),
+        readings: counted(readings, judged).filter((reading) => pool.has(reading.account)),
         candidates: [...selection.candidates],
       });
     }

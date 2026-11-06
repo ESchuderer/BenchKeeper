@@ -90,6 +90,46 @@ test("a task's worker starts on the pool account with headroom, and the choice i
     },
   ]);
   expect(rows[0]?.readings).toHaveLength(4);
+  expect(rows[0]?.readings.map((reading) => reading.source)).toEqual(Array(4).fill("reported"));
+});
+
+test("a window past its reset counts as 0 percent, the row records that as assumed, and the next reading replaces it", () => {
+  const state = stateWithReadings(90, 20);
+  const request = { task: "t4", agent: "claude", pool: "main", previous: "spare" } as const;
+  const afterReset = Date.parse("2026-11-05T18:00:00.000Z");
+  const chosen = chooseAccount(state, registry, request, afterReset);
+  // Both accounts' windows reset at 17:00 after their readings, so both count as unused and the first one listed wins.
+  expect(chosen.ok && chosen.value.ok && chosen.value.account.name).toBe("work");
+  const [row] = switches(state);
+  expect(row?.candidates).toEqual([
+    { account: "work", margin: 92 },
+    { account: "spare", margin: 92 },
+  ]);
+  expect(row?.readings).toContainEqual({
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 0,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+    readAt: AT,
+    source: "assumed-after-reset",
+  });
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const next = {
+    account: "work",
+    usedPercent: 70,
+    resetsAt: "2026-11-05T23:00:00.000Z",
+    readAt: "2026-11-05T18:00:00.000Z",
+  };
+  for (const window of ["fiveHour", "sevenDay"] as const) store.value.recordReading({ ...next, window });
+  store.value.close();
+  chooseAccount(state, registry, { ...request, task: "t5" }, afterReset);
+  const latest = switches(state)[1];
+  expect(latest?.to).toBe("spare");
+  expect(latest?.readings.filter((reading) => reading.account === "work")).toEqual([
+    { ...next, window: "fiveHour", source: "reported" },
+    { ...next, window: "sevenDay", source: "reported" },
+  ]);
 });
 
 test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {

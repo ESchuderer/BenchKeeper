@@ -304,6 +304,14 @@ test("accounts: a pool's confirmation carries the terms warning in every output 
     expect.stringContaining("Nothing changed"),
     expect.stringContaining("warning: Confirm pool main only if you hold and pay for every account in it yourself"),
   ]);
+  // The Usage Policy in force from November 12, 2026, and the help article on what a subscription's usage is for.
+  for (const quote of [
+    "create multiple accounts, to avoid detection, circumvent product guardrails",
+    "intentionally bypass or interfere with capabilities, restrictions, or guardrails",
+    "route requests through consumer subscriptions",
+    "ordinary use of native Anthropic applications",
+  ])
+    expect(preview.err).toContain(quote);
   expect(json((await cli("accounts", "pool", "confirm", "main", "--json")).out)).toMatchObject({
     format: "cedarloom.plan",
     findings: [terms],

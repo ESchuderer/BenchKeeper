@@ -1,2 +1,2 @@
 export { DEFAULT_MINIMUM, type Imported, importBenchKeeper, type Left } from "./import.ts";
-export { type Candidate, isConfirmed, type Selection, selectAccount } from "./select.ts";
+export { type Candidate, counted, isConfirmed, type Selection, selectAccount } from "./select.ts";

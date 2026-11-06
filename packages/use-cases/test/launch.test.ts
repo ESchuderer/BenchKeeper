@@ -6,7 +6,7 @@ import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarlo
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore, type RunStore } from "@cedarloom/ledger";
 import { type Decided, launchWorker, MAX_CONCURRENT, type WorkerRequest } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
 const fixtures = join(import.meta.dirname, "..", "..", "adapter-claude", "test", "fixtures");
@@ -126,6 +126,13 @@ test("a worker runs end to end: account, version check, lease, readings, and the
     "fiveHour",
     "sevenDay",
   ]);
+  // The run's usage is kept as history too, with its run, its CLI version and the line it came in.
+  const samples = withLedger(state, (store) => store.usageSamples());
+  expect(samples.map((each) => [each.window, each.runId, each.agentVersion])).toEqual([
+    ["five_hour", launches[0]?.runId, "2.1.316"],
+    ["seven_day", launches[0]?.runId, "2.1.316"],
+  ]);
+  expect(samples[0]?.raw).toContain('"type":"rate_limit_event"');
 });
 
 test("without a valid result of its own run the worker failed, and its lease ends", async () => {
@@ -405,4 +412,22 @@ test("a run's labels take the permission mode the launch was built with: a plan 
     permissionMode: "plan",
     tier: "standard",
   });
+});
+
+test("a storage error while keeping a run's usage drops that usage, and the run goes on to its verdict", async () => {
+  const { state, config, work } = setup();
+  const probe = openRunStore(state);
+  if (!probe.ok) throw new Error(probe.finding.code);
+  const writer = vi.spyOn(Object.getPrototypeOf(probe.value), "recordSamples").mockImplementation(() => {
+    throw new Error("disk I/O error");
+  });
+  probe.value.close();
+  try {
+    await expect(launchWorker(state, config, request(work, { result: passing }), host)).resolves.toMatchObject({
+      value: { kind: "finished", verdict: "pass" },
+    });
+    expect(writer).toHaveBeenCalled();
+  } finally {
+    writer.mockRestore();
+  }
 });

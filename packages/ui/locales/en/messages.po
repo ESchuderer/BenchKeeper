@@ -260,6 +260,14 @@ msgid "problem.reportOnlyWrite"
 msgstr "Node {node} may write files, but a schedule starts this workflow, and a scheduled run only reports."
 
 #. js-lingui-explicit-id
+msgid "problem.reportOnlyPlugin"
+msgstr "Node {node} runs a plugin action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports."
+
+#. js-lingui-explicit-id
+msgid "problem.pluginMissing"
+msgstr "Node {node} runs {type}, a plugin action that is not installed, so the workflow cannot run until its plugin is."
+
+#. js-lingui-explicit-id
 msgid "problem.unreachable"
 msgstr "Nothing leads to node {node} from the trigger, so it never runs."
 

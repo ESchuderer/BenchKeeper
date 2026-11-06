@@ -82,7 +82,24 @@ CREATE TABLE mode_switches (
 ) STRICT;
 `;
 
-/** Schema 6: the settings each launch ran with (A90), as JSON; null on a launch from before. */
+/** Schema 6: every usage window a session reported, as history (A84); readings keeps the latest per quota. */
+export const USAGE_TABLES = `
+CREATE TABLE usage_samples (
+  account TEXT NOT NULL,
+  agent TEXT NOT NULL,
+  agentVersion TEXT NOT NULL,
+  "window" TEXT NOT NULL,
+  quota TEXT CHECK (quota IN ('fiveHour', 'sevenDay')),
+  usedPercent REAL CHECK (usedPercent BETWEEN 0 AND 100),
+  resetsAt TEXT,
+  readAt TEXT NOT NULL,
+  runId TEXT,
+  raw TEXT NOT NULL
+) STRICT;
+CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
+`;
+
+/** Schema 7: the settings each launch ran with (A90), as JSON; null on a launch from before. */
 export const LABEL_TABLES = `
 ALTER TABLE launches ADD COLUMN labels TEXT;
 `;

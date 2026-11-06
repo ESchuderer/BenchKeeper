@@ -69,11 +69,18 @@ const run = (
   });
   async function* events(): AsyncGenerator<AgentEvent> {
     const parse = streamParser(verified);
-    for await (const line of lines(child.stdout, MAX_LINE_BYTES)) {
-      if (line === null) {
-        error = { code: "line-too-long", limitBytes: MAX_LINE_BYTES };
-        stop(child);
-      } else if (line.trim() !== "") yield parse(line);
+    // A reader that leaves early (a session without the settings proof, a throw) must not close stdout: the CLI would
+    // die of EPIPE on its next line, before a cancel reaches it, and leave its commands running. Its output is drained
+    // instead (readable.iterator is stable since Node 24: https://nodejs.org/api/stream.html#readableiteratoroptions).
+    try {
+      for await (const line of lines(child.stdout.iterator({ destroyOnReturn: false }), MAX_LINE_BYTES)) {
+        if (line === null) {
+          error = { code: "line-too-long", limitBytes: MAX_LINE_BYTES };
+          stop(child);
+        } else if (line.trim() !== "") yield parse(line);
+      }
+    } finally {
+      child.stdout.resume();
     }
     const [code, signal] = await closed;
     yield { type: "exit", code, signal, error, stderr };

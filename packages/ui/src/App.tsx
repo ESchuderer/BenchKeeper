@@ -17,6 +17,8 @@ import { useDisclosure } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users, Workflow } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { MessageId } from "@lingui/core";
+// A file, never a data: URL: the server's CSP allows images from its own origin only.
+import mark from "../../../brand/cedarloom-icon.svg?no-inline";
 import { t, when } from "./i18n.ts";
 
 type Run = components["schemas"]["Run"];
@@ -244,6 +246,7 @@ const Header = ({ opened, toggle }: { opened: boolean; toggle: () => void }): Re
       aria-expanded={opened}
       aria-controls="views"
     />
+    <img src={mark} alt="" width={28} height={28} />
     <Title order={1} size="h3">
       {t("app.title")}
     </Title>

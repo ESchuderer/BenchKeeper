@@ -143,6 +143,17 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
+  "doctor.logged-out": (p) =>
+    `Account ${p.account} is not logged in in its own home ${p.home}; log in with: cedarloom accounts login ${p.account}`,
+  "doctor.login-elsewhere": (p) =>
+    `Claude Code reads the login of account ${p.account} from ${p.configDirectory}, not from its own home ${p.home}; something in the environment points it there.`,
+  "doctor.login-method": (p) =>
+    `Account ${p.account} is logged in with ${p.method}, not with a Claude subscription (claude.ai); log in again with: cedarloom accounts login ${p.account}`,
+  "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
+  "doctor.login-skipped": (p) =>
+    `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
+  "launch.not-logged-in": (p) =>
+    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

@@ -2294,6 +2294,156 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "doctor.logged-out"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-elsewhere"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home": {
+                    "type": "string"
+                  },
+                  "configDirectory": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home",
+                  "configDirectory"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-method"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "method": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "method"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-unchecked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-skipped"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "automation.unknown-folder"
               },
               "params": {
@@ -2456,6 +2606,36 @@
                 "required": [
                   "path",
                   "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.not-logged-in"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "reason"
                 ],
                 "additionalProperties": false
               }
@@ -5507,6 +5687,156 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "doctor.logged-out"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-elsewhere"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home": {
+                    "type": "string"
+                  },
+                  "configDirectory": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home",
+                  "configDirectory"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-method"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "method": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "method"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-unchecked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.login-skipped"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "automation.unknown-folder"
               },
               "params": {
@@ -5669,6 +5999,36 @@
                 "required": [
                   "path",
                   "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.not-logged-in"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "reason"
                 ],
                 "additionalProperties": false
               }

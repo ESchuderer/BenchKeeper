@@ -212,8 +212,8 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   levelGroup(program, ctx, done);
   program
     .command("doctor")
-    .description("report interrupted runs and store problems")
-    .action(() => done(doctor(ctx())));
+    .description("report interrupted runs, store problems, and each account's login in its own home")
+    .action(async () => done(await doctor(ctx())));
   program
     .command("ui")
     .description("serve the web UI on 127.0.0.1 and print the link that opens it; runs until stopped")

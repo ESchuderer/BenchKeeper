@@ -71,7 +71,7 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Restart-safe coordinator](docs/restart-safe-coordinator.md): one Orca coordinator kept through usage limits, account switches and restarts, by a model-free loop, short decision cycles and a watchdog you set up
 - [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
-- [Changelogs](docs/releasing.md#components) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
+- [Changelogs](docs/releasing.md#components). This repository takes no issues: see the [issue policy](docs/agents/issue-tracker.md).
 
 ## License
 

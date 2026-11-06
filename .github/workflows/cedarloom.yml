@@ -183,6 +183,13 @@ jobs:
           if command -v cygpath > /dev/null; then dir=$(cygpath -w "$dir"); fi
           echo "$dir" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # The tests keep their run stores in os.tmpdir(), on Windows %TEMP% on the system drive C:. There a SQLite commit's
+      # flush took ten times as long as on the runner's D: drive and stalled for seconds now and then, past a test's 5 s.
+      - if: runner.os == 'Windows'
+        name: Temporary folder on the D drive
+        run: |
+          echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed

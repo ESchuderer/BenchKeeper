@@ -5,8 +5,8 @@ import { fileFormats } from "./registry.ts";
 import { PlainText } from "./text.ts";
 import { DataType, HandleName, JsonValue, License, semver, WorkflowId } from "./workflow.ts";
 
-/** The plugin manifest format (`cedarloom-plugin.json`) this CedarLoom reads; readers refuse a newer one. */
-export const PLUGIN_SCHEMA_VERSION = 1;
+/** The extension manifest format (`cedarloom-extension.json`) this CedarLoom reads; readers refuse a newer one. */
+export const EXTENSION_SCHEMA_VERSION = 1;
 /** The lockfile format (`cedarloom.lock.json`) this CedarLoom writes and reads. */
 export const LOCK_SCHEMA_VERSION = 1;
 /** The export folder's index format (`cedarloom-export.json`) this CedarLoom writes and reads. */
@@ -27,25 +27,26 @@ const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: num
     }, `${min} to ${max} entries`)
     .meta(min > 0 ? { minProperties: min, maxProperties: max } : { maxProperties: max });
 
-/** A plugin's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
-// The first parts of the built-in node types (trigger, agent, command, file, human, workflow, condition, join): no
-// publisher takes one, so `trigger.acme/go` never counts as a trigger and no plugin passes for built in.
-const BUILT_IN = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
-export const PluginId = z
+/** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
+// Publishers no extension takes: the first parts of the built-in node types (trigger, agent, command, file, human,
+// workflow, condition, join), so `trigger.acme/go` never counts as a trigger, and `cedarloom`, so no extension passes
+// for first-party.
+const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0])), "cedarloom"];
+export const ExtensionId = z
   .string()
-  .regex(new RegExp(`^(?!(?:${BUILT_IN.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))
-  .register(fileFormats, { id: "PluginId" });
+  .regex(new RegExp(`^(?!(?:${RESERVED.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))
+  .register(fileFormats, { id: "ExtensionId" });
 
-// An action's name in its plugin, lower case, so a node type `<plugin id>/<action>` matches the workflow's pattern.
+// An action's name in its extension, lower case, so a node type `<extension id>/<action>` matches the workflow's pattern.
 const ActionId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 
 /**
- * Whether a node type names a plugin action, `<plugin id>/<action>` by the manifest's own rules, so a manifest and a
+ * Whether a node type names an extension action, `<extension id>/<action>` by the manifest's own rules, so a manifest and a
  * node type never disagree; any other type is built in or unknown.
  */
-export const isPluginType = (type: string): boolean => {
-  const [plugin = "", action = "", ...rest] = type.split("/");
-  return rest.length === 0 && PluginId.safeParse(plugin).success && ActionId.safeParse(action).success;
+export const isExtensionType = (type: string): boolean => {
+  const [extension = "", action = "", ...rest] = type.split("/");
+  return rest.length === 0 && ExtensionId.safeParse(extension).success && ActionId.safeParse(action).success;
 };
 const CredentialId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/);
@@ -53,7 +54,7 @@ const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]
 // The URL parser decides: an origin is canonical when it is its own `origin` (lower case, no default port, no path,
 // user or password), so `https://Example.com`, `https://a.com:443` and `https://0x7f.1` are refused.
 const isOrigin = (value: string): boolean => URL.canParse(value) && new URL(value).origin === value;
-// An https origin a plugin reaches through the host; it has no network of its own (pending owner decision).
+// An https origin an extension reaches through the host; it has no network of its own (pending owner decision).
 const Origin = z
   .string()
   .max(300)
@@ -72,15 +73,15 @@ const HeaderName = z
 // How the host adds a credential to a request, after the OpenAPI Security Scheme Object
 // (https://spec.openapis.org/oas/v3.1.0#security-scheme-object), headers only: `Authorization: Bearer <value>`,
 // `Authorization: Basic <user:value>` with the user part the user enters, or a header of its own. It comes from the
-// manifest, never from the request, so a plugin cannot place the value where a host would store and return it.
+// manifest, never from the request, so an extension cannot place the value where a host would store and return it.
 const CredentialScheme = z
   .discriminatedUnion("type", [
     z.strictObject({ type: z.literal("http"), scheme: z.enum(["bearer", "basic"]) }),
     z.strictObject({ type: z.literal("apiKey"), in: z.literal("header"), name: HeaderName }),
   ])
-  .describe("The host refuses a request in which the plugin sets this header itself");
+  .describe("The host refuses a request in which the extension sets this header itself");
 
-// The host fetches for the plugin and adds its credentials, which the plugin never sees (pending owner decision).
+// The host fetches for the extension and adds its credentials, which the extension never sees (pending owner decision).
 const Credential = z.strictObject({
   description,
   scheme: CredentialScheme,
@@ -94,17 +95,17 @@ const Capabilities = z.strictObject({
   net: distinct(Origin)
     .max(32)
     .optional()
-    .describe("Hosts the plugin may call through the host's fetch, and no others"),
+    .describe("Hosts the extension may call through the host's fetch, and no others"),
   credentials: sized(z.record(CredentialId, Credential), 16)
     .optional()
-    .describe("Credential types the plugin uses; it never receives their values"),
+    .describe("Credential types the extension uses; it never receives their values"),
   projectRead: z.boolean().optional().describe("Reads project files through the host"),
   planWrite: z.boolean().optional().describe("Proposes file writes, which apply only through a plan the user approves"),
 });
 
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 // A keyword whose text would make a validator load or register a schema from elsewhere: a reference out of this
-// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another plugin.
+// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another extension.
 const foreign = (key: string, item: unknown): boolean => {
   if (typeof item !== "string") return false;
   if (key === "$ref" || key === "$dynamicRef") return item !== "" && !item.startsWith("#");
@@ -133,7 +134,7 @@ const outside = (value: unknown): boolean => {
   });
 };
 
-const PluginAction = z.strictObject({
+const ExtensionAction = z.strictObject({
   title: PlainText.min(1).max(200),
   description,
   // JSON Schema 2020-12 allows `true` (any value) and `false` (none) as schemas too.
@@ -161,7 +162,7 @@ const PluginAction = z.strictObject({
   ).optional(),
 });
 
-// A credential bound to a host the plugin may not reach would never be used, or widen `net` behind the user's back.
+// A credential bound to a host the extension may not reach would never be used, or widen `net` behind the user's back.
 const credentialHosts = (capabilities: z.infer<typeof Capabilities> | undefined, ctx: z.RefinementCtx): void => {
   const net = new Set(capabilities?.net);
   for (const [id, credential] of Object.entries(capabilities?.credentials ?? {})) {
@@ -178,16 +179,16 @@ const credentialHosts = (capabilities: z.infer<typeof Capabilities> | undefined,
 };
 
 /**
- * A plugin's manifest, `cedarloom-plugin.json` at the root of its folder: what it is, the protocol version it speaks,
+ * An extension's manifest, `cedarloom-extension.json` at the root of its folder: what it is, the protocol version it speaks,
  * how it starts, the capabilities it asks for, and its actions. Reading it runs nothing. Hooks, triggers, providers and
  * UI contributions are no part of version 1.
  */
-export const PluginManifest = z
+export const ExtensionManifest = z
   .strictObject({
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
-    schemaVersion: z.literal(PLUGIN_SCHEMA_VERSION),
-    kind: z.literal("cedarloom.plugin"),
-    id: PluginId,
+    schemaVersion: z.literal(EXTENSION_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.extension"),
+    id: ExtensionId,
     version: semver,
     name: PlainText.min(1).max(200),
     description,
@@ -195,11 +196,11 @@ export const PluginManifest = z
     api: z
       .string()
       .regex(/^[0-9]{1,4}\.[0-9]{1,4}$/)
-      .describe("The plugin protocol version it needs: the same major version, at least this minor one"),
+      .describe("The extension protocol version it needs: the same major version, at least this minor one"),
     runtime: z.strictObject({
       kind: z.literal("node"),
       entry: ProjectPath.regex(/\.[cm]?js$/, "a .js, .mjs or .cjs file").describe(
-        "The script the host starts, inside the plugin's folder",
+        "The script the host starts, inside the extension's folder",
       ),
     }),
     platforms: distinct(z.enum(["darwin", "linux", "win32"]))
@@ -207,15 +208,15 @@ export const PluginManifest = z
       .optional()
       .describe("Where it runs; every platform when absent"),
     capabilities: Capabilities.optional().describe("None when absent"),
-    contributes: z.strictObject({ actions: sized(z.record(ActionId, PluginAction), 100, 1) }),
+    contributes: z.strictObject({ actions: sized(z.record(ActionId, ExtensionAction), 100, 1) }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
       .describe("Translations of its texts by language; English is the manifest's own"),
   })
   .superRefine((manifest, ctx) => credentialHosts(manifest.capabilities, ctx))
-  .describe("A CedarLoom plugin manifest; readers also refuse values nested over 32 levels deep")
-  .register(fileFormats, { id: "PluginManifest" });
-export type PluginManifest = z.infer<typeof PluginManifest>;
+  .describe("A CedarLoom extension manifest; readers also refuse values nested over 32 levels deep")
+  .register(fileFormats, { id: "ExtensionManifest" });
+export type ExtensionManifest = z.infer<typeof ExtensionManifest>;
 
 // A name of the POSIX portable file name characters, not starting with "-", up to 255 of them; no `.git` in any case,
 // nothing Windows would rename or open as a device (a trailing dot, which also refuses `.` and `..`; CON, NUL, COM0).
@@ -262,7 +263,7 @@ const isGitUrl = (value: string): boolean => {
   return userOk && plain(new URL(value));
 };
 
-/** Where Git fetches a plugin or a workflow folder: an https or ssh URL, or `user@host:path`. */
+/** Where Git fetches an extension or a workflow folder: an https or ssh URL, or `user@host:path`. */
 export const GitUrl = z
   .string()
   .max(2048)
@@ -273,7 +274,7 @@ export const GitUrl = z
     "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~",
   );
 
-const PluginPin = z.strictObject({
+const ExtensionPin = z.strictObject({
   version: semver,
   source: z.strictObject({
     git: GitUrl,
@@ -281,30 +282,30 @@ const PluginPin = z.strictObject({
       .string()
       .regex(/^[0-9a-f]{40}$/)
       .describe("The commit, never a branch or tag that can move"),
-    path: PortablePath.optional().describe("The plugin's folder inside the repository; its root when absent"),
+    path: PortablePath.optional().describe("The extension's folder inside the repository; its root when absent"),
   }),
   digest: Sha256.describe(
-    "SHA-256 of the plugin folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
+    "SHA-256 of the extension folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
   ),
 });
 
 /**
- * The plugins a set of workflows needs, each pinned to a commit and the digest of its files (A29 b), so an import
+ * The extensions a set of workflows needs, each pinned to a commit and the digest of its files (A29 b), so an import
  * fetches the code the exporter ran or refuses it. Git is the only source in 0.1.0 (pending owner decision).
  */
-export const PluginLock = z
+export const ExtensionLock = z
   .strictObject({
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
     schemaVersion: z.literal(LOCK_SCHEMA_VERSION),
     kind: z.literal("cedarloom.lock"),
-    plugins: sized(z.record(PluginId, PluginPin), 500),
+    extensions: sized(z.record(ExtensionId, ExtensionPin), 500),
   })
-  .register(fileFormats, { id: "PluginLock" });
-export type PluginLock = z.infer<typeof PluginLock>;
+  .register(fileFormats, { id: "ExtensionLock" });
+export type ExtensionLock = z.infer<typeof ExtensionLock>;
 
 /**
  * The index of an export folder: each workflow at `workflows/workflow-<id in lower case>.json`, named like a draft so
- * no id becomes a Windows device name, and the plugins they need in `cedarloom.lock.json` beside this file. The
+ * no id becomes a Windows device name, and the extensions they need in `cedarloom.lock.json` beside this file. The
  * workflow store keeps the same layout (pending owner decision).
  */
 export const ExportIndex = z

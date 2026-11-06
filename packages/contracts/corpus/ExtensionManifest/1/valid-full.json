@@ -1,7 +1,7 @@
 {
-  "$schema": "https://example.org/PluginManifest.schema.json",
+  "$schema": "https://example.org/ExtensionManifest.schema.json",
   "schemaVersion": 1,
-  "kind": "cedarloom.plugin",
+  "kind": "cedarloom.extension",
   "id": "acme.jira",
   "version": "2.1.0",
   "name": "Jira",

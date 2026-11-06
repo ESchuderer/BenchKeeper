@@ -2,7 +2,7 @@ import {
   CATALOG_LIMITS,
   type Catalog,
   isPlainText,
-  PluginManifest,
+  ExtensionManifest,
   readCatalog,
   shown,
   translate,
@@ -147,9 +147,9 @@ test("a text in the user's language: the locale, then its base language, then th
 });
 
 const manifestNamed = (name: string) =>
-  PluginManifest.safeParse({
+  ExtensionManifest.safeParse({
     schemaVersion: 1,
-    kind: "cedarloom.plugin",
+    kind: "cedarloom.extension",
     id: "acme.jira",
     version: "1.0.0",
     name,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "PluginLock.schema.json",
+  "$id": "ExtensionLock.schema.json",
   "type": "object",
   "properties": {
     "$schema": {
@@ -15,10 +15,10 @@
       "type": "string",
       "const": "cedarloom.lock"
     },
-    "plugins": {
+    "extensions": {
       "type": "object",
       "propertyNames": {
-        "$ref": "PluginId.schema.json"
+        "$ref": "ExtensionId.schema.json"
       },
       "additionalProperties": {
         "type": "object",
@@ -42,7 +42,7 @@
                 "description": "The commit, never a branch or tag that can move"
               },
               "path": {
-                "description": "The plugin's folder inside the repository; its root when absent",
+                "description": "The extension's folder inside the repository; its root when absent",
                 "type": "string",
                 "maxLength": 1024,
                 "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
@@ -57,7 +57,7 @@
           "digest": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$",
-            "description": "SHA-256 of the plugin folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths"
+            "description": "SHA-256 of the extension folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths"
           }
         },
         "required": [
@@ -73,7 +73,7 @@
   "required": [
     "schemaVersion",
     "kind",
-    "plugins"
+    "extensions"
   ],
   "additionalProperties": false
 }

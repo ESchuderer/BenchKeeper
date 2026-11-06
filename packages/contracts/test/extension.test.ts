@@ -4,11 +4,11 @@ import {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   LOCK_SCHEMA_VERSION,
-  PLUGIN_SCHEMA_VERSION,
-  PluginLock,
-  PluginManifest,
+  EXTENSION_SCHEMA_VERSION,
+  ExtensionLock,
+  ExtensionManifest,
   type Result,
-  isPluginType,
+  isExtensionType,
   readDocument,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
@@ -18,7 +18,7 @@ import { describe, expect, test } from "vitest";
 const root = join(import.meta.dirname, "..");
 const read = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(root, path), "utf8"));
 
-// Every published document, so the plugin formats' references resolve; strict mode refuses unknown keywords.
+// Every published document, so the extension formats' references resolve; strict mode refuses unknown keywords.
 const ajv = new Ajv2020({ strict: true });
 for (const name of await readdir(join(root, "schema"))) {
   ajv.addSchema(JSON.parse(await readFile(join(root, "schema", name), "utf8")));
@@ -29,8 +29,8 @@ const published =
     ajv.getSchema(`${name}.schema.json`)?.(value) === true;
 
 const formats: Record<string, (value: unknown) => Result<unknown>> = {
-  PluginManifest: (value) => readDocument(PluginManifest, PLUGIN_SCHEMA_VERSION, value),
-  PluginLock: (value) => readDocument(PluginLock, LOCK_SCHEMA_VERSION, value),
+  ExtensionManifest: (value) => readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, value),
+  ExtensionLock: (value) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, value),
   ExportIndex: (value) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, value),
 };
 
@@ -56,8 +56,8 @@ describe.each(Object.keys(formats))(
   },
 );
 
-const manifest = await read("corpus/PluginManifest/1/valid-full.json");
-const lock = await read("corpus/PluginLock/1/valid-pins.json");
+const manifest = await read("corpus/ExtensionManifest/1/valid-full.json");
+const lock = await read("corpus/ExtensionLock/1/valid-pins.json");
 const index = await read("corpus/ExportIndex/1/valid-export.json");
 
 // `count` entries named `<prefix><index>`, each `value`.
@@ -76,7 +76,7 @@ const set = (value: unknown, path: (string | number)[], next: unknown): unknown 
 const search = ["contributes", "actions", "search-issues"];
 const credential = ["capabilities", "credentials", "jira-token"];
 const report = ["contributes", "actions", "write-report"];
-const jira = ["plugins", "acme.jira"];
+const jira = ["extensions", "acme.jira"];
 
 /**
  * One change to a valid file: where it goes, the value, whether the published JSON Schema refuses it too, and the issue
@@ -139,7 +139,7 @@ const manifestChanges: Change[] = [
   [
     "an $id",
     [...search, "config", "$defs", "jql", "$id"],
-    "PluginManifest.schema.json",
+    "ExtensionManifest.schema.json",
     false,
     "contributes.actions.search-issues.config",
   ],
@@ -163,6 +163,8 @@ const manifestChanges: Change[] = [
   // The engine reserves the built-in namespaces for its own node types.
   ["an id in a built-in namespace", ["id"], "trigger.acme", true],
   ["an id in the join namespace", ["id"], "join.x", true],
+  // Nor does an extension pass for first-party.
+  ["an id of the cedarloom publisher", ["id"], "cedarloom.jira", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
   ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", true],
 ];
@@ -176,13 +178,13 @@ const lockChanges: Change[] = [
   ["a backslash before a password", [...jira, "source", "git"], "https://git.example.org\\:secret@127.0.0.1:1/a", true],
   ["an empty user over https", [...jira, "source", "git"], "https://@git.example.org/acme/jira.git", false],
   ["an encoded line break", [...jira, "source", "git"], "https://git.example.org/acme/jira%0d%0ahost=x", false],
-  ["501 plugins", ["plugins"], many(501, PluginLock.parse(lock).plugins["acme.jira"], "acme.p"), true],
+  ["501 extensions", ["extensions"], many(501, ExtensionLock.parse(lock).extensions["acme.jira"], "acme.p"), true],
   ["a branch for a commit", [...jira, "source", "commit"], "main", true],
   ["a path outside the repository", [...jira, "source", "path"], "../other", false],
-  ["a path into .git", [...jira, "source", "path"], "plugins/.git", false],
-  ["a path to a Windows device", [...jira, "source", "path"], "plugins/COM1", false],
-  ["a path spelled with ./", [...jira, "source", "path"], "./plugins", false],
-  ["a path ending in /", [...jira, "source", "path"], "plugins/", true],
+  ["a path into .git", [...jira, "source", "path"], "extensions/.git", false],
+  ["a path to a Windows device", [...jira, "source", "path"], "extensions/COM1", false],
+  ["a path spelled with ./", [...jira, "source", "path"], "./extensions", false],
+  ["a path ending in /", [...jira, "source", "path"], "extensions/", true],
   [
     "a digest in upper case",
     [...jira, "digest"],
@@ -199,8 +201,8 @@ const indexChanges: Change[] = [
 ];
 
 describe.each([
-  ["PluginManifest", manifest, manifestChanges],
-  ["PluginLock", lock, lockChanges],
+  ["ExtensionManifest", manifest, manifestChanges],
+  ["ExtensionLock", lock, lockChanges],
   ["ExportIndex", index, indexChanges],
 ] as const)("%s refuses one change to a valid file", (name, valid, changes) => {
   test.for(changes)("%s", ([, path, value, schemaToo, issue = path.join(".")]) => {
@@ -211,7 +213,7 @@ describe.each([
   });
 });
 
-const git = (url: string): boolean => PluginLock.safeParse(set(lock, [...jira, "source", "git"], url)).success;
+const git = (url: string): boolean => ExtensionLock.safeParse(set(lock, [...jira, "source", "git"], url)).success;
 
 test("Git URLs over https and ssh, without a password, an option or a character a terminal or helper reads", () => {
   const taken = [
@@ -254,7 +256,7 @@ test("Git URLs over https and ssh, without a password, an option or a character 
 });
 
 test("each action's configuration schema compiles in Ajv's strict mode, and checks a node's `with`", async () => {
-  const parsed = PluginManifest.parse(manifest);
+  const parsed = ExtensionManifest.parse(manifest);
   const config = parsed.contributes.actions["search-issues"]?.config ?? {};
   const check = ajv.compile(config);
   expect([check({ query: "project = X", limit: 5 }), check({ query: "" }), check({ limit: 5 })]).toEqual([
@@ -277,7 +279,7 @@ test("a configuration schema may refer to itself, name the 2020-12 meta-schema, 
     },
   };
   const taken = [config, true, false].map((value) =>
-    PluginManifest.safeParse(set(manifest, [...search, "config"], value)),
+    ExtensionManifest.safeParse(set(manifest, [...search, "config"], value)),
   );
   expect([...taken.map((result) => result.success), ajv.compile(config)({ $id: "x", child: {} })]).toEqual([
     true,
@@ -295,7 +297,7 @@ test("a foreign keyword is found in a subschema whatever the property is called,
     { items: { $schema: "https://x.example/meta" } },
   ];
   expect(
-    configs.map((config) => PluginManifest.safeParse(set(manifest, [...search, "config"], config)).success),
+    configs.map((config) => ExtensionManifest.safeParse(set(manifest, [...search, "config"], config)).success),
   ).toEqual([false, false, false, false]);
 });
 
@@ -327,7 +329,7 @@ test("a reference out of the schema is found under every keyword that holds a su
     ...lists.map((keyword) => ({ [keyword]: [{ type: "string" }, ref] })),
   ];
   const taken = configs.filter(
-    (config) => PluginManifest.safeParse(set(manifest, [...search, "config"], config)).success,
+    (config) => ExtensionManifest.safeParse(set(manifest, [...search, "config"], config)).success,
   );
   expect([configs.length, taken]).toEqual([2 * maps.length + single.length + lists.length, []]);
 });
@@ -347,7 +349,7 @@ test("a workflow names its own license; an SPDX expression is words of its chara
   expect([taken.filter((license) => !licensed(license)), refused.filter(licensed)]).toEqual([[], []]);
 });
 
-test("a node type names a plugin action by the manifest's own rules: a plugin id, a slash, an action name", () => {
+test("a node type names an extension action by the manifest's own rules: an extension id, a slash, an action name", () => {
   const types = [
     "acme.jira/search",
     "acme.jira",
@@ -356,5 +358,5 @@ test("a node type names a plugin action by the manifest's own rules: a plugin id
     "acme.jira/search/x",
     "/search",
   ];
-  expect(types.map(isPluginType)).toEqual([true, false, false, false, false, false]);
+  expect(types.map(isExtensionType)).toEqual([true, false, false, false, false, false]);
 });

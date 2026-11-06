@@ -10,7 +10,7 @@
     "type": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*([./][a-z][a-z0-9-]*)*$",
-      "description": "A built-in node type such as `command.run`, or a plugin action `publisher.name/action`; the engine refuses types it does not know"
+      "description": "A built-in node type such as `command.run`, or an extension action `publisher.name/action`; the engine refuses types it does not know"
     },
     "with": {
       "description": "The node's configuration; the engine checks it against the node type",

@@ -1,7 +1,7 @@
 import {
   type Finding,
   type HandleType,
-  isPluginType,
+  isExtensionType,
   NODE_CONFIGS,
   type WorkflowDefinition,
 } from "@cedarloom/contracts";
@@ -41,11 +41,14 @@ type Node = WorkflowDefinition["nodes"][number];
 
 /** The issues of a node's `with` (checked as `{}` when absent), or a finding when its type is unknown. */
 const configIssues = (node: Node, actions: ActionCatalog): { path: string; code: string }[] | Finding => {
-  // A plugin action the catalog lacks is not installed: the workflow is fine, but cannot run here.
-  if (isPluginType(node.type)) {
+  // An extension action the catalog lacks is not installed: the workflow is fine, but cannot run here.
+  if (isExtensionType(node.type)) {
     const action = actions.get(node.type);
     return (
-      action?.check(node.with ?? {}) ?? { code: "workflow.plugin-missing", params: { node: node.id, type: node.type } }
+      action?.check(node.with ?? {}) ?? {
+        code: "workflow.extension-missing",
+        params: { node: node.id, type: node.type },
+      }
     );
   }
   const schema = own(NODE_CONFIGS, node.type);
@@ -200,13 +203,13 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 
 /**
  * A28: a run a schedule starts only reports in 0.1.0, so its workflow has no node that may write a file: no file.write,
- * and no workflow.run, whose child the validator cannot see. No plugin action either, which may write through the
+ * and no workflow.run, whose child the validator cannot see. No extension action either, which may write through the
  * host or change other systems (pending owner decision).
  */
 const reportOnly = ({ nodes }: Graph): Finding[] =>
   nodes.some((node) => node.type === "trigger.schedule")
     ? nodes.flatMap((node): Finding[] => {
-        if (isPluginType(node.type)) return [{ code: "workflow.report-only-plugin", params: { node: node.id } }];
+        if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
         const writes = node.type === "file.write" || node.type === "workflow.run";
         return writes ? [{ code: "workflow.report-only-write", params: { node: node.id } }] : [];
       })
@@ -283,14 +286,14 @@ const valid = ({ from, to }: Item): boolean => typeof from === "string" && typeo
 /**
  * The findings of a workflow's graph, beyond its schema: duplicate ids, one trigger, known node types, edges between
  * existing, compatible handles, one source per data input and output, joins with branches, no cycle, and every node
- * reached. Edges of nodes of an unknown type, or of a plugin action `actions` lacks, get no further findings. None with
+ * reached. Edges of nodes of an unknown type, or of an extension action `actions` lacks, get no further findings. None with
  * severity `error`: the editor and the CLI accept the workflow.
  */
 export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCatalog = new Map()): Finding[] => {
   const [nodes, edges] = [unique(workflow.nodes), unique(workflow.edges)];
-  // Only plugin types by the contracts' rules: a catalog never stands in for a built-in type or any other name.
-  const plugins: ActionCatalog = new Map([...actions].filter(([type]) => isPluginType(type)));
-  const types = new Map(nodes.map((node) => [node.id, nodeType(node.type, plugins)]));
+  // Only extension types by the contracts' rules: a catalog never stands in for a built-in type or any other name.
+  const extensions: ActionCatalog = new Map([...actions].filter(([type]) => isExtensionType(type)));
+  const types = new Map(nodes.map((node) => [node.id, nodeType(node.type, extensions)]));
   const lookup = { workflow, types };
   const resolved = edges.map((edge) => ({
     edge,

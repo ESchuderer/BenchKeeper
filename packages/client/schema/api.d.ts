@@ -966,13 +966,13 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "workflow.report-only-plugin";
+            code: "workflow.report-only-extension";
             params: {
                 node: string;
             };
         } | {
             /** @constant */
-            code: "workflow.plugin-missing";
+            code: "workflow.extension-missing";
             params: {
                 node: string;
                 type: string;
@@ -1582,13 +1582,13 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "workflow.report-only-plugin";
+            code: "workflow.report-only-extension";
             params: {
                 node: string;
             };
         } | {
             /** @constant */
-            code: "workflow.plugin-missing";
+            code: "workflow.extension-missing";
             params: {
                 node: string;
                 type: string;

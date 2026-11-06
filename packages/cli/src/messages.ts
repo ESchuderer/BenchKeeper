@@ -101,10 +101,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
   "workflow.report-only-write": (p) =>
     `Node ${p.node} may write files, but a schedule starts this workflow, and a scheduled run only reports.`,
-  "workflow.report-only-plugin": (p) =>
-    `Node ${p.node} runs a plugin action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports.`,
-  "workflow.plugin-missing": (p) =>
-    `Node ${p.node} runs ${p.type}, a plugin action that is not installed, so the workflow cannot run until its plugin is.`,
+  "workflow.report-only-extension": (p) =>
+    `Node ${p.node} runs an extension action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports.`,
+  "workflow.extension-missing": (p) =>
+    `Node ${p.node} runs ${p.type}, an extension action that is not installed, so the workflow cannot run until its extension is.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.registry-exists": (p) =>

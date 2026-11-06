@@ -33,12 +33,12 @@ export type ActionContext = Omit<RunParams, "action"> & {
 /** An action returns the values of its data outputs; it throws to fail. */
 export type Action = (context: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
 
-export type PluginOptions = {
+export type ExtensionOptions = {
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
   /**
    * Called once the host is gone: on its `exit`, or when the input ends or closes (a host that crashed or was
-   * killed). The code is 0 after `shutdown` and 1 otherwise, as a language server does; on the real stdio the plugin's
+   * killed). The code is 0 after `shutdown` and 1 otherwise, as a language server does; on the real stdio the extension's
    * process exits with it.
    */
   onExit?: (code: number) => void;
@@ -75,7 +75,7 @@ const outputsOf = (value: unknown): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(json));
 };
 
-/* v8 ignore start -- a plugin's own process on its real stdio; the spawned plugin of the tests runs it */
+/* v8 ignore start -- an extension's own process on its real stdio; the spawned extension of the tests runs it */
 // Standard output carries the protocol: its writes (console.log, console.dir, process.stdout.write) go to standard
 // error, and the protocol writes through the original.
 const protocolOutput = (): Writable => {
@@ -88,11 +88,11 @@ const protocolOutput = (): Writable => {
 /* v8 ignore stop */
 
 /**
- * Serves a plugin's actions to the host over stdio (or the given streams) until the host is gone. On the real stdio,
- * what plugin code writes through `process.stdout` goes to standard error; an action logs with `context.log`.
+ * Serves an extension's actions to the host over stdio (or the given streams) until the host is gone. On the real stdio,
+ * what extension code writes through `process.stdout` goes to standard error; an action logs with `context.log`.
  */
-export const definePlugin = (actions: Record<string, Action>, options: PluginOptions = {}): void => {
-  /* v8 ignore start -- a plugin's own process on its real stdio; the spawned plugin of the tests runs it */
+export const defineExtension = (actions: Record<string, Action>, options: ExtensionOptions = {}): void => {
+  /* v8 ignore start -- an extension's own process on its real stdio; the spawned extension of the tests runs it */
   const { input = process.stdin, output = protocolOutput(), onExit = (code) => process.exit(code) } = options;
   /* v8 ignore stop */
   const connection = createMessageConnection(new StreamMessageReader(input), new StreamMessageWriter(output));
@@ -105,7 +105,7 @@ export const definePlugin = (actions: Record<string, Action>, options: PluginOpt
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);
-    // A log line that cannot be sent is lost, not a crash of the plugin: String turns a refusal into nothing, and a
+    // A log line that cannot be sent is lost, not a crash of the extension: String turns a refusal into nothing, and a
     // connection already gone (an action logging after its host ended) throws at once.
     const send = (message: string, level: LogParams["level"] = "info"): void => {
       try {
@@ -121,7 +121,7 @@ export const definePlugin = (actions: Record<string, Action>, options: PluginOpt
     }
   });
   let shutDown = false;
-  // Disposing the connection also removes its close listener, so the plugin ends once.
+  // Disposing the connection also removes its close listener, so the extension ends once.
   const end = (): void => {
     connection.dispose();
     onExit(shutDown ? 0 : 1);
@@ -132,7 +132,7 @@ export const definePlugin = (actions: Record<string, Action>, options: PluginOpt
   });
   connection.onNotification(exit, end);
   // A host that crashed or was killed sends no exit: its end of the input closes, and a running action must not keep
-  // the plugin alive.
+  // the extension alive.
   connection.onClose(end);
   connection.listen();
 };

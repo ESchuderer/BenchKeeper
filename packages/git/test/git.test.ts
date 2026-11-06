@@ -74,23 +74,23 @@ const parent = (): string => mkdtempSync(join(root, "parent-"));
 const codeOf = (result: Result<unknown>): unknown => (result.ok ? "ok" : result.finding);
 const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
 
-const plugin = source({
-  "README.md": "outside the plugin folder\n",
-  "plugin/cedarloom-plugin.json": '{ "id": "acme.jira" }\n',
-  "plugin/dist/main.js": { mode: "100755", content: "console.log(1);\n" },
+const extension = source({
+  "README.md": "outside the extension folder\n",
+  "extension/cedarloom-extension.json": '{ "id": "acme.jira" }\n',
+  "extension/dist/main.js": { mode: "100755", content: "console.log(1);\n" },
 });
 
 test("reads the files of a folder at a tag or a commit, with the commit and the digest of their listing", async () => {
   const into = parent();
-  const byTag = await fetchLocal({ url: plugin.url, ref: "v1", path: "plugin" }, { parent: into });
-  const byCommit = await fetchLocal({ url: plugin.url, ref: plugin.commit, path: "plugin" }, { parent: into });
+  const byTag = await fetchLocal({ url: extension.url, ref: "v1", path: "extension" }, { parent: into });
+  const byCommit = await fetchLocal({ url: extension.url, ref: extension.commit, path: "extension" }, { parent: into });
   const files: ["100644" | "100755", string, string][] = [
-    ["100644", "cedarloom-plugin.json", '{ "id": "acme.jira" }\n'],
+    ["100644", "cedarloom-extension.json", '{ "id": "acme.jira" }\n'],
     ["100755", "dist/main.js", "console.log(1);\n"],
   ];
   const listing = files.map(([mode, path, text]) => `${mode} ${sha256(text)} ${path}\n`).join("");
   const expected: Tree = {
-    commit: plugin.commit,
+    commit: extension.commit,
     files: files.map(([mode, path, text]) => ({ mode, path, sha256: sha256(text), content: Buffer.from(text) })),
     digest: sha256(listing),
   };
@@ -103,11 +103,11 @@ test("reads the files of a folder at a tag or a commit, with the commit and the 
 }, 30_000);
 
 test("the whole tree when no folder is named, in path order", async () => {
-  const tree = await fetchLocal({ url: plugin.url, ref: "main" }, { parent: parent() });
+  const tree = await fetchLocal({ url: extension.url, ref: "main" }, { parent: parent() });
   expect(tree.ok ? tree.value.files.map((file) => file.path) : tree).toEqual([
     "README.md",
-    "plugin/cedarloom-plugin.json",
-    "plugin/dist/main.js",
+    "extension/cedarloom-extension.json",
+    "extension/dist/main.js",
   ]);
 }, 30_000);
 
@@ -115,7 +115,7 @@ test("a tree with a link, a submodule, a name that is not portable or two names 
   // Beside a file main.js: the entry, the kind and the path the finding names, control characters escaped.
   const trees: [Entry, string, string, string][] = [
     [{ mode: "120000", content: "../../.ssh/id_ed25519" }, "dir/x", "link", "dir/x"],
-    [{ submodule: plugin.commit }, "dir/x", "submodule", "dir/x"],
+    [{ submodule: extension.commit }, "dir/x", "submodule", "dir/x"],
     ["text", "dir/a file.txt", "name", "dir/a file.txt"],
     ["text", "ok\u001b[2K\rall-verified.txt", "name", "ok\\u001b[2K all-verified.txt"],
     ["text", "Main.js", "case", "main.js"],
@@ -163,9 +163,9 @@ test("a tree over a limit is refused whole: files, one file's bytes, all bytes, 
 }, 30_000);
 
 test("a fetch that brings far more than the folder may hold is refused, also when the bulk lies outside the folder", async () => {
-  const bulky = source({ "plugin/a.txt": "a", "big.bin": randomBytes(2_400_000).toString("base64") });
+  const bulky = source({ "extension/a.txt": "a", "big.bin": randomBytes(2_400_000).toString("base64") });
   const limits = { files: 9, bytes: 1000, fileBytes: 1000 };
-  const tree = await fetchLocal({ url: bulky.url, ref: "v1", path: "plugin" }, { parent: parent(), limits });
+  const tree = await fetchLocal({ url: bulky.url, ref: "v1", path: "extension" }, { parent: parent(), limits });
   expect(codeOf(tree)).toEqual({
     code: "git.too-large",
     params: { path: null, found: expect.any(Number), limit: 2000 + 1024 * 1024, unit: "bytes" },
@@ -186,11 +186,11 @@ test("a source is refused before git runs: a password, a space, an option, refsp
     "https://git.example.org\\@127.0.0.1/acme/jira",
   ];
   const refs = ["main:refs/heads/x", "v1^{tree}", "a..b", "main.lock", "-x"];
-  const paths = ["../x", ".git/hooks", "plugin/.", "CON", "nul.txt", "COM0", "a.", "a\\b", "-x", "a".repeat(256)];
+  const paths = ["../x", ".git/hooks", "extension/.", "CON", "nul.txt", "COM0", "a.", "a\\b", "-x", "a".repeat(256)];
   const sources: [Source, string][] = [
     ...urls.map((url): [Source, string] => [{ url, ref: "v1" }, "url"]),
-    ...refs.map((ref): [Source, string] => [{ url: plugin.url, ref }, "ref"]),
-    ...paths.map((path): [Source, string] => [{ url: plugin.url, ref: "v1", path }, "path"]),
+    ...refs.map((ref): [Source, string] => [{ url: extension.url, ref }, "ref"]),
+    ...paths.map((path): [Source, string] => [{ url: extension.url, ref: "v1", path }, "path"]),
   ];
   const results = await Promise.all(sources.map(([from]) => fetchLocal(from, { parent: into })));
   expect(results.map(codeOf)).toEqual(sources.map(([, field]) => ({ code: "git.refused-source", params: { field } })));
@@ -199,7 +199,7 @@ test("a source is refused before git runs: a password, a space, an option, refsp
 
 test("fetchTree takes https and ssh URLs only, by the contracts' rule, and git's messages name no URL", async () => {
   const results = await Promise.all(
-    [plugin.url, "ext::false", "https://127.0.0.1:1/acme/secret-token.git"].map(async (url) =>
+    [extension.url, "ext::false", "https://127.0.0.1:1/acme/secret-token.git"].map(async (url) =>
       codeOf(await fetchTree({ url, ref: "v1" }, { parent: parent() })),
     ),
   );
@@ -233,23 +233,23 @@ test("no hook runs, not even one the user's own configuration names, and a bare 
   vi.stubEnv("HOME", home);
   vi.stubEnv("USERPROFILE", home);
   // Plain git runs that hook on every ref update, and the fetch updates a ref too.
-  git(plugin.dir, ["update-ref", "refs/heads/hooked", plugin.commit]);
+  git(extension.dir, ["update-ref", "refs/heads/hooked", extension.commit]);
   const before = existsSync(marker) ? readFileSync(marker, "utf8") : "";
-  const tree = await fetchLocal({ url: plugin.url, ref: "v1" }, { parent: parent() });
+  const tree = await fetchLocal({ url: extension.url, ref: "v1" }, { parent: parent() });
   expect([before.length > 0, tree.ok, readFileSync(marker, "utf8")]).toEqual([true, true, before]);
 }, 30_000);
 
 test("GIT_DIR in CedarLoom's environment does not send git to another repository", async () => {
   const other = source({ "x.txt": "x" });
   vi.stubEnv("GIT_DIR", join(other.dir, ".git"));
-  const tree = await fetchLocal({ url: plugin.url, ref: "v1", path: "plugin" }, { parent: parent() });
+  const tree = await fetchLocal({ url: extension.url, ref: "v1", path: "extension" }, { parent: parent() });
   vi.unstubAllEnvs();
   expect([tree.ok, git(other.dir, ["for-each-ref", "refs/cedarloom"])]).toEqual([true, ""]);
 }, 30_000);
 
 test("git failures name their step: no git, out of time, an unknown ref, a ref to no commit, a missing folder", async () => {
-  const blob = git(plugin.dir, ["hash-object", "-w", "--stdin"], "a file, not a commit");
-  git(plugin.dir, ["tag", "blob-tag", blob]);
+  const blob = git(extension.dir, ["hash-object", "-w", "--stdin"], "a file, not a commit");
+  git(extension.dir, ["tag", "blob-tag", blob]);
   const tries: [Omit<Source, "url">, Omit<FetchOptions, "parent">, string, RegExp][] = [
     [{ ref: "missing" }, {}, "fetch", /missing/],
     [{ ref: "blob-tag" }, {}, "fetch", /expected commit/],
@@ -258,10 +258,10 @@ test("git failures name their step: no git, out of time, an unknown ref, a ref t
   ];
   const results = await Promise.all(
     tries.map(async ([from, options]) =>
-      codeOf(await fetchLocal({ url: plugin.url, ...from }, { parent: parent(), ...options })),
+      codeOf(await fetchLocal({ url: extension.url, ...from }, { parent: parent(), ...options })),
     ),
   );
-  const noGit = await fetchTreeOver(["file"], "no-such-git")({ url: plugin.url, ref: "v1" }, { parent: parent() });
+  const noGit = await fetchTreeOver(["file"], "no-such-git")({ url: extension.url, ref: "v1" }, { parent: parent() });
   expect([...results, codeOf(noGit)]).toEqual([
     ...tries.map(([, , step, error]) => ({
       code: "git.failed",

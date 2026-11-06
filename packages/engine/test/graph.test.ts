@@ -1,11 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  ExtensionId,
   type Finding,
   HandleType,
-  isPluginType,
+  isExtensionType,
   NODE_CONFIGS,
-  PluginId,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
@@ -13,9 +13,9 @@ import {
   type ActionCatalog,
   compatibility,
   endType,
+  type ExtensionAction,
   NODE_TYPES,
   nodeType,
-  type PluginAction,
 } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
@@ -423,7 +423,7 @@ test("only control edges from the trigger make a node run: a node that data alon
 });
 
 // A catalog of one installed action: a JSON field in, a number out, and a `with` that needs a `query` text.
-const search: PluginAction = {
+const search: ExtensionAction = {
   inputs: { project: { type: "string", required: true }, filter: { type: "json" } },
   outputs: { count: { type: "number" } },
   check: (config) =>
@@ -434,7 +434,7 @@ const search: PluginAction = {
 const actions: ActionCatalog = new Map([["acme.jira/search", search]]);
 const found = (definition: WorkflowDefinition): Finding[] => validateWorkflow(definition, actions);
 
-test("a plugin action node gets the catalog's data handles, `run` in and `done` or `failed` out, and its check of `with`", () => {
+test("an extension action node gets the catalog's data handles, `run` in and `done` or `failed` out, and its check of `with`", () => {
   const query = '{"query":"project = X"}';
   const nodes = [start, `s:acme.jira/search:${query}`, "c:command.run", "n:condition"];
   const ok = ["start.start>s.run", "@p>s.project", "s.done>c.run", "s.count>n.value", "s.failed>n.run"];
@@ -458,12 +458,12 @@ test("a plugin action node gets the catalog's data handles, `run` in and `done` 
   ]);
 });
 
-test("a plugin action that is not installed is a finding of its own, and its edges and reach get none", () => {
+test("an extension action that is not installed is a finding of its own, and its edges and reach get none", () => {
   const nodes = [start, "x:acme.other/act", "c:command.run"];
   expect(found(workflow(nodes, ["start.start>x.run", "x.done>c.run", "x.out>c.run"]))).toEqual([
-    { code: "workflow.plugin-missing", params: { node: "x", type: "acme.other/act" } },
+    { code: "workflow.extension-missing", params: { node: "x", type: "acme.other/act" } },
   ]);
-  // Only `publisher.name/action` is a plugin type; a catalog never stands in for a built-in or another name.
+  // Only `publisher.name/action` is an extension type; a catalog never stands in for a built-in or another name.
   const named = new Map([...actions, ["command.run", search], ["acme/search", search]]);
   expect(validateWorkflow(workflow([start, "y:acme/search"], ["start.start>y.run"]), named)).toEqual([
     { code: "workflow.unknown-node-type", params: { node: "y", type: "acme/search" } },
@@ -481,9 +481,9 @@ test("a plugin action that is not installed is a finding of its own, and its edg
     "acme.jira/search/more",
     long,
   ];
-  expect(names.map(isPluginType)).toEqual([true, false, false, false, false, false, false, false]);
+  expect(names.map(isExtensionType)).toEqual([true, false, false, false, false, false, false, false]);
   // The same rule as a manifest's id: what a manifest may name, a node type may run.
-  expect(names.map((name) => PluginId.safeParse(name.split("/")[0]).success)).toEqual([
+  expect(names.map((name) => ExtensionId.safeParse(name.split("/")[0]).success)).toEqual([
     true,
     false,
     true,
@@ -500,7 +500,7 @@ test("a plugin action that is not installed is a finding of its own, and its edg
   ]);
 });
 
-test("A28: under a schedule a plugin action is refused, installed or not (pending owner decision)", () => {
+test("A28: under a schedule an extension action is refused, installed or not (pending owner decision)", () => {
   const nodes = ["start:trigger.schedule", 's:acme.jira/search:{"query":"x"}', "x:acme.other/act"];
   expect(
     found(
@@ -509,8 +509,8 @@ test("A28: under a schedule a plugin action is refused, installed or not (pendin
       }),
     ),
   ).toEqual([
-    { code: "workflow.plugin-missing", params: { node: "x", type: "acme.other/act" } },
-    { code: "workflow.report-only-plugin", params: { node: "s" } },
-    { code: "workflow.report-only-plugin", params: { node: "x" } },
+    { code: "workflow.extension-missing", params: { node: "x", type: "acme.other/act" } },
+    { code: "workflow.report-only-extension", params: { node: "s" } },
+    { code: "workflow.report-only-extension", params: { node: "x" } },
   ]);
 });

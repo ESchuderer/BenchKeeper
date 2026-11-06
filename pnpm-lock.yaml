@@ -166,9 +166,15 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@cedarloom/plugin-sdk':
+      '@cedarloom/extension-sdk':
         specifier: workspace:*
-        version: link:../plugin-sdk
+        version: link:../extension-sdk
+      vscode-jsonrpc:
+        specifier: 10.0.0
+        version: 10.0.0
+
+  packages/extension-sdk:
+    dependencies:
       vscode-jsonrpc:
         specifier: 10.0.0
         version: 10.0.0
@@ -190,12 +196,6 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
-
-  packages/plugin-sdk:
-    dependencies:
-      vscode-jsonrpc:
-        specifier: 10.0.0
-        version: 10.0.0
 
   packages/server:
     dependencies:

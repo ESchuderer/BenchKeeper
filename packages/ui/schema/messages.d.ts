@@ -79,6 +79,7 @@ export interface MessageValues {
   "problem.duplicateEdge": { edge: string | number; of: string | number };
   "problem.duplicateId": { kind: string | number; id: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
+  "problem.extensionMissing": { node: string | number; type: string | number };
   "problem.incompatibleHandles": { edge: string | number; from: string | number; to: string | number };
   "problem.invalidConfig": { node: string | number; issues: string | number };
   "problem.joinBranches": { node: string | number; count: string | number };
@@ -87,8 +88,7 @@ export interface MessageValues {
   "problem.moreIssues": { issues: string | number; count: string | number };
   "problem.nodeInput": { handle: string | number; node: string | number };
   "problem.optionalInput": { handle: string | number; node: string | number; input: string | number };
-  "problem.pluginMissing": { node: string | number; type: string | number };
-  "problem.reportOnlyPlugin": { node: string | number };
+  "problem.reportOnlyExtension": { node: string | number };
   "problem.reportOnlyWrite": { node: string | number };
   "problem.scheduleInput": { input: string | number };
   "problem.severity": { severity: string };

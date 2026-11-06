@@ -220,7 +220,13 @@ const greet = async (
 ): Promise<Finding | Result<never> | undefined> => {
   const ask = session.connection.sendRequest(initialize, { protocol: PROTOCOL, locale: launch.locale });
   const answer = await within(ask, limits.startMs, "no answer to the handshake").catch((error: unknown) => error);
-  if (answer instanceof Error) return failed(launch.manifest.id, "initialize", session.broken() ?? reason(answer));
+  if (answer instanceof Error) {
+    // Its reason is on standard error, complete only once the process has closed (an entry that is missing ends Node
+    // before its message is read); a process that never started never closes, so the wait has a bound.
+    session.kill();
+    await Promise.race([session.stopped, new Promise((resolve) => setTimeout(resolve, limits.stopMs).unref())]);
+    return failed(launch.manifest.id, "initialize", session.broken() ?? reason(answer));
+  }
   const mismatch = handshake(answer, launch.manifest);
   return mismatch === undefined ? undefined : refused(launch.manifest.id, mismatch);
 };

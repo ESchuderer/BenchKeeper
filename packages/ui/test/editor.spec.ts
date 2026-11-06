@@ -145,10 +145,12 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(card("command-run-1")).toBeVisible();
   await expect(problems()).toContainText("Nothing leads to node command-run-1");
-  await expect(problems().getByRole("status")).toHaveText("1 problem.");
+  // A new node has no configuration yet, and command.run needs its command.
+  await expect(problems().getByRole("status")).toHaveText("2 problems.");
   await connect(handle("start", "start"), handle("command-run-1", "run"));
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await expect(problems().getByRole("status")).toHaveText("No problems.");
+  await expect(problems().getByRole("status")).toHaveText("1 problem.");
+  await expect(problems()).toContainText("command-run-1");
   await page.getByRole("combobox", { name: "Node type" }).click();
   await page.getByRole("option", { name: "agent.run" }).click();
   await page.getByRole("button", { name: "Add node" }).click();

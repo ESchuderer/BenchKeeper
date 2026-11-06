@@ -739,6 +739,26 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.input-unknown";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-missing";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-invalid";
+            params: {
+                input: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -920,6 +940,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.report-only-write";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.unreachable";
             params: {
                 node: string;
@@ -963,6 +989,20 @@ export interface components {
             params: {
                 agent: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
             };
         } | {
             /** @constant */
@@ -1200,6 +1240,26 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.input-unknown";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-missing";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-invalid";
+            params: {
+                input: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1381,6 +1441,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.report-only-write";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.unreachable";
             params: {
                 node: string;
@@ -1424,6 +1490,20 @@ export interface components {
             params: {
                 agent: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
             };
         } | {
             /** @constant */

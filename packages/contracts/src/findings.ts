@@ -33,6 +33,9 @@ export const Finding = z
     finding("run.not-found", { runId: z.string() }),
     finding("run.interrupted", { runId: z.string(), undoes: z.string().nullable() }),
     finding("run.failed", { runId: z.string(), undoes: z.string().nullable() }),
+    finding("run.input-unknown", { input: z.string() }),
+    finding("run.input-missing", { input: z.string() }),
+    finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -58,6 +61,7 @@ export const Finding = z
     finding("workflow.exclusive-sources", { node: z.string(), handle: z.string(), from: z.string() }),
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
+    finding("workflow.report-only-write", { node: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
     finding("accounts.registry-exists", { path: z.string() }),
@@ -68,6 +72,10 @@ export const Finding = z
     finding("accounts.pool-terms", { pool: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
+    // The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed.
+    finding("launch.settings-unproven", { agent: z.string(), version: z.string() }),
+    // Every lease of the account is taken: the most workers it runs at once.
+    finding("launch.account-full", { account: z.string(), max: z.int() }),
     // gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused.
     finding("launch.gh-login", { error: z.string().nullable() }),
   ])
@@ -98,6 +106,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.not-found": { severity: "error", effort: "manual" },
   "run.interrupted": { severity: "warning", effort: "command" },
   "run.failed": { severity: "warning", effort: "command" },
+  "run.input-unknown": { severity: "error", effort: "command" },
+  "run.input-missing": { severity: "error", effort: "command" },
+  "run.input-invalid": { severity: "error", effort: "command" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },
@@ -122,6 +133,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.exclusive-sources": { severity: "warning", effort: "manual" },
   "workflow.optional-input": { severity: "error", effort: "manual" },
   "workflow.schedule-input": { severity: "error", effort: "manual" },
+  "workflow.report-only-write": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
   "accounts.registry-exists": { severity: "error", effort: "manual" },
@@ -129,5 +141,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
+  "launch.settings-unproven": { severity: "error", effort: "manual" },
+  "launch.account-full": { severity: "warning", effort: "manual" },
   "launch.gh-login": { severity: "error", effort: "manual" },
 };

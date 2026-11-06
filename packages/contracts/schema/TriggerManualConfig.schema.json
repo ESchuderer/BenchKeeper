@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "TriggerManualConfig.schema.json",
+  "type": "object",
+  "properties": {
+    "precheck": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "description": "A read-only command run before the workflow: exit code 0 starts the run, any other skips it"
+    }
+  },
+  "additionalProperties": false
+}

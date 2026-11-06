@@ -57,3 +57,19 @@ CREATE TABLE contract_checks (
   PRIMARY KEY (agent, version)
 ) STRICT;
 `;
+
+/** Schema 4: one row per worker launch; a row without finishedAt is a lease on its account. */
+export const LAUNCH_TABLES = `
+CREATE TABLE launches (
+  runId TEXT PRIMARY KEY,
+  task TEXT NOT NULL,
+  agent TEXT NOT NULL,
+  account TEXT NOT NULL,
+  version TEXT NOT NULL,
+  pid INTEGER NOT NULL,
+  startedAt TEXT NOT NULL,
+  finishedAt TEXT,
+  verdict TEXT CHECK (verdict IN ('pass', 'findings', 'not-run', 'failed', 'interrupted'))
+) STRICT;
+CREATE INDEX launches_running ON launches (account) WHERE finishedAt IS NULL;
+`;

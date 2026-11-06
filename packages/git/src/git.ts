@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
@@ -26,7 +26,7 @@ const shown = (text: string): string =>
     .replace(/[\t\n\r]+/g, " ")
     .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
-const failed = (step: "start" | "fetch" | "list" | "read", error: string): Result<never> => ({
+const failed = (step: "start" | "fetch" | "list" | "read" | "worktree", error: string): Result<never> => ({
   ok: false,
   finding: { code: "git.failed", params: { step, error: shown(error) } },
 });
@@ -346,3 +346,49 @@ export const fetchTreeOver =
       await Promise.allSettled([rm(dir, { recursive: true, force: true, maxRetries: 3 })]);
     }
   };
+
+// A folder's real path; one that is gone by its parent's, so git's `D:/a/b` and Node's `D:\\a\\b` compare equal.
+const real = (folder: string): string => {
+  try {
+    return realpathSync.native(folder);
+  } catch {
+    // A root is always there, so this ends.
+    return join(real(dirname(folder)), basename(folder));
+  }
+};
+
+// Whether git's porcelain listing of worktrees (`-z`) names the folder `path`, compared as real paths.
+const listed = (listing: Buffer, path: string): boolean =>
+  listing
+    .toString()
+    .split("\0")
+    .filter((line) => line.startsWith("worktree "))
+    .some((line) => real(line.slice("worktree ".length)) === real(path));
+
+/**
+ * The worktree of the repository `repo` at `path` on the branch `branch`: the one git lists there, or a new one. The
+ * branch is made from HEAD unless an add that failed left it; a listed worktree whose folder is gone is added again. No
+ * hook runs, not even one the user's configuration names, as for a fetch. `program` is the git to run.
+ */
+export const worktreeOf = async (
+  repo: string,
+  path: string,
+  branch: string,
+  program = "git",
+): Promise<Result<string>> => {
+  const base = { program, cwd: repo, env: environment([]), timeoutMs: 60_000, maxBytes: 1024 * 1024 };
+  const hooks = hooksOff(hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base)));
+  const off = flags([
+    ["core.hooksPath", devNull],
+    ["core.fsmonitor", "false"],
+  ]);
+  const git = (args: string[]): Promise<Ran> => run([...off, ...args], { ...base, env: { ...base.env, ...hooks } });
+  const listing = await git(["worktree", "list", "--porcelain", "-z"]);
+  if (!succeeded(listing)) return failed("worktree", why(listing));
+  const known = listed(listing.stdout, path);
+  if (known && existsSync(path)) return { ok: true, value: path };
+  const branched = succeeded(await git(["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]));
+  const target = branched ? ["--", path, branch] : ["-b", branch, "--", path, "HEAD"];
+  const added = await git(["worktree", "add", "--quiet", ...(known ? ["--force"] : []), ...target]);
+  return succeeded(added) ? { ok: true, value: path } : failed("worktree", why(added));
+};

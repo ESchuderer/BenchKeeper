@@ -1,0 +1,30 @@
+{
+  "$schema": "https://example.org/PackManifest.schema.json",
+  "schemaVersion": 1,
+  "kind": "cedarloom.pack",
+  "id": "acme.frontend",
+  "version": "1.2.0",
+  "name": "Frontend",
+  "description": "Rules, templates, a profile and skills for web UI work.",
+  "license": "MIT",
+  "minApp": "0.1.0",
+  "entries": {
+    "rules/ui.md": { "kind": "rules", "description": "UI screens follow the styleguide and its tokens." },
+    "templates/docs/agents": { "kind": "template" },
+    "profiles/web.json": { "kind": "profile" },
+    "skills/designing-uis": { "kind": "skill" },
+    "skills/frontend-design": {
+      "kind": "skill",
+      "source": { "git": "https://git.example.org/acme/skills.git", "ref": "main", "path": "skills/frontend-design" }
+    },
+    "skills/browser-checks": {
+      "kind": "skill",
+      "description": "Ships scripts, so it is pinned.",
+      "source": {
+        "git": "git@git.example.org:acme/checks.git",
+        "commit": "9b2e4c1f0a8d7e6b5c4a3f2e1d0c9b8a7f6e5d4c",
+        "digest": "3f0c6d1e2b4a59687a8b9c0d1e2f30415263748596a7b8c9d0e1f2031425364a"
+      }
+    }
+  }
+}

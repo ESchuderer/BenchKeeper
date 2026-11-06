@@ -147,7 +147,7 @@ jobs:
       - name: US spelling (typos)
         run: pipx run --spec "typos==$TYPOS_VERSION" typos packages scripts ./*.json ./*.ts ./*.yaml _typos.toml .github/workflows/cedarloom.yml
 
-  # Unit and contract tests with coverage floors (vitest.config.ts) on the three release platforms. The contracts tests
+  # Unit and contract tests on the three release platforms. The contracts tests
   # compare the committed JSON Schema and OpenAPI documents with the ones the schemas generate.
   test:
     needs: areas

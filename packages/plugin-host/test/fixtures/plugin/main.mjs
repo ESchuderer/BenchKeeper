@@ -4,7 +4,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 
@@ -58,7 +57,7 @@ const actions = {
   },
   abuse: async () => ({
     write: await attempt(() => writeFileSync(join(import.meta.dirname, "written.txt"), "x")),
-    writeTemp: await attempt(() => writeFileSync(join(tmpdir(), "cedarloom-plugin.txt"), "x")),
+    writeOutside: await attempt(() => writeFileSync(join(import.meta.dirname, "..", "written.txt"), "x")),
     readOutside: await attempt(() => readFileSync(join(import.meta.dirname, "..", "..", "tsconfig.json"))),
     readOwn: await attempt(() => readFileSync(join(import.meta.dirname, "main.mjs"))),
     spawn: await attempt(() => {

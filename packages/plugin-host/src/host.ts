@@ -128,9 +128,10 @@ const handshake = (answer: unknown, manifest: PluginManifest): "protocol" | "act
   const protocol = Reflect.get(Object(answer), "protocol");
   const actions: unknown = Reflect.get(Object(answer), "actions");
   if (typeof protocol !== "string" || !speaks(protocol)) return "protocol";
-  const named = Object.keys(manifest.contributes.actions).toSorted().join("\n");
-  const served = Array.isArray(actions) ? actions.map(String).toSorted().join("\n") : undefined;
-  return served === named ? undefined : "actions";
+  const named = new Set(Object.keys(manifest.contributes.actions));
+  const served = new Set(Array.isArray(actions) ? actions.map(String) : []);
+  const same = Array.isArray(actions) && served.size === named.size && [...served].every((name) => named.has(name));
+  return same ? undefined : "actions";
 };
 
 type Session = { connection: MessageConnection; stopped: Promise<unknown>; broken: () => string | undefined };

@@ -77,9 +77,9 @@ test("a plugin is refused for another protocol, other actions, or a tier this ma
     start({ locale: "x-fewer" }),
     start({ locale: "x-noactions" }),
     start({ manifest: manifestOf([...ACTIONS, "more"]) }),
-    start({ tier: "community" }),
+    start({ tier: "community", platform: "linux" }),
     start({ tier: "community", platform: "win32", sandbox: wraps }),
-    start({ tier: "community", sandbox: wraps }),
+    start({ tier: "community", platform: "darwin", sandbox: wraps }),
   ]);
   expect(results.map((result) => (result.ok ? "started" : result.finding))).toEqual([
     ...["protocol", "protocol", "protocol", "protocol", "actions", "actions", "actions"].map(refusal),
@@ -122,7 +122,7 @@ test("a plugin that does not start or answer fails its handshake with the reason
   const failures = await Promise.all([
     start({ manifest: gone }),
     start({ locale: "x-silent", limits: { startMs: 200 } }),
-    start({ tier: "community", sandbox: nowhere }),
+    start({ tier: "community", platform: "linux", sandbox: nowhere }),
   ]);
   const deaf = await plugin({ locale: "x-deaf", limits: { stopMs: 100 } });
   const began = Date.now();

@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "WorkflowJson.schema.json",
+  "description": "A workflow document, as in WorkflowDefinition.schema.json"
+}

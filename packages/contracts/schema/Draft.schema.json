@@ -17,7 +17,7 @@
       "$ref": "Sha256.schema.json"
     },
     "workflow": {
-      "description": "A workflow document, as in WorkflowDefinition.schema.json"
+      "$ref": "WorkflowJson.schema.json"
     }
   },
   "required": [

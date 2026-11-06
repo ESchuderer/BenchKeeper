@@ -2239,6 +2239,42 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJsonInput": {
+        "anyOf": [
+          {
+            "not": {
+              "type": "object"
+            },
+            "items": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "const": "__proto__"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            },
+            "not": {
+              "required": [
+                "constructor"
+              ],
+              "properties": {
+                "constructor": {
+                  "type": "object",
+                  "required": [
+                    "prototype"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
       "DraftInfoInput": {
         "type": "object",
         "properties": {
@@ -2279,7 +2315,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256Input"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJsonInput"
+          }
         },
         "required": [
           "id",
@@ -4556,6 +4594,7 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJson": {},
       "DraftInfo": {
         "type": "object",
         "properties": {
@@ -4596,7 +4635,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJson"
+          }
         },
         "required": [
           "id",
@@ -5171,7 +5212,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "workflow": {},
+                  "workflow": {
+                    "$ref": "#/components/schemas/WorkflowJsonInput"
+                  },
                   "replaces": {
                     "anyOf": [
                       {

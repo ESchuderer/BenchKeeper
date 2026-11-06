@@ -1,7 +1,7 @@
-// A plugin on its real stdio, as the host starts one: nothing but the protocol may reach standard output.
-import { definePlugin } from "@cedarloom/plugin-sdk";
+// An extension on its real stdio, as the host starts one: nothing but the protocol may reach standard output.
+import { defineExtension } from "@cedarloom/extension-sdk";
 
-definePlugin({
+defineExtension({
   greet: ({ inputs }) => {
     console.log("a stray line for standard output");
     console.dir({ stray: "object" });

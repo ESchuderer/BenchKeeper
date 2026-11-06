@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 import {
   ACTION_FAILED,
   type Action,
-  definePlugin,
+  defineExtension,
   exit,
   initialize,
   type LogParams,
@@ -12,7 +12,7 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
-} from "@cedarloom/plugin-sdk";
+} from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
   createMessageConnection,
@@ -61,25 +61,25 @@ const actions: Record<string, Action> = {
     }),
 };
 
-type Connected = { host: MessageConnection; toPlugin: PassThrough; logs: LogParams[]; exited: Promise<number> };
+type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
 
-/** The host's end of a connection to a plugin on in-memory streams, the log lines it got, and its exit. */
+/** The host's end of a connection to an extension on in-memory streams, the log lines it got, and its exit. */
 const connect = (): Connected => {
-  const [toPlugin, toHost] = [new PassThrough(), new PassThrough()];
+  const [toExtension, toHost] = [new PassThrough(), new PassThrough()];
   const exited = Promise.withResolvers<number>();
-  definePlugin(actions, { input: toPlugin, output: toHost, onExit: exited.resolve });
-  const host = createMessageConnection(new StreamMessageReader(toHost), new StreamMessageWriter(toPlugin));
+  defineExtension(actions, { input: toExtension, output: toHost, onExit: exited.resolve });
+  const host = createMessageConnection(new StreamMessageReader(toHost), new StreamMessageWriter(toExtension));
   const logs: LogParams[] = [];
   host.onNotification(log, (line) => {
     logs.push(line);
   });
   host.listen();
-  return { host, toPlugin, logs, exited: exited.promise };
+  return { host, toExtension, logs, exited: exited.promise };
 };
 
 const params = { config: { query: "x" }, inputs: { project: "CL" }, run: "r1" };
 
-test("the plugin names its protocol version and actions, runs an action with its context, and logs to the host", async () => {
+test("the extension names its protocol version and actions, runs an action with its context, and logs to the host", async () => {
   const { host, logs } = connect();
   const hello = await host.sendRequest(initialize, { protocol: PROTOCOL, locale: "de" });
   const ran = await host.sendRequest(runAction, { action: "echo", ...params });
@@ -135,19 +135,19 @@ test("the host's cancel aborts the action's signal, also a cancel that comes bef
   ]);
 });
 
-test("the plugin ends with code 0 after shutdown and exit, and with 1 on exit alone or when its input closes", async () => {
+test("the extension ends with code 0 after shutdown and exit, and with 1 on exit alone or when its input closes", async () => {
   const clean = connect();
   await clean.host.sendRequest(shutdown);
   await clean.host.sendNotification(exit);
   const abrupt = connect();
   await abrupt.host.sendNotification(exit);
-  // A host that crashed sends nothing more: its end of the plugin's input closes.
+  // A host that crashed sends nothing more: its end of the extension's input closes.
   const lost = connect();
-  lost.toPlugin.end();
+  lost.toExtension.end();
   expect(await Promise.all([clean.exited, abrupt.exited, lost.exited])).toEqual([0, 1, 1]);
 });
 
-test("a log line after the host is gone is dropped, not thrown into the plugin", async () => {
+test("a log line after the host is gone is dropped, not thrown into the extension", async () => {
   const { host, exited } = connect();
   await host.sendRequest(runAction, { action: "later", ...params });
   await host.sendNotification(exit);
@@ -159,17 +159,17 @@ test("a log line after the host is gone is dropped, not thrown into the plugin",
 const frame = (body: string): string => `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`;
 
 test("malformed frames crash nothing: a broken frame gets no answer, a run with params null -32603, and the next run is answered", async () => {
-  const { host, toPlugin } = connect();
-  toPlugin.write(frame("{not json"));
-  toPlugin.write(frame('{"jsonrpc":"2.0","id":901,"method":"action/run","params":null}'));
-  toPlugin.write(frame('{"no":"json-rpc"}'));
-  toPlugin.write("X-Header: without a length\r\n\r\n");
+  const { host, toExtension } = connect();
+  toExtension.write(frame("{not json"));
+  toExtension.write(frame('{"jsonrpc":"2.0","id":901,"method":"action/run","params":null}'));
+  toExtension.write(frame('{"no":"json-rpc"}'));
+  toExtension.write("X-Header: without a length\r\n\r\n");
   const ran = await host.sendRequest(runAction, { action: "echo", ...params });
   expect(ran.outputs["run"]).toBe("r1");
 });
 
-test("a plugin on its real stdio keeps every other write off standard output, and exits on the host's exit", async () => {
-  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "plugin.mjs")], {
+test("an extension on its real stdio keeps every other write off standard output, and exits on the host's exit", async () => {
+  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "extension.mjs")], {
     stdio: ["pipe", "pipe", "pipe"],
   });
   let stderr = "";

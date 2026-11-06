@@ -1,6 +1,10 @@
 import type { AgentEvent, UsageWindow } from "@cedarloom/agent-contracts";
 import { AgentVersion, type Json } from "@cedarloom/contracts";
 import { z } from "zod";
+import { SETTINGS_SENTINEL } from "./overlay.ts";
+
+// A core tool every session lists: a list without it, empty for one, proves nothing.
+const CORE_TOOL = "Read";
 
 // Only the fields CedarLoom reads; the CLI adds fields with most releases, and the whole line stays in `raw`.
 const Init = z.looseObject({
@@ -91,7 +95,10 @@ export async function* lines(input: AsyncIterable<Buffer>, max: number): AsyncGe
 const initEvent = (data: z.infer<typeof Init>, raw: Json): Extract<AgentEvent, { type: "init" }> => {
   const known = AgentVersion.safeParse(data.claude_code_version);
   const agentVersion = known.success ? known.data : null;
-  return { type: "init", sessionId: data.session_id, agentVersion, model: data.model, tools: data.tools ?? null, raw };
+  const tools = data.tools ?? null;
+  // The settings deny the sentinel by its bare name, which removes it from the tools: its absence proves they applied.
+  const settingsApplied = tools !== null && tools.includes(CORE_TOOL) && !tools.includes(SETTINGS_SENTINEL);
+  return { type: "init", sessionId: data.session_id, agentVersion, model: data.model, tools, settingsApplied, raw };
 };
 
 /**

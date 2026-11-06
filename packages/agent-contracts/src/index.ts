@@ -66,6 +66,8 @@ export type AgentEvent =
       readonly model: string;
       /** The tools the session offers; null when the agent does not list them. */
       readonly tools: readonly string[] | null;
+      /** Whether this session's own init line proves that the CLI applied the launch's settings, sandbox included. */
+      readonly settingsApplied: boolean;
       readonly raw: Json;
     }
   | {

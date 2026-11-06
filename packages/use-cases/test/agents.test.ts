@@ -47,10 +47,7 @@ const probe = {
 } as const;
 const input = { env: {}, probe };
 const checked = (dir: string, cli: ReturnType<typeof runtime>) => checkedVersions(dir, "claude", cli, input);
-const passed = (version: string, verified: string[], settingsApplied = true) => ({
-  ok: true,
-  value: { version, verified, settingsApplied },
-});
+const passed = (version: string, verified: string[]) => ({ ok: true, value: { version, verified } });
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
 test("a version is checked once, before its first launch; a new version is checked again", async () => {
@@ -143,8 +140,7 @@ test("a check is kept under the version the probe ran, and the version read is n
   const dir = state();
   // An update between the version read and the probe, or an init line that reports another form than --version.
   const cli = runtime(["2.1.316", "2.1.317", "2.1.316"], [{ version: "2.1.317", missing: [] }]);
-  // The version read has no proof of its own that the CLI applies the settings.
-  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.317"], false));
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.317"]));
   await checked(dir, cli);
   await checked(dir, cli);
   expect(cli.checkContract).toHaveBeenCalledTimes(1);
@@ -155,11 +151,6 @@ test("a check is kept under the version the probe ran, and the version read is n
     ["2.1.317", []],
   ]);
   store.value.close();
-});
-
-test("a version whose check gave no proof that the CLI applies the settings is not one a worker starts on", async () => {
-  const cli = runtime(["2.1.316"], [{ version: "2.1.316", missing: ["settings"] }]);
-  await expect(checked(state(), cli)).resolves.toEqual(passed("2.1.316", [], false));
 });
 
 test("launches on a new version at once share one probe", async () => {

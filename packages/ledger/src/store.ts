@@ -25,15 +25,42 @@ const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdic
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
 const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES];
 
-// Whether a process runs; EPERM means it runs under another user.
-// shortcut: a process ID the OS gave to a new process since keeps a stale lease; add the start time when that matters.
-const processAlive = (pid: number): boolean => {
+/** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
+export interface LeaseLock {
+  release(): void;
+}
+
+const leaseLockPath = (dir: string, runId: string): string => join(dir, "leases", `${runId}.lock`);
+
+// Takes a run's lock without waiting, as the store lock is taken: an exclusive SQLite lock the OS releases when the
+// process ends, also on a crash. null when another connection holds it.
+const takeLock = (path: string): DatabaseSync | null => {
+  const db = new DatabaseSync(path);
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return Reflect.get(Object(error), "code") === "EPERM";
+    db.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+    return db;
+  } catch {
+    db.close();
+    return null;
   }
+};
+
+// The lock file goes with its lock; on Windows a checker may have it open for a moment, and then removes it itself.
+const removeLock = (path: string): void => {
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // Left for the next check of the lease.
+  }
+};
+
+// Whether a launcher holds the run's lock; a lock nobody holds is removed.
+const lockHeld = (path: string): boolean => {
+  const probe = takeLock(path);
+  if (probe === null) return true;
+  probe.close();
+  removeLock(path);
+  return false;
 };
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
@@ -294,26 +321,48 @@ export class RunStore extends RunView {
       .map((row) => ContractCheckRecord.parse(JSON.parse(String(row["row"]))));
   }
 
+  // Ends the leases whose launcher let go of the run's lock without a finish (a crash, a kill) as interrupted, and counts
+  // the others per account.
+  #countLive(): Map<string, number> {
+    const counts = new Map<string, number>();
+    const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
+    for (const row of this.db.prepare("SELECT runId, account FROM launches WHERE finishedAt IS NULL").all()) {
+      const [runId, account] = [String(row["runId"]), String(row["account"])];
+      if (lockHeld(leaseLockPath(this.dir, runId))) counts.set(account, (counts.get(account) ?? 0) + 1);
+      else end.run(now(), runId);
+    }
+    return counts;
+  }
+
+  /** The running leases per account; a lease whose launcher let go of it without a finish is ended first. */
+  liveLeases(): Map<string, number> {
+    return transaction(this.db, () => this.#countLive());
+  }
+
   /**
-   * Takes one of the account's `max` leases for a launch, in one transaction; false when all are taken. A lease whose
-   * launcher process is gone is ended first, as interrupted.
+   * Takes one of the account's `max` leases for a launch, in one transaction; null when all are taken. The launcher holds
+   * the returned lock until it has finished the launch: a lease whose lock nobody holds counts as interrupted.
    */
-  leaseAccount(input: Omit<LaunchRecord, "finishedAt" | "verdict">, max: number, alive = processAlive): boolean {
+  leaseAccount(input: Omit<LaunchRecord, "finishedAt" | "verdict">, max: number): LeaseLock | null {
     const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
-    return transaction(this.db, () => {
-      const running = this.db.prepare("SELECT runId, pid FROM launches WHERE account = ? AND finishedAt IS NULL");
-      const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
-      let held = 0;
-      for (const row of running.all(launch.account)) {
-        if (alive(Number(row["pid"]))) held += 1;
-        else end.run(now(), String(row["runId"]));
-      }
-      if (held >= max) return false;
+    mkdirSync(join(this.dir, "leases"), { recursive: true, mode: 0o700 });
+    const path = leaseLockPath(this.dir, launch.runId);
+    const lock = takeLock(path);
+    if (lock === null) throw new Error(`the lease of run ${launch.runId} is held already`);
+    const release = (): void => {
+      lock.close();
+      removeLock(path);
+    };
+    const taken = transaction(this.db, () => {
+      if ((this.#countLive().get(launch.account) ?? 0) >= max) return false;
       this.db
         .prepare("INSERT INTO launches VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)")
         .run(launch.runId, launch.task, launch.agent, launch.account, launch.version, launch.pid, launch.startedAt);
       return true;
     });
+    if (taken) return { release };
+    release();
+    return null;
   }
 
   /** Ends a launch's lease with its verdict. */

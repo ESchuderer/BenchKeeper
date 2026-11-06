@@ -73,6 +73,7 @@ export {
   formatWorkflow,
   HandleType,
   JoinConfig,
+  JsonValue,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
   WorkflowId,

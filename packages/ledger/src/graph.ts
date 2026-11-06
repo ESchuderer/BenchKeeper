@@ -39,7 +39,7 @@ export interface RunLease extends LeaseLock {
 }
 
 const ACTIVE = new Set(["running", "waiting"]);
-const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, project, epoch, startedAt, finishedAt`;
+const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, project, pid, epoch, startedAt, finishedAt`;
 
 // A projection that changes no row is the executor's mistake, and nothing of its event is kept.
 const must = (changes: number | bigint, mistake: string): void => {

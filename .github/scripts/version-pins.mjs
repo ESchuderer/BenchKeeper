@@ -41,6 +41,13 @@ export function pnpmDrift(dockerfile, pinned) {
   return { image, drift: image !== pinned };
 }
 
+// Both are bumped by hand: the dev container's Node follows NODE_VERSION of cedarloom.yml, the CI of the CedarLoom packages.
+export function nodeDrift(dockerfile, workflow) {
+  const image = commands(dockerfile).match(/^\s*FROM\s+docker\.io\/library\/node:(\S+?)-/m)?.[1];
+  const ci = workflow.match(/^\s+NODE_VERSION:\s*(\S+)\s*$/m)?.[1];
+  return { image, ci, drift: image === undefined || image !== ci };
+}
+
 if (isMain(import.meta.url)) {
   const { version } = JSON.parse(readFileSync(`${root}/app/package.json`, 'utf8'));
   const files = execFileSync('/usr/bin/git', ['ls-files', '*.md', '*.json', '*.tsx'], { cwd: root, encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
@@ -79,6 +86,15 @@ if (isMain(import.meta.url)) {
     const pnpm = pnpmDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), pinned);
     if (pnpm.drift) {
       console.log(`::error::pnpm@${pnpm.image} in .devcontainer/Dockerfile differs from pnpm ${pinned} in .github/pnpm/package.json: set them equal`);
+      process.exit(1);
+    }
+    const node = nodeDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), readFileSync(`${root}/.github/workflows/cedarloom.yml`, 'utf8'));
+    if (!node.image) {
+      console.log('::error::found no FROM docker.io/library/node:<version>-<variant> in .devcontainer/Dockerfile');
+      process.exit(1);
+    }
+    if (node.drift) {
+      console.log(`::error::node:${node.image} in .devcontainer/Dockerfile differs from NODE_VERSION ${node.ci} in .github/workflows/cedarloom.yml: set them equal`);
       process.exit(1);
     }
   }

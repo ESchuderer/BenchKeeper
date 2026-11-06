@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SKIP, minAppPin, pins, playwrightDrift, pnpmDrift } from './version-pins.mjs';
+import { SKIP, minAppPin, nodeDrift, pins, playwrightDrift, pnpmDrift } from './version-pins.mjs';
 
 test('install commands get the current version, other version mentions stay', () => {
   const text = 'Run `npx benchkeeper@6.0.0 apply`, or `git clone --branch setup-v6.0 x`. setup-v3.3 took 8 minutes; benchkeeper@6.0.0 in prose.';
@@ -36,6 +36,16 @@ test('the dev container pnpm must equal the pnpm .github/pnpm pins for CI', () =
   // Docker drops comment lines, then joins continued lines: the version may sit on a later line of the same RUN.
   assert.equal(pnpmDrift('RUN npm i -g --ignore-scripts \\\n  # pnpm@11.0.0 was here\n  pnpm@12.16.1 && npm cache clean --force', '12.16.1').image, '12.16.1');
   assert.equal(pnpmDrift('RUN npm i -g --ignore-scripts \\\r\n  # pnpm@11.0.0 was here\r\n  pnpm@12.16.1 && npm cache clean --force', '12.16.1').image, '12.16.1');
+});
+
+test('the dev container Node must equal NODE_VERSION of cedarloom.yml', () => {
+  const dockerfile = '# node:26.12.0-bookworm-slim was here\nFROM docker.io/library/node:26.13.0-bookworm-slim@sha256:bc0a AS base\nRUN true';
+  const workflow = 'env:\n  # Bumped by hand\n  NODE_VERSION: 26.13.0\n  TYPOS_VERSION: 1.51.1\n';
+  assert.deepEqual(nodeDrift(dockerfile, workflow), { image: '26.13.0', ci: '26.13.0', drift: false });
+  assert.deepEqual(nodeDrift(dockerfile, workflow.replace('26.13.0', '26.14.0')), { image: '26.13.0', ci: '26.14.0', drift: true });
+  // A FROM line without the tag's suffix, or none at all, is drift too: the check must not pass silently.
+  assert.equal(nodeDrift('FROM docker.io/library/node:26.13.0@sha256:bc0a', workflow).drift, true);
+  assert.equal(nodeDrift('FROM docker.io/library/node:26.13.0-bookworm-slim', 'env: {}').drift, true);
 });
 
 test('minApp follows the release app version; other versions in content.json stay', () => {

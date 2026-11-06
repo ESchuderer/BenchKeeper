@@ -548,20 +548,25 @@ test("a lease counts while its launcher process holds the run's lock, and ends w
   expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
 }, 15_000);
 
-test("the latest switch of the automation level holds for running work; a view of an older store has none", () => {
+test("the latest switch of the level for running work, overall or since a time; a view of an older store has none", () => {
   const dir = fresh();
   const store = opened(dir);
-  expect(store.runningLevel()).toBeNull();
-  store.recordModeSwitch({ at: "2026-11-06T08:00:00.000Z", level: "auto" });
-  expect(store.runningLevel()).toBe("auto");
-  store.recordModeSwitch({ at: "2026-11-06T09:00:00.000Z", level: null });
-  expect(store.runningLevel()).toBeNull();
+  expect(store.modeSwitch()).toBeNull();
+  const auto = { at: "2026-11-06T08:00:00.000Z", level: "auto" } as const;
+  store.recordModeSwitch(auto);
+  expect(store.modeSwitch()).toEqual(auto);
+  // A run that started after the switch has none of its own; one that was running at it has it.
+  expect(store.modeSwitch("2026-11-06T08:30:00.000Z")).toBeNull();
+  expect(store.modeSwitch("2026-11-06T07:00:00.000Z")).toEqual(auto);
+  const off = { at: "2026-11-06T09:00:00.000Z", level: null } as const;
+  store.recordModeSwitch(off);
+  expect(store.modeSwitch()).toEqual(off);
   expect(() => store.recordModeSwitch({ at: "now", level: "auto" })).toThrow(/datetime/i);
   open.splice(0).forEach((each) => each.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec("DROP TABLE mode_switches; PRAGMA user_version = 4");
   db.close();
   const view = openRunView(dir);
-  expect(view.ok && view.value?.runningLevel()).toBeNull();
+  expect(view.ok && view.value?.modeSwitch()).toBeNull();
   if (view.ok) view.value?.close();
 });

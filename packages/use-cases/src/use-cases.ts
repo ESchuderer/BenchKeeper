@@ -97,6 +97,14 @@ export const readJson = (path: string): Result<{ text: string; json: unknown }> 
   return parseDocument(text, (json) => ({ ok: true, value: { text, json } }));
 };
 
+/** `readJson` with a missing file as null: only a missing file is none, and one the process cannot read is reported. */
+export const readOptionalJson = (path: string): Result<{ text: string; json: unknown } | null> => {
+  const file = readJson(path);
+  if (file.ok) return file;
+  const missing = file.finding.code === "document.unreadable" && file.finding.params.error === "ENOENT";
+  return missing ? { ok: true, value: null } : file;
+};
+
 /** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */
 export const loadPlan = (path: string): Result<Plan> => {
   const file = readJson(path);

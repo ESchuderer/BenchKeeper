@@ -1,18 +1,28 @@
 import type { AutomationLevel, AutomationSettings } from "@cedarloom/contracts";
 
-/** The points where a task's run may wait for the owner. */
-export type Gate = "before-implementation" | "after-verdict" | "before-merge";
+/** The points where a task's run may wait for the owner's approval. */
+export type ApprovalGate = "before-implementation" | "after-verdict" | "before-merge";
+
+/**
+ * What stays with the owner at every level (owner, 2026-11-05): a release, a publish, a deploy, a repository's creation
+ * or settings, a secret, and anything public. Merging a release pull request is the release.
+ */
+export type OwnerOnly = "release" | "publish" | "deploy" | "repository" | "settings" | "secret" | "public";
 
 // Supervised waits at every gate; Checkpoint only before a merge, which the owner approves with one click, batchable;
 // Auto merges on agreement of the implementer and the fresh reviewer.
-const WAITS: Readonly<Record<AutomationLevel, readonly Gate[]>> = {
+const WAITS: Readonly<Record<AutomationLevel, readonly ApprovalGate[]>> = {
   supervised: ["before-implementation", "after-verdict", "before-merge"],
   checkpoint: ["before-merge"],
   auto: [],
 };
 
-/** Whether a run at `level` waits for the owner at `gate`. */
-export const waitsForOwner = (level: AutomationLevel, gate: Gate): boolean => WAITS[level].includes(gate);
+/**
+ * Whether a run at `level` waits for the owner at `gate`. A step that touches anything in `ownerOnly` waits at every gate
+ * of every level, Auto included; the input is required, so a caller cannot leave the list out.
+ */
+export const waitsForOwner = (level: AutomationLevel, gate: ApprovalGate, ownerOnly: readonly OwnerOnly[]): boolean =>
+  ownerOnly.length > 0 || WAITS[level].includes(gate);
 
 /**
  * A worker's question: the owner's (taste, scope, money, legal, risk, anything public or hard to undo) or a fact or a

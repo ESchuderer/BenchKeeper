@@ -1,14 +1,23 @@
 import type { AutomationSettings } from "@cedarloom/contracts";
-import { levelAt, routeQuestion, waitsForOwner } from "@cedarloom/engine";
+import { levelAt, type OwnerOnly, routeQuestion, waitsForOwner } from "@cedarloom/engine";
 import { expect, test } from "vitest";
 
 const GATES = ["before-implementation", "after-verdict", "before-merge"] as const;
+const LEVELS = ["supervised", "checkpoint", "auto"] as const;
+const OWNER_ONLY: readonly OwnerOnly[] = ["release", "publish", "deploy", "repository", "settings", "secret", "public"];
+const waits = (level: (typeof LEVELS)[number], ownerOnly: readonly OwnerOnly[] = []) =>
+  GATES.filter((gate) => waitsForOwner(level, gate, ownerOnly));
 
 test("Supervised waits at every gate, Checkpoint only before a merge, Auto at none", () => {
-  const waits = (level: "supervised" | "checkpoint" | "auto") => GATES.filter((gate) => waitsForOwner(level, gate));
   expect(waits("supervised")).toEqual(GATES);
   expect(waits("checkpoint")).toEqual(["before-merge"]);
   expect(waits("auto")).toEqual([]);
+});
+
+test("a step that touches anything owner-only waits at every gate of every level, Auto included", () => {
+  for (const kind of OWNER_ONLY) {
+    expect(LEVELS.map((level) => waits(level, [kind]))).toEqual([GATES, GATES, GATES]);
+  }
 });
 
 test("Supervised parks every question; Checkpoint and Auto park the owner's and default the facts", () => {

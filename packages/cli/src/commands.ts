@@ -130,7 +130,7 @@ export const doctor = (ctx: Context): number => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (ctx: Context, format: "accounts" | "levels" | "plan", finding: Finding): number => {
+const refused = (ctx: Context, format: "accounts" | "levels" | "mode" | "plan", finding: Finding): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
   return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
@@ -193,13 +193,24 @@ export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { ag
   return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
 };
 
+// What the latest switch of running work does, by the settings' modeScope (running when unset; pending owner decision).
+const switchLine = ({ switched, settings }: useCases.Mode): string | null => {
+  if (switched?.level == null) return null;
+  return settings?.modeScope === "until-off"
+    ? `${switched.level} for all work since ${switched.at}, until cedarloom mode off`
+    : `${switched.level} for the runs that were running at ${switched.at}; later runs start at their project's level`;
+};
+
 const showLevels = (ctx: Context): number => {
-  const settings = useCases.automationSettings(ctx.config);
-  if (!settings.ok) return refused(ctx, "levels", settings.finding);
-  const fallback = settings.value?.default ?? "supervised";
-  const projects = settings.value?.projects ?? {};
+  const current = useCases.mode(ctx.state, ctx.config);
+  if (!current.ok) return refused(ctx, "levels", current.finding);
+  const { settings, switched } = current.value;
+  const fallback = settings?.default ?? "supervised";
+  const projects = settings?.projects ?? {};
   const own = Object.entries(projects).map(([folder, level]) => `${level.padEnd(10)}  ${folder}`);
-  emit(ctx, "levels", { default: fallback, projects }, [`${fallback.padEnd(10)}  (default)`, ...own].join("\n"));
+  const line = switchLine(current.value);
+  const lines = [`${fallback.padEnd(10)}  (default)`, ...own, ...(line === null ? [] : [`Switched: ${line}.`])];
+  emit(ctx, "levels", { default: fallback, projects, switched }, lines.join("\n"));
   return EXIT.ok;
 };
 
@@ -211,16 +222,24 @@ export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { 
   return change(ctx, planned.value, { note: "", data: {}, findings: [] }, yes);
 };
 
+// The JSON of `cedarloom mode`: the latest switch's level and time, the default, and how long a switch lasts.
+const modeData = ({ switched, settings }: useCases.Mode) => ({
+  running: switched?.level ?? null,
+  at: switched?.at ?? null,
+  default: settings?.default ?? "supervised",
+  modeScope: settings?.modeScope ?? "running",
+});
+
 const showMode = (ctx: Context): number => {
   const current = useCases.mode(ctx.state, ctx.config);
-  if (!current.ok) return fail(ctx, "mode", [current.finding], EXIT.data);
-  const { running } = current.value;
-  const fallback = current.value.settings?.default ?? "supervised";
+  if (!current.ok) return refused(ctx, "mode", current.finding);
+  const data = modeData(current.value);
+  const line = switchLine(current.value);
   const human =
-    running === null
-      ? `Running work follows each project's level; the default is ${fallback}.`
-      : `Running work runs at ${running} from each run's next gate.`;
-  emit(ctx, "mode", { running, default: fallback }, human);
+    line === null
+      ? `Running work follows each project's level; the default is ${data.default}.`
+      : `Running at ${line}.`;
+  emit(ctx, "mode", data, human);
   return EXIT.ok;
 };
 
@@ -231,19 +250,23 @@ export const modeCommand = (
   { yes }: { yes?: true },
 ): number => {
   if (level === undefined) return showMode(ctx);
+  const settings = useCases.automationSettings(ctx.config);
+  if (!settings.ok) return refused(ctx, "mode", settings.finding);
   const next = level === "off" ? null : level;
-  const what = next === null ? "Running work goes back to each project's level" : `Running work switches to ${next}`;
+  const scope =
+    settings.value?.modeScope === "until-off" ? "all work, until cedarloom mode off" : "the runs running now";
+  const what = next === null ? "Running work goes back to each project's level" : `${next} for ${scope}`;
   if (yes !== true) {
     emit(
       ctx,
       "mode",
-      { switch: next },
-      `${what} at each run's next gate.\nNothing changed. Run the command again with --yes.`,
+      { level: next },
+      `${what}, at each run's next gate.\nNothing changed. Run the command again with --yes.`,
     );
     return EXIT.ok;
   }
   const switched = useCases.switchMode(ctx.state, next);
   if (!switched.ok) return fail(ctx, "mode", [switched.finding], EXIT.refused);
-  emit(ctx, "mode", switched.value, `${what} at each run's next gate; the switch is in the ledger.`);
+  emit(ctx, "mode", switched.value, `${what}, at each run's next gate; the switch is in the ledger.`);
   return EXIT.ok;
 };

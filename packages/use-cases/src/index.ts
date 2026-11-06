@@ -2,6 +2,7 @@ export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts
 export { isConfirmed } from "@cedarloom/accounts";
 export {
   automationSettings,
+  type GateRun,
   type LevelChange,
   levelAtGate,
   type Mode,

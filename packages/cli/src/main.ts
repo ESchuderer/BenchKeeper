@@ -116,6 +116,9 @@ const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--yes", "apply the change")
     .action((level, options, command) => {
       const { project } = options;
+      if (level === undefined && project !== undefined) {
+        return command.error("error: --project sets a project's level; name the level too, or leave --project out");
+      }
       if (level === undefined) return done(levelCommand(ctx(), null, options));
       if (project !== undefined) {
         const own = level === "default" ? null : level;

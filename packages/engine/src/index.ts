@@ -1,5 +1,12 @@
 export { type ApplyOptions, apply, type Outcome, type Phase } from "./apply.ts";
-export { type Gate, levelAt, type Question, routeQuestion, waitsForOwner } from "./automation.ts";
+export {
+  type ApprovalGate,
+  levelAt,
+  type OwnerOnly,
+  type Question,
+  routeQuestion,
+  waitsForOwner,
+} from "./automation.ts";
 export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";
 export { recover } from "./recover.ts";
 export {

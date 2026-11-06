@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   AccountSwitch,
-  type AutomationLevel,
   canonicalJson,
   ContractCheckRecord,
   LaunchRecord,
@@ -189,13 +188,15 @@ export class RunView {
   }
 
   /**
-   * The level the latest switch set for running work, or null when none did or the latest ended it. A store from
-   * before the switches has none; a read view does not change its schema.
+   * The latest switch of the level for running work, made at `since` or later when given; null when there is none. A
+   * store from before the switches has none; a read view does not change its schema.
    */
-  runningLevel(): AutomationLevel | null {
+  modeSwitch(since: string | null = null): ModeSwitch | null {
     if (versionOf(this.db) < MODE_SCHEMA) return null;
-    const row = this.db.prepare("SELECT at, level FROM mode_switches ORDER BY rowid DESC LIMIT 1").get();
-    return row === undefined ? null : ModeSwitch.parse(row).level;
+    const row = this.db
+      .prepare("SELECT at, level FROM mode_switches WHERE at >= ? ORDER BY rowid DESC LIMIT 1")
+      .get(since ?? "");
+    return row === undefined ? null : ModeSwitch.parse(row);
   }
 
   close(): void {

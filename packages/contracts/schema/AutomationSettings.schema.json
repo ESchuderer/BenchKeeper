@@ -29,6 +29,13 @@
           "auto"
         ]
       }
+    },
+    "modeScope": {
+      "type": "string",
+      "enum": [
+        "running",
+        "until-off"
+      ]
     }
   },
   "required": [

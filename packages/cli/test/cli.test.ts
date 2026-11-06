@@ -4,8 +4,8 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Fetch, LoginStatus } from "@cedarloom/use-cases";
-import { Finding, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
-import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
+import { Finding, formatRegistry, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
+import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test } from "vitest";
 import { z } from "zod";
@@ -221,26 +221,35 @@ test("the state folder comes from CEDARLOOM_STATE_DIR, then XDG_STATE_HOME, then
   }
 });
 
-test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config; BenchKeeper's is fixed", () => {
+test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config", () => {
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "/c", XDG_CONFIG_HOME: "/x" })).toBe("/c");
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "c", XDG_CONFIG_HOME: "/x" })).toBe(join("/x", "cedarloom"));
   expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
-  expect(benchKeeperRegistry()).toBe(join(homedir(), ".config", "benchkeeper", "accounts.json"));
 });
 
-const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "host", dir: `/accounts/${name}`, pool });
+// A Claude Code account in /accounts.
+const account = (name: string, pool: string | null) => {
+  return { name, agent: "claude" as const, home: `/accounts/${name}`, pool, added: "2026-11-05T12:00:00.000Z" };
+};
 
-// A temporary setup with BenchKeeper's registry file: one pooled and one single host account, one container account.
-const withBenchKeeper = () => {
+// A temporary setup with a registry: work in the unconfirmed pool main, solo in none.
+const withRegistry = () => {
   const { root, state, logins, cli } = setup();
-  const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
-  const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
-  return { root, state, logins, cli, from: planFile(root, registry, "benchkeeper.json") };
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(
+    join(root, "config", "accounts.json"),
+    formatRegistry({
+      schemaVersion: 1,
+      minimum: { fiveHour: 8, sevenDay: 3 },
+      accounts: [account("work", "main"), account("solo", null)],
+      pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
+    }),
+  );
+  return { root, state, logins, cli };
 };
 
 test("accounts: an account moves into its own home with --yes, and its login runs only there", async () => {
-  const { state, logins, cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { state, logins, cli } = withRegistry();
   const home = join(state, "homes", "work");
   const early = await cli("accounts", "login", "work");
   expect([early.code, early.err]).toEqual([
@@ -279,55 +288,26 @@ test("accounts: an account moves into its own home with --yes, and its login run
 });
 
 test("accounts: a relative --state is taken from the working folder, so an own home is an absolute folder", async () => {
-  const { root, cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { root, cli } = withRegistry();
   const state = relative(process.cwd(), join(root, "elsewhere"));
   const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
   expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
-test("accounts: the one-time import is shown first and applied with --yes", async () => {
-  const { root, cli, from } = withBenchKeeper();
-  expect(await cli("accounts", "list")).toMatchObject({
-    code: EXIT.ok,
-    out: expect.stringContaining("No accounts yet"),
-  });
-  expect((await cli("accounts", "import", "--from", join(root, "none.json"))).code).toBe(EXIT.noInput);
-  const shown = await cli("accounts", "import", "--from", from);
-  expect([shown.code, shown.out]).toEqual([
-    EXIT.ok,
-    expect.stringContaining("not imported: container-account of boxed"),
-  ]);
-  expect(existsSync(join(root, "config", "accounts.json"))).toBe(false);
-  expect(json((await cli("accounts", "import", "--from", from, "--json")).out)).toMatchObject({
-    format: "cedarloom.plan",
-    left: [
-      { account: null, item: "autoPick" },
-      { account: "boxed", item: "container-account" },
-    ],
-  });
-  // The applied run's JSON keeps the list of what was not imported.
-  expect(json((await cli("accounts", "import", "--from", from, "--yes", "--json")).out)).toMatchObject({
-    format: "cedarloom.run",
-    status: "applied",
-    left: [
-      { account: null, item: "autoPick" },
-      { account: "boxed", item: "container-account" },
-    ],
-  });
+test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
+  // No registry yet: no accounts, checked in the JSON form rather than the text.
+  expect(json((await setup().cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null, confirmed: [] });
+  const { root, cli } = withRegistry();
   expect((await cli("accounts", "list")).out).toBe(
     "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
   );
-  // Once: the default file is never read, as the registry exists.
-  expect(await cli("accounts", "import")).toMatchObject({ code: EXIT.refused, err: expect.stringContaining("once") });
   writeFileSync(join(root, "config", "accounts.json"), "{}");
   expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
 });
 
 test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
-  const { cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { cli } = withRegistry();
   const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
   expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
   const terms = { code: "accounts.pool-terms", params: { pool: "main" } };

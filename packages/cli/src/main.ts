@@ -4,7 +4,6 @@ import { Argument, Command, CommanderError, InvalidArgumentError, Option } from 
 import {
   accountsConfirm,
   accountsHome,
-  accountsImport,
   accountsList,
   accountsLogin,
   doctor,
@@ -110,12 +109,6 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .command("list")
     .description("list the accounts and their pools")
     .action(() => done(accountsList(ctx())));
-  accounts
-    .command("import")
-    .description("show the one-time import of BenchKeeper's registry; with --yes, create the registry from it")
-    .option("--from <file>", "BenchKeeper's registry file (default: ~/.config/benchkeeper/accounts.json)")
-    .option("--yes", "import as planned now")
-    .action((options) => done(accountsImport(ctx(), options)));
   accounts
     .command("pool")
     .description("account pools")

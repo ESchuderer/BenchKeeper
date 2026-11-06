@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { importBenchKeeper, type Selection, selectAccount } from "@cedarloom/accounts";
+import { type Selection, selectAccount } from "@cedarloom/accounts";
 import type { Account, AccountRegistry, Reading as Stored } from "@cedarloom/contracts";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
@@ -8,97 +6,15 @@ import { expect, test } from "vitest";
 type Reading = Omit<Stored, "readAt">;
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
-const IMPORTED_AT = "2026-11-05T12:00:00.000Z";
+const ADDED_AT = "2026-11-05T12:00:00.000Z";
 const CONFIRMED = "2026-11-05T10:00:00.000Z";
-
-const benchKeeper = (): unknown =>
-  JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "benchkeeper.json"), "utf8"));
-
-const home = (name: string) => `/home/dev/.local/share/benchkeeper/accounts/${name}`;
-
-// The paths and codes of an import's schema finding.
-const issues = (value: unknown) => {
-  const imported = importBenchKeeper(value, IMPORTED_AT);
-  return !imported.ok && imported.finding.code === "document.invalid" ? imported.finding.params.issues : [];
-};
-
-test("imports BenchKeeper's host accounts with pools per agent and minimums, never a credential", () => {
-  const unconfirmed = { main: { confirmedAt: null, confirmedFor: [] } };
-  expect(importBenchKeeper(benchKeeper(), IMPORTED_AT)).toEqual({
-    ok: true,
-    value: {
-      registry: {
-        schemaVersion: 1,
-        minimum: { fiveHour: 8, sevenDay: 5 },
-        accounts: [
-          {
-            name: "work",
-            agent: "claude",
-            label: "Work subscription",
-            home: home("work"),
-            pool: "main",
-            minimum: { fiveHour: 15 },
-            added: "2026-10-01T08:00:00.000Z",
-          },
-          { name: "spare", agent: "claude", home: home("spare"), pool: "main", added: IMPORTED_AT },
-          {
-            name: "codex-main",
-            agent: "codex",
-            label: "c".repeat(80),
-            home: home("codex-main"),
-            pool: "main",
-            added: "2026-10-03T08:00:00.000Z",
-          },
-        ],
-        // Unconfirmed until the user confirms each pool (A5 guardrail).
-        pools: { claude: unconfirmed, codex: unconfirmed },
-      },
-      left: [
-        { account: null, item: "autoPick" },
-        { account: null, item: "rotate" },
-        { account: "work", item: "default" },
-        { account: "work", item: "warn" },
-        { account: "spare", item: "token" },
-        { account: "boxed", item: "container-account" },
-      ],
-    },
-  });
-});
-
-test("refuses a file that is not BenchKeeper's registry, a newer one, or accounts that would share a folder", () => {
-  expect(issues({})).toEqual([{ path: "accounts", code: "invalid_type" }]);
-  expect(issues({ accounts: [{ name: "g", agent: "gemini", mode: "host", dir: "/g" }] })).toEqual([
-    { path: "accounts.0.agent", code: "invalid_value" },
-  ]);
-  const twice = { name: "b", agent: "claude", mode: "host", dir: "/a" };
-  expect(issues({ accounts: [{ ...twice, name: "a" }, twice] })).toEqual([{ path: "accounts.1.home", code: "custom" }]);
-  expect(importBenchKeeper({ schemaVersion: 2, accounts: [] }, IMPORTED_AT)).toMatchObject({
-    ok: false,
-    finding: { code: "document.newer-schema", params: { found: 2, known: 1 } },
-  });
-});
-
-test("property: no value of a stored token reaches the registry", () => {
-  expect(() =>
-    fc.assert(
-      fc.property(fc.string({ minLength: 8 }), (secret) => {
-        const token = { created: IMPORTED_AT, value: `sk-${secret}` };
-        const file = {
-          schemaVersion: 1,
-          accounts: [{ name: "work", agent: "claude", mode: "host", dir: "/a", token }],
-        };
-        return !JSON.stringify(importBenchKeeper(file, IMPORTED_AT)).includes(JSON.stringify(token.value).slice(1, -1));
-      }),
-    ),
-  ).not.toThrow();
-});
 
 const account = (name: string, change: Partial<Account> = {}): Account => ({
   name,
   agent: "claude",
   home: `/accounts/${name}`,
   pool: "main",
-  added: IMPORTED_AT,
+  added: ADDED_AT,
   ...change,
 });
 
@@ -195,7 +111,7 @@ test("a window that has reset since its last reading counts as 0 percent used, s
     ],
   });
   // A reset at the very moment of the choice has passed too.
-  const now = selectAccount(registry, main, used("two", 95, 99, IMPORTED_AT), NOW);
+  const now = selectAccount(registry, main, used("two", 95, 99, ADDED_AT), NOW);
   expect(now).toMatchObject({ ok: true, account: { name: "two" }, candidates: [{}, { margin: 92 }, {}] });
 });
 
@@ -267,7 +183,7 @@ test("no account comes from a pool that is not the agent's, unconfirmed, or chan
 const windowReading = fc.option(
   fc.record({
     usedPercent: fc.constantFrom(0, 40, 92),
-    resetsAt: fc.constantFrom("2026-11-05T11:00:00.000Z", IMPORTED_AT, "not a time", LATER, LATER, LATER),
+    resetsAt: fc.constantFrom("2026-11-05T11:00:00.000Z", ADDED_AT, "not a time", LATER, LATER, LATER),
   }),
   { nil: undefined },
 );

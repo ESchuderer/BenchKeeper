@@ -6,11 +6,14 @@ import { DatabaseSync } from "node:sqlite";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
+import type { Fetch } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
-const setup = (): {
+const setup = (
+  fetch?: Fetch,
+): {
   root: string;
   state: string;
   cli: (...argv: string[]) => Promise<{ code: number; out: string; err: string }>;
@@ -24,6 +27,7 @@ const setup = (): {
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => Promise.resolve(),
+      ...(fetch === undefined ? {} : { fetch }),
     };
     return { code: await main(argv, io), out, err };
   };
@@ -377,6 +381,7 @@ test("every finding code has an English sentence", () => {
     "launch.account-full": { account: "work", max: 2 },
     "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
     "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
+    "extension.install-refused": { extension: null, reason: "no-manifest" },
     "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
     "git.refused-source": { field: "url" },
     "git.unsafe-entry": { path: "dist/link", kind: "link" },
@@ -535,4 +540,108 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);
   stopped.resolve();
   expect(await running).toBe(EXIT.ok);
+});
+
+const MANIFEST = {
+  schemaVersion: 1,
+  kind: "cedarloom.extension",
+  id: "acme.jira",
+  version: "1.0.0",
+  name: "Jira",
+  license: "MIT",
+  api: "1.0",
+  platforms: ["darwin", "linux"],
+  runtime: { kind: "node", entry: "main.mjs" },
+  capabilities: {
+    net: ["https://acme.atlassian.net"],
+    credentials: {
+      "jira-token": { scheme: { type: "http", scheme: "bearer" }, hosts: ["https://acme.atlassian.net"] },
+    },
+    projectRead: true,
+    planWrite: true,
+  },
+  contributes: { actions: { search: { title: "Search" } } },
+};
+const fileOf = (path: string, body: string) => ({
+  path,
+  mode: "100644" as const,
+  sha256: sha256(body),
+  content: Buffer.from(body),
+});
+// A Git source as the fetch hands it over, without a network: the folder holds the manifest and its entry.
+const published =
+  (manifest: object): Fetch =>
+  () =>
+    Promise.resolve({
+      ok: true,
+      value: {
+        commit: "c".repeat(40),
+        digest: "d".repeat(64),
+        files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
+      },
+    });
+const SOURCE = "https://git.example.org/acme/jira.git";
+
+test("extensions: add shows the source, the trust and the capabilities, and installs with --approve; list shows it", async () => {
+  const { state, cli } = setup(published(MANIFEST));
+  const none = await cli("extensions", "list");
+  const add = ["extensions", "add", SOURCE, "--ref", "v1", "--path", "jira"];
+  const shown = await cli(...add);
+  const preview = json((await cli(...add, "--json")).out);
+  const installed = await cli(...add, "--approve", String(preview["planHash"]));
+  const listed = await cli("extensions", "list");
+  const listedJson = json((await cli("extensions", "list", "--json")).out);
+  const again = await cli("extensions", "add", SOURCE, "--yes");
+  expect([none.out, shown.code, existsSync(join(state, "extensions.json"))]).toEqual([
+    "No extensions installed. Add one with: cedarloom extensions add <Git URL>\n",
+    EXIT.ok,
+    true,
+  ]);
+  expect(shown.out).toContain(
+    [
+      "  acme.jira 1.0.0 (Jira) by acme, not verified; license MIT",
+      `  from ${SOURCE}, folder jira, v1 at commit ${"c".repeat(40)}; files ${"d".repeat(64)}`,
+      "  community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
+      "  made for darwin, linux",
+      "  may send requests through CedarLoom to https://acme.atlassian.net",
+      "  uses your credential jira-token for https://acme.atlassian.net; CedarLoom adds it, the extension never sees it",
+      "  reads files of your projects",
+      "  proposes file changes, applied only through a plan you approve",
+      `Nothing changed. Run the command again with --yes, or with --approve ${String(preview["planHash"])} to install exactly this.`,
+    ].join("\n"),
+  );
+  expect([preview["extension"], preview["capabilities"]]).toEqual([
+    expect.objectContaining({ id: "acme.jira", trust: "community", ref: "v1" }),
+    MANIFEST.capabilities,
+  ]);
+  expect([installed.code, installed.out.includes("applied."), listed.out, listedJson["extensions"]]).toEqual([
+    EXIT.ok,
+    true,
+    `acme.jira  1.0.0  community  ${SOURCE} (jira)  ${"c".repeat(12)}\n`,
+    [expect.objectContaining({ id: "acme.jira", digest: "d".repeat(64) })],
+  ]);
+  expect([again.code, again.err]).toEqual([
+    EXIT.refused,
+    "error: Extension acme.jira is not installed: it is installed already.\n",
+  ]);
+});
+
+test("extensions: one without capabilities asks for none; a source the CLI never fetches is refused before Git runs", async () => {
+  const { license: _license, platforms: _platforms, capabilities: _capabilities, ...plain } = MANIFEST;
+  const { state, cli } = setup(published(plain));
+  const shown = await cli("extensions", "add", SOURCE);
+  await cli("extensions", "add", SOURCE, "--yes");
+  const listed = await cli("extensions", "list");
+  const local = await setup().cli("extensions", "add", "file:///srv/jira.git");
+  writeFileSync(join(state, "extensions.json"), '{"schemaVersion":2}');
+  const newer = await cli("extensions", "list");
+  expect([shown.out.includes("license none stated"), shown.out.includes("  asks for no capabilities\n")]).toEqual([
+    true,
+    true,
+  ]);
+  expect([listed.out, newer.code]).toEqual([`acme.jira  1.0.0  community  ${SOURCE}  ${"c".repeat(12)}\n`, EXIT.data]);
+  expect([local.code, local.err]).toEqual([
+    EXIT.refused,
+    `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
+  ]);
 });

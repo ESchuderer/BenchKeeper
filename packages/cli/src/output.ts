@@ -1,5 +1,6 @@
 import { type Finding, findingInfo } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
+import type { Fetch } from "@cedarloom/use-cases";
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -8,6 +9,8 @@ export interface Io {
   env: Record<string, string | undefined>;
   /** Settles when a long-running command such as `ui` should end; the program waits for SIGINT or SIGTERM. */
   untilStopped: () => Promise<void>;
+  /** How Git sources are fetched: over https and ssh unless a test hands over its own trees. */
+  fetch?: Fetch;
 }
 
 export interface Context {

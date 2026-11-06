@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { phaseLaunch } from "@cedarloom/adapter-claude";
 import type { Finding, Result } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail } from "./output.ts";
@@ -17,7 +18,8 @@ const runOptions = (ctx: Context, project: string | undefined): useCases.RunOpti
   const stop = new AbortController();
   void ctx.io.untilStopped().then(() => stop.abort());
   const host = { parent: ctx.io.env, platform: process.platform, home: homedir() };
-  return { project, signal: stop.signal, agents: { config: ctx.config, host, runtime: ctx.io.agent } };
+  const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch };
+  return { project, signal: stop.signal, agents };
 };
 
 export const workflowsRun = async (

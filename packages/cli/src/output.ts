@@ -1,5 +1,6 @@
 import { type Finding, findingInfo } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
+import type { ClaudeLaunch } from "@cedarloom/adapter-claude";
 import type { AgentOptions, Fetch, LoginRun, LoginStatus } from "@cedarloom/use-cases";
 import { describe } from "./messages.ts";
 
@@ -16,7 +17,7 @@ export interface Io {
   /** How Git sources are fetched: over https and ssh unless a test hands over its own trees. */
   fetch?: Fetch;
   /** The agent CLI that `agent.run` nodes start. */
-  agent: AgentOptions["runtime"];
+  agent: AgentOptions<ClaudeLaunch>["runtime"];
 }
 
 export interface Context {

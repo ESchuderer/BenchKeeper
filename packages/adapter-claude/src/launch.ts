@@ -35,6 +35,13 @@ export const FRESH_INSTALL_PHASES = {
   review: { model: "claude-opus-5-5", subagentModel: "claude-opus-5-5", effort: "high", permissionMode: "dontAsk" },
 } as const satisfies Record<string, Phase>;
 
+/** A worker's launch in a workflow phase: `base` with the phase's fresh-install settings, in `cwd`, allowing nothing more. */
+export const phaseLaunch = (
+  base: Omit<ClaudeLaunch, keyof Phase | "cwd" | "allow">,
+  phase: keyof typeof FRESH_INSTALL_PHASES,
+  cwd: string,
+): ClaudeLaunch => ({ ...base, ...FRESH_INSTALL_PHASES[phase], cwd, allow: [] });
+
 const FULL_MODEL_ID = /^claude-[a-z0-9-]+$/;
 
 // Refuses what the types cannot keep out of a launch built from JSON, such as settings or a shared workflow. On 2.1.316 an

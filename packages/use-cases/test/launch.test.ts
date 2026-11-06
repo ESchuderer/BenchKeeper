@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
-import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
+import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES, phaseLaunch } from "@cedarloom/adapter-claude";
 import type { AgentRuntime } from "@cedarloom/agent-contracts";
 import {
   type AccountRegistry,
@@ -590,7 +590,12 @@ const attemptsOf = (state: string) =>
 test("an agent node runs a worker in the run's worktree on its phase's settings, keeps its session and gives its summary", async () => {
   const { state, config, work } = setup();
   const file = agentWorkflow(work, REVIEW);
-  const ran = await runWorkflow(state, file, {}, { project: work, agents: { config, host, runtime: agentRuntime() } });
+  const ran = await runWorkflow(
+    state,
+    file,
+    {},
+    { project: work, agents: { config, host, runtime: agentRuntime(), launch: phaseLaunch } },
+  );
   expect(ran).toMatchObject({ ok: true, value: { status: "succeeded" } });
   const runId = ran.ok ? ran.value.runId : "";
   expect(attemptsOf(state)).toEqual([
@@ -616,7 +621,7 @@ test("an agent node runs a worker in the run's worktree on its phase's settings,
 test("an agent that sends nothing for its stall time is stopped and times out; a cancel stops a running one", async () => {
   const { state, config, work } = setup();
   const file = agentWorkflow(work, REVIEW);
-  const hang = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), stallMs: 300 };
+  const hang = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), launch: phaseLaunch, stallMs: 300 };
   const stalled = await runWorkflow(state, file, {}, { project: work, agents: hang });
   const stop = new AbortController();
   const onEvent = (event: JournalEvent) => event.type === "session" && stop.abort();
@@ -631,7 +636,7 @@ test("an agent waits for a free lease of its account, and the wait counts agains
   const file = agentWorkflow(work, REVIEW, { nodes: { a: { timeoutSeconds: 1 } } });
   const held = fill(state, "work", 1);
   setTimeout(() => held.forEach((lock) => lock?.release()), 1500);
-  const agents = { config, host, runtime: agentRuntime(), retryMs: 100 };
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch, retryMs: 100 };
   expect(await runWorkflow(state, file, {}, { project: work, agents })).toMatchObject({
     ok: true,
     value: { status: "succeeded" },
@@ -649,14 +654,19 @@ test("an agent waits for a free lease of its account, and the wait counts agains
 test("an agent fails, saying why, without a single Claude Code pool or a git repository; one stopped first lets its lease go", async () => {
   const { state, config, work } = setup();
   const file = agentWorkflow(work, REVIEW);
-  const none = { config: join(config, "none"), host, runtime: agentRuntime() };
+  const none = { config: join(config, "none"), host, runtime: agentRuntime(), launch: phaseLaunch };
   await runWorkflow(state, file, {}, { project: work, agents: none });
   const plain = join(work, "..", "plain");
   mkdirSync(plain);
-  await runWorkflow(state, file, {}, { project: plain, agents: { config, host, runtime: agentRuntime() } });
+  await runWorkflow(
+    state,
+    file,
+    {},
+    { project: plain, agents: { config, host, runtime: agentRuntime(), launch: phaseLaunch } },
+  );
   const stop = new AbortController();
   setTimeout(() => stop.abort(), 20);
-  const agents = { config, host, runtime: agentRuntime() };
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
   await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal });
   // gh's own login refuses the launch; a session whose init line proves no settings is stopped.
   const loggedIn = { ...host, gh: [node, "-e", "process.exit(0)"] } as const;
@@ -688,7 +698,7 @@ test("a later runner of a run works in the worktree the run has", async () => {
   created.release();
   graphs.value.close();
   mkdirSync(join(state, "worktrees", created.runId), { recursive: true });
-  const agents = { config, host, runtime: agentRuntime() };
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
   expect(await resumeRun(state, created.runId, { project: work, agents })).toMatchObject({
     value: { status: "succeeded" },
   });

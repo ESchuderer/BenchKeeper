@@ -1,21 +1,26 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { type ClaudeLaunch, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
-import type { AgentEvent, AgentRuntime } from "@cedarloom/agent-contracts";
+import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
 import type { Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared } from "@cedarloom/engine";
 import { addWorktree } from "@cedarloom/git";
 import { loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
-import { type LaunchHost, type LeasedWorker, leaseWorker, type WorkerRequest } from "./launch.ts";
+import { type Decided, type LaunchHost, type LeasedWorker, leaseWorker, type WorkerRequest } from "./launch.ts";
+
+const PHASES = ["plan", "implement", "review"] as const;
+/** The workflow phase an agent node works in; `implement` when the node names none. */
+export type Phase = (typeof PHASES)[number];
 
 /** What `agent.run` nodes start their workers with. */
-export interface AgentOptions {
+export interface AgentOptions<L extends Launch = Launch> {
   /** The config folder that holds the account registry. */
   readonly config: string;
   readonly host: LaunchHost;
-  readonly runtime: AgentRuntime<ClaudeLaunch>;
+  readonly runtime: AgentRuntime<L>;
+  /** The adapter's launch options of a worker: the decided values with the phase's model and settings, in `cwd`. */
+  readonly launch: (decided: Decided, phase: Phase, cwd: string) => L;
   /** How long an agent may send nothing before it counts as stalled: 15 minutes when unset. */
   readonly stallMs?: number;
   /** How long a wait for a free account lease waits before it asks again: 5 seconds when unset. */
@@ -31,7 +36,6 @@ export interface AgentRun {
 
 const STALL_MS = 15 * 60_000;
 const RETRY_MS = 5000;
-const PHASES = ["plan", "implement", "review"] as const;
 // A worker that did its task: one that found problems in a review did too.
 const DONE = new Set(["pass", "findings"]);
 
@@ -61,7 +65,7 @@ const requestOf = (
   run: AgentRun,
   options: AgentOptions,
   cwd: string,
-): WorkerRequest<ClaudeLaunch> | string => {
+): WorkerRequest<Launch> | string => {
   const pool = onlyPool(options.config);
   if (pool === null) return "no-single-pool";
   const level = levelAtGate(run.state, options.config, { project: run.project, startedAt: new Date().toISOString() });
@@ -77,11 +81,11 @@ const requestOf = (
     ghToken: null,
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
-    launch: (decided) => ({ ...FRESH_INSTALL_PHASES[phase], ...decided, cwd, allow: [] }),
+    launch: (decided) => options.launch(decided, phase, cwd),
   };
 };
 
-type Lease = () => ReturnType<typeof leaseWorker<ClaudeLaunch>>;
+type Lease = () => ReturnType<typeof leaseWorker<Launch>>;
 
 // Takes a lease on the pool, waiting while every account's leases are taken; the wait ends with the attempt.
 const leased = async (attempt: Attempt, lease: Lease, retryMs: number): ReturnType<Lease> => {

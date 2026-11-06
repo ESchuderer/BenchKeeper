@@ -46,16 +46,18 @@ const stream = (name: string) => ({ FAKE_STREAM: join(fixtures, name) });
 // A launch as it arrives from JSON, such as settings or a shared workflow, where the types check nothing.
 const fromJson = (change: Record<string, string>) => z.custom<ClaudeLaunch>().parse({ ...launch({}), ...change });
 
+// Variables that select a login, which never reach the CLI.
+const LOGIN_VARIABLES = {
+  ANTHROPIC_API_KEY: "k",
+  CLAUDE_CODE_OAUTH_TOKEN: "t",
+  anthropic_auth_token: "a",
+  CLAUDE_CODE_USE_BEDROCK: "1",
+};
+
 test("runs claude -p with stream-json under the account's config folder, in the worker environment", async () => {
-  const login = {
-    ANTHROPIC_API_KEY: "k",
-    CLAUDE_CODE_OAUTH_TOKEN: "t",
-    anthropic_auth_token: "a",
-    CLAUDE_CODE_USE_BEDROCK: "1",
-  };
   const env = {
     ...stream("stream.jsonl"),
-    ...login,
+    ...LOGIN_VARIABLES,
     CLAUDE_CODE_SIMPLE: "1",
     claude_config_dir: "/elsewhere",
     KEEP: "yes",
@@ -78,6 +80,7 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     join(fixtures, "plugins", "workflow"),
     "--add-dir",
     join(fixtures, "out"),
+    join(fixtures, "plugins", "workflow"),
   ]);
   expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
@@ -92,7 +95,12 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: "4",
     CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
   });
-  for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "CEDARLOOM_PARENT_ONLY", ...Object.keys(login)]) {
+  for (const name of [
+    "CLAUDE_CODE_SIMPLE",
+    "claude_config_dir",
+    "CEDARLOOM_PARENT_ONLY",
+    ...Object.keys(LOGIN_VARIABLES),
+  ]) {
     expect(fake.env).not.toHaveProperty(name);
   }
 });
@@ -208,6 +216,15 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   for (const key of ["sandbox.excludedCommands", "env.CLAUDE_CONFIG_DIR", "env.CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"]) {
     expect(settings).not.toHaveProperty(key);
   }
+});
+
+test("a plugin's folder is readable to the session's file tools, and closed to their edits", async () => {
+  const plugin = launch({}, { pluginDirs: ["/state/plugins/abc/workflow"] });
+  const settings = z
+    .object({ permissions: z.object({ deny: z.array(z.string()) }) })
+    .parse(JSON.parse(started(await events(runtime.start(plugin))).args[12] ?? ""));
+  const rules = settings.permissions.deny.filter((rule) => rule.includes("/state/plugins/abc/workflow"));
+  expect(rules).toEqual(["Edit(//state/plugins/abc/workflow)", "Edit(//state/plugins/abc/workflow/**)"]);
 });
 
 test("reads no usage on a version whose contract check has not passed", async () => {

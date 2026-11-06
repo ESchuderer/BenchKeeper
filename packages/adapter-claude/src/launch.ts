@@ -112,10 +112,12 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     // Workers read no settings file, so no enabledPlugins reaches them: their plugins come this way, start and resume
     // alike (https://code.claude.com/docs/en/cli-reference).
     ...launch.pluginDirs.flatMap((dir) => ["--plugin-dir", dir]),
-    // The result file's folder joins the working folders, which the settings otherwise keep every write inside; last,
-    // because the flag takes several folders.
+    // The result file's folder joins the working folders, which the settings otherwise keep every write inside, and so
+    // do the plugins, whose skills read their own files (the settings deny edits there); last, because the flag takes
+    // several folders.
     "--add-dir",
     dirname(launch.resultFile),
+    ...launch.pluginDirs,
   ];
 };
 

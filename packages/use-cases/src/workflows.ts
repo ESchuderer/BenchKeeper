@@ -1,4 +1,4 @@
-import { type ChildProcess, type ChildProcessByStdio, execFile, spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, resolve as absolute, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
@@ -26,6 +26,7 @@ import {
 } from "@cedarloom/engine";
 import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
+import { stopOrphans, stopTree } from "./orphans.ts";
 import { readJson } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
@@ -73,22 +74,6 @@ const findShell = (platform: NodeJS.Platform = process.platform, env = process.e
 // committed, stdin closes and nothing runs. The command comes in the environment, apart from the values.
 const GATE = 'read -r _ || exit 125; eval "$CEDARLOOM_COMMAND"';
 
-// A timeout or a cancel ends the command's whole process tree: its process group, or on Windows taskkill /T.
-const stop = (child: ChildProcess): void => {
-  /* v8 ignore start -- Windows only; the Windows CI leg runs it */
-  if (process.platform === "win32") {
-    const taskkill = win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
-    execFile(taskkill, ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, () => child.kill());
-    return;
-  }
-  /* v8 ignore stop */
-  try {
-    process.kill(-Number(child.pid), "SIGKILL");
-  } catch {
-    // It has ended meanwhile.
-  }
-};
-
 // A configuration the validator checked holds its strings; a value of another type comes as its JSON text.
 const text = (value: Json | undefined): string => (typeof value === "string" ? value : JSON.stringify(value));
 
@@ -134,7 +119,8 @@ const command =
       if (signal.aborted) resolve(code);
     });
     const abort = (): void => {
-      stop(child);
+      // A timeout or a cancel ends the command's whole process tree.
+      stopTree(Number(child.pid), child);
       // A shell that has exited already, its background child holding the output, ends the attempt now.
       if (child.exitCode === null && child.signalCode === null) return;
       child.stdout.destroy();
@@ -304,6 +290,8 @@ const runOn = (store: GraphStore, { run, lease }: TakenOver, shell: string, opti
     lease.release();
     return Promise.resolve(journal);
   }
+  // The processes of the attempts left running end before they count as interrupted and any rerun starts.
+  stopOrphans(store.attempts(run.id));
   const held = { lease, workflow: run.definition, inputs: run.inputs, journal: journal.value };
   return runHeld(store, held, shell, options);
 };

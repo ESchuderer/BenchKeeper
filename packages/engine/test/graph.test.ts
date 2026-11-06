@@ -1,11 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  ExtensionId,
   type Finding,
   HandleType,
   isExtensionType,
   NODE_CONFIGS,
-  ExtensionId,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
@@ -13,9 +13,9 @@ import {
   type ActionCatalog,
   compatibility,
   endType,
+  type ExtensionAction,
   NODE_TYPES,
   nodeType,
-  type ExtensionAction,
 } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";

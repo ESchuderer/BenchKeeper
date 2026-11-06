@@ -12,12 +12,6 @@ export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.t
 export { recover } from "./recover.ts";
 export {
   type Action,
-  type AttemptOutcome,
-  type NodeRun,
-  type NodeState,
-  type RunEvent,
-  type RunState,
-  type RunStatus,
   replay,
   resolveInputs,
   type Step,

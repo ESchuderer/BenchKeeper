@@ -3,13 +3,13 @@ import { join } from "node:path";
 import {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
-  LOCK_SCHEMA_VERSION,
   EXTENSION_SCHEMA_VERSION,
   ExtensionLock,
   ExtensionManifest,
-  type Result,
   isExtensionType,
+  LOCK_SCHEMA_VERSION,
   readDocument,
+  type Result,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { Ajv2020 } from "ajv/dist/2020.js";

@@ -62,6 +62,7 @@ export {
   ExtensionManifest,
   FORBIDDEN_HEADERS,
   formatInstalled,
+  GitRef,
   GitUrl,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,

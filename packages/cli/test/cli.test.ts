@@ -722,3 +722,15 @@ test("extensions: one without capabilities asks for none; a source the CLI never
     `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
   ]);
 });
+
+test("extensions: a manifest's unknown key reaches the terminal escaped, never as control characters", async () => {
+  const key = "\u001b[2K\u001b]8;;https://evil.example\u0007x";
+  const { cli } = setup(published({ ...MANIFEST, [key]: 1 }));
+  const refused = await cli("extensions", "add", SOURCE);
+  expect([refused.code, refused.err.includes("\u001b"), refused.err.includes("\u0007")]).toEqual([
+    EXIT.data,
+    false,
+    false,
+  ]);
+  expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
+});

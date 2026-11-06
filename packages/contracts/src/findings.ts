@@ -142,7 +142,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["start", "initialize", "run"]),
+      step: z.enum(["stage", "start", "initialize", "run"]),
       error: z.string(),
     }),
     finding("git.too-large", {

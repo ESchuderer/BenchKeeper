@@ -1,4 +1,4 @@
-import type { Finding, FindingCode } from "@cedarloom/contracts";
+import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
@@ -9,8 +9,9 @@ const undoHint = (p: { runId: string; undoes: string | null }): string =>
     ? `Undo it with: cedarloom runs undo ${p.runId} --yes`
     : `Plan the undo of run ${p.undoes} again with: cedarloom runs undo ${p.undoes} --yes`;
 
+// An issue's path holds a document's own keys, which may come from elsewhere (an extension's manifest): shown safely.
 const issueList = (issues: { path: string; code: string }[]): string =>
-  issues.map((i) => `${i.path || "(top)"} ${i.code}`).join(", ");
+  issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.code}`).join(", ");
 // A node's input, or (node null) one of the workflow's own outputs.
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
@@ -23,7 +24,12 @@ const EXTENSION_REFUSALS = {
   folder: "its folder has a * or ? in its path or a link inside, which would widen what it may read",
   runtime: "Node denies an extension the network only from version 25 on",
 } as const;
-const EXTENSION_STEPS = { start: "start", initialize: "answer its handshake", run: "run an action" } as const;
+const EXTENSION_STEPS = {
+  stage: "stage its files",
+  start: "start",
+  initialize: "answer its handshake",
+  run: "run an action",
+} as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
   entry: "the entry file its manifest names is not in its folder",

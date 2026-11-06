@@ -282,6 +282,15 @@ const isGitUrl = (value: string): boolean => {
   return userOk && plain(new URL(value));
 };
 
+/**
+ * A ref Git fetches as `<ref>:<local ref>`: a branch, a tag, HEAD or a commit, with no refspec syntax (`:`, `+`, `*`,
+ * `^`, `~`), no `@{`, no `..` and no `.lock` at its end, which Git keeps for its lock files.
+ */
+export const GitRef = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/)
+  .refine((ref) => !ref.includes("..") && !ref.endsWith(".lock"), "no .. and no .lock at the end");
+
 /** Where Git fetches an extension or a workflow folder: an https or ssh URL, or `user@host:path`. */
 export const GitUrl = z
   .string()
@@ -337,11 +346,7 @@ export const InstalledExtensions = z
         ExtensionId,
         ExtensionPin.extend({
           // The ref forms Git fetches as `<ref>:<local ref>`, as the git package checks them.
-          ref: z
-            .string()
-            .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/)
-            .refine((ref) => !ref.includes(".."), "no ..")
-            .describe("The branch or tag an update follows; HEAD for the repository's default branch"),
+          ref: GitRef.describe("The branch or tag an update follows; HEAD for the repository's default branch"),
           consented: Sha256.describe(
             "SHA-256 of the canonical JSON of the capabilities the user approved; an update that asks for more asks again",
           ),

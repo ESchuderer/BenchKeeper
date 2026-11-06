@@ -2705,6 +2705,7 @@
             "step": {
               "type": "string",
               "enum": [
+                "stage",
                 "start",
                 "initialize",
                 "run"

@@ -215,6 +215,7 @@ const installed = await read("corpus/InstalledExtensions/1/valid-installed.json"
 const installedChanges: Change[] = [
   ["a ref with refspec syntax", [...jira, "ref"], "main:refs/heads/x", true],
   ["a ref that climbs", [...jira, "ref"], "release/../main", false],
+  ["a ref git keeps for a lock", [...jira, "ref"], "release.lock", false],
   ["a consent that is no hash", [...jira, "consented"], "all", true],
   ["no consent", [...jira, "consented"], undefined, true],
 ];

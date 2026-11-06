@@ -194,3 +194,51 @@ test("an installed set CedarLoom cannot read refuses installs and the list alike
     { code: "document.unreadable", params: { path: join(folder, "extensions.json"), error: expect.any(String) } },
   ]);
 });
+
+// A file of a tree handed over without Git, and the finding of a stage that failed.
+const fileOf = (path: string, text: string) => ({
+  path,
+  mode: "100644" as const,
+  sha256: "0".repeat(64),
+  content: Buffer.from(text),
+});
+
+const stageFailed = (error: unknown) => ({
+  code: "extension.failed",
+  params: { extension: expect.any(String), step: "stage", error },
+});
+
+test("a failure to stage the files is a finding, and leaves no staging folder behind", async () => {
+  const folder = state();
+  // A name longer than any file system takes: the write fails after the staging folder exists.
+  const tooLong: Fetch = () =>
+    Promise.resolve({
+      ok: true,
+      value: {
+        commit: "a".repeat(40),
+        digest: "b".repeat(64),
+        files: [
+          fileOf("cedarloom-extension.json", manifest()),
+          fileOf("main.mjs", ENTRY),
+          fileOf(`${"x".repeat(300)}.txt`, ""),
+        ],
+      },
+    });
+  const failed = await planInstall(folder, { url: "https://git.example.org/acme/long.git", ref: "main" }, tooLong);
+  writeFileSync(join(folder, "taken"), "");
+  mkdirSync(join(folder, "extensions"), { recursive: true });
+  writeFileSync(join(folder, "extensions", "acme.two"), "a file where its folder goes");
+  const blocked = await planInstall(
+    folder,
+    {
+      url: publish("blocked-folder", { "cedarloom-extension.json": manifest({ id: "acme.two" }), "main.mjs": ENTRY }),
+      ref: "main",
+    },
+    fetchLocal,
+  );
+  expect([findingOf(failed), findingOf(blocked), readdirSync(join(folder, "extensions", "acme.jira"))]).toEqual([
+    stageFailed("ENAMETOOLONG"),
+    stageFailed(expect.any(String)),
+    [],
+  ]);
+});

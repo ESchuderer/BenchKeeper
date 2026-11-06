@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   canonicalJson,
@@ -14,6 +14,7 @@ import {
 } from "@cedarloom/contracts";
 import { speaks } from "@cedarloom/extension-host";
 import { type FetchOptions, fetchTree, type Source, type Tree } from "@cedarloom/git";
+import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { parseDocument, readOptionalJson } from "./use-cases.ts";
 
@@ -61,21 +62,38 @@ const installable = (manifest: ExtensionManifest, tree: Tree, installed: Install
 
 /**
  * Writes the files to `<state>/extensions/<id>/<digest>/`, read-only. The folder is named by its content and inert
- * while no installed entry points to it, so it needs no undo; a folder there already holds the same files.
+ * while no installed entry points to it, so it needs no undo; a folder there already holds the same files. A write
+ * that fails (a full disk, a path the file system cannot take) leaves no staging folder and is a finding with its
+ * error code only: the message would hold the extension's own paths.
  */
-const stage = (state: string, id: string, tree: Tree): void => {
+const stage = (state: string, id: string, tree: Tree): Finding | undefined => {
   const parent = join(state, "extensions", id);
   const folder = join(parent, tree.digest);
-  if (existsSync(folder)) return;
-  mkdirSync(parent, { recursive: true });
-  const staging = mkdtempSync(join(parent, "staging-"));
-  for (const file of tree.files) {
-    // The git package passed only portable paths inside the folder: no "..", no absolute path, no link.
-    const path = join(staging, ...file.path.split("/"));
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o555 : 0o444 });
+  if (existsSync(folder)) return undefined;
+  try {
+    mkdirSync(parent, { recursive: true });
+    const staging = mkdtempSync(join(parent, "staging-"));
+    try {
+      for (const file of tree.files) {
+        // The git package passed only portable paths inside the folder: no "..", no absolute path, no link.
+        const path = join(staging, ...file.path.split("/"));
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o555 : 0o444 });
+      }
+      renameSync(staging, folder);
+    } finally {
+      // Gone after the rename; after a failure, partly written.
+      rmSync(staging, { recursive: true, force: true, maxRetries: 3 });
+    }
+    return undefined;
+  } catch (error) {
+    // Another install of the same files may have staged them first.
+    const failure: Finding = {
+      code: "extension.failed",
+      params: { extension: id, step: "stage", error: errorCode(error) },
+    };
+    return existsSync(folder) ? undefined : failure;
   }
-  renameSync(staging, folder);
 };
 
 export type InstallPlan = { plan: Plan; manifest: ExtensionManifest; pin: Pin };
@@ -103,7 +121,8 @@ export const planInstall = async (
   const finding = installable(manifest.value, tree.value, installed);
   if (finding !== undefined) return { ok: false, finding };
   const { id, version, capabilities = {} } = manifest.value;
-  stage(state, id, tree.value);
+  const failed = stage(state, id, tree.value);
+  if (failed !== undefined) return { ok: false, finding: failed };
   const { commit, digest } = tree.value;
   const at = source.path === undefined ? {} : { path: source.path };
   const pin: Pin = {

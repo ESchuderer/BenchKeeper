@@ -29,7 +29,7 @@ export const CONFORMANT = {
   dns: "ERR_ACCESS_DENIED",
   fetch: "TypeError: fetch failed",
   addon: "ERR_DLOPEN_DISABLED",
-  // No file, folder or socket descriptor past stdio: Node's flags do not cover a descriptor a process was given.
+  // No file or socket descriptor past stdio: Node's flags do not cover a descriptor a process was given.
   descriptor: "none",
   sqlite: "ERR_UNKNOWN_BUILTIN_MODULE",
   // Node's flags let a process signal any process of the user (and open another Node process's inspector): only an

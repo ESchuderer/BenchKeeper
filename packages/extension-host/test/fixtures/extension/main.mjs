@@ -34,12 +34,12 @@ const reach = () =>
     socket.on("connect", resolve);
   });
 
-// Node's flags do not cover a descriptor a process was given: none past stdio may be a file, folder or socket. Node
-// opens descriptors of its own (its event loop's), which are none of these.
+// Node's flags do not cover a descriptor a process was given: none past stdio may be a file or a socket. Node opens
+// descriptors of its own: pipes for its event loop, and on macOS folders, which a plain node process has too.
 const inherited = () => {
   for (let fd = 3; fd < 64; fd += 1) {
     const kind = attemptSync(() => fstatSync(fd));
-    if (kind !== undefined && (kind.isFile() || kind.isDirectory() || kind.isSocket())) return `descriptor ${fd}`;
+    if (kind !== undefined && (kind.isFile() || kind.isSocket())) return `descriptor ${fd}`;
   }
   return "none";
 };

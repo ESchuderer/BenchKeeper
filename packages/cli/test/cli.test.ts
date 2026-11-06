@@ -281,6 +281,7 @@ test("every finding code has an English sentence", () => {
     "document.invalid": { issues: [{ path: "", code: "invalid_json" }] },
     "plan.chain-broken": { path: "/a.md", index: 1, expected: sha256("a"), found: null },
     "draft.too-large": { id: "w", bytes: 3_000_000, limit: 2_097_152 },
+    "run.input-invalid": { input: "focus", type: "number" },
     "workflow.duplicate-id": { kind: "node", id: "lint" },
     "workflow.trigger-count": { count: 0 },
     "workflow.invalid-config": { node: "j", issues: [{ path: "", code: "invalid_value" }] },

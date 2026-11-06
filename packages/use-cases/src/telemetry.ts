@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join } from "node:path";
 import {
   AgentVersion,
+  type Finding,
   formatTelemetryTokens,
   type Operation,
   type Plan,
@@ -13,6 +14,7 @@ import {
   TelemetryTokens,
   TokenRow,
 } from "@cedarloom/contracts";
+import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { z } from "zod";
 import { loadRegistry } from "./accounts.ts";
@@ -251,16 +253,42 @@ export const telemetryPort = (config: string): number => {
   return (loaded.ok ? loaded.value?.telemetryPort : undefined) ?? TELEMETRY_PORT;
 };
 
-/** The env block of an agent's settings that sends its sessions' telemetry to `endpoint` with `token`. */
-export type TelemetryEnv = (telemetry: { readonly endpoint: string; readonly token: string }) => Record<string, string>;
+/** How an agent's settings send its sessions' telemetry, as `accounts telemetry` writes and checks them. */
+export interface TelemetrySettings {
+  /** The env block that sends the sessions' telemetry to `endpoint` with `token`. */
+  readonly env: (telemetry: { readonly endpoint: string; readonly token: string }) => Record<string, string>;
+  /** Whether a variable sends or routes telemetry. */
+  readonly isTelemetry: (name: string) => boolean;
+  /** Settings keys besides env that send telemetry. */
+  readonly keys: readonly string[];
+  /** The receiver token an env block holds; null for none. */
+  readonly tokenOf: (env: Readonly<Record<string, string>>) => string | null;
+}
 
 const Settings = z.looseObject({ env: z.record(z.string(), z.string()).optional() });
 
+/** What an account's homes get: the agent's settings, the account's new block, and its token's hash so far. */
+interface Change {
+  readonly agent: TelemetrySettings;
+  readonly block: Record<string, string>;
+  readonly hash: string | undefined;
+}
+
+// Whether a home's settings send telemetry that is not CedarLoom's: any telemetry key or variable, except the block's
+// own keys when the env holds the account's current token, which a run again replaces (a new port, alias or token).
+const foreignTelemetry = (settings: z.infer<typeof Settings>, { agent, block, hash }: Change): boolean => {
+  const env = settings.env ?? {};
+  const token = agent.tokenOf(env);
+  const own = token !== null && sha256(token) === hash;
+  const theirs = Object.keys(env).filter((key) => agent.isTelemetry(key) && !(own && Object.hasOwn(block, key)));
+  return theirs.length > 0 || agent.keys.some((key) => Object.hasOwn(settings, key));
+};
+
 // The write of one interactive home's settings.json with the telemetry block in its env, private as it holds the
-// token. Refused when the home sends telemetry already: an OTEL_ variable or one of the block's.
+// token; refused when the home sends telemetry of its own.
 // shortcut: the block sets no NO_PROXY, as it would replace the user's own; a session behind a proxy may send its
 // loopback post there (unverified), until the live check settles it.
-const settingsWrite = (account: string, home: string, block: Record<string, string>): Result<Operation> => {
+const settingsWrite = (account: string, home: string, change: Change): Result<Operation> => {
   const path = join(home, "settings.json");
   const file = readOptionalJson(path);
   if (!file.ok) return file;
@@ -269,11 +297,10 @@ const settingsWrite = (account: string, home: string, block: Record<string, stri
     const issues = settings.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
     return { ok: false, finding: { code: "document.invalid", params: { issues } } };
   }
-  const env = settings.data.env ?? {};
-  if (Object.keys(env).some((key) => Object.hasOwn(block, key) || /^OTEL_/i.test(key))) {
+  if (foreignTelemetry(settings.data, change)) {
     return { ok: false, finding: { code: "accounts.telemetry-set", params: { account, path } } };
   }
-  const content = `${JSON.stringify({ ...settings.data, env: { ...env, ...block } }, null, 2)}\n`;
+  const content = `${JSON.stringify({ ...settings.data, env: { ...settings.data.env, ...change.block } }, null, 2)}\n`;
   const before = file.value === null ? null : sha256(file.value.text);
   return { ok: true, value: { kind: "write", path, before, content, mode: 0o600 } };
 };
@@ -304,14 +331,13 @@ const interactiveAccounts = (config: string): Result<{ accounts: Interactive[]; 
 // The settings writes of one account's interactive homes with a fresh token of its own, and that token's hash.
 const homeWrites = (
   account: Interactive,
-  endpoint: string,
-  settingsEnv: TelemetryEnv,
+  { endpoint, agent, hash }: { endpoint: string; agent: TelemetrySettings; hash: string | undefined },
 ): Result<{ hash: string; writes: Operation[] }> => {
   const token = randomBytes(24).toString("hex");
-  const block = settingsEnv({ endpoint, token });
+  const change = { agent, block: agent.env({ endpoint, token }), hash };
   const writes: Operation[] = [];
   for (const home of account.aliases) {
-    const write = settingsWrite(account.name, home, block);
+    const write = settingsWrite(account.name, home, change);
     if (!write.ok) return write;
     writes.push(write.value);
   }
@@ -321,14 +347,21 @@ const homeWrites = (
 /**
  * Plans `accounts telemetry`: the interactive homes (aliases) of each Claude account send their sessions' telemetry to
  * the receiver `cedarloom ui` runs, with a fresh token of the account's own. Each home's settings.json gets the block
- * and becomes private; the tokens file keeps the token's hash only. Workers never run in an alias, so no worker can
- * post with an interactive token.
+ * and becomes private; the tokens file keeps the token's hash. A run again replaces CedarLoom's own blocks. Workers
+ * never run in an alias, so no worker can post with an interactive token.
+ *
+ * A settings env replaces what the shell exports, so telemetry of the user's own is refused: in a home's settings and
+ * in `env`, the environment this runs in. Other shells, terminals and editors that start Claude Code are not seen.
  */
 export const planTelemetry = (
   config: string,
   state: string,
-  settingsEnv: TelemetryEnv,
+  agent: TelemetrySettings,
+  env: Readonly<Record<string, string | undefined>>,
 ): Result<{ plan: Plan; homes: string[] }> => {
+  const variable = Object.keys(env).find((name) => env[name] !== undefined && agent.isTelemetry(name));
+  if (variable !== undefined)
+    return { ok: false, finding: { code: "accounts.telemetry-exported", params: { variable } } };
   const found = interactiveAccounts(config);
   if (!found.ok) return found;
   const read = readTokens(state);
@@ -337,7 +370,7 @@ export const planTelemetry = (
   const hashes = { ...read.value.tokens.accounts };
   const operations: Operation[] = [];
   for (const account of accounts) {
-    const planned = homeWrites(account, endpoint, settingsEnv);
+    const planned = homeWrites(account, { endpoint, agent, hash: hashes[account.name] });
     if (!planned.ok) return planned;
     hashes[account.name] = planned.value.hash;
     operations.push(...planned.value.writes);
@@ -347,4 +380,26 @@ export const planTelemetry = (
   operations.push({ kind: "write", path: tokensPath(state), before, content, mode: 0o600 });
   const homes = accounts.flatMap((one) => one.aliases);
   return { ok: true, value: { plan: { schemaVersion: 1, operations }, homes } };
+};
+
+/**
+ * The doctor's check of the interactive homes' receiver port once a home sends there: a warning when a program other
+ * than CedarLoom's receiver answers on it, as it would get the homes' posts with their token. A program that answers as
+ * the receiver does (401 without a token) is not told apart; nobody on the port is no problem, as the posts then fail.
+ */
+export const telemetryProblems = async (config: string, state: string): Promise<Finding[]> => {
+  const read = readTokens(state);
+  if (!read.ok || Object.keys(read.value.tokens.accounts).length === 0) return [];
+  const port = telemetryPort(config);
+  const headers = { "content-type": "application/json" };
+  const heard = await fetch(`http://127.0.0.1:${port}/v1/logs`, {
+    method: "POST",
+    headers,
+    body: "{}",
+    signal: AbortSignal.timeout(2000),
+  }).then(
+    (res) => res.status,
+    (error: unknown) => errorCode(error instanceof Error ? error.cause : error),
+  );
+  return heard === 401 || heard === "ECONNREFUSED" ? [] : [{ code: "doctor.telemetry-port-held", params: { port } }];
 };

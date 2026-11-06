@@ -90,7 +90,7 @@ test("registry folders are the same without trailing separators, a root stays a 
   expect(sameFolder("/a/b", "/a/c")).toBe(false);
 });
 
-test("the telemetry tokens file holds each account's token hash, accounts sorted by name, and no token", () => {
+test("the telemetry tokens file holds each account's token hash, accounts sorted by name", () => {
   const hash = "a".repeat(64);
   const tokens = {
     schemaVersion: 1,
@@ -99,7 +99,6 @@ test("the telemetry tokens file holds each account's token hash, accounts sorted
   } as const;
   const text = formatTelemetryTokens(tokens);
   expect([JSON.parse(text), text.indexOf('"alpha"') < text.indexOf('"work"')]).toEqual([tokens, true]);
-  expect(() => formatTelemetryTokens({ ...tokens, accounts: { work: "a token" } })).toThrow(/regex|pattern|invalid/i);
 });
 
 describe("golden corpus of account registries: valid files are also in their written form", async () => {

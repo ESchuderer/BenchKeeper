@@ -1111,6 +1111,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.telemetry-exported";
+            params: {
+                variable: string;
+            };
+        } | {
+            /** @constant */
             code: "telemetry.port-taken";
             params: {
                 port: number;
@@ -1143,6 +1149,12 @@ export interface components {
             params: {
                 account: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.telemetry-port-held";
+            params: {
+                port: number;
             };
         } | {
             /** @constant */
@@ -1902,6 +1914,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.telemetry-exported";
+            params: {
+                variable: string;
+            };
+        } | {
+            /** @constant */
             code: "telemetry.port-taken";
             params: {
                 port: number;
@@ -1934,6 +1952,12 @@ export interface components {
             params: {
                 account: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.telemetry-port-held";
+            params: {
+                port: number;
             };
         } | {
             /** @constant */

@@ -159,9 +159,13 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "accounts.no-alias": () =>
     "No Claude account names an interactive home (an alias) yet, so there is nothing to send token counts from.",
   "accounts.telemetry-set": (p) =>
-    `${p.path} of account ${p.account} sends telemetry already (an OTEL_ variable), so CedarLoom leaves it as it is; remove those variables there to use CedarLoom's receiver.`,
+    `${p.path} of account ${p.account} sends telemetry of its own, so CedarLoom leaves it as it is; remove its telemetry variables or otelHeadersHelper to use CedarLoom's receiver.`,
+  "accounts.telemetry-exported": (p) =>
+    `This shell exports ${p.variable}, which the settings of the interactive homes would override for Claude Code sessions; unset it to use CedarLoom's receiver, or keep your own telemetry.`,
   "telemetry.port-taken": (p) =>
     `Another program holds port ${p.port}, so the interactive homes' token counts are not received; free it, or set telemetryPort in accounts.json and run cedarloom accounts telemetry again.`,
+  "doctor.telemetry-port-held": (p) =>
+    `A program other than cedarloom ui answers on port ${p.port}, where the interactive homes send their token counts with their token; stop it, or set another telemetryPort in accounts.json and run cedarloom accounts telemetry again.`,
   "doctor.logged-out": (p) =>
     `Account ${p.account} is not logged in in its own home ${p.home}; log in with: cedarloom accounts login ${p.account}`,
   "doctor.login-elsewhere": (p) =>

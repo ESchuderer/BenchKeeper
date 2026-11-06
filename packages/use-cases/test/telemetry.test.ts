@@ -1,16 +1,18 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { claudeTelemetryEnv } from "@cedarloom/adapter-claude";
+import { claudeTelemetry } from "@cedarloom/adapter-claude";
 import { formatRegistry, formatTelemetryTokens } from "@cedarloom/contracts";
-import { openRunStore } from "@cedarloom/ledger";
+import { openRunStore, sha256 } from "@cedarloom/ledger";
 import {
   applyPlan,
   planTelemetry,
   startTelemetry,
   type TelemetryOptions,
   telemetryPort,
+  telemetryProblems,
   tokenRowsOf,
 } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -208,7 +210,7 @@ test("an interactive home posts as its account once accounts telemetry is applie
   const port = await freePort();
   const { config, state, settings } = interactive(port);
   writeFileSync(settings, JSON.stringify({ model: "opus", env: { KEEP: "1" } }));
-  const planned = planTelemetry(config, state, claudeTelemetryEnv);
+  const planned = planTelemetry(config, state, claudeTelemetry, {});
   if (!planned.ok) throw new Error(planned.finding.code);
   // The settings become private, as they hold the token; the tokens file keeps its hash only.
   expect(planned.value.plan.operations).toMatchObject([
@@ -227,22 +229,52 @@ test("an interactive home posts as its account once accounts telemetry is applie
     const headers = { "content-type": "application/json", authorization };
     expect((await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status).toBe(200);
     expect(stored(state)).toEqual([{ ...ROW, runId: null }]);
-    // A second receiver on the port is refused.
+    // A second receiver on the port is refused, and the doctor sees the receiver as no problem.
     const taken = { ok: false, finding: { code: "telemetry.port-taken", params: { port } } };
-    expect(await startTelemetry(state, { port })).toEqual(taken);
+    expect([await startTelemetry(state, { port }), await telemetryProblems(config, state)]).toEqual([taken, []]);
+    // A run again replaces CedarLoom's own block, with a new token: the old one is refused.
+    const again = planTelemetry(config, state, claudeTelemetry, {});
+    if (!again.ok) throw new Error(again.finding.code);
+    applyPlan(state, again.value.plan, { yes: true });
+    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status).toBe(401);
   } finally {
     await receiver.close();
   }
 });
 
-test("accounts telemetry is refused without an interactive home, and for a home that sends telemetry already", async () => {
-  const { root, config, state, settings } = interactive();
-  const planned = () => planTelemetry(config, state, claudeTelemetryEnv);
-  writeFileSync(settings, JSON.stringify({ env: { OTEL_EXPORTER_OTLP_ENDPOINT: "http://collector.example" } }));
-  expect(planned()).toEqual({
+test("a shell or a home that sends telemetry of its own is refused, and CedarLoom's own block is replaced", () => {
+  const { config, state, settings } = interactive();
+  const planned = () => planTelemetry(config, state, claudeTelemetry, {});
+  // A shell's own telemetry is refused, as the settings would override it; a variable without a value is none.
+  const exported = planTelemetry(config, state, claudeTelemetry, { PATH: "/bin", BETA_TRACING_ENDPOINT: "https://x" });
+  expect(exported).toEqual({
     ok: false,
-    finding: { code: "accounts.telemetry-set", params: { account: "work", path: settings } },
+    finding: { code: "accounts.telemetry-exported", params: { variable: "BETA_TRACING_ENDPOINT" } },
   });
+  const set = { ok: false, finding: { code: "accounts.telemetry-set", params: { account: "work", path: settings } } };
+  for (const own of [
+    { env: { OTEL_EXPORTER_OTLP_ENDPOINT: "http://collector.example" } },
+    { env: { CLAUDE_CODE_ENABLE_TELEMETRY: "1" } },
+    { env: { BETA_TRACING_ENDPOINT: "https://collector.example" } },
+    { otelHeadersHelper: "/usr/local/bin/otel-headers" },
+  ]) {
+    writeFileSync(settings, JSON.stringify(own));
+    expect(planTelemetry(config, state, claudeTelemetry, { OTEL_EXPORTER_OTLP_ENDPOINT: undefined })).toEqual(set);
+  }
+  // CedarLoom's own block, by the account's token, is replaced; beside a variable of the user's it is not.
+  const token = "ab".repeat(24);
+  const tokens = { schemaVersion: 1, kind: "cedarloom.telemetry-tokens", accounts: { work: sha256(token) } } as const;
+  writeFileSync(join(state, "telemetry.json"), formatTelemetryTokens(tokens));
+  const block = claudeTelemetry.env({ endpoint: "http://127.0.0.1:4319/v1/logs", token });
+  writeFileSync(settings, JSON.stringify({ env: block }));
+  expect(planned()).toMatchObject({ ok: true });
+  writeFileSync(settings, JSON.stringify({ env: { ...block, OTEL_TRACES_EXPORTER: "otlp" } }));
+  expect(planned()).toEqual(set);
+});
+
+test("accounts telemetry is refused without an interactive home, and for settings it cannot rewrite", async () => {
+  const { root, config, state, settings } = interactive();
+  const planned = () => planTelemetry(config, state, claudeTelemetry, {});
   // Settings that are no JSON, or whose env holds other than text, are not rewritten.
   for (const content of ["{", JSON.stringify({ env: { KEEP: 1 } })]) {
     writeFileSync(settings, content);
@@ -271,16 +303,34 @@ test("accounts telemetry is refused without an interactive home, and for a home 
   // A tokens file it cannot read.
   const elsewhere = join(root, "elsewhere");
   mkdirSync(join(elsewhere, "telemetry.json"), { recursive: true });
-  expect(planTelemetry(config, elsewhere, claudeTelemetryEnv)).toMatchObject({
+  expect(planTelemetry(config, elsewhere, claudeTelemetry, {})).toMatchObject({
     ok: false,
     finding: { code: "document.unreadable" },
   });
   const none = { ok: false, finding: { code: "accounts.no-alias", params: {} } };
-  expect(planTelemetry(join(root, "nowhere"), state, claudeTelemetryEnv)).toEqual(none);
+  expect(planTelemetry(join(root, "nowhere"), state, claudeTelemetry, {})).toEqual(none);
   // The receiver's port: the registry's, else the default one, also when the registry cannot be read.
   const ports = [telemetryPort(config), telemetryPort(interactive(4319).config), telemetryPort(join(root, "nowhere"))];
   expect(ports).toEqual([24318, 4319, 24318]);
   writeFileSync(join(config, "accounts.json"), "{");
   expect(planned()).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
   expect(telemetryPort(config)).toBe(24318);
+});
+
+test("the doctor warns when a program other than the receiver answers on the interactive homes' port", async () => {
+  const port = await freePort();
+  const { config, state } = interactive(port);
+  // No home sends there yet, so there is nothing to check.
+  expect(await telemetryProblems(config, state)).toEqual([]);
+  const tokens = { schemaVersion: 1, kind: "cedarloom.telemetry-tokens", accounts: { work: "a".repeat(64) } } as const;
+  writeFileSync(join(state, "telemetry.json"), formatTelemetryTokens(tokens));
+  // Nobody on the port: the posts fail, and nothing gets them.
+  expect(await telemetryProblems(config, state)).toEqual([]);
+  const other = createServer((_req, res) => res.end("ok"));
+  await new Promise<void>((resolve) => other.listen(port, "127.0.0.1", resolve));
+  try {
+    expect(await telemetryProblems(config, state)).toEqual([{ code: "doctor.telemetry-port-held", params: { port } }]);
+  } finally {
+    await new Promise<void>((resolve) => other.close(() => resolve()));
+  }
 });

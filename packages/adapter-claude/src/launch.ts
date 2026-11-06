@@ -128,8 +128,11 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 // variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
 // CLAUDE_CODE_USE_POWERSHELL_TOOL is kept: it turns a tool on or off and selects no login.
 const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_TOOL$))/i;
-// Telemetry is the adapter's alone: no exporter, endpoint or content flag of the launch's environment reaches the CLI.
-const TELEMETRY = /^(?:OTEL_|CLAUDE_CODE_ENABLE_TELEMETRY$)/i;
+// The variables by which Claude Code sends or routes telemetry (https://code.claude.com/docs/en/monitoring-usage): the
+// exporters, the switch, the enhanced telemetry beta and the beta tracing. Telemetry is the adapter's alone: none of
+// the launch's environment reaches the CLI.
+const TELEMETRY =
+  /^(?:OTEL_|CLAUDE_CODE_ENABLE_TELEMETRY$|(?:CLAUDE_CODE_|ENABLE_)ENHANCED_TELEMETRY_BETA$|(?:ENABLE_)?BETA_TRACING_)/i;
 
 // OpenTelemetry logs only, to the launcher's loopback receiver, metrics off, and no content flag
 // (https://code.claude.com/docs/en/monitoring-usage); the receiver keeps the api_request events. The settings repeat
@@ -146,14 +149,24 @@ const telemetrySettings = (telemetry: ClaudeLaunch["telemetry"]): Record<string,
         OTEL_METRICS_INCLUDE_VERSION: "true",
       };
 
-/**
- * The env block that sends Claude Code's telemetry to the receiver at `endpoint` with `token`, for the logs signal
- * only: a worker's process environment, or an interactive home's settings.json (`accounts telemetry`).
- */
-export const claudeTelemetryEnv = (telemetry: { readonly endpoint: string; readonly token: string }) => ({
+// The env block that sends Claude Code's telemetry to the receiver at `endpoint` with `token`, for the logs signal only.
+const claudeTelemetryEnv = (telemetry: { readonly endpoint: string; readonly token: string }) => ({
   ...telemetrySettings(telemetry),
   OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${telemetry.token}`,
 });
+
+/**
+ * How Claude Code's settings send telemetry, for an interactive home's settings.json (`accounts telemetry`): the block
+ * a worker gets too, the variables and the settings key (otelHeadersHelper) that send telemetry already, and the token
+ * a block holds.
+ */
+export const claudeTelemetry = {
+  env: claudeTelemetryEnv,
+  isTelemetry: (name: string): boolean => TELEMETRY.test(name),
+  keys: ["otelHeadersHelper"],
+  tokenOf: (env: Readonly<Record<string, string>>): string | null =>
+    /^Authorization=Bearer ([0-9a-f]{48})$/.exec(env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] ?? "")?.[1] ?? null,
+} as const;
 
 // The worker's block, in the process environment only: the settings travel on the command line, which every local user
 // can read. The loopback stays off the worker's proxy, whose bypass of the loopback Claude Code documents for

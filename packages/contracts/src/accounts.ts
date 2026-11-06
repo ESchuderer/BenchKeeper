@@ -229,8 +229,7 @@ export type TelemetryTokens = z.infer<typeof TelemetryTokens>;
 
 /** The tokens file's text: accounts sorted by name, two-space indentation. */
 export const formatTelemetryTokens = (tokens: TelemetryTokens): string =>
-  `${JSON.stringify(TelemetryTokens.parse(sortKeys(tokens)), null, 2)}
-`;
+  `${JSON.stringify(TelemetryTokens.parse(sortKeys(tokens)), null, 2)}\n`;
 
 /**
  * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it

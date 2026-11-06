@@ -49,7 +49,8 @@ export const showPlan = ({ planHash, plan }: PlanPreview): string => {
   const lines = plan.operations.map((op) => {
     if (op.kind === "delete") return `  delete  ${op.path}`;
     const how = op.before === null ? "create" : "replace";
-    return `  write   ${op.path} (${how}, ${op.bytes} bytes)`;
+    const mode = op.mode === undefined ? "" : `, mode ${op.mode.toString(8).padStart(4, "0")}`;
+    return `  write   ${op.path} (${how}, ${op.bytes} bytes${mode})`;
   });
   return [`Plan ${planHash}:`, ...lines].join("\n");
 };

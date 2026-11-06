@@ -69,10 +69,11 @@ export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from 
 export {
   planTelemetry,
   startTelemetry,
-  type TelemetryEnv,
+  type TelemetrySettings,
   type TelemetryOptions,
   type TelemetryReceiver,
   type TelemetryRun,
   telemetryPort,
+  telemetryProblems,
   tokenRowsOf,
 } from "./telemetry.ts";

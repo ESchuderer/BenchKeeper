@@ -109,6 +109,8 @@ export const Finding = z
     finding("accounts.no-alias", {}),
     // An interactive home's settings already send telemetry somewhere: CedarLoom does not take that over.
     finding("accounts.telemetry-set", { account: z.string(), path: z.string() }),
+    // The environment exports a telemetry variable (its name only), which a home's settings env would override.
+    finding("accounts.telemetry-exported", { variable: z.string() }),
     // Another program holds the receiver's port: the interactive homes' telemetry waits until it is free.
     finding("telemetry.port-taken", { port: z.int() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
@@ -116,6 +118,8 @@ export const Finding = z
     finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
     finding("doctor.login-method", { account: z.string(), method: z.string() }),
     finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
+    // A program other than CedarLoom's receiver answers on the interactive homes' port, so it gets their posts.
+    finding("doctor.telemetry-port-held", { port: z.int() }),
     finding("doctor.login-skipped", { account: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
@@ -253,11 +257,13 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.login-failed": { severity: "error", effort: "manual" },
   "accounts.no-alias": { severity: "error", effort: "manual" },
   "accounts.telemetry-set": { severity: "error", effort: "manual" },
+  "accounts.telemetry-exported": { severity: "error", effort: "manual" },
   "telemetry.port-taken": { severity: "warning", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },
   "doctor.login-unchecked": { severity: "warning", effort: "manual" },
+  "doctor.telemetry-port-held": { severity: "warning", effort: "manual" },
   "doctor.login-skipped": { severity: "info", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },

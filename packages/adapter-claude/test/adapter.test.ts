@@ -6,6 +6,7 @@ import {
   claudeLogin,
   claudeRuntime,
   type ClaudeLaunch,
+  claudeTelemetry,
   FRESH_INSTALL_PHASES,
 } from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
@@ -158,6 +159,7 @@ test("a launch with a receiver exports its logs only there, with its token and n
     OTEL_LOG_USER_PROMPTS: "1",
     OTEL_EXPORTER_OTLP_ENDPOINT: "http://elsewhere",
     CLAUDE_CODE_ENABLE_TELEMETRY: "0",
+    BETA_TRACING_ENDPOINT: "https://elsewhere",
     NO_PROXY: "corp.example",
   };
   const telemetry = { endpoint: "http://127.0.0.1:4318/v1/logs", token: "t0k" };
@@ -174,7 +176,9 @@ test("a launch with a receiver exports its logs only there, with its token and n
   // One list for both spellings: Windows keeps one of them, other systems both.
   const bypass = Object.entries(on.env).flatMap(([name, value]) => (name.toUpperCase() === "NO_PROXY" ? [value] : []));
   expect(new Set(bypass)).toEqual(new Set(["corp.example,127.0.0.1,localhost"]));
-  for (const name of ["OTEL_LOG_USER_PROMPTS", "OTEL_EXPORTER_OTLP_ENDPOINT"]) expect(on.env).not.toHaveProperty(name);
+  for (const name of ["OTEL_LOG_USER_PROMPTS", "OTEL_EXPORTER_OTLP_ENDPOINT", "BETA_TRACING_ENDPOINT"]) {
+    expect(on.env).not.toHaveProperty(name);
+  }
   // The settings on the command line, which every local user can read, repeat them without the token.
   const flag = z
     .object({ env: z.record(z.string(), z.string()) })
@@ -187,6 +191,33 @@ test("a launch with a receiver exports its logs only there, with its token and n
     expect(off.env).not.toHaveProperty(name);
   }
   expect(off.env["NO_PROXY"]).toBe("corp.example");
+});
+
+test("an interactive home's block, what counts as Claude Code telemetry already, and the token a block holds", () => {
+  const token = "ab".repeat(24);
+  const block = claudeTelemetry.env({ endpoint: "http://127.0.0.1:24318/v1/logs", token });
+  expect(block).toMatchObject({
+    OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${token}`,
+    OTEL_LOGS_EXPORTER: "otlp",
+  });
+  expect([claudeTelemetry.tokenOf(block), claudeTelemetry.tokenOf({}), claudeTelemetry.keys]).toEqual([
+    token,
+    null,
+    ["otelHeadersHelper"],
+  ]);
+  const named = [
+    "OTEL_TRACES_EXPORTER",
+    "CLAUDE_CODE_ENABLE_TELEMETRY",
+    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+    "ENABLE_ENHANCED_TELEMETRY_BETA",
+    "BETA_TRACING_ENDPOINT",
+    "ENABLE_BETA_TRACING_DETAILED",
+  ];
+  const others = ["PATH", "CLAUDE_CODE_EFFORT_LEVEL", "CLAUDE_CODE_ENABLE_TELEMETRY_X"];
+  expect([...named, ...others].map((name) => claudeTelemetry.isTelemetry(name))).toEqual([
+    ...named.map(() => true),
+    ...others.map(() => false),
+  ]);
 });
 
 test("maps the stream-json lines to events", async () => {

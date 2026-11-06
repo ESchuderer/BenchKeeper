@@ -2355,6 +2355,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "accounts.telemetry-exported"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "variable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variable"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "telemetry.port-taken"
               },
               "params": {
@@ -2492,6 +2518,34 @@
                 "required": [
                   "account",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.telemetry-port-held"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "port": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "port"
                 ],
                 "additionalProperties": false
               }
@@ -5990,6 +6044,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "accounts.telemetry-exported"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "variable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "variable"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "telemetry.port-taken"
               },
               "params": {
@@ -6127,6 +6207,34 @@
                 "required": [
                   "account",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.telemetry-port-held"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "port": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "port"
                 ],
                 "additionalProperties": false
               }

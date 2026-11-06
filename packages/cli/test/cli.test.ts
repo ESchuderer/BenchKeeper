@@ -452,6 +452,7 @@ test("every finding code has an English sentence", () => {
     "workflow.schedule-input": { input: "branch" },
     "launch.account-full": { account: "work", max: 2 },
     "telemetry.port-taken": { port: 24318 },
+    "doctor.telemetry-port-held": { port: 24318 },
     "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
     "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
     "extension.install-refused": { extension: null, reason: "no-manifest" },

@@ -1,4 +1,4 @@
-import { claudeTelemetryEnv } from "@cedarloom/adapter-claude";
+import { claudeTelemetry } from "@cedarloom/adapter-claude";
 import {
   type Account,
   Agent,
@@ -138,7 +138,11 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
   const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
-  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding])];
+  const findings = [
+    ...useCases.doctor(ctx.state),
+    ...(logins.ok ? logins.value : [logins.finding]),
+    ...(await useCases.telemetryProblems(ctx.config, ctx.state)),
+  ];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;
@@ -222,10 +226,14 @@ export const accountsHome = (ctx: Context, name: string, { yes }: { yes?: true }
 
 /** Plans the interactive homes' telemetry settings, whose posts the receiver of `cedarloom ui` takes. */
 export const accountsTelemetry = (ctx: Context, { yes }: { yes?: true }): number => {
-  const planned = useCases.planTelemetry(ctx.config, ctx.state, claudeTelemetryEnv);
+  const planned = useCases.planTelemetry(ctx.config, ctx.state, claudeTelemetry, ctx.io.env);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   const { plan, homes } = planned.value;
-  const note = `\nSessions in ${homes.join(", ")} send their token counts while cedarloom ui runs.`;
+  const note = [
+    `\nSessions in ${homes.join(", ")} send their token counts while cedarloom ui runs.`,
+    "These settings override OTEL_ and other telemetry variables a shell, terminal or editor exports for Claude Code there; only this shell's were checked.",
+    "For a machine only you use: while cedarloom ui is stopped, another program could take the port and get the token.",
+  ].join("\n");
   return change(ctx, plan, { note, data: { homes }, findings: [] }, yes);
 };
 

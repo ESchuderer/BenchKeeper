@@ -14,13 +14,16 @@ const NO_TOKEN = new Set<number | string>([1, "ENOENT"]);
 export const ghProbe = async (
   env: Readonly<Record<string, string>>,
   command: Command = ["gh"],
+  timeoutMs = 10_000,
 ): Promise<Result<null>> => {
   const [file, ...prefix] = command;
   const without = Object.fromEntries(Object.entries(env).filter(([name]) => name.toUpperCase() !== "GH_TOKEN"));
+  // SIGKILL on the timeout: a gh that ignores SIGTERM would keep the launch waiting.
   const child = spawn(file, [...prefix, "auth", "token"], {
     env: without,
     stdio: "ignore",
-    timeout: 10_000,
+    timeout: timeoutMs,
+    killSignal: "SIGKILL",
     windowsHide: true,
   });
   // An exit code (0: gh has a token), a spawn error code such as EACCES, or "killed" when it ended by a signal.

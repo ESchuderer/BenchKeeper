@@ -104,11 +104,14 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   expect(settings).toMatchObject({
     permissions: {
       allow: ["Bash(pnpm test *)"],
+      // The path itself and below it; the working folder's own path depends on the platform.
       deny: [
+        "Read(//accounts/other)",
         "Read(//accounts/other/**)",
+        "Edit(//accounts/other)",
         "Edit(//accounts/other/**)",
         "Read(**/.env*)",
-        `Edit(/${join(fixtures, ".github", "workflows")}/**)`,
+        expect.stringMatching(/^Edit\(\/\/.*workflows\/\*\*\)$/),
       ],
       disableBypassPermissionsMode: "disable",
       blockReadsOutsideWorkingDirectories: true,
@@ -183,8 +186,17 @@ test("refuses a launch the types alone cannot keep out, such as one built from J
   for (const [change, message] of refusals) expect(() => runtime.start(fromJson(change))).toThrow(message);
 });
 
+test("a Windows path becomes an absolute rule in POSIX form, and MCP rules with a glob pass", async () => {
+  const windows = { denyRead: ["C:\\Users\\dev\\.ssh"], allow: ["mcp__github__*", "mcp__*"] };
+  const settings: unknown = JSON.parse(started(await events(runtime.start(launch({}, windows)))).args[12] ?? "");
+  expect(settings).toMatchObject({
+    permissions: { allow: ["mcp__github__*", "mcp__*"], deny: expect.arrayContaining(["Read(//c/Users/dev/.ssh)"]) },
+  });
+});
+
 test("refuses settings with a value the documented syntax does not take, which would drop them all silently", () => {
   const invalid = [
+    [{ denyRead: ["/accounts/*"] }, "invalid worker settings at sandbox.filesystem.denyRead.0"],
     [{ allow: ["Bash(git push"] }, "invalid worker settings at permissions.allow.0"],
     [{ denyRead: ["/accounts/(old)"] }, "invalid worker settings at permissions.deny.0"],
     [{ allowedDomains: ["git hub.com"] }, "invalid worker settings at sandbox.network.allowedDomains.0"],

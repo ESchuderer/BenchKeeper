@@ -95,6 +95,9 @@ test("a launch is refused while gh finds a token without GH_TOKEN, and whenever 
 test.skipIf(process.platform === "win32")("a gh that is killed or cannot start refuses the launch too", async () => {
   const killed = ghProbe({ ...env, FAKE_GH_KILL: "1" }, gh);
   await expect(killed).resolves.toMatchObject({ finding: { params: { error: "killed" } } });
+  // One that ignores SIGTERM is killed when the time is up.
+  const stubborn = ghProbe({ ...env, FAKE_GH_STUBBORN: "1" }, gh, 500);
+  await expect(stubborn).resolves.toMatchObject({ finding: { params: { error: "killed" } } });
   // The fixture is no executable: spawning it fails with EACCES.
   await expect(ghProbe(env, [gh[1]])).resolves.toMatchObject({ finding: { params: { error: "EACCES" } } });
 });

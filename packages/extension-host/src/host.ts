@@ -2,7 +2,17 @@ import { spawn } from "node:child_process";
 import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
-import { exit, initialize, type LogParams, log, PROTOCOL, runAction, shutdown } from "@cedarloom/extension-sdk";
+import {
+  exit,
+  type Granted,
+  hostFetch,
+  initialize,
+  type LogParams,
+  log,
+  PROTOCOL,
+  runAction,
+  shutdown,
+} from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
   createMessageConnection,
@@ -11,8 +21,10 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
+import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
+import { type Transport, transport } from "./transport.ts";
 
 /**
  * Where an extension comes from, which is how far it is trusted: inside the CedarLoom release, or from elsewhere. Only
@@ -31,6 +43,10 @@ export type HostLimits = {
   /** How long the handshake may take, and how long an extension has to end after a cancel or a stop. */
   startMs: number;
   stopMs: number;
+  /** For `host/fetch`: the largest answer body, how long a request may take with its redirects, and how many at once. */
+  fetchBytes: number;
+  fetchMs: number;
+  fetches: number;
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
@@ -39,6 +55,9 @@ export const HOST_LIMITS: HostLimits = {
   logChars: 2000,
   startMs: 10_000,
   stopMs: 2_000,
+  fetchBytes: 512 * 1024,
+  fetchMs: 30_000,
+  fetches: 8,
 };
 
 export type ExtensionLaunch = {
@@ -52,6 +71,10 @@ export type ExtensionLaunch = {
   platform?: NodeJS.Platform;
   /** The version of Node that runs the extension: this host's own, which a test may name. */
   node?: string;
+  /** The values of the extension's credentials, which the host adds to its requests; it never sees them. */
+  credentials?: Credentials;
+  /** How the host sends the extension's requests: over the network to public addresses, unless a test says otherwise. */
+  transport?: Transport;
 };
 
 export type RunRequest = { action: string; config: unknown; inputs: Record<string, unknown>; run: string };
@@ -126,9 +149,6 @@ const launchOf = (launch: ExtensionLaunch, folder: string): Launch | Finding => 
 const within = <T>(promise: Promise<T>, ms: number, why: string): Promise<T> =>
   Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(why)), ms).unref())]);
 
-// Every rejection here is an Error: of a timer, of Node, or a ResponseError with the extension's own reason.
-const reason = (error: unknown): string => String(Reflect.get(Object(error), "message"));
-
 /** Log lines of the runs in progress only, bounded: an extension cannot fill the host's memory through `host/log`. */
 const logBook = (limits: HostLimits) => {
   const runs = new Map<string, RunLog>();
@@ -174,6 +194,10 @@ type Session = {
   stopped: Promise<unknown>;
   broken: () => string | undefined;
   kill: () => void;
+  /** Counts a message as read that the connection took without handing it to the message strategy. */
+  consumed: () => void;
+  /** Aborts once the extension's process has ended. */
+  ended: AbortSignal;
 };
 
 // Starts the process and connects to it; the guard on its output and the end of the process are kept for the reasons.
@@ -208,10 +232,15 @@ const connect = (launch: Launch, limits: HostLimits): Session => {
     undefined,
     { messageStrategy: strategy },
   );
-  // An extension that ended answers nothing more: its open requests fail at once instead of waiting for their limit.
-  void stopped.then(() => connection.dispose());
+  // An extension that ended answers nothing more: its open requests fail at once instead of waiting for their limit,
+  // and the requests the host sends for it stop.
+  const ended = new AbortController();
+  void stopped.then(() => ended.abort()).then(() => connection.dispose());
   const why = (): string | undefined => broken ?? (child.exitCode === null ? undefined : stderr.trim() || "it ended");
-  return { connection, stopped, broken: why, kill: () => child.kill("SIGKILL") };
+  const consumed = (): void => {
+    unread -= 1;
+  };
+  return { connection, stopped, broken: why, kill: () => child.kill("SIGKILL"), consumed, ended: ended.signal };
 };
 
 /** Greets the started extension; a wrong or missing answer ends it. */
@@ -220,14 +249,16 @@ const greet = async (
   session: Session,
   limits: HostLimits,
 ): Promise<Finding | Result<never> | undefined> => {
-  const ask = session.connection.sendRequest(initialize, { protocol: PROTOCOL, locale: launch.locale });
+  const { net = [], credentials = {} } = launch.manifest.capabilities ?? {};
+  const granted: Granted = { net, credentials: Object.keys(credentials) };
+  const ask = session.connection.sendRequest(initialize, { protocol: PROTOCOL, locale: launch.locale, granted });
   const answer = await within(ask, limits.startMs, "no answer to the handshake").catch((error: unknown) => error);
   if (answer instanceof Error) {
     // Its reason is on standard error, complete only once the process has closed (an entry that is missing ends Node
     // before its message is read); a process that never started never closes, so the wait has a bound.
     session.kill();
     await Promise.race([session.stopped, new Promise((resolve) => setTimeout(resolve, limits.stopMs).unref())]);
-    return failed(launch.manifest.id, "initialize", session.broken() ?? reason(answer));
+    return failed(launch.manifest.id, "initialize", session.broken() ?? messageOf(answer));
   }
   const mismatch = handshake(answer, launch.manifest);
   return mismatch === undefined ? undefined : refused(launch.manifest.id, mismatch);
@@ -237,8 +268,8 @@ const greet = async (
  * Starts an extension and greets it, always with a Result: nothing it does leaves its process running on a refusal or
  * a failure. It runs under Node's permission flags, reading its own folder only: no writes, child processes, workers,
  * addons, `node:sqlite` or network, and an environment without the user's tokens. An extension from elsewhere also
- * needs the OS sandbox; until one exists it is refused. The host answers only `host/log`; any other call of the
- * extension is a method that does not exist.
+ * needs the OS sandbox; until one exists it is refused. The host answers only `host/log` and `host/fetch`; any other
+ * call of the extension is a method that does not exist.
  */
 export const startExtension = async (launch: ExtensionLaunch): Promise<Result<RunningExtension>> => {
   const id = launch.manifest.id;
@@ -250,6 +281,16 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     session = connect(how, limits);
     const logs = logBook(limits);
     session.connection.onNotification(log, logs.write);
+    const broker = { manifest: launch.manifest, credentials: launch.credentials, limits, ended: session.ended };
+    const fetch = fetcher({ ...broker, transport: launch.transport ?? transport() });
+    const { consumed } = session;
+    // vscode-jsonrpc 10.0.0 takes a `$/cancelRequest` for a request still being handled by cancelling the request's
+    // token, without handing it to the message strategy: it counts as read when the token fires. A cancel that came
+    // before the handler started went through the strategy, and its token is cancelled already.
+    session.connection.onRequest(hostFetch, (params, token) => {
+      if (!token.isCancellationRequested) token.onCancellationRequested(consumed);
+      return fetch(params, token);
+    });
     session.connection.listen();
     const problem = await greet(launch, session, limits);
     if (problem === undefined) return { ok: true, value: running(id, session, logs, limits) };
@@ -257,7 +298,7 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     return "code" in problem ? { ok: false, finding: problem } : problem;
   } catch (error) {
     session?.kill();
-    return failed(id, "start", reason(error));
+    return failed(id, "start", messageOf(error));
   }
 };
 
@@ -292,7 +333,7 @@ const running = (
       const ended = session.stopped.then(() => Promise.reject(new Error(session.broken() ?? "it ended")));
       const outcome = await Promise.race([answer, ended]).then(
         (answered) => outputsOf(id, answered),
-        (error: unknown) => failed(id, "run", session.broken() ?? reason(error)),
+        (error: unknown) => failed(id, "run", session.broken() ?? messageOf(error)),
       );
       return source.token.isCancellationRequested ? failed(id, "run", "cancelled by the host") : outcome;
     } finally {

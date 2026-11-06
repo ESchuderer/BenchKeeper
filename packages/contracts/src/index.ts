@@ -60,6 +60,7 @@ export {
   ExtensionId,
   ExtensionLock,
   ExtensionManifest,
+  FORBIDDEN_HEADERS,
   GitUrl,
   isExtensionType,
   LOCK_SCHEMA_VERSION,

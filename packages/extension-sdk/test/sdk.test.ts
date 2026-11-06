@@ -6,6 +6,8 @@ import {
   type Action,
   defineExtension,
   exit,
+  HOST_FAILED,
+  hostFetch,
   initialize,
   type LogParams,
   log,
@@ -18,6 +20,7 @@ import {
   createMessageConnection,
   ErrorCodes,
   type MessageConnection,
+  ResponseError,
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
@@ -59,6 +62,9 @@ const actions: Record<string, Action> = {
       if (signal.aborted) stop();
       else signal.addEventListener("abort", stop);
     }),
+  // Fetches through the host the request its node's `with` holds, and says what it was granted.
+  fetch: async ({ config, fetch, granted }) => ({ answer: await fetch(Object(config)), granted }),
+  granted: ({ granted }) => ({ granted }),
 };
 
 type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
@@ -78,14 +84,21 @@ const connect = (): Connected => {
 };
 
 const params = { config: { query: "x" }, inputs: { project: "CL" }, run: "r1" };
+// A host that sends no grant grants nothing.
+const hello = { protocol: PROTOCOL, locale: "de" };
 
 test("the extension names its protocol version and actions, runs an action with its context, and logs to the host", async () => {
   const { host, logs } = connect();
-  const hello = await host.sendRequest(initialize, { protocol: PROTOCOL, locale: "de" });
+  const answer = await host.sendRequest(initialize, hello);
   const ran = await host.sendRequest(runAction, { action: "echo", ...params });
-  expect([hello, ran, logs]).toEqual([
-    { protocol: "1.0", actions: ["echo", "fail", "rejects", "opaque", "text", "json", "big", "later", "wait"] },
+  const grant = await host.sendRequest(runAction, { action: "granted", ...params });
+  expect([answer, ran, grant, logs]).toEqual([
+    {
+      protocol: "1.0",
+      actions: ["echo", "fail", "rejects", "opaque", "text", "json", "big", "later", "wait", "fetch", "granted"],
+    },
     { outputs: { ...params, locale: "de" } },
+    { outputs: { granted: { net: [], credentials: [] } } },
     [
       { run: "r1", level: "info", message: "started" },
       { run: "r1", level: "warning", message: "almost done" },
@@ -135,6 +148,33 @@ test("the host's cancel aborts the action's signal, also a cancel that comes bef
   ]);
 });
 
+test("an action fetches through the host and knows its grant, and the run's cancel reaches the fetch", async () => {
+  const { host } = connect();
+  const granted = { net: ["https://api.example.com"], credentials: ["token"] };
+  await host.sendRequest(initialize, { ...hello, granted });
+  const run = new CancellationTokenSource();
+  const cancelled: string[] = [];
+  host.onRequest(hostFetch, (request, token) => {
+    if (!request.url.endsWith("/slow")) return { status: 200, url: request.url, headers: {}, body: "ok" };
+    run.cancel();
+    return new Promise((resolve) =>
+      token.onCancellationRequested(() => {
+        cancelled.push(request.url);
+        resolve(new ResponseError(HOST_FAILED, "the run was cancelled"));
+      }),
+    );
+  });
+  const request = { url: "https://api.example.com/a", method: "POST", body: "{}", credential: "token" };
+  const fetched = await host.sendRequest(runAction, { action: "fetch", ...params, config: request });
+  const slow = { action: "fetch", ...params, config: { url: "https://api.example.com/slow" } };
+  const stopped = await host.sendRequest(runAction, slow, run.token).catch(reason);
+  expect([fetched, stopped, cancelled]).toEqual([
+    { outputs: { answer: { status: 200, url: request.url, headers: {}, body: "ok" }, granted } },
+    expect.stringMatching(/cancel/i),
+    ["https://api.example.com/slow"],
+  ]);
+});
+
 test("the extension ends with code 0 after shutdown and exit, and with 1 on exit alone or when its input closes", async () => {
   const clean = connect();
   await clean.host.sendRequest(shutdown);
@@ -176,7 +216,7 @@ test("an extension on its real stdio keeps every other write off standard output
   child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
   const host = createMessageConnection(new StreamMessageReader(child.stdout), new StreamMessageWriter(child.stdin));
   host.listen();
-  await host.sendRequest(initialize, { protocol: PROTOCOL, locale: "en" });
+  await host.sendRequest(initialize, { ...hello, locale: "en" });
   const ran = await host.sendRequest(runAction, { action: "greet", config: {}, inputs: { name: "Ada" }, run: "r2" });
   await host.sendRequest(shutdown);
   // `close`, not `exit`: standard error may still hold output when the process has exited.

@@ -12,6 +12,8 @@ import {
   InstalledExtensions,
   isExtensionType,
   LOCK_SCHEMA_VERSION,
+  PACK_SCHEMA_VERSION,
+  PackManifest,
   readDocument,
   type Result,
   UPDATES_SCHEMA_VERSION,
@@ -43,6 +45,7 @@ const formats: Record<string, (value: unknown) => Result<unknown>> = {
   ExportIndex: (value) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, value),
   InstalledExtensions: (value) => readDocument(InstalledExtensions, INSTALLED_SCHEMA_VERSION, value),
   ExtensionUpdates: (value) => readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, value),
+  PackManifest: (value) => readDocument(PackManifest, PACK_SCHEMA_VERSION, value),
 };
 
 const issuePaths = (result: Result<unknown>): string[] =>
@@ -245,11 +248,36 @@ const indexChanges: Change[] = [
   ["a blank license", ["license"], " ", true],
 ];
 
+const pack = await read("corpus/PackManifest/1/valid-full.json");
+const pinned = ["entries", "skills/browser-checks", "source"];
+const packChanges: Change[] = [
+  // A key is checked for "..", which its pattern lets through, as every portable path is.
+  ["an entry outside the pack folder", ["entries", "../rules/ui.md"], { kind: "rules" }, false],
+  ["an entry by an absolute path", ["entries", "/etc/ui.md"], { kind: "rules" }, true],
+  ["a rules text that is no Markdown", ["entries", "rules/ui.txt"], { kind: "rules" }, false],
+  ["a profile that is no JSON", ["entries", "profiles/web.yaml"], { kind: "profile" }, false],
+  ["a skill folder that is no skill name", ["entries", "skills/Frontend_Design"], { kind: "skill" }, false],
+  ["a skill name with two hyphens in a row", ["entries", "skills/frontend--design"], { kind: "skill" }, false],
+  ["a pinned skill without its digest", [...pinned, "digest"], undefined, true, pinned.join(".")],
+  ["a pinned skill that also follows a branch", [...pinned, "ref"], "main", true, pinned.join(".")],
+  ["a pin by a short commit", [...pinned, "commit"], "9b2e4c1", true],
+  [
+    "a Git source for a rules text",
+    ["entries", "rules/ui.md", "source"],
+    { git: "https://x.example/a.git", ref: "main" },
+    true,
+  ],
+  ["no entry", ["entries"], {}, true],
+  ["an id without publisher", ["id"], "frontend", true],
+  ["no minApp", ["minApp"], undefined, true],
+];
+
 describe.each([
   ["ExtensionManifest", manifest, manifestChanges],
   ["ExtensionLock", lock, lockChanges],
   ["ExportIndex", index, indexChanges],
   ["InstalledExtensions", installed, installedChanges],
+  ["PackManifest", pack, packChanges],
 ] as const)("%s refuses one change to a valid file", (name, valid, changes) => {
   test.for(changes)("%s", ([, path, value, schemaToo, issue = path.join(".")]) => {
     const changed = set(valid, path, value);

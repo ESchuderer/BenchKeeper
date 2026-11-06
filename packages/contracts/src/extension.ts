@@ -24,7 +24,7 @@ const distinct = <T extends z.ZodType<string>>(item: T) =>
 // The texts a manifest shows, which its catalogs translate: plain text.
 const description = PlainText.max(2000).optional();
 // A record of `min` to `max` entries; zod checks it by a refinement, the JSON Schema document by these keywords.
-const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: number, min = 0): T =>
+export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: number, min = 0): T =>
   record
     .refine((entries) => {
       const count = Object.keys(entries).length;
@@ -304,19 +304,25 @@ export const GitUrl = z
     "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~",
   );
 
+/** A pin's commit: the full hash, never a branch or tag that can move. */
+export const Commit = z
+  .string()
+  .regex(/^[0-9a-f]{40}$/)
+  .describe("The commit, never a branch or tag that can move");
+
+/** A pin's digest: what the git package's `fetchTree` computes for a folder at a commit. */
+export const FolderDigest = Sha256.describe(
+  "SHA-256 of the folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
+);
+
 const ExtensionPin = z.strictObject({
   version: semver,
   source: z.strictObject({
     git: GitUrl,
-    commit: z
-      .string()
-      .regex(/^[0-9a-f]{40}$/)
-      .describe("The commit, never a branch or tag that can move"),
+    commit: Commit,
     path: PortablePath.optional().describe("The extension's folder inside the repository; its root when absent"),
   }),
-  digest: Sha256.describe(
-    "SHA-256 of the extension folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
-  ),
+  digest: FolderDigest,
 });
 
 /**

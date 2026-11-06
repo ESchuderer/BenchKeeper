@@ -70,6 +70,8 @@ export const Finding = z
     finding("accounts.codex-switching-off", { pool: z.string() }),
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
+    // A project's level is set for a folder that exists, by its real path.
+    finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
     // The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed.
@@ -155,6 +157,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
+  "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },
   "launch.account-full": { severity: "warning", effort: "manual" },

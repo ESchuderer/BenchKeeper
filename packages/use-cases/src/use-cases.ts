@@ -55,7 +55,7 @@ export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>
 };
 
 /** Reads never write: no lock, no run, no state folder created; `null` when no run was ever recorded. */
-const withView = <T>(state: string, work: (view: RunView | null) => Result<T>): Result<T> => {
+export const withView = <T>(state: string, work: (view: RunView | null) => Result<T>): Result<T> => {
   const view = openRunView(state);
   if (!view.ok) return view;
   try {
@@ -95,6 +95,14 @@ export const readJson = (path: string): Result<{ text: string; json: unknown }> 
     return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
   }
   return parseDocument(text, (json) => ({ ok: true, value: { text, json } }));
+};
+
+/** `readJson` with a missing file as null: only a missing file is none, and one the process cannot read is reported. */
+export const readOptionalJson = (path: string): Result<{ text: string; json: unknown } | null> => {
+  const file = readJson(path);
+  if (file.ok) return file;
+  const missing = file.finding.code === "document.unreadable" && file.finding.params.error === "ENOENT";
+  return missing ? { ok: true, value: null } : file;
 };
 
 /** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */

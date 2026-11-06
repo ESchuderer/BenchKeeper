@@ -73,3 +73,11 @@ CREATE TABLE launches (
 ) STRICT;
 CREATE INDEX launches_running ON launches (account) WHERE finishedAt IS NULL;
 `;
+
+/** Schema 5: the switches of the automation level for running work, in order; level NULL ends the switch. */
+export const MODE_TABLES = `
+CREATE TABLE mode_switches (
+  at TEXT NOT NULL,
+  level TEXT CHECK (level IN ('supervised', 'checkpoint', 'auto'))
+) STRICT;
+`;

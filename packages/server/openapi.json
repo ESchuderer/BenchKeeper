@@ -1749,6 +1749,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "automation.unknown-folder"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.agent-unavailable"
               },
               "params": {
@@ -4299,6 +4325,32 @@
                 },
                 "required": [
                   "pool"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "automation.unknown-folder"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
                 ],
                 "additionalProperties": false
               }

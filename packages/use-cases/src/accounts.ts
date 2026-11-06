@@ -12,7 +12,7 @@ import {
   readDocument,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
-import { readJson, withStore } from "./use-cases.ts";
+import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
 const registryPath = (config: string): string => join(config, "accounts.json");
@@ -26,11 +26,10 @@ const readRegistry = (path: string): Result<{ text: string; registry: AccountReg
 
 /** The account registry of the config folder; null when there is none yet. */
 export const loadRegistry = (config: string): Result<AccountRegistry | null> => {
-  const read = readRegistry(registryPath(config));
-  if (read.ok) return { ok: true, value: read.value.registry };
-  // Only a missing file is no registry; one the process cannot read is reported.
-  const missing = read.finding.code === "document.unreadable" && read.finding.params.error === "ENOENT";
-  return missing ? { ok: true, value: null } : read;
+  const file = readOptionalJson(registryPath(config));
+  if (!file.ok) return file;
+  if (file.value === null) return { ok: true, value: null };
+  return readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, file.value.json);
 };
 
 /**

@@ -11,6 +11,13 @@ export {
   Reading,
 } from "./accounts.ts";
 export {
+  AUTOMATION_SCHEMA_VERSION,
+  AutomationLevel,
+  AutomationSettings,
+  ModeScope,
+  ModeSwitch,
+} from "./automation.ts";
+export {
   Draft,
   DraftInfo,
   DraftSaved,

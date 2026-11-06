@@ -35,6 +35,7 @@
     "packages/git": { "component": "git" },
     "packages/ledger": { "component": "ledger" },
     "packages/orchestration": { "component": "orchestration" },
+    "packages/plugin-sdk": { "component": "plugin-sdk" },
     "packages/server": {
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]

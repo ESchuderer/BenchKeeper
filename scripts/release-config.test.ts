@@ -12,7 +12,10 @@ const Manifest = z.record(z.string(), z.string());
 
 const json = async (path: string): Promise<unknown> => JSON.parse(await readFile(path, "utf8"));
 
-await test("every CedarLoom package is in the release config, its manifest and the linked application group", async () => {
+// Released on their own, with a version of their own (A54 a): the plugin SDK, which plugin authors depend on.
+const OWN_VERSION = ["plugin-sdk"];
+
+await test("every CedarLoom package is in the release config and its manifest, and in the linked application group unless it has a version of its own", async () => {
   const entries = await readdir("packages", { withFileTypes: true });
   const dirs = entries.filter((e) => e.isDirectory()).map((e) => `packages/${e.name}`).toSorted();
   const config = Config.parse(await json("release-please-config.cedarloom.json"));
@@ -20,6 +23,8 @@ await test("every CedarLoom package is in the release config, its manifest and t
   assert.deepEqual(Object.keys(config.packages).toSorted(), dirs);
   assert.deepEqual(Object.keys(manifest).toSorted(), dirs);
   const linked = config.plugins.find((plugin) => plugin.type === "linked-versions");
-  const components = Object.values(config.packages).map((entry) => entry.component);
+  const components = Object.values(config.packages)
+    .map((entry) => entry.component)
+    .filter((component) => !OWN_VERSION.includes(component));
   assert.deepEqual(linked?.components?.toSorted(), components.toSorted());
 });

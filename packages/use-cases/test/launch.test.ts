@@ -121,6 +121,13 @@ test("a worker runs end to end: account, version check, lease, readings, and the
     "fiveHour",
     "sevenDay",
   ]);
+  // The run's usage is kept as history too, with its run, its CLI version and the line it came in.
+  const samples = withLedger(state, (store) => store.usageSamples());
+  expect(samples.map((each) => [each.window, each.runId, each.agentVersion])).toEqual([
+    ["five_hour", launches[0]?.runId, "2.1.316"],
+    ["seven_day", launches[0]?.runId, "2.1.316"],
+  ]);
+  expect(samples[0]?.raw).toContain('"type":"rate_limit_event"');
 });
 
 test("without a valid result of its own run the worker failed, and its lease ends", async () => {

@@ -22,7 +22,7 @@ const sample = (code: string): Record<string, unknown> => {
 test("every workflow finding and every refusal of a file or draft has a sentence; other codes show as the code", () => {
   const codes = Finding.options.map((option) => option.shape.code.value);
   const shown = codes.filter((code) => /^(workflow|draft|document)\./.test(code));
-  expect(shown.length).toBe(23);
+  expect(shown.length).toBe(24);
   for (const code of shown) {
     const finding = Finding.parse({ code, params: sample(code) });
     expect([code, describe(finding)]).toEqual([code, expect.stringMatching(/^\S.{15,}/s)]);

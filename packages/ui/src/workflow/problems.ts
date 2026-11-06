@@ -42,6 +42,7 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.exclusive-sources": (p) => t("problem.exclusiveSources", p),
   "workflow.optional-input": (p) => t("problem.optionalInput", p),
   "workflow.schedule-input": (p) => t("problem.scheduleInput", p),
+  "workflow.report-only-write": (p) => t("problem.reportOnlyWrite", p),
   "workflow.unreachable": (p) => t("problem.unreachable", p),
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
 };

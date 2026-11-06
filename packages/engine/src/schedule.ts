@@ -57,7 +57,8 @@ export interface Step {
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? U[] : T[K] };
-type Run = Omit<Mutable<RunState>, "nodes"> & { nodes: Record<string, Mutable<NodeRun>> };
+// The step's working copy keeps the nodes in a Map, so no node id can reach a property of an object's prototype.
+type Run = Omit<Mutable<RunState>, "nodes"> & { nodes: Map<string, Mutable<NodeRun>> };
 type Item = Workflow["nodes"][number];
 interface Ctx {
   readonly workflow: Workflow;
@@ -84,7 +85,7 @@ const byNode = (edges: readonly Edge[], end: "from" | "to"): Map<string, Edge[]>
 const copy = (state: RunState): Run => ({
   ...state,
   inputs: { ...state.inputs },
-  nodes: Object.fromEntries(
+  nodes: new Map(
     Object.entries(state.nodes).map(([id, node]) => [
       id,
       { ...node, fired: [...node.fired], values: { ...node.values } },
@@ -110,13 +111,13 @@ const kind = (type: string): "trigger" | "pure" | "approval" | "task" => {
 /** Whether an edge fired, is dead (its source ended without it, was skipped or cancelled), or is still open. */
 const flow = (ctx: Ctx, edge: Edge): "fired" | "dead" | "open" => {
   if (!("node" in edge.from)) return Object.hasOwn(ctx.run.inputs, edge.from.input) ? "fired" : "dead";
-  const source = ctx.run.nodes[edge.from.node];
+  const source = ctx.run.nodes.get(edge.from.node);
   if (source?.state === "pending" || ACTIVE.includes(source?.state ?? "done")) return "open";
   return source?.fired.includes(edge.from.handle) === true ? "fired" : "dead";
 };
 
 const valueOf = (ctx: Ctx, edge: Edge): Json | undefined =>
-  "node" in edge.from ? ctx.run.nodes[edge.from.node]?.values[edge.from.handle] : ctx.run.inputs[edge.from.input];
+  "node" in edge.from ? ctx.run.nodes.get(edge.from.node)?.values[edge.from.handle] : ctx.run.inputs[edge.from.input];
 
 const handleOf = (ctx: Ctx, id: string, handle: string) =>
   own(own(NODE_TYPES, ctx.types.get(id) ?? "")?.inputs, handle);
@@ -180,7 +181,7 @@ const joined = (ctx: Ctx, id: string, policy: unknown): "done" | "skip" | "wait"
 };
 
 const cancelNode = (ctx: Ctx, id: string): void => {
-  const node = ctx.run.nodes[id];
+  const node = ctx.run.nodes.get(id);
   if (node?.state === "pending") end(node, "cancelled");
   else if (node?.state === "waiting") {
     end(node, "cancelled");
@@ -227,7 +228,7 @@ const policyOf = (ctx: Ctx, id: string): string =>
 
 const stop = (ctx: Ctx, why: "cancelled" | "failed"): void => {
   ctx.run.stop ??= why;
-  for (const id of Object.keys(ctx.run.nodes)) cancelNode(ctx, id);
+  for (const id of ctx.run.nodes.keys()) cancelNode(ctx, id);
 };
 
 // A value that is no boolean (from a `json` edge, checked when the run gets there) fails the condition.
@@ -239,7 +240,7 @@ const decideCondition = (ctx: Ctx, id: string, node: Mutable<NodeRun>): void => 
 
 // A pure node or an approval decides here, a skip too; a node the executor runs is left for `launch`.
 const settleOne = (ctx: Ctx, { id, type, with: config }: Item): boolean => {
-  const node = ctx.run.nodes[id];
+  const node = ctx.run.nodes.get(id);
   if (node?.state !== "pending" || kind(type) === "trigger") return false;
   if (type === "join") return settleJoin(ctx, id, node, config?.["policy"]);
   const verdict = readiness(ctx, id);
@@ -265,9 +266,9 @@ const settle = (ctx: Ctx): void => {
 const launch = (ctx: Ctx): void => {
   if (ctx.run.stop !== null) return;
   const limit = ctx.workflow.execution?.maxConcurrency ?? DEFAULT_CONCURRENCY;
-  let running = Object.values(ctx.run.nodes).filter((node) => node.state === "running").length;
+  let running = [...ctx.run.nodes.values()].filter((node) => node.state === "running").length;
   for (const { id, type } of ctx.workflow.nodes) {
-    const node = ctx.run.nodes[id];
+    const node = ctx.run.nodes.get(id);
     if (running >= limit || node?.state !== "pending" || kind(type) !== "task") continue;
     if (readiness(ctx, id) !== "ready") continue;
     Object.assign(node, { state: "running", attempts: 1 });
@@ -285,7 +286,7 @@ const outputsOf = (ctx: Ctx): Values =>
   );
 
 const finish = (ctx: Ctx): void => {
-  const nodes = Object.values(ctx.run.nodes);
+  const nodes = [...ctx.run.nodes.values()];
   // In a DAG nothing stays pending once no node runs or waits: a stop has cancelled the rest, else all were decided.
   if (ctx.run.status !== "running" || nodes.some((node) => ACTIVE.includes(node.state))) return;
   let status: Exclude<RunStatus, "running"> = ctx.run.failed ? "failed" : "succeeded";
@@ -298,7 +299,7 @@ const advance = (ctx: Ctx): Step => {
   settle(ctx);
   launch(ctx);
   finish(ctx);
-  return { state: ctx.run, actions: ctx.actions };
+  return { state: { ...ctx.run, nodes: Object.fromEntries(ctx.run.nodes) }, actions: ctx.actions };
 };
 
 // Another attempt while the run goes on and the node has retries left (an interrupted attempt counts, Q4).
@@ -306,7 +307,7 @@ const retryable = (ctx: Ctx, id: string, attempts: number): boolean =>
   ctx.run.stop === null && attempts <= (own(ctx.workflow.execution?.nodes, id)?.retries ?? 0);
 
 const ended = (ctx: Ctx, event: Extract<RunEvent, { type: "ended" }>): void => {
-  const node = ctx.run.nodes[event.node];
+  const node = ctx.run.nodes.get(event.node);
   if (node?.state !== "running" || event.attempt !== node.attempts) return;
   const values = { ...event.values };
   if (event.outcome === "done") return end(node, "done", ["done", ...Object.keys(values)], values);
@@ -317,17 +318,17 @@ const ended = (ctx: Ctx, event: Extract<RunEvent, { type: "ended" }>): void => {
 };
 
 const decided = (ctx: Ctx, event: Extract<RunEvent, { type: "decided" }>): void => {
-  const node = ctx.run.nodes[event.node];
+  const node = ctx.run.nodes.get(event.node);
   if (node?.state === "waiting") end(node, "done", [event.approved ? "approved" : "rejected"]);
 };
 
 const prechecked = (ctx: Ctx, passed: boolean): void => {
   const trigger = ctx.workflow.nodes.find((item) => kind(item.type) === "trigger")?.id ?? "";
-  const node = ctx.run.nodes[trigger];
+  const node = ctx.run.nodes.get(trigger);
   if (node?.state !== "running") return;
   if (passed) return end(node, "done", ["start"]);
   // The precheck found nothing to do: the run ends skipped, and no node runs.
-  for (const other of Object.values(ctx.run.nodes)) end(other, "skipped");
+  for (const other of ctx.run.nodes.values()) end(other, "skipped");
   ctx.run.status = "skipped";
   ctx.actions.push({ type: "finish", status: "skipped", outputs: {} });
 };
@@ -355,7 +356,7 @@ export const resolveInputs = (workflow: Workflow, given: Readonly<Values>): Resu
   const declared = workflow.inputs ?? {};
   const unknown = Object.keys(given).find((name) => !Object.hasOwn(declared, name));
   if (unknown !== undefined) return { ok: false, finding: { code: "run.input-unknown", params: { input: unknown } } };
-  const values: Values = {};
+  const values: [string, Json][] = [];
   for (const [name, input] of Object.entries(declared)) {
     const value = Object.hasOwn(given, name) ? given[name] : input.default;
     if (value === undefined && input.required === true) {
@@ -364,9 +365,9 @@ export const resolveInputs = (workflow: Workflow, given: Readonly<Values>): Resu
     if (value !== undefined && !typeMatches(input.type, value)) {
       return { ok: false, finding: { code: "run.input-invalid", params: { input: name, type: input.type } } };
     }
-    if (value !== undefined) values[name] = value;
+    if (value !== undefined) values.push([name, value]);
   }
-  return { ok: true, value: values };
+  return { ok: true, value: Object.fromEntries(values) };
 };
 
 const errorOf = (workflow: Workflow): Finding | undefined =>
@@ -386,7 +387,7 @@ export const startRun = (workflow: Workflow, given: Readonly<Values>): Result<St
   );
   const ctx = context(workflow, { status: "running", inputs: inputs.value, nodes, failed: false, stop: null });
   const trigger = workflow.nodes.find((node) => kind(node.type) === "trigger");
-  const node = ctx.run.nodes[trigger?.id ?? ""];
+  const node = ctx.run.nodes.get(trigger?.id ?? "");
   if (trigger !== undefined && node !== undefined) {
     if (typeof trigger.with?.["precheck"] === "string") {
       node.state = "running";

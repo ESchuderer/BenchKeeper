@@ -98,17 +98,26 @@ interface Read {
 }
 
 /**
- * The account's own home as a real folder for the owner only, made when missing. Refused when the account names another
- * folder, or when the homes folder or the home is a link, so nothing written for the account lands in another folder.
+ * The account's own home as a real folder for the owner only. Refused when the account names another folder, when the
+ * homes folder or the home is a link, so nothing written for the account lands in another folder, and when the home is
+ * missing: only the login (`create`) makes it, so no worker or probe runs before the account is logged in.
  */
-export const ownFolder = (state: string, { name, home: named }: Account): Result<string> => {
+export const ownFolder = (
+  state: string,
+  { name, home: named }: Account,
+  { create }: { readonly create: boolean },
+): Result<string> => {
   const home = ownHome(state, name);
   if (named !== home) {
     return { ok: false, finding: { code: "accounts.home-not-own", params: { account: name, home: named } } };
   }
   for (const path of [join(state, "homes"), home]) {
-    if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+    const found = lstatSync(path, { throwIfNoEntry: false });
+    if (found?.isSymbolicLink() === true) {
       return { ok: false, finding: { code: "accounts.home-linked", params: { account: name, path } } };
+    }
+    if (found === undefined && !create) {
+      return { ok: false, finding: { code: "accounts.home-missing", params: { account: name, home } } };
     }
     mkdirSync(path, { recursive: true, mode: 0o700 });
     chmodSync(path, 0o700);
@@ -181,7 +190,7 @@ export const loginAccount = (
   const read = readAccount(config, name);
   if (!read.ok) return read;
   const { account } = read.value;
-  const folder = ownFolder(state, account);
+  const folder = ownFolder(state, account, { create: true });
   if (!folder.ok) return folder;
   const home = folder.value;
   const ran = run({ ...cleanEnv(parent, platform, ["TERM"]), CLAUDE_CONFIG_DIR: home });
@@ -213,7 +222,7 @@ const problems = (account: string, home: string, login: LoginStatus): Finding[] 
 // is reported and never checked: the check can write into it.
 const checkOne = (state: string, account: Account, host: StatusHost): Result<Finding[]> => {
   const { name } = account;
-  const folder = ownFolder(state, account);
+  const folder = ownFolder(state, account, { create: false });
   if (!folder.ok) return { ok: true, value: [folder.finding] };
   const home = folder.value;
   const store = openRunStore(state);

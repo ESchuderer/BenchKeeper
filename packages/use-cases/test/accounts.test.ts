@@ -236,12 +236,13 @@ const importedRegistry = () => {
   return { config, state };
 };
 
-// The imported registry with work moved into its own home.
+// The imported registry with work moved into its own home, which its login made.
 const movedRegistry = () => {
   const { config, state } = importedRegistry();
   const moved = planHome(config, state, "work");
   if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
   applyPlan(state, moved.value.plan, { yes: true });
+  mkdirSync(ownHome(state, "work"), { recursive: true });
   return { config, state };
 };
 
@@ -375,6 +376,12 @@ test("the doctor checks each Claude Code login in its own home, one at a time, n
   const moved = planHome(config, state, "work");
   if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
   applyPlan(state, moved.value.plan, { yes: true });
+  // Before the login made the home, nothing is checked.
+  expect(checkLogins(state, config, answering(loggedIn))).toEqual({
+    ok: true,
+    value: [{ code: "accounts.home-missing", params: { account: "work", home } }],
+  });
+  mkdirSync(home, { recursive: true });
   expect(checkLogins(state, config, answering(loggedIn))).toEqual({ ok: true, value: [] });
   expect(seen).toEqual([{ PATH: "/bin", CLAUDE_CONFIG_DIR: home }]);
   const found = (login: LoginStatus) => {
@@ -449,7 +456,7 @@ test("a login never runs in an own home that is a link or lies in one, so nothin
     run: (env: Record<string, string>) => (started.push(env), { code: 0 }),
   };
   // Junctions on Windows, which need no privilege; elsewhere the type is ignored.
-  mkdirSync(homes);
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
   symlinkSync(elsewhere, ownHome(state, "work"), "junction");
   expect(loginAccount(config, state, "work", linking)).toEqual({
     ok: false,

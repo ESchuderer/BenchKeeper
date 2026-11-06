@@ -114,7 +114,7 @@ const decide = async <L extends Launch>(
   registry: AccountRegistry,
   { request, host, account }: { request: WorkerRequest<L>; host: LaunchHost; account: Account },
 ): Promise<Result<Prepared<L>>> => {
-  const folder = ownFolder(state, account);
+  const folder = ownFolder(state, account, { create: false });
   if (!folder.ok) return folder;
   const runId = randomUUID();
   const { dir, tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);

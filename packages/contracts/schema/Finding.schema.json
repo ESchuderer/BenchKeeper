@@ -637,6 +637,150 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "run.event-invalid"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "runId",
+            "seq",
+            "issues"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "run.lease-held"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "pid": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "runId",
+            "pid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "run.finished"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "runId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "run.report-only-apply"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "applyRun": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "runId",
+            "applyRun"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "undo.file-edited"
         },
         "params": {
@@ -1840,6 +1984,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "accounts.home-missing"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string"
+            },
+            "home": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account",
+            "home"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "accounts.login-failed"
         },
         "params": {
@@ -2315,6 +2489,83 @@
           "required": [
             "path",
             "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "extension.refused"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "sandbox-unavailable",
+                "windows",
+                "protocol",
+                "actions",
+                "folder",
+                "runtime"
+              ]
+            }
+          },
+          "required": [
+            "extension",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "extension.failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "start",
+                "initialize",
+                "run"
+              ]
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "extension",
+            "step",
+            "error"
           ],
           "additionalProperties": false
         }

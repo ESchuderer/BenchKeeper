@@ -103,3 +103,62 @@ CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
 export const LABEL_TABLES = `
 ALTER TABLE launches ADD COLUMN labels TEXT;
 `;
+
+/**
+ * Schema 8: graph runs (M6). The events are the source of truth; a run's status and its attempts are projections,
+ * written in the same transaction as their event. A run's runner holds it by its lease lock, as a launch does.
+ */
+export const GRAPH_TABLES = `
+CREATE TABLE graph_runs (
+  id TEXT PRIMARY KEY,
+  workflowId TEXT NOT NULL,
+  definition TEXT NOT NULL,
+  definitionHash TEXT NOT NULL,
+  inputs TEXT NOT NULL,
+  "trigger" TEXT NOT NULL CHECK ("trigger" IN ('manual', 'schedule')),
+  mode TEXT NOT NULL CHECK (mode IN ('act', 'report')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'waiting', 'succeeded', 'failed', 'cancelled', 'skipped')),
+  parentRun TEXT REFERENCES graph_runs (id),
+  parentNode TEXT,
+  pid INTEGER NOT NULL,
+  epoch INTEGER NOT NULL,
+  startedAt TEXT NOT NULL,
+  finishedAt TEXT
+) STRICT;
+CREATE TABLE node_attempts (
+  runId TEXT NOT NULL REFERENCES graph_runs (id),
+  nodeId TEXT NOT NULL,
+  attempt INTEGER NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('ready', 'running', 'waiting', 'done', 'failed', 'timed-out', 'cancelled', 'interrupted')),
+  outputs TEXT,
+  finding TEXT,
+  sessionId TEXT,
+  pid INTEGER,
+  applyRun TEXT REFERENCES runs (id),
+  startedAt TEXT NOT NULL,
+  finishedAt TEXT,
+  PRIMARY KEY (runId, nodeId, attempt)
+) STRICT;
+CREATE TABLE run_events (
+  runId TEXT NOT NULL REFERENCES graph_runs (id),
+  seq INTEGER NOT NULL,
+  at TEXT NOT NULL,
+  type TEXT NOT NULL,
+  nodeId TEXT,
+  attempt INTEGER,
+  payload TEXT NOT NULL,
+  PRIMARY KEY (runId, seq)
+) STRICT;
+CREATE TABLE gates (
+  id TEXT PRIMARY KEY,
+  runId TEXT NOT NULL REFERENCES graph_runs (id),
+  nodeId TEXT NOT NULL,
+  point TEXT NOT NULL CHECK (point IN ('before-node', 'before-apply', 'human.approval')),
+  level TEXT CHECK (level IN ('supervised', 'checkpoint', 'auto')),
+  requestedAt TEXT NOT NULL,
+  decidedAt TEXT,
+  decision TEXT CHECK (decision IN ('approved', 'rejected')),
+  "by" TEXT
+) STRICT;
+`;

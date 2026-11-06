@@ -248,6 +248,18 @@ test("a worker never starts in an own home that is a link, so nothing is written
   expect([workerFolders(state), readdirSync(elsewhere)]).toEqual([[], []]);
 });
 
+test("a worker never starts before its account's login made the own home: no probe runs logged out", async () => {
+  const { state, config, work } = setup();
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
+  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "accounts.home-missing", params: { account: "work", home: ownHome(state, "work") } },
+  });
+  // No contract check ran, so none is recorded for the CLI version, and the home is left to the login to make.
+  expect(withLedger(state, (store) => store.contractChecks("claude"))).toEqual([]);
+  expect([workerFolders(state), existsSync(ownHome(state, "work"))]).toEqual([[], false]);
+});
+
 test("the account choice passes over an account whose leases are all taken; with none free, no worker starts", async () => {
   const { state, config, work } = setup(["work", "spare"]);
   const held = fill(state, "work", 1);

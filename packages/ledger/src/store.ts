@@ -25,6 +25,7 @@ import { planHash, sha256 } from "./hash.ts";
 import {
   ACCOUNT_TABLES,
   CHECK_TABLES,
+  GRAPH_TABLES,
   LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
@@ -34,7 +35,16 @@ import {
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, LABEL_TABLES];
+const MIGRATIONS = [
+  TABLES,
+  ACCOUNT_TABLES,
+  CHECK_TABLES,
+  LAUNCH_TABLES,
+  MODE_TABLES,
+  USAGE_TABLES,
+  LABEL_TABLES,
+  GRAPH_TABLES,
+];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
 // The schema that added the switches of the automation level.
@@ -45,10 +55,10 @@ export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels"> & { 
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
-  release(): void;
+  release(this: void): void;
 }
 
-const leaseLockPath = (dir: string, runId: string): string => join(dir, "leases", `${runId}.lock`);
+const leaseLockPath = (dir: string, name: string): string => join(dir, "leases", `${name}.lock`);
 
 // The lock of a check of an account's login, such as `claude auth status`, which may renew it.
 const checkLockPath = (dir: string, account: string): string => join(dir, "checks", `${account}.lock`);
@@ -101,6 +111,20 @@ const lockHeld = (path: string): boolean => {
   removeLock(path);
   return false;
 };
+
+/**
+ * Takes the lease lock `name` (a launch's run id, or a graph run's id and epoch) until its release. Each name is taken
+ * once: a probe or a release removes the file after letting go, which would strand a second taker on a removed file.
+ */
+export const newLease = (dir: string, name: string): LeaseLock => {
+  mkdirSync(join(dir, "leases"), { recursive: true, mode: 0o700 });
+  const held = hold(leaseLockPath(dir, name));
+  if (held === null) throw new Error(`the lease ${name} is held already`);
+  return held;
+};
+
+/** Whether a process holds the lease lock `name` in the store `dir`. */
+export const leaseHeld = (dir: string, name: string): boolean => lockHeld(leaseLockPath(dir, name));
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -110,7 +134,7 @@ export interface RunDetail {
   steps: Step[];
 }
 
-const transaction = <T>(db: DatabaseSync, work: () => T): T => {
+export const transaction = <T>(db: DatabaseSync, work: () => T): T => {
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = work();
@@ -123,7 +147,7 @@ const transaction = <T>(db: DatabaseSync, work: () => T): T => {
   }
 };
 
-const now = (): string => new Date().toISOString();
+export const now = (): string => new Date().toISOString();
 const RUN_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
 /** A run's backup folder: inside the store's folder only, also for an id read back from an edited journal. */
@@ -432,7 +456,7 @@ export class RunStore extends RunView {
     const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
     for (const row of this.db.prepare("SELECT runId, account FROM launches WHERE finishedAt IS NULL").all()) {
       const [runId, account] = [String(row["runId"]), String(row["account"])];
-      if (lockHeld(leaseLockPath(this.dir, runId))) counts.set(account, (counts.get(account) ?? 0) + 1);
+      if (leaseHeld(this.dir, runId)) counts.set(account, (counts.get(account) ?? 0) + 1);
       else end.run(now(), runId);
     }
     // An account whose login is being checked counts as full, so no worker starts beside the check.
@@ -469,9 +493,7 @@ export class RunStore extends RunView {
    */
   leaseAccount(input: Lease, max: number): LeaseLock | null {
     const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
-    mkdirSync(join(this.dir, "leases"), { recursive: true, mode: 0o700 });
-    const held = hold(leaseLockPath(this.dir, launch.runId));
-    if (held === null) throw new Error(`the lease of run ${launch.runId} is held already`);
+    const lock = newLease(this.dir, launch.runId);
     let taken: boolean;
     try {
       taken = transaction(this.db, () => {
@@ -495,11 +517,11 @@ export class RunStore extends RunView {
       });
     } catch (error) {
       // A row that cannot be written, such as a run id that has one, lets go of the lock before the error goes up.
-      held.release();
+      lock.release();
       throw error;
     }
-    if (taken) return held;
-    held.release();
+    if (taken) return lock;
+    lock.release();
     return null;
   }
 
@@ -552,20 +574,47 @@ const SETTLE_MS = 1000;
 
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
 
-const refuse = (db: DatabaseSync, lock: DatabaseSync, found: number): Result<RunStore> => {
-  db.close();
-  lock.close();
-  return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+/** Creates the state folder private, or refuses it on a network filesystem, where SQLite's locks do not hold. */
+export const stateDir = (dir: string, detect: typeof filesystemType): Finding | null => {
+  // A folder this call creates is private; one that existed keeps its mode (a store inside it is still private).
+  mkdirSync(join(dir, "backups"), { recursive: true, mode: 0o700 });
+  const fsType = detect(realpathSync.native(dir));
+  return fsType !== undefined && isNetworkFilesystem(fsType)
+    ? { code: "store.network-filesystem", params: { dir, fsType } }
+    : null;
+};
+
+/**
+ * Opens runs.sqlite in `dir` at this CedarLoom's schema and hands it to `use`; refused when a newer CedarLoom wrote
+ * it. A migration runs in one transaction, so a crash halfway leaves no partial schema to block the next open.
+ */
+export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T> => {
+  const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
+  try {
+    chmodSync(join(dir, "runs.sqlite"), 0o600);
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
+    let found = versionOf(db);
+    // Read again in the transaction: a graph store opens without the store lock, so another process may migrate first.
+    if (found < SCHEMA) {
+      found = transaction(db, () => {
+        const version = versionOf(db);
+        if (version < SCHEMA) db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`);
+        return version;
+      });
+    }
+    if (found <= SCHEMA) return { ok: true, value: use(db) };
+    db.close();
+    return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 };
 
 /** Opens the run store in `dir` (created private): refused on a network filesystem, while another process holds it, or when a newer CedarLoom wrote it. */
 export const openRunStore = (dir: string, detect = filesystemType): Result<RunStore> => {
-  // A folder this call creates is private; one that existed keeps its mode (a store inside it is still private).
-  mkdirSync(join(dir, "backups"), { recursive: true, mode: 0o700 });
-  const fsType = detect(realpathSync.native(dir));
-  if (fsType !== undefined && isNetworkFilesystem(fsType)) {
-    return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
-  }
+  const refused = stateDir(dir, detect);
+  if (refused !== null) return { ok: false, finding: refused };
   // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
   // outlasts a reader's probe, whose read meets no WAL cleanup (writers close runs.sqlite first); others are refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
@@ -577,21 +626,9 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
   }
   // Every failure below releases the lock, else each later open in this process would answer "busy".
   try {
-    const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
-    try {
-      chmodSync(join(dir, "runs.sqlite"), 0o600);
-      db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-      const version = versionOf(db);
-      if (version > SCHEMA) return refuse(db, lock, version);
-      // One transaction: a crash halfway through leaves no partial schema that blocks the next open.
-      if (version < SCHEMA) {
-        transaction(db, () => db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`));
-      }
-      return { ok: true, value: new RunStore(dir, db, lock) };
-    } catch (error) {
-      db.close();
-      throw error;
-    }
+    const store = connect(dir, (db) => new RunStore(dir, db, lock));
+    if (!store.ok) lock.close();
+    return store;
   } catch (error) {
     lock.close();
     throw error;

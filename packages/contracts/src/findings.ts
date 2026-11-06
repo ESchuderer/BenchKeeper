@@ -36,6 +36,13 @@ export const Finding = z
     finding("run.input-unknown", { input: z.string() }),
     finding("run.input-missing", { input: z.string() }),
     finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
+    // A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust.
+    finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
+    // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
+    finding("run.lease-held", { runId: z.string(), pid: z.int() }),
+    finding("run.finished", { runId: z.string(), status: z.string() }),
+    // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
+    finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -83,6 +90,8 @@ export const Finding = z
     finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
     // The own home, or the homes folder above it, is a link: what is written there would land in another folder.
     finding("accounts.home-linked", { account: z.string(), path: z.string() }),
+    // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
+    finding("accounts.home-missing", { account: z.string(), home: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
@@ -110,6 +119,18 @@ export const Finding = z
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
+    // An extension its trust level may not run here (P1 a, A31) or this Node (before 25), whose folder could widen its
+    // grant, or that speaks another protocol or serves other actions than its manifest names; it is stopped at once.
+    finding("extension.refused", {
+      extension: z.string(),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime"]),
+    }),
+    // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
+    finding("extension.failed", {
+      extension: z.string(),
+      step: z.enum(["start", "initialize", "run"]),
+      error: z.string(),
+    }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -147,6 +168,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.input-unknown": { severity: "error", effort: "command" },
   "run.input-missing": { severity: "error", effort: "command" },
   "run.input-invalid": { severity: "error", effort: "command" },
+  "run.event-invalid": { severity: "error", effort: "manual" },
+  "run.lease-held": { severity: "error", effort: "manual" },
+  "run.finished": { severity: "error", effort: "manual" },
+  "run.report-only-apply": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },
@@ -185,6 +210,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.folder-taken": { severity: "error", effort: "manual" },
   "accounts.home-not-own": { severity: "error", effort: "manual" },
   "accounts.home-linked": { severity: "error", effort: "manual" },
+  "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
@@ -198,6 +224,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.gh-login": { severity: "error", effort: "manual" },
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
+  "extension.refused": { severity: "error", effort: "manual" },
+  "extension.failed": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },

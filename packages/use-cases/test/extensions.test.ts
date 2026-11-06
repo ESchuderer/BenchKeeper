@@ -237,8 +237,9 @@ test("a failure to stage the files is a finding, and leaves no staging folder be
     fetchLocal,
   );
   expect([findingOf(failed), findingOf(blocked), readdirSync(join(folder, "extensions", "acme.jira"))]).toEqual([
-    stageFailed("ENAMETOOLONG"),
-    stageFailed(expect.any(String)),
+    // The error code only (ENAMETOOLONG; Windows says ENOENT), never a message with the extension's paths.
+    stageFailed(expect.stringMatching(/^E[A-Z]+$/)),
+    stageFailed(expect.stringMatching(/^E[A-Z]+$/)),
     [],
   ]);
 });

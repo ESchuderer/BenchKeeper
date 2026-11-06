@@ -98,3 +98,8 @@ CREATE TABLE usage_samples (
 ) STRICT;
 CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
 `;
+
+/** Schema 7: the settings each launch ran with (A90), as JSON; null on a launch from before. */
+export const LABEL_TABLES = `
+ALTER TABLE launches ADD COLUMN labels TEXT;
+`;

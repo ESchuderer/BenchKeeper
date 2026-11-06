@@ -342,18 +342,58 @@ test("reports a CLI that cannot start", async () => {
   ]);
 });
 
+// A deadline per phase, well below the test's own timeout, so a stall fails with the phase it hung in.
+const PHASE_MS = 3000;
+const within = async <T>(phase: string, work: Promise<T>): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${phase}: no end within ${PHASE_MS} ms`)), PHASE_MS);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const Command = z.object({ type: z.literal("command"), pid: z.int() });
+// The process ID of the command the fake CLI started, from its "command" line.
+const commandPid = async (session: AgentSession): Promise<number> => {
+  for await (const event of session.events) {
+    const command = Command.safeParse(event.type === "other" ? event.raw : null);
+    if (command.success) return command.data.pid;
+  }
+  throw new Error("the stream ended before the command line");
+};
+
+const running = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Polls until the process is gone or the phase's deadline passes.
+const gone = async (pid: number): Promise<void> => {
+  const deadline = Date.now() + PHASE_MS;
+  while (running(pid) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+};
+
 test("cancel stops the CLI with the command it runs, on Windows too", async () => {
   const session = runtime.start(launch({ FAKE_CHILD: "1", FAKE_HANG: "1" }));
-  const Command = z.object({ type: z.literal("command"), pid: z.int() });
-  let pid: number | undefined;
-  for await (const event of session.events) {
-    pid = Command.safeParse(event.type === "other" ? event.raw : null).data?.pid;
-    if (pid !== undefined) break;
+  try {
+    const pid = await within("reading the stream up to the command line", commandPid(session));
+    await within("cancel", session.cancel());
+    // cancel resolves once the CLI has exited. On macOS and Linux the fake exits only after its command did, so the
+    // command is gone already; on Windows taskkill ends the tree in no set order, so its end is awaited first.
+    if (process.platform === "win32") await gone(pid);
+    expect(running(pid), "the command still runs after cancel").toBe(false);
+  } finally {
+    await session.cancel();
   }
-  await session.cancel();
-  expect(pid).toBeDefined();
-  await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 5000 });
-});
+}, 10_000);
 
 test("cancel after the CLI has exited stops nothing, as its process ID may belong to another process", async () => {
   const session = runtime.start(launch({}));

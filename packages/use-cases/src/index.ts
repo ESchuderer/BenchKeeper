@@ -1,5 +1,15 @@
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export { isConfirmed } from "@cedarloom/accounts";
+export {
+  automationSettings,
+  type GateRun,
+  type LevelChange,
+  levelAtGate,
+  type Mode,
+  mode,
+  planLevel,
+  switchMode,
+} from "./automation.ts";
 export { type CheckedVersions, checkedVersions, recordUsage } from "./agents.ts";
 export {
   type Decided,

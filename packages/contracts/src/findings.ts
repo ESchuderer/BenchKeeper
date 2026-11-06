@@ -70,6 +70,8 @@ export const Finding = z
     finding("accounts.codex-switching-off", { pool: z.string() }),
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
+    // A project's level is set for a folder that exists, by its real path.
+    finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
     // The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed.
@@ -82,6 +84,17 @@ export const Finding = z
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
+    // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
+    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read"]), error: z.string() }),
+    // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
+    finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
+    finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
+    finding("git.too-large", {
+      path: z.string().nullable(),
+      found: z.int(),
+      limit: z.int(),
+      unit: z.enum(["files", "bytes"]),
+    }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -144,10 +157,15 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
+  "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },
   "launch.account-full": { severity: "warning", effort: "manual" },
   "launch.gh-login": { severity: "error", effort: "manual" },
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
+  "git.failed": { severity: "error", effort: "manual" },
+  "git.refused-source": { severity: "error", effort: "manual" },
+  "git.unsafe-entry": { severity: "error", effort: "manual" },
+  "git.too-large": { severity: "error", effort: "manual" },
 };

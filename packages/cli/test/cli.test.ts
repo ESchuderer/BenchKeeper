@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
@@ -160,15 +161,15 @@ test("doctor reports an interrupted run as a warning with its fix, and a busy st
   expect((await cli("runs", "list")).out).toContain("interrupted");
 });
 
-test("a store from a newer CedarLoom makes reads and doctor fail with exit 1", async () => {
+test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit 1", async () => {
   const { state, cli } = setup();
   const store = openRunStore(state);
   if (store.ok) store.value.close();
-  const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(join(state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 5");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   expect((await cli("runs", "list")).code).toBe(EXIT.refused);
+  expect((await cli("mode")).code).toBe(EXIT.refused);
   const report = await cli("doctor", "--json");
   expect([report.code, report.out.includes("store.newer-schema")]).toEqual([EXIT.refused, true]);
 });
@@ -275,6 +276,72 @@ test("accounts: a pool's confirmation carries the terms warning in every output 
   });
 });
 
+test("mode shows the level of running work and switches it with --yes, at each run's next gate", async () => {
+  const { root, state, cli } = setup();
+  expect((await cli("mode")).out).toContain("follows each project's level; the default is supervised");
+  expect((await cli("mode", "auto")).out).toContain(
+    "auto for the runs running now, at each run's next gate.\nNothing changed",
+  );
+  expect(json((await cli("mode", "auto", "--json")).out)).toMatchObject({ format: "cedarloom.mode", level: "auto" });
+  expect((await cli("mode", "auto", "--yes")).out).toContain("the switch is in the ledger");
+  expect(json((await cli("mode", "--json")).out)).toMatchObject({
+    format: "cedarloom.mode",
+    running: "auto",
+    modeScope: "running",
+  });
+  expect((await cli("mode")).out).toContain("Running at auto for the runs that were running at");
+  expect((await cli("mode", "off", "--yes")).out).toContain("back to each project's level");
+  expect((await cli("mode", "fast")).code).toBe(EXIT.usage);
+  // Another holder of the store: the switch is refused, not lost silently.
+  const holder = openRunStore(state);
+  expect((await cli("mode", "auto", "--yes")).code).toBe(EXIT.refused);
+  if (holder.ok) holder.value.close();
+  // Read problems exit as for the other commands: an invalid file 65, an unreadable one 66, a newer store 1.
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "config", "automation.json"), "{}");
+  expect((await cli("mode")).code).toBe(EXIT.data);
+  rmSync(join(root, "config", "automation.json"));
+  mkdirSync(join(root, "config", "automation.json"));
+  expect((await cli("mode")).code).toBe(EXIT.noInput);
+  expect((await cli("mode", "auto")).code).toBe(EXIT.noInput);
+});
+
+test("level shows the default and each project's level, and sets one of them by plan with --yes", async () => {
+  const { root, cli } = setup();
+  expect((await cli("level")).out).toBe("supervised  (default)\n");
+  // --project without a level names nothing to set.
+  expect((await cli("level", "--project", root)).code).toBe(EXIT.usage);
+  expect((await cli("level", "checkpoint")).out).toContain("Nothing changed");
+  expect((await cli("level", "checkpoint", "--yes")).code).toBe(EXIT.ok);
+  const app = join(root, "app");
+  // A project is a folder that exists, kept by its real path.
+  expect((await cli("level", "auto", "--project", app, "--yes")).code).toBe(EXIT.refused);
+  mkdirSync(app);
+  const real = realpathSync.native(app);
+  expect((await cli("level", "auto", "--project", app, "--yes")).code).toBe(EXIT.ok);
+  expect(json((await cli("level", "--json")).out)).toMatchObject({
+    format: "cedarloom.levels",
+    default: "checkpoint",
+    projects: { [real]: "auto" },
+  });
+  expect((await cli("level")).out).toBe(`checkpoint  (default)\nauto        ${real}\n`);
+  // A relative folder is taken from the working folder.
+  const here = realpathSync.native(process.cwd());
+  await cli("level", "supervised", "--project", ".", "--yes");
+  expect(json((await cli("level", "--json")).out)).toMatchObject({ projects: { [here]: "supervised" } });
+  expect((await cli("level", "default", "--project", app, "--yes")).code).toBe(EXIT.ok);
+  expect(json((await cli("level", "--json")).out)["projects"]).toEqual({ [here]: "supervised" });
+  // An active switch of running work shows under the levels.
+  await cli("mode", "auto", "--yes");
+  expect((await cli("level")).out).toContain("Switched: auto for the runs that were running at");
+  // Only a project's level can be default; a level not in the list is no level.
+  expect((await cli("level", "default")).code).toBe(EXIT.usage);
+  expect((await cli("level", "fast")).code).toBe(EXIT.usage);
+  writeFileSync(join(root, "config", "automation.json"), "{}");
+  expect((await cli("level")).code).toBe(EXIT.data);
+  expect((await cli("level", "auto")).code).toBe(EXIT.data);
+});
+
 test("every finding code has an English sentence", () => {
   const examples = Finding.options.map((option) => option.shape.code.value);
   const params: Record<string, Record<string, unknown>> = {
@@ -298,11 +365,22 @@ test("every finding code has an English sentence", () => {
     "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
     "workflow.schedule-input": { input: "branch" },
     "launch.account-full": { account: "work", max: 2 },
+    "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
+    "git.refused-source": { field: "url" },
+    "git.unsafe-entry": { path: "dist/link", kind: "link" },
+    "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });
     expect(text(finding)).toMatch(/^\S.{20,}/s);
   }
+  // The other forms of two git findings: a file name, and one file over its size.
+  const name = Finding.parse({ code: "git.unsafe-entry", params: { path: "a b.txt", kind: "name" } });
+  const file = Finding.parse({ code: "git.too-large", params: { path: "a.bin", found: 11, limit: 10, unit: "bytes" } });
+  expect([text(name), text(file)]).toEqual([
+    'a b.txt is not a portable file name (letters, digits, ".", "_" and "-"), so nothing of the fetched tree is used.',
+    "a.bin has 11 bytes, more than the 10 a fetched tree may have; nothing of it is used.",
+  ]);
 });
 
 const sampleParams = (code: string): Record<string, unknown> => {
@@ -326,7 +404,6 @@ test("a replaced file shows as a replace, and an unreadable store is an internal
     operations: [{ kind: "write", path: join(root, "notes.md"), before: sha256("mine\n"), content: "ours\n" }],
   };
   expect((await cli("plans", "apply", planFile(root, plan), "--yes")).out).toContain("(replace, 5 bytes)");
-  const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(join(state, "runs.sqlite"));
   db.exec(`UPDATE runs SET plan = '{"schemaVersion":1,"operations":[]}'`);
   const id = String(db.prepare("SELECT id FROM runs").get()?.["id"]);

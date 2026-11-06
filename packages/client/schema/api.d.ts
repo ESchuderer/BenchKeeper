@@ -973,6 +973,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "automation.unknown-folder";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.agent-unavailable";
             params: {
                 agent: string;
@@ -1011,6 +1017,39 @@ export interface components {
             params: {
                 path: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.failed";
+            params: {
+                /** @enum {string} */
+                step: "start" | "fetch" | "list" | "read";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.refused-source";
+            params: {
+                /** @enum {string} */
+                field: "url" | "ref" | "path";
+            };
+        } | {
+            /** @constant */
+            code: "git.unsafe-entry";
+            params: {
+                path: string;
+                /** @enum {string} */
+                kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "git.too-large";
+            params: {
+                path: string | null;
+                found: number;
+                limit: number;
+                /** @enum {string} */
+                unit: "files" | "bytes";
             };
         };
         RunInput: {
@@ -1488,6 +1527,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "automation.unknown-folder";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.agent-unavailable";
             params: {
                 agent: string;
@@ -1526,6 +1571,39 @@ export interface components {
             params: {
                 path: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.failed";
+            params: {
+                /** @enum {string} */
+                step: "start" | "fetch" | "list" | "read";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.refused-source";
+            params: {
+                /** @enum {string} */
+                field: "url" | "ref" | "path";
+            };
+        } | {
+            /** @constant */
+            code: "git.unsafe-entry";
+            params: {
+                path: string;
+                /** @enum {string} */
+                kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "git.too-large";
+            params: {
+                path: string | null;
+                found: number;
+                limit: number;
+                /** @enum {string} */
+                unit: "files" | "bytes";
             };
         };
         Run: {

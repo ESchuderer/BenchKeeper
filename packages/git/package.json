@@ -1,0 +1,32 @@
+{
+  "name": "@cedarloom/git",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The hardened Git reader of CedarLoom: fetches one ref into a throwaway repository and reads its files without a checkout, hooks or a transport other than https and ssh.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*"
+  }
+}

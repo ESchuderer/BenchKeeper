@@ -54,6 +54,20 @@ test("the printed link opens the shell, leaves the address bar without its token
   expect(errors).toEqual([]);
 });
 
+test("the header shows the CedarLoom mark beside the title, and the tab the CedarLoom icon", async () => {
+  const mark = page.getByRole("banner").locator("img");
+  await expect(mark).toHaveAttribute("alt", "");
+  // Loaded, not refused: the CSP allows images from the page's own origin only, no data: URLs.
+  await expect
+    .poll(() => mark.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0))
+    .toBe(true);
+  const icon = (await page.locator('link[rel="icon"]').getAttribute("href")) ?? "";
+  expect(icon).toMatch(/^\/assets\/cedarloom-icon-[\w-]+\.svg$/);
+  const response = await page.request.get(new URL(icon, page.url()).href);
+  expect(response.headers()["content-type"]).toMatch(/^image\/svg\+xml/);
+  expect(errors).toEqual([]);
+});
+
 test("every view is reachable from the navigation and passes axe", async () => {
   const nav = page.getByRole("navigation", { name: "Views" });
   for (const view of ["Workflows", "Sessions", "Accounts", "Memory", "Work items", "Usage", "Runs"]) {

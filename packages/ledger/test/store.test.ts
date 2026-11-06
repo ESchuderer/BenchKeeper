@@ -107,11 +107,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 5");
+  db.exec("PRAGMA user_version = 6");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 5, known: 4 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 6, known: 5 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -324,24 +324,24 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-test("a store of schema 1 gains the account, check and launch tables on open and keeps its runs", () => {
+test("a store of schema 1 gains the account, check, launch and mode tables on open and keeps its runs", () => {
   const dir = fresh();
   const runId = opened(dir).begin("apply", plan, planHash(plan));
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 1",
+    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; PRAGMA user_version = 1",
   );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 4 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
   after.close();
 });
 
-test("a store of schema 2 gains the check and launch tables on open and keeps its readings", () => {
+test("a store of schema 2 gains the check, launch and mode tables on open and keeps its readings", () => {
   const dir = fresh();
   const reading = {
     account: "work",
@@ -353,7 +353,7 @@ test("a store of schema 2 gains the check and launch tables on open and keeps it
   opened(dir).recordReading(reading);
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 2");
+  db.exec("DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; PRAGMA user_version = 2");
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([reading]);
@@ -547,3 +547,21 @@ test("a lease counts while its launcher process holds the run's lock, and ends w
   expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 1)).not.toBeNull();
   expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
 }, 15_000);
+
+test("the latest switch of the automation level holds for running work; a view of an older store has none", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  expect(store.runningLevel()).toBeNull();
+  store.recordModeSwitch({ at: "2026-11-06T08:00:00.000Z", level: "auto" });
+  expect(store.runningLevel()).toBe("auto");
+  store.recordModeSwitch({ at: "2026-11-06T09:00:00.000Z", level: null });
+  expect(store.runningLevel()).toBeNull();
+  expect(() => store.recordModeSwitch({ at: "now", level: "auto" })).toThrow(/datetime/i);
+  open.splice(0).forEach((each) => each.close());
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("DROP TABLE mode_switches; PRAGMA user_version = 4");
+  db.close();
+  const view = openRunView(dir);
+  expect(view.ok && view.value?.runningLevel()).toBeNull();
+  if (view.ok) view.value?.close();
+});

@@ -1,10 +1,13 @@
+import { resolve } from "node:path";
 import { Agent } from "@cedarloom/contracts";
-import { Command, CommanderError, Option } from "@commander-js/extra-typings";
+import { Argument, Command, CommanderError, Option } from "@commander-js/extra-typings";
 import {
   accountsConfirm,
   accountsImport,
   accountsList,
   doctor,
+  levelCommand,
+  modeCommand,
   plansApply,
   plansShow,
   runsList,
@@ -81,6 +84,49 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
 };
 
+const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("mode")
+    .description("show the automation level of running work; with a level and --yes, switch it at each run's next gate")
+    .addArgument(
+      new Argument("[level]", "supervised, checkpoint, auto, or off for each project's level").choices([
+        "supervised",
+        "checkpoint",
+        "auto",
+        "off",
+      ] as const),
+    )
+    .option("--yes", "switch now")
+    .action((level, options) => done(modeCommand(ctx(), level, options)));
+};
+
+const LEVELS = ["supervised", "checkpoint", "auto"] as const;
+
+const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("level")
+    .description("show the default automation level and each project's; with a level and --yes, set one of them")
+    .addArgument(
+      new Argument("[level]", "supervised, checkpoint or auto; default gives a project the default again").choices([
+        ...LEVELS,
+        "default",
+      ] as const),
+    )
+    .option("--project <folder>", "set this project's level instead of the default")
+    .option("--yes", "apply the change")
+    .action((level, options, command) => {
+      const { project } = options;
+      if (level === undefined) return done(levelCommand(ctx(), null, options));
+      if (project !== undefined) {
+        const own = level === "default" ? null : level;
+        return done(levelCommand(ctx(), { project: resolve(project), level: own }, options));
+      }
+      if (level === "default")
+        return command.error("error: only a project's level can be default; name it with --project");
+      return done(levelCommand(ctx(), { project: null, level }, options));
+    });
+};
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -103,6 +149,8 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);
   accountsGroup(program, ctx, done);
+  modeGroup(program, ctx, done);
+  levelGroup(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs and store problems")

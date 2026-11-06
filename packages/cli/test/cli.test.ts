@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { Finding, type Plan } from "@cedarloom/contracts";
@@ -166,7 +166,7 @@ test("a store from a newer CedarLoom makes reads and doctor fail with exit 1", a
   if (store.ok) store.value.close();
   const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(join(state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 5");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   expect((await cli("runs", "list")).code).toBe(EXIT.refused);
   const report = await cli("doctor", "--json");
@@ -273,6 +273,50 @@ test("accounts: a pool's confirmation carries the terms warning in every output 
   expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({
     confirmed: [{ agent: "claude", pool: "main" }],
   });
+});
+
+test("mode shows the level of running work and switches it with --yes, at each run's next gate", async () => {
+  const { root, state, cli } = setup();
+  expect((await cli("mode")).out).toContain("follows each project's level; the default is supervised");
+  expect((await cli("mode", "auto")).out).toContain("Nothing changed");
+  expect((await cli("mode", "auto", "--yes")).out).toContain("the switch is in the ledger");
+  expect(json((await cli("mode", "--json")).out)).toMatchObject({ format: "cedarloom.mode", running: "auto" });
+  expect((await cli("mode")).out).toContain("runs at auto");
+  expect((await cli("mode", "off", "--yes")).out).toContain("back to each project's level");
+  expect((await cli("mode", "fast")).code).toBe(EXIT.usage);
+  // Another holder of the store: the switch is refused, not lost silently.
+  const holder = openRunStore(state);
+  expect((await cli("mode", "auto", "--yes")).code).toBe(EXIT.refused);
+  if (holder.ok) holder.value.close();
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "config", "automation.json"), "{}");
+  expect((await cli("mode")).code).toBe(EXIT.data);
+});
+
+test("level shows the default and each project's level, and sets one of them by plan with --yes", async () => {
+  const { root, cli } = setup();
+  expect((await cli("level")).out).toBe("supervised  (default)\n");
+  expect((await cli("level", "checkpoint")).out).toContain("Nothing changed");
+  expect((await cli("level", "checkpoint", "--yes")).code).toBe(EXIT.ok);
+  const app = join(root, "app");
+  expect((await cli("level", "auto", "--project", app, "--yes")).code).toBe(EXIT.ok);
+  expect(json((await cli("level", "--json")).out)).toMatchObject({
+    format: "cedarloom.levels",
+    default: "checkpoint",
+    projects: { [app]: "auto" },
+  });
+  expect((await cli("level")).out).toBe(`checkpoint  (default)\nauto        ${app}\n`);
+  // A relative folder is taken from the working folder.
+  await cli("level", "supervised", "--project", ".", "--yes");
+  expect(json((await cli("level", "--json")).out)).toMatchObject({ projects: { [process.cwd()]: "supervised" } });
+  expect((await cli("level", "default", "--project", app, "--yes")).code).toBe(EXIT.ok);
+  expect(json((await cli("level", "--json")).out)["projects"]).toEqual({ [process.cwd()]: "supervised" });
+  // Only a project's level can be default; a level not in the list is no level.
+  expect((await cli("level", "default")).code).toBe(EXIT.usage);
+  expect((await cli("level", "fast")).code).toBe(EXIT.usage);
+  writeFileSync(join(root, "config", "automation.json"), "{}");
+  expect((await cli("level")).code).toBe(EXIT.data);
+  expect((await cli("level", "auto")).code).toBe(EXIT.data);
 });
 
 test("every finding code has an English sentence", () => {

@@ -42,7 +42,7 @@ export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>
 };
 
 /** Reads never write: no lock, no run, no state folder created; `null` when no run was ever recorded. */
-const withView = <T>(state: string, work: (view: RunView | null) => Result<T>): Result<T> => {
+export const withView = <T>(state: string, work: (view: RunView | null) => Result<T>): Result<T> => {
   const view = openRunView(state);
   if (!view.ok) return view;
   try {

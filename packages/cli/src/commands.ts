@@ -1,6 +1,7 @@
 import {
   type Account,
   Agent,
+  type AutomationLevel,
   type Finding,
   findingInfo,
   type Plan,
@@ -129,7 +130,7 @@ export const doctor = (ctx: Context): number => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (ctx: Context, format: "accounts" | "plan", finding: Finding): number => {
+const refused = (ctx: Context, format: "accounts" | "levels" | "plan", finding: Finding): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
   return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
@@ -190,4 +191,59 @@ export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { ag
   const planned = useCases.planConfirm(ctx.config, { agent, pool });
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
+};
+
+const showLevels = (ctx: Context): number => {
+  const settings = useCases.automationSettings(ctx.config);
+  if (!settings.ok) return refused(ctx, "levels", settings.finding);
+  const fallback = settings.value?.default ?? "supervised";
+  const projects = settings.value?.projects ?? {};
+  const own = Object.entries(projects).map(([folder, level]) => `${level.padEnd(10)}  ${folder}`);
+  emit(ctx, "levels", { default: fallback, projects }, [`${fallback.padEnd(10)}  (default)`, ...own].join("\n"));
+  return EXIT.ok;
+};
+
+/** Shows the default level and each project's own (`next` null), or plans the change `next`; --yes applies it. */
+export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number => {
+  if (next === null) return showLevels(ctx);
+  const planned = useCases.planLevel(ctx.config, next);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  return change(ctx, planned.value, { note: "", data: {}, findings: [] }, yes);
+};
+
+const showMode = (ctx: Context): number => {
+  const current = useCases.mode(ctx.state, ctx.config);
+  if (!current.ok) return fail(ctx, "mode", [current.finding], EXIT.data);
+  const { running } = current.value;
+  const fallback = current.value.settings?.default ?? "supervised";
+  const human =
+    running === null
+      ? `Running work follows each project's level; the default is ${fallback}.`
+      : `Running work runs at ${running} from each run's next gate.`;
+  emit(ctx, "mode", { running, default: fallback }, human);
+  return EXIT.ok;
+};
+
+/** Shows the level of running work, or with a level (off: back to each project's) and --yes switches it. */
+export const modeCommand = (
+  ctx: Context,
+  level: AutomationLevel | "off" | undefined,
+  { yes }: { yes?: true },
+): number => {
+  if (level === undefined) return showMode(ctx);
+  const next = level === "off" ? null : level;
+  const what = next === null ? "Running work goes back to each project's level" : `Running work switches to ${next}`;
+  if (yes !== true) {
+    emit(
+      ctx,
+      "mode",
+      { switch: next },
+      `${what} at each run's next gate.\nNothing changed. Run the command again with --yes.`,
+    );
+    return EXIT.ok;
+  }
+  const switched = useCases.switchMode(ctx.state, next);
+  if (!switched.ok) return fail(ctx, "mode", [switched.finding], EXIT.refused);
+  emit(ctx, "mode", switched.value, `${what} at each run's next gate; the switch is in the ledger.`);
+  return EXIT.ok;
 };

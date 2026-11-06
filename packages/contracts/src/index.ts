@@ -10,6 +10,7 @@ export {
   QuotaWindow,
   Reading,
 } from "./accounts.ts";
+export { AUTOMATION_SCHEMA_VERSION, AutomationLevel, AutomationSettings, ModeSwitch } from "./automation.ts";
 export {
   Draft,
   DraftInfo,

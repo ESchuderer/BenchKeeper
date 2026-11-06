@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   AccountSwitch,
+  type AutomationLevel,
   canonicalJson,
   ContractCheckRecord,
   LaunchRecord,
   type Finding,
   PLAN_SCHEMA_VERSION,
+  ModeSwitch,
   Plan,
   Reading,
   type Result,
@@ -18,12 +20,14 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, TABLES } from "./rows.ts";
+import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, TABLES } from "./rows.ts";
 
-const SCHEMA = 4;
+const SCHEMA = 5;
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES];
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES];
+// The schema that added the switches of the automation level.
+const MODE_SCHEMA = 5;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -184,6 +188,16 @@ export class RunView {
       });
   }
 
+  /**
+   * The level the latest switch set for running work, or null when none did or the latest ended it. A store from
+   * before the switches has none; a read view does not change its schema.
+   */
+  runningLevel(): AutomationLevel | null {
+    if (versionOf(this.db) < MODE_SCHEMA) return null;
+    const row = this.db.prepare("SELECT at, level FROM mode_switches ORDER BY rowid DESC LIMIT 1").get();
+    return row === undefined ? null : ModeSwitch.parse(row).level;
+  }
+
   close(): void {
     this.db.close();
   }
@@ -288,6 +302,12 @@ export class RunStore extends RunView {
       .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt FROM readings ORDER BY account, "window"`)
       .all()
       .map((row) => Reading.parse(row));
+  }
+
+  /** Records a switch of the automation level for running work; it takes effect at each run's next gate. */
+  recordModeSwitch(input: ModeSwitch): void {
+    const change = ModeSwitch.parse(input);
+    this.db.prepare("INSERT INTO mode_switches VALUES (?, ?)").run(change.at, change.level);
   }
 
   /** Records a launch-time account choice, dated when its readings were judged; one that is no AccountSwitch throws. */

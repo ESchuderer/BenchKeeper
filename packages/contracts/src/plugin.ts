@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
+import { PlainText } from "./text.ts";
 import { DataType, HandleName, JsonValue, License, semver, WorkflowId } from "./workflow.ts";
 
 /** The plugin manifest format (`cedarloom-plugin.json`) this CedarLoom reads; readers refuse a newer one. */
@@ -15,7 +16,8 @@ const unique = (items: readonly string[]): boolean => new Set(items).size === it
 // A list without repeats, in zod and in the JSON Schema document.
 const distinct = <T extends z.ZodType<string>>(item: T) =>
   z.array(item).refine(unique, "no entry twice").meta({ uniqueItems: true });
-const description = z.string().max(2000).optional();
+// The texts a manifest shows, which its catalogs translate: plain text.
+const description = PlainText.max(2000).optional();
 // A record of `min` to `max` entries; zod checks it by a refinement, the JSON Schema document by these keywords.
 const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: number, min = 0): T =>
   record
@@ -132,7 +134,7 @@ const outside = (value: unknown): boolean => {
 };
 
 const PluginAction = z.strictObject({
-  title: z.string().min(1).max(200),
+  title: PlainText.min(1).max(200),
   description,
   // JSON Schema 2020-12 allows `true` (any value) and `false` (none) as schemas too.
   config: z
@@ -187,7 +189,7 @@ export const PluginManifest = z
     kind: z.literal("cedarloom.plugin"),
     id: PluginId,
     version: semver,
-    name: z.string().min(1).max(200),
+    name: PlainText.min(1).max(200),
     description,
     license: License.optional(),
     api: z
@@ -310,7 +312,7 @@ export const ExportIndex = z
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
     schemaVersion: z.literal(EXPORT_SCHEMA_VERSION),
     kind: z.literal("cedarloom.export"),
-    name: z.string().min(1).max(200),
+    name: PlainText.min(1).max(200),
     description,
     license: License.optional().describe("The license of each workflow here that names none in its metadata"),
     workflows: z

@@ -138,16 +138,20 @@ const end = async (state: string, { lease, lock }: Held, verdict: Verdict): Prom
 };
 
 // Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
-// the CLI applied the worker settings, and returns the version it named.
+// the CLI applied the worker settings, and returns the version it named. `proved`: the session's init line proved them.
 const observe = async (state: string, session: AgentSession, lease: Lease) => {
   let exit: Exit | null = null;
+  let proved = false;
   for await (const event of session.events) {
-    if (event.type === "init" && !event.settingsApplied) return { exit, unproven: event.agentVersion ?? lease.version };
+    if (event.type === "init" && !event.settingsApplied) {
+      return { exit, proved, unproven: event.agentVersion ?? lease.version };
+    }
+    if (event.type === "init") proved = true;
     // A reading the store cannot take is dropped; the run goes on.
     if (event.type === "usage") await retryBusy(() => recordUsage(state, lease.account, event.windows));
     if (event.type === "exit") exit = event;
   }
-  return { exit, unproven: null };
+  return { exit, proved, unproven: null };
 };
 
 // Runs the leased worker to its end and reads its verdict. Every path that leaves without the CLI's exit (a throw, a
@@ -175,7 +179,8 @@ const runLeased = async <L extends Launch>(
       };
     }
     const result = readResult(launch.resultFile, lease.runId);
-    if (result !== null && exit?.code === 0) verdict = result.verdict;
+    // A session without an init line proved no settings, so its result counts for nothing.
+    if (result !== null && exit?.code === 0 && seen.proved) verdict = result.verdict;
     const { runId, account } = lease;
     return { ok: true, value: { kind: "finished", runId, account, verdict, summary: result?.summary ?? null, exit } };
   } finally {
@@ -214,7 +219,11 @@ export const launchWorker = async <L extends Launch>(
   const { agent, task, runtime } = request;
   const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe });
   if (!checked.ok) return refused(dir, checked);
-  const { version, verified } = checked.value;
+  const { version, verified, settingsApplied } = checked.value;
+  // The backstop: a version whose own check proved no settings starts no run, whatever a run's init line would say.
+  if (!settingsApplied) {
+    return refused(dir, { ok: false, finding: { code: "launch.settings-unproven", params: { agent, version } } });
+  }
   const startedAt = new Date().toISOString();
   const held = await takeLease(state, {
     runId,

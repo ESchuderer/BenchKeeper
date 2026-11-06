@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore, type RunStore } from "@cedarloom/ledger";
@@ -45,7 +45,7 @@ const setup = (names: readonly string[] = ["work"]) => {
 };
 
 interface Fake {
-  /** The stream the version check's probe prints; stream.jsonl when unset. */
+  /** The stream the version check's probe prints, a fixture's name or a path; stream.jsonl when unset. */
   readonly probe?: string;
   /** The stream the run prints; the probe's when unset. */
   readonly run?: string;
@@ -77,7 +77,7 @@ const request = (work: string, fake: Fake = {}): WorkerRequest<ClaudeLaunch> => 
         allow: [],
         env: {
           ...decided.env,
-          FAKE_STREAM: join(fixtures, run ? (fake.run ?? probe) : probe),
+          FAKE_STREAM: resolve(fixtures, run ? (fake.run ?? probe) : probe),
           ...(run ? fake.runEnv : {}),
           ...(result === undefined
             ? {}
@@ -142,14 +142,33 @@ test("a run whose own init line lacks the settings proof is stopped at once, and
   // The version passed its check, but this run's settings did not apply: without a stop it would hang.
   const hanging = request(work, { run: "unapplied.jsonl", runEnv: { FAKE_HANG: "1" }, result: passing });
   await expect(launchWorker(state, config, hanging, host)).resolves.toEqual(unproven);
-  // A version whose check lacked the proof runs its launches too; each is stopped at its init line.
-  const fresh = setup();
-  await expect(
-    launchWorker(fresh.state, fresh.config, request(work, { probe: "unapplied.jsonl" }), host),
-  ).resolves.toEqual(unproven);
   expect(withLedger(state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
-  expect(withLedger(fresh.state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
 }, 15_000);
+
+test("a CLI version whose check gave no proof that it applies the settings starts no run: the backstop", async () => {
+  const { state, config, work } = setup();
+  await expect(launchWorker(state, config, request(work, { probe: "unapplied.jsonl" }), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "launch.settings-unproven", params: { agent: "claude", version: "2.1.316" } },
+  });
+  expect(withLedger(state, (store) => store.launches())).toEqual([]);
+  expect(workerFolders(state)).toEqual([]);
+});
+
+test("a run whose stream holds no init line proves nothing, so it failed whatever its result file says", async () => {
+  const { state, config, work } = setup();
+  // The version's check passed, but this run's stream drops its init line.
+  const noInit = join(mkdtempSync(join(tmpdir(), "cedarloom-stream-")), "no-init.jsonl");
+  const lines = readFileSync(join(fixtures, "stream.jsonl"), "utf8").split("\n");
+  writeFileSync(noInit, lines.filter((line) => !line.includes('"subtype":"init"')).join("\n"));
+  await expect(
+    launchWorker(state, config, request(work, { run: noInit, result: passing }), host),
+  ).resolves.toMatchObject({
+    ok: true,
+    value: { kind: "finished", verdict: "failed", exit: { code: 0 } },
+  });
+  expect(withLedger(state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
+});
 
 const lease = (runId: string, account: string) =>
   ({ runId, task: "t0", agent: "claude", account, version: "2.1.316", pid: process.pid, startedAt: AT }) as const;

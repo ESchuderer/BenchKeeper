@@ -276,6 +276,10 @@ msgid "problem.strayEntry"
 msgstr "The {section} section names node {node}, which the workflow does not have."
 
 #. js-lingui-explicit-id
+msgid "problem.nodeUnsupported"
+msgstr "Node {node} is a {type} node, which this version does not run yet."
+
+#. js-lingui-explicit-id
 msgid "problem.nodeInput"
 msgstr "Input {handle} of node {node}"
 

@@ -5,14 +5,12 @@ import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
 import {
   connect,
-  GRAPH_SCHEMA,
   type LeaseLock,
   leaseHeld,
   leaseSeen,
   newLease,
   now,
   openReadOnly,
-  PROJECT_SCHEMA,
   stateDir,
   transaction,
 } from "./store.ts";
@@ -61,15 +59,12 @@ export class GraphStore {
   readonly #dir: string;
   readonly #db: DatabaseSync;
   readonly #probe: typeof leaseHeld;
-  readonly #columns: string;
 
-  // A view probes leases without taking them, and reads a store from before the project folder too.
-  constructor(dir: string, db: DatabaseSync, view?: { readonly schema: number }) {
+  // A view probes leases without taking them (leaseSeen).
+  constructor(dir: string, db: DatabaseSync, probe = leaseHeld) {
     this.#dir = dir;
     this.#db = db;
-    this.#probe = view === undefined ? leaseHeld : leaseSeen;
-    this.#columns =
-      (view?.schema ?? PROJECT_SCHEMA) < PROJECT_SCHEMA ? COLUMNS.replace("project", "NULL AS project") : COLUMNS;
+    this.#probe = probe;
   }
 
   /** Records a run with its definition and inputs as they start, and returns this process's lease on it (epoch 1). */
@@ -107,7 +102,7 @@ export class GraphStore {
 
   /** A run as it stands: one running or waiting while no process holds its lease is `interrupted`. */
   graphRun(id: string): GraphRun | undefined {
-    const row = this.#db.prepare(`SELECT ${this.#columns} FROM graph_runs WHERE id = ?`).get(id);
+    const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
     const interrupted = ACTIVE.has(String(row["status"])) && !this.#probe(this.#dir, `${id}.${Number(row["epoch"])}`);
     const status = interrupted ? "interrupted" : row["status"];
@@ -294,23 +289,19 @@ export class GraphStore {
 
 /**
  * Opens the graph runs of the state folder `dir` (created private), without the store lock: refused on a network
- * filesystem or when a newer CedarLoom wrote the store.
+ * filesystem or for a store at another schema.
  */
 export const openGraphStore = (dir: string, detect = filesystemType): Result<GraphStore> => {
   const refused = stateDir(dir, detect);
   return refused === null ? connect(dir, (db) => new GraphStore(dir, db)) : { ok: false, finding: refused };
 };
 
-/** Graph runs as `runs list` and `runs show` read them: no lock, no write, no migration. */
+/** Graph runs as `runs list` and `runs show` read them: no lock, no write. */
 export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "close">;
 
-/** Opens the graph runs of `dir` for reading; null while there are none, also in a store from before them. */
+/** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */
 export const openGraphView = (dir: string): Result<GraphView | null> => {
   const opened = openReadOnly(dir);
   if (!opened.ok) return opened;
-  if (opened.value === null || opened.value.version < GRAPH_SCHEMA) {
-    opened.value?.db.close();
-    return { ok: true, value: null };
-  }
-  return { ok: true, value: new GraphStore(dir, opened.value.db, { schema: opened.value.version }) };
+  return { ok: true, value: opened.value === null ? null : new GraphStore(dir, opened.value, leaseSeen) };
 };

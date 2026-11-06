@@ -14,6 +14,8 @@ export const LOCK_SCHEMA_VERSION = 1;
 export const EXPORT_SCHEMA_VERSION = 1;
 /** The format of the installed extensions (`extensions.json` in the state folder) this CedarLoom writes and reads. */
 export const INSTALLED_SCHEMA_VERSION = 1;
+/** The format of the record of update sightings (`extension-updates.json` in the state folder). */
+export const UPDATES_SCHEMA_VERSION = 1;
 
 const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
 // A list without repeats, in zod and in the JSON Schema document.
@@ -57,7 +59,7 @@ const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]
 // The URL parser decides: an origin is canonical when it is its own `origin` (lower case, no default port, no path,
 // user or password), so `https://Example.com`, `https://a.com:443` and `https://0x7f.1` are refused.
 const isOrigin = (value: string): boolean => URL.canParse(value) && new URL(value).origin === value;
-// An https origin an extension reaches through the host; it has no network of its own (pending owner decision).
+// An https origin an extension reaches through the host; it has no network of its own (P7 a).
 const Origin = z
   .string()
   .max(300)
@@ -100,7 +102,7 @@ const CredentialScheme = z
   ])
   .describe("The host refuses a request in which the extension sets this header itself");
 
-// The host fetches for the extension and adds its credentials, which the extension never sees (pending owner decision).
+// The host fetches for the extension and adds its credentials, which the extension never sees (P8 a).
 const Credential = z.strictObject({
   description,
   scheme: CredentialScheme,
@@ -319,7 +321,7 @@ const ExtensionPin = z.strictObject({
 
 /**
  * The extensions a set of workflows needs, each pinned to a commit and the digest of its files (A29 b), so an import
- * fetches the code the exporter ran or refuses it. Git is the only source in 0.1.0 (pending owner decision).
+ * fetches the code the exporter ran or refuses it. Git is the only source in 0.1.0 (P2 a).
  */
 export const ExtensionLock = z
   .strictObject({
@@ -333,7 +335,7 @@ export type ExtensionLock = z.infer<typeof ExtensionLock>;
 
 /**
  * The extensions installed on this machine, each pinned like a lock entry, with the ref an update follows and the
- * capabilities the user approved. Git is the only source in 0.1.0 (pending owner decision), so each is a community
+ * capabilities the user approved. Git is the only source in 0.1.0 (P2 a), so each is a community
  * extension: its trust comes from where its code came from, never from a field of its manifest or of this file.
  */
 export const InstalledExtensions = z
@@ -358,6 +360,30 @@ export const InstalledExtensions = z
   .register(fileFormats, { id: "InstalledExtensions" });
 export type InstalledExtensions = z.infer<typeof InstalledExtensions>;
 
+/**
+ * When this machine first saw the commit now at each installed extension's ref: its update is offered 3 days later,
+ * since a commit's own date is whatever its author wrote. CedarLoom's own record: one it cannot read starts every wait
+ * again.
+ */
+export const ExtensionUpdates = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(UPDATES_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.extension-updates"),
+    extensions: sized(
+      z.record(
+        ExtensionId,
+        z.strictObject({
+          commit: z.string().regex(/^[0-9a-f]{40}$/),
+          seen: z.iso.datetime().describe("When this machine first fetched that commit at the ref"),
+        }),
+      ),
+      500,
+    ),
+  })
+  .register(fileFormats, { id: "ExtensionUpdates" });
+export type ExtensionUpdates = z.infer<typeof ExtensionUpdates>;
+
 /** The file text of the installed extensions: keys sorted, two spaces, a final line break. */
 export const formatInstalled = (installed: InstalledExtensions): string =>
   `${JSON.stringify(InstalledExtensions.parse(sortKeys(installed)), null, 2)}\n`;
@@ -365,7 +391,7 @@ export const formatInstalled = (installed: InstalledExtensions): string =>
 /**
  * The index of an export folder: each workflow at `workflows/workflow-<id in lower case>.json`, named like a draft so
  * no id becomes a Windows device name, and the extensions they need in `cedarloom.lock.json` beside this file. The
- * workflow store keeps the same layout (pending owner decision).
+ * workflow store keeps the same layout (P3 a).
  */
 export const ExportIndex = z
   .strictObject({

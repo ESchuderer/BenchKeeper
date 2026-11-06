@@ -62,7 +62,19 @@ const runner = async ({ root, state, file }: ReturnType<typeof project>, at: num
   const db = new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true });
   const runId = String(db.prepare("SELECT id FROM graph_runs ORDER BY startedAt DESC LIMIT 1").get()?.["id"]);
   db.close();
-  return { runId, exited };
+  return { runId, exited, child };
+};
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+// Waits until `done` holds, for up to `ms`.
+const until = async (done: () => boolean, ms = 10_000): Promise<void> => {
+  for (const end = Date.now() + ms; !done() && Date.now() < end; ) await new Promise((go) => setTimeout(go, 50));
 };
 const statusOf = async (state: string, runId: string) => {
   const shown = showGraphRun(state, runId);
@@ -187,8 +199,9 @@ test("a resume says why a stored run no longer starts, and refuses a journal it 
   const created = openGraphStore(at.state);
   if (!created.ok) throw new Error(created.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
-  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null, project: null } as const;
-  const [changed, corrupt] = [1, 2].map(() => created.value.create({ ...run, definition }));
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const folder = realpathSync(at.root);
+  const [changed, corrupt] = [1, 2].map(() => created.value.create({ ...run, definition, project: folder }));
   for (const lease of [changed, corrupt]) lease?.release();
   created.value.close();
   const db = new DatabaseSync(join(at.state, "runs.sqlite"));
@@ -270,6 +283,53 @@ test("inputs given as text are read for number, boolean and json inputs; text th
   expect(codeOf(await runWorkflow(at.state, at.file, { count: "1e400" }, at.options))).toBe("run.input-invalid");
   expect(codeOf(await runWorkflow(at.state, at.file, { data: "1e400" }, at.options))).toBe("ok");
 });
+
+// On Windows Node's job object ends the shell with its runner, so nothing is left to stop; the shell's own children
+// may outlive it (hub issue 103).
+test.skipIf(process.platform === "win32")(
+  "a resume stops what a runner that died left running, and leaves a later process with that pid alone",
+  async () => {
+    const at = project([command("a", "echo > running.txt; sleep 30")], "t.start>a.run");
+    const left = await runner(at, 0);
+    await until(() => existsSync(join(at.root, "running.txt")));
+    const shown = showGraphRun(at.state, left.runId);
+    const pid = (shown.ok && shown.value.attempts[0]?.pid) || 0;
+    left.child.kill("SIGKILL");
+    await left.exited;
+    expect(alive(pid)).toBe(true);
+    expect(await resumeRun(at.state, left.runId, at.options)).toMatchObject({ value: { status: "failed" } });
+    await until(() => !alive(pid));
+    expect(alive(pid)).toBe(false);
+    // A process that started after the attempt's record, or over a minute before it, is no orphan of it, whatever its pid.
+    // A group leader of its own, as a command's shell is, so a group kill would reach it.
+    const later = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true });
+    const store = openGraphStore(at.state);
+    if (!store.ok) throw new Error(store.finding.code);
+    const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
+    const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+    // `ps` tells start times to the second only, so each record is seconds away from the process's start.
+    for (const away of [-5000, 120_000]) {
+      const lease = store.value.create({ ...base, definition, project: realpathSync(at.root) });
+      store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: null });
+      lease.release();
+      const db = new DatabaseSync(join(at.state, "runs.sqlite"));
+      const recorded = new Date(Date.now() + away).toISOString();
+      db.prepare("UPDATE node_attempts SET pid = ?, startedAt = ? WHERE runId = ?").run(
+        Number(later.pid),
+        recorded,
+        lease.runId,
+      );
+      db.close();
+      expect(await resumeRun(at.state, lease.runId, at.options)).toMatchObject({ value: { status: "failed" } });
+      // A child of this process stays a zombie until Node reaps it: its own end is what tells.
+      await until(() => later.signalCode !== null, 1000);
+      expect(later.signalCode).toBeNull();
+    }
+    store.value.close();
+    later.kill();
+  },
+  30_000,
+);
 
 test("a project folder that is not there refuses a run and a resume before anything starts; a cancel still ends it", async () => {
   const at = project([command("a", "sleep 30")], "t.start>a.run");

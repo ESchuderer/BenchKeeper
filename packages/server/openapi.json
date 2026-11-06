@@ -1241,6 +1241,44 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "store.older-schema"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "dir": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "known": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "dir",
+                  "found",
+                  "known"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "workflow.duplicate-id"
               },
               "params": {
@@ -2925,13 +2963,66 @@
                       "no-manifest",
                       "entry",
                       "protocol",
-                      "installed"
+                      "installed",
+                      "id"
                     ]
                   }
                 },
                 "required": [
                   "extension",
                   "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.consent-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
                 ],
                 "additionalProperties": false
               }
@@ -4760,6 +4851,44 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "store.older-schema"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "dir": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "known": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "dir",
+                  "found",
+                  "known"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "workflow.duplicate-id"
               },
               "params": {
@@ -6444,13 +6573,66 @@
                       "no-manifest",
                       "entry",
                       "protocol",
-                      "installed"
+                      "installed",
+                      "id"
                     ]
                   }
                 },
                 "required": [
                   "extension",
                   "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.consent-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
                 ],
                 "additionalProperties": false
               }

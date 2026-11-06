@@ -859,767 +859,9 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "workflow.duplicate-id";
-            params: {
-                /** @enum {string} */
-                kind: "node" | "edge";
-                id: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.trigger-count";
-            params: {
-                count: number;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.unknown-node-type";
-            params: {
-                node: string;
-                type: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.invalid-config";
-            params: {
-                node: string;
-                issues: {
-                    path: string;
-                    code: string;
-                }[];
-            };
-        } | {
-            /** @constant */
-            code: "workflow.dangling-edge";
-            params: {
-                edge: string;
-                /** @enum {string} */
-                end: "from" | "to";
-                ref: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.unknown-handle";
-            params: {
-                edge: string;
-                /** @enum {string} */
-                end: "from" | "to";
-                handle: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.incompatible-handles";
-            params: {
-                edge: string;
-                /** @enum {string} */
-                from: "control" | "string" | "number" | "boolean" | "json";
-                /** @enum {string} */
-                to: "control" | "string" | "number" | "boolean" | "json";
-            };
-        } | {
-            /** @constant */
-            code: "workflow.unchecked-handles";
-            params: {
-                edge: string;
-                /** @enum {string} */
-                from: "control" | "string" | "number" | "boolean" | "json";
-                /** @enum {string} */
-                to: "control" | "string" | "number" | "boolean" | "json";
-            };
-        } | {
-            /** @constant */
-            code: "workflow.many-sources";
-            params: {
-                node: string | null;
-                handle: string;
-                count: number;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.missing-source";
-            params: {
-                node: string | null;
-                handle: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.cycle";
-            params: {
-                nodes: string[];
-            };
-        } | {
-            /** @constant */
-            code: "workflow.join-branches";
-            params: {
-                node: string;
-                count: number;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.duplicate-edge";
-            params: {
-                edge: string;
-                of: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.exclusive-sources";
-            params: {
-                node: string;
-                handle: string;
-                from: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.optional-input";
-            params: {
-                node: string;
-                handle: string;
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.schedule-input";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.report-only-write";
-            params: {
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.report-only-extension";
-            params: {
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.extension-missing";
-            params: {
-                node: string;
-                type: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.unreachable";
-            params: {
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "workflow.stray-entry";
-            params: {
-                /** @enum {string} */
-                section: "execution" | "layout";
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.unknown-pool";
-            params: {
-                agent: string;
-                pool: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.codex-switching-off";
-            params: {
-                pool: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.pool-terms";
-            params: {
-                pool: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.unknown-account";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.name-taken";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.name-invalid";
-            params: {
-                name: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.login-unsupported";
-            params: {
-                account: string;
-                agent: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.folder-taken";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-not-own";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-linked";
-            params: {
-                account: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-missing";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-unusable";
-            params: {
-                account: string;
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.login-failed";
-            params: {
-                account: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.logged-out";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.login-elsewhere";
-            params: {
-                account: string;
-                home: string;
-                configDirectory: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.login-method";
-            params: {
-                account: string;
-                method: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.login-unchecked";
-            params: {
-                account: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.login-skipped";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "automation.unknown-folder";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.agent-unavailable";
-            params: {
-                agent: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.settings-unproven";
-            params: {
-                agent: string;
-                version: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.account-full";
-            params: {
-                account: string;
-                max: number;
-            };
-        } | {
-            /** @constant */
-            code: "launch.gh-login";
-            params: {
-                error: string | null;
-            };
-        } | {
-            /** @constant */
-            code: "launch.sandbox-overridden";
-            params: {
-                path: string;
-                key: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.not-logged-in";
-            params: {
-                account: string;
-                reason: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-none";
-            params: {
-                plugin: string;
-                commit: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-not-loaded";
-            params: {
-                plugin: string;
-                errors: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.managed-settings-unreadable";
-            params: {
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "git.failed";
-            params: {
-                /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "git.refused-source";
-            params: {
-                /** @enum {string} */
-                field: "url" | "ref" | "path";
-            };
-        } | {
-            /** @constant */
-            code: "git.unsafe-entry";
-            params: {
-                path: string;
-                /** @enum {string} */
-                kind: "link" | "submodule" | "name" | "case";
-            };
-        } | {
-            /** @constant */
-            code: "extension.refused";
-            params: {
-                extension: string;
-                /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
-            };
-        } | {
-            /** @constant */
-            code: "extension.install-refused";
-            params: {
-                extension: string | null;
-                /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed";
-            };
-        } | {
-            /** @constant */
-            code: "extension.failed";
-            params: {
-                extension: string;
-                /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run";
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "git.too-large";
-            params: {
-                path: string | null;
-                found: number;
-                limit: number;
-                /** @enum {string} */
-                unit: "files" | "bytes";
-            };
-        };
-        RunInput: {
-            id: string;
-            /** @enum {string} */
-            kind: "apply" | "undo";
-            undoes: string | null;
-            planHash: components["schemas"]["Sha256Input"];
-            /** @enum {string} */
-            status: "running" | "applied" | "failed" | "interrupted";
-            epoch: number;
-            /** Format: date-time */
-            startedAt: string;
-            finishedAt: string | null;
-        };
-        StepInput: {
-            index: number;
-            path: string;
-            before: components["schemas"]["Sha256Input"] | null;
-            after: components["schemas"]["Sha256Input"] | null;
-            /** @enum {string} */
-            state: "pending" | "running" | "done" | "skipped";
-            mode: number | null;
-        };
-        PlanPreviewInput: {
-            planHash: components["schemas"]["Sha256Input"];
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFileInput"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256Input"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256Input"];
-                    bytes: number;
-                })[];
-            };
-        };
-        UndoPreviewInput: {
-            planHash: components["schemas"]["Sha256Input"] | null;
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFileInput"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256Input"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256Input"];
-                    bytes: number;
-                })[];
-            } | null;
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RunResultInput: {
-            runId: string | null;
-            /** @enum {string} */
-            status: "applied" | "failed" | "refused" | "nothing-to-undo";
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RefusalInput: {
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RunsEventInput: {
-            runs: components["schemas"]["RunInput"][];
-        };
-        WorkflowJsonInput: unknown | {
-            [key: string]: components["schemas"]["WorkflowJsonInput"];
-        };
-        DraftInfoInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            bytes: number;
-        };
-        DraftInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256Input"];
-            workflow: components["schemas"]["WorkflowJsonInput"];
-        };
-        DraftSavedInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256Input"];
-            bytes: number;
-            overwrote: boolean;
-        };
-        SchemaVersion: number;
-        Sha256: string;
-        WriteFile: {
-            /** @constant */
-            kind: "write";
-            path: string;
-            before: components["schemas"]["Sha256"] | null;
-            content: string;
-            mode?: number;
-        };
-        DeleteFile: {
-            /** @constant */
-            kind: "delete";
-            path: string;
-            before: components["schemas"]["Sha256"];
-        };
-        Operation: components["schemas"]["WriteFile"] | components["schemas"]["DeleteFile"];
-        Plan: {
-            /** @constant */
-            schemaVersion: 1;
-            operations: components["schemas"]["Operation"][];
-        };
-        Finding: {
-            /** @constant */
-            code: "document.unreadable";
-            params: {
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "document.newer-schema";
-            params: {
-                found: components["schemas"]["SchemaVersion"];
-                known: components["schemas"]["SchemaVersion"];
-            };
-        } | {
-            /** @constant */
-            code: "document.invalid";
-            params: {
-                issues: {
-                    path: string;
-                    code: string;
-                }[];
-            };
-        } | {
-            /** @constant */
-            code: "plan.not-approved";
-            params: {
-                planHash: components["schemas"]["Sha256"];
-                approvedHash: string;
-            };
-        } | {
-            /** @constant */
-            code: "plan.path-not-absolute";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "plan.not-a-file";
-            params: {
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "plan.chain-broken";
-            params: {
-                path: string;
-                index: number;
-                expected: components["schemas"]["Sha256"] | null;
-                found: components["schemas"]["Sha256"] | null;
-            };
-        } | {
-            /** @constant */
-            code: "plan.file-changed";
-            params: {
-                path: string;
-                expected: components["schemas"]["Sha256"] | null;
-                actual: components["schemas"]["Sha256"] | null;
-            };
-        } | {
-            /** @constant */
-            code: "apply.symlink";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "apply.not-text";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "apply.backup-failed";
-            params: {
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "apply.write-failed";
-            params: {
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "apply.write-mismatch";
-            params: {
-                path: string;
-                expected: components["schemas"]["Sha256"] | null;
-                actual: components["schemas"]["Sha256"] | null;
-            };
-        } | {
-            /** @constant */
-            code: "run.not-found";
-            params: {
-                runId: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.interrupted";
-            params: {
-                runId: string;
-                undoes: string | null;
-            };
-        } | {
-            /** @constant */
-            code: "run.failed";
-            params: {
-                runId: string;
-                undoes: string | null;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-unknown";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-missing";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-invalid";
-            params: {
-                input: string;
-                /** @enum {string} */
-                type: "string" | "number" | "boolean" | "json";
-            };
-        } | {
-            /** @constant */
-            code: "run.event-invalid";
-            params: {
-                runId: string;
-                seq: number;
-                issues: {
-                    path: string;
-                    code: string;
-                }[];
-            };
-        } | {
-            /** @constant */
-            code: "run.lease-held";
-            params: {
-                runId: string;
-                pid: number;
-            };
-        } | {
-            /** @constant */
-            code: "run.finished";
-            params: {
-                runId: string;
-                status: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.report-only-apply";
-            params: {
-                runId: string;
-                applyRun: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.node-unsupported";
-            params: {
-                node: string;
-                type: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.shell-missing";
-            params: Record<string, never>;
-        } | {
-            /** @constant */
-            code: "run.project-mismatch";
-            params: {
-                runId: string;
-                project: string;
-                given: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.project-missing";
-            params: {
-                project: string;
-            };
-        } | {
-            /** @constant */
-            code: "undo.file-edited";
-            params: {
-                runId: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "undo.backup-missing";
-            params: {
-                runId: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "undo.backup-changed";
-            params: {
-                runId: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "store.busy";
+            code: "store.older-schema";
             params: {
                 dir: string;
-            };
-        } | {
-            /** @constant */
-            code: "store.network-filesystem";
-            params: {
-                dir: string;
-                fsType: string;
-            };
-        } | {
-            /** @constant */
-            code: "draft.not-found";
-            params: {
-                id: string;
-            };
-        } | {
-            /** @constant */
-            code: "draft.too-large";
-            params: {
-                id: string;
-                bytes: number;
-                limit: number;
-            };
-        } | {
-            /** @constant */
-            code: "store.newer-schema";
-            params: {
                 found: number;
                 known: number;
             };
@@ -2008,7 +1250,805 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+            };
+        } | {
+            /** @constant */
+            code: "extension.unknown";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.consent-needed";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "stage" | "start" | "initialize" | "run";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.too-large";
+            params: {
+                path: string | null;
+                found: number;
+                limit: number;
+                /** @enum {string} */
+                unit: "files" | "bytes";
+            };
+        };
+        RunInput: {
+            id: string;
+            /** @enum {string} */
+            kind: "apply" | "undo";
+            undoes: string | null;
+            planHash: components["schemas"]["Sha256Input"];
+            /** @enum {string} */
+            status: "running" | "applied" | "failed" | "interrupted";
+            epoch: number;
+            /** Format: date-time */
+            startedAt: string;
+            finishedAt: string | null;
+        };
+        StepInput: {
+            index: number;
+            path: string;
+            before: components["schemas"]["Sha256Input"] | null;
+            after: components["schemas"]["Sha256Input"] | null;
+            /** @enum {string} */
+            state: "pending" | "running" | "done" | "skipped";
+            mode: number | null;
+        };
+        PlanPreviewInput: {
+            planHash: components["schemas"]["Sha256Input"];
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                })[];
+            };
+        };
+        UndoPreviewInput: {
+            planHash: components["schemas"]["Sha256Input"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                })[];
+            } | null;
+            findings: components["schemas"]["FindingInput"][];
+        };
+        RunResultInput: {
+            runId: string | null;
+            /** @enum {string} */
+            status: "applied" | "failed" | "refused" | "nothing-to-undo";
+            findings: components["schemas"]["FindingInput"][];
+        };
+        RefusalInput: {
+            findings: components["schemas"]["FindingInput"][];
+        };
+        RunsEventInput: {
+            runs: components["schemas"]["RunInput"][];
+        };
+        WorkflowJsonInput: unknown | {
+            [key: string]: components["schemas"]["WorkflowJsonInput"];
+        };
+        DraftInfoInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            bytes: number;
+        };
+        DraftInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            workflow: components["schemas"]["WorkflowJsonInput"];
+        };
+        DraftSavedInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            bytes: number;
+            overwrote: boolean;
+        };
+        SchemaVersion: number;
+        Sha256: string;
+        WriteFile: {
+            /** @constant */
+            kind: "write";
+            path: string;
+            before: components["schemas"]["Sha256"] | null;
+            content: string;
+            mode?: number;
+        };
+        DeleteFile: {
+            /** @constant */
+            kind: "delete";
+            path: string;
+            before: components["schemas"]["Sha256"];
+        };
+        Operation: components["schemas"]["WriteFile"] | components["schemas"]["DeleteFile"];
+        Plan: {
+            /** @constant */
+            schemaVersion: 1;
+            operations: components["schemas"]["Operation"][];
+        };
+        Finding: {
+            /** @constant */
+            code: "document.unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "document.newer-schema";
+            params: {
+                found: components["schemas"]["SchemaVersion"];
+                known: components["schemas"]["SchemaVersion"];
+            };
+        } | {
+            /** @constant */
+            code: "document.invalid";
+            params: {
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "plan.not-approved";
+            params: {
+                planHash: components["schemas"]["Sha256"];
+                approvedHash: string;
+            };
+        } | {
+            /** @constant */
+            code: "plan.path-not-absolute";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "plan.not-a-file";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "plan.chain-broken";
+            params: {
+                path: string;
+                index: number;
+                expected: components["schemas"]["Sha256"] | null;
+                found: components["schemas"]["Sha256"] | null;
+            };
+        } | {
+            /** @constant */
+            code: "plan.file-changed";
+            params: {
+                path: string;
+                expected: components["schemas"]["Sha256"] | null;
+                actual: components["schemas"]["Sha256"] | null;
+            };
+        } | {
+            /** @constant */
+            code: "apply.symlink";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "apply.not-text";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "apply.backup-failed";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "apply.write-failed";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "apply.write-mismatch";
+            params: {
+                path: string;
+                expected: components["schemas"]["Sha256"] | null;
+                actual: components["schemas"]["Sha256"] | null;
+            };
+        } | {
+            /** @constant */
+            code: "run.not-found";
+            params: {
+                runId: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.interrupted";
+            params: {
+                runId: string;
+                undoes: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "run.failed";
+            params: {
+                runId: string;
+                undoes: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-unknown";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-missing";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-invalid";
+            params: {
+                input: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "run.project-mismatch";
+            params: {
+                runId: string;
+                project: string;
+                given: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.project-missing";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "undo.file-edited";
+            params: {
+                runId: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "undo.backup-missing";
+            params: {
+                runId: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "undo.backup-changed";
+            params: {
+                runId: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.busy";
+            params: {
+                dir: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.network-filesystem";
+            params: {
+                dir: string;
+                fsType: string;
+            };
+        } | {
+            /** @constant */
+            code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "draft.too-large";
+            params: {
+                id: string;
+                bytes: number;
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "store.newer-schema";
+            params: {
+                found: number;
+                known: number;
+            };
+        } | {
+            /** @constant */
+            code: "store.older-schema";
+            params: {
+                dir: string;
+                found: number;
+                known: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-id";
+            params: {
+                /** @enum {string} */
+                kind: "node" | "edge";
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.trigger-count";
+            params: {
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-node-type";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.invalid-config";
+            params: {
+                node: string;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.dangling-edge";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                ref: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unknown-handle";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                end: "from" | "to";
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.incompatible-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unchecked-handles";
+            params: {
+                edge: string;
+                /** @enum {string} */
+                from: "control" | "string" | "number" | "boolean" | "json";
+                /** @enum {string} */
+                to: "control" | "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "workflow.many-sources";
+            params: {
+                node: string | null;
+                handle: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.missing-source";
+            params: {
+                node: string | null;
+                handle: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.cycle";
+            params: {
+                nodes: string[];
+            };
+        } | {
+            /** @constant */
+            code: "workflow.join-branches";
+            params: {
+                node: string;
+                count: number;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-edge";
+            params: {
+                edge: string;
+                of: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.exclusive-sources";
+            params: {
+                node: string;
+                handle: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.optional-input";
+            params: {
+                node: string;
+                handle: string;
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.schedule-input";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.report-only-write";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.report-only-extension";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.extension-missing";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.unreachable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.stray-entry";
+            params: {
+                /** @enum {string} */
+                section: "execution" | "layout";
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.unknown-pool";
+            params: {
+                agent: string;
+                pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.codex-switching-off";
+            params: {
+                pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.pool-terms";
+            params: {
+                pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-missing";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-unusable";
+            params: {
+                account: string;
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "automation.unknown-folder";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.agent-unavailable";
+            params: {
+                agent: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
+            };
+        } | {
+            /** @constant */
+            code: "launch.gh-login";
+            params: {
+                error: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "launch.sandbox-overridden";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-none";
+            params: {
+                plugin: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-not-loaded";
+            params: {
+                plugin: string;
+                errors: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.failed";
+            params: {
+                /** @enum {string} */
+                step: "start" | "fetch" | "list" | "read";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.refused-source";
+            params: {
+                /** @enum {string} */
+                field: "url" | "ref" | "path";
+            };
+        } | {
+            /** @constant */
+            code: "git.unsafe-entry";
+            params: {
+                path: string;
+                /** @enum {string} */
+                kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.install-refused";
+            params: {
+                extension: string | null;
+                /** @enum {string} */
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+            };
+        } | {
+            /** @constant */
+            code: "extension.unknown";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.consent-needed";
+            params: {
+                extension: string;
             };
         } | {
             /** @constant */

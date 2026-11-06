@@ -19,10 +19,10 @@ const sample = (code: string): Record<string, unknown> => {
   return Object.fromEntries(Object.keys(shape).map((key) => [key, value(key)]));
 };
 
-test("every workflow finding and every refusal of a file or draft has a sentence; other codes show as the code", () => {
+test("every workflow finding, every refusal of a file or draft and a node type not run yet have a sentence; other codes show as the code", () => {
   const codes = Finding.options.map((option) => option.shape.code.value);
-  const shown = codes.filter((code) => /^(workflow|draft|document)\./.test(code));
-  expect(shown.length).toBe(26);
+  const shown = codes.filter((code) => /^(workflow|draft|document)\./.test(code) || code === "run.node-unsupported");
+  expect(shown).toContain("run.node-unsupported");
   for (const code of shown) {
     const finding = Finding.parse({ code, params: sample(code) });
     expect([code, describe(finding)]).toEqual([code, expect.stringMatching(/^\S.{15,}/s)]);

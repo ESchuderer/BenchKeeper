@@ -132,9 +132,12 @@ const goldenFindings: Record<string, string[]> = {
   "findings-duplicate-edge.json": ["workflow.duplicate-edge"],
   "findings-exclusive-sources.json": ["workflow.exclusive-sources"],
   "findings-optional-input.json": ["workflow.optional-input"],
-  "findings-schedule-input.json": ["workflow.schedule-input"],
-  "findings-report-only-write.json": ["workflow.report-only-write"],
-  "findings-node-configs.json": Array.from({ length: 8 }, () => "workflow.invalid-config"),
+  // A schedule waits until after 0.1.0, and so does workflow.run, whose config is then not checked.
+  "findings-schedule-input.json": ["run.node-unsupported", "workflow.schedule-input"],
+  "findings-report-only-write.json": ["run.node-unsupported", "workflow.report-only-write"],
+  "findings-node-configs.json": Array.from({ length: 8 }, (_, index) =>
+    index === 2 ? "run.node-unsupported" : "workflow.invalid-config",
+  ),
 };
 
 test("the golden corpus: valid workflows have clean graphs, findings-* exactly the findings they are named for", async () => {
@@ -206,6 +209,7 @@ test("inputs a run can lack: optional without a default into a required input, r
     { inputs },
   );
   expect(validateWorkflow(graph)).toEqual([
+    { code: "run.node-unsupported", params: { node: "start", type: "trigger.schedule" } },
     { code: "workflow.optional-input", params: { node: "a", handle: "value", input: "loose" } },
     { code: "workflow.schedule-input", params: { input: "given" } },
   ]);
@@ -222,7 +226,7 @@ test("duplicate ids, a missing or second trigger, unknown types and a join witho
     { code: "workflow.duplicate-id", params: { kind: "edge", id: "e1" } },
   ]);
   expect(codes(workflow(["a:command.run"], []))).toEqual(["workflow.trigger-count"]);
-  expect(validateWorkflow(workflow([start, "again:trigger.schedule"], []))).toEqual([
+  expect(validateWorkflow(workflow([start, "again:trigger.manual"], []))).toEqual([
     { code: "workflow.trigger-count", params: { count: 2 } },
   ]);
   // A type named like an Object property is no node type; edges of unknown nodes get no findings of their own.
@@ -405,15 +409,16 @@ test("every node type has a configuration schema, and a node's `with` is checked
 test("A28: a workflow a schedule starts may not write a file; the same graph started by hand may", () => {
   const nodes = ["start:trigger.schedule", "w:file.write"];
   expect(validateWorkflow(workflow(nodes, ["start.start>w.run"]))).toEqual([
+    { code: "run.node-unsupported", params: { node: "start", type: "trigger.schedule" } },
     { code: "workflow.report-only-write", params: { node: "w" } },
   ]);
   expect(validateWorkflow(workflow([start, "w:file.write"], ["start.start>w.run"]))).toEqual([]);
   // A child workflow could write, and the validator cannot see it: under a schedule, workflow.run is refused too.
   expect(codes(workflow(["start:trigger.schedule", "c:workflow.run"], ["start.start>c.run"]))).toEqual([
+    "run.node-unsupported",
+    "run.node-unsupported",
     "workflow.report-only-write",
   ]);
-  // A schedule needs its cron and its precheck (Q13).
-  expect(codes(workflow(["start:trigger.schedule:{}"], []))).toEqual(["workflow.invalid-config"]);
 });
 
 test("only control edges from the trigger make a node run: a node that data alone reaches is unreachable", () => {
@@ -500,7 +505,7 @@ test("an extension action that is not installed is a finding of its own, and its
   ]);
 });
 
-test("A28: under a schedule an extension action is refused, installed or not (pending owner decision)", () => {
+test("A28: under a schedule an extension action is refused, installed or not", () => {
   const nodes = ["start:trigger.schedule", 's:acme.jira/search:{"query":"x"}', "x:acme.other/act"];
   expect(
     found(
@@ -509,6 +514,7 @@ test("A28: under a schedule an extension action is refused, installed or not (pe
       }),
     ),
   ).toEqual([
+    { code: "run.node-unsupported", params: { node: "start", type: "trigger.schedule" } },
     { code: "workflow.extension-missing", params: { node: "x", type: "acme.other/act" } },
     { code: "workflow.report-only-extension", params: { node: "s" } },
     { code: "workflow.report-only-extension", params: { node: "x" } },

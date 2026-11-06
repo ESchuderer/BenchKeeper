@@ -35,6 +35,7 @@ const INSTALL_REFUSALS = {
   entry: "the entry file its manifest names is not in its folder",
   protocol: "it needs a version of the extension protocol this CedarLoom does not speak",
   installed: "it is installed already",
+  id: "its folder now holds another extension",
 } as const;
 
 const ENTRY_KINDS = {
@@ -92,6 +93,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "draft.not-found": (p) => `No draft of workflow ${p.id} in this state folder.`,
   "draft.too-large": (p) => `The draft of workflow ${p.id} has ${p.bytes} bytes; a draft holds at most ${p.limit}.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
+  "store.older-schema": (p) =>
+    `The run store in ${p.dir} is from before CedarLoom 0.1.0 (schema version ${p.found}; this one reads ${p.known}), and nothing from before 0.1.0 is carried over. Delete runs.sqlite, runs.sqlite-wal, runs.sqlite-shm and the backups folder there to start a new store.`,
   "workflow.duplicate-id": (p) => `More than one ${p.kind} has the id ${p.id}; ids are unique within a workflow.`,
   "workflow.trigger-count": (p) => `The workflow has ${p.count} trigger nodes; it needs exactly one.`,
   "workflow.unknown-node-type": (p) => `Node ${p.node} has the type ${p.type}, which this CedarLoom does not know.`,
@@ -189,6 +192,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
+  "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
+  "extension.consent-needed": (p) =>
+    `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,
   "extension.install-refused": (p) =>
     `${p.extension === null ? "The extension" : `Extension ${p.extension}`} is not installed: ${INSTALL_REFUSALS[p.reason]}.`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,

@@ -20,10 +20,10 @@ const cronRange = (range: string, [min, max]: readonly [number, number]): boolea
   return more.length === 0 && low >= min && high <= max && low <= high;
 };
 
-// One list item of a cron field: a range with an optional `/step`.
+// One list item of a cron field: a range with an optional `/step`, which crontab(5) defines after `*` or a range only.
 const cronItem = (item: string, bounds: readonly [number, number]): boolean => {
   const [range = "", step, ...extra] = item.split("/");
-  const stepOk = step === undefined || /^[1-9]\d?$/.test(step);
+  const stepOk = step === undefined || (/^[1-9]\d?$/.test(step) && (range === "*" || range.includes("-")));
   return extra.length === 0 && stepOk && cronRange(range, bounds);
 };
 
@@ -39,25 +39,47 @@ export const isCron = (text: string): boolean => {
   );
 };
 
+// An IANA name, not a UTC offset, in its exact case: a name Intl only matches case-insensitively is refused.
 const isTimeZone = (name: string): boolean => {
+  if (!/^[A-Za-z][A-Za-z_]*(?:\/[A-Za-z0-9_+-]+)*$/.test(name)) return false;
   try {
-    return new Intl.DateTimeFormat("en", { timeZone: name }).resolvedOptions().timeZone !== "";
+    const resolved = new Intl.DateTimeFormat("en", { timeZone: name }).resolvedOptions().timeZone;
+    return resolved === name || resolved.toLowerCase() !== name.toLowerCase();
   } catch {
     return false;
   }
 };
 
-/** A command line, run by the platform's shell: `sh` on Linux, macOS and WSL, `cmd.exe` on Windows. */
+/**
+ * A command line for POSIX `sh` on every platform: Git for Windows' `sh.exe` on native Windows, where the node is
+ * refused when there is none (pending owner decision). `cmd.exe` would expand `%NAME%` before parsing the line.
+ */
 const Command = z.string().min(1).max(10_000);
 
-/** A path inside the project: relative, `/` between its parts, no `..` part. */
+// Resolved against the project folder, the path never steps above it.
+const inside = (path: string): boolean => {
+  let depth = 0;
+  for (const part of path.split("/")) {
+    if (part === "..") depth -= 1;
+    else if (part !== "" && part !== ".") depth += 1;
+    if (depth < 0) return false;
+  }
+  return true;
+};
+
+/**
+ * A path inside the project: relative, `/` between its parts, no `..` part (also behind a line break), no control
+ * character; normalized against the project folder it stays inside. The executor still resolves links (a folder that
+ * links outside), which no pattern can see.
+ */
 const ProjectPath = z
   .string()
   .min(1)
   .max(1024)
-  .regex(/^(?![/\\])(?![A-Za-z]:)(?!(?:.*\/)?\.\.(?:\/|$))[^\\]+$/, {
-    message: "a relative path inside the project, with / between its parts and no .. part",
-  });
+  .regex(/^(?![/\\])(?![A-Za-z]:)(?![\s\S]*(?:^|\/)\.\.(?:\/|$))[^\\\p{Cc}]+$/u, {
+    message: "a relative path inside the project, with / between its parts, no .. part and no control character",
+  })
+  .refine(inside, "a path that stays inside the project");
 
 const precheck = Command.describe(
   "A read-only command run before the workflow: exit code 0 starts the run, any other skips it",
@@ -70,7 +92,8 @@ const config = <T extends z.ZodType>(id: string, schema: T): T => {
 
 /**
  * The configuration (`with`) of each node type of workflow schema version 1. A node without `with` is checked as `{}`.
- * Values never reach a command as text: a command gets the workflow's inputs as environment variables only.
+ * Values never reach a command as text: a command gets the workflow's inputs as environment variables only, which `sh`
+ * expands after it has parsed the line.
  */
 export const NODE_CONFIGS = {
   "trigger.manual": config("TriggerManualConfig", z.strictObject({ precheck: precheck.optional() })),
@@ -80,12 +103,16 @@ export const NODE_CONFIGS = {
       cron: z
         .string()
         .refine(isCron, "a five-field cron schedule in numbers")
-        .describe("Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, `/step`, lists"),
+        .describe(
+          "Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, lists; `/step` after `*` or `n-m`",
+        ),
       timezone: z
         .string()
         .refine(isTimeZone, "an IANA time zone")
         .optional()
-        .describe("An IANA time zone such as Europe/Berlin; the machine's when absent"),
+        .describe(
+          "An IANA time zone name in its exact case, such as Europe/Berlin, no UTC offset; the machine's when absent",
+        ),
       precheck,
     }),
   ),

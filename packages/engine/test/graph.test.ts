@@ -365,7 +365,17 @@ test("every node type has a configuration schema, and a node's `with` is checked
   );
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.invalid-config", params: { node: "a", issues: [{ path: "command", code: "invalid_type" }] } },
-    { code: "workflow.invalid-config", params: { node: "b", issues: [{ path: "cwd", code: "invalid_format" }] } },
+    {
+      code: "workflow.invalid-config",
+      // The pattern refuses the `..` part, and normalized against the project the path steps above it.
+      params: {
+        node: "b",
+        issues: [
+          { path: "cwd", code: "invalid_format" },
+          { path: "cwd", code: "custom" },
+        ],
+      },
+    },
     { code: "workflow.invalid-config", params: { node: "d", issues: [{ path: "path", code: "invalid_format" }] } },
   ]);
 });
@@ -376,6 +386,10 @@ test("A28: a workflow a schedule starts may not write a file; the same graph sta
     { code: "workflow.report-only-write", params: { node: "w" } },
   ]);
   expect(validateWorkflow(workflow([start, "w:file.write"], ["start.start>w.run"]))).toEqual([]);
+  // A child workflow could write, and the validator cannot see it: under a schedule, workflow.run is refused too.
+  expect(codes(workflow(["start:trigger.schedule", "c:workflow.run"], ["start.start>c.run"]))).toEqual([
+    "workflow.report-only-write",
+  ]);
   // A schedule needs its cron and its precheck (Q13).
   expect(codes(workflow(["start:trigger.schedule:{}"], []))).toEqual(["workflow.invalid-config"]);
 });

@@ -5,10 +5,10 @@
   "properties": {
     "cron": {
       "type": "string",
-      "description": "Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, `/step`, lists"
+      "description": "Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, lists; `/step` after `*` or `n-m`"
     },
     "timezone": {
-      "description": "An IANA time zone such as Europe/Berlin; the machine's when absent",
+      "description": "An IANA time zone name in its exact case, such as Europe/Berlin, no UTC offset; the machine's when absent",
       "type": "string"
     },
     "precheck": {

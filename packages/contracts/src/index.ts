@@ -10,6 +10,7 @@ export {
   formatRegistry,
   QuotaWindow,
   Reading,
+  sameFolder,
   USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
   UsageSample,

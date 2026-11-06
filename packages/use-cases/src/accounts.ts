@@ -12,9 +12,10 @@ import {
   type Plan,
   type Result,
   readDocument,
+  sameFolder,
 } from "@cedarloom/contracts";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
-import { cleanEnv } from "@cedarloom/orchestration";
+import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
 import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
@@ -119,8 +120,13 @@ export const ownFolder = (
     if (found === undefined && !create) {
       return { ok: false, finding: { code: "accounts.home-missing", params: { account: name, home } } };
     }
-    mkdirSync(path, { recursive: true, mode: 0o700 });
-    chmodSync(path, 0o700);
+    try {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+      chmodSync(path, 0o700);
+    } catch (error) {
+      const cause = error instanceof Error ? error.message : String(error);
+      return { ok: false, finding: { code: "accounts.home-unusable", params: { account: name, path, error: cause } } };
+    }
   }
   return { ok: true, value: home };
 };
@@ -152,10 +158,13 @@ export const planHome = (config: string, state: string, name: string): Result<{ 
   const { path, text, registry, account } = read.value;
   const home = ownHome(state, account.name);
   if (account.home === home) return { ok: true, value: { plan: null, home } };
-  if (registry.accounts.some((each) => each.home === home || each.aliases?.includes(home))) {
+  const others = registry.accounts.filter((each) => each !== account);
+  if (others.some((each) => [each.home, ...(each.aliases ?? [])].some((folder) => sameFolder(folder, home)))) {
     return { ok: false, finding: { code: "accounts.folder-taken", params: { path: home } } };
   }
-  const moved = { ...account, home, aliases: [...(account.aliases ?? []), account.home] };
+  // A former own home among the account's aliases, after a change of the state folder, becomes its home again.
+  const kept = (account.aliases ?? []).filter((alias) => !sameFolder(alias, home));
+  const moved = { ...account, home, aliases: [...kept, account.home] };
   const next = { ...registry, accounts: registry.accounts.map((each) => (each === account ? moved : each)) };
   const content = formatRegistry(next);
   return {
@@ -193,7 +202,7 @@ export const loginAccount = (
   const folder = ownFolder(state, account, { create: true });
   if (!folder.ok) return folder;
   const home = folder.value;
-  const ran = run({ ...cleanEnv(parent, platform, ["TERM"]), CLAUDE_CONFIG_DIR: home });
+  const ran = run({ ...cleanEnv(parent, platform, ["TERM", ...NETWORK_SETTINGS]), CLAUDE_CONFIG_DIR: home });
   if (ran.code === 0) return { ok: true, value: { home } };
   const error = ran.error ?? `exit code ${ran.code}`;
   return { ok: false, finding: { code: "accounts.login-failed", params: { account: account.name, error } } };
@@ -235,7 +244,8 @@ const checkOne = async (state: string, account: Account, host: StatusHost): Prom
   }
   if (held === null) return { ok: true, value: [{ code: "doctor.login-skipped", params: { account: name } }] };
   try {
-    const env = { ...cleanEnv(host.parent, host.platform), CLAUDE_CONFIG_DIR: home };
+    // The check can renew the login over the network, as the login does.
+    const env = { ...cleanEnv(host.parent, host.platform, NETWORK_SETTINGS), CLAUDE_CONFIG_DIR: home };
     return { ok: true, value: problems(name, home, await host.status(env)) };
   } finally {
     held.release();

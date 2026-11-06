@@ -14,6 +14,24 @@ export interface WorkerEnvInput {
   readonly ghConfigDir: string;
 }
 
+/**
+ * The network settings Claude Code documents: proxies (also lowercase), extra and system CAs, and an mTLS client
+ * certificate (https://code.claude.com/docs/en/network-config). None selects a login.
+ */
+export const NETWORK_SETTINGS = [
+  "HTTPS_PROXY",
+  "https_proxy",
+  "HTTP_PROXY",
+  "http_proxy",
+  "NO_PROXY",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+  "CLAUDE_CODE_CERT_STORE",
+  "CLAUDE_CODE_CLIENT_CERT",
+  "CLAUDE_CODE_CLIENT_KEY",
+  "CLAUDE_CODE_CLIENT_KEY_PASSPHRASE",
+] as const;
+
 /** What an agent process gets of the launcher's environment, by an allowlist: no login variable or hidden override. */
 export const cleanEnv = (
   parent: WorkerEnvInput["parent"],

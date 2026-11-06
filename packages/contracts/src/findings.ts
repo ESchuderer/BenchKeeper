@@ -92,6 +92,8 @@ export const Finding = z
     finding("accounts.home-linked", { account: z.string(), path: z.string() }),
     // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
     finding("accounts.home-missing", { account: z.string(), home: z.string() }),
+    // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
+    finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
@@ -213,6 +215,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-not-own": { severity: "error", effort: "manual" },
   "accounts.home-linked": { severity: "error", effort: "manual" },
   "accounts.home-missing": { severity: "error", effort: "manual" },
+  "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },

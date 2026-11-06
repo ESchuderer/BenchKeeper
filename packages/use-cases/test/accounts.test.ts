@@ -265,6 +265,17 @@ test("an account moves into its own home by a plan, and the folder it named befo
   });
   // In its own home already: nothing to plan.
   expect(planHome(config, state, "work")).toEqual({ ok: true, value: { plan: null, home } });
+  // With another state folder and back again: the former own home, now the account's own alias, is taken back.
+  const other = join(state, "..", "other-state");
+  for (const folder of [other, state]) {
+    const plan = planHome(config, folder, "work");
+    if (!plan.ok || plan.value.plan === null) throw new Error("no plan");
+    applyPlan(state, plan.value.plan, { yes: true });
+  }
+  expect(loadRegistry(config)).toMatchObject({
+    ok: true,
+    value: { accounts: [{ name: "work", home, aliases: ["/accounts/work", ownHome(other, "work")] }, { name: "cx" }] },
+  });
   expect(planHome(join(config, "none"), state, "work")).toMatchObject({ finding: { code: "document.unreadable" } });
   expect(planHome(config, state, "none")).toEqual({
     ok: false,
@@ -277,7 +288,8 @@ test("an account moves into its own home by a plan, and the folder it named befo
   // A folder another account names already is not taken over.
   const edited = JSON.parse(readFileSync(join(config, "accounts.json"), "utf8"));
   edited.accounts[0] = { ...edited.accounts[0], home: "/accounts/work", aliases: [] };
-  edited.accounts[1].aliases = [home];
+  // The same folder with a trailing separator is still that folder.
+  edited.accounts[1].aliases = [`${home}/`];
   writeFileSync(join(config, "accounts.json"), JSON.stringify(edited));
   expect(planHome(config, state, "work")).toEqual({
     ok: false,
@@ -292,7 +304,15 @@ test("the login runs in the account's own home, made for the owner only, with th
     seen.push(env);
     return { code };
   };
-  const parent = { PATH: "/bin", HOME: "/home/dev", TERM: "xterm", ANTHROPIC_API_KEY: "k", CLAUDE_CONFIG_DIR: "/x" };
+  const network = { HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/ca.pem" };
+  const parent = {
+    PATH: "/bin",
+    HOME: "/home/dev",
+    TERM: "xterm",
+    ANTHROPIC_API_KEY: "k",
+    CLAUDE_CONFIG_DIR: "/x",
+    ...network,
+  };
   const linux = { parent, platform: "linux" as const };
   // Not in its own home yet: no login, so nothing lands in the folder it names.
   expect(loginAccount(config, state, "work", { ...linux, run: run(0) })).toEqual({
@@ -310,7 +330,8 @@ test("the login runs in the account's own home, made for the owner only, with th
   mkdirSync(home, { recursive: true });
   chmodSync(home, 0o755);
   expect(loginAccount(config, state, "work", { ...linux, run: run(0) })).toEqual({ ok: true, value: { home } });
-  expect(seen).toEqual([{ PATH: "/bin", HOME: "/home/dev", TERM: "xterm", CLAUDE_CONFIG_DIR: home }]);
+  // The network settings Claude Code documents go along; no login variable does.
+  expect(seen).toEqual([{ PATH: "/bin", HOME: "/home/dev", TERM: "xterm", ...network, CLAUDE_CONFIG_DIR: home }]);
   // Windows keeps no POSIX mode.
   const mode = process.platform === "win32" ? 0o700 : statSync(home).mode & 0o777;
   expect(mode).toBe(0o700);
@@ -359,7 +380,7 @@ test("the doctor checks each Claude Code login in its own home, one at a time, n
   const home = ownHome(state, "work");
   const seen: Record<string, string>[] = [];
   const answering = (login: LoginStatus) => ({
-    parent: { PATH: "/bin", ANTHROPIC_API_KEY: "k" },
+    parent: { PATH: "/bin", ANTHROPIC_API_KEY: "k", HTTPS_PROXY: "http://proxy:8080" },
     platform: "linux" as const,
     status: async (env: Readonly<Record<string, string>>) => {
       seen.push({ ...env });
@@ -383,7 +404,7 @@ test("the doctor checks each Claude Code login in its own home, one at a time, n
   });
   mkdirSync(home, { recursive: true });
   expect(await checkLogins(state, config, answering(loggedIn))).toEqual({ ok: true, value: [] });
-  expect(seen).toEqual([{ PATH: "/bin", CLAUDE_CONFIG_DIR: home }]);
+  expect(seen).toEqual([{ PATH: "/bin", HTTPS_PROXY: "http://proxy:8080", CLAUDE_CONFIG_DIR: home }]);
   const found = async (login: LoginStatus) => {
     const checked = await checkLogins(state, config, answering(login));
     return checked.ok ? checked.value : [checked.finding];
@@ -471,6 +492,20 @@ test("a login never runs in an own home that is a link or lies in one, so nothin
     finding: { code: "accounts.home-linked", params: { account: "work", path: homes } },
   });
   expect([started, readdirSync(elsewhere)]).toEqual([[], []]);
+});
+
+test("an own home that cannot be made is a finding with its folder and cause", () => {
+  const { config, state } = importedRegistry();
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  // A file where the homes folder belongs.
+  writeFileSync(join(state, "homes"), "");
+  const ran = loginAccount(config, state, "work", { parent: {}, platform: "linux", run: () => ({ code: 0 }) });
+  expect(ran).toMatchObject({
+    ok: false,
+    finding: { code: "accounts.home-unusable", params: { account: "work", path: join(state, "homes") } },
+  });
 });
 
 test("an import reports a BenchKeeper file it cannot read or map", () => {

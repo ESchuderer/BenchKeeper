@@ -347,22 +347,27 @@ test("the version check tries a store another process holds again a second later
   await expect(launchWorker(state, config, holding, host)).resolves.toMatchObject({ value: { verdict: "pass" } });
 }, 15_000);
 
-test("a managed settings file that lets commands run outside the sandbox refuses every launch before anything else", async () => {
+test("managed settings that loosen the sandbox, or cannot be read, refuse a Claude Code launch before anything else", async () => {
   const { state, config, work } = setup();
-  const managed = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
-  writeFileSync(join(managed, "managed-settings.json"), JSON.stringify({ sandbox: { enabled: false } }));
-  await expect(launchWorker(state, config, request(work), { ...host, managedDir: managed })).resolves.toEqual({
+  const managedDir = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
+  const file = join(managedDir, "managed-settings.json");
+  writeFileSync(file, JSON.stringify({ sandbox: { enabled: false } }));
+  await expect(launchWorker(state, config, request(work), { ...host, managedDir })).resolves.toEqual({
     ok: false,
-    finding: {
-      code: "launch.sandbox-overridden",
-      params: { path: join(managed, "managed-settings.json"), key: "sandbox.enabled" },
-    },
+    finding: { code: "launch.sandbox-overridden", params: { path: file, key: "sandbox.enabled" } },
+  });
+  writeFileSync(file, "{");
+  await expect(launchWorker(state, config, request(work), { ...host, managedDir })).resolves.toEqual({
+    ok: false,
+    finding: { code: "launch.managed-settings-unreadable", params: { path: file, error: "not JSON" } },
   });
   // Nothing was chosen, leased or created.
   expect(existsSync(state)).toBe(false);
-  // Without a managedDir the platform's folder is read: none on this machine's test runs, or one without overrides.
-  const { managedDir: _, ...platformHost } = host;
-  await expect(launchWorker(state, config, request(work, { result: passing }), platformHost)).resolves.toMatchObject({
-    value: { verdict: "pass" },
+  // Claude Code's managed settings do not apply to a Codex launch, which goes on to its own refusals.
+  await expect(
+    launchWorker(state, config, { ...request(work), agent: "codex" }, { ...host, managedDir }),
+  ).resolves.toEqual({
+    ok: true,
+    value: { kind: "no-account", reason: "unknown-pool" },
   });
 });

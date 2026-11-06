@@ -1005,6 +1005,13 @@ export interface components {
                 path: string;
                 key: string;
             };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
         };
         RunInput: {
             id: string;
@@ -1509,6 +1516,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
             };
         };
         Run: {

@@ -7,10 +7,10 @@ import {
   deniedPaths,
   GITHUB_DOMAINS,
   ghProbe,
+  managedProblems,
   managedSettingsDir,
   readResult,
   resultPrompt,
-  sandboxOverrides,
   workerEnv,
 } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
@@ -168,6 +168,12 @@ const managed = (files: Record<string, unknown>): string => {
   return dir;
 };
 const drop = (name: string) => join("managed-settings.d", name);
+const MAIN = "managed-settings.json";
+// The keys the one managed-settings.json of `sandbox` loosens.
+const loosened = (settings: unknown) => {
+  const dir = managed({ [MAIN]: settings });
+  return managedProblems(dir).map((problem) => (problem.kind === "loosens" ? problem.key : problem.error));
+};
 
 test("the managed settings folder is the platform's documented system folder", () => {
   expect(managedSettingsDir("darwin")).toBe("/Library/Application Support/ClaudeCode");
@@ -176,41 +182,96 @@ test("the managed settings folder is the platform's documented system folder", (
   expect(managedSettingsDir("freebsd")).toBeNull();
 });
 
-test("managed settings that let commands run outside the sandbox are found, with the file that sets them", () => {
-  const dir = managed({
-    "managed-settings.json": {
-      sandbox: { enabled: false, allowUnsandboxedCommands: "true", excludedCommands: ["docker"] },
-    },
-  });
-  expect(sandboxOverrides(dir)).toEqual([
-    { path: join(dir, "managed-settings.json"), key: "enabled" },
-    { path: join(dir, "managed-settings.json"), key: "allowUnsandboxedCommands" },
-    { path: join(dir, "managed-settings.json"), key: "excludedCommands" },
-  ]);
-  // A strict policy, an invalid value (strict until fixed), and an empty list loosen nothing.
-  const strict = {
-    sandbox: { enabled: "on", failIfUnavailable: true, allowUnsandboxedCommands: false, excludedCommands: [] },
+test("each documented sandbox escape is found, with the file that sets it", () => {
+  const escapes = {
+    enabled: false,
+    failIfUnavailable: "false",
+    allowUnsandboxedCommands: true,
+    allowAppleEvents: "true",
+    allowNestedUserNamespaces: true,
+    excludedCommands: ["docker"],
+    filesystem: { disabled: true },
+    network: { allowAllUnixSockets: true, allowUnixSockets: ["/var/run/docker.sock"], allowMachLookup: ["*"] },
   };
-  expect(sandboxOverrides(managed({ "managed-settings.json": strict }))).toEqual([]);
-  expect(sandboxOverrides(managed({}))).toEqual([]);
+  expect(loosened({ sandbox: escapes }).toSorted()).toEqual(
+    [
+      "sandbox.enabled",
+      "sandbox.failIfUnavailable",
+      "sandbox.allowUnsandboxedCommands",
+      "sandbox.allowAppleEvents",
+      "sandbox.allowNestedUserNamespaces",
+      "sandbox.excludedCommands",
+      "sandbox.filesystem.disabled",
+      "sandbox.network.allowAllUnixSockets",
+      "sandbox.network.allowUnixSockets",
+      "sandbox.network.allowMachLookup",
+    ].toSorted(),
+  );
+  const dir = managed({ [MAIN]: { sandbox: { enabled: false } } });
+  expect(managedProblems(dir)).toEqual([{ kind: "loosens", path: join(dir, MAIN), key: "sandbox.enabled" }]);
+  // A strict policy, an invalid value (strict until fixed), empty lists and the keys left out loosen nothing.
+  const strict = {
+    enabled: "on",
+    failIfUnavailable: true,
+    allowUnsandboxedCommands: false,
+    allowAppleEvents: false,
+    excludedCommands: [],
+    filesystem: { disabled: false, allowWrite: ["/tmp/build"] },
+    network: { allowedDomains: ["GitHub.com", "*.githubusercontent.com"], allowLocalBinding: true },
+    enableWeakerNestedSandbox: true,
+  };
+  expect(loosened({ sandbox: strict })).toEqual([]);
+  expect(managedProblems(managed({}))).toEqual([]);
+});
+
+test("hosts beyond GitHub, a proxy of the policy's own, and a policy helper are found", () => {
+  expect(loosened({ sandbox: { network: { allowedDomains: ["github.com", "registry.npmjs.org"] } } })).toEqual([
+    "sandbox.network.allowedDomains",
+  ]);
+  expect(loosened({ sandbox: { network: { httpProxyPort: 8080, socksProxyPort: 8081 } } })).toEqual([
+    "sandbox.network.httpProxyPort",
+    "sandbox.network.socksProxyPort",
+  ]);
+  // Its output replaces the files, so what they say is not what applies.
+  expect(loosened({ policyHelper: { path: "/usr/local/bin/policy" } })).toEqual(["policyHelper"]);
+});
+
+test("a managed file that cannot be read or holds no JSON object counts against the launch", () => {
+  // A byte order mark, text that is no JSON, a top level that is no object, and a folder in a file's place.
+  expect(loosened(`\uFEFF${JSON.stringify({ sandbox: { enabled: true } })}`)).toEqual(["not JSON"]);
+  expect(loosened("{")).toEqual(["not JSON"]);
+  expect(loosened([])).toEqual(["not a JSON object"]);
+  const folder = managed({ [join(MAIN, "inner.json")]: {} });
+  expect(managedProblems(folder)).toEqual([{ kind: "unreadable", path: join(folder, MAIN), error: "EISDIR" }]);
+  // A drop-in folder that is a file cannot be listed.
+  const dropFile = managed({ "managed-settings.d": "not a folder" });
+  expect(managedProblems(dropFile)).toEqual([
+    { kind: "unreadable", path: join(dropFile, "managed-settings.d"), error: "ENOTDIR" },
+  ]);
 });
 
 test("drop-in files merge after managed-settings.json in name order, the later value winning", () => {
   const dir = managed({
-    "managed-settings.json": { sandbox: { enabled: true, failIfUnavailable: "false" } },
+    [MAIN]: { sandbox: { enabled: true, failIfUnavailable: "false" } },
     [drop("10-off.json")]: { sandbox: { enabled: false } },
     [drop("20-on.json")]: { sandbox: { enabled: true } },
     [drop("30-fail.json")]: { sandbox: { failIfUnavailable: true } },
-    // Hidden, not JSON by name, no JSON object, or no sandbox block: none of them counts.
+    // Hidden, not JSON by name, or no sandbox block: none of them counts.
     [drop(".hidden.json")]: { sandbox: { enabled: false } },
     [drop("notes.txt")]: { sandbox: { enabled: false } },
-    [drop("40-broken.json")]: "{",
-    [drop("50-other.json")]: { model: "claude-sonnet-5-5" },
+    [drop("50-other.json")]: { model: "claude-sonnet-5-5", sandbox: "off" },
   });
-  expect(sandboxOverrides(dir)).toEqual([]);
+  expect(managedProblems(dir)).toEqual([]);
   const off = managed({
-    "managed-settings.json": { sandbox: { enabled: true } },
+    [MAIN]: { sandbox: { enabled: true } },
     [drop("90-off.json")]: { sandbox: { enabled: false } },
   });
-  expect(sandboxOverrides(off)).toEqual([{ path: join(off, drop("90-off.json")), key: "enabled" }]);
+  expect(managedProblems(off)).toEqual([
+    { kind: "loosens", path: join(off, drop("90-off.json")), key: "sandbox.enabled" },
+  ]);
+  // A broken drop-in counts against the launch like a broken main file.
+  const broken = managed({ [drop("40-broken.json")]: "{" });
+  expect(managedProblems(broken)).toEqual([
+    { kind: "unreadable", path: join(broken, drop("40-broken.json")), error: "not JSON" },
+  ]);
 });

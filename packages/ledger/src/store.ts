@@ -521,12 +521,13 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
   try {
     chmodSync(join(dir, "runs.sqlite"), 0o600);
     db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-    const found = versionOf(db);
+    let found = versionOf(db);
     // Read again in the transaction: a graph store opens without the store lock, so another process may migrate first.
     if (found < SCHEMA) {
-      transaction(db, () => {
+      found = transaction(db, () => {
         const version = versionOf(db);
         if (version < SCHEMA) db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`);
+        return version;
       });
     }
     if (found <= SCHEMA) return { ok: true, value: use(db) };

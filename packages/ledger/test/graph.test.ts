@@ -55,12 +55,13 @@ const applyRunIn = (dir: string): string => {
   return run.value;
 };
 
-const attempts = (dir: string): Record<string, unknown>[] => {
+const rows = (dir: string, sql: string): Record<string, unknown>[] => {
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  const rows = db.prepare("SELECT nodeId, attempt, state, outputs, pid, applyRun FROM node_attempts").all();
+  const found = db.prepare(sql).all();
   db.close();
-  return rows.map((row) => ({ ...row }));
+  return found.map((row) => ({ ...row }));
 };
+const attempts = (dir: string) => rows(dir, "SELECT nodeId, attempt, state, outputs, pid, applyRun FROM node_attempts");
 
 test("a run keeps its definition and inputs as it started, its events in order, and each projection with its event", () => {
   const dir = fresh();
@@ -70,9 +71,18 @@ test("a run keeps its definition and inputs as it started, its events in order, 
   const events = [
     { type: "started", node: "lint", attempt: 1, pid: 4242 },
     { type: "ended", node: "lint", attempt: 1, outcome: "done", values: {} },
+    { type: "decided", node: "lint", approved: true },
     { type: "finished", status: "succeeded", outputs: {} },
   ] as const;
-  expect(events.map((event) => store.append(id, A, event))).toEqual([1, 2, 3].map((seq) => ({ ok: true, value: seq })));
+  expect(events.map((event) => store.append(id, A, event))).toEqual(
+    [1, 2, 3, 4].map((seq) => ({ ok: true, value: seq })),
+  );
+  expect(rows(dir, "SELECT nodeId, attempt FROM run_events ORDER BY seq")).toEqual([
+    { nodeId: "lint", attempt: 1 },
+    { nodeId: "lint", attempt: 1 },
+    { nodeId: "lint", attempt: null },
+    { nodeId: null, attempt: null },
+  ]);
   expect(store.events(id)).toEqual({ ok: true, value: events });
   expect(attempts(dir)).toEqual([
     { nodeId: "lint", attempt: 1, state: "done", outputs: "{}", pid: 4242, applyRun: null },
@@ -86,7 +96,11 @@ test("a run keeps its definition and inputs as it started, its events in order, 
     finished,
   ]);
   const unknown = { ok: false, finding: { code: "run.not-found", params: { runId: "nope" } } };
-  expect([store.append("nope", A, { type: "cancel" }), store.takeOver("nope", B)]).toEqual([unknown, unknown]);
+  expect([store.append("nope", A, { type: "cancel" }), store.takeOver("nope", B), store.events("nope")]).toEqual([
+    unknown,
+    unknown,
+    unknown,
+  ]);
   expect(store.graphRun("nope")).toBeUndefined();
 });
 
@@ -167,6 +181,11 @@ test("no projection without its event: a commit that fails keeps neither, nor do
     [],
     "running",
   ]);
+  // A run ends after its attempts: an end while one still runs is refused, and the run goes on.
+  const started = { type: "started", node: "lint", attempt: 1, pid: null } as const;
+  store.append(id, A, started);
+  expect(() => store.append(id, A, { type: "finished", status: "failed", outputs: {} })).toThrow(/attempts running/);
+  expect([store.events(id), store.graphRun(id)?.status]).toEqual([{ ok: true, value: [started] }, "running"]);
 });
 
 test("an apply run is linked to its attempt under an act run, never under a report run", () => {
@@ -195,8 +214,8 @@ test("one process applies under the store lock while another appends events, and
   await once(child.stdout, "data");
   const failures: string[] = [];
   let attempt = 0;
-  // A pair per timer tick, some 300 events a second, far more than an executor appends. SQLite's busy wait is not fair:
-  // two processes that both write without a pause can keep one of them out past its 1 s wait.
+  // A pair per timer tick, some 300 events a second, far more than an executor appends. Measured while writing this
+  // test: two processes that both wrote without a pause kept one of them out past its 1 s wait in 4 of 6 runs.
   for (const end = Date.now() + 1500; Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 1))) {
     attempt += 1;
     try {

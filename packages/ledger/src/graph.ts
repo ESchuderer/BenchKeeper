@@ -31,7 +31,8 @@ const mustRun = (changes: number | bigint, { node, attempt }: Attempt): void => 
 /**
  * The graph runs of a state folder. It takes no store lock: each write is one short `BEGIN IMMEDIATE` transaction, so
  * runs append events while another process applies a plan under the lock. A run is written only by the runner that
- * holds its lease; another runner takes it over once the lease has run out.
+ * holds its lease; another runner takes it over once the lease has run out. The lease is checked by the runner's id,
+ * so each runner process needs one of its own, such as a random UUID.
  */
 export class GraphStore {
   readonly #db: DatabaseSync;
@@ -125,6 +126,9 @@ export class GraphStore {
 
   /** The run's events in order, each checked against its schema before a replay may use it. */
   events(runId: string): Result<JournalEvent[]> {
+    if (this.#db.prepare("SELECT 1 FROM graph_runs WHERE id = ?").get(runId) === undefined) {
+      return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+    }
     const events: JournalEvent[] = [];
     const rows = this.#db.prepare("SELECT seq, payload FROM run_events WHERE runId = ? ORDER BY seq").all(runId);
     for (const row of rows) {
@@ -175,10 +179,17 @@ export class GraphStore {
     const seq = Number(
       this.#db.prepare("SELECT coalesce(max(seq), 0) + 1 AS seq FROM run_events WHERE runId = ?").get(runId)?.["seq"],
     );
-    const [node, attempt] = "attempt" in event ? [event.node, event.attempt] : [null, null];
     this.#db
-      .prepare("INSERT INTO run_events VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(runId, seq, at, event.type, node, attempt, canonicalJson(event));
+      .prepare("INSERT INTO run_events (runId, seq, at, type, nodeId, attempt, payload) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(
+        runId,
+        seq,
+        at,
+        event.type,
+        "node" in event ? event.node : null,
+        "attempt" in event ? event.attempt : null,
+        canonicalJson(event),
+      );
     this.#project(runId, event, at);
     return seq;
   }
@@ -202,6 +213,10 @@ export class GraphStore {
         .run(event.applyRun, runId, event.node, event.attempt);
       mustRun(changes, event);
     } else if (event.type === "finished") {
+      // A run ends after its attempts: one left running could never be ended once the run refuses events.
+      if (this.#db.prepare("SELECT 1 FROM node_attempts WHERE runId = ? AND state = 'running'").get(runId)) {
+        throw new Error(`run ${runId} still has attempts running`);
+      }
       this.#db.prepare("UPDATE graph_runs SET status = ?, finishedAt = ? WHERE id = ?").run(event.status, at, runId);
     }
   }

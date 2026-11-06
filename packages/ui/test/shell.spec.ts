@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -62,6 +62,42 @@ test("every view is reachable from the navigation and passes axe", async () => {
     await expect(nav.getByRole("button", { name: view })).toHaveAttribute("aria-current", "page");
     await accessible();
   }
+});
+
+// The licenses the CI license review allows for dependencies (.github/workflows/cedarloom.yml, allow-licenses).
+const allowed = (): Set<string> => {
+  const workflow = readFileSync(join(import.meta.dirname, "..", "..", "..", ".github", "workflows", "cedarloom.yml"));
+  const list = /allow-licenses: >-\n((?:\s+[\w.-]+(?:,\s*[\w.-]+)*,?\n)+)/.exec(String(workflow))?.[1] ?? "";
+  return new Set(list.split(",").map((id) => id.trim()));
+};
+// An SPDX expression one of whose alternatives has only allowed licenses.
+const permitted = (expression: string, ids: Set<string>): boolean =>
+  expression.split(" OR ").some((alternative) =>
+    alternative
+      .replaceAll(/[()]/g, "")
+      .split(" AND ")
+      .every((id) => ids.has(id.trim())),
+  );
+
+test("the footer links the notices of every bundled package, each with its license text and an allowed license", async () => {
+  const link = page.getByRole("contentinfo").getByRole("link", { name: "Third-party licenses" });
+  await expect(link).toHaveAttribute("href", "licenses/third-party.txt");
+  const answer = await page.request.get(new URL("/licenses/third-party.txt", server.url).href);
+  expect(answer.headers()["content-type"]).toContain("text/plain");
+  const notices = await answer.text();
+  const headings = [...notices.matchAll(/^## (\S+) (\S+) \((.+)\)$/gm)];
+  const names = headings.map(([, name]) => name);
+  expect(names).toEqual(
+    expect.arrayContaining(["react", "react-dom", "@xyflow/react", "@mantine/core", "zod", "elkjs"]),
+  );
+  // Own code is no third-party code (it keeps the project's own license).
+  expect(names.filter((name) => name?.startsWith("@cedarloom/"))).toEqual([]);
+  // Every package has its license text, even one whose npm release ships none.
+  expect([...notices.matchAll(/^## \S+ \S+ \(.+\)\n\n(?!## )\S/gm)]).toHaveLength(headings.length);
+  const ids = allowed();
+  expect(ids.has("MIT") && ids.has("EPL-2.0")).toBe(true);
+  expect(headings.filter(([, , , license]) => !permitted(license ?? "", ids)).map(([heading]) => heading)).toEqual([]);
+  await accessible();
 });
 
 test("a narrow window keeps the views behind a menu button, out of the keyboard's way until it opens", async () => {

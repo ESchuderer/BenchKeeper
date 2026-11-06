@@ -1,5 +1,18 @@
 import type { Api, components, RunEvent } from "@cedarloom/client";
-import { Alert, AppShell, Burger, Button, Group, NavLink, Stack, Table, Text, Title, useMatches } from "@mantine/core";
+import {
+  Alert,
+  Anchor,
+  AppShell,
+  Burger,
+  Button,
+  Group,
+  NavLink,
+  Stack,
+  Table,
+  Text,
+  Title,
+  useMatches,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users, Workflow } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -219,6 +232,33 @@ const content = (view: View, session: Session): ReactNode => {
   return <Text>{t("view.notBuilt")}</Text>;
 };
 
+/** The title, and below the sm breakpoint the button that shows the views. */
+const Header = ({ opened, toggle }: { opened: boolean; toggle: () => void }): ReactNode => (
+  <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <Burger
+      opened={opened}
+      onClick={toggle}
+      hiddenFrom="sm"
+      size="sm"
+      aria-label={t("nav.toggle")}
+      aria-expanded={opened}
+      aria-controls="views"
+    />
+    <Title order={1} size="h3">
+      {t("app.title")}
+    </Title>
+  </AppShell.Header>
+);
+
+/** The notices of the third-party code the page bundles, generated with each build. */
+const Footer = (): ReactNode => (
+  <AppShell.Footer px="md" style={{ display: "flex", alignItems: "center" }}>
+    <Anchor href="licenses/third-party.txt" target="_blank" rel="noreferrer" size="xs">
+      {t("app.licenses")}
+    </Anchor>
+  </AppShell.Footer>
+);
+
 /**
  * The shell: the views in the navigation, the chosen one in the main region. Below the sm breakpoint the navigation sits
  * behind a menu button; whichever of the two is out of sight is inert, so neither focus nor a screen reader lands there.
@@ -231,23 +271,11 @@ export const App = ({ session }: { session: Session }): ReactNode => {
   return (
     <AppShell
       header={{ height: 56 }}
+      footer={{ height: 32 }}
       navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Burger
-          opened={opened}
-          onClick={toggle}
-          hiddenFrom="sm"
-          size="sm"
-          aria-label={t("nav.toggle")}
-          aria-expanded={opened}
-          aria-controls="views"
-        />
-        <Title order={1} size="h3">
-          {t("app.title")}
-        </Title>
-      </AppShell.Header>
+      <Header opened={opened} toggle={toggle} />
       <AppShell.Navbar p="xs" component="nav" id="views" aria-label={t("nav.label")} inert={narrow && !opened}>
         {VIEWS.map(({ id, icon: Icon }) => (
           <NavLink
@@ -270,6 +298,7 @@ export const App = ({ session }: { session: Session }): ReactNode => {
         </Title>
         {content(view, session)}
       </AppShell.Main>
+      <Footer />
     </AppShell>
   );
 };

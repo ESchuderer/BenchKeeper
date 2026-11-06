@@ -44,8 +44,9 @@ export function pnpmDrift(dockerfile, pinned) {
 // Both are bumped by hand: the dev container's Node follows NODE_VERSION of cedarloom.yml, the CI of the CedarLoom packages.
 export function nodeDrift(dockerfile, workflow) {
   // shortcut: reads the FROM tag, not the digest Docker runs, so a new tag with the old digest passes; check the digest if a job may go online.
-  const image = commands(dockerfile).match(/^\s*FROM\s+docker\.io\/library\/node:(\S+?)-/m)?.[1];
-  const ci = workflow.match(/^\s+NODE_VERSION:\s*(['"]?)([^\s'"#]+)\1\s*(?:#.*)?$/m)?.[2];
+  const image = commands(dockerfile).match(/^[ \t]*FROM[ \t]+docker\.io\/library\/node:([\w.]+)-/m)?.[1];
+  // The version's characters only: quotes and a trailing comment end it.
+  const ci = workflow.match(/^[ \t]+NODE_VERSION:[ \t]*['"]?([\w.]+)/m)?.[1];
   return { image, ci, drift: image === undefined || image !== ci };
 }
 

@@ -40,7 +40,7 @@ const german = [
   'msgstr "{count} gefunden"',
   "",
   'msgid "A \\"quoted\\" word,\\ta tab and a \\\\ backslash"',
-  'msgstr "Ein \\"zitiertes\\" Wort,\\tein Tab und ein \\\\ Backslash"',
+  'msgstr "Das \\"zitierte\\" Wort,\\tdas Tab und der \\\\ Backslash"',
 ].join("\r\n");
 
 test("a PO catalog gives the translations gettext would use, and names those with other placeholders", () => {
@@ -49,7 +49,7 @@ test("a PO catalog gives the translations gettext would use, and names those wit
     {
       "Search issues": "Vorgänge suchen",
       "Runs a JQL query in {project}.": "Führt eine JQL-Abfrage in {project} aus.",
-      'A "quoted" word,\ta tab and a \\ backslash': 'Ein "zitiertes" Wort,\tein Tab und ein \\ Backslash',
+      'A "quoted" word,\ta tab and a \\ backslash': 'Das "zitierte" Wort,\tdas Tab und der \\ Backslash',
     },
     ["Found {count} in {project}"],
   ]);

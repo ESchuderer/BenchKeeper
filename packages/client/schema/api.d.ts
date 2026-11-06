@@ -1096,6 +1096,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.install-refused";
+            params: {
+                extension: string | null;
+                /** @enum {string} */
+                reason: "no-manifest" | "entry" | "protocol" | "installed";
+            };
+        } | {
+            /** @constant */
             code: "extension.failed";
             params: {
                 extension: string;
@@ -1709,6 +1717,14 @@ export interface components {
                 extension: string;
                 /** @enum {string} */
                 reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.install-refused";
+            params: {
+                extension: string | null;
+                /** @enum {string} */
+                reason: "no-manifest" | "entry" | "protocol" | "installed";
             };
         } | {
             /** @constant */

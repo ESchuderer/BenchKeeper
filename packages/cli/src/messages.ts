@@ -24,6 +24,12 @@ const EXTENSION_REFUSALS = {
   runtime: "Node denies an extension the network only from version 25 on",
 } as const;
 const EXTENSION_STEPS = { start: "start", initialize: "answer its handshake", run: "run an action" } as const;
+const INSTALL_REFUSALS = {
+  "no-manifest": "its folder has no cedarloom-extension.json",
+  entry: "the entry file its manifest names is not in its folder",
+  protocol: "it needs a version of the extension protocol this CedarLoom does not speak",
+  installed: "it is installed already",
+} as const;
 
 const ENTRY_KINDS = {
   link: "is a symbolic link",
@@ -141,6 +147,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
+  "extension.install-refused": (p) =>
+    `${p.extension === null ? "The extension" : `Extension ${p.extension}`} is not installed: ${INSTALL_REFUSALS[p.reason]}.`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
   "git.refused-source": (p) =>
     `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,

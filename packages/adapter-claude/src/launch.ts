@@ -108,8 +108,8 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "none",
     "--settings",
     JSON.stringify(overlay({ ...launch, env: { ...WORKER_VARIABLES, ...pinned(launch) } })),
-    // No settings file at all: never the user's (A95), and a project's only once trust records exist (pending owner
-    // decision; the live test of A95 is open).
+    // No settings file at all: never the user's (A95), and a project's only once trust records exist (owner decision,
+    // 2026-11-06).
     "--setting-sources",
     "",
     // A repository's .mcp.json would run in -p without trust.

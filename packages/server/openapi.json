@@ -1988,32 +1988,6 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "accounts.registry-exists"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
                 "const": "accounts.unknown-pool"
               },
               "params": {
@@ -5558,32 +5532,6 @@
                 "required": [
                   "section",
                   "node"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "const": "accounts.registry-exists"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
                 ],
                 "additionalProperties": false
               }

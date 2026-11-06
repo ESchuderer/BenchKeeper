@@ -1,6 +1,6 @@
-import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
+import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
@@ -34,26 +34,6 @@ export const loadRegistry = (config: string): Result<AccountRegistry | null> => 
   if (!file.ok) return file;
   if (file.value === null) return { ok: true, value: null };
   return readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, file.value.json);
-};
-
-/**
- * Plans the one-time import of BenchKeeper's registry file `from`: a create of the registry, refused when one exists
- * (the create also fails at apply time if one appeared). `left` lists what stays in BenchKeeper.
- */
-export const planImport = (
-  config: string,
-  from: string,
-  now: string = new Date().toISOString(),
-): Result<{ plan: Plan; left: readonly Left[] }> => {
-  const path = registryPath(config);
-  if (existsSync(path)) return { ok: false, finding: { code: "accounts.registry-exists", params: { path } } };
-  const file = readJson(from);
-  if (!file.ok) return file;
-  const imported = importBenchKeeper(file.value.json, now);
-  if (!imported.ok) return imported;
-  const content = formatRegistry(imported.value.registry);
-  const plan: Plan = { schemaVersion: 1, operations: [{ kind: "write", path, before: null, content, mode: 0o600 }] };
-  return { ok: true, value: { plan, left: imported.value.left } };
 };
 
 /**

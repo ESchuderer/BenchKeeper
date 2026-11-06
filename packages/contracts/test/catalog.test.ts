@@ -11,7 +11,7 @@ import { expect, test } from "vitest";
 
 // A German catalog as Lingui or msgmerge writes one.
 const german = [
-  "# German translations of the Jira plugin",
+  "# German translations of the Jira extension",
   'msgid ""',
   'msgstr ""',
   '"Content-Type: text/plain; charset=UTF-8\\n"',
@@ -128,6 +128,8 @@ test("a text in the user's language: the locale, then its base language, then th
     translate("Search issues", "de", catalogs),
     translate("Unknown text", "pt", catalogs),
     translate("Search issues", "pt_br", catalogs),
+    translate("Search issues", "pt_BR.UTF-8", catalogs),
+    translate("Search issues", "pt_PT@euro", catalogs),
     translate("Search issues", "not a tag!", catalogs),
   ];
   expect(texts).toEqual([
@@ -138,6 +140,8 @@ test("a text in the user's language: the locale, then its base language, then th
     "Search issues",
     "Unknown text",
     "Pesquisar tickets",
+    "Pesquisar tickets",
+    "Procurar pedidos",
     "Search issues",
   ]);
 });

@@ -3,8 +3,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
-import type { Account, AccountRegistry, Agent, LaunchRecord, Result } from "@cedarloom/contracts";
-import type { LeaseLock } from "@cedarloom/ledger";
+import type { Account, AccountRegistry, Agent, LaunchRecord, Result, RunLabels } from "@cedarloom/contracts";
+import type { Lease, LeaseLock } from "@cedarloom/ledger";
 import {
   deniedPaths,
   GITHUB_DOMAINS,
@@ -33,6 +33,8 @@ export interface WorkerRequest<L extends Launch> extends AccountRequest {
   readonly runtime: AgentRuntime<L>;
   /** The adapter's launch options: the decided values with the phase's model and settings and the working folder. */
   readonly launch: (decided: Decided) => L;
+  /** The run's settings that the launch options do not hold; the rest comes from the built launch (A90). */
+  readonly labels: Pick<RunLabels, "phase" | "review" | "level" | "tier">;
 }
 
 export interface LaunchHost {
@@ -77,7 +79,6 @@ export type WorkerOutcome =
       readonly exit: Extract<AgentEvent, { type: "exit" }> | null;
     };
 
-type Lease = Omit<LaunchRecord, "finishedAt" | "verdict">;
 type Exit = Extract<AgentEvent, { type: "exit" }>;
 interface Held {
   readonly lease: Lease;
@@ -265,6 +266,8 @@ export const launchWorker = async <L extends Launch>(
     return refused(dir, { ok: false, finding: { code: "launch.settings-unproven", params: { agent, version } } });
   }
   const startedAt = new Date().toISOString();
+  const { model, subagentModel, effort, permissionMode } = probe;
+  const labels = { ...request.labels, model, subagentModel, effort, permissionMode };
   const held = await takeLease(state, {
     runId,
     task,
@@ -273,6 +276,7 @@ export const launchWorker = async <L extends Launch>(
     version,
     pid: process.pid,
     startedAt,
+    labels,
   });
   if (!held.ok) return refused(dir, held);
   return runLeased(state, runtime, () => build(verified), held.value);

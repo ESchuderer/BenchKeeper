@@ -121,11 +121,13 @@ const continued = (entry: Entry, field: Field, part: string): Step => {
     : { entry: { ...entry, [field]: joined }, field, ended: false };
 };
 
-// The canonical form of a language tag, as the manifest's catalog keys are written (`pt_br` is `pt-BR`); none for a tag
-// that is no language tag.
+// The canonical form of a language tag, as the manifest's catalog keys are written: `pt_br` is `pt-BR`, and a POSIX
+// locale such as `de_DE.UTF-8` or `sr_RS@latin` is `de-DE` or `sr-RS` (its encoding and modifier dropped); none for a
+// tag that is no language tag.
 const canonical = (locale: string): string => {
+  const [tag = ""] = locale.split(/[.@]/);
   try {
-    return Intl.getCanonicalLocales(locale.replaceAll("_", "-"))[0] ?? "";
+    return Intl.getCanonicalLocales(tag.replaceAll("_", "-"))[0] ?? "";
   } catch {
     return "";
   }

@@ -55,6 +55,8 @@ interface Fake {
   readonly runEnv?: Readonly<Record<string, string>>;
   /** The result file the fake writes. */
   readonly result?: (decided: Decided) => unknown;
+  /** The workflow phase whose settings the launch runs with; implement when unset. */
+  readonly phase?: keyof typeof FRESH_INSTALL_PHASES;
 }
 
 // A worker request on the fake CLI. The launcher builds the probe's options first, then the run's.
@@ -67,13 +69,14 @@ const request = (work: string, fake: Fake = {}): WorkerRequest<ClaudeLaunch> => 
     previous: null,
     prompt: "Do the task.",
     ghToken: null,
+    labels: { phase: fake.phase ?? "implement", review: true, level: "checkpoint", tier: "standard" },
     runtime,
     launch: (decided) => {
       const run = (built += 1) > 1;
       const probe = fake.probe ?? "stream.jsonl";
       const result = fake.result;
       return {
-        ...FRESH_INSTALL_PHASES.implement,
+        ...FRESH_INSTALL_PHASES[fake.phase ?? "implement"],
         ...decided,
         cwd: work,
         allow: [],
@@ -117,6 +120,8 @@ test("a worker runs end to end: account, version check, lease, readings, and the
   ]);
   expect(launches[0]?.runId).toBe(outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null);
   expect(launches[0]?.finishedAt).not.toBeNull();
+  // The settings it ran with: the request's phase, review, level and tier, and the built launch's models, effort and permission mode.
+  expect(launches[0]?.labels).toEqual(LABELS);
   expect(withLedger(state, (store) => store.readings().map((reading) => reading.window))).toEqual([
     "fiveHour",
     "sevenDay",
@@ -179,8 +184,27 @@ test("a run whose stream holds no init line proves nothing, so it failed whateve
   expect(withLedger(state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
 });
 
+const LABELS = {
+  phase: "implement",
+  model: "claude-sonnet-5-5",
+  subagentModel: "claude-sonnet-5-5",
+  effort: "high",
+  permissionMode: "dontAsk",
+  review: true,
+  level: "checkpoint",
+  tier: "standard",
+} as const;
 const lease = (runId: string, account: string) =>
-  ({ runId, task: "t0", agent: "claude", account, version: "2.1.316", pid: process.pid, startedAt: AT }) as const;
+  ({
+    runId,
+    task: "t0",
+    agent: "claude",
+    account,
+    version: "2.1.316",
+    pid: process.pid,
+    startedAt: AT,
+    labels: LABELS,
+  }) as const;
 const runIdOf = (n: number) => `0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6${n}`;
 // Takes the account's leases, as other launchers that run, and holds them.
 const fill = (state: string, account: string, from: number) =>
@@ -376,6 +400,17 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
   ).resolves.toEqual({
     ok: true,
     value: { kind: "no-account", reason: "unknown-pool" },
+  });
+});
+
+test("a run's labels take the permission mode the launch was built with: a plan launch records plan", async () => {
+  const { state, config, work } = setup();
+  await launchWorker(state, config, request(work, { phase: "plan", result: passing }), host);
+  expect(withLedger(state, (store) => store.launches()[0]?.labels)).toMatchObject({
+    phase: "plan",
+    model: "claude-opus-5-5",
+    permissionMode: "plan",
+    tier: "standard",
   });
 });
 

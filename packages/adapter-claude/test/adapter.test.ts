@@ -355,7 +355,7 @@ test("cancel stops the CLI with the command it runs, on Windows too", async () =
   }
   await cancelled;
   expect(pid).toBeDefined();
-  await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 5000 });
+  await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 3000 });
 });
 
 test("cancel after the CLI has exited stops nothing, as its process ID may belong to another process", async () => {

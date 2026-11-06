@@ -89,7 +89,7 @@ const cleanEnv = (): NodeJS.ProcessEnv =>
   Object.fromEntries(Object.entries(process.env).filter(([name]) => KEPT.includes(name.toUpperCase())));
 
 /** Whether this host speaks a protocol version `major.minor`: its own major, and at most its minor. */
-const speaks = (version: string): boolean => {
+export const speaks = (version: string): boolean => {
   const [major, minor] = /^\d{1,4}\.\d{1,4}$/.test(version) ? version.split(".").map(Number) : [];
   const [hostMajor, hostMinor] = PROTOCOL.split(".").map(Number);
   return major === hostMajor && Number(minor) <= Number(hostMinor);

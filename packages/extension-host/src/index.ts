@@ -5,6 +5,7 @@ export {
   type RunLog,
   type RunningExtension,
   type RunRequest,
+  speaks,
   startExtension,
   type Trust,
 } from "./host.ts";

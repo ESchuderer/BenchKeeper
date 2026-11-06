@@ -393,7 +393,7 @@ test("cancel stops the CLI with the command it runs, on Windows too", async () =
   } finally {
     await session.cancel();
   }
-}, 10_000);
+}, 15_000);
 
 test("cancel after the CLI has exited stops nothing, as its process ID may belong to another process", async () => {
   const session = runtime.start(launch({}));

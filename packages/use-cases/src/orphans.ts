@@ -49,7 +49,8 @@ const SPAWN_MS = 60_000;
  * it started in the minute before the attempt's start was recorded. A later process that reuses the pid started after
  * that, and is left alone; `ps` tells the start to the second, so one that ended and was reused within the second of the
  * record would be taken for it. A command whose shell has ended, while a child of it runs on, is not found this way. On
- * Windows a runner's shell ends with the runner (Node's job object kills it on close), so there is nothing to stop.
+ * Windows a runner's shell ends with the runner (Node's job object kills it on close), so there is nothing to stop; the
+ * shell's own children may outlive it (hub issue 103).
  */
 export const stopOrphans = (attempts: readonly NodeAttempt[]): void => {
   /* v8 ignore next -- Windows only */

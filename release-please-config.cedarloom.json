@@ -16,6 +16,7 @@
         "contracts",
         "engine",
         "ledger",
+        "orchestration",
         "server",
         "ui",
         "use-cases"
@@ -31,6 +32,7 @@
     "packages/contracts": { "component": "contracts" },
     "packages/engine": { "component": "engine" },
     "packages/ledger": { "component": "ledger" },
+    "packages/orchestration": { "component": "orchestration" },
     "packages/server": {
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]

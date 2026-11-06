@@ -36,6 +36,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "ajv": "8.20.0",
     "fast-check": "catalog:"
   }
 }

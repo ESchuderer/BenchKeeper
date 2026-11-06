@@ -298,11 +298,22 @@ test("every finding code has an English sentence", () => {
     "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
     "workflow.schedule-input": { input: "branch" },
     "launch.account-full": { account: "work", max: 2 },
+    "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
+    "git.refused-source": { field: "url" },
+    "git.unsafe-entry": { path: "dist/link", kind: "link" },
+    "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });
     expect(text(finding)).toMatch(/^\S.{20,}/s);
   }
+  // The other forms of two git findings: a file name, and one file over its size.
+  const name = Finding.parse({ code: "git.unsafe-entry", params: { path: "a b.txt", kind: "name" } });
+  const file = Finding.parse({ code: "git.too-large", params: { path: "a.bin", found: 11, limit: 10, unit: "bytes" } });
+  expect([text(name), text(file)]).toEqual([
+    'a b.txt is not a portable file name (letters, digits, ".", "_" and "-"), so nothing of the fetched tree is used.',
+    "a.bin has 11 bytes, more than the 10 a fetched tree may have; nothing of it is used.",
+  ]);
 });
 
 const sampleParams = (code: string): Record<string, unknown> => {

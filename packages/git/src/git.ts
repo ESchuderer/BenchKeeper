@@ -1,0 +1,351 @@
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readdirSync, statSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { devNull } from "node:os";
+import { join } from "node:path";
+import { type Finding, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
+
+/** What a fetched tree may hold; a tree over any of these is refused whole. */
+export type Limits = { files: number; bytes: number; fileBytes: number };
+export const LIMITS: Limits = { files: 2000, bytes: 50 * 1024 * 1024, fileBytes: 10 * 1024 * 1024 };
+
+/** Where to fetch from: a repository URL, a branch, tag or commit, and a folder inside it (its root when absent). */
+export type Source = { url: string; ref: string; path?: string };
+export type TreeFile = { path: string; mode: "100644" | "100755"; sha256: string; content: Buffer };
+/** The files of a folder at a commit, and the SHA-256 of their listing: `<mode> <SHA-256> <path>` lines sorted by path. */
+export type Tree = { commit: string; files: TreeFile[]; digest: string };
+export type FetchOptions = { parent: string; limits?: Limits; timeoutMs?: number };
+
+type Ran = { code: number | null; stdout: Buffer; stderr: string; failure: string | undefined };
+
+// Text from git, a server or a tree, shown in a terminal: line breaks as spaces, other control characters and
+// non-ASCII text as \u escapes, so none of it can move the cursor or rewrite a line.
+const shown = (text: string): string =>
+  text
+    .replace(/[\t\n\r]+/g, " ")
+    .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
+const failed = (step: "start" | "fetch" | "list" | "read", error: string): Result<never> => ({
+  ok: false,
+  finding: { code: "git.failed", params: { step, error: shown(error) } },
+});
+const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
+
+const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+
+// BenchKeeper's hardened clone (app/src/origin.mjs): no hooks and no fsmonitor, only the given transports, every
+// object checked, no bundles a server offers, and a stalled transfer ends. `-c` wins over every configuration file.
+// No maintenance or gc runs after the fetch. `--git-dir` names the repository, as safe.bareRepository=explicit asks.
+const config = (protocols: readonly string[]): string[] => [
+  ...flags([
+    ["core.hooksPath", devNull],
+    ["core.fsmonitor", "false"],
+    ["maintenance.auto", "false"],
+    ["gc.auto", "0"],
+    ["protocol.allow", "never"],
+    ...protocols.map((protocol) => [`protocol.${protocol}.allow`, "always"]),
+    ["transfer.fsckObjects", "true"],
+    ["transfer.bundleURI", "false"],
+    ["http.lowSpeedLimit", "1000"],
+    ["http.lowSpeedTime", "60"],
+  ]),
+  "--git-dir=.",
+];
+
+// The names of hooks the user's configuration defines (`hook.<name>.event`, git 2.54), which run whatever
+// core.hooksPath says, already when `init` writes HEAD: `config -z` gives `<key>\n<value>\0` items, and a name may
+// hold dots and spaces.
+const hookNames = (ran: Ran): string[] => [
+  ...new Set(
+    ran.stdout
+      .toString()
+      .split("\0")
+      .map((item) => item.slice(0, item.indexOf("\n")))
+      .map((key) => key.slice("hook.".length, key.lastIndexOf(".")))
+      .filter(Boolean),
+  ),
+];
+
+// Each is turned off through the environment, where a name holding "=" stays one key; `-c` would split it there.
+const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
+  Object.fromEntries([
+    ["GIT_CONFIG_COUNT", String(names.length)],
+    ...names.flatMap((name, index) => [
+      [`GIT_CONFIG_KEY_${index}`, `hook.${name}.enabled`],
+      [`GIT_CONFIG_VALUE_${index}`, "false"],
+    ]),
+  ]);
+
+// The caller's environment without GIT_* variables, which would point git at another repository (GIT_DIR, set when
+// CedarLoom runs inside a hook) or add configuration; then no prompts, and ssh fails instead of asking.
+const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
+  ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
+  GIT_ALLOW_PROTOCOL: protocols.join(":"),
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_ASKPASS: "",
+  GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4",
+  // Git Credential Manager asks in a window otherwise.
+  GCM_INTERACTIVE: "never",
+});
+
+type RunOptions = {
+  program: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  input?: string;
+  timeoutMs: number;
+  maxBytes: number;
+  // Polled while git runs: true stops it.
+  over?: () => boolean;
+};
+
+/**
+ * Runs git; `failure` says why it was stopped or could not start. stderr keeps its last 2000 characters. A stopped
+ * git returns when it exits: its own children (ssh, git-remote-https) may hold its pipes open longer.
+ */
+const run = (args: string[], options: RunOptions): Promise<Ran> =>
+  new Promise((resolve) => {
+    const child = spawn(options.program, args, { cwd: options.cwd, env: options.env, windowsHide: true });
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    let stderr = "";
+    let failure: string | undefined;
+    // A timeout, too much output, a git that could not start, or one that stopped reading its input.
+    const stop = (reason: string | Error): void => {
+      failure ??= reason instanceof Error ? reason.message : reason;
+      child.kill();
+    };
+    const timer = setTimeout(() => stop("stopped at the time limit"), options.timeoutMs);
+    const check = (): unknown => options.over?.() && stop("over its disk limit");
+    check();
+    const watch = setInterval(check, 250);
+    let done = false;
+    const finish = (code: number | null): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      clearInterval(watch);
+      resolve({ code, stdout: Buffer.concat(chunks), stderr: stderr.trim(), failure });
+    };
+    child.stdout.on("data", (chunk: Buffer) => {
+      bytes += chunk.length;
+      if (bytes > options.maxBytes) stop(`output over ${options.maxBytes} bytes`);
+      else chunks.push(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-2000);
+    });
+    child.stdin.on("error", stop);
+    child.on("error", stop);
+    child.on("exit", (code) => failure !== undefined && finish(code));
+    child.on("close", finish);
+    child.stdin.end(options.input);
+  });
+
+const succeeded = (ran: Ran): boolean => ran.code === 0 && ran.failure === undefined;
+const why = (ran: Ran): string => ran.failure ?? (ran.stderr || `exit code ${ran.code}`);
+
+// The contracts' Git URL rule for https and ssh: no password, no user over https, no backslash, no control character,
+// raw or percent-encoded (a carriage return reaches a credential helper as a new line), no query, no leading "-". A
+// transport the caller adds (the tests' file and ext) is git's own allowlist's to refuse, and needs printable text.
+const urlAllowed = (url: string, protocols: readonly string[]): boolean =>
+  GitUrl.safeParse(url).success ||
+  (/^[!-~]+$/.test(url) &&
+    protocols.some((protocol) => !["https", "ssh"].includes(protocol) && url.startsWith(`${protocol}:`)));
+const portablePath = (path: string): boolean => PortablePath.safeParse(path).success;
+// A ref git can fetch into `<ref>:<local ref>`: no refspec syntax (`:`, `+`, `*`, `^`, `~`), no `..` and no `@{`.
+const isRef = (ref: string): boolean =>
+  /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/.test(ref) && !ref.includes("..") && !ref.endsWith(".lock");
+
+const sourceFinding = (source: Source, protocols: readonly string[]): Finding | undefined => {
+  if (!urlAllowed(source.url, protocols)) return { code: "git.refused-source", params: { field: "url" } };
+  if (!isRef(source.ref)) return { code: "git.refused-source", params: { field: "ref" } };
+  if (source.path !== undefined && !portablePath(source.path)) {
+    return { code: "git.refused-source", params: { field: "path" } };
+  }
+  return undefined;
+};
+
+type Entry = { path: string; mode: string; sha: string; size: number };
+
+// `ls-tree -r -l -z` lines: `<mode> <type> <object> <size, padded>\t<path>`.
+const entries = (listing: Buffer): Entry[] =>
+  listing
+    .toString()
+    .split("\0")
+    .filter((line) => line !== "")
+    .map((line) => {
+      const tab = line.indexOf("\t");
+      const [mode = "", , sha = "", size = ""] = line.slice(0, tab).split(" ").filter(Boolean);
+      return { path: line.slice(tab + 1), mode, sha, size: Number(size) || 0 };
+    });
+
+const KINDS = new Map<string, "link" | "submodule">([
+  ["120000", "link"],
+  ["160000", "submodule"],
+]);
+
+const entryFinding = (entry: Entry, limits: Limits): Finding | undefined => {
+  const kind = KINDS.get(entry.mode);
+  if (kind !== undefined) return { code: "git.unsafe-entry", params: { path: shown(entry.path), kind } };
+  if (!portablePath(entry.path)) return { code: "git.unsafe-entry", params: { path: shown(entry.path), kind: "name" } };
+  if (entry.size <= limits.fileBytes) return undefined;
+  return {
+    code: "git.too-large",
+    params: { path: entry.path, found: entry.size, limit: limits.fileBytes, unit: "bytes" },
+  };
+};
+
+// The first path that a file system ignoring case (macOS, Windows) would join with an earlier one: the same path, a
+// file where an earlier path has a folder, or a folder where an earlier path is a file.
+const caseClash = (list: Entry[]): string | undefined => {
+  const files = new Set<string>();
+  const folders = new Set<string>();
+  for (const { path } of list) {
+    const parts = path.toLowerCase().split("/");
+    const name = parts.join("/");
+    const above = parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"));
+    if (files.has(name) || folders.has(name) || above.some((folder) => files.has(folder))) return shown(path);
+    files.add(name);
+    for (const folder of above) folders.add(folder);
+  }
+  return undefined;
+};
+
+/** The first reason to refuse the whole listing: an unsafe entry, a file too large, or too many files or bytes. */
+const listingFinding = (list: Entry[], limits: Limits): Finding | undefined => {
+  if (list.length > limits.files) {
+    return { code: "git.too-large", params: { path: null, found: list.length, limit: limits.files, unit: "files" } };
+  }
+  for (const entry of list) {
+    const finding = entryFinding(entry, limits);
+    if (finding !== undefined) return finding;
+  }
+  const clash = caseClash(list);
+  if (clash !== undefined) return { code: "git.unsafe-entry", params: { path: clash, kind: "case" } };
+  const bytes = list.reduce((sum, entry) => sum + entry.size, 0);
+  if (bytes <= limits.bytes) return undefined;
+  return { code: "git.too-large", params: { path: null, found: bytes, limit: limits.bytes, unit: "bytes" } };
+};
+
+const sha256 = (data: Buffer | string): string => createHash("sha256").update(data).digest("hex");
+
+// `cat-file --batch` output: `<object> blob <size>\n<content>\n` per object, in the order asked.
+const contents = (output: Buffer, list: Entry[]): TreeFile[] => {
+  let at = 0;
+  return list.map((entry) => {
+    const start = output.indexOf("\n", at) + 1;
+    at = start + entry.size + 1;
+    const content = output.subarray(start, start + entry.size);
+    // An executable file stays one; git's other blob modes are plain files.
+    const mode = entry.mode === "100755" ? "100755" : "100644";
+    return { path: entry.path, mode, sha256: sha256(content), content };
+  });
+};
+
+// `ls-tree -r` lists in git's tree order, which for whole paths is their byte order, the order the digest needs.
+const tree = (commit: string, files: TreeFile[]): Tree => ({
+  commit,
+  files,
+  digest: sha256(files.map((file) => `${file.mode} ${file.sha256} ${file.path}\n`).join("")),
+});
+
+type Git = (args: string[], options?: Partial<Pick<RunOptions, "input" | "maxBytes" | "over">>) => Promise<Ran>;
+
+// The bytes of the files below `dir`; a file git renamed meanwhile counts 0. It runs in a timer, where a throw would end
+// CedarLoom, so a folder git removes while it is read counts 0 too.
+const bytesIn = (dir: string): number => {
+  try {
+    return readdirSync(dir, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .reduce(
+        (sum, entry) => sum + (statSync(join(entry.parentPath, entry.name), { throwIfNoEntry: false })?.size ?? 0),
+        0,
+      );
+  } catch {
+    /* v8 ignore start -- git removing a folder between the listing and the read; no test can time that */
+    return 0;
+    /* v8 ignore stop */
+  }
+};
+
+const fetchCommit = async (git: Git, source: Source, dir: string, limits: Limits): Promise<Result<string>> => {
+  const init = await git(["init", "--bare", "--quiet", "--template="]);
+  if (!succeeded(init)) return failed("start", why(init));
+  // A server may send far more than the folder holds, and outside it: the quarantine is watched while git fetches.
+  const cap = 2 * limits.bytes + 1024 * 1024;
+  const fetch = await git(
+    [
+      "fetch",
+      "--depth=1",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--quiet",
+      "--",
+      source.url,
+      `${source.ref}:refs/cedarloom/fetched`,
+    ],
+    { over: () => bytesIn(dir) > cap },
+  );
+  const used = bytesIn(dir);
+  if (used > cap)
+    return refuse({ code: "git.too-large", params: { path: null, found: used, limit: cap, unit: "bytes" } });
+  if (!succeeded(fetch)) return failed("fetch", why(fetch));
+  const commit = await git(["rev-parse", "--verify", "--quiet", "refs/cedarloom/fetched^{commit}"]);
+  return succeeded(commit) ? { ok: true, value: commit.stdout.toString().trim() } : failed("fetch", why(commit));
+};
+
+const readTree = async (git: Git, commit: string, source: Source, limits: Limits): Promise<Result<Tree>> => {
+  const treeish = source.path === undefined ? commit : `${commit}:${source.path}`;
+  // About 100 bytes of mode, type, object and size per entry besides its path.
+  const listed = await git(["ls-tree", "-r", "-l", "-z", treeish], { maxBytes: (limits.files + 1) * 1200 });
+  if (!succeeded(listed)) return failed("list", why(listed));
+  const list = entries(listed.stdout);
+  const finding = listingFinding(list, limits);
+  if (finding !== undefined) return refuse(finding);
+  const input = list.map((entry) => `${entry.sha}\n`).join("");
+  const read = await git(["cat-file", "--batch"], { input, maxBytes: limits.bytes + list.length * 100 });
+  return succeeded(read) ? { ok: true, value: tree(commit, contents(read.stdout, list)) } : failed("read", why(read));
+};
+
+/**
+ * Fetches one ref into a new bare repository below `parent` and reads the files of `source.path` at that commit:
+ * nothing is checked out, no hook or filter runs, and the repository is removed afterwards. A tree holding a link, a
+ * submodule, a name that is not portable, or more than the limits is refused whole. `program` is the git to run,
+ * the one on PATH unless the caller names another.
+ */
+export const fetchTreeOver =
+  (protocols: readonly string[], program = "git") =>
+  async (source: Source, options: FetchOptions): Promise<Result<Tree>> => {
+    const refused = sourceFinding(source, protocols);
+    if (refused !== undefined) return refuse(refused);
+    const dir = await mkdtemp(join(options.parent, "quarantine-"));
+    // Git never looks above the quarantine for a repository, also while it is none yet.
+    const env = { ...environment(protocols), GIT_CEILING_DIRECTORIES: options.parent };
+    // One time limit for the whole read, not for each git call.
+    const timeoutMs = options.timeoutMs ?? 300_000;
+    const deadline = Date.now() + timeoutMs;
+    const limits = options.limits ?? LIMITS;
+    const base = { program, cwd: dir, env, timeoutMs, maxBytes: 64 * 1024 };
+    // Read before `init`, which runs them; the empty folder is no repository, so this reads the user's configuration.
+    const hooks = hooksOff(hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base)));
+    const git: Git = async (args, extra = {}) => {
+      const left = Math.max(0, deadline - Date.now());
+      const ran = await run([...config(protocols), ...args], {
+        ...base,
+        env: { ...env, ...hooks },
+        timeoutMs: left,
+        ...extra,
+      });
+      // A URL may carry a token in its path: git's messages name the repository instead.
+      return { ...ran, stderr: ran.stderr.replaceAll(source.url, "the repository") };
+    };
+    try {
+      const commit = await fetchCommit(git, source, dir, limits);
+      return commit.ok ? await readTree(git, commit.value, source, limits) : commit;
+    } finally {
+      // A left-over child process can keep a file busy on Windows; the result stands either way.
+      await Promise.allSettled([rm(dir, { recursive: true, force: true, maxRetries: 3 })]);
+    }
+  };

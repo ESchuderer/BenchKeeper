@@ -1011,6 +1011,53 @@ export interface components {
             params: {
                 error: string | null;
             };
+        } | {
+            /** @constant */
+            code: "launch.sandbox-overridden";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.failed";
+            params: {
+                /** @enum {string} */
+                step: "start" | "fetch" | "list" | "read";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.refused-source";
+            params: {
+                /** @enum {string} */
+                field: "url" | "ref" | "path";
+            };
+        } | {
+            /** @constant */
+            code: "git.unsafe-entry";
+            params: {
+                path: string;
+                /** @enum {string} */
+                kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "git.too-large";
+            params: {
+                path: string | null;
+                found: number;
+                limit: number;
+                /** @enum {string} */
+                unit: "files" | "bytes";
+            };
         };
         RunInput: {
             id: string;
@@ -1524,6 +1571,53 @@ export interface components {
             code: "launch.gh-login";
             params: {
                 error: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "launch.sandbox-overridden";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.failed";
+            params: {
+                /** @enum {string} */
+                step: "start" | "fetch" | "list" | "read";
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "git.refused-source";
+            params: {
+                /** @enum {string} */
+                field: "url" | "ref" | "path";
+            };
+        } | {
+            /** @constant */
+            code: "git.unsafe-entry";
+            params: {
+                path: string;
+                /** @enum {string} */
+                kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "git.too-large";
+            params: {
+                path: string | null;
+                found: number;
+                limit: number;
+                /** @enum {string} */
+                unit: "files" | "bytes";
             };
         };
         Run: {

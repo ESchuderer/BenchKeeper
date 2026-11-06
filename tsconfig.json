@@ -16,6 +16,8 @@
     { "path": "packages/adapter-claude/test" },
     { "path": "packages/orchestration" },
     { "path": "packages/orchestration/test" },
+    { "path": "packages/git" },
+    { "path": "packages/git/test" },
     { "path": "packages/ledger" },
     { "path": "packages/ledger/test" },
     { "path": "packages/engine" },

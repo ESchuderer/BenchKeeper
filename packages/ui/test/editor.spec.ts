@@ -320,6 +320,11 @@ test("auto layout runs ELK in a worker, moves only positions in one undo step, a
   // Laid out again, nothing moves: no undo step, and the status does not offer one.
   await button.press("Enter");
   await expect(said()).toHaveText("The nodes were laid out already; nothing moved.");
+  // The same sentence again is a new node in the status line, so a screen reader reads it again.
+  const shown = await said().locator("span").elementHandle();
+  await button.press("Enter");
+  await expect.poll(() => shown?.evaluate((node) => node.isConnected)).toBe(false);
+  await expect(said()).toHaveText("The nodes were laid out already; nothing moved.");
   const after: { nodes: unknown; edges: unknown; layout: { nodes: Record<string, { x: number }> } } = JSON.parse(
     await exported(),
   );
@@ -336,7 +341,14 @@ test("auto layout runs ELK in a worker, moves only positions in one undo step, a
   ]);
   expect(after.layout.nodes["start"]?.x).toBeLessThan(after.layout.nodes["notes"]?.x ?? 0);
   await page.getByRole("button", { name: "Undo" }).click();
+  // The next change of the document ends the status of the one before.
+  await expect(said()).toHaveText("");
   expect(await exported()).toBe(before);
+  await accessible();
+  expect(errors).toEqual([]);
+});
+
+test("elkjs's license and copyright notices ship with the page and its chunk, and the editor links them", async () => {
   const notice = await page.request.get(new URL("/licenses/elkjs.txt", server.url).href);
   expect([notice.status(), await notice.text()]).toEqual([
     200,

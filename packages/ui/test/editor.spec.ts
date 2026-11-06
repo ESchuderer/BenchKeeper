@@ -152,6 +152,9 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   await expect(problems().getByRole("status")).toHaveText("1 problem.");
   await expect(problems()).toContainText("command-run-1");
   await page.getByRole("combobox", { name: "Node type" }).click();
+  // The node types after 0.1.0 are not offered.
+  await expect(page.getByRole("option", { name: "agent.run" })).toBeVisible();
+  await expect(page.getByRole("option", { name: /^(trigger\.schedule|workflow\.run)$/ })).toHaveCount(0);
   await page.getByRole("option", { name: "agent.run" }).click();
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(card("agent-run-1")).toBeVisible();

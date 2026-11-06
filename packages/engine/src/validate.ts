@@ -5,7 +5,7 @@ import {
   NODE_CONFIGS,
   type WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { type ActionCatalog, compatibility, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
+import { type ActionCatalog, compatibility, LATER_TYPES, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
@@ -60,16 +60,13 @@ const configIssues = (node: Node, actions: ActionCatalog): { path: string; code:
   return config.success ? [] : config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
 };
 
-// Node types that wait until after 0.1.0 (owner, 2026-11-06): a schedule of CedarLoom's own, as users schedule
-// `cloom workflows run` themselves, and child workflows.
-const LATER = new Set(["trigger.schedule", "workflow.run"]);
-
 const nodeFindings = ({ nodes, actions }: Graph): Finding[] => {
   const triggers = nodes.filter(isTrigger).length;
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
     ...nodes.flatMap((node): Finding[] => {
-      if (LATER.has(node.type)) return [{ code: "run.node-unsupported", params: { node: node.id, type: node.type } }];
+      if (LATER_TYPES.has(node.type))
+        return [{ code: "run.node-unsupported", params: { node: node.id, type: node.type } }];
       const issues = configIssues(node, actions);
       if (!Array.isArray(issues)) return [issues];
       return issues.length === 0 ? [] : [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];

@@ -122,6 +122,7 @@
     "problem.missingSource": [["target"], " gets no edge, but it needs one."],
     "problem.moreIssues": [["issues"], ", and ", ["count"], " more"],
     "problem.nodeInput": ["Input ", ["handle"], " of node ", ["node"]],
+    "problem.nodeUnsupported": ["Node ", ["node"], " is a ", ["type"], " node, which this version does not run yet."],
     "problem.optionalInput": [
       "Input ",
       ["handle"],

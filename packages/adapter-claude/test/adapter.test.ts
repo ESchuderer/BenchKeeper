@@ -342,46 +342,20 @@ test("reports a CLI that cannot start", async () => {
   ]);
 });
 
-test("cancel stops the CLI with the command it runs, on Windows too", async () => {
-  const session = runtime.start(launch({ FAKE_CHILD: "1", FAKE_HANG: "1" }));
+test("cancel stops the CLI with the command it runs, on Windows too, also after its reader left early", async () => {
+  const session = runtime.start(launch({ FAKE_CHILD: "1", FAKE_HANG: "1", FAKE_TICK: "1" }));
   const Command = z.object({ type: z.literal("command"), pid: z.int() });
   let pid: number | undefined;
+  // Leaves at the command line, as a launcher leaves at an init line without the settings proof.
   for await (const event of session.events) {
     pid = Command.safeParse(event.type === "other" ? event.raw : null).data?.pid;
     if (pid !== undefined) break;
   }
+  // The CLI keeps writing meanwhile: a closed stdout would end it with EPIPE before the cancel and orphan its command.
+  await new Promise((resolve) => setTimeout(resolve, 200));
   await session.cancel();
   expect(pid).toBeDefined();
-  await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 5000 });
-});
-
-const CommandStarted = z.object({ type: z.literal("command"), pid: z.int() });
-// Ends a command a failed run left behind, so the test leaves no process.
-const reap = (pid: number | undefined): void => {
-  try {
-    if (pid !== undefined) process.kill(pid);
-  } catch {
-    // Already gone.
-  }
-};
-
-test("a reader that leaves the stream early keeps the CLI alive until cancel, which then stops its command", async () => {
-  const session = runtime.start(launch({ FAKE_CHILD: "1", FAKE_HANG: "1", FAKE_TICK: "1" }));
-  let pid: number | undefined;
-  try {
-    // Leaves at the command line, as a launcher leaves at an init line without the settings proof.
-    for await (const event of session.events) {
-      pid = CommandStarted.safeParse(event.type === "other" ? event.raw : null).data?.pid;
-      if (pid !== undefined) break;
-    }
-    // The CLI keeps writing meanwhile: a closed pipe would end it with EPIPE before the cancel and orphan its command.
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await session.cancel();
-    expect(pid).toBeDefined();
-    await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 3000 });
-  } finally {
-    reap(pid);
-  }
+  await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 3000 });
 });
 
 test("cancel after the CLI has exited stops nothing, as its process ID may belong to another process", async () => {

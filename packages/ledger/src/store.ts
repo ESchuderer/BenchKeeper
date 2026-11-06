@@ -359,13 +359,20 @@ export class RunStore extends RunView {
       lock.close();
       removeLock(path);
     };
-    const taken = transaction(this.db, () => {
-      if ((this.#countLive().get(launch.account) ?? 0) >= max) return false;
-      this.db
-        .prepare("INSERT INTO launches VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)")
-        .run(launch.runId, launch.task, launch.agent, launch.account, launch.version, launch.pid, launch.startedAt);
-      return true;
-    });
+    let taken: boolean;
+    try {
+      taken = transaction(this.db, () => {
+        if ((this.#countLive().get(launch.account) ?? 0) >= max) return false;
+        this.db
+          .prepare("INSERT INTO launches VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)")
+          .run(launch.runId, launch.task, launch.agent, launch.account, launch.version, launch.pid, launch.startedAt);
+        return true;
+      });
+    } catch (error) {
+      // A row that cannot be written, such as a run id that has one, lets go of the lock before the error goes up.
+      release();
+      throw error;
+    }
     if (taken) return { release };
     release();
     return null;

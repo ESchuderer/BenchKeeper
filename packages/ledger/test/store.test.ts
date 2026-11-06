@@ -503,6 +503,17 @@ test("a lease holds its lock for the lease's life, also when its launcher keeps 
   expect(store.liveLeases()).toEqual(new Map([["work", 1]]));
 });
 
+test("a lease whose row cannot be written lets go of its lock, so the error is not hidden behind a held lock", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)?.release();
+  store.finishLaunch(runIdOf(1), "pass");
+  // The run has a finished row, so its row cannot be written again.
+  for (const _ of [1, 2]) expect(() => store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)).toThrow(/UNIQUE/);
+  expect(existsSync(join(dir, "leases", `${runIdOf(1)}.lock`))).toBe(false);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).not.toBeNull();
+});
+
 test("a lease whose launcher let go of it without a finish (a crash, a kill) ends as interrupted, whatever its PID", () => {
   const store = opened(fresh());
   // This test's own PID runs, as a reused PID would: only the lock counts.

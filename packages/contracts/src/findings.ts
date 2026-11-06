@@ -36,6 +36,13 @@ export const Finding = z
     finding("run.input-unknown", { input: z.string() }),
     finding("run.input-missing", { input: z.string() }),
     finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
+    // A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust.
+    finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
+    // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
+    finding("run.lease-held", { runId: z.string(), pid: z.int() }),
+    finding("run.finished", { runId: z.string(), status: z.string() }),
+    // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
+    finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -142,6 +149,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.input-unknown": { severity: "error", effort: "command" },
   "run.input-missing": { severity: "error", effort: "command" },
   "run.input-invalid": { severity: "error", effort: "command" },
+  "run.event-invalid": { severity: "error", effort: "manual" },
+  "run.lease-held": { severity: "error", effort: "manual" },
+  "run.finished": { severity: "error", effort: "manual" },
+  "run.report-only-apply": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

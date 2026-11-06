@@ -8,6 +8,10 @@ msgid "app.title"
 msgstr "CedarLoom"
 
 #. js-lingui-explicit-id
+msgid "app.licenses"
+msgstr "Third-party licenses"
+
+#. js-lingui-explicit-id
 msgid "nav.label"
 msgstr "Views"
 
@@ -350,3 +354,71 @@ msgstr "Layout by elkjs, under the Eclipse Public License 2.0"
 #. js-lingui-explicit-id
 msgid "editor.close"
 msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "problem.documentUnreadable"
+msgstr "{path} cannot be read ({error})."
+
+#. js-lingui-explicit-id
+msgid "problem.draftNotFound"
+msgstr "There is no draft of {id} any more."
+
+#. js-lingui-explicit-id
+msgid "problem.draftTooLarge"
+msgstr "The draft of {id} has {bytes} bytes; a draft holds at most {limit}."
+
+#. js-lingui-explicit-id
+msgid "draft.title"
+msgstr "Unsaved drafts"
+
+#. js-lingui-explicit-id
+msgid "draft.offer"
+msgstr "{id}, saved {time}"
+
+#. js-lingui-explicit-id
+msgid "draft.restore"
+msgstr "Restore"
+
+#. js-lingui-explicit-id
+msgid "draft.restoreOne"
+msgstr "Restore the draft of {id}"
+
+#. js-lingui-explicit-id
+msgid "draft.discard"
+msgstr "Discard"
+
+#. js-lingui-explicit-id
+msgid "draft.discardOne"
+msgstr "Discard the draft of {id}"
+
+#. js-lingui-explicit-id
+msgid "draft.unreadable"
+msgstr "It cannot be restored: {reason}"
+
+#. js-lingui-explicit-id
+msgid "draft.saved"
+msgstr "Saved as a draft at {time}."
+
+#. js-lingui-explicit-id
+msgid "draft.restored"
+msgstr "Restored the draft saved at {time}."
+
+#. js-lingui-explicit-id
+msgid "draft.notRestored"
+msgstr "The draft of {id} was not restored: {reason}"
+
+#. js-lingui-explicit-id
+msgid "draft.discarded"
+msgstr "Discarded the draft of {id}."
+
+#. js-lingui-explicit-id
+msgid "draft.waiting"
+msgstr "Not saved as a draft yet: restore or discard the earlier draft of {id} first."
+
+#. js-lingui-explicit-id
+msgid "draft.notSaved"
+msgstr "Not saved as a draft: {reason}"
+
+#. js-lingui-explicit-id
+msgid "draft.overwrote"
+msgstr "The draft of {id} had changed in another tab or an earlier session; this tab's version replaced it."

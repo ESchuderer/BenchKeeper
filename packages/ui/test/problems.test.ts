@@ -7,7 +7,7 @@ import { describe } from "../src/workflow/problems.ts";
 const sample = (code: string): Record<string, unknown> => {
   const shape = Finding.options.find((option) => option.shape.code.value === code)?.shape.params.shape ?? {};
   const value = (key: string): unknown => {
-    if (/count|found|known/.test(key)) return 2;
+    if (/count|found|known|bytes|limit/.test(key)) return 2;
     if (key === "nodes") return ["a", "b"];
     if (key === "issues") return [{ path: "", code: "invalid_type" }];
     if (key === "kind") return "node";
@@ -19,12 +19,10 @@ const sample = (code: string): Record<string, unknown> => {
   return Object.fromEntries(Object.keys(shape).map((key) => [key, value(key)]));
 };
 
-test("every workflow finding and import refusal has a sentence in the problems panel; other codes show as the code", () => {
+test("every workflow finding and every refusal of a file or draft has a sentence; other codes show as the code", () => {
   const codes = Finding.options.map((option) => option.shape.code.value);
-  const shown = codes.filter(
-    (code) => code.startsWith("workflow.") || code === "document.invalid" || code === "document.newer-schema",
-  );
-  expect(shown.length).toBe(20);
+  const shown = codes.filter((code) => /^(workflow|draft|document)\./.test(code));
+  expect(shown.length).toBe(23);
   for (const code of shown) {
     const finding = Finding.parse({ code, params: sample(code) });
     expect([code, describe(finding)]).toEqual([code, expect.stringMatching(/^\S.{15,}/s)]);

@@ -40,6 +40,9 @@ const probe = {
   subagentModel: "claude-sonnet-5-5",
   effort: "high",
   env: {},
+  tmpDir: "/tmp/worker",
+  denyRead: [],
+  allowedDomains: [],
 } as const;
 const input = { env: {}, probe };
 

@@ -38,6 +38,8 @@ export const Finding = z
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
     finding("store.busy", { dir: z.string() }),
     finding("store.network-filesystem", { dir: z.string(), fsType: z.string() }),
+    finding("draft.not-found", { id: z.string() }),
+    finding("draft.too-large", { id: z.string(), bytes: z.int(), limit: z.int() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
     // Graph findings of a workflow; `node: null` names one of the workflow's own outputs.
     finding("workflow.duplicate-id", { kind: z.enum(["node", "edge"]), id: z.string() }),
@@ -66,6 +68,8 @@ export const Finding = z
     finding("accounts.pool-terms", { pool: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
+    // gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused.
+    finding("launch.gh-login", { error: z.string().nullable() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -99,6 +103,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "undo.backup-changed": { severity: "error", effort: "manual" },
   "store.busy": { severity: "error", effort: "manual" },
   "store.network-filesystem": { severity: "error", effort: "manual" },
+  "draft.not-found": { severity: "error", effort: "manual" },
+  "draft.too-large": { severity: "error", effort: "manual" },
   "store.newer-schema": { severity: "error", effort: "manual" },
   "workflow.duplicate-id": { severity: "error", effort: "manual" },
   "workflow.trigger-count": { severity: "error", effort: "manual" },
@@ -123,4 +129,5 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
+  "launch.gh-login": { severity: "error", effort: "manual" },
 };

@@ -37,10 +37,57 @@ const elkNotice = (): Plugin => ({
   },
 });
 
+const METADATA = "licenses/third-party.json";
+const HEADER = `# Third-party licenses
+
+The CedarLoom web UI bundles code of the packages below. Each keeps its own license, whose text follows its name.
+elkjs offers the EPL-2.0 or the GPL-3.0-or-later; CedarLoom uses it under the EPL-2.0, and elkjs.txt next to this file
+says where its source is.
+`;
+
+type License = { name: string; version: string; identifier?: string; text?: string };
+
+/** The license text kept in notices/ for a package whose release ships none. */
+const supplied = (name: string): string | undefined => {
+  try {
+    return readFileSync(join(import.meta.dirname, "notices", `${name}.txt`), "utf8").trim();
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The notices of the whole bundle. build.license lists every package a chunk holds code of, with its license and the
+ * license text the package ships; a package that ships none takes it from notices/<name>.txt, and one without either
+ * fails the build.
+ */
+// shortcut: build.license sees chunks only; a package shipped only as an asset or CSS is not listed. Today that is the
+// elk worker, whose elkjs the elk-api chunk lists. Check dist/assets when a dependency adds one.
+const thirdParty = (): Plugin => ({
+  name: "third-party-notices",
+  generateBundle: {
+    // After Vite's license plugin, which writes the metadata.
+    order: "post",
+    handler(_options, bundle) {
+      const metadata = bundle[METADATA];
+      if (metadata?.type !== "asset") throw new Error(`${METADATA} is missing: build.license writes it`);
+      delete bundle[METADATA];
+      const licenses: License[] = JSON.parse(String(metadata.source));
+      const sections = licenses.map(({ name, version, identifier, text }) => {
+        const body = text ?? supplied(name);
+        if (body === undefined) throw new Error(`${name} ${version} ships no license text: add notices/${name}.txt`);
+        return `## ${name} ${version} (${identifier ?? "no license named"})\n\n${body}\n`;
+      });
+      this.emitFile({ type: "asset", fileName: "licenses/third-party.txt", source: [HEADER, ...sections].join("\n") });
+    },
+  },
+});
+
 // Mantine marks its modules "use client" for React Server Components; a browser bundle has no use for the directive.
 export default defineConfig({
-  plugins: [elkNotice()],
+  plugins: [elkNotice(), thirdParty()],
   build: {
+    license: { fileName: METADATA },
     rolldownOptions: {
       onwarn: (warning, warn) => {
         if (warning.code !== "MODULE_LEVEL_DIRECTIVE") warn(warning);

@@ -164,6 +164,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/orchestration:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/server:
     dependencies:
       '@cedarloom/contracts':

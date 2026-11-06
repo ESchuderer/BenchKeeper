@@ -1,8 +1,8 @@
 // Writes the current app version into the install commands of the docs (not the plugin's skill text): `npx benchkeeper@<version>` and the clone
 // tag `--branch app-v<version>` (older pins name `setup-v`). Other version mentions (benchmark arms, history) stay as written.
-// It also sets minApp in plugins/benchkeeper/content.json to that version (not under --check).
-// Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs, or when the dev container's Playwright differs
-// from @playwright/test in web/ or app/)
+// With --release (release.yml, on the release branch) it also sets minApp in plugins/benchkeeper/content.json to that version.
+// Usage: node .github/scripts/version-pins.mjs [--check | --release]   (--check: changes nothing; exit 1 when a file differs, or when
+// the dev container's Playwright, pnpm or Node differs from web/ and app/, .github/pnpm, or NODE_VERSION of cedarloom.yml)
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -39,6 +39,15 @@ export function playwrightDrift(dockerfile, packages) {
 export function pnpmDrift(dockerfile, pinned) {
   const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bpnpm@(\S+)/)?.[1];
   return { image, drift: image !== pinned };
+}
+
+// Both are bumped by hand: the dev container's Node follows NODE_VERSION of cedarloom.yml, the CI of the CedarLoom packages.
+export function nodeDrift(dockerfile, workflow) {
+  // shortcut: reads the FROM tag, not the digest Docker runs, so a new tag with the old digest passes; check the digest if a job may go online.
+  const image = commands(dockerfile).match(/^[ \t]*FROM[ \t]+docker\.io\/library\/node:([\w.]+)-/m)?.[1];
+  // The version's characters only: quotes and a trailing comment end it.
+  const ci = workflow.match(/^[ \t]+NODE_VERSION:[ \t]*['"]?([\w.]+)/m)?.[1];
+  return { image, ci, drift: image === undefined || image !== ci };
 }
 
 if (isMain(import.meta.url)) {
@@ -79,6 +88,15 @@ if (isMain(import.meta.url)) {
     const pnpm = pnpmDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), pinned);
     if (pnpm.drift) {
       console.log(`::error::pnpm@${pnpm.image} in .devcontainer/Dockerfile differs from pnpm ${pinned} in .github/pnpm/package.json: set them equal`);
+      process.exit(1);
+    }
+    const node = nodeDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), readFileSync(`${root}/.github/workflows/cedarloom.yml`, 'utf8'));
+    if (!node.image) {
+      console.log('::error::found no FROM docker.io/library/node:<version>-<variant> in .devcontainer/Dockerfile');
+      process.exit(1);
+    }
+    if (node.drift) {
+      console.log(`::error::node:${node.image} in .devcontainer/Dockerfile differs from NODE_VERSION ${node.ci} in .github/workflows/cedarloom.yml: set them equal`);
       process.exit(1);
     }
   }

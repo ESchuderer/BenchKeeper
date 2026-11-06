@@ -350,6 +350,207 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            drafts: components["schemas"]["DraftInfo"][];
+                        };
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Draft"];
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        workflow: unknown;
+                        replaces: components["schemas"]["Sha256Input"] | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DraftSaved"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -560,6 +761,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "draft.too-large";
+            params: {
+                id: string;
+                bytes: number;
+                limit: number;
+            };
+        } | {
+            /** @constant */
             code: "store.newer-schema";
             params: {
                 found: number;
@@ -737,6 +952,12 @@ export interface components {
                 agent: string;
                 error: string;
             };
+        } | {
+            /** @constant */
+            code: "launch.gh-login";
+            params: {
+                error: string | null;
+            };
         };
         RunInput: {
             id: string;
@@ -804,6 +1025,27 @@ export interface components {
         };
         RunsEventInput: {
             runs: components["schemas"]["RunInput"][];
+        };
+        DraftInfoInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            bytes: number;
+        };
+        DraftInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            workflow: unknown;
+        };
+        DraftSavedInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            bytes: number;
+            overwrote: boolean;
         };
         SchemaVersion: number;
         Sha256: string;
@@ -977,6 +1219,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "draft.too-large";
+            params: {
+                id: string;
+                bytes: number;
+                limit: number;
+            };
+        } | {
+            /** @constant */
             code: "store.newer-schema";
             params: {
                 found: number;
@@ -1154,6 +1410,12 @@ export interface components {
                 agent: string;
                 error: string;
             };
+        } | {
+            /** @constant */
+            code: "launch.gh-login";
+            params: {
+                error: string | null;
+            };
         };
         Run: {
             id: string;
@@ -1221,6 +1483,27 @@ export interface components {
         };
         RunsEvent: {
             runs: components["schemas"]["Run"][];
+        };
+        DraftInfo: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            bytes: number;
+        };
+        Draft: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256"];
+            workflow: unknown;
+        };
+        DraftSaved: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256"];
+            bytes: number;
+            overwrote: boolean;
         };
     };
     responses: never;

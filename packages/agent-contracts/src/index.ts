@@ -26,6 +26,12 @@ export interface Launch {
    * (`required_vars` in https://github.com/libuv/libuv/blob/v1.x/src/win/process.c).
    */
   readonly env: Readonly<Record<string, string>>;
+  /** The worker's own temporary folder, apart from every other worker's. */
+  readonly tmpDir: string;
+  /** Absolute paths the agent's shell commands and file tools must not read: account homes and credential folders. */
+  readonly denyRead: readonly string[];
+  /** Hosts the agent's shell commands may reach; every other host is refused. */
+  readonly allowedDomains: readonly string[];
   /** CLI versions whose contract check passed: an undocumented reading such as usage is reported on these only. */
   readonly verifiedVersions: readonly string[];
 }

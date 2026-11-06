@@ -199,6 +199,19 @@ test("a window that has reset since its last reading counts as 0 percent used, s
   expect(now).toMatchObject({ ok: true, account: { name: "two" }, candidates: [{}, { margin: 92 }, {}] });
 });
 
+test("a reset 5-hour window does not lift an account whose 7-day window is still known and below its minimum", () => {
+  const readings = [...used("one", 95, 0, EARLIER).slice(0, 1), ...used("one", 0, 99).slice(1)];
+  expect(selectAccount(registry, main, readings, NOW)).toEqual({
+    ok: false,
+    reason: "no-headroom",
+    candidates: [
+      { account: "one", margin: -2 },
+      { account: "two", margin: null },
+      { account: "three", margin: null },
+    ],
+  });
+});
+
 test("with no known reading in the pool nothing switches: the task stays on its account, else the first", () => {
   const stays = (previous: string | null, readings: Reading[] = []) =>
     selectAccount(registry, { ...main, previous }, readings, NOW);

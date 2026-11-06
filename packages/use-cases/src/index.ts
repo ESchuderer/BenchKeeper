@@ -46,6 +46,7 @@ export {
   cancelRun,
   type GraphOutcome,
   listGraphRuns,
+  planGraphRun,
   type RunOptions,
   resumeRun,
   runWorkflow,

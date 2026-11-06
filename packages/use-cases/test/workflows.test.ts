@@ -1,13 +1,21 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { type Json, WorkflowDefinition } from "@cedarloom/contracts";
 import { OUTPUT_CAP } from "@cedarloom/engine";
 import { openGraphStore } from "@cedarloom/ledger";
-import { cancelRun, listGraphRuns, type RunOptions, resumeRun, runWorkflow, showGraphRun } from "@cedarloom/use-cases";
+import {
+  cancelRun,
+  listGraphRuns,
+  planGraphRun,
+  type RunOptions,
+  resumeRun,
+  runWorkflow,
+  showGraphRun,
+} from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 
 type Node = WorkflowDefinition["nodes"][number];
@@ -69,7 +77,7 @@ const until = async (done: () => boolean, ms = 10_000): Promise<void> => {
   for (const end = Date.now() + ms; !done() && Date.now() < end; ) await new Promise((go) => setTimeout(go, 50));
 };
 const statusOf = async (state: string, runId: string) => {
-  const shown = await showGraphRun(state, runId);
+  const shown = showGraphRun(state, runId);
   return shown.ok ? shown.value.run.status : shown.finding.code;
 };
 
@@ -183,6 +191,7 @@ test("a run is refused before it starts: no shell, a node type that does not run
   db.exec("PRAGMA user_version = 99");
   db.close();
   expect(codeOf(await runWorkflow(read.state, read.file, {}, read.options))).toBe("store.newer-schema");
+  expect(codeOf(listGraphRuns(read.state))).toBe("store.newer-schema");
 });
 
 test("a resume says why a stored run no longer starts, and refuses a journal it cannot trust", async () => {
@@ -220,23 +229,25 @@ test("a cancel ends a run: its runner stops it, and a run no process runs is tak
   // A runner that died after a started: the cancel takes the run over, and a's attempt ends interrupted with its pid.
   const dead = await runner(at, 1);
   await dead.exited;
+  // A read probes the dead runner's lease without taking it.
+  expect(await statusOf(at.state, dead.runId)).toBe("interrupted");
   expect(await cancelRun(at.state, dead.runId, at.options)).toEqual({
     ok: true,
     value: { runId: dead.runId, status: "cancelled" },
   });
-  expect(await showGraphRun(at.state, dead.runId)).toMatchObject({
+  expect(showGraphRun(at.state, dead.runId)).toMatchObject({
     value: { attempts: [{ node: "a", attempt: 1, state: "interrupted", pid: expect.any(Number) }] },
   });
   expect(codeOf(await cancelRun(at.state, dead.runId, at.options))).toBe("run.finished");
   // A resume or cancel from another folder is refused: the run's commands run only in its own.
-  const elsewhere = { ...at.options, project: join(at.root, "elsewhere") };
+  const elsewhere = { ...at.options, project: at.state };
   expect(codeOf(await resumeRun(at.state, dead.runId, elsewhere))).toBe("run.project-mismatch");
   expect(codeOf(await cancelRun(at.state, dead.runId, elsewhere))).toBe("run.project-mismatch");
   expect(await cancelRun(at.state, "nope", at.options)).toEqual(refused("run.not-found", { runId: "nope" }));
   expect(await statusOf(at.state, "nope")).toBe("run.not-found");
-  const listed = await listGraphRuns(at.state);
+  const listed = listGraphRuns(at.state);
   expect(listed.ok && listed.value.map((run) => run.id)).toEqual([dead.runId, live.runId]);
-  expect([await listGraphRuns(join(at.root, "none")), await statusOf(join(at.root, "none"), "x")]).toEqual([
+  expect([listGraphRuns(join(at.root, "none")), await statusOf(join(at.root, "none"), "x")]).toEqual([
     { ok: true, value: [] },
     "run.not-found",
   ]);
@@ -252,20 +263,24 @@ test("inputs given as text are read for number, boolean and json inputs; text th
     { count: "3", loud: "true", data: '{"a":1}', name: "3" },
     at.options,
   );
-  const shown = await showGraphRun(at.state, run.ok ? run.value.runId : "");
+  const shown = showGraphRun(at.state, run.ok ? run.value.runId : "");
   expect(shown).toMatchObject({ value: { run: { inputs: { count: 3, loud: true, data: { a: 1 }, name: "3" } } } });
   expect(codeOf(await runWorkflow(at.state, at.file, { count: "three" }, at.options))).toBe("run.input-invalid");
+  // 1e400 parses to Infinity, which no JSON value holds: a json input keeps the text, a number input refuses it.
+  expect(codeOf(await runWorkflow(at.state, at.file, { count: "1e400" }, at.options))).toBe("run.input-invalid");
+  expect(codeOf(await runWorkflow(at.state, at.file, { data: "1e400" }, at.options))).toBe("ok");
 });
 
 test("a resume stops what a runner that died left running, and leaves a later process with that pid alone", async () => {
   const at = project([command("a", "echo > running.txt; sleep 30")], "t.start>a.run");
   const left = await runner(at, 0);
   await until(() => existsSync(join(at.root, "running.txt")));
-  const shown = await showGraphRun(at.state, left.runId);
+  const shown = showGraphRun(at.state, left.runId);
   const pid = (shown.ok && shown.value.attempts[0]?.pid) || 0;
   left.child.kill("SIGKILL");
   await left.exited;
-  expect(alive(pid)).toBe(true);
+  // On Windows the job object Node puts a child in ends it with the runner (seen on the Windows CI leg).
+  expect(alive(pid)).toBe(process.platform !== "win32");
   expect(await resumeRun(at.state, left.runId, at.options)).toMatchObject({ value: { status: "failed" } });
   await until(() => !alive(pid));
   expect(alive(pid)).toBe(false);
@@ -294,4 +309,27 @@ test("a resume stops what a runner that died left running, and leaves a later pr
   await until(() => later.signalCode !== null, 1000);
   expect(later.signalCode).toBeNull();
   later.kill();
+}, 30_000);
+
+test("a project folder that is not there refuses a run and a resume before anything starts; a cancel still ends it", async () => {
+  const at = project([command("a", "sleep 30")], "t.start>a.run");
+  const work = join(at.root, "work");
+  mkdirSync(work);
+  const dead = await runner({ ...at, root: work }, 1);
+  await dead.exited;
+  renameSync(work, `${work}-moved`);
+  const recorded = { sleep: now };
+  expect(await resumeRun(at.state, dead.runId, recorded)).toEqual(refused("run.project-missing", { project: work }));
+  expect(codeOf(await resumeRun(at.state, dead.runId, { ...recorded, project: `${work}-moved` }))).toBe(
+    "run.project-mismatch",
+  );
+  expect(await statusOf(at.state, dead.runId)).toBe("interrupted");
+  // The plan of a resume or cancel says why the folder is no good, and which attempt is left running.
+  expect(planGraphRun(at.state, dead.runId)).toMatchObject({
+    value: { project: { ok: false }, attempts: [{ node: "a", state: "running", pid: expect.any(Number) }] },
+  });
+  expect(codeOf(planGraphRun(at.state, "nope"))).toBe("run.not-found");
+  expect(await cancelRun(at.state, dead.runId, recorded)).toMatchObject({ value: { status: "cancelled" } });
+  expect(codeOf(await runWorkflow(at.state, at.file, {}, { ...recorded, project: work }))).toBe("run.project-missing");
+  expect(listGraphRuns(at.state)).toMatchObject({ value: [{ id: dead.runId }] });
 }, 30_000);

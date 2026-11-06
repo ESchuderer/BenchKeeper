@@ -1,12 +1,19 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Plan, WorkflowDefinition } from "@cedarloom/contracts";
-import { type GraphStore, type NewGraphRun, openGraphStore, openRunStore, planHash } from "@cedarloom/ledger";
+import {
+  type GraphStore,
+  type NewGraphRun,
+  openGraphStore,
+  openGraphView,
+  openRunStore,
+  planHash,
+} from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
 import { failCommits } from "./helpers.ts";
 
@@ -275,9 +282,26 @@ test("a store of schema 8 gains the project folder when a graph store opens it, 
     ok: false,
     finding: { code: "store.network-filesystem", params: { dir, fsType: "nfs4" } },
   });
+  // A read neither migrates nor writes: the view reads schema 8 as it is, and leaves a dead runner's lock file.
+  const left = join(dir, "leases", `${before.runId}.1.lock`);
+  writeFileSync(left, "");
+  const seen = (id: string) => {
+    const view = openGraphView(dir);
+    const run = view.ok ? view.value?.graphRun(id) : undefined;
+    if (view.ok) view.value?.close();
+    return run;
+  };
+  expect(seen(before.runId)).toMatchObject({ project: null, status: "interrupted" });
+  expect([rows(dir, "PRAGMA user_version"), existsSync(left)]).toEqual([[{ user_version: 8 }], true]);
+  rmSync(left);
+  expect(seen(before.runId)).toMatchObject({ status: "interrupted" });
   const store = graphs(dir);
   expect(store.graphRun(before.runId)).toMatchObject({ project: null, status: "interrupted" });
-  expect(store.graphRun(store.create(manual).runId)).toMatchObject({ project: "/work/lint", status: "running" });
+  const { runId } = store.create(manual);
+  expect([store.graphRun(runId), seen(runId)]).toMatchObject([
+    { project: "/work/lint", status: "running" },
+    { status: "running" },
+  ]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   expect([after.prepare("PRAGMA user_version").get(), after.prepare("SELECT count(*) AS n FROM runs").get()]).toEqual([
     { user_version: 9 },
@@ -317,6 +341,11 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
   ]);
   store.prune(90);
   vi.useRealTimers();
+  // A second prune finds nothing left to blank, and rewrites nothing.
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("CREATE TRIGGER kept BEFORE UPDATE ON run_events BEGIN SELECT RAISE(ABORT, 'rewritten'); END");
+  db.close();
+  expect(() => store.prune(90)).not.toThrow();
   const kept = (runId: string) => JSON.stringify(store.events(runId)).includes("secret");
   expect([kept(old), kept(running), kept(recent)]).toEqual([false, true, true]);
   expect(store.events(old)).toMatchObject({
@@ -328,4 +357,19 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
     '{"stdout":"secret"}',
     '{"stdout":"secret"}',
   ]);
+});
+
+test("a view of graph runs is none without a store or before the graph runs, and refuses a newer store", () => {
+  const dir = fresh();
+  expect(openGraphView(dir)).toEqual({ ok: true, value: null });
+  applyRunIn(dir);
+  open.splice(0).forEach((store) => store.close());
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec(
+    "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; PRAGMA user_version = 7",
+  );
+  expect(openGraphView(dir)).toEqual({ ok: true, value: null });
+  db.exec("PRAGMA user_version = 99");
+  db.close();
+  expect(openGraphView(dir)).toMatchObject({ ok: false, finding: { code: "store.newer-schema" } });
 });

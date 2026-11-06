@@ -117,6 +117,21 @@ export const newLease = (dir: string, name: string): LeaseLock => {
 
 /** Whether a process holds the lease lock `name` in the store `dir`. */
 export const leaseHeld = (dir: string, name: string): boolean => lockHeld(leaseLockPath(dir, name));
+
+/** `leaseHeld` for a read: a shared lock is tried and given back, and no file is made or removed. */
+export const leaseSeen = (dir: string, name: string): boolean => {
+  const path = leaseLockPath(dir, name);
+  if (!existsSync(path)) return false;
+  const probe = new DatabaseSync(path, { readOnly: true });
+  try {
+    probe.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master");
+    return false;
+  } catch {
+    return true;
+  } finally {
+    probe.close();
+  }
+};
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -610,10 +625,17 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
 
 /** Opens a store for reading; null when no run was ever recorded in `dir`. */
 export const openRunView = (dir: string): Result<RunView | null> => {
+  const opened = openReadOnly(dir);
+  if (!opened.ok) return opened;
+  return { ok: true, value: opened.value === null ? null : new RunView(dir, opened.value.db) };
+};
+
+/** The store in `dir` opened for reading only, with its schema version; null when no run was ever recorded. */
+export const openReadOnly = (dir: string): Result<{ db: DatabaseSync; version: number } | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true, timeout: SETTLE_MS });
   const found = versionOf(db);
-  if (found > 0 && found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
+  if (found > 0 && found <= SCHEMA) return { ok: true, value: { db, version: found } };
   db.close();
   // Version 0: a first open created the file but not (yet) its schema, so no run was ever recorded.
   if (found === 0) return { ok: true, value: null };

@@ -25,15 +25,42 @@ export const workflowsRun = async (
   project: string,
 ): Promise<number> => ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, runOptions(ctx, project)));
 
-export const runsResume = async (ctx: Context, runId: string, project?: string): Promise<number> =>
-  ran(ctx, await useCases.resumeRun(ctx.state, runId, runOptions(ctx, project)));
+// Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
+const preview = (ctx: Context, runId: string, project: string | undefined, verb: "resume" | "cancel"): number => {
+  const plan = useCases.planGraphRun(ctx.state, runId, project);
+  if (!plan.ok) return fail(ctx, "run", [plan.finding], EXIT.refused);
+  const { run, attempts, project: folder } = plan.value;
+  const refused = !folder.ok && (verb === "resume" || folder.finding.code === "run.project-mismatch");
+  if (refused) return fail(ctx, "run", [folder.finding], EXIT.refused);
+  const where = folder.ok ? `, in ${folder.value}` : "";
+  const left = attempts.map((each) => `  ${each.node}#${each.attempt}  pid ${each.pid ?? "none"}`);
+  const lines = [
+    `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}${where}.`,
+    ...(left.length > 0 ? ["Left running, to be stopped and ended interrupted:", ...left] : []),
+    `Nothing changed. Run the command again with --yes to ${verb} it.`,
+  ];
+  emit(ctx, "run", { run, attempts }, lines.join("\n"));
+  return EXIT.ok;
+};
 
-export const runsCancel = async (ctx: Context, runId: string, project?: string): Promise<number> =>
-  ran(ctx, await useCases.cancelRun(ctx.state, runId, runOptions(ctx, project)));
+export const runsResume = async (ctx: Context, runId: string, options: Acting): Promise<number> =>
+  options.yes === true
+    ? ran(ctx, await useCases.resumeRun(ctx.state, runId, runOptions(ctx, options.project)))
+    : preview(ctx, runId, options.project, "resume");
+
+export const runsCancel = async (ctx: Context, runId: string, options: Acting): Promise<number> =>
+  options.yes === true
+    ? ran(ctx, await useCases.cancelRun(ctx.state, runId, runOptions(ctx, options.project)))
+    : preview(ctx, runId, options.project, "cancel");
+
+interface Acting {
+  readonly project?: string | undefined;
+  readonly yes?: true | undefined;
+}
 
 /** A graph run and its attempts, each with the process it started: one that ended interrupted may still run. */
-export const graphRunShow = async (ctx: Context, runId: string): Promise<number> => {
-  const shown = await useCases.showGraphRun(ctx.state, runId);
+export const graphRunShow = (ctx: Context, runId: string): number => {
+  const shown = useCases.showGraphRun(ctx.state, runId);
   if (!shown.ok) return fail(ctx, "run", [shown.finding], EXIT.refused);
   const { run, attempts } = shown.value;
   const lines = attempts.map((each) => {

@@ -646,7 +646,11 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
     return lease.runId;
   });
   store.value.close();
-  expect(await cli("runs", "resume", one, "--project", root)).toEqual({
+  // Without --yes a resume or a cancel shows what it would do, and changes nothing.
+  const plan = "Left running, to be stopped and ended interrupted:\n  a#1  pid 4242\nNothing changed. Run the command";
+  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(`${plan} again with --yes to resume it.`);
+  expect((await cli("runs", "cancel", two)).out).toContain(`${plan} again with --yes to cancel it.`);
+  expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
     code: EXIT.refused,
     out: `Run ${one}: failed.\n`,
     err: "",
@@ -654,7 +658,7 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
   expect((await cli("runs", "show", one)).out).toMatch(/a#1 +interrupted +pid 4242/);
   // A resume or cancel runs only in the run's own folder.
   expect((await cli("runs", "cancel", two, "--project", state)).err).toContain(`runs in ${realpathSync(root)}, not in`);
-  expect((await cli("runs", "cancel", two)).out).toBe(`Run ${two}: cancelled.\n`);
+  expect((await cli("runs", "cancel", two, "--yes")).out).toBe(`Run ${two}: cancelled.\n`);
   expect((await cli("runs", "list")).out.trim().split("\n")).toHaveLength(2);
   // Ctrl+C while a run runs cancels it.
   const slow = planFile(
@@ -665,6 +669,7 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
   const stopping = setup(new Promise((resolve) => setTimeout(resolve, 500)));
   expect((await stopping.cli("workflows", "run", slow, "--project", root)).out).toMatch(/: cancelled\.\n$/);
   expect((await cli("runs", "resume", "nope")).code).toBe(EXIT.refused);
+  expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);
   expect((await cli("workflows", "run", file, "--input", "Ada")).code).toBe(EXIT.usage);
   expect((await cli("workflows", "run", join(root, "none.json"))).code).toBe(EXIT.noInput);
 });

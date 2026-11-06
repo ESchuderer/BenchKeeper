@@ -25,11 +25,14 @@ const startOf = (pid: number): number => {
     /* v8 ignore start -- Windows only; the Windows CI leg runs it */
     if (process.platform === "win32") {
       const time = `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString("o")`;
-      return Date.parse(execFileSync("powershell.exe", ["-NoProfile", "-Command", time], { encoding: "utf8" }));
+      const root = process.env["SystemRoot"] ?? "C:\\Windows";
+      const powershell = win32.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+      return Date.parse(execFileSync(powershell, ["-NoProfile", "-Command", time], { encoding: "utf8" }));
     }
     /* v8 ignore stop */
     const env = { ...cleanEnv(process.env, process.platform), LC_ALL: "C" };
-    return Date.parse(execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env }));
+    // By its path: a `ps` found on PATH could be any program.
+    return Date.parse(execFileSync("/bin/ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env }));
   } catch {
     return Number.NaN;
   }

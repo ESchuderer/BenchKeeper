@@ -69,24 +69,26 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   runs
     .command("list")
     .description("list the runs, newest first")
-    .action(async () => done(await runsList(ctx())));
+    .action(() => done(runsList(ctx())));
   runs
     .command("show")
     .description("show a run and its steps, or a graph run and its attempts")
     .argument("<run>")
-    .action(async (run) => done(await runsShow(ctx(), run)));
+    .action((run) => done(runsShow(ctx(), run)));
   runs
     .command("resume")
-    .description("take over a graph run no process runs, and run it to its end; Ctrl+C cancels it")
+    .description("show what resuming a graph run does; with --yes, take it over and run it to its end (Ctrl+C cancels)")
     .argument("<run>")
     .option("--project <folder>", STORED)
-    .action(async (run, options) => done(await runsResume(ctx(), run, options.project)));
+    .option("--yes", "resume as planned now")
+    .action(async (run, options) => done(await runsResume(ctx(), run, options)));
   runs
     .command("cancel")
-    .description("cancel a graph run: the process that runs it stops it, or this one ends a run no process runs")
+    .description("show what cancelling a graph run does; with --yes, its runner stops it, or this process ends it")
     .argument("<run>")
     .option("--project <folder>", STORED)
-    .action(async (run, options) => done(await runsCancel(ctx(), run, options.project)));
+    .option("--yes", "cancel as planned now")
+    .action(async (run, options) => done(await runsCancel(ctx(), run, options)));
   runs
     .command("undo")
     .description("show the undo plan of a run; with --yes, apply it as a run of its own")

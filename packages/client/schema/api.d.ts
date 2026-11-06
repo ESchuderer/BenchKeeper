@@ -790,6 +790,20 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "run.project-mismatch";
+            params: {
+                runId: string;
+                project: string;
+                given: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.project-missing";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1534,6 +1548,20 @@ export interface components {
             /** @constant */
             code: "run.shell-missing";
             params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "run.project-mismatch";
+            params: {
+                runId: string;
+                project: string;
+                given: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.project-missing";
+            params: {
+                project: string;
+            };
         } | {
             /** @constant */
             code: "undo.file-edited";

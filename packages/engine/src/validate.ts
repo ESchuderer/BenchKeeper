@@ -5,7 +5,7 @@ import {
   NODE_CONFIGS,
   type WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { type ActionCatalog, compatibility, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
+import { type ActionCatalog, compatibility, LATER_TYPES, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
@@ -65,6 +65,8 @@ const nodeFindings = ({ nodes, actions }: Graph): Finding[] => {
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
     ...nodes.flatMap((node): Finding[] => {
+      if (LATER_TYPES.has(node.type))
+        return [{ code: "run.node-unsupported", params: { node: node.id, type: node.type } }];
       const issues = configIssues(node, actions);
       if (!Array.isArray(issues)) return [issues];
       return issues.length === 0 ? [] : [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];
@@ -202,7 +204,7 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 };
 
 /**
- * A28: a run a schedule starts only reports in 0.1.0, so its workflow has no node that may write a file: no file.write,
+ * A28: a run a schedule starts only reports, so its workflow has no node that may write a file: no file.write,
  * and no workflow.run, whose child the validator cannot see. No extension action either, which may write through the
  * host or change other systems (pending owner decision).
  */
@@ -286,8 +288,8 @@ const valid = ({ from, to }: Item): boolean => typeof from === "string" && typeo
 /**
  * The findings of a workflow's graph, beyond its schema: duplicate ids, one trigger, known node types, edges between
  * existing, compatible handles, one source per data input and output, joins with branches, no cycle, and every node
- * reached. Edges of nodes of an unknown type, or of an extension action `actions` lacks, get no further findings. None with
- * severity `error`: the editor and the CLI accept the workflow.
+ * reached, and no node type that waits until after 0.1.0. Edges of nodes of an unknown type, or of an extension action
+ * `actions` lacks, get no further findings. None with severity `error`: the editor and the CLI accept the workflow.
  */
 export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCatalog = new Map()): Finding[] => {
   const [nodes, edges] = [unique(workflow.nodes), unique(workflow.edges)];

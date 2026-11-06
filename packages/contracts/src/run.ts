@@ -96,9 +96,24 @@ export const GraphRun = z.object({
   status: z.enum([...RunStatus.options, "waiting", "interrupted"]),
   parentRun: z.uuid().nullable(),
   parentNode: WorkflowId.nullable(),
+  /** The real path of the project folder its commands run in; null on a run recorded before it was. */
+  project: z.string().nullable(),
+  /** The process that holds the run, or held it last. */
+  pid: z.int().positive(),
   /** 1 for the run's first runner, raised by each takeover. */
   epoch: z.int().positive(),
   startedAt: z.iso.datetime(),
   finishedAt: z.iso.datetime().nullable(),
 });
 export type GraphRun = z.infer<typeof GraphRun>;
+
+/** An attempt of a node as the ledger keeps it; `pid` is the process it started, if it started one. */
+export const NodeAttempt = z.object({
+  node: WorkflowId,
+  attempt: Attempt,
+  state: z.enum(["running", ...AttemptOutcome.options]),
+  pid: z.int().positive().nullable(),
+  startedAt: z.iso.datetime(),
+  finishedAt: z.iso.datetime().nullable(),
+});
+export type NodeAttempt = z.infer<typeof NodeAttempt>;

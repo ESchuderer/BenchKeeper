@@ -43,10 +43,14 @@ export const Finding = z
     finding("run.finished", { runId: z.string(), status: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
-    // A node type this CedarLoom does not run yet; nothing of the run starts.
+    // A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts.
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
-    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe; pending owner decision).
+    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
+    // A resume or cancel named another project folder than the run's own; its commands run only there.
+    finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
+    // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
+    finding("run.project-missing", { project: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -192,6 +196,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },
+  "run.project-mismatch": { severity: "error", effort: "manual" },
+  "run.project-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

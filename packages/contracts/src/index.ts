@@ -49,6 +49,7 @@ export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export {
   AttemptOutcome,
   GraphRun,
+  NodeAttempt,
   JournalEvent,
   NodeRun,
   NodeState,
@@ -83,6 +84,7 @@ export {
   formatWorkflow,
   HandleType,
   JoinConfig,
+  JsonValue,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
   WorkflowId,

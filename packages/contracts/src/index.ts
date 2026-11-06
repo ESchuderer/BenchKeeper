@@ -37,7 +37,14 @@ export {
 } from "./api.ts";
 export { type Result, readDocument } from "./documents.ts";
 export { canonicalJson, type Json } from "./json.ts";
-export { LaunchRecord, RunLabels, Verdict, WORKER_RESULT_SCHEMA_VERSION, WorkerResult } from "./launch.ts";
+export {
+  LaunchPlugins,
+  LaunchRecord,
+  RunLabels,
+  Verdict,
+  WORKER_RESULT_SCHEMA_VERSION,
+  WorkerResult,
+} from "./launch.ts";
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export {
   AttemptOutcome,
@@ -61,7 +68,11 @@ export {
   ExtensionLock,
   ExtensionManifest,
   FORBIDDEN_HEADERS,
+  formatInstalled,
+  GitRef,
   GitUrl,
+  INSTALLED_SCHEMA_VERSION,
+  InstalledExtensions,
   isExtensionType,
   LOCK_SCHEMA_VERSION,
   PortablePath,

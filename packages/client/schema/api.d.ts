@@ -1166,6 +1166,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.plugin-none";
+            params: {
+                plugin: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-not-loaded";
+            params: {
+                plugin: string;
+                errors: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1204,11 +1218,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.install-refused";
+            params: {
+                extension: string | null;
+                /** @enum {string} */
+                reason: "no-manifest" | "entry" | "protocol" | "installed";
+            };
+        } | {
+            /** @constant */
             code: "extension.failed";
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run";
                 error: string;
             };
         } | {
@@ -1890,6 +1912,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.plugin-none";
+            params: {
+                plugin: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-not-loaded";
+            params: {
+                plugin: string;
+                errors: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1928,11 +1964,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.install-refused";
+            params: {
+                extension: string | null;
+                /** @enum {string} */
+                reason: "no-manifest" | "entry" | "protocol" | "installed";
+            };
+        } | {
+            /** @constant */
             code: "extension.failed";
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run";
                 error: string;
             };
         } | {

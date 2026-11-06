@@ -38,6 +38,16 @@ export interface Launch {
   readonly allowedDomains: readonly string[];
   /** CLI versions whose contract check passed: an undocumented reading such as usage is reported on these only. */
   readonly verifiedVersions: readonly string[];
+  /** Plugin folders the session loads, on every start and resume; none when empty. */
+  readonly pluginDirs: readonly string[];
+}
+
+/** What a session's init line says of its plugins: the ones loaded, every skill offered, and each plugin's error. */
+export interface InitPlugins {
+  readonly loaded: readonly string[];
+  readonly skills: readonly string[];
+  /** `<plugin>: <message>` per plugin that failed to load. */
+  readonly errors: readonly string[];
 }
 
 /** One usage window as the agent reported it. */
@@ -70,6 +80,8 @@ export type AgentEvent =
       readonly tools: readonly string[] | null;
       /** Whether this session's own init line proves that the CLI applied the launch's settings, sandbox included. */
       readonly settingsApplied: boolean;
+      /** The plugins the init line names; null when it names none of these fields. */
+      readonly plugins: InitPlugins | null;
       readonly raw: Json;
     }
   | {

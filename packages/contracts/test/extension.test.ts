@@ -6,6 +6,9 @@ import {
   EXTENSION_SCHEMA_VERSION,
   ExtensionLock,
   ExtensionManifest,
+  formatInstalled,
+  INSTALLED_SCHEMA_VERSION,
+  InstalledExtensions,
   isExtensionType,
   LOCK_SCHEMA_VERSION,
   readDocument,
@@ -32,6 +35,7 @@ const formats: Record<string, (value: unknown) => Result<unknown>> = {
   ExtensionManifest: (value) => readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, value),
   ExtensionLock: (value) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, value),
   ExportIndex: (value) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, value),
+  InstalledExtensions: (value) => readDocument(InstalledExtensions, INSTALLED_SCHEMA_VERSION, value),
 };
 
 const issuePaths = (result: Result<unknown>): string[] =>
@@ -207,6 +211,26 @@ const lockChanges: Change[] = [
   ],
 ];
 
+const installed = await read("corpus/InstalledExtensions/1/valid-installed.json");
+const installedChanges: Change[] = [
+  ["a ref with refspec syntax", [...jira, "ref"], "main:refs/heads/x", true],
+  ["a ref that climbs", [...jira, "ref"], "release/../main", false],
+  ["a ref git keeps for a lock", [...jira, "ref"], "release.lock", false],
+  ["a consent that is no hash", [...jira, "consented"], "all", true],
+  ["no consent", [...jira, "consented"], undefined, true],
+];
+
+test("the installed extensions are written in one form, extensions by id, and read back as they were", () => {
+  const parsed = InstalledExtensions.parse(installed);
+  const reversed = { ...parsed, extensions: Object.fromEntries(Object.entries(parsed.extensions).toReversed()) };
+  const text = formatInstalled(reversed);
+  expect([Object.keys(JSON.parse(text).extensions), JSON.parse(text), text.endsWith("}\n")]).toEqual([
+    ["acme.jira", "acme.tools"],
+    installed,
+    true,
+  ]);
+});
+
 const indexChanges: Change[] = [
   ["a workflow twice in another case", ["workflows"], ["nightly-report", "Nightly-Report"], false],
   ["a workflow twice", ["workflows"], ["nightly-report", "nightly-report"], true],
@@ -218,6 +242,7 @@ describe.each([
   ["ExtensionManifest", manifest, manifestChanges],
   ["ExtensionLock", lock, lockChanges],
   ["ExportIndex", index, indexChanges],
+  ["InstalledExtensions", installed, installedChanges],
 ] as const)("%s refuses one change to a valid file", (name, valid, changes) => {
   test.for(changes)("%s", ([, path, value, schemaToo, issue = path.join(".")]) => {
     const changed = set(valid, path, value);

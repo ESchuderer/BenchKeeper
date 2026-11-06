@@ -2591,6 +2591,66 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "doctor.plugin-none"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "commit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.plugin-not-loaded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "errors": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "errors"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.managed-settings-unreadable"
               },
               "params": {
@@ -2762,6 +2822,45 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.install-refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "no-manifest",
+                      "entry",
+                      "protocol",
+                      "installed"
+                    ]
+                  }
+                },
+                "required": [
+                  "extension",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.failed"
               },
               "params": {
@@ -2773,6 +2872,7 @@
                   "step": {
                     "type": "string",
                     "enum": [
+                      "stage",
                       "start",
                       "initialize",
                       "run"
@@ -5924,6 +6024,66 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "doctor.plugin-none"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "commit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.plugin-not-loaded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "errors": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "errors"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.managed-settings-unreadable"
               },
               "params": {
@@ -6095,6 +6255,45 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.install-refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "no-manifest",
+                      "entry",
+                      "protocol",
+                      "installed"
+                    ]
+                  }
+                },
+                "required": [
+                  "extension",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.failed"
               },
               "params": {
@@ -6106,6 +6305,7 @@
                   "step": {
                     "type": "string",
                     "enum": [
+                      "stage",
                       "start",
                       "initialize",
                       "run"

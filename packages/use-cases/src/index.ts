@@ -1,4 +1,5 @@
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
+export { type Fetch, type InstallPlan, installedExtensions, planInstall } from "./extensions.ts";
 export { isConfirmed } from "@cedarloom/accounts";
 export {
   automationSettings,
@@ -46,3 +47,4 @@ export {
   undoRun,
 } from "./use-cases.ts";
 export { findShell, type GraphOutcome, type RunOptions, resumeRun, runWorkflow } from "./workflows.ts";
+export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";

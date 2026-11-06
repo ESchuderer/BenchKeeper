@@ -27,6 +27,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allowedDomains: ["github.com"],
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
+  pluginDirs: [],
   ...change,
 });
 
@@ -45,23 +46,25 @@ const stream = (name: string) => ({ FAKE_STREAM: join(fixtures, name) });
 // A launch as it arrives from JSON, such as settings or a shared workflow, where the types check nothing.
 const fromJson = (change: Record<string, string>) => z.custom<ClaudeLaunch>().parse({ ...launch({}), ...change });
 
+// Variables that select a login, which never reach the CLI.
+const LOGIN_VARIABLES = {
+  ANTHROPIC_API_KEY: "k",
+  CLAUDE_CODE_OAUTH_TOKEN: "t",
+  anthropic_auth_token: "a",
+  CLAUDE_CODE_USE_BEDROCK: "1",
+};
+
 test("runs claude -p with stream-json under the account's config folder, in the worker environment", async () => {
-  const login = {
-    ANTHROPIC_API_KEY: "k",
-    CLAUDE_CODE_OAUTH_TOKEN: "t",
-    anthropic_auth_token: "a",
-    CLAUDE_CODE_USE_BEDROCK: "1",
-  };
   const env = {
     ...stream("stream.jsonl"),
-    ...login,
+    ...LOGIN_VARIABLES,
     CLAUDE_CODE_SIMPLE: "1",
     claude_config_dir: "/elsewhere",
     KEEP: "yes",
     CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
   };
   vi.stubEnv("CEDARLOOM_PARENT_ONLY", "1");
-  const all = await events(runtime.start(launch(env)));
+  const all = await events(runtime.start(launch(env, { pluginDirs: [join(fixtures, "plugins", "workflow")] })));
   vi.unstubAllEnvs();
   const fake = started(all);
   const flags = ["-p", "--output-format", "stream-json", "--verbose", "--include-hook-events"];
@@ -73,11 +76,13 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    "--plugin-dir",
+    join(fixtures, "plugins", "workflow"),
     "--add-dir",
     join(fixtures, "out"),
+    join(fixtures, "plugins", "workflow"),
   ]);
-  expect(fake.args).not.toContain("--bare");
-  expect(fake.prompt).toBe("Do the task.");
+  expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
     KEEP: "yes",
     CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
@@ -90,7 +95,12 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: "4",
     CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
   });
-  for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "CEDARLOOM_PARENT_ONLY", ...Object.keys(login)]) {
+  for (const name of [
+    "CLAUDE_CODE_SIMPLE",
+    "claude_config_dir",
+    "CEDARLOOM_PARENT_ONLY",
+    ...Object.keys(LOGIN_VARIABLES),
+  ]) {
     expect(fake.env).not.toHaveProperty(name);
   }
 });
@@ -145,6 +155,14 @@ test("maps the stream-json lines to events", async () => {
   const all = await events(runtime.start(launch(stream("stream.jsonl"))));
   expect(all.slice(1).map((event) => event.type)).toEqual(["init", "other", "usage", "other", "result", "exit"]);
   expect(all[1]).toMatchObject({ sessionId: "00000000-0000-4000-8000-000000000001", agentVersion: "2.1.316" });
+  // The plugins, skills and plugin errors the init line names (documented in the Agent SDK's SDKSystemMessage).
+  expect(all[1]).toMatchObject({
+    plugins: {
+      loaded: ["workflow"],
+      skills: ["workflow:workflow", "workflow:tier", "review"],
+      errors: ["extra: no plugin.json"],
+    },
+  });
   expect(all[3]).toMatchObject({
     agentVersion: "2.1.316",
     windows: [
@@ -227,6 +245,20 @@ test("the worker's own home stays closed to its file tools only where the login 
   expect(settings.sandbox.filesystem.denyRead).toEqual([fixtures, "/accounts/other"]);
 });
 
+test("plugin fields of an unknown form leave the init line an init event, with no plugins", async () => {
+  const all = await events(runtime.start(launch(stream("malformed-plugins.jsonl"))));
+  expect(all[1]).toMatchObject({ type: "init", settingsApplied: true, plugins: null });
+});
+
+test("a plugin's folder is readable to the session's file tools, and closed to their edits", async () => {
+  const plugin = launch({}, { pluginDirs: ["/state/plugins/abc/workflow"] });
+  const settings = z
+    .object({ permissions: z.object({ deny: z.array(z.string()) }) })
+    .parse(JSON.parse(started(await events(runtime.start(plugin))).args[12] ?? ""));
+  const rules = settings.permissions.deny.filter((rule) => rule.includes("/state/plugins/abc/workflow"));
+  expect(rules).toEqual(["Edit(//state/plugins/abc/workflow)", "Edit(//state/plugins/abc/workflow/**)"]);
+});
+
 test("reads no usage on a version whose contract check has not passed", async () => {
   const all = await events(runtime.start(launch(stream("stream.jsonl"), { verifiedVersions: ["2.1.315"] })));
   expect(all.map((event) => event.type)).toEqual(["other", "init", "other", "other", "other", "result", "exit"]);
@@ -239,7 +271,8 @@ test("reads the older single-window form and leaves lines it cannot read as they
   expect(all.slice(1)).toEqual([
     { type: "other", raw: "not json" },
     { type: "other", raw: expect.objectContaining({ type: "rate_limit_event" }) },
-    expect.objectContaining({ type: "init", agentVersion: "2.1.309", model: "claude-sonnet-5-5" }),
+    // An init line that names no plugins tells nothing about them.
+    expect.objectContaining({ type: "init", agentVersion: "2.1.309", model: "claude-sonnet-5-5", plugins: null }),
     expect.objectContaining({
       type: "usage",
       windows: [
@@ -313,8 +346,11 @@ test("refuses settings with a value the documented syntax does not take, which w
 });
 
 test("resumes a session by its ID", async () => {
-  const fake = started(await events(runtime.resume("00000000-0000-4000-8000-000000000001", launch({}))));
+  const resumed = launch({}, { pluginDirs: ["/state/plugins/abc/workflow"] });
+  const fake = started(await events(runtime.resume("00000000-0000-4000-8000-000000000001", resumed)));
   expect(fake.args.slice(-2)).toEqual(["--resume", "00000000-0000-4000-8000-000000000001"]);
+  // The plugin goes with every resume, as with every start.
+  expect(fake.args.join(" ")).toContain("--plugin-dir /state/plugins/abc/workflow");
   expect(() => runtime.resume("--version", launch({}))).toThrow("not a session ID: --version");
 });
 

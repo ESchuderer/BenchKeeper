@@ -1,14 +1,14 @@
 import { NotificationType, NotificationType0, RequestType, RequestType0 } from "vscode-jsonrpc";
 
 /**
- * The plugin protocol version this SDK speaks. A manifest's `api` names the version its plugin needs; the host starts a
- * plugin only for the same major version and at least that minor one.
+ * The extension protocol version this SDK speaks. A manifest's `api` names the version its extension needs; the host
+ * starts an extension only for the same major version and at least that minor one.
  */
 export const PROTOCOL = "1.0";
 
-/** The host's first request: the protocol version and the user's language, for the plugin's own texts. */
+/** The host's first request: the protocol version and the user's language, for the extension's own texts. */
 export type InitializeParams = { protocol: string; locale: string };
-/** The plugin's protocol version and the actions it serves, which the host checks against its manifest. */
+/** The extension's protocol version and the actions it serves, which the host checks against its manifest. */
 export type InitializeResult = { protocol: string; actions: string[] };
 export const initialize = new RequestType<InitializeParams, InitializeResult, void>("initialize");
 
@@ -26,7 +26,7 @@ export const runAction = new RequestType<RunParams, RunResult, void>("action/run
 export type LogParams = { run: string; level: "info" | "warning" | "error"; message: string };
 export const log = new NotificationType<LogParams>("host/log");
 
-/** The host ends a plugin with `shutdown`, then `exit`. */
+/** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");
 

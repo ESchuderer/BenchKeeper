@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
-import { exit, initialize, type LogParams, log, PROTOCOL, runAction, shutdown } from "@cedarloom/plugin-sdk";
+import { exit, initialize, type LogParams, log, PROTOCOL, runAction, shutdown } from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
   createMessageConnection,

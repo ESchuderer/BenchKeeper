@@ -13,6 +13,9 @@ catalogs:
       specifier: 4.6.7
       version: 4.6.7
 
+overrides:
+  '@anthropic-ai/sandbox-runtime>zod': 4.6.7
+
 patchedDependencies:
   thread-stream@4.2.0: 4ce497b8c4dc193cac4f5654035df6ee6af7e5fb5f7f1cf264c452371d785641
 
@@ -2665,9 +2668,6 @@ packages:
     resolution: {integrity: sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==}
     engines: {node: '>=18'}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -2693,7 +2693,7 @@ snapshots:
       '@pondwader/socks5-server': 1.0.10
       commander: 12.1.0
       node-forge: 1.4.2
-      zod: 3.25.76
+      zod: 4.6.7
 
   '@axe-core/playwright@4.14.0(playwright-core@1.64.1)':
     dependencies:
@@ -4617,8 +4617,6 @@ snapshots:
   yargs-parser@21.1.1: {}
 
   yoctocolors@2.2.0: {}
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}
 

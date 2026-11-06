@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 
 /** How the host starts an extension's process. */
@@ -29,9 +30,12 @@ let ready: Promise<void> | undefined;
 // and only a run shows it.
 let starts: Promise<boolean> | undefined;
 
-// The launch inside srt, with the policy's reads and writes; the runtime's own install stays readable.
+// srt's own install: bubblewrap runs its seccomp helper from there, which may lie in the home folder too.
+const srt = fileURLToPath(new URL("../..", import.meta.resolve("@anthropic-ai/sandbox-runtime")));
+
+// The launch inside srt, with the policy's reads and writes; the runtime's and srt's own installs stay readable.
 const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> => {
-  const allowRead = [...policy.read, dirname(dirname(launch.command))];
+  const allowRead = [...policy.read, dirname(dirname(launch.command)), srt];
   const filesystem = { denyRead: [homedir()], allowRead, allowWrite: policy.write, denyWrite: [] };
   const command = [launch.command, ...launch.args].map(quoted).join(" ");
   const { argv } = await SandboxManager.wrapWithSandboxArgv(command, undefined, { filesystem }, undefined, launch.cwd);

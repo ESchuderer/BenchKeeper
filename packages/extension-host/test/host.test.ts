@@ -517,9 +517,37 @@ const whyUnavailable = async (): Promise<string> => {
   const { dirname: up } = await import("node:path");
   const deps = await SandboxManager.checkDependenciesAsync();
   const filesystem = { denyRead: [homedir()], allowRead: [up(up(process.execPath))], allowWrite: [], denyWrite: [] };
-  const wrapped = await SandboxManager.wrapWithSandboxArgv(`'${process.execPath}' -e ''`, undefined, { filesystem }, undefined, tmpdir());
-  const ran = spawnSync(wrapped.argv[0] ?? "", wrapped.argv.slice(1), { cwd: tmpdir(), env: {}, encoding: "utf8", timeout: 30_000 });
-  return JSON.stringify({ supported: SandboxManager.isSupportedPlatform(), deps, status: ran.status, stderr: ran.stderr.slice(-1500), argv0: wrapped.argv[0], script: wrapped.argv.at(-1)?.slice(0, 600) });
+  const wrapped = await SandboxManager.wrapWithSandboxArgv(
+    `'${process.execPath}' -e ''`,
+    undefined,
+    { filesystem },
+    undefined,
+    tmpdir(),
+  );
+  const ran = spawnSync(wrapped.argv[0] ?? "", wrapped.argv.slice(1), {
+    cwd: tmpdir(),
+    env: {},
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  const keys = await sandboxRuntime().wrap(
+    { command: process.execPath, args: ["-e", "console.log(Object.keys(process.env).join())"], cwd: tmpdir(), env: {} },
+    { read: [], write: [], network: "none" },
+  );
+  const seen =
+    keys === undefined
+      ? "unwrapped"
+      : spawnSync(keys.command, keys.args, { cwd: tmpdir(), env: {}, encoding: "utf8" }).stdout;
+  return JSON.stringify({
+    supported: SandboxManager.isSupportedPlatform(),
+    deps,
+    status: ran.status,
+    stderr: ran.stderr.slice(-1500),
+    argv0: wrapped.argv[0],
+    script: wrapped.argv.at(-1)?.slice(0, 400),
+    seen,
+    scriptStart: keys?.args.at(-1)?.slice(0, 200),
+  });
 };
 
 test.skipIf(process.platform === "win32")(
@@ -532,7 +560,8 @@ test.skipIf(process.platform === "win32")(
     started.push(confined.value);
     const kit = Object(codeOf(await conformance(confined.value)));
     const signal = String(Reflect.get(kit, "signal"));
-    expect({ ...kit, signal: SANDBOX_ONLY.signal.includes(signal) ? "refused" : signal }).toEqual({
+    const why = process.env["CI"] === "true" ? await whyUnavailable() : "";
+    expect({ ...kit, signal: SANDBOX_ONLY.signal.includes(signal) ? "refused" : signal }, why).toEqual({
       ...CONFORMANT,
       signal: "refused",
       environment: SANDBOX_ENVIRONMENT,

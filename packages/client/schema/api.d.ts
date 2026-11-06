@@ -998,6 +998,20 @@ export interface components {
             params: {
                 error: string | null;
             };
+        } | {
+            /** @constant */
+            code: "launch.sandbox-overridden";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
         };
         RunInput: {
             id: string;
@@ -1498,6 +1512,20 @@ export interface components {
             code: "launch.gh-login";
             params: {
                 error: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "launch.sandbox-overridden";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.managed-settings-unreadable";
+            params: {
+                path: string;
+                error: string;
             };
         };
         Run: {

@@ -3,9 +3,18 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
-import type { Account, AccountRegistry, LaunchRecord, Result } from "@cedarloom/contracts";
+import type { Account, AccountRegistry, Agent, LaunchRecord, Result } from "@cedarloom/contracts";
 import type { LeaseLock } from "@cedarloom/ledger";
-import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
+import {
+  deniedPaths,
+  GITHUB_DOMAINS,
+  ghProbe,
+  managedProblems,
+  managedSettingsDir,
+  readResult,
+  resultPrompt,
+  workerEnv,
+} from "@cedarloom/orchestration";
 import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
@@ -34,7 +43,25 @@ export interface LaunchHost {
   readonly home: string;
   /** The gh command of the token probe; gh on the worker's PATH when unset. */
   readonly gh?: readonly [string, ...string[]];
+  /** The folder of Claude Code's managed settings files; the platform's when unset, none when null. */
+  readonly managedDir?: string | null;
 }
+
+// Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
+// managed key outranks --settings.
+const managedRefusal = (host: LaunchHost, agent: Agent): Result<null> => {
+  const dir = host.managedDir === undefined ? managedSettingsDir(host.platform) : host.managedDir;
+  const [problem] = agent === "claude" && dir !== null ? managedProblems(dir) : [];
+  if (problem === undefined) return { ok: true, value: null };
+  if (problem.kind === "unreadable") {
+    const params = { path: problem.path, error: problem.error };
+    return { ok: false, finding: { code: "launch.managed-settings-unreadable", params } };
+  }
+  return {
+    ok: false,
+    finding: { code: "launch.sandbox-overridden", params: { path: problem.path, key: problem.key } },
+  };
+};
 
 type Verdict = NonNullable<LaunchRecord["verdict"]>;
 
@@ -204,6 +231,8 @@ export const launchWorker = async <L extends Launch>(
   request: WorkerRequest<L>,
   host: LaunchHost,
 ): Promise<Result<WorkerOutcome>> => {
+  const managed = managedRefusal(host, request.agent);
+  if (!managed.ok) return managed;
   const registry = loadRegistry(config);
   if (!registry.ok) return registry;
   const accounts = registry.value;

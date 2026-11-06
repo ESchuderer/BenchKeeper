@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.export",
+  "name": "Team flows",
+  "description": "The nightly report and the release notes.",
+  "license": "MIT",
+  "workflows": ["nightly-report", "release_notes"]
+}

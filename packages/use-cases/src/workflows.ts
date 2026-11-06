@@ -285,13 +285,12 @@ const realFolder = (path: string): Result<string> => {
 };
 
 // The folder a stored run's commands run in: the one it recorded, which must still be there, and which a given folder
-// must be (one that is not there by its path as given). A run recorded before the folder was takes the given one, else
-// the current folder.
+// must be (one that is not there by its path as given).
 const projectOf = (run: GraphRun, given: string | undefined): Result<string> => {
-  const path = given ?? run.project ?? process.cwd();
+  const path = given ?? run.project;
   const real = realFolder(path);
   const named = real.ok ? real.value : absolute(path);
-  if (run.project === null || named === run.project) return real;
+  if (named === run.project) return real;
   const params = { runId: run.id, project: run.project, given: named };
   return { ok: false, finding: { code: "run.project-mismatch", params } };
 };

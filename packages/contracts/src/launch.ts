@@ -64,9 +64,8 @@ export const LaunchRecord = z.strictObject({
   startedAt: z.iso.datetime({ precision: 3 }),
   finishedAt: z.iso.datetime({ precision: 3 }).nullable(),
   verdict: z.enum([...Verdict.options, "failed", "interrupted"]).nullable(),
-  // Null on a launch from before the labels (ledger schema 6).
-  labels: RunLabels.nullable(),
-  // Null until the run's init line names its plugins, and on a launch from before them (ledger schema 8).
+  labels: RunLabels,
+  // Null until the run's init line names its plugins.
   plugins: LaunchPlugins.nullable(),
 });
 export type LaunchRecord = z.infer<typeof LaunchRecord>;

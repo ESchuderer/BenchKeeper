@@ -57,7 +57,7 @@ const created = (store: GraphStore, definition: WorkflowDefinition): RunLease =>
     mode: "act",
     parentRun: null,
     parentNode: null,
-    project: null,
+    project: "/work",
   });
 const now = () => Promise.resolve();
 const start = async (

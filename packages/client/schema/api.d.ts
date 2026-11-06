@@ -859,6 +859,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "store.older-schema";
+            params: {
+                dir: string;
+                found: number;
+                known: number;
+            };
+        } | {
+            /** @constant */
             code: "workflow.duplicate-id";
             params: {
                 /** @enum {string} */
@@ -1614,6 +1622,14 @@ export interface components {
             /** @constant */
             code: "store.newer-schema";
             params: {
+                found: number;
+                known: number;
+            };
+        } | {
+            /** @constant */
+            code: "store.older-schema";
+            params: {
+                dir: string;
                 found: number;
                 known: number;
             };

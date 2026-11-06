@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -102,20 +102,26 @@ test("reads and another process's runs, side by side, wait out each other's brie
   expect([code, failures]).toEqual([0, []]);
 }, 15_000);
 
-/** A store whose schema version only a newer CedarLoom knows. */
-const newerStore = (): string => {
+/** A store at schema `version`: 99, which only a newer CedarLoom knows, or 10, the last one before 0.1.0. */
+const storeAt = (version: number): string => {
   const dir = fresh();
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 99");
+  db.exec(`PRAGMA user_version = ${version}`);
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 10 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 11 } } };
 
-test("a store written by a newer CedarLoom is refused", () => {
-  expect(openRunStore(newerStore())).toEqual(NEWER);
+test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
+  expect(openRunStore(storeAt(99))).toEqual(NEWER);
+  const dir = storeAt(10);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 11 } } };
+  expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
+  const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
+  after.close();
 });
 
 test("a network filesystem is refused for the run store", () => {
@@ -231,7 +237,7 @@ test("a view treats a store whose schema was never created (a first open cut off
 });
 
 test("a view refuses a store written by a newer CedarLoom", () => {
-  expect(openRunView(newerStore())).toEqual(NEWER);
+  expect(openRunView(storeAt(99))).toEqual(NEWER);
 });
 
 test("the schema is created in one transaction: a failure halfway leaves no partial schema to block the next open", () => {
@@ -306,11 +312,9 @@ test("prune deletes nothing outside the backups folder, even for a run id an edi
 
 test("a failed open releases the lock, also when the store it finds is broken", () => {
   const dir = fresh();
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 1");
-  db.close();
-  expect(() => openRunStore(dir)).toThrow(/no such table/);
-  expect(() => openRunStore(dir)).toThrow(/no such table/);
+  writeFileSync(join(dir, "runs.sqlite"), "not a database, but long enough to be read as a header".repeat(4));
+  expect(() => openRunStore(dir)).toThrow(/not a database/);
+  expect(() => openRunStore(dir)).toThrow(/not a database/);
 });
 
 test("a commit SQLite already rolled back (disk full, I/O error) reports that error, and nothing is recorded", () => {
@@ -319,48 +323,6 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   failCommits(failure);
   expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
   expect(store.runs()).toEqual([]);
-});
-
-const DROP_GRAPH = "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs;";
-
-test("a store of schema 1 gains the account, check, launch and mode tables on open and keeps its runs", () => {
-  const dir = fresh();
-  const runId = opened(dir).begin("apply", plan, planHash(plan));
-  open.splice(0).forEach((store) => store.close());
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec(
-    `DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches;
-     DROP TABLE usage_samples; ${DROP_GRAPH} PRAGMA user_version = 1`,
-  );
-  db.close();
-  const store = opened(dir);
-  expect(store.readings()).toEqual([]);
-  expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
-  const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
-  after.close();
-});
-
-test("a store of schema 2 gains the check, launch and mode tables on open and keeps its readings", () => {
-  const dir = fresh();
-  const reading = {
-    account: "work",
-    window: "fiveHour",
-    usedPercent: 40,
-    resetsAt: "2026-11-05T17:00:00.000Z",
-    readAt: "2026-11-05T12:00:00.000Z",
-  } as const;
-  opened(dir).recordReading(reading);
-  open.splice(0).forEach((store) => store.close());
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec(
-    `DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; ${DROP_GRAPH}
-     PRAGMA user_version = 2`,
-  );
-  db.close();
-  const store = opened(dir);
-  expect(store.readings()).toEqual([reading]);
-  expect(store.contractChecks("claude")).toEqual([]);
 });
 
 test("the latest reading per account and window stays; an older one arriving late, or no reading, never gets in", () => {
@@ -585,7 +547,7 @@ test("a lease counts while its launcher process holds the run's lock, and ends w
   expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
 }, 15_000);
 
-test("the latest switch of the level for running work, overall or since a time; a view of an older store has none", () => {
+test("the latest switch of the level for running work, overall or since a time", () => {
   const dir = fresh();
   const store = opened(dir);
   expect(store.modeSwitch()).toBeNull();
@@ -599,36 +561,15 @@ test("the latest switch of the level for running work, overall or since a time; 
   store.recordModeSwitch(off);
   expect(store.modeSwitch()).toEqual(off);
   expect(() => store.recordModeSwitch({ at: "now", level: "auto" })).toThrow(/datetime/i);
-  open.splice(0).forEach((each) => each.close());
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE mode_switches; PRAGMA user_version = 4");
-  db.close();
-  const view = openRunView(dir);
-  expect(view.ok && view.value?.modeSwitch()).toBeNull();
-  if (view.ok) view.value?.close();
 });
 
-test("a launch keeps the settings it ran with; a launch from before the labels has none", () => {
-  const dir = fresh();
-  const store = opened(dir);
+test("a launch keeps the settings it ran with", () => {
+  const store = opened(fresh());
   store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2)?.release();
   expect(store.launches()[0]?.labels).toEqual(launch.labels);
-  open.splice(0).forEach((each) => each.close());
-  // A schema-6 store: its launches have no labels column yet.
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec(
-    `ALTER TABLE launches DROP COLUMN plugins; ALTER TABLE launches DROP COLUMN labels; ${DROP_GRAPH}
-     PRAGMA user_version = 6`,
-  );
-  db.close();
-  expect(
-    opened(dir)
-      .launches()
-      .map((row) => [row.runId.at(-1), row.labels]),
-  ).toEqual([["1", null]]);
 });
 
-test("a launch keeps the plugins its init line named, and a view reads the latest; an older store has none", () => {
+test("a launch keeps the plugins its init line named, and a view reads the latest", () => {
   const dir = fresh();
   const store = opened(dir);
   for (const n of [1, 2]) store.leaseAccount({ ...launch, runId: runIdOf(n) }, 2)?.release();
@@ -649,12 +590,6 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   expect(latest()).toEqual({ ...plugins, loaded: [], errors: ["workflow: no plugin.json"] });
   // Checked on write, so the launches stay readable.
   expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
-  open.splice(0).forEach((each) => each.close());
-  // A schema-8 store, read without a change: no plugins column, so none.
-  const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("ALTER TABLE launches DROP COLUMN plugins; PRAGMA user_version = 8");
-  db.close();
-  expect(latest()).toBeNull();
 });
 
 const sample = {

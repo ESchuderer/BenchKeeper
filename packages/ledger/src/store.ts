@@ -9,7 +9,6 @@ import {
   ContractCheckRecord,
   LaunchPlugins,
   LaunchRecord,
-  type RunLabels,
   type Finding,
   PLAN_SCHEMA_VERSION,
   ModeSwitch,
@@ -27,46 +26,23 @@ import {
   ACCOUNT_TABLES,
   CHECK_TABLES,
   GRAPH_TABLES,
-  PLUGIN_TABLES,
-  LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
-  PROJECT_TABLES,
   TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
-// The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [
-  TABLES,
-  ACCOUNT_TABLES,
-  CHECK_TABLES,
-  LAUNCH_TABLES,
-  MODE_TABLES,
-  USAGE_TABLES,
-  LABEL_TABLES,
-  GRAPH_TABLES,
-  PLUGIN_TABLES,
-  PROJECT_TABLES,
-];
-// The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
-const SCHEMA = MIGRATIONS.length;
-// The schemas that added the graph runs and their project folder: their places among the migrations.
-export const GRAPH_SCHEMA = MIGRATIONS.indexOf(GRAPH_TABLES) + 1;
-export const PROJECT_SCHEMA = MIGRATIONS.indexOf(PROJECT_TABLES) + 1;
-// The schema that added the switches of the automation level.
-const MODE_SCHEMA = 5;
-// The schema that added the plugins of each launch, by its place in the migrations.
-const PLUGIN_SCHEMA = MIGRATIONS.indexOf(PLUGIN_TABLES) + 1;
+// The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
+const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
+// Its number follows the ten schemas before 0.1.0, so a store from before it is never read as this one.
+const SCHEMA = 11;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
-/** A launch as its lease takes it: the settings it runs with are required, though older rows have none. */
-export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels" | "plugins"> & {
-  readonly labels: RunLabels;
-};
+/** A launch as its lease takes it, with the settings it runs with. */
+export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins">;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -273,24 +249,16 @@ export class RunView {
       });
   }
 
-  /**
-   * The latest switch of the level for running work, made at `since` or later when given; null when there is none. A
-   * store from before the switches has none; a read view does not change its schema.
-   */
+  /** The latest switch of the level for running work, made at `since` or later when given; null when there is none. */
   modeSwitch(since: string | null = null): ModeSwitch | null {
-    if (versionOf(this.db) < MODE_SCHEMA) return null;
     const row = this.db
       .prepare("SELECT at, level FROM mode_switches WHERE at >= ? ORDER BY rowid DESC LIMIT 1")
       .get(since ?? "");
     return row === undefined ? null : ModeSwitch.parse(row);
   }
 
-  /**
-   * The plugins of the latest launch whose init line named them; null when none has. A store from before the plugins
-   * has none; a read view does not change its schema.
-   */
+  /** The plugins of the latest launch whose init line named them; null when none has. */
   latestPlugins(): LaunchPlugins | null {
-    if (versionOf(this.db) < PLUGIN_SCHEMA) return null;
     const row = this.db
       .prepare("SELECT plugins FROM launches WHERE plugins IS NOT NULL ORDER BY startedAt DESC, rowid DESC LIMIT 1")
       .get();
@@ -630,34 +598,38 @@ export const stateDir = (dir: string, detect: typeof filesystemType): Finding | 
     : null;
 };
 
+// A store at a schema other than this CedarLoom's: one from before 0.1.0 is not carried over, one a newer CedarLoom
+// wrote is not read.
+const otherSchema = (dir: string, found: number): Finding =>
+  found < SCHEMA
+    ? { code: "store.older-schema", params: { dir, found, known: SCHEMA } }
+    : { code: "store.newer-schema", params: { found, known: SCHEMA } };
+
 /**
- * Opens runs.sqlite in `dir` at this CedarLoom's schema and hands it to `use`; refused when a newer CedarLoom wrote
- * it. A migration runs in one transaction, so a crash halfway leaves no partial schema to block the next open.
+ * Opens runs.sqlite in `dir` at this CedarLoom's schema and hands it to `use`: an empty store gets the schema in one
+ * transaction, so a crash halfway leaves none to block the next open; a store at another schema is refused.
  */
 export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T> => {
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
   try {
     chmodSync(join(dir, "runs.sqlite"), 0o600);
     db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-    let found = versionOf(db);
-    // Read again in the transaction: a graph store opens without the store lock, so another process may migrate first.
-    if (found < SCHEMA) {
-      found = transaction(db, () => {
-        const version = versionOf(db);
-        if (version < SCHEMA) db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`);
-        return version;
-      });
-    }
-    if (found <= SCHEMA) return { ok: true, value: use(db) };
+    // Read again in the transaction: a graph store opens without the store lock, so another process may create it first.
+    const created = (): number => {
+      if (versionOf(db) === 0) db.exec(`${BASELINE.join("")} PRAGMA user_version = ${SCHEMA}`);
+      return versionOf(db);
+    };
+    const found = versionOf(db) === 0 ? transaction(db, created) : versionOf(db);
+    if (found === SCHEMA) return { ok: true, value: use(db) };
     db.close();
-    return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+    return { ok: false, finding: otherSchema(dir, found) };
   } catch (error) {
     db.close();
     throw error;
   }
 };
 
-/** Opens the run store in `dir` (created private): refused on a network filesystem, while another process holds it, or when a newer CedarLoom wrote it. */
+/** Opens the run store in `dir` (created private): refused on a network filesystem, while another process holds it, or at another schema. */
 export const openRunStore = (dir: string, detect = filesystemType): Result<RunStore> => {
   const refused = stateDir(dir, detect);
   if (refused !== null) return { ok: false, finding: refused };
@@ -685,17 +657,16 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
 export const openRunView = (dir: string): Result<RunView | null> => {
   const opened = openReadOnly(dir);
   if (!opened.ok) return opened;
-  return { ok: true, value: opened.value === null ? null : new RunView(dir, opened.value.db) };
+  return { ok: true, value: opened.value === null ? null : new RunView(dir, opened.value) };
 };
 
-/** The store in `dir` opened for reading only, with its schema version; null when no run was ever recorded. */
-export const openReadOnly = (dir: string): Result<{ db: DatabaseSync; version: number } | null> => {
+/** The store in `dir` opened for reading only; null when no run was ever recorded, refused at another schema. */
+export const openReadOnly = (dir: string): Result<DatabaseSync | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true, timeout: SETTLE_MS });
   const found = versionOf(db);
-  if (found > 0 && found <= SCHEMA) return { ok: true, value: { db, version: found } };
+  if (found === SCHEMA) return { ok: true, value: db };
   db.close();
   // Version 0: a first open created the file but not (yet) its schema, so no run was ever recorded.
-  if (found === 0) return { ok: true, value: null };
-  return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+  return found === 0 ? { ok: true, value: null } : { ok: false, finding: otherSchema(dir, found) };
 };

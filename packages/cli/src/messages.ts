@@ -92,6 +92,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "draft.not-found": (p) => `No draft of workflow ${p.id} in this state folder.`,
   "draft.too-large": (p) => `The draft of workflow ${p.id} has ${p.bytes} bytes; a draft holds at most ${p.limit}.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
+  "store.older-schema": (p) =>
+    `The run store in ${p.dir} is from before CedarLoom 0.1.0 (schema version ${p.found}; this one reads ${p.known}), and nothing from before 0.1.0 is carried over. Delete runs.sqlite, runs.sqlite-wal and runs.sqlite-shm there to start a new store.`,
   "workflow.duplicate-id": (p) => `More than one ${p.kind} has the id ${p.id}; ids are unique within a workflow.`,
   "workflow.trigger-count": (p) => `The workflow has ${p.count} trigger nodes; it needs exactly one.`,
   "workflow.unknown-node-type": (p) => `Node ${p.node} has the type ${p.type}, which this CedarLoom does not know.`,

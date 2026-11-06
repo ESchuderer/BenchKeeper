@@ -1,5 +1,5 @@
 import type { AutomationSettings } from "@cedarloom/contracts";
-import { levelAt, type OwnerOnly, routeQuestion, waitsForOwner } from "@cedarloom/engine";
+import { levelAt, type OwnerOnly, routeQuestion, stricterLevel, waitsForOwner } from "@cedarloom/engine";
 import { expect, test } from "vitest";
 
 const GATES = ["before-implementation", "after-verdict", "before-merge"] as const;
@@ -18,6 +18,13 @@ test("a step that touches anything owner-only waits at every gate of every level
   for (const kind of OWNER_ONLY) {
     expect(LEVELS.map((level) => waits(level, [kind]))).toEqual([GATES, GATES, GATES]);
   }
+});
+
+test("the stricter of two levels is the one that waits for the owner more often", () => {
+  expect(stricterLevel("auto", "supervised")).toBe("supervised");
+  expect(stricterLevel("checkpoint", "auto")).toBe("checkpoint");
+  expect(stricterLevel("supervised", "checkpoint")).toBe("supervised");
+  expect(stricterLevel("auto", "auto")).toBe("auto");
 });
 
 test("Supervised parks every question; Checkpoint and Auto park the owner's and default the facts", () => {

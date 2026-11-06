@@ -24,6 +24,13 @@ const WAITS: Readonly<Record<AutomationLevel, readonly ApprovalGate[]>> = {
 export const waitsForOwner = (level: AutomationLevel, gate: ApprovalGate, ownerOnly: readonly OwnerOnly[]): boolean =>
   ownerOnly.length > 0 || WAITS[level].includes(gate);
 
+// How often each level waits for the owner, the most first.
+const WAIT_RANK: Readonly<Record<AutomationLevel, number>> = { supervised: 2, checkpoint: 1, auto: 0 };
+
+/** Of two levels, the one that waits for the owner more often: Supervised, then Checkpoint, then Auto. */
+export const stricterLevel = (a: AutomationLevel, b: AutomationLevel): AutomationLevel =>
+  WAIT_RANK[a] >= WAIT_RANK[b] ? a : b;
+
 /**
  * A worker's question: the owner's (taste, scope, money, legal, risk, anything public or hard to undo) or a fact or a
  * reversible detail.

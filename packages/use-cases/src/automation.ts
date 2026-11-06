@@ -9,7 +9,7 @@ import {
   readDocument,
   type Result,
 } from "@cedarloom/contracts";
-import { levelAt } from "@cedarloom/engine";
+import { levelAt, stricterLevel } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { readOptionalJson, withStore, withView } from "./use-cases.ts";
 
@@ -102,6 +102,19 @@ export const mode = (state: string, config: string): Result<Mode> => {
   }));
 };
 
+// The settings with every project key at its folder's real path, so a key written by hand through a link still matches;
+// keys that name one folder keep the stricter level.
+const canonicalSettings = (settings: AutomationSettings | null): AutomationSettings | null => {
+  if (settings === null) return null;
+  const projects = new Map<string, AutomationLevel>();
+  for (const [folder, level] of Object.entries(settings.projects)) {
+    const key = projectFolder(folder) ?? folder;
+    const known = projects.get(key);
+    projects.set(key, known === undefined ? level : stricterLevel(known, level));
+  }
+  return { ...settings, projects: Object.fromEntries(projects) };
+};
+
 /** A run as its gates see it: its project's folder and the time it started. */
 export interface GateRun {
   readonly project: string;
@@ -118,9 +131,13 @@ export const levelAtGate = (state: string, config: string, run: GateRun): Result
   const settings = automationSettings(config);
   if (!settings.ok) return settings;
   const since = settings.value?.modeScope === "until-off" ? null : run.startedAt;
+  const own = levelAt(canonicalSettings(settings.value), projectFolder(run.project) ?? run.project, null);
   return withView(state, (view) => {
-    const running = view?.modeSwitch(since)?.level ?? null;
-    return { ok: true, value: levelAt(settings.value, projectFolder(run.project) ?? run.project, running) };
+    const switched = view?.modeSwitch(since) ?? null;
+    if (switched?.level == null) return { ok: true, value: own };
+    // A switch made in the very millisecond the run started may have come before or after its start: the stricter
+    // level applies.
+    return { ok: true, value: switched.at === since ? stricterLevel(switched.level, own) : switched.level };
   });
 };
 

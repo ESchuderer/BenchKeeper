@@ -5,6 +5,7 @@ export {
   type OwnerOnly,
   type Question,
   routeQuestion,
+  stricterLevel,
   waitsForOwner,
 } from "./automation.ts";
 export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";

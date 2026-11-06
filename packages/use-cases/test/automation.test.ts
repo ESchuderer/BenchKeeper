@@ -12,6 +12,14 @@ const folders = () => {
 };
 
 const run = (project: string, startedAt = "2026-11-06T07:00:00.000Z") => ({ project, startedAt });
+// A project folder and a symbolic link to it.
+const appWithLink = (root: string) => {
+  const app = join(root, "app");
+  mkdirSync(app);
+  const link = join(root, "link");
+  symlinkSync(app, link, "dir");
+  return { app, link };
+};
 const T8 = "2026-11-06T08:00:00.000Z";
 
 test("a fresh install is Supervised; then the project's level or the default; a switch reaches the runs running at it", () => {
@@ -33,6 +41,29 @@ test("a fresh install is Supervised; then the project's level or the default; a 
     ok: true,
     value: { switched: { at: "2026-11-06T09:00:00.000Z", level: null }, settings },
   });
+});
+
+test("a switch made in the very millisecond a run started gives it the stricter of the switch and its project's level", () => {
+  const { config, state } = folders();
+  mkdirSync(config, { recursive: true });
+  const settings = { schemaVersion: 1, default: "supervised", projects: { "/work/app": "auto" } };
+  writeFileSync(join(config, "automation.json"), JSON.stringify(settings));
+  switchMode(state, "checkpoint", T8);
+  // Checkpoint is stricter than the project's Auto; the default Supervised is stricter than the switch.
+  expect(levelAtGate(state, config, run("/work/app", T8))).toEqual({ ok: true, value: "checkpoint" });
+  expect(levelAtGate(state, config, run("/work/other", T8))).toEqual({ ok: true, value: "supervised" });
+});
+
+test("a project key written by hand through a link still applies; two keys for one folder keep the stricter level", () => {
+  const { root, config, state } = folders();
+  const { app, link } = appWithLink(root);
+  mkdirSync(config, { recursive: true });
+  const write = (projects: Record<string, string>) =>
+    writeFileSync(join(config, "automation.json"), JSON.stringify({ schemaVersion: 1, default: "auto", projects }));
+  write({ [link]: "supervised" });
+  expect(levelAtGate(state, config, run(app))).toEqual({ ok: true, value: "supervised" });
+  write({ [link]: "checkpoint", [app]: "auto" });
+  expect(levelAtGate(state, config, run(link))).toEqual({ ok: true, value: "checkpoint" });
 });
 
 test("with modeScope until-off, a switch reaches every later run too, until off", () => {
@@ -111,10 +142,7 @@ test("the default and each project's level are set by plan, sorted by folder; de
 
 test("a project is its folder's real path: a link to it changes the same entry, and a missing folder is refused", () => {
   const { root, config, state } = folders();
-  const app = join(root, "app");
-  mkdirSync(app);
-  const link = join(root, "link");
-  symlinkSync(app, link, "dir");
+  const { app, link } = appWithLink(root);
   setLevel(state, config, { project: link, level: "supervised" });
   setLevel(state, config, { project: app, level: "auto" });
   expect(automationSettings(config)).toMatchObject({ value: { projects: { [realpathSync.native(app)]: "auto" } } });

@@ -10,7 +10,7 @@ const KEY = "cedarloom.csrf";
 
 // shortcut: the brand's evergreen (#2e5e4e) as shade 7 of a hand-made palette; replace it with the theme generated from
 // the family design tokens once they are published. Shade 7 keeps text on white and white on it above 4.5:1.
-const cedar: MantineColorsTuple = [
+const evergreen: MantineColorsTuple = [
   "#eef5f2",
   "#dde9e4",
   "#b7d0c6",
@@ -22,7 +22,7 @@ const cedar: MantineColorsTuple = [
   "#254d40",
   "#1b3a30",
 ];
-const theme = createTheme({ primaryColor: "cedar", primaryShade: 7, colors: { cedar } });
+const theme = createTheme({ primaryColor: "evergreen", primaryShade: 7, colors: { evergreen } });
 
 /**
  * The URL token works once: the CSRF token it buys stays in this tab's sessionStorage, so a reload keeps the session,

@@ -5,12 +5,14 @@ import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
 import {
   connect,
+  GRAPH_SCHEMA,
   type LeaseLock,
   leaseHeld,
   leaseSeen,
   newLease,
   now,
   openReadOnly,
+  PROJECT_SCHEMA,
   stateDir,
   transaction,
 } from "./store.ts";
@@ -37,8 +39,6 @@ export interface RunLease extends LeaseLock {
 }
 
 const ACTIVE = new Set(["running", "waiting"]);
-// The schemas that added the graph runs and their project folder.
-const [GRAPH_SCHEMA, PROJECT_SCHEMA] = [8, 9];
 const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, project, epoch, startedAt, finishedAt`;
 
 // A projection that changes no row is the executor's mistake, and nothing of its event is kept.

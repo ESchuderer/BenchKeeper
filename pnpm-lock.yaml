@@ -161,6 +161,18 @@ importers:
         specifier: 'catalog:'
         version: 4.10.2
 
+  packages/extension-host:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@cedarloom/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+      vscode-jsonrpc:
+        specifier: 10.0.0
+        version: 10.0.0
+
   packages/git:
     dependencies:
       '@cedarloom/contracts':

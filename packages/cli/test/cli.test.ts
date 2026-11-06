@@ -375,6 +375,8 @@ test("every finding code has an English sentence", () => {
     "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
     "workflow.schedule-input": { input: "branch" },
     "launch.account-full": { account: "work", max: 2 },
+    "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
+    "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
     "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
     "git.refused-source": { field: "url" },
     "git.unsafe-entry": { path: "dist/link", kind: "link" },

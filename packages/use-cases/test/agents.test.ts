@@ -5,7 +5,7 @@ import type { AgentRuntime, ContractCheck, UsageWindow } from "@cedarloom/agent-
 import { DatabaseSync } from "node:sqlite";
 import { openRunStore } from "@cedarloom/ledger";
 import { checkedVersions, recordUsage } from "@cedarloom/use-cases";
-import { canonicalJson, type Json, USAGE_RAW_LIMIT_BYTES } from "@cedarloom/contracts";
+import { canonicalJson, type Json, USAGE_RAW_CUT_MARKER, USAGE_RAW_LIMIT_BYTES } from "@cedarloom/contracts";
 import { expect, test, vi } from "vitest";
 
 const state = () => mkdtempSync(join(tmpdir(), "cedarloom-agents-"));
@@ -239,4 +239,21 @@ test("a line longer than the limit is cut on a character boundary, with a marker
   expect(Buffer.byteLength(kept ?? "")).toBeLessThanOrEqual(USAGE_RAW_LIMIT_BYTES);
   expect(kept).toMatch(/^\{"text":"€+…\[cut\]$/);
   expect(kept).not.toContain("\uFFFD");
+  // The marker, exported with the contract, tells a cut line from canonical JSON: a cut line is no JSON.
+  expect(kept?.endsWith(USAGE_RAW_CUT_MARKER)).toBe(true);
+  expect(() => JSON.parse(kept ?? "")).toThrow(SyntaxError);
+});
+
+test("a window the contract refuses, such as a name over 64 characters, is left out; the run's other windows are kept", () => {
+  const dir = state();
+  const windows = [
+    window("x".repeat(65), null, 10, "2026-11-06T12:00:00.000Z"),
+    window("five_hour", "fiveHour", 10, "2026-11-06T12:00:00.000Z"),
+  ];
+  const of = { account: "work", agent: "claude", runId } as const;
+  expect(recordUsage(dir, of, usage(windows, { type: "rate_limit_event" }))).toEqual({ ok: true, value: 1 });
+  const store = openRunStore(dir);
+  if (!store.ok) throw new Error(store.finding.code);
+  expect(store.value.usageSamples().map((each) => each.window)).toEqual(["five_hour"]);
+  store.value.close();
 });

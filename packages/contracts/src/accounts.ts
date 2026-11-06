@@ -19,8 +19,8 @@ export type Agent = z.infer<typeof Agent>;
 // BenchKeeper's rule for account and pool names, so its names import unchanged.
 const Name = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 
-/** A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary. */
-export const Percent = z.number().min(0).max(100);
+// A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary.
+const Percent = z.number().min(0).max(100);
 
 /** The headroom a launch needs in each usage window, in percent of the window. */
 const Minimums = z.strictObject({ fiveHour: Percent, sevenDay: Percent });
@@ -116,6 +116,9 @@ export type Reading = z.infer<typeof Reading>;
 /** The most of an agent's own line a usage sample keeps, in bytes; a longer line is cut and marked. */
 export const USAGE_RAW_LIMIT_BYTES = 16 * 1024;
 
+/** Ends a usage sample's line that was cut at USAGE_RAW_LIMIT_BYTES. */
+export const USAGE_RAW_CUT_MARKER = "…[cut]";
+
 /**
  * One usage window as a session reported it, kept as history (A84): the agent's own window name and line, its CLI
  * version, and the run it came from. Windows without a quota name, a share or a reset are kept too.
@@ -130,7 +133,8 @@ export const UsageSample = z.strictObject({
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   runId: z.uuid().nullable(),
-  // The agent's line as canonical JSON, cut at USAGE_RAW_LIMIT_BYTES with a marker.
+  // The agent's line as canonical JSON. A longer line than USAGE_RAW_LIMIT_BYTES keeps its first bytes followed by
+  // USAGE_RAW_CUT_MARKER, and is then no JSON: a line that ends with the marker was cut.
   raw: z.string(),
 });
 export type UsageSample = z.infer<typeof UsageSample>;

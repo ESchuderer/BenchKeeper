@@ -6,7 +6,9 @@ import {
   type ContractCheckRecord,
   type Json,
   type Result,
+  USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
+  UsageSample,
 } from "@cedarloom/contracts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
@@ -112,17 +114,15 @@ export interface UsageOf {
   readonly runId: string | null;
 }
 
-const CUT_MARKER = "…[cut]";
-
-// The agent's line as canonical JSON, cut on a character boundary at USAGE_RAW_LIMIT_BYTES with a marker.
+// The agent's line as canonical JSON, cut on a character boundary at USAGE_RAW_LIMIT_BYTES with the contract's marker.
 const cutRaw = (raw: Json): string => {
   const text = canonicalJson(raw);
   const bytes = Buffer.from(text, "utf8");
   if (bytes.length <= USAGE_RAW_LIMIT_BYTES) return text;
-  let end = USAGE_RAW_LIMIT_BYTES - Buffer.byteLength(CUT_MARKER);
+  let end = USAGE_RAW_LIMIT_BYTES - Buffer.byteLength(USAGE_RAW_CUT_MARKER);
   // A UTF-8 continuation byte starts no character: step back to the start of the one it belongs to.
   while (((bytes[end] ?? 0) & 0xc0) === 0x80) end -= 1;
-  return `${bytes.subarray(0, end).toString("utf8")}${CUT_MARKER}`;
+  return `${bytes.subarray(0, end).toString("utf8")}${USAGE_RAW_CUT_MARKER}`;
 };
 
 /**
@@ -148,6 +148,9 @@ export const recordUsage = (
       readAt,
       raw,
     }));
-    store.recordSamples(samples);
-    return { ok: true, value: samples.length };
+    // The agent's line is untrusted: a window the contract refuses, such as an over-long name, is left out, and never
+    // fails the run that reported it.
+    const kept = samples.filter((sample) => UsageSample.safeParse(sample).success);
+    store.recordSamples(kept);
+    return { ok: true, value: kept.length };
   });

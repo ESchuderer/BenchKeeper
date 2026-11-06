@@ -22,10 +22,11 @@ import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
 import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, TABLES, USAGE_TABLES } from "./rows.ts";
 
-const SCHEMA = 6;
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
 const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES];
+// The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
+const SCHEMA = MIGRATIONS.length;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
 

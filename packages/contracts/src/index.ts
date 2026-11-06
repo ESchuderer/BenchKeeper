@@ -8,8 +8,8 @@ export {
   ContractCheckRecord,
   formatRegistry,
   QuotaWindow,
-  Percent,
   Reading,
+  USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
   UsageSample,
 } from "./accounts.ts";

@@ -51,6 +51,7 @@ const probe = {
   resultFile: "/state/workers/0b9f4c1e/out/result.json",
   denyRead: [],
   allowedDomains: [],
+  pluginDirs: [],
 } as const;
 const input = { env: {}, probe, account: "work" };
 const checked = (dir: string, cli: ReturnType<typeof runtime>) => checkedVersions(dir, "claude", cli, input);

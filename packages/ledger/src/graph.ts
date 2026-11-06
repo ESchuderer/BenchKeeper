@@ -63,7 +63,7 @@ export class GraphStore {
   readonly #probe: typeof leaseHeld;
   readonly #columns: string;
 
-  // A view probes leases without taking them, and reads a store of schema 8, before the project folder, too.
+  // A view probes leases without taking them, and reads a store from before the project folder too.
   constructor(dir: string, db: DatabaseSync, view?: { readonly schema: number }) {
     this.#dir = dir;
     this.#db = db;

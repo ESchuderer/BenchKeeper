@@ -82,6 +82,9 @@ export const planConfirm = (
   return { ok: true, value: { plan, findings: [{ code: "accounts.pool-terms", params: { pool } }] } };
 };
 
+/** How many workers run on one account at once: two per Claude Code account, one per Codex home. */
+export const MAX_CONCURRENT: Readonly<Record<Agent, number>> = { claude: 2, codex: 1 };
+
 export interface AccountRequest {
   readonly task: string;
   readonly agent: Agent;
@@ -104,7 +107,10 @@ export const chooseAccount = (
     const readings = store.readings();
     // Judged once the store is held, so a reading that expired during the wait for the lock counts as expired.
     const judged = now ?? Date.now();
-    const selection = selectAccount(registry, request, readings, judged);
+    // An account whose leases are all taken starts no worker now.
+    const leases = [...store.liveLeases()];
+    const busy = new Set(leases.filter(([, count]) => count >= MAX_CONCURRENT[request.agent]).map(([name]) => name));
+    const selection = selectAccount(registry, { ...request, busy }, readings, judged);
     if (selection.ok) {
       const pool = new Set(selection.candidates.map((candidate) => candidate.account));
       store.recordSwitch({

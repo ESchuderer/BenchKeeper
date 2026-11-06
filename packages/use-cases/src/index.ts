@@ -11,9 +11,17 @@ export {
 } from "./automation.ts";
 export { type CheckedVersions, checkedVersions, recordUsage } from "./agents.ts";
 export {
+  type Decided,
+  type LaunchHost,
+  launchWorker,
+  type WorkerOutcome,
+  type WorkerRequest,
+} from "./launch.ts";
+export {
   type AccountRequest,
   chooseAccount,
   loadRegistry,
+  MAX_CONCURRENT,
   planConfirm,
   planImport,
 } from "./accounts.ts";

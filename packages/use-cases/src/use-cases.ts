@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { setTimeout } from "node:timers/promises";
 import {
   type Finding,
   PLAN_SCHEMA_VERSION,
@@ -28,6 +29,18 @@ const notFound = (runId: string): Result<never> => ({
 // An empty hash approves no plan, so a call without an approval is refused by the run store.
 const approvedHash = (approval: Approval, plan: Plan): string =>
   approval.approve ?? (approval.yes === true ? planHash(plan) : "");
+
+const BUSY_TRIES = 3;
+
+/** Runs `work` again while another CedarLoom process holds the store: three tries, a second apart. */
+export const retryBusy = async <T>(work: () => Result<T>): Promise<Result<T>> => {
+  let result = work();
+  for (let tries = 1; tries < BUSY_TRIES && !result.ok && result.finding.code === "store.busy"; tries += 1) {
+    await setTimeout(1000);
+    result = work();
+  }
+  return result;
+};
 
 /** Opens the store for a change, removes what interrupted runs left, and closes it again. */
 export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {

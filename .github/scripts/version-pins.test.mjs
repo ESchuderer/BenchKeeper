@@ -46,6 +46,10 @@ test('the dev container Node must equal NODE_VERSION of cedarloom.yml', () => {
   // A FROM line without the tag's suffix, or none at all, is drift too: the check must not pass silently.
   assert.equal(nodeDrift('FROM docker.io/library/node:26.13.0@sha256:bc0a', workflow).drift, true);
   assert.equal(nodeDrift('FROM docker.io/library/node:26.13.0-bookworm-slim', 'env: {}').drift, true);
+  // Quotes and a trailing comment around NODE_VERSION do not count.
+  for (const line of ['NODE_VERSION: "26.13.0"', "NODE_VERSION: '26.13.0'  # bumped by hand", 'NODE_VERSION: 26.13.0 # bumped by hand']) {
+    assert.equal(nodeDrift(dockerfile, `env:\n  ${line}\n`).ci, '26.13.0', line);
+  }
 });
 
 test('minApp follows the release app version; other versions in content.json stay', () => {

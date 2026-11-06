@@ -1,8 +1,8 @@
 // Writes the current app version into the install commands of the docs (not the plugin's skill text): `npx benchkeeper@<version>` and the clone
 // tag `--branch app-v<version>` (older pins name `setup-v`). Other version mentions (benchmark arms, history) stay as written.
-// It also sets minApp in plugins/benchkeeper/content.json to that version (not under --check).
-// Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs, or when the dev container's Playwright differs
-// from @playwright/test in web/ or app/)
+// With --release (release.yml, on the release branch) it also sets minApp in plugins/benchkeeper/content.json to that version.
+// Usage: node .github/scripts/version-pins.mjs [--check | --release]   (--check: changes nothing; exit 1 when a file differs, or when
+// the dev container's Playwright, pnpm or Node differs from web/ and app/, .github/pnpm, or NODE_VERSION of cedarloom.yml)
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -43,8 +43,9 @@ export function pnpmDrift(dockerfile, pinned) {
 
 // Both are bumped by hand: the dev container's Node follows NODE_VERSION of cedarloom.yml, the CI of the CedarLoom packages.
 export function nodeDrift(dockerfile, workflow) {
+  // shortcut: reads the FROM tag, not the digest Docker runs, so a new tag with the old digest passes; check the digest if a job may go online.
   const image = commands(dockerfile).match(/^\s*FROM\s+docker\.io\/library\/node:(\S+?)-/m)?.[1];
-  const ci = workflow.match(/^\s+NODE_VERSION:\s*(\S+)\s*$/m)?.[1];
+  const ci = workflow.match(/^\s+NODE_VERSION:\s*(['"]?)([^\s'"#]+)\1\s*(?:#.*)?$/m)?.[2];
   return { image, ci, drift: image === undefined || image !== ci };
 }
 

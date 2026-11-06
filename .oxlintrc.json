@@ -95,8 +95,7 @@
                   "!@cedarloom/contracts",
                   "!@cedarloom/agent-contracts",
                   "!@cedarloom/accounts",
-                  "!@cedarloom/engine",
-                  "!@cedarloom/ledger"
+                  "!@cedarloom/engine"
                 ],
                 "message": "orchestration takes the domain packages and the agent contract, never an adapter or a front end"
               }

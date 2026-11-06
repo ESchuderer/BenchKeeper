@@ -49,11 +49,13 @@ const refuse = (launch: ClaudeLaunch): void => {
   if (!isAbsolute(launch.home) || statSync(launch.home, { throwIfNoEntry: false })?.isDirectory() !== true) {
     throw new Error(`not an existing absolute config folder: "${launch.home}"`);
   }
+  // The settings deny writes below the working folder by its absolute path.
+  if (!isAbsolute(launch.cwd)) throw new Error(`not an absolute working folder: "${launch.cwd}"`);
 };
 
 // The worker profile's variables (https://code.claude.com/docs/en/env-vars): auto memory off (A8), the A102 caps, no
-// agent view, feedback, error reports or title requests, MCP servers without the worker's variables, bounded Stop-hook
-// loops and transcripts.
+// agent view, feedback, error reports or title requests, MCP servers without the worker's variables, and bounded Stop-hook
+// loops.
 const WORKER_VARIABLES = {
   CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
   CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS: "4",
@@ -68,7 +70,6 @@ const WORKER_VARIABLES = {
   CLAUDE_CODE_MCP_ALLOWLIST_ENV: "1",
   MCP_TOOL_TIMEOUT: "600000",
   CLAUDE_CODE_STOP_HOOK_BLOCK_CAP: "8",
-  CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
 } as const;
 
 // The phase's effort and subagent model; the settings repeat them with the worker variables.
@@ -122,6 +123,7 @@ const OWN_NAMES = new Set([
   "CLAUDE_CODE_SUBAGENT_MODEL",
   "CLAUDE_CODE_SUBAGENT_MODEL_FORCE",
   "CLAUDE_CODE_TMPDIR",
+  "CLAUDE_CODE_TRANSCRIPT_LOCAL_GC",
   ...Object.keys(WORKER_VARIABLES),
 ]);
 
@@ -137,6 +139,8 @@ export const launchEnv = (launch: ClaudeLaunch): Record<string, string> => ({
   ),
   ...WORKER_VARIABLES,
   ...pinned(launch),
+  // Read from the process environment only, so it is not repeated in the settings.
+  CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
   CLAUDE_CONFIG_DIR: launch.home,
   // Claude Code's own temporary files only: a TMPDIR outside the sandbox's writable folders would break commands.
   CLAUDE_CODE_TMPDIR: launch.tmpDir,

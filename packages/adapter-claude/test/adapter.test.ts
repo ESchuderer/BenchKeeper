@@ -77,6 +77,7 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_TMPDIR: join(fixtures, "tmp"),
     CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
     CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: "4",
+    CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
   });
   for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "CEDARLOOM_PARENT_ONLY", ...Object.keys(login)]) {
     expect(fake.env).not.toHaveProperty(name);
@@ -103,7 +104,12 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   expect(settings).toMatchObject({
     permissions: {
       allow: ["Bash(pnpm test *)"],
-      deny: ["Read(//accounts/other/**)", "Edit(//accounts/other/**)", "Read(**/.env*)"],
+      deny: [
+        "Read(//accounts/other/**)",
+        "Edit(//accounts/other/**)",
+        "Read(**/.env*)",
+        `Edit(/${join(fixtures, ".github", "workflows")}/**)`,
+      ],
       disableBypassPermissionsMode: "disable",
       blockReadsOutsideWorkingDirectories: true,
     },
@@ -111,21 +117,24 @@ test("the settings passed with --settings hold the worker profile: denials, the 
       enabled: true,
       failIfUnavailable: true,
       allowUnsandboxedCommands: false,
-      filesystem: { denyRead: ["/accounts/other"], denyWrite: [join(fixtures, ".github", "workflows")] },
-      network: { allowedDomains: ["github.com"] },
+      filesystem: {
+        denyRead: ["/accounts/other"],
+        denyWrite: [join(fixtures, ".github", "workflows")],
+        allowRead: expect.arrayContaining(["~/.nvm", "~/.cargo"]),
+      },
+      network: { allowedDomains: ["github.com"], strictAllowlist: true },
     },
     maxEffortLevel: "xhigh",
     workflowSizeGuideline: "small",
     autoMemoryEnabled: false,
+    autoContinueAtUsageLimit: false,
+    feedbackDrafts: "off",
+    syncClaudeAiPlugins: false,
+    syncClaudeAiSkills: false,
     env: { CLAUDE_CODE_EFFORT_LEVEL: "high", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" },
   });
-  // Only keys that every settings file honors; the account's folder stays out of the settings.
-  for (const key of [
-    "autoContinueAtUsageLimit",
-    "feedbackDrafts",
-    "sandbox.network.strictAllowlist",
-    "env.CLAUDE_CONFIG_DIR",
-  ]) {
+  // No command runs outside the sandbox; the account's folder and process-only variables stay out of the settings.
+  for (const key of ["sandbox.excludedCommands", "env.CLAUDE_CONFIG_DIR", "env.CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"]) {
     expect(settings).not.toHaveProperty(key);
   }
 });
@@ -169,8 +178,18 @@ test("refuses a launch the types alone cannot keep out, such as one built from J
     [{ home: "accounts/one" }, "accounts/one"],
     [{ home: join(fixtures, "no-such-home") }, "no-such-home"],
     [{ home: join(fixtures, "stream.jsonl") }, "stream.jsonl"],
+    [{ cwd: "work" }, 'not an absolute working folder: "work"'],
   ] as const;
   for (const [change, message] of refusals) expect(() => runtime.start(fromJson(change))).toThrow(message);
+});
+
+test("refuses settings with a value the documented syntax does not take, which would drop them all silently", () => {
+  const invalid = [
+    [{ allow: ["Bash(git push"] }, "invalid worker settings at permissions.allow.0"],
+    [{ denyRead: ["/accounts/(old)"] }, "invalid worker settings at permissions.deny.0"],
+    [{ allowedDomains: ["git hub.com"] }, "invalid worker settings at sandbox.network.allowedDomains.0"],
+  ] as const;
+  for (const [change, message] of invalid) expect(() => runtime.start(launch({}, change))).toThrow(message);
 });
 
 test("resumes a session by its ID", async () => {

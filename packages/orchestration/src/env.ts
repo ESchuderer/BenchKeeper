@@ -21,9 +21,10 @@ export interface WorkerEnvInput {
  */
 export const workerEnv = ({ parent, platform, ghToken, ghConfigDir }: WorkerEnvInput): Record<string, string> => {
   const names = new Set(platform === "darwin" ? [...INHERITED, "USER"] : INHERITED);
-  // Windows spells PATH as Path: names compare without regard to case.
+  // Only Windows names ignore case (it spells PATH as Path); elsewhere `path` or `Home` is another variable.
+  const key = (name: string) => (platform === "win32" ? name.toUpperCase() : name);
   const inherited = Object.entries(parent).filter(
-    (entry): entry is [string, string] => entry[1] !== undefined && names.has(entry[0].toUpperCase()),
+    (entry): entry is [string, string] => entry[1] !== undefined && names.has(key(entry[0])),
   );
   return {
     ...Object.fromEntries(inherited),
@@ -32,16 +33,22 @@ export const workerEnv = ({ parent, platform, ghToken, ghConfigDir }: WorkerEnvI
   };
 };
 
-// The user's credential folders and the agents' default homes, below the user's home folder.
+// The user's credential stores and the agents' default homes, below the user's home folder.
 const CREDENTIALS = [
   ".ssh",
   ".gnupg",
   ".aws",
   ".azure",
   ".docker",
+  ".kube",
   ".netrc",
+  ".npmrc",
+  ".git-credentials",
+  join(".config", "git", "credentials"),
   join(".config", "gh"),
   join(".config", "gcloud"),
+  join(".local", "share", "keyrings"),
+  join("Library", "Keychains"),
   ".claude",
   ".claude.json",
   ".codex",
@@ -49,11 +56,12 @@ const CREDENTIALS = [
 
 /**
  * What a worker must not read: every account's home, its own too, since the agent process reads its login and no shell
- * command needs it, and the user's credential folders.
+ * command needs it, the user's credential stores, and gh's folder under XDG_CONFIG_HOME when that is set.
  */
-export const deniedPaths = (registry: AccountRegistry, home: string): string[] => [
+export const deniedPaths = (registry: AccountRegistry, home: string, xdgConfigHome: string | undefined): string[] => [
   ...registry.accounts.map((account) => account.home),
   ...CREDENTIALS.map((path) => join(home, path)),
+  ...(xdgConfigHome === undefined ? [] : [join(xdgConfigHome, "gh")]),
 ];
 
 /**

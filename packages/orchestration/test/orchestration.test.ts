@@ -3,11 +3,15 @@ import type { AccountRegistry } from "@cedarloom/contracts";
 import { deniedPaths, GITHUB_DOMAINS, ghProbe, workerEnv } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 
+// A launcher environment with lower- and mixed-case copies of the names, which only Windows takes for the real ones.
 const parent = {
-  Path: "/usr/bin",
+  PATH: "/usr/bin",
+  path: "/tmp/hostile",
   HOME: "/home/dev",
+  Home: "/tmp/hostile",
   LANG: "en_US.UTF-8",
   USER: "dev",
+  user: "hostile",
   ANTHROPIC_API_KEY: "k",
   GITHUB_TOKEN: "ghp_launcher",
   CLAUDE_CODE_SIMPLE: "1",
@@ -18,7 +22,7 @@ const parent = {
 test("a worker's environment comes from an allowlist, with the profile's token and an empty gh folder", () => {
   const input = { parent, platform: "linux", ghToken: "github_pat_profile", ghConfigDir: "/w/gh" } as const;
   expect(workerEnv(input)).toEqual({
-    Path: "/usr/bin",
+    PATH: "/usr/bin",
     HOME: "/home/dev",
     LANG: "en_US.UTF-8",
     GH_CONFIG_DIR: "/w/gh",
@@ -26,13 +30,19 @@ test("a worker's environment comes from an allowlist, with the profile's token a
   });
   // macOS keeps USER for the keychain login; a profile without a token sets no GH_TOKEN.
   expect(workerEnv({ ...input, platform: "darwin", ghToken: null })).toEqual({
-    Path: "/usr/bin",
+    PATH: "/usr/bin",
     HOME: "/home/dev",
     LANG: "en_US.UTF-8",
     USER: "dev",
     GH_CONFIG_DIR: "/w/gh",
   });
+  // Windows names ignore case: its Path is PATH.
+  expect(workerEnv({ ...input, parent: { Path: "C:\\Windows" }, platform: "win32" })).toMatchObject({
+    Path: "C:\\Windows",
+  });
 });
+
+const home = (...path: string[]) => join("/home/dev", ...path);
 
 const account = (name: string) =>
   ({ name, agent: "claude", home: `/accounts/${name}`, pool: null, added: "" }) as const;
@@ -44,9 +54,18 @@ test("a worker may not read any account's home or the user's credential folders,
     accounts: [account("work"), account("spare")],
     pools: {},
   };
-  const denied = deniedPaths(registry, "/home/dev");
+  const denied = deniedPaths(registry, "/home/dev", "/home/dev/xdg");
   expect(denied.slice(0, 2)).toEqual(["/accounts/work", "/accounts/spare"]);
-  expect(denied).toEqual(expect.arrayContaining([join("/home/dev", ".ssh"), join("/home/dev", ".config", "gh")]));
+  expect(denied).toEqual(
+    expect.arrayContaining([
+      home(".ssh"),
+      home(".config", "gh"),
+      home(".git-credentials"),
+      home("Library", "Keychains"),
+    ]),
+  );
+  expect(denied.at(-1)).toBe(join("/home/dev/xdg", "gh"));
+  expect(deniedPaths(registry, "/home/dev", undefined)).not.toContain(join("/home/dev/xdg", "gh"));
   expect(GITHUB_DOMAINS).toEqual(["github.com", "*.github.com", "*.githubusercontent.com"]);
 });
 

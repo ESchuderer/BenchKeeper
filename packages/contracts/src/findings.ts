@@ -74,6 +74,8 @@ export const Finding = z
     finding("launch.account-full", { account: z.string(), max: z.int() }),
     // gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused.
     finding("launch.gh-login", { error: z.string().nullable() }),
+    // A managed settings file lets commands run outside the sandbox: a managed key outranks the worker's settings.
+    finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -136,4 +138,5 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.settings-unproven": { severity: "error", effort: "manual" },
   "launch.account-full": { severity: "warning", effort: "manual" },
   "launch.gh-login": { severity: "error", effort: "manual" },
+  "launch.sandbox-overridden": { severity: "error", effort: "manual" },
 };

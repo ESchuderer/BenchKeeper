@@ -3,7 +3,16 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
-import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
+import {
+  deniedPaths,
+  GITHUB_DOMAINS,
+  ghProbe,
+  managedSettingsDir,
+  readResult,
+  resultPrompt,
+  sandboxOverrides,
+  workerEnv,
+} from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 
 // A launcher environment with lower- and mixed-case copies of the names, which only Windows takes for the real ones.
@@ -147,4 +156,61 @@ test("the prompt names the result file and the run, in the form the result is re
   expect(prompt).toContain("/state/workers/0b9f4c1e/out/result.json");
   expect(prompt).toContain(`"runId":"${runId}"`);
   expect(prompt).toContain('"schemaVersion":1');
+});
+
+// A managed settings folder with these files, by name below it.
+const managed = (files: Record<string, unknown>): string => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(join(dir, name, ".."), { recursive: true });
+    writeFileSync(join(dir, name), typeof content === "string" ? content : JSON.stringify(content));
+  }
+  return dir;
+};
+const drop = (name: string) => join("managed-settings.d", name);
+
+test("the managed settings folder is the platform's documented system folder", () => {
+  expect(managedSettingsDir("darwin")).toBe("/Library/Application Support/ClaudeCode");
+  expect(managedSettingsDir("linux")).toBe("/etc/claude-code");
+  expect(managedSettingsDir("win32")).toBe("C:\\Program Files\\ClaudeCode");
+  expect(managedSettingsDir("freebsd")).toBeNull();
+});
+
+test("managed settings that let commands run outside the sandbox are found, with the file that sets them", () => {
+  const dir = managed({
+    "managed-settings.json": {
+      sandbox: { enabled: false, allowUnsandboxedCommands: "true", excludedCommands: ["docker"] },
+    },
+  });
+  expect(sandboxOverrides(dir)).toEqual([
+    { path: join(dir, "managed-settings.json"), key: "enabled" },
+    { path: join(dir, "managed-settings.json"), key: "allowUnsandboxedCommands" },
+    { path: join(dir, "managed-settings.json"), key: "excludedCommands" },
+  ]);
+  // A strict policy, an invalid value (strict until fixed), and an empty list loosen nothing.
+  const strict = {
+    sandbox: { enabled: "on", failIfUnavailable: true, allowUnsandboxedCommands: false, excludedCommands: [] },
+  };
+  expect(sandboxOverrides(managed({ "managed-settings.json": strict }))).toEqual([]);
+  expect(sandboxOverrides(managed({}))).toEqual([]);
+});
+
+test("drop-in files merge after managed-settings.json in name order, the later value winning", () => {
+  const dir = managed({
+    "managed-settings.json": { sandbox: { enabled: true, failIfUnavailable: "false" } },
+    [drop("10-off.json")]: { sandbox: { enabled: false } },
+    [drop("20-on.json")]: { sandbox: { enabled: true } },
+    [drop("30-fail.json")]: { sandbox: { failIfUnavailable: true } },
+    // Hidden, not JSON by name, no JSON object, or no sandbox block: none of them counts.
+    [drop(".hidden.json")]: { sandbox: { enabled: false } },
+    [drop("notes.txt")]: { sandbox: { enabled: false } },
+    [drop("40-broken.json")]: "{",
+    [drop("50-other.json")]: { model: "claude-sonnet-5-5" },
+  });
+  expect(sandboxOverrides(dir)).toEqual([]);
+  const off = managed({
+    "managed-settings.json": { sandbox: { enabled: true } },
+    [drop("90-off.json")]: { sandbox: { enabled: false } },
+  });
+  expect(sandboxOverrides(off)).toEqual([{ path: join(off, drop("90-off.json")), key: "enabled" }]);
 });

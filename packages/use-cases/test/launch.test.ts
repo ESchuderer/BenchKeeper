@@ -19,6 +19,8 @@ const host = {
   platform: process.platform,
   home: "/home/dev",
   gh: [node, "-e", "process.exit(1)"],
+  // No managed settings: the machine's own would make these tests depend on it.
+  managedDir: null,
 } as const;
 
 // A config folder with one confirmed Claude Code pool of `names`, whose homes exist.
@@ -344,3 +346,23 @@ test("the version check tries a store another process holds again a second later
   };
   await expect(launchWorker(state, config, holding, host)).resolves.toMatchObject({ value: { verdict: "pass" } });
 }, 15_000);
+
+test("a managed settings file that lets commands run outside the sandbox refuses every launch before anything else", async () => {
+  const { state, config, work } = setup();
+  const managed = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
+  writeFileSync(join(managed, "managed-settings.json"), JSON.stringify({ sandbox: { enabled: false } }));
+  await expect(launchWorker(state, config, request(work), { ...host, managedDir: managed })).resolves.toEqual({
+    ok: false,
+    finding: {
+      code: "launch.sandbox-overridden",
+      params: { path: join(managed, "managed-settings.json"), key: "sandbox.enabled" },
+    },
+  });
+  // Nothing was chosen, leased or created.
+  expect(existsSync(state)).toBe(false);
+  // Without a managedDir the platform's folder is read: none on this machine's test runs, or one without overrides.
+  const { managedDir: _, ...platformHost } = host;
+  await expect(launchWorker(state, config, request(work, { result: passing }), platformHost)).resolves.toMatchObject({
+    value: { verdict: "pass" },
+  });
+});

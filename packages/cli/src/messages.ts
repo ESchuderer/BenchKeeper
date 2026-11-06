@@ -92,6 +92,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
   "accounts.codex-switching-off": (p) =>
     `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
+  "launch.sandbox-overridden": (p) =>
+    `The managed settings file ${p.path} sets ${p.key}, which lets commands run outside the sandbox; no worker starts while it does.`,
   "launch.gh-login": (p) =>
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."

@@ -5,7 +5,16 @@ import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
 import type { Account, AccountRegistry, LaunchRecord, Result } from "@cedarloom/contracts";
 import type { LeaseLock } from "@cedarloom/ledger";
-import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
+import {
+  deniedPaths,
+  GITHUB_DOMAINS,
+  ghProbe,
+  managedSettingsDir,
+  readResult,
+  resultPrompt,
+  sandboxOverrides,
+  workerEnv,
+} from "@cedarloom/orchestration";
 import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
@@ -34,7 +43,18 @@ export interface LaunchHost {
   readonly home: string;
   /** The gh command of the token probe; gh on the worker's PATH when unset. */
   readonly gh?: readonly [string, ...string[]];
+  /** The folder of Claude Code's managed settings files; the platform's when unset, none when null. */
+  readonly managedDir?: string | null;
 }
+
+// A managed settings file that lets commands run outside the sandbox refuses every launch: it outranks --settings.
+const managedRefusal = (host: LaunchHost): Result<null> => {
+  const dir = host.managedDir === undefined ? managedSettingsDir(host.platform) : host.managedDir;
+  const [override] = dir === null ? [] : sandboxOverrides(dir);
+  if (override === undefined) return { ok: true, value: null };
+  const params = { path: override.path, key: `sandbox.${override.key}` };
+  return { ok: false, finding: { code: "launch.sandbox-overridden", params } };
+};
 
 type Verdict = NonNullable<LaunchRecord["verdict"]>;
 
@@ -204,6 +224,8 @@ export const launchWorker = async <L extends Launch>(
   request: WorkerRequest<L>,
   host: LaunchHost,
 ): Promise<Result<WorkerOutcome>> => {
+  const managed = managedRefusal(host);
+  if (!managed.ok) return managed;
   const registry = loadRegistry(config);
   if (!registry.ok) return registry;
   const accounts = registry.value;

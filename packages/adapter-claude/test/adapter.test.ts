@@ -161,8 +161,9 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   expect(settings).toMatchObject({
     permissions: {
       allow: ["Bash(pnpm test *)", expect.stringMatching(/^Edit\(\/\/.*out\/result\.json\)$/)],
-      // The path itself and below it; the working folder's own path depends on the platform.
-      deny: [
+      // The path itself and below it; the working folder's own path depends on the platform. The own home's login and
+      // state files come too, as the next test shows.
+      deny: expect.arrayContaining([
         "Read(//accounts/other)",
         "Read(//accounts/other/**)",
         "Edit(//accounts/other)",
@@ -170,7 +171,7 @@ test("the settings passed with --settings hold the worker profile: denials, the 
         "Read(**/.env*)",
         "NotebookEdit",
         expect.stringMatching(/^Edit\(\/\/.*workflows\/\*\*\)$/),
-      ],
+      ]),
       disableBypassPermissionsMode: "disable",
       blockReadsOutsideWorkingDirectories: true,
     },
@@ -198,6 +199,25 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   for (const key of ["sandbox.excludedCommands", "env.CLAUDE_CONFIG_DIR", "env.CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"]) {
     expect(settings).not.toHaveProperty(key);
   }
+});
+
+test("the worker's own home stays closed to its file tools only where the login and the account's state live", async () => {
+  const own = launch({}, { denyRead: [fixtures, "/accounts/other"] });
+  const settings = z
+    .object({
+      permissions: z.object({ deny: z.array(z.string()) }),
+      sandbox: z.object({ filesystem: z.object({ denyRead: z.array(z.string()) }) }),
+    })
+    .parse(JSON.parse(started(await events(runtime.start(own))).args[12] ?? ""));
+  const { deny } = settings.permissions;
+  // Not the home whole, so the model reads what the CLI saves there for the session, such as a large tool output.
+  expect(deny.filter((rule) => rule.endsWith("/fixtures)") || rule.endsWith("/fixtures/**)"))).toEqual([]);
+  for (const name of [".credentials.json", ".claude.json", "backups", "remote-settings.json", "policy-limits.json"]) {
+    expect(deny.filter((rule) => rule.includes(`/fixtures/${name}`))).toHaveLength(4);
+  }
+  // Every other home stays closed whole, and shell commands keep the whole home closed.
+  expect(deny).toEqual(expect.arrayContaining(["Read(//accounts/other)", "Edit(//accounts/other/**)"]));
+  expect(settings.sandbox.filesystem.denyRead).toEqual([fixtures, "/accounts/other"]);
 });
 
 test("reads no usage on a version whose contract check has not passed", async () => {

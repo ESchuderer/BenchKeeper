@@ -1950,7 +1950,8 @@
                     "enum": [
                       "link",
                       "submodule",
-                      "name"
+                      "name",
+                      "case"
                     ]
                   }
                 },
@@ -4416,7 +4417,8 @@
                     "enum": [
                       "link",
                       "submodule",
-                      "name"
+                      "name",
+                      "case"
                     ]
                   }
                 },

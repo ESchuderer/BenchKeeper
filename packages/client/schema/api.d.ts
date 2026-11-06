@@ -1019,7 +1019,7 @@ export interface components {
             params: {
                 path: string;
                 /** @enum {string} */
-                kind: "link" | "submodule" | "name";
+                kind: "link" | "submodule" | "name" | "case";
             };
         } | {
             /** @constant */
@@ -1550,7 +1550,7 @@ export interface components {
             params: {
                 path: string;
                 /** @enum {string} */
-                kind: "link" | "submodule" | "name";
+                kind: "link" | "submodule" | "name" | "case";
             };
         } | {
             /** @constant */

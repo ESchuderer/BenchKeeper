@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readdirSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { join } from "node:path";
@@ -18,24 +19,53 @@ export type FetchOptions = { parent: string; limits?: Limits; timeoutMs?: number
 
 type Ran = { code: number | null; stdout: Buffer; stderr: string; failure: string | undefined };
 
+// Text from git, a server or a tree, shown in a terminal: line breaks as spaces, other control characters and
+// non-ASCII text as \u escapes, so none of it can move the cursor or rewrite a line.
+const shown = (text: string): string =>
+  text
+    .replace(/[\t\n\r]+/g, " ")
+    .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
 const failed = (step: "start" | "fetch" | "list" | "read", error: string): Result<never> => ({
   ok: false,
-  finding: { code: "git.failed", params: { step, error } },
+  finding: { code: "git.failed", params: { step, error: shown(error) } },
 });
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
+const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+
 // BenchKeeper's hardened clone (app/src/origin.mjs): no hooks and no fsmonitor, only the given transports, every
-// object checked, and a stalled transfer ends. `-c` wins over every configuration file.
-const config = (protocols: readonly string[]): string[] =>
-  [
+// object checked, no bundles a server offers, and a stalled transfer ends. `-c` wins over every configuration file.
+// Each hook the user's configuration defines by name is turned off too. `--git-dir` names the repository, as
+// safe.bareRepository=explicit asks.
+const config = (protocols: readonly string[], hooks: readonly string[]): string[] => [
+  ...flags([
     ["core.hooksPath", devNull],
+    ...hooks.map((name) => [`hook.${name}.enabled`, "false"]),
     ["core.fsmonitor", "false"],
     ["protocol.allow", "never"],
     ...protocols.map((protocol) => [`protocol.${protocol}.allow`, "always"]),
     ["transfer.fsckObjects", "true"],
+    ["transfer.bundleURI", "false"],
     ["http.lowSpeedLimit", "1000"],
     ["http.lowSpeedTime", "60"],
-  ].flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+  ]),
+  "--git-dir=.",
+];
+
+// The names of hooks the user's configuration defines (`hook.<name>.event`, git 2.54), which run whatever
+// core.hooksPath says, already when `init` writes HEAD: `config -z` gives `<key>\n<value>\0` items, and a name may
+// hold dots and spaces.
+const hookNames = (ran: Ran): string[] => [
+  ...new Set(
+    ran.stdout
+      .toString()
+      .split("\0")
+      .map((item) => item.slice(0, item.indexOf("\n")))
+      .map((key) => key.slice("hook.".length, key.lastIndexOf(".")))
+      .filter(Boolean),
+  ),
+];
 
 // The caller's environment without GIT_* variables, which would point git at another repository (GIT_DIR, set when
 // CedarLoom runs inside a hook) or add configuration; then no prompts, and ssh fails instead of asking.
@@ -44,12 +74,25 @@ const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
   GIT_ALLOW_PROTOCOL: protocols.join(":"),
   GIT_TERMINAL_PROMPT: "0",
   GIT_ASKPASS: "",
-  GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=30",
+  GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4",
+  // Git Credential Manager asks in a window otherwise.
+  GCM_INTERACTIVE: "never",
 });
 
-type RunOptions = { cwd: string; env: NodeJS.ProcessEnv; input?: string; timeoutMs: number; maxBytes: number };
+type RunOptions = {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  input?: string;
+  timeoutMs: number;
+  maxBytes: number;
+  // Polled while git runs: true stops it.
+  over?: () => boolean;
+};
 
-/** Runs git; `failure` says why it was stopped or could not start. stderr keeps its last 2000 characters. */
+/**
+ * Runs git; `failure` says why it was stopped or could not start. stderr keeps its last 2000 characters. A stopped
+ * git returns when it exits: its own children (ssh, git-remote-https) may hold its pipes open longer.
+ */
 const run = (args: string[], options: RunOptions): Promise<Ran> =>
   new Promise((resolve) => {
     const child = spawn("git", args, { cwd: options.cwd, env: options.env, windowsHide: true });
@@ -63,6 +106,17 @@ const run = (args: string[], options: RunOptions): Promise<Ran> =>
       child.kill();
     };
     const timer = setTimeout(() => stop(`stopped after ${options.timeoutMs} ms`), options.timeoutMs);
+    const check = (): unknown => options.over?.() && stop("over its disk limit");
+    check();
+    const watch = setInterval(check, 250);
+    let done = false;
+    const finish = (code: number | null): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      clearInterval(watch);
+      resolve({ code, stdout: Buffer.concat(chunks), stderr: stderr.trim(), failure });
+    };
     child.stdout.on("data", (chunk: Buffer) => {
       bytes += chunk.length;
       if (bytes > options.maxBytes) stop(`output over ${options.maxBytes} bytes`);
@@ -73,29 +127,28 @@ const run = (args: string[], options: RunOptions): Promise<Ran> =>
     });
     child.stdin.on("error", stop);
     child.on("error", stop);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, stdout: Buffer.concat(chunks), stderr: stderr.trim(), failure });
-    });
+    child.on("exit", (code) => failure !== undefined && finish(code));
+    child.on("close", finish);
     child.stdin.end(options.input);
   });
 
 const succeeded = (ran: Ran): boolean => ran.code === 0 && ran.failure === undefined;
 const why = (ran: Ran): string => ran.failure ?? (ran.stderr || `exit code ${ran.code}`);
 
-// Printable ASCII without spaces, not starting with "-" (an option to git or ssh).
-const printable = (text: string): boolean => /^[!-~]+$/.test(text) && !text.startsWith("-");
+// Printable ASCII without spaces, not starting with "-" (an option to git or ssh), and without a query or fragment,
+// where a token could hide from git's own redaction.
+const printable = (text: string): boolean => /^[!-~]+$/.test(text) && !text.startsWith("-") && !/[?#]/.test(text);
 const hasPassword = (url: string): boolean => URL.canParse(url) && new URL(url).password !== "";
 // A ref git can fetch into `<ref>:<local ref>`: no refspec syntax (`:`, `+`, `*`, `^`, `~`), no `..` and no `@{`.
 const isRef = (ref: string): boolean =>
   /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/.test(ref) && !ref.includes("..") && !ref.endsWith(".lock");
 
-// The POSIX portable file name characters, no `.` or `..`, no `.git` in any case, nothing Windows would rename or
-// open as a device (a trailing dot, CON, NUL, COM1 and the like).
+// The POSIX portable file name characters, not starting with "-", up to 255 of them; no `.git` in any case, nothing
+// Windows would rename or open as a device (a trailing dot, which also refuses `.` and `..`; CON, NUL, COM0, LPT9).
 const portable = (part: string): boolean =>
-  /^[A-Za-z0-9._-]+$/.test(part) &&
-  !/^\.{1,2}$|^\.git$|\.$/i.test(part) &&
-  !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part);
+  /^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}$/.test(part) &&
+  !/^\.git$|\.$/i.test(part) &&
+  !/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part);
 const portablePath = (path: string): boolean => path.length <= 1024 && path.split("/").every(portable);
 
 const sourceFinding = (source: Source): Finding | undefined => {
@@ -129,13 +182,29 @@ const KINDS = new Map<string, "link" | "submodule">([
 
 const entryFinding = (entry: Entry, limits: Limits): Finding | undefined => {
   const kind = KINDS.get(entry.mode);
-  if (kind !== undefined) return { code: "git.unsafe-entry", params: { path: entry.path, kind } };
-  if (!portablePath(entry.path)) return { code: "git.unsafe-entry", params: { path: entry.path, kind: "name" } };
+  if (kind !== undefined) return { code: "git.unsafe-entry", params: { path: shown(entry.path), kind } };
+  if (!portablePath(entry.path)) return { code: "git.unsafe-entry", params: { path: shown(entry.path), kind: "name" } };
   if (entry.size <= limits.fileBytes) return undefined;
   return {
     code: "git.too-large",
     params: { path: entry.path, found: entry.size, limit: limits.fileBytes, unit: "bytes" },
   };
+};
+
+// The first path that a file system ignoring case (macOS, Windows) would join with an earlier one: the same path, a
+// file where an earlier path has a folder, or a folder where an earlier path is a file.
+const caseClash = (list: Entry[]): string | undefined => {
+  const files = new Set<string>();
+  const folders = new Set<string>();
+  for (const { path } of list) {
+    const parts = path.toLowerCase().split("/");
+    const name = parts.join("/");
+    const above = parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"));
+    if (files.has(name) || folders.has(name) || above.some((folder) => files.has(folder))) return shown(path);
+    files.add(name);
+    for (const folder of above) folders.add(folder);
+  }
+  return undefined;
 };
 
 /** The first reason to refuse the whole listing: an unsafe entry, a file too large, or too many files or bytes. */
@@ -147,6 +216,8 @@ const listingFinding = (list: Entry[], limits: Limits): Finding | undefined => {
     const finding = entryFinding(entry, limits);
     if (finding !== undefined) return finding;
   }
+  const clash = caseClash(list);
+  if (clash !== undefined) return { code: "git.unsafe-entry", params: { path: clash, kind: "case" } };
   const bytes = list.reduce((sum, entry) => sum + entry.size, 0);
   if (bytes <= limits.bytes) return undefined;
   return { code: "git.too-large", params: { path: null, found: bytes, limit: limits.bytes, unit: "bytes" } };
@@ -174,21 +245,38 @@ const tree = (commit: string, files: TreeFile[]): Tree => ({
   digest: sha256(files.map((file) => `${file.mode} ${file.sha256} ${file.path}\n`).join("")),
 });
 
-type Git = (args: string[], options?: { input?: string; maxBytes?: number }) => Promise<Ran>;
+type Git = (args: string[], options?: Partial<Pick<RunOptions, "input" | "maxBytes" | "over">>) => Promise<Ran>;
 
-const fetchCommit = async (git: Git, source: Source): Promise<Result<string>> => {
-  const init = await git(["init", "--bare", "--quiet", "--template=", "."]);
+// The bytes of the files below `dir`; a file git renamed meanwhile counts 0.
+const bytesIn = (dir: string): number =>
+  readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .reduce(
+      (sum, entry) => sum + (statSync(join(entry.parentPath, entry.name), { throwIfNoEntry: false })?.size ?? 0),
+      0,
+    );
+
+const fetchCommit = async (git: Git, source: Source, dir: string, limits: Limits): Promise<Result<string>> => {
+  const init = await git(["init", "--bare", "--quiet", "--template="]);
   if (!succeeded(init)) return failed("start", why(init));
-  const fetch = await git([
-    "fetch",
-    "--depth=1",
-    "--no-tags",
-    "--no-recurse-submodules",
-    "--quiet",
-    "--",
-    source.url,
-    `${source.ref}:refs/cedarloom/fetched`,
-  ]);
+  // A server may send far more than the folder holds, and outside it: the quarantine is watched while git fetches.
+  const cap = 2 * limits.bytes + 1024 * 1024;
+  const fetch = await git(
+    [
+      "fetch",
+      "--depth=1",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--quiet",
+      "--",
+      source.url,
+      `${source.ref}:refs/cedarloom/fetched`,
+    ],
+    { over: () => bytesIn(dir) > cap },
+  );
+  const used = bytesIn(dir);
+  if (used > cap)
+    return refuse({ code: "git.too-large", params: { path: null, found: used, limit: cap, unit: "bytes" } });
   if (!succeeded(fetch)) return failed("fetch", why(fetch));
   const commit = await git(["rev-parse", "--verify", "--quiet", "refs/cedarloom/fetched^{commit}"]);
   return succeeded(commit) ? { ok: true, value: commit.stdout.toString().trim() } : failed("fetch", why(commit));
@@ -218,14 +306,23 @@ export const fetchTreeOver =
     const refused = sourceFinding(source);
     if (refused !== undefined) return refuse(refused);
     const dir = await mkdtemp(join(options.parent, "quarantine-"));
-    const env = environment(protocols);
+    // Git never looks above the quarantine for a repository, also while it is none yet.
+    const env = { ...environment(protocols), GIT_CEILING_DIRECTORIES: options.parent };
     const timeoutMs = options.timeoutMs ?? 300_000;
-    const git: Git = (args, extra = {}) =>
-      run([...config(protocols), ...args], { cwd: dir, env, timeoutMs, maxBytes: 64 * 1024, ...extra });
+    const limits = options.limits ?? LIMITS;
+    const base = { cwd: dir, env, timeoutMs, maxBytes: 64 * 1024 };
+    // Read before `init`, which runs them; the empty folder is no repository, so this reads the user's configuration.
+    const hooks = hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base));
+    const git: Git = async (args, extra = {}) => {
+      const ran = await run([...config(protocols, hooks), ...args], { ...base, ...extra });
+      // A URL may carry a token in its path: git's messages name the repository instead.
+      return { ...ran, stderr: ran.stderr.replaceAll(source.url, "the repository") };
+    };
     try {
-      const commit = await fetchCommit(git, source);
-      return commit.ok ? await readTree(git, commit.value, source, options.limits ?? LIMITS) : commit;
+      const commit = await fetchCommit(git, source, dir, limits);
+      return commit.ok ? await readTree(git, commit.value, source, limits) : commit;
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      // A left-over child process can keep a file busy on Windows; the result stands either way.
+      await Promise.allSettled([rm(dir, { recursive: true, force: true, maxRetries: 3 })]);
     }
   };

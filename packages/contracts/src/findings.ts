@@ -82,7 +82,7 @@ export const Finding = z
     finding("git.failed", { step: z.enum(["start", "fetch", "list", "read"]), error: z.string() }),
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
-    finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name"]) }),
+    finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),

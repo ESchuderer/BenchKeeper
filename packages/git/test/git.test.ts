@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -89,19 +89,29 @@ test("the whole tree when no folder is named, in path order", async () => {
   ]);
 }, 30_000);
 
-test("a tree with a link, a submodule or a name that is not portable is refused whole", async () => {
-  const trees: [Entry, string, string][] = [
-    [{ mode: "120000", content: "../../.ssh/id_ed25519" }, "link", "dir/x"],
-    [{ submodule: plugin.commit }, "submodule", "dir/x"],
-    ["text", "name", "dir/a file.txt"],
+test("a tree with a link, a submodule, a name that is not portable or two names in different case is refused whole", async () => {
+  // Beside a file main.js: the entry, the kind and the path the finding names, control characters escaped.
+  const trees: [Entry, string, string, string][] = [
+    [{ mode: "120000", content: "../../.ssh/id_ed25519" }, "dir/x", "link", "dir/x"],
+    [{ submodule: plugin.commit }, "dir/x", "submodule", "dir/x"],
+    ["text", "dir/a file.txt", "name", "dir/a file.txt"],
+    ["text", "ok\u001b[2K\rall-verified.txt", "name", "ok\\u001b[2K all-verified.txt"],
+    ["text", "Main.js", "case", "main.js"],
+    ["text", "MAIN.js/x", "case", "main.js"],
   ];
   const results = await Promise.all(
-    trees.map(async ([entry, , path]) => {
+    trees.map(async ([entry, path]) => {
       const repo = source({ "main.js": "ok\n", [path]: entry });
       return codeOf(await fetchLocal({ url: repo.url, ref: "v1" }, { parent: parent() }));
     }),
   );
-  expect(results).toEqual(trees.map(([, kind, path]) => ({ code: "git.unsafe-entry", params: { path, kind } })));
+  expect(results).toEqual(trees.map(([, , kind, path]) => ({ code: "git.unsafe-entry", params: { path, kind } })));
+  // A file, then a folder of the same name in another case.
+  const folder = source({ X: "file", "x/y": "file in a folder" });
+  expect(codeOf(await fetchLocal({ url: folder.url, ref: "v1" }, { parent: parent() }))).toEqual({
+    code: "git.unsafe-entry",
+    params: { path: "x/y", kind: "case" },
+  });
 }, 30_000);
 
 const many = (count: number, text = "x"): Record<string, Entry> =>
@@ -130,15 +140,27 @@ test("a tree over a limit is refused whole: files, one file's bytes, all bytes, 
   expect(codeOf(listing)).toEqual({ code: "git.failed", params: { step: "list", error: "output over 2400 bytes" } });
 }, 30_000);
 
+test("a fetch that brings far more than the folder may hold is refused, also when the bulk lies outside the folder", async () => {
+  const bulky = source({ "plugin/a.txt": "a", "big.bin": randomBytes(2_400_000).toString("base64") });
+  const limits = { files: 9, bytes: 1000, fileBytes: 1000 };
+  const tree = await fetchLocal({ url: bulky.url, ref: "v1", path: "plugin" }, { parent: parent(), limits });
+  expect(codeOf(tree)).toEqual({
+    code: "git.too-large",
+    params: { path: null, found: expect.any(Number), limit: 2000 + 1024 * 1024, unit: "bytes" },
+  });
+}, 30_000);
+
 test("a source is refused before git runs: a password, a space, an option, refspec syntax, a path out or not portable", async () => {
   const into = parent();
   const urls = [
     "https://bot:token@git.example.org/acme/jira.git",
     "https://git.example.org/a b.git",
     "-oProxyCommand=x",
+    "https://git.example.org/acme/jira.git?access_token=x",
+    "https://git.example.org/acme/jira.git#x",
   ];
   const refs = ["main:refs/heads/x", "v1^{tree}", "a..b", "main.lock", "-x"];
-  const paths = ["../x", ".git/hooks", "plugin/.", "CON", "nul.txt", "a.", "a\\b"];
+  const paths = ["../x", ".git/hooks", "plugin/.", "CON", "nul.txt", "COM0", "a.", "a\\b", "-x", "a".repeat(256)];
   const sources: [Source, string][] = [
     ...urls.map((url): [Source, string] => [{ url, ref: "v1" }, "url"]),
     ...refs.map((ref): [Source, string] => [{ url: plugin.url, ref }, "ref"]),
@@ -149,25 +171,38 @@ test("a source is refused before git runs: a password, a space, an option, refsp
   expect(readdirSync(into)).toEqual([]);
 });
 
-test("fetchTree takes https and ssh only: git refuses the file and ext transports", async () => {
+test("fetchTree takes https and ssh only, and git's messages name no URL, which may hold a token", async () => {
   const results = await Promise.all(
-    [plugin.url, "ext::false"].map(async (url) => codeOf(await fetchTree({ url, ref: "v1" }, { parent: parent() }))),
+    [plugin.url, "ext::false", "https://127.0.0.1:1/acme/secret-token.git"].map(async (url) =>
+      codeOf(await fetchTree({ url, ref: "v1" }, { parent: parent() })),
+    ),
   );
   expect(results).toEqual([
     { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'file' not allowed/) } },
     { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'ext' not allowed/) } },
+    {
+      code: "git.failed",
+      params: { step: "fetch", error: expect.stringMatching(/^(?!.*secret-token).*the repository/) },
+    },
   ]);
 }, 30_000);
 
-test("no hook runs, not even one the user's own configuration names", async () => {
+test("no hook runs, not even one the user's own configuration names, and a bare repository needs naming", async () => {
   const home = mkdtempSync(join(root, "home-"));
   const hooks = join(home, "hooks");
-  const marker = join(home, "ran");
+  const marker = join(home, "ran").replaceAll("\\", "/");
   mkdirSync(hooks);
-  writeFileSync(join(hooks, "reference-transaction"), `#!/bin/sh\necho ran >> '${marker.replaceAll("\\", "/")}'\n`, {
-    mode: 0o755,
-  });
-  writeFileSync(join(home, ".gitconfig"), `[core]\n\thooksPath = ${hooks.replaceAll("\\", "/")}\n`);
+  writeFileSync(join(hooks, "reference-transaction"), `#!/bin/sh\necho ran >> '${marker}'\n`, { mode: 0o755 });
+  // A hooks folder, a hook defined by name (git 2.54 runs it whatever core.hooksPath says), and the setting that
+  // refuses a bare repository found by searching.
+  writeFileSync(
+    join(home, ".gitconfig"),
+    [
+      `[core]\n\thooksPath = ${hooks.replaceAll("\\", "/")}`,
+      `[hook "spy one"]\n\tevent = reference-transaction\n\tcommand = echo named >> '${marker}'`,
+      "[safe]\n\tbareRepository = explicit\n",
+    ].join("\n"),
+  );
   vi.stubEnv("HOME", home);
   vi.stubEnv("USERPROFILE", home);
   // Plain git runs that hook on every ref update, and the fetch updates a ref too.
@@ -209,3 +244,22 @@ test("git failures name their step: no git, out of time, an unknown ref, a ref t
     { code: "git.failed", params: { step: "start", error: expect.stringMatching(/ENOENT/) } },
   ]);
 }, 30_000);
+
+// The ext transport runs a program in git's place; this one hangs on with git's pipes after git is stopped, as ssh can.
+test.skipIf(process.platform === "win32")(
+  "a stopped git returns at once, though a child of it keeps its pipes open",
+  async () => {
+    const program = join(mkdtempSync(join(root, "hang-")), "hang.sh");
+    writeFileSync(program, "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
+    const started = Date.now();
+    const tree = await fetchTreeOver(["ext"])(
+      { url: `ext::${program}`, ref: "v1" },
+      { parent: parent(), timeoutMs: 500 },
+    );
+    expect([codeOf(tree), Date.now() - started < 3000]).toEqual([
+      { code: "git.failed", params: { step: "fetch", error: "stopped after 500 ms" } },
+      true,
+    ]);
+  },
+  30_000,
+);

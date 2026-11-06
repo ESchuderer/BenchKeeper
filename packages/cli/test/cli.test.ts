@@ -311,7 +311,7 @@ test("every finding code has an English sentence", () => {
   const name = Finding.parse({ code: "git.unsafe-entry", params: { path: "a b.txt", kind: "name" } });
   const file = Finding.parse({ code: "git.too-large", params: { path: "a.bin", found: 11, limit: 10, unit: "bytes" } });
   expect([text(name), text(file)]).toEqual([
-    'a b.txt is not a portable file name (letters, digits, ".", "_" and "-"), so nothing of this tree is used.',
+    'a b.txt is not a portable file name (letters, digits, ".", "_" and "-"), so nothing of the fetched tree is used.',
     "a.bin has 11 bytes, more than the 10 a fetched tree may have; nothing of it is used.",
   ]);
 });

@@ -89,6 +89,7 @@ export {
   readProfile,
   SELECTION_SCHEMA_VERSION,
 } from "./profile.ts";
+export { type Composed, composeProfile, type LoadParent, type ParentRef } from "./compose.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {

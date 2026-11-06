@@ -438,6 +438,7 @@ test("every finding code has an English sentence", () => {
     "git.refused-source": { field: "url" },
     "git.unsafe-entry": { path: "dist/link", kind: "link" },
     "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
+    "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });

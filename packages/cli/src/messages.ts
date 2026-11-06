@@ -206,6 +206,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The profile holds what looks like a credential at ${p.path}. A profile is shared, so it is refused; keep the value in your environment or a secret store.`,
   "profile.forbidden-setting": (p) =>
     `The profile sets ${p.path}, which CedarLoom never writes: it removes a guard, runs a command or keeps your own choice.`,
+  "profile.parent-unknown": (p) => `The parent profile ${p.path} is not in pack ${p.pack}.`,
+  "profile.parent-cycle": (p) => `The profiles extend each other in a circle: ${p.chain.join(" -> ")}.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

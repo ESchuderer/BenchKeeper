@@ -3104,6 +3104,65 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.parent-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "pack": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pack",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.parent-cycle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "chain": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "chain"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "git.too-large"
               },
               "params": {
@@ -6725,6 +6784,65 @@
                 },
                 "required": [
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.parent-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "pack": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pack",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.parent-cycle"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "chain": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "chain"
                 ],
                 "additionalProperties": false
               }

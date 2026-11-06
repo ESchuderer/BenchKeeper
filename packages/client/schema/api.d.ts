@@ -1281,6 +1281,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2070,6 +2083,19 @@ export interface components {
             code: "profile.forbidden-setting";
             params: {
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
             };
         } | {
             /** @constant */

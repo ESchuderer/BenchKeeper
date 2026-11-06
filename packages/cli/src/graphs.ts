@@ -16,10 +16,8 @@ const ran = (ctx: Context, result: Result<{ runId: string; status: string }>): n
 const runOptions = (ctx: Context, project: string | undefined): useCases.RunOptions => {
   const stop = new AbortController();
   void ctx.io.untilStopped().then(() => stop.abort());
-  const { agent, env } = ctx.io;
-  const host = { parent: env, platform: process.platform, home: homedir() };
-  const agents = agent === undefined ? undefined : { config: ctx.config, host, runtime: agent };
-  return { project, signal: stop.signal, agents };
+  const host = { parent: ctx.io.env, platform: process.platform, home: homedir() };
+  return { project, signal: stop.signal, agents: { config: ctx.config, host, runtime: ctx.io.agent } };
 };
 
 export const workflowsRun = async (

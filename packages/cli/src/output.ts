@@ -15,8 +15,8 @@ export interface Io {
   authStatus: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
   /** How Git sources are fetched: over https and ssh unless a test hands over its own trees. */
   fetch?: Fetch;
-  /** The agent CLI that `agent.run` nodes start; without it a workflow with one is refused. */
-  agent?: AgentOptions["runtime"];
+  /** The agent CLI that `agent.run` nodes start. */
+  agent: AgentOptions["runtime"];
 }
 
 export interface Context {

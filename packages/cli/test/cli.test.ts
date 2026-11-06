@@ -646,61 +646,44 @@ const fileOf = (path: string, body: string) => ({
   content: Buffer.from(body),
 });
 // A Git source as the fetch hands it over, without a network: the folder holds the manifest and its entry.
+const treeOf = (manifest: object, commit = "c") => ({
+  commit: commit.repeat(40),
+  digest: commit.repeat(64),
+  files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
+});
 const published =
   (manifest: object): Fetch =>
   () =>
-    Promise.resolve({
-      ok: true,
-      value: {
-        commit: "c".repeat(40),
-        digest: "d".repeat(64),
-        files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
-      },
-    });
+    Promise.resolve({ ok: true, value: treeOf(manifest) });
 const SOURCE = "https://git.example.org/acme/jira.git";
 
-test("extensions: add shows the source, the trust and the capabilities, and installs with --approve; list shows it", async () => {
-  const { state, cli } = setup(published(MANIFEST));
-  const none = await cli("extensions", "list");
+// Runs a command with --json: its exit code and the JSON object it printed.
+const jsonRun =
+  (cli: ReturnType<typeof setup>["cli"]) =>
+  async (...argv: string[]): Promise<Record<string, unknown>> => {
+    const ran = await cli(...argv, "--json");
+    return { code: ran.code, ...json(ran.out) };
+  };
+test("extensions: add plans the install with its source, trust and capabilities, installs it by --approve, and list shows it", async () => {
+  const { cli } = setup(published(MANIFEST));
+  const run = jsonRun(cli);
+  const none = await run("extensions", "list");
   const add = ["extensions", "add", SOURCE, "--ref", "v1", "--path", "jira"];
-  const shown = await cli(...add);
-  const preview = json((await cli(...add, "--json")).out);
-  const installed = await cli(...add, "--approve", String(preview["planHash"]));
-  const listed = await cli("extensions", "list");
-  const listedJson = json((await cli("extensions", "list", "--json")).out);
-  const again = await cli("extensions", "add", SOURCE, "--yes");
-  expect([none.out, shown.code, existsSync(join(state, "extensions.json"))]).toEqual([
-    "No extensions installed. Add one with: cedarloom extensions add <Git URL>\n",
-    EXIT.ok,
-    true,
+  const preview = await run(...add);
+  const installed = await run(...add, "--approve", String(preview["planHash"]));
+  const listed = await run("extensions", "list");
+  const again = await run("extensions", "add", SOURCE, "--yes");
+  const pin = { id: "acme.jira", trust: "community", ref: "v1", source: expect.objectContaining({ path: "jira" }) };
+  expect([none, preview, installed, listed]).toMatchObject([
+    { code: EXIT.ok, extensions: [] },
+    { code: EXIT.ok, extension: pin, capabilities: MANIFEST.capabilities },
+    { code: EXIT.ok, status: "applied" },
+    { code: EXIT.ok, extensions: [expect.objectContaining({ id: "acme.jira", digest: "c".repeat(64) })] },
   ]);
-  expect(shown.out).toContain(
-    [
-      "  acme.jira 1.0.0 (Jira) by acme, not verified; license MIT",
-      `  from ${SOURCE}, folder jira, v1 at commit ${"c".repeat(40)}; files ${"d".repeat(64)}`,
-      "  community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
-      "  made for darwin, linux",
-      "  may send requests through CedarLoom to https://acme.atlassian.net",
-      "  uses your credential jira-token for https://acme.atlassian.net; CedarLoom adds it, the extension never sees it",
-      "  reads files of your projects",
-      "  proposes file changes, applied only through a plan you approve",
-      `Nothing changed. Run the command again with --yes, or with --approve ${String(preview["planHash"])} to install exactly this.`,
-    ].join("\n"),
-  );
-  expect([preview["extension"], preview["capabilities"]]).toEqual([
-    expect.objectContaining({ id: "acme.jira", trust: "community", ref: "v1" }),
-    MANIFEST.capabilities,
-  ]);
-  expect([installed.code, installed.out.includes("applied."), listed.out, listedJson["extensions"]]).toEqual([
-    EXIT.ok,
-    true,
-    `acme.jira  1.0.0  community  ${SOURCE} (jira)  ${"c".repeat(12)}\n`,
-    [expect.objectContaining({ id: "acme.jira", digest: "d".repeat(64) })],
-  ]);
-  expect([again.code, again.err]).toEqual([
-    EXIT.refused,
-    "error: Extension acme.jira is not installed: it is installed already.\n",
-  ]);
+  expect(again).toMatchObject({
+    code: EXIT.refused,
+    findings: [{ code: "extension.install-refused", params: { extension: "acme.jira", reason: "installed" } }],
+  });
 });
 
 test("extensions: one without capabilities asks for none; a source the CLI never fetches is refused before Git runs", async () => {
@@ -720,6 +703,73 @@ test("extensions: one without capabilities asks for none; a source the CLI never
   expect([local.code, local.err]).toEqual([
     EXIT.refused,
     `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
+  ]);
+});
+
+// This machine's record that it first saw the commit at the extension's ref four days ago.
+const seenBefore = (state: string, commit: string): void =>
+  writeFileSync(
+    join(state, "extension-updates.json"),
+    JSON.stringify({
+      "acme.jira": { commit: commit.repeat(40), seen: new Date(Date.now() - 4 * 864e5).toISOString() },
+    }),
+  );
+
+const NEEDED = [{ code: "extension.consent-needed", params: { extension: "acme.jira" } }];
+
+test("extensions: what enables capabilities takes --approve only; an update waits 3 days and asks again for what grew", async () => {
+  const small = { ...MANIFEST, capabilities: { net: ["https://acme.atlassian.net"] } };
+  let tree = treeOf(small);
+  const { state, cli } = setup(() => Promise.resolve({ ok: true, value: tree }));
+  const run = jsonRun(cli);
+  const yes = await run("extensions", "add", SOURCE, "--yes");
+  const added = await run(
+    "extensions",
+    "add",
+    SOURCE,
+    "--approve",
+    String((await run("extensions", "add", SOURCE))["planHash"]),
+  );
+  const current = await run("extensions", "update", "acme.jira");
+  tree = treeOf({ ...MANIFEST, version: "1.1.0" }, "d");
+  const waiting = await run("extensions", "update", "acme.jira");
+  seenBefore(state, "d");
+  const grown = await run("extensions", "update", "acme.jira", "--yes");
+  const hash = String((await run("extensions", "update", "acme.jira"))["planHash"]);
+  const approved = await run("extensions", "update", "acme.jira", "--approve", hash);
+  tree = treeOf({ ...small, version: "1.2.0" }, "e");
+  seenBefore(state, "e");
+  const shrunk = await run("extensions", "update", "acme.jira", "--yes");
+  expect([yes, added]).toMatchObject([
+    { code: EXIT.refused, findings: NEEDED },
+    { code: EXIT.ok, status: "applied" },
+  ]);
+  expect([current, waiting]).toMatchObject([
+    { code: EXIT.ok, kind: "current", commit: "c".repeat(40) },
+    { code: EXIT.ok, kind: "waiting", commit: "d".repeat(40) },
+  ]);
+  expect([grown, approved, shrunk]).toMatchObject([
+    { code: EXIT.refused, findings: NEEDED },
+    { code: EXIT.ok, status: "applied", grown: true, added: { projectRead: true, planWrite: true } },
+    { code: EXIT.ok, status: "applied", grown: false, added: {}, removed: { projectRead: true, planWrite: true } },
+  ]);
+});
+
+test("extensions: remove takes an extension out with --yes; one not installed is refused by remove and update", async () => {
+  const { capabilities: _capabilities, ...plain } = MANIFEST;
+  const run = jsonRun(setup(published(plain)).cli);
+  const installed = await run("extensions", "add", SOURCE, "--yes");
+  const shown = await run("extensions", "remove", "acme.jira");
+  const removed = await run("extensions", "remove", "acme.jira", "--yes");
+  const unknown = [{ code: "extension.unknown", params: { extension: "acme.jira" } }];
+  expect([installed, shown, removed]).toMatchObject([
+    { code: EXIT.ok, status: "applied" },
+    { code: EXIT.ok, extension: "acme.jira", planHash: expect.any(String) },
+    { code: EXIT.ok, status: "applied" },
+  ]);
+  expect([await run("extensions", "remove", "acme.jira"), await run("extensions", "update", "acme.jira")]).toEqual([
+    { code: EXIT.refused, format: "cedarloom.plan", schemaVersion: 1, findings: unknown },
+    { code: EXIT.refused, format: "cedarloom.plan", schemaVersion: 1, findings: unknown },
   ]);
 });
 

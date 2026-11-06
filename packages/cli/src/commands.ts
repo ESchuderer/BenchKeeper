@@ -229,21 +229,18 @@ export const accountsLogin = (ctx: Context, name: string): number => {
 type Pin = useCases.InstallPlan["pin"];
 
 // What the extension may do, in plain words.
-const mayDo = ({ capabilities = {} }: ExtensionManifest): string[] => {
-  const lines = [
-    ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
-    ...Object.entries(capabilities.credentials ?? {}).map(
-      ([id, { hosts }]) =>
-        `uses your credential ${id} for ${hosts.join(", ")}; CedarLoom adds it, the extension never sees it`,
-    ),
-    ...(capabilities.projectRead === true ? ["reads files of your projects"] : []),
-    ...(capabilities.planWrite === true ? ["proposes file changes, applied only through a plan you approve"] : []),
-  ];
-  return lines.length > 0 ? lines : ["asks for no capabilities"];
-};
+const mayDo = (capabilities: useCases.Capabilities): string[] => [
+  ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
+  ...Object.entries(capabilities.credentials ?? {}).map(
+    ([id, { hosts }]) =>
+      `uses your credential ${id} for ${hosts.join(", ")}; CedarLoom adds it, the extension never sees it`,
+  ),
+  ...(capabilities.projectRead === true ? ["reads files of your projects"] : []),
+  ...(capabilities.planWrite === true ? ["proposes file changes, applied only through a plan you approve"] : []),
+];
 
 // What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what
-// it may do. The publisher is the id's first part, which nothing verifies (pending owner decision, P5 a).
+// it may do. The publisher is the id's first part, which nothing verifies (P5 a).
 const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): string => {
   const publisher = manifest.id.slice(0, manifest.id.indexOf("."));
   const folder = source.path === undefined ? "" : `, folder ${source.path}`;
@@ -252,7 +249,9 @@ const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): str
     `from ${source.git}${folder}, ${ref} at commit ${source.commit}; files ${digest}`,
     "community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
     ...(manifest.platforms === undefined ? [] : [`made for ${manifest.platforms.join(", ")}`]),
-    ...mayDo(manifest),
+    ...(mayDo(manifest.capabilities ?? {}).length > 0
+      ? mayDo(manifest.capabilities ?? {})
+      : ["asks for no capabilities"]),
   ];
   return lines.map((line) => `\n  ${line}`).join("");
 };
@@ -261,6 +260,25 @@ const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): str
  * Shows the install of the extension at a Git source with what its approval consents to, or with --yes or --approve
  * installs it as one run. Its files are fetched and staged first, which changes nothing that is in use.
  */
+type Consent = { id: string; plan: Plan; note: string; data: object; added: useCases.Capabilities };
+
+// Shows an extension's plan, or applies it as approved. One that enables capabilities takes --approve only, so the
+// consent binds what the preview showed; --yes alone is refused.
+const consented = (ctx: Context, { id, plan, note, data, added }: Consent, approval: Approval): number => {
+  const preview = useCases.previewPlan(plan);
+  const shown = `${showPlan(preview)}${note}`;
+  const given = useCases.approvalOf(added, approval);
+  if (approved(given)) return applyShown(ctx, plan, { shown, findings: [], data }, given);
+  const needed = { code: "extension.consent-needed" as const, params: { extension: id } };
+  if (approved(approval)) return fail(ctx, "plan", [needed], EXIT.refused);
+  const how =
+    Object.keys(added).length > 0
+      ? `It enables what you have not approved, so only --approve ${preview.planHash} applies it.`
+      : `Run the command again with --yes, or with --approve ${preview.planHash} to apply exactly this.`;
+  emit(ctx, "plan", { ...preview, ...data }, `${shown}\nNothing changed. ${how}`);
+  return EXIT.ok;
+};
+
 export const extensionsAdd = async (
   ctx: Context,
   url: string,
@@ -269,17 +287,56 @@ export const extensionsAdd = async (
   const at = options.path === undefined ? {} : { path: options.path };
   const planned = await useCases.planInstall(ctx.state, { url, ref: options.ref ?? "HEAD", ...at }, ctx.io.fetch);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, manifest, pin } = planned.value;
-  const preview = useCases.previewPlan(plan);
-  const shown = `${showPlan(preview)}${consent(manifest, pin)}`;
-  const data = {
-    extension: { id: manifest.id, ...pin, trust: "community" },
-    capabilities: manifest.capabilities ?? {},
-  };
-  if (approved(options)) return applyShown(ctx, plan, { shown, findings: [], data }, options);
-  const human = `${shown}\nNothing changed. Run the command again with --yes, or with --approve ${preview.planHash} to install exactly this.`;
-  emit(ctx, "plan", { ...preview, ...data }, human);
+  const { plan, manifest, pin, added } = planned.value;
+  const extension = { id: manifest.id, ...pin, trust: "community" };
+  const data = { extension, capabilities: manifest.capabilities ?? {} };
+  return consented(ctx, { id: manifest.id, plan, note: consent(manifest, pin), data, added }, options);
+};
+
+type Planned = Extract<useCases.UpdatePlan, { kind: "planned" }>;
+
+const indent = (lines: string[]): string[] => lines.map((line) => `  ${line}`);
+
+// What an update changes: the version and the pin, and what it asks for beyond and short of what the user approved.
+const changes = ({ manifest, pin, from, added, removed }: Planned): string => {
+  const lines = [
+    `${manifest.id} ${from.version} -> ${manifest.version}, ${pin.ref} at commit ${pin.source.commit} (was ${from.source.commit.slice(0, 12)}); files ${pin.digest}`,
+    ...(Object.keys(added).length > 0 ? ["asks for more than you approved:", ...indent(mayDo(added))] : []),
+    ...(Object.keys(removed).length > 0 ? ["no longer asks for:", ...indent(mayDo(removed))] : []),
+  ];
+  return lines.map((line) => `\n  ${line}`).join("");
+};
+
+// An update that is current or still waits: nothing to plan yet.
+const notYet = (ctx: Context, id: string, value: Exclude<useCases.UpdatePlan, Planned>): number => {
+  const human =
+    value.kind === "current"
+      ? `${id} is up to date at commit ${value.commit}.`
+      : `${id}: commit ${value.commit} was first seen here at ${value.seen}; the update is offered from ${value.offered}, 3 days later.`;
+  emit(ctx, "update", { extension: id, ...value }, human);
   return EXIT.ok;
+};
+
+/**
+ * Updates an installed extension to the commit at its ref, once this machine has seen it for 3 days: shows the plan
+ * with what changes, or applies it. An update that asks for more than the user approved takes --approve only.
+ */
+export const extensionsUpdate = async (ctx: Context, id: string, approval: Approval): Promise<number> => {
+  const planned = await useCases.planUpdate(ctx.state, id, ctx.io.fetch);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { value } = planned;
+  if (value.kind !== "planned") return notYet(ctx, id, value);
+  const { pin, from, added, removed, grown } = value;
+  const data = { extension: { id, ...pin, trust: "community" }, from, added, removed, grown };
+  return consented(ctx, { id, plan: value.plan, note: changes(value), data, added }, approval);
+};
+
+/** Shows the removal of an installed extension, or with --yes removes it as one run; runs undo puts it back. */
+export const extensionsRemove = (ctx: Context, id: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planRemove(ctx.state, id);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const note = `\n  ${id} leaves the installed set; its files stay staged, inert, so runs undo puts it back.`;
+  return change(ctx, planned.value, { note, data: { extension: id }, findings: [] }, yes);
 };
 
 export const extensionsList = (ctx: Context): number => {

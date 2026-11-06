@@ -46,6 +46,9 @@ export const isSymlink = (path: string): boolean =>
 export const tempPath = (path: string, runId: string, index: number): string =>
   join(dirname(path), `.${basename(path)}.cedarloom-${runId}-${index}`);
 
+/** Where a step moves the file it replaces or deletes while it checks it; recovery finds it from the journal too. */
+export const asidePath = (path: string, runId: string, index: number): string => `${tempPath(path, runId, index)}.old`;
+
 const flush = (path: string, flags: string): void => {
   const fd = openSync(path, flags);
   try {
@@ -94,22 +97,27 @@ export interface Target {
   temp: string;
 }
 
+const writeTemp = (temp: string, content: string, mode: number | undefined): void => {
+  const fd = openSync(temp, "wx", mode ?? 0o666);
+  try {
+    writeFileSync(fd, content);
+    // Exact bits, not reduced by the umask: a restored 0600 file stays 0600.
+    if (mode !== undefined) fchmodSync(fd, mode);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+};
+
 /**
  * Writes through a flushed temporary file: a new file is linked in (refused when one appeared meanwhile), an existing
- * one is renamed over after one last hash check. The path holds the old bytes or the new ones, never a mix.
+ * one is renamed over after one last hash check. The path holds the old bytes or the new ones, never a mix. For files
+ * no other process writes, such as CedarLoom's own state; a run's steps use writeStep.
  */
 export const writeAtomic = ({ path, before, temp }: Target, content: string, mode: number | undefined): void => {
   mkdirSync(dirname(path), { recursive: true });
   try {
-    const fd = openSync(temp, "wx", mode ?? 0o666);
-    try {
-      writeFileSync(fd, content);
-      // Exact bits, not reduced by the umask: a restored 0600 file stays 0600.
-      if (mode !== undefined) fchmodSync(fd, mode);
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
+    writeTemp(temp, content, mode);
     if (before === null) link(temp, path);
     else if (hashFile(path) === before) renameSync(temp, path);
     else throw changed();
@@ -119,8 +127,93 @@ export const writeAtomic = ({ path, before, temp }: Target, content: string, mod
   flushFolder(dirname(path));
 };
 
-export const remove = (path: string, before: string): void => {
-  if (hashFile(path) !== before) throw changed();
-  unlinkSync(path);
+/** Puts a file that was set aside back at its path; when another process put a file there meanwhile, both stay. */
+export const putBack = (aside: string, path: string): void => {
+  let linked = true;
+  try {
+    linkSync(aside, path);
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return;
+    // Without hard links (FAT) a rename puts it back, as the path is free; any other error stops there too.
+    renameSync(aside, path);
+    linked = false;
+  }
+  if (linked) unlinkSync(aside);
+  flushFolder(dirname(path));
+};
+
+/**
+ * Moves the target aside and checks it there: a change another process makes by path from now on lands in a new file
+ * at the path, which the step then finds. A file that no longer hashes as `before` goes back.
+ */
+const setAside = (path: string, aside: string, before: string): void => {
+  try {
+    renameSync(path, aside);
+  } catch (error) {
+    throw errorCode(error) === "ENOENT" ? changed() : error;
+  }
+  // A folder or a link put at the path since the backup is not the step's file: it goes back unread.
+  const file = lstatSync(aside).isFile();
+  if (file && hashFile(aside) === before) return;
+  if (file) putBack(aside, path);
+  else renameSync(aside, path);
+  throw changed();
+};
+
+/** Without hard links (FAT) the path is free, so the rename the old protocol used puts the new file in. */
+const moveIn = (temp: string, path: string, aside: string): void => {
+  try {
+    renameSync(temp, path);
+  } catch (error) {
+    putBack(aside, path);
+    throw error;
+  }
+  unlinkSync(aside);
+};
+
+/** Puts the new file in where the old one was set aside; refused when another process put a file there meanwhile. */
+const putIn = (temp: string, path: string, aside: string): void => {
+  try {
+    link(temp, path);
+  } catch (error) {
+    if (errorCode(error) !== "ECHANGED") return moveIn(temp, path, aside);
+    // Theirs stays. The old bytes, checked and in the run's backup, go.
+    unlinkSync(aside);
+    throw error;
+  }
+  unlinkSync(aside);
+};
+
+/**
+ * A run step's write. The content goes to a flushed temporary file; an existing target is first set aside and checked
+ * there, then the new file is linked in. So a change another process makes by path is refused, never overwritten;
+ * only a write through a handle opened before the check, made after it, is lost. Between the two moves the path is
+ * absent for a moment, and a crash there leaves the old file aside for recover() to put back.
+ */
+export const writeStep = (
+  target: Target & { aside: string },
+  content: string,
+  mode: number | undefined,
+  onSetAside: () => void,
+): void => {
+  const { path, before, temp, aside } = target;
+  mkdirSync(dirname(path), { recursive: true });
+  try {
+    writeTemp(temp, content, mode);
+    if (before !== null) setAside(path, aside, before);
+    onSetAside();
+    if (before === null) link(temp, path);
+    else putIn(temp, path, aside);
+  } finally {
+    rmSync(temp, { force: true });
+  }
+  flushFolder(dirname(path));
+};
+
+/** A run step's delete: set aside and checked like a write, then removed. */
+export const remove = (path: string, before: string, aside: string, onSetAside: () => void): void => {
+  setAside(path, aside, before);
+  onSetAside();
+  unlinkSync(aside);
   flushFolder(dirname(path));
 };

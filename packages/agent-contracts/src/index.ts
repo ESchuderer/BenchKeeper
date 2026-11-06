@@ -89,7 +89,10 @@ export type AgentEvent =
 
 /** One running agent process. */
 export interface AgentSession {
-  /** Observes the session: its events, the last one `exit`. Read it once and to the end, or the process stalls. */
+  /**
+   * Observes the session: its events, the last one `exit`. Read it once, to the end; a reader that leaves early calls
+   * cancel(), as the process keeps running until then.
+   */
   readonly events: AsyncIterable<AgentEvent>;
   /** Stops the process; resolves once it has exited. */
   cancel(): Promise<void>;

@@ -104,8 +104,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "access to Claude through unauthorized means, including services that route requests through consumer " +
     'subscriptions". Its help article says a subscription\'s usage "is designed to support ordinary use of native ' +
     'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
-    "(https://support.claude.com/en/articles/13189465). Neither says whether moving new work between your own " +
-    "accounts counts as one of these.",
+    "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
+    "you hold yourself falls under these rules.",
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

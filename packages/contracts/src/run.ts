@@ -84,7 +84,7 @@ export type JournalEvent = z.infer<typeof JournalEvent>;
 
 /**
  * A graph run as the ledger keeps it, with its definition as it started. `report`: a run that writes nothing (A28);
- * `interrupted`: its runner's lease ran out, so another runner may take it over.
+ * `interrupted`: no process holds its lease, so another runner may take it over.
  */
 export const GraphRun = z.object({
   id: z.uuid(),

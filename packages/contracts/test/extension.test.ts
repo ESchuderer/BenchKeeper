@@ -130,6 +130,13 @@ const manifestChanges: Change[] = [
     "capabilities.credentials.jira-token.scheme.name",
   ],
   [
+    "a credential header for a proxy (hop by hop)",
+    [...credential, "scheme"],
+    { type: "apiKey", in: "header", name: "Proxy-Authorization" },
+    false,
+    "capabilities.credentials.jira-token.scheme.name",
+  ],
+  [
     "another meta-schema",
     [...search, "config", "$schema"],
     "https://x.example/meta",

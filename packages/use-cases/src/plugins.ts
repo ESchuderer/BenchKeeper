@@ -24,7 +24,8 @@ const place = (parent: string, checkout: string, tree: Tree): void => {
   for (const file of tree.files) {
     const path = join(staging, file.path);
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o755 : 0o644 });
+    // Read-only, so no process changes the plugin for the next worker.
+    writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o555 : 0o444 });
   }
   try {
     renameSync(staging, checkout);

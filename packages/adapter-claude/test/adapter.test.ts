@@ -218,6 +218,11 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
+test("plugin fields of an unknown form leave the init line an init event, with no plugins", async () => {
+  const all = await events(runtime.start(launch(stream("malformed-plugins.jsonl"))));
+  expect(all[1]).toMatchObject({ type: "init", settingsApplied: true, plugins: null });
+});
+
 test("a plugin's folder is readable to the session's file tools, and closed to their edits", async () => {
   const plugin = launch({}, { pluginDirs: ["/state/plugins/abc/workflow"] });
   const settings = z

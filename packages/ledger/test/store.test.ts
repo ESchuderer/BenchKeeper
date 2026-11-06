@@ -108,11 +108,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 10");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 10, known: 9 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 9 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);

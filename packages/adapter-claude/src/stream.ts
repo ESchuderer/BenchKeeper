@@ -15,10 +15,17 @@ const Init = z.looseObject({
   claude_code_version: z.unknown(),
   model: z.string(),
   tools: z.array(z.string()).optional(),
-  // The Agent SDK's SDKSystemMessage (https://code.claude.com/docs/en/agent-sdk/typescript).
-  plugins: z.array(z.looseObject({ name: z.string() })).optional(),
-  skills: z.array(z.string()).optional(),
-  plugin_errors: z.array(z.looseObject({ plugin: z.string(), message: z.string() })).optional(),
+  // The Agent SDK's SDKSystemMessage (https://code.claude.com/docs/en/agent-sdk/typescript). A field of another form is
+  // left out, so it never costs the line its settings proof.
+  plugins: z
+    .array(z.looseObject({ name: z.string() }))
+    .optional()
+    .catch(undefined),
+  skills: z.array(z.string()).optional().catch(undefined),
+  plugin_errors: z
+    .array(z.looseObject({ plugin: z.string(), message: z.string() }))
+    .optional()
+    .catch(undefined),
 });
 
 // The usage share arrives as a fraction and the reset in Unix seconds; a share above 1 or a reset past the year 2286

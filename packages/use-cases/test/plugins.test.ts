@@ -37,9 +37,11 @@ test("the workflow plugin is checked out once per pinned commit, from the market
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch.mock.calls[0]?.[0]).toEqual({ url: WORKFLOW_PLUGIN.url, ref: WORKFLOW_PLUGIN.commit, path: "plugins" });
   expect(readFileSync(join(plugin, "skills", "tier", "SKILL.md"), "utf8")).toBe("# Tier");
-  // Windows keeps no POSIX mode.
-  const mode = process.platform === "win32" ? 0o755 : statSync(join(plugin, "hooks", "tier.mjs")).mode & 0o777;
-  expect(mode).toBe(0o755);
+  // Read-only, so no process changes the plugin for the next worker; Windows keeps no POSIX mode.
+  const modes = ["hooks/tier.mjs", "skills/tier/SKILL.md"].map((path) =>
+    process.platform === "win32" ? 0 : statSync(join(plugin, path)).mode & 0o777,
+  );
+  expect(modes).toEqual(process.platform === "win32" ? [0, 0] : [0o555, 0o444]);
 });
 
 test("a commit without the workflow plugin gives none, and that is kept; a failed fetch is tried again", async () => {

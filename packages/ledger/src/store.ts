@@ -52,8 +52,8 @@ const MIGRATIONS = [
 const SCHEMA = MIGRATIONS.length;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
-// The schema that added the plugins of each launch.
-const PLUGIN_SCHEMA = 9;
+// The schema that added the plugins of each launch, by its place in the migrations.
+const PLUGIN_SCHEMA = MIGRATIONS.indexOf(PLUGIN_TABLES) + 1;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);

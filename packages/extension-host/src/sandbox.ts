@@ -30,14 +30,19 @@ let ready: Promise<void> | undefined;
 // and only a run shows it.
 let starts: Promise<boolean> | undefined;
 
-// srt's own install: bubblewrap runs its seccomp helper from there, which may lie in the home folder too.
-const srt = fileURLToPath(new URL("../..", import.meta.resolve("@anthropic-ai/sandbox-runtime")));
+// srt's own install (the folder above its dist/index.js): bubblewrap runs its seccomp helper from there, which may lie
+// in the home folder too.
+const srt = dirname(dirname(fileURLToPath(import.meta.resolve("@anthropic-ai/sandbox-runtime"))));
 
-// The launch inside srt, with the policy's reads and writes; the runtime's and srt's own installs stay readable.
+// The launch inside srt, with the policy's reads and writes; the runtime's and srt's own installs stay readable. The
+// process gets exactly the launch's environment (env -i): srt's shells add names of their own, and on macOS a shell of
+// its wrapper ran the user's startup file, whose exports reached the process.
 const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> => {
   const allowRead = [...policy.read, dirname(dirname(launch.command)), srt];
   const filesystem = { denyRead: [homedir()], allowRead, allowWrite: policy.write, denyWrite: [] };
-  const command = [launch.command, ...launch.args].map(quoted).join(" ");
+  const environment = Object.entries(launch.env).filter(([, value]) => value !== undefined);
+  const assignments = environment.map(([name, value]) => `${name}=${String(value)}`);
+  const command = ["/usr/bin/env", "-i", ...assignments, launch.command, ...launch.args].map(quoted).join(" ");
   const { argv } = await SandboxManager.wrapWithSandboxArgv(command, undefined, { filesystem }, undefined, launch.cwd);
   const [wrapper = "", ...args] = argv;
   return { ...launch, command: wrapper, args };

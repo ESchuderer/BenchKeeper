@@ -38,20 +38,6 @@ export const CONFORMANT = {
   environment: INJECTED[process.platform] ?? [],
 };
 
-// What sandbox-runtime sets in its sandbox, which carries no value of the user's: the addresses of its proxies (which
-// pass nothing when no host is allowed) under the names each tool reads, and its marker; and what the shell it starts
-// the command with adds.
-const SRT_NAMES = ["ALL_PROXY", "CLOUDSDK_PROXY_ADDRESS", "CLOUDSDK_PROXY_PASSWORD", "CLOUDSDK_PROXY_PORT"]
-  .concat(["CLOUDSDK_PROXY_TYPE", "CLOUDSDK_PROXY_USERNAME", "DOCKER_HTTPS_PROXY", "DOCKER_HTTP_PROXY", "FTP_PROXY"])
-  .concat(["GIT_CONFIG_PARAMETERS", "GIT_SSH_COMMAND", "GRPC_PROXY", "HTTPS_PROXY", "HTTP_PROXY", "JAVA_TOOL_OPTIONS"])
-  .concat(["NO_PROXY", "RSYNC_PROXY", "SANDBOX_RUNTIME", "SRT_SSH_PROXY_COMMAND", "TMPDIR"])
-  .concat(["all_proxy", "ftp_proxy", "grpc_proxy", "http_proxy", "https_proxy", "no_proxy", "PWD", "SHLVL", "_"]);
-
-/** The environment's names inside sandbox-runtime, in the kit's order. */
-export const SANDBOX_ENVIRONMENT = [...SRT_NAMES, ...(INJECTED[process.platform] ?? [])].toSorted((a, b) =>
-  a.localeCompare(b),
-);
-
 /**
  * What the kit expects beyond CONFORMANT of an OS sandbox: no signal reaches the host. It is refused (EPERM), or, in a
  * PID namespace (bubblewrap), the host's pid names no process there (ESRCH).

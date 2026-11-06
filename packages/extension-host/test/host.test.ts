@@ -14,7 +14,7 @@ import {
   type Transport,
 } from "@cedarloom/extension-host";
 import { afterAll, afterEach, expect, test } from "vitest";
-import { CONFORMANT, conformance, SANDBOX_ENVIRONMENT, SANDBOX_ONLY } from "./conformance.ts";
+import { CONFORMANT, conformance, SANDBOX_ONLY } from "./conformance.ts";
 
 const ACTIONS = [
   "echo",
@@ -509,62 +509,19 @@ test("an extension that ends stops the requests the host sends for it", async ()
   expect([codeOf(result), ended]).toEqual([failure("run", expect.any(String)), ["/hang"]]);
 });
 
-// TEMPORARY diagnostic for CI: what srt's checks and a sandboxed start say on this runner.
-const whyUnavailable = async (): Promise<string> => {
-  const { SandboxManager } = await import("@anthropic-ai/sandbox-runtime");
-  const { spawnSync } = await import("node:child_process");
-  const { homedir, tmpdir } = await import("node:os");
-  const { dirname: up } = await import("node:path");
-  const deps = await SandboxManager.checkDependenciesAsync();
-  const filesystem = { denyRead: [homedir()], allowRead: [up(up(process.execPath))], allowWrite: [], denyWrite: [] };
-  const wrapped = await SandboxManager.wrapWithSandboxArgv(
-    `'${process.execPath}' -e ''`,
-    undefined,
-    { filesystem },
-    undefined,
-    tmpdir(),
-  );
-  const ran = spawnSync(wrapped.argv[0] ?? "", wrapped.argv.slice(1), {
-    cwd: tmpdir(),
-    env: {},
-    encoding: "utf8",
-    timeout: 30_000,
-  });
-  const keys = await sandboxRuntime().wrap(
-    { command: process.execPath, args: ["-e", "console.log(Object.keys(process.env).join())"], cwd: tmpdir(), env: {} },
-    { read: [], write: [], network: "none" },
-  );
-  const seen =
-    keys === undefined
-      ? "unwrapped"
-      : spawnSync(keys.command, keys.args, { cwd: tmpdir(), env: {}, encoding: "utf8" }).stdout;
-  return JSON.stringify({
-    supported: SandboxManager.isSupportedPlatform(),
-    deps,
-    status: ran.status,
-    stderr: ran.stderr.slice(-1500),
-    argv0: wrapped.argv[0],
-    script: wrapped.argv.at(-1)?.slice(0, 400),
-    seen,
-    scriptStart: keys?.args.at(-1)?.slice(0, 200),
-  });
-};
-
 test.skipIf(process.platform === "win32")(
   "a community extension runs inside sandbox-runtime and passes the conformance kit, the host's signals included",
   async ({ skip }) => {
     const confined = await start({ trust: "community", sandbox: sandboxRuntime() });
     // A machine where no sandboxed process starts (the rootless dev container) is skipped; CI's runners are not.
     if (!confined.ok && process.env["CI"] !== "true") skip(JSON.stringify(confined.finding));
-    if (!confined.ok) throw new Error(`${JSON.stringify(confined.finding)} ${await whyUnavailable()}`);
+    if (!confined.ok) throw new Error(JSON.stringify(confined.finding));
     started.push(confined.value);
     const kit = Object(codeOf(await conformance(confined.value)));
     const signal = String(Reflect.get(kit, "signal"));
-    const why = process.env["CI"] === "true" ? await whyUnavailable() : "";
-    expect({ ...kit, signal: SANDBOX_ONLY.signal.includes(signal) ? "refused" : signal }, why).toEqual({
+    expect({ ...kit, signal: SANDBOX_ONLY.signal.includes(signal) ? "refused" : signal }).toEqual({
       ...CONFORMANT,
       signal: "refused",
-      environment: SANDBOX_ENVIRONMENT,
     });
   },
   30_000,

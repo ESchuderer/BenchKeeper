@@ -293,6 +293,13 @@ importers:
       '@cedarloom/ledger':
         specifier: workspace:*
         version: link:../ledger
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
+    devDependencies:
+      '@cedarloom/adapter-claude':
+        specifier: workspace:*
+        version: link:../adapter-claude
 
 packages:
 

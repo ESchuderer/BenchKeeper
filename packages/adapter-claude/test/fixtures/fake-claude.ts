@@ -1,9 +1,10 @@
 // Stands in for the claude CLI: prints one line with its arguments, prompt and environment, then the stream-json file
 // named by FAKE_STREAM, and exits with FAKE_EXIT; with FAKE_HANG it waits until it is killed, with FAKE_DEAF it exits
 // at once without reading the prompt. FAKE_CHILD starts a command and prints its process ID, FAKE_LONG writes a line of
-// that many bytes, FAKE_CUT a last line without its newline.
+// that many bytes, FAKE_CUT a last line without its newline. FAKE_RESULT names a file to write FAKE_RESULT_TEXT to, as a
+// worker writes its result.
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 if (args.includes("--version")) {
@@ -28,6 +29,8 @@ if (args.includes("--version")) {
     });
     process.stdout.write(`${JSON.stringify({ type: "command", pid: command.pid })}\n`);
   }
+  const result = process.env["FAKE_RESULT"];
+  if (result !== undefined) writeFileSync(result, process.env["FAKE_RESULT_TEXT"] ?? "");
   const long = process.env["FAKE_LONG"];
   if (long !== undefined) process.stdout.write(`${"x".repeat(Number(long))}\n`);
   process.stdout.write(process.env["FAKE_CUT"] ?? "");

@@ -2,8 +2,8 @@ import type { Finding } from "@cedarloom/contracts";
 import { t } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
-/** The findings the editor shows: the validator's, and why an imported file was refused. */
-type Shown = Extract<Finding["code"], `workflow.${string}` | "document.invalid" | "document.newer-schema">;
+/** The findings the editor shows: the validator's, and why an imported file or a draft was refused. */
+type Shown = Extract<Finding["code"], `workflow.${string}` | `draft.${string}` | `document.${string}`>;
 
 // A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
 const SHOWN = 10;
@@ -23,6 +23,9 @@ const target = ({ node, handle }: { node: string | null; handle: string }): stri
 const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "document.invalid": (p) => t("problem.documentInvalid", { issues: issues(p.issues) }),
   "document.newer-schema": (p) => t("problem.documentNewer", p),
+  "document.unreadable": (p) => t("problem.documentUnreadable", p),
+  "draft.not-found": (p) => t("problem.draftNotFound", p),
+  "draft.too-large": (p) => t("problem.draftTooLarge", p),
   "workflow.duplicate-id": (p) => t("problem.duplicateId", p),
   "workflow.trigger-count": (p) => t("problem.triggerCount", p),
   "workflow.unknown-node-type": (p) => t("problem.unknownNodeType", p),

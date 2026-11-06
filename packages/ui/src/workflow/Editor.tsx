@@ -1,6 +1,7 @@
 import "./jitless.ts";
 import "@xyflow/react/dist/style.css";
 import "./editor.css";
+import type { Api } from "@cedarloom/client";
 import type { ELK } from "elkjs/lib/elk-api.js";
 import {
   findingInfo,
@@ -39,6 +40,7 @@ import {
   undo,
 } from "./document.ts";
 import { ConnectDialog } from "./ConnectDialog.tsx";
+import { useDrafts } from "./Drafts.tsx";
 import { autoLayout, type Size } from "./layout.ts";
 import { NodeCard } from "./NodeCard.tsx";
 import { describe } from "./problems.ts";
@@ -191,11 +193,34 @@ const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
   );
 };
 
-const Toolbar = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Sizes } & Notes): ReactNode => {
+const UndoRedo = ({ edit }: { edit: Edit }): ReactNode => (
+  <>
+    <Button
+      variant="default"
+      onClick={edit.undo}
+      {...off(edit.history.past.length === 0)}
+      aria-keyshortcuts="Control+Z Meta+Z"
+    >
+      {t("editor.undo")}
+    </Button>
+    <Button
+      variant="default"
+      onClick={edit.redo}
+      {...off(edit.history.future.length === 0)}
+      aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y"
+    >
+      {t("editor.redo")}
+    </Button>
+  </>
+);
+
+type ToolbarProps = { edit: Edit; sizes: Sizes; onRelease: () => void } & Notes;
+
+const Toolbar = ({ edit, sizes, onProblem, onStatus, onRelease }: ToolbarProps): ReactNode => {
   const [type, setType] = useState<string | null>("command.run");
   // The file input forgets its file, so picking the same file again (fixed after a refusal) imports it again.
   const reset = useRef<() => void>(null);
-  const { past, present, future } = edit.history;
+  const { present } = edit.history;
   const take = async (file: File | null): Promise<void> => {
     reset.current?.();
     if (file === null) return;
@@ -206,22 +231,20 @@ const Toolbar = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
   const add = (): void => {
     if (type !== null) edit.change({ kind: "add-node", type, position: nextSpot(present.nodes.length) });
   };
+  // An export ends this tab's draft of the workflow open now; a new workflow keeps it, as an import does.
+  const fresh = (): void => {
+    edit.change({ kind: "replace", workflow: newWorkflow() });
+  };
+  const exported = (): void => {
+    download(present);
+    onRelease();
+  };
   return (
     <Group align="end">
       <Select label={t("editor.nodeType")} data={TYPES} value={type} onChange={setType} allowDeselect={false} />
       <Button onClick={add}>{t("editor.addNode")}</Button>
-      <Button variant="default" onClick={edit.undo} {...off(past.length === 0)} aria-keyshortcuts="Control+Z Meta+Z">
-        {t("editor.undo")}
-      </Button>
-      <Button
-        variant="default"
-        onClick={edit.redo}
-        {...off(future.length === 0)}
-        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y Meta+Y"
-      >
-        {t("editor.redo")}
-      </Button>
-      <Button variant="default" onClick={() => edit.change({ kind: "replace", workflow: newWorkflow() })}>
+      <UndoRedo edit={edit} />
+      <Button variant="default" onClick={fresh}>
         {t("editor.new")}
       </Button>
       <FileButton resetRef={reset} onChange={(file) => void take(file)} accept="application/json,.json">
@@ -231,7 +254,7 @@ const Toolbar = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Size
           </Button>
         )}
       </FileButton>
-      <Button variant="default" onClick={() => download(present)}>
+      <Button variant="default" onClick={exported}>
         {t("editor.export")}
       </Button>
       <Arrange edit={edit} sizes={sizes} onProblem={onProblem} onStatus={onStatus} />
@@ -396,25 +419,30 @@ const Problems = ({ workflow }: { workflow: WorkflowDefinition }): ReactNode => 
 };
 
 /**
- * The visual workflow editor: a local document (new, imported from a file, exported in the canonical file form) with
- * undo and redo, the graph on a React Flow canvas, and the validator's findings below it.
+ * The visual workflow editor: a document (new, imported from a file, exported in the canonical file form) with undo and
+ * redo and a draft in the state folder, the graph on a React Flow canvas, and the validator's findings below it.
  */
-const Editor = (): ReactNode => {
+const Editor = ({ api }: { api: Api }): ReactNode => {
   const edit = useDocument();
   // A refusal shows until the document changes: it is kept with the history it was raised on.
   const [problem, setProblem] = useState<{ text: string; at: History } | null>(null);
   const raise = (text: string): void => setProblem({ text, at: edit.history });
   const [status, setStatus] = useState("");
+  const announced = useRef<HTMLParagraphElement>(null);
   // Node sizes as React Flow measured them: the canvas shows nodes with them, the auto layout spaces nodes by them.
   const [sizes, setSizes] = useState<Sizes>({});
   const workflow = edit.history.present;
+  const focus = (): void => announced.current?.focus();
+  const drafts = useDrafts({ api, workflow, loads: edit.loads, change: edit.change, onStatus: setStatus, focus });
   return (
     <Stack>
-      <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={setStatus} />
+      {drafts.offers}
+      <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={setStatus} onRelease={drafts.release} />
       {problem?.at === edit.history && <Alert color="red">{problem.text}</Alert>}
-      <Text role="status" size="sm">
+      <Text role="status" size="sm" ref={announced} tabIndex={-1}>
         {status}
       </Text>
+      <Text size="sm">{drafts.saved}</Text>
       <Canvas
         key={edit.loads}
         workflow={workflow}

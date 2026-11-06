@@ -8,7 +8,19 @@ export {
   QuotaWindow,
   Reading,
 } from "./accounts.ts";
-export { PlanPreview, Refusal, Run, RunResult, RunsEvent, Step, UndoPreview } from "./api.ts";
+export {
+  Draft,
+  DraftInfo,
+  DraftSaved,
+  PlanPreview,
+  Refusal,
+  Run,
+  RunResult,
+  RunsEvent,
+  Step,
+  UndoPreview,
+  WorkflowJson,
+} from "./api.ts";
 export { type Result, readDocument } from "./documents.ts";
 export { canonicalJson, type Json } from "./json.ts";
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
@@ -21,4 +33,5 @@ export {
   JoinConfig,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
+  WorkflowId,
 } from "./workflow.ts";

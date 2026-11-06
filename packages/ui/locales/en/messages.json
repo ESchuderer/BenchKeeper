@@ -1,6 +1,24 @@
 {
   "messages": {
     "app.title": ["CedarLoom"],
+    "draft.discard": ["Discard"],
+    "draft.discardOne": ["Discard the draft of ", ["id"]],
+    "draft.discarded": ["Discarded the draft of ", ["id"], "."],
+    "draft.notRestored": ["The draft of ", ["id"], " was not restored: ", ["reason"]],
+    "draft.notSaved": ["Not saved as a draft: ", ["reason"]],
+    "draft.offer": [["id"], ", saved ", ["time"]],
+    "draft.overwrote": [
+      "The draft of ",
+      ["id"],
+      " had changed in another tab or an earlier session; this tab's version replaced it."
+    ],
+    "draft.restore": ["Restore"],
+    "draft.restoreOne": ["Restore the draft of ", ["id"]],
+    "draft.restored": ["Restored the draft saved at ", ["time"], "."],
+    "draft.saved": ["Saved as a draft at ", ["time"], "."],
+    "draft.title": ["Unsaved drafts"],
+    "draft.unreadable": ["It cannot be restored: ", ["reason"]],
+    "draft.waiting": ["Not saved as a draft yet: restore or discard the earlier draft of ", ["id"], " first."],
     "editor.addNode": ["Add node"],
     "editor.alreadyLaidOut": ["The nodes were laid out already; nothing moved."],
     "editor.autoLayout": ["Auto layout"],
@@ -51,6 +69,17 @@
     "problem.danglingEdge": ["Edge ", ["edge"], " starts or ends at ", ["ref"], ", which does not exist."],
     "problem.documentInvalid": ["It does not match the workflow schema: ", ["issues"], "."],
     "problem.documentNewer": ["It has schema version ", ["found"], "; this CedarLoom reads up to ", ["known"], "."],
+    "problem.documentUnreadable": [["path"], " cannot be read (", ["error"], ")."],
+    "problem.draftNotFound": ["There is no draft of ", ["id"], " any more."],
+    "problem.draftTooLarge": [
+      "The draft of ",
+      ["id"],
+      " has ",
+      ["bytes"],
+      " bytes; a draft holds at most ",
+      ["limit"],
+      "."
+    ],
     "problem.duplicateEdge": [
       "Edge ",
       ["edge"],

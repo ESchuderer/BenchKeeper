@@ -8,6 +8,20 @@ declare module "@lingui/core" {
 /** The values each message of the catalog takes, by id. */
 export interface MessageValues {
   "app.title": Record<never, never>;
+  "draft.discard": Record<never, never>;
+  "draft.discardOne": { id: string | number };
+  "draft.discarded": { id: string | number };
+  "draft.notRestored": { id: string | number; reason: string | number };
+  "draft.notSaved": { reason: string | number };
+  "draft.offer": { id: string | number; time: string | number };
+  "draft.overwrote": { id: string | number };
+  "draft.restore": Record<never, never>;
+  "draft.restoreOne": { id: string | number };
+  "draft.restored": { time: string | number };
+  "draft.saved": { time: string | number };
+  "draft.title": Record<never, never>;
+  "draft.unreadable": { reason: string | number };
+  "draft.waiting": { id: string | number };
   "editor.addNode": Record<never, never>;
   "editor.alreadyLaidOut": Record<never, never>;
   "editor.autoLayout": Record<never, never>;
@@ -58,6 +72,9 @@ export interface MessageValues {
   "problem.danglingEdge": { edge: string | number; ref: string | number };
   "problem.documentInvalid": { issues: string | number };
   "problem.documentNewer": { found: string | number; known: string | number };
+  "problem.documentUnreadable": { path: string | number; error: string | number };
+  "problem.draftNotFound": { id: string | number };
+  "problem.draftTooLarge": { id: string | number; bytes: string | number; limit: string | number };
   "problem.duplicateEdge": { edge: string | number; of: string | number };
   "problem.duplicateId": { kind: string | number; id: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };

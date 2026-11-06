@@ -15,7 +15,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { eventRoutes } from "./events.ts";
-import { runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
+import { draftRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
@@ -30,7 +30,7 @@ export interface AppOptions {
   every?: number | undefined;
 }
 
-// Requests carry ids, hashes and the session token, never file contents.
+// Requests carry ids, hashes and the session token, never file contents; only a draft save carries a workflow.
 const BODY_LIMIT = 16 * 1024;
 
 const errors = (app: FastifyInstance, log: (text: string) => void): void => {
@@ -114,6 +114,7 @@ export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOpt
   await app.register(sessionRoutes, { session });
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
+  await app.register(draftRoutes, { state });
   // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
   // as its own module.exports, which shares reply.sse with the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));

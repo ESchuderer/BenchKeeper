@@ -158,7 +158,7 @@ test("a log line after the host is gone is dropped, not thrown into the plugin",
 // One message on the wire, as the protocol's base layer frames it.
 const frame = (body: string): string => `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`;
 
-test("malformed frames get no answer and no crash, and the next run is answered", async () => {
+test("malformed frames crash nothing: a broken frame gets no answer, a run with params null -32603, and the next run is answered", async () => {
   const { host, toPlugin } = connect();
   toPlugin.write(frame("{not json"));
   toPlugin.write(frame('{"jsonrpc":"2.0","id":901,"method":"action/run","params":null}'));

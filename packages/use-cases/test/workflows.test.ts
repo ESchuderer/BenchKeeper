@@ -64,21 +64,18 @@ test("a command graph runs end to end: inputs only as variables, a file read, a 
     command("big", `yes | head -c ${OUTPUT_CAP * 2}`),
   ];
   const edges = "t.start>greet.run t.start>notes.run t.start>loud.run @loud>loud.value loud.true>shout.run";
+  const inputs = { name: { type: "string" }, loud: { type: "boolean", default: false } } as const;
   const outputs = { greeting: { type: "string" }, notes: { type: "string" } } as const;
   const at = project(nodes, `${edges} t.start>big.run greet.stdout>@greeting notes.content>@notes`, {
-    inputs: { name: { type: "string" }, loud: { type: "boolean", default: false } },
+    inputs,
     outputs,
   });
   writeFileSync(join(at.root, "notes.txt"), "remember\n");
   const name = "$(touch pwned); `touch pwned`";
   const run = await runWorkflow(at.state, at.file, { name }, at.options);
-  expect(run).toMatchObject({ ok: true, value: { status: "succeeded" } });
   const runId = run.ok ? run.value.runId : "";
-  expect(eventsOf(at.state, runId).at(-1)).toEqual({
-    type: "finished",
-    status: "succeeded",
-    outputs: { greeting: `hello ${name}`, notes: "remember\n" },
-  });
+  const outcome = { status: "succeeded", outputs: { greeting: `hello ${name}`, notes: "remember\n" } };
+  expect(eventsOf(at.state, runId).at(-1)).toEqual({ type: "finished", ...outcome });
   expect(existsSync(join(at.root, "pwned"))).toBe(false);
   expect(valuesOf(at.state, runId, "shout")).toBeUndefined();
   const big = valuesOf(at.state, runId, "big");
@@ -87,6 +84,7 @@ test("a command graph runs end to end: inputs only as variables, a file read, a 
 });
 
 // 1 to 4 kill the runner after each event of t -> a -> b; the resume finishes the run, and each command ran once.
+// A kill between the gate's line and `ended` would rerun a command that may still run: Q4, and the orphan follow-up.
 test.each([1, 2, 3, 4])(
   "killed after event %i, the run resumes to its end and runs no command twice",
   async (at) => {
@@ -120,12 +118,21 @@ test("a failing command, a missing file, a missing shell and a timeout end their
   const gone = { ...failing.options, shell: join(failing.root, "no-sh") };
   expect(await runWorkflow(failing.state, failing.file, {}, gone)).toMatchObject({ value: { status: "failed" } });
   // The timeout ends the command's whole process group: the sleep holds its output open until it is stopped.
-  const slow = project([command("a", "sleep 30")], "t.start>a.run", {
-    execution: { nodes: { a: { timeoutSeconds: 1 } } },
-  });
+  const second = { execution: { nodes: { a: { timeoutSeconds: 1 } } } };
+  const slow = project([command("a", "sleep 30")], "t.start>a.run", second);
   const started = Date.now();
   expect(await runWorkflow(slow.state, slow.file, {}, slow.options)).toMatchObject({ value: { status: "failed" } });
   expect(Date.now() - started).toBeLessThan(10_000);
+  // A shell that exits at once leaves a background child with the output: the timeout stops it too. Windows has no
+  // process group to stop, so there it outlives the attempt, which still ends.
+  const late = project([command("a", "(sleep 2; echo late > late.txt) &")], "t.start>a.run", second);
+  expect(await runWorkflow(late.state, late.file, {}, late.options)).toMatchObject({ value: { status: "failed" } });
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  expect(existsSync(join(late.root, "late.txt")) && process.platform !== "win32").toBe(false);
+  // An input the OS refuses in an environment (a NUL byte) fails the attempt; the runner goes on.
+  const named = project([command("a", "true")], "t.start>a.run", { inputs: { name: { type: "string" } } });
+  const nul = await runWorkflow(named.state, named.file, { name: "a\u0000b" }, named.options);
+  expect(nul).toMatchObject({ value: { status: "failed" } });
 }, 30_000);
 
 test("a run is refused before it starts: no shell, a node type that does not run yet, a file that is no workflow", async () => {

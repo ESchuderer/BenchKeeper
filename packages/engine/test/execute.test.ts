@@ -78,6 +78,9 @@ const held = (runId: string) => ({
   ok: false,
   finding: { code: "run.lease-held", params: { runId, pid: process.pid } },
 });
+const thrower = () => {
+  throw Object.assign(new Error("spawn E2BIG"), { code: "E2BIG" });
+};
 const trail = (events: readonly JournalEvent[]) =>
   events.map((event) => ("attempt" in event ? `${event.type} ${event.node}#${event.attempt}` : event.type)).join(", ");
 
@@ -93,9 +96,9 @@ test("each start is committed before its attempt goes; a failure retries, output
   expect(ended).toMatchObject({ outcome: "done", values: { stdout: "x".repeat(OUTPUT_CAP), truncated: ["stdout"] } });
   expect(finished).toEqual({ type: "finished", status: "succeeded", outputs: { out: "x".repeat(OUTPUT_CAP) } });
   // A cut through a character keeps no half of it; a value that is no string is dropped.
-  const cut = capped({ text: "é".repeat(OUTPUT_CAP), list: ["x".repeat(OUTPUT_CAP)], small: 1 });
+  const cut = capped({ text: `x${"é".repeat(OUTPUT_CAP)}`, list: ["x".repeat(OUTPUT_CAP)], small: 1 });
   expect(cut).toMatchObject({ list: null, small: 1, truncated: ["text", "list"] });
-  expect(Buffer.byteLength(typeof cut["text"] === "string" ? cut["text"] : "")).toBe(OUTPUT_CAP);
+  expect(Buffer.byteLength(typeof cut["text"] === "string" ? cut["text"] : "")).toBe(OUTPUT_CAP - 1);
 });
 
 test("a cancel stops the running attempt, and one waiting out its backoff ends cancelled without going", async () => {
@@ -127,6 +130,12 @@ test("an attempt past its timeout is stopped and counts as timed out; a type wit
     { type: "ended", node: "a", attempt: 1, outcome: "timed-out", values: {} },
   ]);
   expect((await start(workflow(), {}, { executors: {} })).result).toEqual({ ok: true, value: "failed" });
+  // An executor that throws (spawn refuses an input) fails its attempt with the error's code; the runner goes on.
+  const thrown = await start(workflow(), {}, { executors: { "command.run": thrower } });
+  expect([thrown.result, thrown.events[1]]).toMatchObject([
+    { value: "failed" },
+    { outcome: "failed", values: { error: "E2BIG" } },
+  ]);
   // Inputs the workflow does not declare start nothing.
   const store = graphs();
   const source = { workflow: workflow(), inputs: { nope: 1 }, journal: [] };

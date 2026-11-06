@@ -54,7 +54,8 @@ export const findShell = (platform: NodeJS.Platform = process.platform, env = pr
   if (platform !== "win32") return "/bin/sh";
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
   const git = win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin");
-  const dirs = [...(env["PATH"] ?? "").split(";"), git];
+  // Only absolute folders: an empty or relative PATH entry would find a sh.exe in the project.
+  const dirs = [...(env["PATH"] ?? "").split(";").filter((dir) => win32.isAbsolute(dir)), git];
   return dirs.map((dir) => win32.join(dir, "sh.exe")).find((file) => existsSync(file)) ?? null;
   /* v8 ignore stop */
 };
@@ -116,15 +117,21 @@ const command =
       if (size <= OUTPUT_CAP) chunks.push(chunk);
       size += chunk.length;
     });
-    const abort = (): void => stop(child);
-    const closed = new Promise<number | null>((resolve) => {
-      child.once("error", () => resolve(null));
-      child.once("close", (code) => resolve(code));
-      // On Windows a stopped command's tree can keep its output open (Git for Windows' sh): its shell's exit ends it.
-      child.once("exit", (code) => {
-        if (signal.aborted) resolve(code);
-      });
-    }).finally(() => signal.removeEventListener("abort", abort));
+    const { promise, resolve } = Promise.withResolvers<number | null>();
+    child.once("error", () => resolve(null));
+    child.once("close", (code) => resolve(code));
+    // On Windows a stopped command's tree can keep its output open (Git for Windows' sh): its shell's exit ends it.
+    child.once("exit", (code) => {
+      if (signal.aborted) resolve(code);
+    });
+    const abort = (): void => {
+      stop(child);
+      // A shell that has exited already, its background child holding the output, ends the attempt now.
+      if (child.exitCode === null && child.signalCode === null) return;
+      child.stdout.destroy();
+      resolve(child.exitCode);
+    };
+    const closed = promise.finally(() => signal.removeEventListener("abort", abort));
     return {
       pid: child.pid ?? null,
       run: async () => {

@@ -57,8 +57,12 @@ const RUN_EVENTS = new Set(["precheck", "ended", "decided", "cancel"]);
 const PRECHECK_TIMEOUT_MS = 120_000;
 const key = (node: string, attempt: number): string => `${node}#${attempt}`;
 const isRunEvent = (event: JournalEvent): event is RunEvent => RUN_EVENTS.has(event.type);
-// A node type without an executor fails each attempt.
+// A node type without an executor fails each attempt; so does one whose executor throws, with the error's code.
 const missing = (): Prepared => ({ pid: null, run: () => Promise.resolve({ ok: false }) });
+const thrown = (failure: unknown): Prepared => {
+  const code = Reflect.get(Object(failure), "code");
+  return { pid: null, run: () => Promise.resolve({ ok: false, values: { error: String(code) } }) };
+};
 const wait = (ms: number, signal: AbortSignal) => sleep(ms, undefined, { signal });
 const nothing = (): void => undefined;
 // An end the runner did not cause is the attempt's own; a timeout or a cancel names it.
@@ -210,7 +214,11 @@ class Runner {
   #prepare(node: string, { type, config }: Typed): Going {
     const controller = new AbortController();
     const attempt = { node, config, inputs: this.#state.inputs, signal: controller.signal };
-    return { prepared: (own(this.#options.executors, type) ?? missing)(attempt), controller };
+    try {
+      return { prepared: (own(this.#options.executors, type) ?? missing)(attempt), controller };
+    } catch (error) {
+      return { prepared: thrown(error), controller };
+    }
   }
 
   // Lets a prepared attempt go until its timeout; `end` gets its result and why it was aborted, if it was.

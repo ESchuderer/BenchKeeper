@@ -20,11 +20,14 @@ import {
   applyPlan,
   checkLogins,
   chooseAccount,
+  isConfirmed,
   loadRegistry,
   loginAccount,
   ownHome,
+  planAdd,
   planConfirm,
   planHome,
+  undoRun,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 
@@ -195,6 +198,92 @@ test("the registry reads as none when there is none, and one that is broken or c
   expect(loadRegistry(unreadable)).toMatchObject({
     ok: false,
     finding: { code: "document.unreadable", params: { error: "EISDIR" } },
+  });
+});
+
+// Adds account `name` by its plan, applied; the run's id.
+const added = (config: string, state: string, name: string, pool: string | null) => {
+  const planned = planAdd(config, state, { name, agent: "claude", pool }, AT);
+  if (!planned.ok) throw new Error(planned.finding.code);
+  const run = applyPlan(state, planned.value.plan, { yes: true });
+  if (!run.ok || run.value.runId === null) throw new Error("not applied");
+  return run.value.runId;
+};
+
+test("an account is added by a plan with its own home: the first creates the registry, a new pool is unconfirmed", () => {
+  const { config, state } = freshConfig();
+  const first = planAdd(config, state, { name: "work", agent: "claude", pool: "main" }, AT);
+  expect(first).toMatchObject({
+    ok: true,
+    value: { plan: { operations: [{ kind: "write", before: null, mode: 0o600 }] } },
+  });
+  const runId = added(config, state, "work", "main");
+  const unconfirmed = { confirmedAt: null, confirmedFor: [] };
+  expect(loadRegistry(config)).toEqual({
+    ok: true,
+    value: {
+      schemaVersion: 1,
+      minimum: { fiveHour: 8, sevenDay: 3 },
+      accounts: [{ name: "work", agent: "claude", home: ownHome(state, "work"), pool: "main", added: AT }],
+      pools: { claude: { main: unconfirmed } },
+    },
+  });
+  // Undone, the first add leaves no registry.
+  expect(undoRun(state, runId, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
+  expect(loadRegistry(config)).toEqual({ ok: true, value: null });
+  added(config, state, "work", "main");
+  added(config, state, "solo", null);
+  const stored = loadRegistry(config);
+  expect(stored.ok && stored.value?.accounts.map((each) => [each.name, each.pool])).toEqual([
+    ["work", "main"],
+    ["solo", null],
+  ]);
+});
+
+test("an account joins a confirmed pool only as a change that leaves the pool unconfirmed; bad names are refused", () => {
+  const { config, state } = freshConfig();
+  added(config, state, "work", "main");
+  const confirm = planConfirm(config, { agent: "claude", pool: "main" }, AT);
+  if (!confirm.ok) throw new Error(confirm.finding.code);
+  applyPlan(state, confirm.value.plan, { yes: true });
+  added(config, state, "spare", "main");
+  const stored = loadRegistry(config);
+  if (!stored.ok || stored.value === null) throw new Error("no registry");
+  expect(isConfirmed(stored.value, { agent: "claude", pool: "main" })).toBe(false);
+  const refused = (name: string, pool: string | null) => planAdd(config, state, { name, agent: "claude", pool }, AT);
+  // CedarLoom cannot log a Codex account in yet, so none is registered.
+  expect(planAdd(config, state, { name: "cx", agent: "codex", pool: null }, AT)).toEqual({
+    ok: false,
+    finding: { code: "accounts.login-unsupported", params: { account: "cx", agent: "codex" } },
+  });
+  expect(refused("work", null)).toEqual({
+    ok: false,
+    finding: { code: "accounts.name-taken", params: { account: "work" } },
+  });
+  for (const [name, pool] of [
+    ["Work Two", null],
+    ["two", "Main Pool"],
+  ] as const) {
+    expect(refused(name, pool)).toEqual({
+      ok: false,
+      finding: { code: "accounts.name-invalid", params: { name: pool ?? name } },
+    });
+  }
+  // A folder another account names already is not taken over.
+  const edited = JSON.parse(readFileSync(join(config, "accounts.json"), "utf8"));
+  edited.accounts[0].aliases = [ownHome(state, "three")];
+  writeFileSync(join(config, "accounts.json"), JSON.stringify(edited));
+  expect(refused("three", null)).toEqual({
+    ok: false,
+    finding: { code: "accounts.folder-taken", params: { path: ownHome(state, "three") } },
+  });
+  // A registry it cannot read or parse is reported, never replaced.
+  writeFileSync(join(config, "accounts.json"), "{");
+  expect(refused("three", null)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
+  mkdirSync(join(config, "unreadable", "accounts.json"), { recursive: true });
+  expect(planAdd(join(config, "unreadable"), state, { name: "x", agent: "claude", pool: null })).toMatchObject({
+    ok: false,
+    finding: { code: "document.unreadable" },
   });
 });
 

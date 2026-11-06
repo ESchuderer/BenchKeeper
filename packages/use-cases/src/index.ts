@@ -10,7 +10,7 @@ export {
   planLevel,
   switchMode,
 } from "./automation.ts";
-export { type CheckedVersions, checkedVersions, recordUsage } from "./agents.ts";
+export { type CheckedVersions, checkedVersions, recordUsage, type UsageOf } from "./agents.ts";
 export {
   type Decided,
   type LaunchHost,

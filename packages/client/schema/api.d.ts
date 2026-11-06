@@ -1004,12 +1004,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.registry-exists";
-            params: {
-                path: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.unknown-pool";
             params: {
                 agent: string;
@@ -1739,12 +1733,6 @@ export interface components {
                 /** @enum {string} */
                 section: "execution" | "layout";
                 node: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.registry-exists";
-            params: {
-                path: string;
             };
         } | {
             /** @constant */

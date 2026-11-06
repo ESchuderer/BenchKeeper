@@ -11,7 +11,6 @@ import {
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
-import { benchKeeperRegistry } from "./state.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
   const plan = useCases.loadPlan(path);
@@ -169,7 +168,7 @@ export const accountsList = (ctx: Context): number => {
   const pool = ({ agent, pool: name }: Account): string =>
     name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
   const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
-  const none = "No accounts yet. Import BenchKeeper's with: cedarloom accounts import";
+  const none = "No accounts yet.";
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
   const pools = Agent.options.flatMap((agent) =>
     Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
@@ -181,16 +180,6 @@ export const accountsList = (ctx: Context): number => {
     lines.length > 0 ? lines.join("\n") : none,
   );
   return EXIT.ok;
-};
-
-export const accountsImport = (ctx: Context, { from, yes }: { from?: string; yes?: true }): number => {
-  const planned = useCases.planImport(ctx.config, from ?? benchKeeperRegistry());
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, left } = planned.value;
-  const note = left.map(
-    (each) => `\n  not imported: ${each.item}${each.account === null ? "" : ` of ${each.account}`}`,
-  );
-  return change(ctx, plan, { note: note.join(""), data: { left }, findings: [] }, yes);
 };
 
 export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { agent: Agent; yes?: true }): number => {

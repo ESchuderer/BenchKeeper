@@ -109,8 +109,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Node ${p.node} runs ${p.type}, an extension action that is not installed, so the workflow cannot run until its extension is.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
-  "accounts.registry-exists": (p) =>
-    `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
   // Every quote checked at its source on 2026-11-06: three bullets of the Usage Policy's "Do Not Abuse Our Platform",

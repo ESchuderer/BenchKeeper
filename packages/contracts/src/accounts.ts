@@ -16,7 +16,7 @@ export const Agent = z.enum(["claude", "codex"]);
 export const AgentVersion = z.string().regex(/^\d{1,9}\.\d{1,9}\.\d{1,9}[0-9A-Za-z.+-]{0,40}$/);
 export type Agent = z.infer<typeof Agent>;
 
-// BenchKeeper's rule for account and pool names, so its names import unchanged.
+// Account and pool names: a lowercase letter or digit, then up to 31 more of them, - or _.
 const Name = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 
 /** An account's name: also safe as a file name. */

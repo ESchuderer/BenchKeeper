@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
-import type { AccountRegistry } from "@cedarloom/contracts";
+import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
 import {
   applyPlan,
@@ -25,7 +25,6 @@ import {
   ownHome,
   planConfirm,
   planHome,
-  planImport,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 
@@ -158,36 +157,36 @@ test("with no known reading the task stays and the row says why; a pool without 
   expect(switches(full)).toEqual([]);
 });
 
-const host = (name: string, agent: string) => ({ name, agent, mode: "host", dir: `/accounts/${name}`, pool: "main" });
-
-// A config folder and a BenchKeeper registry file with one Claude pool and one Codex pool.
-const configAndBenchKeeper = () => {
+// A config folder without a registry yet, and the state folder beside it.
+const freshConfig = () => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-config-"));
-  const from = join(root, "benchkeeper-accounts.json");
-  writeFileSync(
-    from,
-    JSON.stringify({ accounts: [host("work", "claude"), host("cx", "codex")], settings: { autoPick: true } }),
-  );
-  return { config: join(root, "config"), state: join(root, "state"), from };
+  return { config: join(root, "config"), state: join(root, "state") };
 };
 
-test("BenchKeeper's registry is imported once, as a plan that creates the registry file", () => {
-  const { config, state, from } = configAndBenchKeeper();
+// Writes a registry with work (Claude Code) and cx (Codex) in /accounts, each in an unconfirmed pool main.
+const writeRegistry = (config: string) => {
+  const unconfirmed = { main: { confirmedAt: null, confirmedFor: [] } };
+  const accounts = (["claude", "codex"] as const).map((agent, index) => {
+    const name = index === 0 ? "work" : "cx";
+    return { name, agent, home: `/accounts/${name}`, pool: "main", added: AT };
+  });
+  mkdirSync(config, { recursive: true });
+  writeFileSync(
+    join(config, "accounts.json"),
+    formatRegistry({
+      schemaVersion: 1,
+      minimum: { fiveHour: 8, sevenDay: 3 },
+      accounts,
+      pools: { claude: unconfirmed, codex: unconfirmed },
+    }),
+  );
+};
+
+test("the registry reads as none when there is none, and one that is broken or cannot be read is reported", () => {
+  const { config } = freshConfig();
   expect(loadRegistry(config)).toEqual({ ok: true, value: null });
-  const planned = planImport(config, from, AT);
-  if (!planned.ok) throw new Error(planned.finding.code);
-  expect(planned.value.left).toEqual([{ account: null, item: "autoPick" }]);
-  expect(planned.value.plan.operations).toMatchObject([{ kind: "write", before: null, mode: 0o600 }]);
-  expect(applyPlan(state, planned.value.plan, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
-  const imported = loadRegistry(config);
-  expect(imported.ok && imported.value?.pools).toEqual({
-    claude: { main: { confirmedAt: null, confirmedFor: [] } },
-    codex: { main: { confirmedAt: null, confirmedFor: [] } },
-  });
-  expect(planImport(config, from, AT)).toEqual({
-    ok: false,
-    finding: { code: "accounts.registry-exists", params: { path: join(config, "accounts.json") } },
-  });
+  writeRegistry(config);
+  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { accounts: [{ name: "work" }, { name: "cx" }] } });
   writeFileSync(join(config, "accounts.json"), "{}");
   expect(loadRegistry(config)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
   // A registry the process cannot read is reported, not taken for none.
@@ -200,14 +199,12 @@ test("BenchKeeper's registry is imported once, as a plan that creates the regist
 });
 
 test("a pool is confirmed by a plan that replaces the registry; Codex pools and unknown pools are refused", () => {
-  const { config, state, from } = configAndBenchKeeper();
+  const { config, state } = freshConfig();
   expect(planConfirm(config, { agent: "claude", pool: "main" }, AT)).toMatchObject({
     ok: false,
     finding: { code: "document.unreadable" },
   });
-  const imported = planImport(config, from, AT);
-  if (!imported.ok) throw new Error(imported.finding.code);
-  applyPlan(state, imported.value.plan, { yes: true });
+  writeRegistry(config);
   expect(planConfirm(config, { agent: "codex", pool: "main" }, AT)).toEqual({
     ok: false,
     finding: { code: "accounts.codex-switching-off", params: { pool: "main" } },
@@ -227,18 +224,16 @@ test("a pool is confirmed by a plan that replaces the registry; Codex pools and 
   });
 });
 
-// A config folder with BenchKeeper's registry imported: work (Claude Code) and cx (Codex), in /accounts.
-const importedRegistry = () => {
-  const { config, state, from } = configAndBenchKeeper();
-  const imported = planImport(config, from, AT);
-  if (!imported.ok) throw new Error(imported.finding.code);
-  applyPlan(state, imported.value.plan, { yes: true });
-  return { config, state };
+// A config folder with the registry written: work (Claude Code) and cx (Codex), in /accounts.
+const registryReady = () => {
+  const folders = freshConfig();
+  writeRegistry(folders.config);
+  return folders;
 };
 
-// The imported registry with work moved into its own home by its plan; the home itself is the login's to make.
+// The registry with work moved into its own home by its plan; the home itself is the login's to make.
 const plannedHome = () => {
-  const { config, state } = importedRegistry();
+  const { config, state } = registryReady();
   const moved = planHome(config, state, "work");
   if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
   applyPlan(state, moved.value.plan, { yes: true });
@@ -253,7 +248,7 @@ const movedRegistry = () => {
 };
 
 test("an account moves into its own home by a plan, and the folder it named before stays as an alias", () => {
-  const { config, state } = importedRegistry();
+  const { config, state } = registryReady();
   const home = ownHome(state, "work");
   expect(home).toBe(join(state, "homes", "work"));
   const moved = planHome(config, state, "work");
@@ -304,7 +299,7 @@ test("an account moves into its own home by a plan, and the folder it named befo
 });
 
 test("the login runs in the account's own home, made for the owner only, with the clean environment", () => {
-  const { config, state } = importedRegistry();
+  const { config, state } = registryReady();
   const seen: Record<string, string>[] = [];
   const run = (code: number) => (env: Record<string, string>) => {
     seen.push(env);
@@ -382,7 +377,7 @@ const leaseOf = (state: string, account: string) => {
 };
 
 test("the doctor checks each Claude Code login in its own home, one at a time, never beside a worker on it", async () => {
-  const { config, state } = importedRegistry();
+  const { config, state } = registryReady();
   const home = ownHome(state, "work");
   const seen: Record<string, string>[] = [];
   const answering = (login: LoginStatus) => ({
@@ -526,14 +521,4 @@ test("a hand-edited own home with a trailing separator is still the own home: no
     value: { home },
   });
   expect(run.mock.calls).toEqual([[{ CLAUDE_CONFIG_DIR: home }]]);
-});
-
-test("an import reports a BenchKeeper file it cannot read or map", () => {
-  const { config, from } = configAndBenchKeeper();
-  expect(planImport(config, `${from}.missing`, AT)).toMatchObject({
-    ok: false,
-    finding: { code: "document.unreadable" },
-  });
-  writeFileSync(from, JSON.stringify({ accounts: "none" }));
-  expect(planImport(config, from, AT)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
 });

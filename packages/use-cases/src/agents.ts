@@ -19,8 +19,6 @@ export interface CheckedVersions {
   readonly version: string;
   /** The versions whose contract check passed: the launch's verifiedVersions. */
   readonly verified: readonly string[];
-  /** Whether the check of `version` proved that the CLI applies the launch's settings; no worker starts without. */
-  readonly settingsApplied: boolean;
 }
 
 // Whether a recorded check settles its version: a passed one always, a failed one for a day.
@@ -90,10 +88,7 @@ export const checkedVersions = async <L extends Launch>(
     if (!checks.ok) return checks;
   }
   const verified = checks.value.filter((each) => each.missing.length === 0).map((each) => each.version);
-  const settingsApplied = checks.value.some(
-    (each) => each.version === version && !each.missing.includes("init") && !each.missing.includes("settings"),
-  );
-  return { ok: true, value: { version, verified, settingsApplied } };
+  return { ok: true, value: { version, verified } };
 };
 
 /**

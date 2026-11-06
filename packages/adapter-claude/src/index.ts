@@ -5,7 +5,6 @@ import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionErro
 import { AgentVersion } from "@cedarloom/contracts";
 import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
-import { SETTINGS_SENTINEL } from "./overlay.ts";
 import { lines, streamParser } from "./stream.ts";
 
 export { type ClaudeLaunch, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
@@ -100,7 +99,7 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const passed = {
     // An init line without a version of the known form proves no version.
     init: init?.agentVersion != null,
-    settings: init?.tools != null && !init.tools.includes(SETTINGS_SENTINEL),
+    settings: init?.settingsApplied === true,
     usage: events.some(
       (event) =>
         event.type === "usage" && event.windows.some((window) => window.percent !== null && window.resetsAt !== null),

@@ -13,7 +13,8 @@ export interface OverlayInput {
 /**
  * A core tool the settings deny by its bare name, which removes it from the session's tools
  * (https://code.claude.com/docs/en/permissions): its absence from the init line's tool list proves the CLI applied the
- * settings. Workers can do without it, since Edit changes a notebook as text (pending owner decision).
+ * settings. Plan mode lists it too (2.1.316). The cost: workers cannot change notebooks with the file tools, since Edit
+ * refuses .ipynb files (2.1.316); shell commands still can (owner decision, kept).
  */
 export const SETTINGS_SENTINEL = "NotebookEdit";
 
@@ -53,8 +54,8 @@ const Checked = z.looseObject({
 /**
  * The per-launch settings passed with --settings, the worker profile of the settings defaults; --settings can set any
  * key the user settings file can (https://code.claude.com/docs/en/cli-reference). Throws when a value is not one the
- * documented syntax takes. A key a later CLI version stops taking drops the settings silently; the contract check's
- * SETTINGS_SENTINEL then fails on that version, and no worker starts on it.
+ * documented syntax takes. A key a later CLI version stops taking drops the settings silently; the session's init line
+ * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
 export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env }: OverlayInput) => {
   const workflows = join(cwd, ".github", "workflows");

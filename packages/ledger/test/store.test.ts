@@ -444,20 +444,26 @@ const launch = {
   startedAt: "2026-11-06T08:00:00.000Z",
 } as const;
 const runIdOf = (n: number): string => `${launch.runId.slice(0, -1)}${n}`;
-const alive = (): boolean => true;
 
-test("an account gives at most max leases; an ended lease frees one, another account has its own", () => {
+test("an account gives at most max leases; a finished lease frees one, another account has its own", () => {
   const store = opened(fresh());
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2, alive)).toBe(true);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 2, alive)).toBe(true);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 2, alive)).toBe(false);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(4), account: "spare" }, 1, alive)).toBe(true);
+  const first = store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 2)).not.toBeNull();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 2)).toBeNull();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(4), account: "spare" }, 1)).not.toBeNull();
   store.finishLaunch(runIdOf(1), "pass", "2026-11-06T08:10:00.000Z");
+  first?.release();
   // A second finish keeps the first verdict.
   store.finishLaunch(runIdOf(1), "failed");
   // A finish time that is no time is refused on write, so the launches stay readable.
   expect(() => store.finishLaunch(runIdOf(2), "pass", "not a time")).toThrow(/datetime/i);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(5) }, 2, alive)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(5) }, 2)).not.toBeNull();
+  expect(store.liveLeases()).toEqual(
+    new Map([
+      ["work", 2],
+      ["spare", 1],
+    ]),
+  );
   expect(store.launches().map((row) => [row.runId.at(-1), row.account, row.verdict])).toEqual([
     ["1", "work", "pass"],
     ["2", "work", null],
@@ -470,25 +476,41 @@ test("an account gives at most max leases; an ended lease frees one, another acc
     finishedAt: "2026-11-06T08:10:00.000Z",
     verdict: "pass",
   });
+  expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
+  // A run takes one lease: a second lease of a run whose lock is held is refused.
+  expect(() => store.leaseAccount({ ...launch, runId: runIdOf(5) }, 9)).toThrow(/held already/);
 });
 
-test("a lease whose launcher process is gone ends as interrupted and frees its place", () => {
+test("a lease whose launcher let go of it without a finish (a crash, a kill) ends as interrupted, whatever its PID", () => {
   const store = opened(fresh());
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(1), pid: 7 }, 1, () => true)).toBe(true);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1, (pid) => pid !== 7)).toBe(true);
+  // This test's own PID runs, as a reused PID would: only the lock counts.
+  store.leaseAccount({ ...launch, runId: runIdOf(1), pid: process.pid }, 1)?.release();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), pid: process.pid }, 1)).not.toBeNull();
   expect(store.launches().map((row) => [row.runId.at(-1), row.verdict, row.finishedAt === null])).toEqual([
     ["1", "interrupted", false],
     ["2", null, true],
   ]);
 });
 
-test("by default a lease counts while its process runs: this test's own process does, a finished child does not", async () => {
-  const store = opened(fresh());
-  const child = spawn(process.execPath, ["-e", ""]);
-  await once(child, "exit");
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(1), pid: Number(child.pid) }, 1)).toBe(true);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), pid: process.pid }, 1)).toBe(true);
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(3), pid: process.pid }, 1)).toBe(false);
+test("a lease counts while its launcher process holds the run's lock, and ends when the OS releases it", async () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)?.release();
+  // Another process holds the run's lock, as the launcher of the run does.
+  const lock = join(dir, "leases", `${runIdOf(1)}.lock`);
+  const holder = spawn(
+    process.execPath,
+    [
+      "-e",
+      `new (require("node:sqlite").DatabaseSync)(process.argv[1]).exec("BEGIN EXCLUSIVE"); console.log("held"); setInterval(() => {}, 1000);`,
+      lock,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  await once(holder.stdout, "data");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).toBeNull();
+  holder.kill("SIGKILL");
+  await once(holder, "exit");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 1)).not.toBeNull();
   expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
-  expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
-});
+}, 15_000);

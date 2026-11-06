@@ -248,6 +248,29 @@ test("reads the version of the CLI that a launch's environment runs", async () =
   }
 });
 
+test("an init line proves the settings applied only with its core tools listed and the sentinel left out", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-stream-"));
+  const lines = readFileSync(join(fixtures, "stream.jsonl"), "utf8");
+  const checks = [];
+  for (const [name, tools] of [
+    ["empty", "[]"],
+    ["no-read", '["Bash","Edit"]'],
+  ] as const) {
+    writeFileSync(join(dir, `${name}.jsonl`), lines.replace('"tools":["Bash","Read","Edit"]', `"tools":${tools}`));
+    const { prompt: _, verifiedVersions: __, ...probe } = launch({ FAKE_STREAM: join(dir, `${name}.jsonl`) });
+    checks.push(await runtime.checkContract(probe));
+  }
+  expect(checks).toEqual([
+    { version: "2.1.316", missing: ["settings"] },
+    { version: "2.1.316", missing: ["settings"] },
+  ]);
+  // Each session's own init event carries the proof, so a launch can check it.
+  const all = await events(runtime.start(launch({ FAKE_STREAM: join(dir, "empty.jsonl") })));
+  expect(all[1]).toMatchObject({ type: "init", settingsApplied: false });
+  const applied = await events(runtime.start(launch(stream("stream.jsonl"))));
+  expect(applied[1]).toMatchObject({ type: "init", settingsApplied: true });
+});
+
 test("an init line whose version has another form keeps its session ID, but proves no version", async () => {
   const dir = mkdtempSync(join(tmpdir(), "cedarloom-stream-"));
   const line = readFileSync(join(fixtures, "no-reset.jsonl"), "utf8").replace('"2.1.316"', '"2.1.316\\u001b[31m"');

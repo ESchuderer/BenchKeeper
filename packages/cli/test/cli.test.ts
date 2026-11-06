@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
@@ -10,13 +10,21 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
+// The agent logins the commands started, each by its environment, and the exit code the next one ends with.
+interface Logins {
+  readonly started: Record<string, string>[];
+  code: number;
+}
+
 const setup = (): {
   root: string;
   state: string;
+  logins: Logins;
   cli: (...argv: string[]) => Promise<{ code: number; out: string; err: string }>;
 } => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-cli-"));
   const state = join(root, "state");
+  const logins: Logins = { started: [], code: 0 };
   const cli = async (...argv: string[]): Promise<{ code: number; out: string; err: string }> => {
     let [out, err] = ["", ""];
     const io = {
@@ -24,10 +32,14 @@ const setup = (): {
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => Promise.resolve(),
+      login: (env: Record<string, string>) => {
+        logins.started.push(env);
+        return { code: logins.code };
+      },
     };
     return { code: await main(argv, io), out, err };
   };
-  return { root, state, cli };
+  return { root, state, logins, cli };
 };
 
 const planFile = (root: string, value: unknown, name = "plan.json"): string => {
@@ -206,11 +218,51 @@ const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "h
 
 // A temporary setup with BenchKeeper's registry file: one pooled and one single host account, one container account.
 const withBenchKeeper = () => {
-  const { root, cli } = setup();
+  const { root, state, logins, cli } = setup();
   const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
   const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
-  return { root, cli, from: planFile(root, registry, "benchkeeper.json") };
+  return { root, state, logins, cli, from: planFile(root, registry, "benchkeeper.json") };
 };
+
+test("accounts: an account moves into its own home with --yes, and its login runs only there", async () => {
+  const { state, logins, cli, from } = withBenchKeeper();
+  await cli("accounts", "import", "--from", from, "--yes");
+  const home = join(state, "homes", "work");
+  const early = await cli("accounts", "login", "work");
+  expect([early.code, early.err]).toEqual([
+    EXIT.refused,
+    expect.stringContaining("cedarloom accounts home work --yes"),
+  ]);
+  const shown = await cli("accounts", "home", "work");
+  expect([shown.code, shown.out]).toEqual([EXIT.ok, expect.stringContaining("Nothing changed")]);
+  expect(json((await cli("accounts", "home", "work", "--yes", "--json")).out)).toMatchObject({ status: "applied" });
+  expect((await cli("accounts", "list")).out).toContain(
+    `work  claude  main (not confirmed)  ${home}  (alias /accounts/work)`,
+  );
+  expect(json((await cli("accounts", "home", "work", "--json")).out)).toMatchObject({ format: "cedarloom.home", home });
+  expect(logins.started).toEqual([]);
+  const login = await cli("accounts", "login", "work");
+  expect([login.code, login.out]).toEqual([EXIT.ok, `Logged in: account work, in ${home}.\n`]);
+  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
+  logins.code = 1;
+  const failed = await cli("accounts", "login", "work", "--json");
+  expect([failed.code, json(failed.out)]).toEqual([
+    EXIT.refused,
+    expect.objectContaining({
+      findings: [{ code: "accounts.login-failed", params: { account: "work", error: "exit code 1" } }],
+    }),
+  ]);
+  expect((await cli("accounts", "home", "nobody")).code).toBe(EXIT.refused);
+});
+
+test("accounts: a relative --state is taken from the working folder, so an own home is an absolute folder", async () => {
+  const { root, cli, from } = withBenchKeeper();
+  await cli("accounts", "import", "--from", from, "--yes");
+  const state = relative(process.cwd(), join(root, "elsewhere"));
+  const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
+  expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
+  expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
+});
 
 test("accounts: the one-time import is shown first and applied with --yes", async () => {
   const { root, cli, from } = withBenchKeeper();
@@ -524,7 +576,13 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   const { state } = setup();
   const stopped = Promise.withResolvers<void>();
   const printed = Promise.withResolvers<string>();
-  const io = { out: printed.resolve, err: () => undefined, env: {}, untilStopped: () => stopped.promise };
+  const io = {
+    out: printed.resolve,
+    err: () => undefined,
+    env: {},
+    untilStopped: () => stopped.promise,
+    login: () => ({ code: null }),
+  };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a
   // second on a slow runner. A failed start prints cedarloom.error instead.

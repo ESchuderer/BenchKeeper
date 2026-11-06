@@ -81,6 +81,21 @@ export const Finding = z
     finding("accounts.codex-switching-off", { pool: z.string() }),
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
+    finding("accounts.unknown-account", { account: z.string() }),
+    // Own homes and their login are Claude Code's only, until a Codex adapter starts workers.
+    finding("accounts.login-unsupported", { account: z.string(), agent: z.string() }),
+    // The own home of the account is a folder another account names: it is not taken over.
+    finding("accounts.folder-taken", { path: z.string() }),
+    // Workers run, and logins happen, only in the account's own home, so nothing is written into another tool's.
+    finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
+    // The own home, or the homes folder above it, is a link: what is written there would land in another folder.
+    finding("accounts.home-linked", { account: z.string(), path: z.string() }),
+    // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
+    finding("accounts.home-missing", { account: z.string(), home: z.string() }),
+    // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
+    finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
+    // The agent's login ended with an error or did not start.
+    finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
@@ -186,6 +201,14 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
+  "accounts.unknown-account": { severity: "error", effort: "manual" },
+  "accounts.login-unsupported": { severity: "error", effort: "manual" },
+  "accounts.folder-taken": { severity: "error", effort: "manual" },
+  "accounts.home-not-own": { severity: "error", effort: "manual" },
+  "accounts.home-linked": { severity: "error", effort: "manual" },
+  "accounts.home-missing": { severity: "error", effort: "manual" },
+  "accounts.home-unusable": { severity: "error", effort: "manual" },
+  "accounts.login-failed": { severity: "error", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },

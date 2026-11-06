@@ -3,7 +3,17 @@ import type { DatabaseSync } from "node:sqlite";
 import { canonicalJson, GraphRun, JournalEvent, NodeAttempt, type Result } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
-import { connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
+import {
+  connect,
+  type LeaseLock,
+  leaseHeld,
+  leaseSeen,
+  newLease,
+  now,
+  openReadOnly,
+  stateDir,
+  transaction,
+} from "./store.ts";
 
 /** What a run starts from; the ledger adds its id, status, epoch and times. */
 export type NewGraphRun = Pick<
@@ -27,6 +37,8 @@ export interface RunLease extends LeaseLock {
 }
 
 const ACTIVE = new Set(["running", "waiting"]);
+// The schemas that added the graph runs and their project folder.
+const [GRAPH_SCHEMA, PROJECT_SCHEMA] = [8, 9];
 const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, project, epoch, startedAt, finishedAt`;
 
 // A projection that changes no row is the executor's mistake, and nothing of its event is kept.
@@ -48,10 +60,16 @@ const leaseHeldBy = (runId: string, pid: number): Result<never> => ({
 export class GraphStore {
   readonly #dir: string;
   readonly #db: DatabaseSync;
+  readonly #probe: typeof leaseHeld;
+  readonly #columns: string;
 
-  constructor(dir: string, db: DatabaseSync) {
+  // A view probes leases without taking them, and reads a store of schema 8, before the project folder, too.
+  constructor(dir: string, db: DatabaseSync, view?: { readonly schema: number }) {
     this.#dir = dir;
     this.#db = db;
+    this.#probe = view === undefined ? leaseHeld : leaseSeen;
+    this.#columns =
+      (view?.schema ?? PROJECT_SCHEMA) < PROJECT_SCHEMA ? COLUMNS.replace("project", "NULL AS project") : COLUMNS;
   }
 
   /** Records a run with its definition and inputs as they start, and returns this process's lease on it (epoch 1). */
@@ -89,9 +107,9 @@ export class GraphStore {
 
   /** A run as it stands: one running or waiting while no process holds its lease is `interrupted`. */
   graphRun(id: string): GraphRun | undefined {
-    const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
+    const row = this.#db.prepare(`SELECT ${this.#columns} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
-    const interrupted = ACTIVE.has(String(row["status"])) && !leaseHeld(this.#dir, `${id}.${Number(row["epoch"])}`);
+    const interrupted = ACTIVE.has(String(row["status"])) && !this.#probe(this.#dir, `${id}.${Number(row["epoch"])}`);
     const status = interrupted ? "interrupted" : row["status"];
     const [definition, inputs] = [row["definition"], row["inputs"]].map((json) => JSON.parse(String(json)));
     return GraphRun.parse({ ...row, status, definition, inputs });
@@ -192,11 +210,15 @@ export class GraphStore {
     transaction(this.#db, () => {
       this.#db.prepare(`UPDATE node_attempts SET outputs = '{}' WHERE ${old} AND outputs <> '{}'`).run(cutoff);
       this.#db
-        .prepare(`UPDATE run_events SET payload = json_remove(payload, '$.values') WHERE ${old} AND type = 'ended'`)
+        .prepare(
+          `UPDATE run_events SET payload = json_remove(payload, '$.values')
+           WHERE ${old} AND type = 'ended' AND json_type(payload, '$.values') IS NOT NULL`,
+        )
         .run(cutoff);
       this.#db
         .prepare(
-          `UPDATE run_events SET payload = json_set(payload, '$.outputs', json('{}')) WHERE ${old} AND type = 'finished'`,
+          `UPDATE run_events SET payload = json_set(payload, '$.outputs', json('{}'))
+           WHERE ${old} AND type = 'finished' AND json_extract(payload, '$.outputs') <> '{}'`,
         )
         .run(cutoff);
     });
@@ -277,4 +299,18 @@ export class GraphStore {
 export const openGraphStore = (dir: string, detect = filesystemType): Result<GraphStore> => {
   const refused = stateDir(dir, detect);
   return refused === null ? connect(dir, (db) => new GraphStore(dir, db)) : { ok: false, finding: refused };
+};
+
+/** Graph runs as `runs list` and `runs show` read them: no lock, no write, no migration. */
+export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "close">;
+
+/** Opens the graph runs of `dir` for reading; null while there are none, also in a store from before them. */
+export const openGraphView = (dir: string): Result<GraphView | null> => {
+  const opened = openReadOnly(dir);
+  if (!opened.ok) return opened;
+  if (opened.value === null || opened.value.version < GRAPH_SCHEMA) {
+    opened.value?.db.close();
+    return { ok: true, value: null };
+  }
+  return { ok: true, value: new GraphStore(dir, opened.value.db, { schema: opened.value.version }) };
 };

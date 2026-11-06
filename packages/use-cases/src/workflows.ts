@@ -2,6 +2,7 @@ import { type ChildProcess, type ChildProcessByStdio, execFile, spawn } from "no
 import { closeSync, existsSync, openSync, readSync, realpathSync } from "node:fs";
 import { join, resolve as absolute, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
+import { isDeepStrictEqual } from "node:util";
 import {
   type Finding,
   type GraphRun,
@@ -23,7 +24,7 @@ import {
   type Prepared,
   startRun,
 } from "@cedarloom/engine";
-import { type GraphStore, openGraphStore, type RunLease } from "@cedarloom/ledger";
+import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
 import { readJson } from "./use-cases.ts";
 
@@ -192,9 +193,9 @@ const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise
 
 type Held = Parameters<typeof execute>[2] & { readonly lease: RunLease };
 
-// Runs a run this process holds to its end, then lets go of it.
 type InProject = RunOptions & { readonly project: string };
 
+// Runs a run this process holds to its end, then lets go of it.
 const runHeld = async (
   store: GraphStore,
   held: Held,
@@ -231,7 +232,8 @@ const typedInputs = (workflow: WorkflowDefinition, inputs: Values): Values => {
     if (typeof value !== "string" || workflow.inputs?.[name]?.type === "string") return value;
     try {
       const parsed: Json = JSON.parse(value);
-      return parsed;
+      // Text such as 1e400 parses to Infinity, which no JSON value holds: the text stays, and the check refuses it.
+      return isDeepStrictEqual(parsed, JSON.parse(JSON.stringify(parsed))) ? parsed : value;
     } catch {
       return value;
     }
@@ -253,6 +255,7 @@ export const runWorkflow = async (
   const shell = check(workflow.value, typed, options);
   if (!shell.ok) return shell;
   const project = realFolder(options.project ?? process.cwd());
+  if (!project.ok) return project;
   return withGraphs(state, (store) => {
     store.prune(OUTPUT_DAYS);
     const definition = workflow.value;
@@ -263,35 +266,33 @@ export const runWorkflow = async (
       mode: "act",
       parentRun: null,
       parentNode: null,
-      project,
+      project: project.value,
     } as const;
     const held = { lease: store.create(run), workflow: definition, inputs: typed, journal: [] };
-    return runHeld(store, held, shell.value, { ...options, project });
+    return runHeld(store, held, shell.value, { ...options, project: project.value });
   });
 };
 
-// Runs a run this process took over on from its journal; one whose journal it cannot trust it lets go of again.
-// A folder's real path; one that does not resolve is taken as given, and each command there fails.
-const realFolder = (path: string): string => {
+// A folder's real path; a folder that is not there is refused, since each command there would fail.
+const realFolder = (path: string): Result<string> => {
   try {
-    return realpathSync.native(path);
+    return { ok: true, value: realpathSync.native(path) };
   } catch {
-    return absolute(path);
+    return { ok: false, finding: { code: "run.project-missing", params: { project: absolute(path) } } };
   }
 };
 
-// The folder a stored run's commands run in: the one it recorded, which a given folder must be. A run recorded before
-// the folder was takes the given one, else the current folder.
+// The folder a stored run's commands run in: the one it recorded, which must still be there, and which a given folder
+// must be. A run recorded before the folder was takes the given one, else the current folder.
 const projectOf = (run: GraphRun, given: string | undefined): Result<string> => {
-  const real = given === undefined ? (run.project ?? process.cwd()) : realFolder(given);
-  if (run.project === null || real === run.project) return { ok: true, value: real };
-  return {
-    ok: false,
-    finding: { code: "run.project-mismatch", params: { runId: run.id, project: run.project, given: real } },
-  };
+  const real = realFolder(given ?? run.project ?? process.cwd());
+  if (!real.ok || run.project === null || real.value === run.project) return real;
+  const params = { runId: run.id, project: run.project, given: real.value };
+  return { ok: false, finding: { code: "run.project-mismatch", params } };
 };
 
 type TakenOver = { readonly run: GraphRun; readonly lease: RunLease };
+// Runs a run this process took over on from its journal; one whose journal it cannot trust it lets go of again.
 const runOn = (store: GraphStore, { run, lease }: TakenOver, shell: string, options: InProject) => {
   const journal = store.events(run.id);
   if (!journal.ok) {
@@ -320,25 +321,43 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
       : lease;
   });
 
-/** The graph runs, newest first; none while no run was ever recorded. */
-export const listGraphRuns = async (state: string): Promise<Result<GraphRun[]>> =>
-  existsSync(join(state, "runs.sqlite"))
-    ? withGraphs(state, (store) => Promise.resolve({ ok: true, value: store.graphRuns() }))
-    : { ok: true, value: [] };
+// Opens the graph runs of `state` for reading, runs `read` with them (null while there are none), and closes them.
+const withGraphView = <T>(state: string, read: (view: GraphView | null) => Result<T>): Result<T> => {
+  const view = openGraphView(state);
+  if (!view.ok) return view;
+  try {
+    return read(view.value);
+  } finally {
+    view.value?.close();
+  }
+};
+
+/** The graph runs, newest first. Reads never write: no lock, no migration. */
+export const listGraphRuns = (state: string): Result<GraphRun[]> =>
+  withGraphView(state, (view) => ({ ok: true, value: view?.graphRuns() ?? [] }));
 
 /** A graph run with its attempts; the pid of an attempt that ended interrupted is what a user checks by hand. */
-export const showGraphRun = async (
+export const showGraphRun = (state: string, runId: string): Result<{ run: GraphRun; attempts: NodeAttempt[] }> =>
+  withGraphView(state, (view) => {
+    const run = view?.graphRun(runId);
+    if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+    return { ok: true, value: { run, attempts: view.attempts(runId) } };
+  });
+
+/**
+ * What a resume or cancel of a graph run would do, read without a write: the run, the folder its commands run in (or
+ * why not), and the attempts left running, which end interrupted once their processes are stopped.
+ */
+export const planGraphRun = (
   state: string,
   runId: string,
-): Promise<Result<{ run: GraphRun; attempts: NodeAttempt[] }>> => {
-  const notFound = { ok: false, finding: { code: "run.not-found", params: { runId } } } as const;
-  if (!existsSync(join(state, "runs.sqlite"))) return notFound;
-  return withGraphs(state, (store) => {
-    const run = store.graphRun(runId);
-    return Promise.resolve(
-      run === undefined ? notFound : { ok: true, value: { run, attempts: store.attempts(runId) } },
-    );
-  });
+  project?: string,
+): Result<{ run: GraphRun; project: Result<string>; attempts: NodeAttempt[] }> => {
+  const shown = showGraphRun(state, runId);
+  if (!shown.ok) return shown;
+  const { run, attempts } = shown.value;
+  const running = attempts.filter((attempt) => attempt.state === "running");
+  return { ok: true, value: { run, project: projectOf(run, project), attempts: running } };
 };
 
 /**
@@ -353,8 +372,9 @@ export const cancelRun = (
   withGraphs<{ runId: string; status: RunStatus | "cancelling" }>(state, async (store) => {
     const run = store.graphRun(runId);
     if (run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+    // A cancel starts nothing, so a folder that is gone does not stop it; another folder named does.
     const project = projectOf(run, options.project);
-    if (!project.ok) return project;
+    if (!project.ok && project.finding.code === "run.project-mismatch") return project;
     const lease = store.takeOver(runId);
     if (!lease.ok && lease.finding.code === "run.lease-held") {
       process.kill(lease.finding.params.pid, "SIGTERM");
@@ -363,5 +383,5 @@ export const cancelRun = (
     if (!lease.ok) return lease;
     // A cancelled run starts nothing, so it needs no shell.
     store.append(runId, lease.value.epoch, { type: "cancel" });
-    return runOn(store, { run, lease: lease.value }, "", { ...options, project: project.value });
+    return runOn(store, { run, lease: lease.value }, "", { ...options, project: project.ok ? project.value : "" });
   });

@@ -75,9 +75,9 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
   return applyShown(ctx, plan, { shown: showPlan(preview), findings: [], data: {} }, approval);
 };
 
-export const runsList = async (ctx: Context): Promise<number> => {
+export const runsList = (ctx: Context): number => {
   const runs = useCases.listRuns(ctx.state);
-  const graphRuns = runs.ok ? await useCases.listGraphRuns(ctx.state) : { ok: false as const, finding: runs.finding };
+  const graphRuns = runs.ok ? useCases.listGraphRuns(ctx.state) : { ok: false as const, finding: runs.finding };
   if (!graphRuns.ok) return fail(ctx, "runs", [graphRuns.finding], EXIT.refused);
   const applied = runs.ok ? runs.value : [];
   // Apply runs and graph runs, newest first.
@@ -94,7 +94,7 @@ export const runsList = async (ctx: Context): Promise<number> => {
   return EXIT.ok;
 };
 
-export const runsShow = async (ctx: Context, runId: string): Promise<number> => {
+export const runsShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showRun(ctx.state, runId);
   if (!shown.ok && shown.finding.code === "run.not-found") return graphRunShow(ctx, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);

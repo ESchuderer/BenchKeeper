@@ -49,6 +49,8 @@ export const Finding = z
     finding("run.shell-missing", {}),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
+    // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
+    finding("run.project-missing", { project: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -177,6 +179,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },
   "run.project-mismatch": { severity: "error", effort: "manual" },
+  "run.project-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

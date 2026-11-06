@@ -107,11 +107,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 7");
+  db.exec("PRAGMA user_version = 8");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 7, known: 6 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 8, known: 7 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -337,7 +337,7 @@ test("a store of schema 1 gains the account, check, launch and mode tables on op
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 6 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 7 });
   after.close();
 });
 
@@ -446,6 +446,16 @@ const launch = {
   version: "2.1.316",
   pid: 101,
   startedAt: "2026-11-06T08:00:00.000Z",
+  labels: {
+    phase: "implement",
+    model: "claude-sonnet-5-5",
+    subagentModel: "claude-sonnet-5-5",
+    effort: "high",
+    permissionMode: "dontAsk",
+    review: true,
+    level: "checkpoint",
+    tier: null,
+  },
 } as const;
 const runIdOf = (n: number): string => `${launch.runId.slice(0, -1)}${n}`;
 
@@ -571,6 +581,23 @@ test("the latest switch of the level for running work, overall or since a time; 
   const view = openRunView(dir);
   expect(view.ok && view.value?.modeSwitch()).toBeNull();
   if (view.ok) view.value?.close();
+});
+
+test("a launch keeps the settings it ran with; a launch from before the labels has none", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2)?.release();
+  expect(store.launches()[0]?.labels).toEqual(launch.labels);
+  open.splice(0).forEach((each) => each.close());
+  // A schema-6 store: its launches have no labels column yet.
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("ALTER TABLE launches DROP COLUMN labels; PRAGMA user_version = 6");
+  db.close();
+  expect(
+    opened(dir)
+      .launches()
+      .map((row) => [row.runId.at(-1), row.labels]),
+  ).toEqual([["1", null]]);
 });
 
 const sample = {

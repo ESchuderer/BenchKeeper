@@ -140,8 +140,15 @@ export const UsageSample = z.strictObject({
 export type UsageSample = z.infer<typeof UsageSample>;
 
 /**
+ * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it
+ * counted as 0 percent used. Absent on a choice from before that rule, which counted such a window as unknown.
+ */
+const CountedReading = Reading.extend({ source: z.enum(["reported", "assumed-after-reset"]).optional() });
+
+/**
  * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first
- * launch), the account chosen and why, the pool's readings and each candidate's margin above its minimums.
+ * launch), the account chosen and why, the pool's readings as the choice counted them and each candidate's margin
+ * above its minimums.
  */
 export const AccountSwitch = z.strictObject({
   at: z.iso.datetime({ precision: 3 }),
@@ -149,7 +156,7 @@ export const AccountSwitch = z.strictObject({
   from: Name.nullable(),
   to: Name,
   reason: z.enum(["most-headroom", "no-readings"]),
-  readings: z.array(Reading),
+  readings: z.array(CountedReading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });
 export type AccountSwitch = z.infer<typeof AccountSwitch>;

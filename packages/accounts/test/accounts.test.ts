@@ -125,6 +125,7 @@ const registry: AccountRegistry = {
   },
 };
 
+const EARLIER = "2026-11-05T11:00:00.000Z";
 const LATER = "2026-11-05T17:00:00.000Z";
 const used = (name: string, fiveHour: number, sevenDay: number, resetsAt = LATER): Reading[] => [
   { account: name, window: "fiveHour", usedPercent: fiveHour, resetsAt },
@@ -167,8 +168,8 @@ test("an account whose leases are all taken is passed over; with every one taken
   });
 });
 
-test("an account below a minimum, or with a window it has no current reading of, never qualifies", () => {
-  const readings = [...used("one", 95, 0), ...used("two", 0, 0).slice(0, 1), ...used("three", 0, 0, IMPORTED_AT)];
+test("an account below a minimum, or with a window never read, never qualifies", () => {
+  const readings = [...used("one", 95, 0), ...used("two", 0, 0).slice(0, 1)];
   expect(selectAccount(registry, main, readings, NOW)).toEqual({
     ok: false,
     reason: "no-headroom",
@@ -178,6 +179,24 @@ test("an account below a minimum, or with a window it has no current reading of,
       { account: "three", margin: null },
     ],
   });
+});
+
+test("a window that has reset since its last reading counts as 0 percent used, so an idle account qualifies again", () => {
+  // One was read near both limits before the windows reset; three's 7-day window was never read.
+  const readings = [...used("one", 95, 99, EARLIER), ...used("three", 0, 0).slice(0, 1)];
+  expect(selectAccount(registry, main, readings, NOW)).toEqual({
+    ok: true,
+    account: registry.accounts[0],
+    reason: "most-headroom",
+    candidates: [
+      { account: "one", margin: 92 },
+      { account: "two", margin: null },
+      { account: "three", margin: null },
+    ],
+  });
+  // A reset at the very moment of the choice has passed too.
+  const now = selectAccount(registry, main, used("two", 95, 99, IMPORTED_AT), NOW);
+  expect(now).toMatchObject({ ok: true, account: { name: "two" }, candidates: [{}, { margin: 92 }, {}] });
 });
 
 test("with no known reading in the pool nothing switches: the task stays on its account, else the first", () => {
@@ -190,8 +209,8 @@ test("with no known reading in the pool nothing switches: the task stays on its 
     candidates: POOL.map((name) => ({ account: name, margin: null })),
   });
   expect([stays(null), stays("solo")].map((chosen) => chosen.ok && chosen.account.name)).toEqual(["one", "one"]);
-  // A known window below its minimum counts although the other window has reset: no account to stay on silently.
-  const exhausted = [...used("two", 0, 99).slice(1), ...used("two", 0, 0, IMPORTED_AT).slice(0, 1)];
+  // A known window below its minimum counts although the other one was never read: no account to stay on silently.
+  const exhausted = used("two", 0, 99).slice(1);
   expect(stays("two", exhausted)).toEqual({
     ok: false,
     reason: "no-headroom",

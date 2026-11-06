@@ -24,25 +24,27 @@ export const WorkerResult = z
 export type WorkerResult = z.infer<typeof WorkerResult>;
 
 /**
- * One worker launch as the ledger keeps it; while it runs (finishedAt null) it holds a lease on its account. `failed`:
- * no valid result of this run; `interrupted`: its launcher ended before it did.
- */
-/**
  * The settings a run ran with, so runs can be compared by them (A90): the workflow phase, the models, the effort, the
- * agent's permission mode, whether a fresh reviewer runs, and the automation level at the start. The CLI version is
- * the record's own column.
+ * agent's permission mode, whether a fresh reviewer runs, the automation level at the start, and the task's tier where
+ * it is decided (quick, standard or full; null where not yet, as for a plan launch). The CLI version is the record's
+ * own column.
  */
 export const RunLabels = z.strictObject({
   phase: z.enum(["plan", "implement", "review"]),
   model: z.string().min(1),
   subagentModel: z.string().min(1),
   effort: z.enum(["low", "medium", "high", "xhigh"]),
-  mode: z.string().min(1).max(64),
+  permissionMode: z.string().min(1).max(64),
   review: z.boolean(),
   level: AutomationLevel,
+  tier: z.enum(["quick", "standard", "full"]).nullable(),
 });
 export type RunLabels = z.infer<typeof RunLabels>;
 
+/**
+ * One worker launch as the ledger keeps it; while it runs (finishedAt null) it holds a lease on its account. `failed`:
+ * no valid result of this run; `interrupted`: its launcher ended before it did.
+ */
 export const LaunchRecord = z.strictObject({
   runId: z.uuid(),
   task: z.string(),

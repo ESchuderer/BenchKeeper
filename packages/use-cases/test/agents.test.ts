@@ -39,6 +39,7 @@ const probe = {
   model: "claude-sonnet-5-5",
   subagentModel: "claude-sonnet-5-5",
   effort: "high",
+  permissionMode: "dontAsk",
   env: {},
   tmpDir: "/tmp/worker",
   resultFile: "/state/workers/0b9f4c1e/out/result.json",

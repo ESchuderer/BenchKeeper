@@ -1,4 +1,4 @@
-import type { ContractCheckRecord, Json, QuotaWindow } from "@cedarloom/contracts";
+import type { ContractCheckRecord, Json, QuotaWindow, RunLabels } from "@cedarloom/contracts";
 
 /** How far an adapter supports a feature; `unknown` means untested and is never read as `unsupported`. */
 export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown";
@@ -7,7 +7,7 @@ export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown
 export type Capability = "start" | "observe" | "cancel" | "resume" | "handover" | "usage";
 
 /** Reasoning effort of a session; workers stop at `xhigh`, because higher effort spends the usage windows fastest. */
-export type Effort = "low" | "medium" | "high" | "xhigh";
+export type Effort = RunLabels["effort"];
 
 /** What every adapter needs to start a session; an adapter's launch options add its own settings. */
 export interface Launch {
@@ -26,6 +26,8 @@ export interface Launch {
    * (`required_vars` in https://github.com/libuv/libuv/blob/v1.x/src/win/process.c).
    */
   readonly env: Readonly<Record<string, string>>;
+  /** The agent's permission mode for the session, as the adapter names it; a run's labels record it (A90). */
+  readonly permissionMode: string;
   /** The worker's own temporary folder, apart from every other worker's. */
   readonly tmpDir: string;
   /** The file the worker ends with its result in, outside the working folder: the one file it may write there. */

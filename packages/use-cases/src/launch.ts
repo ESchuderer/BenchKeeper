@@ -33,8 +33,8 @@ export interface WorkerRequest<L extends Launch> extends AccountRequest {
   readonly runtime: AgentRuntime<L>;
   /** The adapter's launch options: the decided values with the phase's model and settings and the working folder. */
   readonly launch: (decided: Decided) => L;
-  /** The run's settings that the launch options do not hold; the models and effort come from the built launch (A90). */
-  readonly labels: Pick<RunLabels, "phase" | "mode" | "review" | "level">;
+  /** The run's settings that the launch options do not hold; the rest comes from the built launch (A90). */
+  readonly labels: Pick<RunLabels, "phase" | "review" | "level" | "tier">;
 }
 
 export interface LaunchHost {
@@ -255,8 +255,8 @@ export const launchWorker = async <L extends Launch>(
     return refused(dir, { ok: false, finding: { code: "launch.settings-unproven", params: { agent, version } } });
   }
   const startedAt = new Date().toISOString();
-  const { model, subagentModel, effort } = probe;
-  const labels = { ...request.labels, model, subagentModel, effort };
+  const { model, subagentModel, effort, permissionMode } = probe;
+  const labels = { ...request.labels, model, subagentModel, effort, permissionMode };
   const held = await takeLease(state, {
     runId,
     task,

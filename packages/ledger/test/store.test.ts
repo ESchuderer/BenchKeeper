@@ -449,9 +449,10 @@ const launch = {
     model: "claude-sonnet-5-5",
     subagentModel: "claude-sonnet-5-5",
     effort: "high",
-    mode: "dontAsk",
+    permissionMode: "dontAsk",
     review: true,
     level: "checkpoint",
+    tier: null,
   },
 } as const;
 const runIdOf = (n: number): string => `${launch.runId.slice(0, -1)}${n}`;

@@ -55,6 +55,8 @@ interface Fake {
   readonly runEnv?: Readonly<Record<string, string>>;
   /** The result file the fake writes. */
   readonly result?: (decided: Decided) => unknown;
+  /** The workflow phase whose settings the launch runs with; implement when unset. */
+  readonly phase?: keyof typeof FRESH_INSTALL_PHASES;
 }
 
 // A worker request on the fake CLI. The launcher builds the probe's options first, then the run's.
@@ -67,14 +69,14 @@ const request = (work: string, fake: Fake = {}): WorkerRequest<ClaudeLaunch> => 
     previous: null,
     prompt: "Do the task.",
     ghToken: null,
-    labels: { phase: "implement", mode: "dontAsk", review: true, level: "checkpoint" },
+    labels: { phase: fake.phase ?? "implement", review: true, level: "checkpoint", tier: "standard" },
     runtime,
     launch: (decided) => {
       const run = (built += 1) > 1;
       const probe = fake.probe ?? "stream.jsonl";
       const result = fake.result;
       return {
-        ...FRESH_INSTALL_PHASES.implement,
+        ...FRESH_INSTALL_PHASES[fake.phase ?? "implement"],
         ...decided,
         cwd: work,
         allow: [],
@@ -180,9 +182,10 @@ const LABELS = {
   model: "claude-sonnet-5-5",
   subagentModel: "claude-sonnet-5-5",
   effort: "high",
-  mode: "dontAsk",
+  permissionMode: "dontAsk",
   review: true,
   level: "checkpoint",
+  tier: "standard",
 } as const;
 const lease = (runId: string, account: string) =>
   ({
@@ -390,5 +393,16 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
   ).resolves.toEqual({
     ok: true,
     value: { kind: "no-account", reason: "unknown-pool" },
+  });
+});
+
+test("a run's labels take the permission mode the launch was built with: a plan launch records plan", async () => {
+  const { state, config, work } = setup();
+  await launchWorker(state, config, request(work, { phase: "plan", result: passing }), host);
+  expect(withLedger(state, (store) => store.launches()[0]?.labels)).toMatchObject({
+    phase: "plan",
+    model: "claude-opus-5-5",
+    permissionMode: "plan",
+    tier: "standard",
   });
 });

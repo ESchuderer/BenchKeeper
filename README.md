@@ -75,4 +75,4 @@ Fix everything shows each file change as a diff and each command as its command 
 
 ## License
 
-The code is under the [MIT license](LICENSE). The CedarLoom name and logos are not: see the [trademark policy](TRADEMARKS.md). [`REUSE.toml`](REUSE.toml) maps every file to its license.
+The code is under the [MIT license](LICENSE). The CedarLoom name and logos are not: see [their terms](LICENSES/LicenseRef-Brand.txt). [`REUSE.toml`](REUSE.toml) maps every file to its license.

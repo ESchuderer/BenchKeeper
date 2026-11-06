@@ -221,7 +221,8 @@ export const accountsLogin = (ctx: Context, name: string): number => {
   return EXIT.ok;
 };
 
-// What the latest switch of running work does, by the settings' modeScope (running when unset; pending owner decision).
+// What the latest switch of running work does, by the settings' modeScope (running when unset; owner decision,
+// 2026-11-06).
 const switchLine = ({ switched, settings }: useCases.Mode): string | null => {
   if (switched?.level == null) return null;
   return settings?.modeScope === "until-off"

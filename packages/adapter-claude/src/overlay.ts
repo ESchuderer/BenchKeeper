@@ -19,7 +19,8 @@ export interface OverlayInput {
 export const SETTINGS_SENTINEL = "NotebookEdit";
 
 // Toolchains below the home folder that shell commands read and blockReadsOutsideWorkingDirectories closes for them
-// (pending owner decision): nvm, pnpm's store on Linux and on macOS, cargo, user-installed binaries, npm's global prefix.
+// (owner decision, 2026-11-06): nvm, pnpm's store on Linux and on macOS, cargo, user-installed binaries, npm's global
+// prefix.
 const TOOLCHAINS = ["~/.nvm", "~/.local/share/pnpm", "~/Library/pnpm", "~/.cargo", "~/.local/bin", "~/.npm-global"];
 
 // The documented rule syntax: a tool name with an optional specifier in parentheses that holds no closing parenthesis,

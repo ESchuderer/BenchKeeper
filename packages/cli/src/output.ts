@@ -1,4 +1,5 @@
 import { type Finding, findingInfo } from "@cedarloom/contracts";
+import type { LoginRun } from "@cedarloom/use-cases";
 import type { PlanPreview } from "@cedarloom/contracts";
 import { describe } from "./messages.ts";
 
@@ -8,6 +9,8 @@ export interface Io {
   env: Record<string, string | undefined>;
   /** Settles when a long-running command such as `ui` should end; the program waits for SIGINT or SIGTERM. */
   untilStopped: () => Promise<void>;
+  /** Runs the agent's own login in this terminal with `env`, and tells how it ended. */
+  login: (env: Record<string, string>) => LoginRun;
 }
 
 export interface Context {

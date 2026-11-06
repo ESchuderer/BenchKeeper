@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeRuntime, type ClaudeLaunch, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
+import { claudeLogin, claudeRuntime, type ClaudeLaunch, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -87,6 +87,19 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   for (const name of ["CLAUDE_CODE_SIMPLE", "claude_config_dir", "CEDARLOOM_PARENT_ONLY", ...Object.keys(login)]) {
     expect(fake.env).not.toHaveProperty(name);
   }
+});
+
+test("the login runs claude auth login with the account's environment, and tells how it ended", () => {
+  // Exits 0 only for `auth login` with the given config folder.
+  const check =
+    "process.exit(process.argv.slice(-2).join(' ') === 'auth login' && process.env.CLAUDE_CONFIG_DIR === '/h' ? 0 : 3)";
+  const login = claudeLogin([process.execPath, "-e", check]);
+  expect(login({ CLAUDE_CONFIG_DIR: "/h" })).toEqual({ code: 0 });
+  expect(login({ CLAUDE_CONFIG_DIR: "/other" })).toEqual({ code: 3 });
+  expect(claudeLogin([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
+    code: null,
+    error: expect.stringContaining("ENOENT"),
+  });
 });
 
 test("maps the stream-json lines to events", async () => {

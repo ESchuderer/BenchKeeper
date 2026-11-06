@@ -1,10 +1,29 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
-import { applyPlan, chooseAccount, loadRegistry, planConfirm, planImport } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import {
+  applyPlan,
+  chooseAccount,
+  loadRegistry,
+  loginAccount,
+  ownHome,
+  planConfirm,
+  planHome,
+  planImport,
+} from "@cedarloom/use-cases";
+import { expect, test, vi } from "vitest";
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const AT = "2026-11-05T11:00:00.000Z";
@@ -202,6 +221,180 @@ test("a pool is confirmed by a plan that replaces the registry; Codex pools and 
     confirmedAt: AT,
     confirmedFor: ["work"],
   });
+});
+
+// A config folder with BenchKeeper's registry imported: work (Claude Code) and cx (Codex), in /accounts.
+const importedRegistry = () => {
+  const { config, state, from } = configAndBenchKeeper();
+  const imported = planImport(config, from, AT);
+  if (!imported.ok) throw new Error(imported.finding.code);
+  applyPlan(state, imported.value.plan, { yes: true });
+  return { config, state };
+};
+
+// The imported registry with work moved into its own home by its plan; the home itself is the login's to make.
+const plannedHome = () => {
+  const { config, state } = importedRegistry();
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  return { config, state };
+};
+
+test("an account moves into its own home by a plan, and the folder it named before stays as an alias", () => {
+  const { config, state } = importedRegistry();
+  const home = ownHome(state, "work");
+  expect(home).toBe(join(state, "homes", "work"));
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  expect(moved.value.home).toBe(home);
+  expect(applyPlan(state, moved.value.plan, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
+  expect(loadRegistry(config)).toMatchObject({
+    ok: true,
+    value: {
+      accounts: [
+        { name: "work", home, aliases: ["/accounts/work"] },
+        { name: "cx", home: "/accounts/cx" },
+      ],
+    },
+  });
+  // In its own home already: nothing to plan.
+  expect(planHome(config, state, "work")).toEqual({ ok: true, value: { plan: null, home } });
+  // With another state folder and back again: the former own home, now the account's own alias, is taken back.
+  const other = join(state, "..", "other-state");
+  for (const folder of [other, state]) {
+    const plan = planHome(config, folder, "work");
+    if (!plan.ok || plan.value.plan === null) throw new Error("no plan");
+    applyPlan(state, plan.value.plan, { yes: true });
+  }
+  expect(loadRegistry(config)).toMatchObject({
+    ok: true,
+    value: { accounts: [{ name: "work", home, aliases: ["/accounts/work", ownHome(other, "work")] }, { name: "cx" }] },
+  });
+  expect(planHome(join(config, "none"), state, "work")).toMatchObject({ finding: { code: "document.unreadable" } });
+  expect(planHome(config, state, "none")).toEqual({
+    ok: false,
+    finding: { code: "accounts.unknown-account", params: { account: "none" } },
+  });
+  expect(planHome(config, state, "cx")).toEqual({
+    ok: false,
+    finding: { code: "accounts.login-unsupported", params: { account: "cx", agent: "codex" } },
+  });
+  // A folder another account names already is not taken over.
+  const edited = JSON.parse(readFileSync(join(config, "accounts.json"), "utf8"));
+  edited.accounts[0] = { ...edited.accounts[0], home: "/accounts/work", aliases: [] };
+  // The same folder with a trailing separator is still that folder.
+  edited.accounts[1].aliases = [`${home}/`];
+  writeFileSync(join(config, "accounts.json"), JSON.stringify(edited));
+  expect(planHome(config, state, "work")).toEqual({
+    ok: false,
+    finding: { code: "accounts.folder-taken", params: { path: home } },
+  });
+});
+
+test("the login runs in the account's own home, made for the owner only, with the clean environment", () => {
+  const { config, state } = importedRegistry();
+  const seen: Record<string, string>[] = [];
+  const run = (code: number) => (env: Record<string, string>) => {
+    seen.push(env);
+    return { code };
+  };
+  const network = { HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/ca.pem" };
+  const parent = {
+    PATH: "/bin",
+    HOME: "/home/dev",
+    TERM: "xterm",
+    ANTHROPIC_API_KEY: "k",
+    CLAUDE_CONFIG_DIR: "/x",
+    ...network,
+  };
+  const linux = { parent, platform: "linux" as const };
+  // Not in its own home yet: no login, so nothing lands in the folder it names.
+  expect(loginAccount(config, state, "work", { ...linux, run: run(0) })).toEqual({
+    ok: false,
+    finding: { code: "accounts.home-not-own", params: { account: "work", home: "/accounts/work" } },
+  });
+  expect(loginAccount(config, state, "none", { ...linux, run: run(0) })).toMatchObject({
+    finding: { code: "accounts.unknown-account" },
+  });
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  const home = ownHome(state, "work");
+  // A home made earlier with a looser mode is closed to the owner again.
+  mkdirSync(home, { recursive: true });
+  chmodSync(home, 0o755);
+  expect(loginAccount(config, state, "work", { ...linux, run: run(0) })).toEqual({ ok: true, value: { home } });
+  // The network settings Claude Code documents go along; no login variable does.
+  expect(seen).toEqual([{ PATH: "/bin", HOME: "/home/dev", TERM: "xterm", ...network, CLAUDE_CONFIG_DIR: home }]);
+  // Windows keeps no POSIX mode.
+  const mode = process.platform === "win32" ? 0o700 : statSync(home).mode & 0o777;
+  expect(mode).toBe(0o700);
+  // A login that fails or never starts is a finding; without a terminal type none is passed.
+  expect(loginAccount(config, state, "work", { parent: { PATH: "/bin" }, platform: "linux", run: run(1) })).toEqual({
+    ok: false,
+    finding: { code: "accounts.login-failed", params: { account: "work", error: "exit code 1" } },
+  });
+  expect(seen.at(-1)).toEqual({ PATH: "/bin", CLAUDE_CONFIG_DIR: home });
+  const missing = loginAccount(config, state, "work", {
+    ...linux,
+    run: () => ({ code: null, error: "spawn claude ENOENT" }),
+  });
+  expect(missing).toMatchObject({ ok: false, finding: { params: { error: "spawn claude ENOENT" } } });
+});
+
+test("a login never runs in an own home that is a link or lies in one, so nothing lands in the folder it points to", () => {
+  const { config, state } = plannedHome();
+  const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
+  const homes = join(state, "homes");
+  const started: Record<string, string>[] = [];
+  const linking = {
+    parent: {},
+    platform: "linux" as const,
+    run: (env: Record<string, string>) => (started.push(env), { code: 0 }),
+  };
+  // Junctions on Windows, which need no privilege; elsewhere the type is ignored.
+  mkdirSync(homes);
+  symlinkSync(elsewhere, ownHome(state, "work"), "junction");
+  expect(loginAccount(config, state, "work", linking)).toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: ownHome(state, "work") } },
+  });
+  renameSync(homes, join(state, "homes-before"));
+  symlinkSync(elsewhere, homes, "junction");
+  expect(loginAccount(config, state, "work", linking)).toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: homes } },
+  });
+  expect([started, readdirSync(elsewhere)]).toEqual([[], []]);
+});
+
+test("an own home that cannot be made is a finding with its folder and cause", () => {
+  const { config, state } = plannedHome();
+  // A file where the homes folder belongs.
+  writeFileSync(join(state, "homes"), "");
+  const ran = loginAccount(config, state, "work", { parent: {}, platform: "linux", run: () => ({ code: 0 }) });
+  expect(ran).toMatchObject({
+    ok: false,
+    finding: { code: "accounts.home-unusable", params: { account: "work", path: join(state, "homes") } },
+  });
+});
+
+test("a hand-edited own home with a trailing separator is still the own home: nothing to plan, and the login runs in it", () => {
+  const { config, state } = plannedHome();
+  const home = ownHome(state, "work");
+  const registryText = readFileSync(join(config, "accounts.json"), "utf8");
+  writeFileSync(
+    join(config, "accounts.json"),
+    registryText.replace(`"home": ${JSON.stringify(home)}`, `"home": ${JSON.stringify(`${home}/`)}`),
+  );
+  expect(planHome(config, state, "work")).toEqual({ ok: true, value: { plan: null, home } });
+  const run = vi.fn<(env: Record<string, string>) => { code: number }>(() => ({ code: 0 }));
+  expect(loginAccount(config, state, "work", { parent: {}, platform: "linux", run })).toEqual({
+    ok: true,
+    value: { home },
+  });
+  expect(run.mock.calls).toEqual([[{ CLAUDE_CONFIG_DIR: home }]]);
 });
 
 test("an import reports a BenchKeeper file it cannot read or map", () => {

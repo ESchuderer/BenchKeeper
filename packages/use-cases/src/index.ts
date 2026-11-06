@@ -21,9 +21,14 @@ export {
 export {
   type AccountRequest,
   chooseAccount,
+  type LoginHost,
+  type LoginRun,
   loadRegistry,
+  loginAccount,
   MAX_CONCURRENT,
+  ownHome,
   planConfirm,
+  planHome,
   planImport,
 } from "./accounts.ts";
 export {
@@ -37,3 +42,4 @@ export {
   showRun,
   undoRun,
 } from "./use-cases.ts";
+export { findShell, type GraphOutcome, type RunOptions, resumeRun, runWorkflow } from "./workflows.ts";

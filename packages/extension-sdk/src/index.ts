@@ -10,6 +10,10 @@ import {
 import {
   ACTION_FAILED,
   exit,
+  type FetchParams,
+  type FetchResult,
+  type Granted,
+  hostFetch,
   initialize,
   type LogParams,
   log,
@@ -22,13 +26,17 @@ import {
 export * from "./protocol.ts";
 
 /**
- * What an action gets: its node's `with`, its data inputs, the run's id, the user's language (from `initialize`), a
- * signal the host's cancel aborts, and a log that reaches the run's log.
+ * What an action gets: its node's `with`, its data inputs, the run's id, the user's language and its grant (from
+ * `initialize`), a signal the host's cancel aborts, a log that reaches the run's log, and `fetch` through the host,
+ * which the host's cancel of the run cancels too. A refused or failed fetch throws an error with `HOST_REFUSED` or
+ * `HOST_FAILED` as its `code`.
  */
 export type ActionContext = Omit<RunParams, "action"> & {
   locale: string;
+  granted: Granted;
   signal: AbortSignal;
   log: (message: string, level?: LogParams["level"]) => void;
+  fetch: (request: FetchParams) => Promise<FetchResult>;
 };
 /** An action returns the values of its data outputs; it throws to fail. */
 export type Action = (context: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
@@ -96,10 +104,10 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
   const { input = process.stdin, output = protocolOutput(), onExit = (code) => process.exit(code) } = options;
   /* v8 ignore stop */
   const connection = createMessageConnection(new StreamMessageReader(input), new StreamMessageWriter(output));
-  let locale = "en";
+  let hello: Pick<ActionContext, "locale" | "granted"> = { locale: "en", granted: { net: [], credentials: [] } };
   const names = Object.keys(actions);
-  connection.onRequest(initialize, (params) => {
-    locale = params.locale;
+  connection.onRequest(initialize, ({ locale, granted }) => {
+    hello = { locale, granted };
     return { protocol: PROTOCOL, actions: names };
   });
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
@@ -114,8 +122,9 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
         // The host is gone; so is the line.
       }
     };
+    const fetch = (request: FetchParams): Promise<FetchResult> => connection.sendRequest(hostFetch, request, token);
     try {
-      return { outputs: outputsOf(await run({ ...given, locale, signal: abortOn(token), log: send })) };
+      return { outputs: outputsOf(await run({ ...given, ...hello, signal: abortOn(token), log: send, fetch })) };
     } catch (error) {
       return failure(error);
     }

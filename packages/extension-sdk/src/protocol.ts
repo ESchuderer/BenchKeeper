@@ -6,8 +6,10 @@ import { NotificationType, NotificationType0, RequestType, RequestType0 } from "
  */
 export const PROTOCOL = "1.0";
 
-/** The host's first request: the protocol version and the user's language, for the extension's own texts. */
-export type InitializeParams = { protocol: string; locale: string };
+/** What the user granted the extension: the origins it may fetch, and the credentials the host adds for it. */
+export type Granted = { net: string[]; credentials: string[] };
+/** The host's first request: the protocol version, the user's language for the extension's own texts, and its grant. */
+export type InitializeParams = { protocol: string; locale: string; granted: Granted };
 /** The extension's protocol version and the actions it serves, which the host checks against its manifest. */
 export type InitializeResult = { protocol: string; actions: string[] };
 export const initialize = new RequestType<InitializeParams, InitializeResult, void>("initialize");
@@ -25,6 +27,26 @@ export const runAction = new RequestType<RunParams, RunResult, void>("action/run
 /** A line for the log of a run, which the host bounds and redacts. */
 export type LogParams = { run: string; level: "info" | "warning" | "error"; message: string };
 export const log = new NotificationType<LogParams>("host/log");
+
+/**
+ * A request the host sends for the extension, which has no network of its own (pending owner decision, P7 a): to an
+ * origin it was granted, following redirects within the grant. `credential` names one of the manifest's credentials,
+ * which the host adds for that credential's hosts only; the extension never sees its value (pending owner decision,
+ * P8 a). Bodies are text.
+ */
+export type FetchParams = {
+  url: string;
+  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
+  headers?: Record<string, string>;
+  body?: string;
+  credential?: string;
+};
+/** The answer of the last request: its status, URL, headers (names in lower case) and body. */
+export type FetchResult = { status: number; url: string; headers: Record<string, string>; body: string };
+export const hostFetch = new RequestType<FetchParams, FetchResult, void>("host/fetch");
+/** Host call error codes: a request outside the extension's grant, and one the host could not complete. */
+export const HOST_REFUSED = 2;
+export const HOST_FAILED = 3;
 
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");

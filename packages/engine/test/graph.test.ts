@@ -443,9 +443,13 @@ test("a plugin action node gets the catalog's data handles, `run` in and `done` 
     { code: "workflow.unknown-handle", params: { edge: "e2", end: "from", handle: "s.nope" } },
     { code: "workflow.missing-source", params: { node: "s", handle: "project" } },
   ]);
-  // The `run` input stays the control input, even if an action names a data input so.
-  const shadow = new Map([["acme.jira/search", { ...search, inputs: { run: { type: "string" as const } } }]]);
-  expect(nodeType("acme.jira/search", shadow)?.inputs).toEqual({ run: { type: "control" } });
+  // The control handles stay control handles, even if an action names data handles so (its manifest may not).
+  const named = { inputs: { run: { type: "string" as const } }, outputs: { done: { type: "number" as const } } };
+  const shadow = nodeType("acme.jira/search", new Map([["acme.jira/search", { ...search, ...named }]]));
+  expect([shadow?.inputs, shadow?.outputs]).toEqual([
+    { run: { type: "control" } },
+    { done: { type: "control", exclusive: true }, failed: { type: "control", exclusive: true } },
+  ]);
 });
 
 test("a plugin action that is not installed is a finding of its own, and its edges and reach get none", () => {
@@ -459,10 +463,13 @@ test("a plugin action that is not installed is a finding of its own, and its edg
     { code: "workflow.unknown-node-type", params: { node: "y", type: "acme/search" } },
   ]);
   expect(nodeType("command.run", named)).toBe(NODE_TYPES["command.run"]);
-  expect([isPluginType("acme.jira/search"), isPluginType("Acme.jira/search"), isPluginType("acme.jira")]).toEqual([
-    true,
-    false,
-    false,
+  // A publisher named like a built-in namespace would make `trigger.acme/go` a trigger.
+  const names = ["acme.jira/search", "Acme.jira/search", "acme.jira", "trigger.acme/go", "file.x/write", "join.x/y"];
+  expect(names.map(isPluginType)).toEqual([true, false, false, false, false, false]);
+  const trigger = new Map([["trigger.acme/go", search]]);
+  expect(validateWorkflow(workflow([start, "t:trigger.acme/go"], ["start.start>t.run"]), trigger)).toEqual([
+    { code: "workflow.trigger-count", params: { count: 2 } },
+    { code: "workflow.unknown-node-type", params: { node: "t", type: "trigger.acme/go" } },
   ]);
 });
 

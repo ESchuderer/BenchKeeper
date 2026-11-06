@@ -60,9 +60,13 @@ export type PluginAction = {
 /** The installed plugins' actions by node type, `<plugin id>/<action>`. */
 export type ActionCatalog = ReadonlyMap<string, PluginAction>;
 
+// The first parts of the built-in types (trigger, agent, command, ...): no plugin publisher takes one, so a type such
+// as `trigger.acme/go` never counts as a trigger, nor a plugin as built in.
+const BUILT_IN = new Set(Object.keys(NODE_TYPES).map((type) => type.split(".")[0]));
+
 /** Whether a node type names a plugin action, `publisher.name/action`; any other type is built in or unknown. */
 export const isPluginType = (type: string): boolean =>
-  /^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9-]{0,63}$/.test(type);
+  /^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9-]{0,63}$/.test(type) && !BUILT_IN.has(type.split(".")[0]);
 
 /** The handles of a node of a type: a built-in one, or an action of the catalog, which `run` starts like a command. */
 export const nodeType = (type: string, actions: ActionCatalog): NodeType | undefined => {

@@ -8,6 +8,15 @@ export {
   stricterLevel,
   waitsForOwner,
 } from "./automation.ts";
+export {
+  type Attempt,
+  capped,
+  type ExecuteOptions,
+  type Executors,
+  execute,
+  OUTPUT_CAP,
+  type Prepared,
+} from "./execute.ts";
 export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";
 export { recover } from "./recover.ts";
 export {

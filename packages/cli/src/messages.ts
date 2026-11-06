@@ -71,6 +71,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
   "run.report-only-apply": (p) =>
     `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
+  "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
+  "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -129,6 +131,31 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
+  "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.login-unsupported": (p) =>
+    `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
+  "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
+  "accounts.home-not-own": (p) =>
+    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+  "accounts.home-linked": (p) =>
+    `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
+  "accounts.home-missing": (p) =>
+    `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
+  "accounts.home-unusable": (p) =>
+    `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.login-failed": (p) =>
+    `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
+  "doctor.logged-out": (p) =>
+    `Account ${p.account} is not logged in in its own home ${p.home}; log in with: cedarloom accounts login ${p.account}`,
+  "doctor.login-elsewhere": (p) =>
+    `Claude Code reads the login of account ${p.account} from ${p.configDirectory}, not from its own home ${p.home}; something in the environment points it there.`,
+  "doctor.login-method": (p) =>
+    `Account ${p.account} is logged in with ${p.method}, not with a Claude subscription (claude.ai); log in again with: cedarloom accounts login ${p.account}`,
+  "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
+  "doctor.login-skipped": (p) =>
+    `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
+  "launch.not-logged-in": (p) =>
+    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

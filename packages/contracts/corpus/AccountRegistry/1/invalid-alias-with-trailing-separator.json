@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 10,
+    "sevenDay": 5
+  },
+  "accounts": [
+    {
+      "name": "left",
+      "agent": "claude",
+      "home": "/m/left",
+      "pool": null,
+      "added": "2026-11-05T08:00:00.000Z"
+    },
+    {
+      "name": "right",
+      "agent": "claude",
+      "home": "/m/right",
+      "aliases": [
+        "/m/left/"
+      ],
+      "pool": null,
+      "added": "2026-11-05T08:00:00.000Z"
+    }
+  ],
+  "pools": {}
+}

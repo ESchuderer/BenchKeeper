@@ -19,13 +19,21 @@ export {
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
+export type { LoginStatus } from "@cedarloom/agent-contracts";
 export {
   type AccountRequest,
+  checkLogins,
   chooseAccount,
+  type LoginHost,
+  type LoginRun,
   loadRegistry,
+  loginAccount,
   MAX_CONCURRENT,
+  ownHome,
   planConfirm,
+  planHome,
   planImport,
+  type StatusHost,
 } from "./accounts.ts";
 export {
   type Approval,
@@ -38,3 +46,4 @@ export {
   showRun,
   undoRun,
 } from "./use-cases.ts";
+export { findShell, type GraphOutcome, type RunOptions, resumeRun, runWorkflow } from "./workflows.ts";

@@ -15,7 +15,7 @@ import {
   resultPrompt,
   workerEnv,
 } from "@cedarloom/orchestration";
-import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
+import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
@@ -108,12 +108,14 @@ interface Prepared<L extends Launch> {
 }
 
 // The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
-// a login of its own.
+// a login of its own, and for an account outside its own home or in a linked one, so nothing lands in another folder.
 const decide = async <L extends Launch>(
   state: string,
   registry: AccountRegistry,
   { request, host, account }: { request: WorkerRequest<L>; host: LaunchHost; account: Account },
 ): Promise<Result<Prepared<L>>> => {
+  const folder = ownFolder(state, account, { create: false });
+  if (!folder.ok) return folder;
   const runId = randomUUID();
   const { dir, tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);
   const { parent, platform, home } = host;
@@ -124,7 +126,8 @@ const decide = async <L extends Launch>(
     runId,
     account,
     env,
-    home: account.home,
+    // The own home as ownFolder spells it, as the login ran in it.
+    home: folder.value,
     prompt: `${request.prompt}\n\n${resultPrompt(resultFile, runId)}`,
     tmpDir,
     resultFile,
@@ -258,7 +261,7 @@ export const launchWorker = async <L extends Launch>(
   const { runId, dir, build } = prepared.value;
   const probe = build([]);
   const { agent, task, runtime } = request;
-  const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe });
+  const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe, account: account.name });
   if (!checked.ok) return refused(dir, checked);
   const { version, verified, settingsApplied } = checked.value;
   // The backstop: a version whose own check proved no settings starts no run, whatever a run's init line would say.

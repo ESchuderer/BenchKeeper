@@ -59,15 +59,15 @@ const home = (...path: string[]) => join("/home/dev", ...path);
 const account = (name: string) =>
   ({ name, agent: "claude", home: `/accounts/${name}`, pool: null, added: "" }) as const;
 
-test("a worker may not read any account's home or the user's credential folders, and reaches GitHub only", () => {
+test("a worker may not read any account's home or alias or the user's credential folders, and reaches GitHub only", () => {
   const registry: AccountRegistry = {
     schemaVersion: 1,
     minimum: { fiveHour: 8, sevenDay: 3 },
-    accounts: [account("work"), account("spare")],
+    accounts: [{ ...account("work"), aliases: ["/ade/work"] }, account("spare")],
     pools: {},
   };
   const denied = deniedPaths(registry, "/home/dev", "/home/dev/xdg");
-  expect(denied.slice(0, 2)).toEqual(["/accounts/work", "/accounts/spare"]);
+  expect(denied.slice(0, 3)).toEqual(["/accounts/work", "/ade/work", "/accounts/spare"]);
   expect(denied).toEqual(
     expect.arrayContaining([
       home(".ssh"),

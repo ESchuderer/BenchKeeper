@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
+  AccountName,
   AccountSwitch,
   canonicalJson,
   ContractCheckRecord,
@@ -59,6 +60,9 @@ export interface LeaseLock {
 
 const leaseLockPath = (dir: string, name: string): string => join(dir, "leases", `${name}.lock`);
 
+// The lock of a check of an account's login, such as `claude auth status`, which may renew it.
+const checkLockPath = (dir: string, account: string): string => join(dir, "checks", `${account}.lock`);
+
 // The locks of the leases this process holds. A lock the garbage collector takes closes its database and so lets go of
 // the lease: each stays referenced here until its release, whatever the launcher keeps.
 const heldLocks = new Set<DatabaseSync>();
@@ -85,6 +89,20 @@ const removeLock = (path: string): void => {
   }
 };
 
+// Holds the lock at `path` until its release, referenced in heldLocks so the garbage collector cannot let go of it.
+const hold = (path: string): LeaseLock | null => {
+  const lock = takeLock(path);
+  if (lock === null) return null;
+  heldLocks.add(lock);
+  return {
+    release: () => {
+      heldLocks.delete(lock);
+      lock.close();
+      removeLock(path);
+    },
+  };
+};
+
 // Whether a launcher holds the run's lock; a lock nobody holds is removed.
 const lockHeld = (path: string): boolean => {
   const probe = takeLock(path);
@@ -100,17 +118,9 @@ const lockHeld = (path: string): boolean => {
  */
 export const newLease = (dir: string, name: string): LeaseLock => {
   mkdirSync(join(dir, "leases"), { recursive: true, mode: 0o700 });
-  const path = leaseLockPath(dir, name);
-  const lock = takeLock(path);
-  if (lock === null) throw new Error(`the lease ${name} is held already`);
-  heldLocks.add(lock);
-  return {
-    release: () => {
-      heldLocks.delete(lock);
-      lock.close();
-      removeLock(path);
-    },
-  };
+  const held = hold(leaseLockPath(dir, name));
+  if (held === null) throw new Error(`the lease ${name} is held already`);
+  return held;
 };
 
 /** Whether a process holds the lease lock `name` in the store `dir`. */
@@ -449,12 +459,32 @@ export class RunStore extends RunView {
       if (leaseHeld(this.dir, runId)) counts.set(account, (counts.get(account) ?? 0) + 1);
       else end.run(now(), runId);
     }
+    // An account whose login is being checked counts as full, so no worker starts beside the check.
+    const checks = join(this.dir, "checks");
+    for (const file of existsSync(checks) ? readdirSync(checks) : []) {
+      // SQLite keeps a journal beside a held lock; only the locks name accounts.
+      if (file.endsWith(".lock") && lockHeld(join(checks, file)))
+        counts.set(file.slice(0, -5), Number.POSITIVE_INFINITY);
+    }
     return counts;
   }
 
-  /** The running leases per account; a lease whose launcher let go of it without a finish is ended first. */
+  /**
+   * The running leases per account, Infinity for an account whose login is being checked; a lease whose launcher let go
+   * of it without a finish is ended first.
+   */
   liveLeases(): Map<string, number> {
     return transaction(this.db, () => this.#countLive());
+  }
+
+  /**
+   * Holds `account` for a check of its login, which may renew it: null while a worker runs on it or another check holds
+   * it. Until the release the account counts as full, so no worker starts beside the check.
+   */
+  checkAccount(account: string): LeaseLock | null {
+    const path = checkLockPath(this.dir, AccountName.parse(account));
+    mkdirSync(join(this.dir, "checks"), { recursive: true, mode: 0o700 });
+    return transaction(this.db, () => (this.#countLive().has(account) ? null : hold(path)));
   }
 
   /**
@@ -464,7 +494,6 @@ export class RunStore extends RunView {
   leaseAccount(input: Lease, max: number): LeaseLock | null {
     const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
     const lock = newLease(this.dir, launch.runId);
-    const { release } = lock;
     let taken: boolean;
     try {
       taken = transaction(this.db, () => {
@@ -488,11 +517,11 @@ export class RunStore extends RunView {
       });
     } catch (error) {
       // A row that cannot be written, such as a run id that has one, lets go of the lock before the error goes up.
-      release();
+      lock.release();
       throw error;
     }
     if (taken) return lock;
-    release();
+    lock.release();
     return null;
   }
 

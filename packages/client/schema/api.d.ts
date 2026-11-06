@@ -779,6 +779,17 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1018,6 +1029,96 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-missing";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-unusable";
+            params: {
+                account: string;
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1055,6 +1156,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
             };
         } | {
             /** @constant */
@@ -1403,6 +1511,17 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1642,6 +1761,96 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-missing";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-unusable";
+            params: {
+                account: string;
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1679,6 +1888,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
             };
         } | {
             /** @constant */

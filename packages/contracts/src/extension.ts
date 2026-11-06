@@ -14,6 +14,8 @@ export const LOCK_SCHEMA_VERSION = 1;
 export const EXPORT_SCHEMA_VERSION = 1;
 /** The format of the installed extensions (`extensions.json` in the state folder) this CedarLoom writes and reads. */
 export const INSTALLED_SCHEMA_VERSION = 1;
+/** The format of the record of update sightings (`extension-updates.json` in the state folder). */
+export const UPDATES_SCHEMA_VERSION = 1;
 
 const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
 // A list without repeats, in zod and in the JSON Schema document.
@@ -357,6 +359,30 @@ export const InstalledExtensions = z
   })
   .register(fileFormats, { id: "InstalledExtensions" });
 export type InstalledExtensions = z.infer<typeof InstalledExtensions>;
+
+/**
+ * When this machine first saw the commit now at each installed extension's ref: its update is offered 3 days later,
+ * since a commit's own date is whatever its author wrote. CedarLoom's own record: one it cannot read starts every wait
+ * again.
+ */
+export const ExtensionUpdates = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(UPDATES_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.extension-updates"),
+    extensions: sized(
+      z.record(
+        ExtensionId,
+        z.strictObject({
+          commit: z.string().regex(/^[0-9a-f]{40}$/),
+          seen: z.iso.datetime().describe("When this machine first fetched that commit at the ref"),
+        }),
+      ),
+      500,
+    ),
+  })
+  .register(fileFormats, { id: "ExtensionUpdates" });
+export type ExtensionUpdates = z.infer<typeof ExtensionUpdates>;
 
 /** The file text of the installed extensions: keys sorted, two spaces, a final line break. */
 export const formatInstalled = (installed: InstalledExtensions): string =>

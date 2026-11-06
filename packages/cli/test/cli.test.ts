@@ -711,7 +711,9 @@ const seenBefore = (state: string, commit: string): void =>
   writeFileSync(
     join(state, "extension-updates.json"),
     JSON.stringify({
-      "acme.jira": { commit: commit.repeat(40), seen: new Date(Date.now() - 4 * 864e5).toISOString() },
+      schemaVersion: 1,
+      kind: "cedarloom.extension-updates",
+      extensions: { "acme.jira": { commit: commit.repeat(40), seen: new Date(Date.now() - 4 * 864e5).toISOString() } },
     }),
   );
 
@@ -750,8 +752,8 @@ test("extensions: what enables capabilities takes --approve only; an update wait
   ]);
   expect([grown, approved, shrunk]).toMatchObject([
     { code: EXIT.refused, findings: NEEDED },
-    { code: EXIT.ok, status: "applied", grown: true, added: { projectRead: true, planWrite: true } },
-    { code: EXIT.ok, status: "applied", grown: false, added: {}, removed: { projectRead: true, planWrite: true } },
+    { code: EXIT.ok, status: "applied", added: { projectRead: true, planWrite: true } },
+    { code: EXIT.ok, status: "applied", added: {}, removed: { projectRead: true, planWrite: true } },
   ]);
 });
 

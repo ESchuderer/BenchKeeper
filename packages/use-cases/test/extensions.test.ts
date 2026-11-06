@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -230,14 +231,13 @@ const outcome = (result: Awaited<ReturnType<typeof planUpdate>>): unknown => {
   if (!result.ok) return result.finding;
   const { value } = result;
   if (value.kind !== "planned") return { ...value, commit: "c" };
-  const { plan, manifest: next, pin, from, added, removed, grown } = value;
+  const { plan, manifest: next, pin, from, added, removed } = value;
   return {
     kind: value.kind,
     writes: plan.operations.length,
     versions: [from.version, next.version, pin.version],
     added,
     removed,
-    grown,
   };
 };
 
@@ -250,7 +250,7 @@ test("an update is offered once this machine has seen the new commit for 3 days,
   const first = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
   const later = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 2 * DAY);
   const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
-  const waiting = { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) };
+  const waiting = { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY), moved: false };
   expect([outcome(current), outcome(first), outcome(later), outcome(due)]).toEqual([
     { kind: "current", commit: "c" },
     waiting,
@@ -261,7 +261,6 @@ test("an update is offered once this machine has seen the new commit for 3 days,
       versions: ["1.0.0", "1.1.0", "1.1.0"],
       added: { net: [B], projectRead: true },
       removed: {},
-      grown: true,
     },
   ]);
   if (due.ok && due.value.kind === "planned") applyPlan(folder, due.value.plan, { yes: true });
@@ -278,16 +277,15 @@ test("a newer commit during the wait starts it again, and capabilities that shri
   const still = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 4 * DAY);
   const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 5 * DAY);
   expect([outcome(first), outcome(restarted), outcome(still), outcome(due)]).toEqual([
-    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) },
-    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY) },
-    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY) },
+    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY), moved: false },
+    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY), moved: true },
+    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY), moved: false },
     {
       kind: "planned",
       writes: 1,
       versions: ["1.0.0", "1.2.0", "1.2.0"],
       added: {},
       removed: { projectRead: true },
-      grown: false,
     },
   ]);
 });
@@ -308,7 +306,7 @@ test("remove plans the installed set without the extension and its undo puts it 
   ]).toEqual([unknown, unknown]);
 });
 
-test("an update whose folder now holds another extension is refused at once; a fetch sweeps what old fetches and stages left, never the installed version", async () => {
+test("an update whose folder now holds another extension is refused at once; a fetch sweeps old quarantines and staging folders, never a version", async () => {
   const { state: folder } = await installed("taken");
   publish("taken", { "cedarloom-extension.json": manifest({ id: "acme.other" }) });
   const listed = installedExtensions(folder);
@@ -335,8 +333,9 @@ test("an update whose folder now holds another extension is refused at once; a f
   ]).toEqual([
     { code: "extension.install-refused", params: { extension: "acme.other", reason: "id" } },
     ["kept-old", "quarantine-new"],
-    [pinned, "staging-new"].toSorted(),
-    [],
+    // Every version stays, pinned or not: a run's undo may pin it again.
+    [pinned, "f".repeat(64), "staging-new"].toSorted(),
+    ["e".repeat(64)],
   ]);
 });
 
@@ -363,7 +362,7 @@ test("a credential bound to more hosts is asked for anew and one unchanged is no
   const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
   expect([outcome(elsewhere), outcome(due)]).toMatchObject([
     { kind: "current" },
-    { added: { net: [B], credentials: { moved, fresh } }, removed: {}, grown: true },
+    { added: { net: [B], credentials: { moved, fresh } }, removed: {} },
   ]);
 });
 
@@ -379,14 +378,13 @@ test("approved capabilities that cannot be read count as none, and a record of f
   const first = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
   const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
   expect([outcome(first), outcome(due)]).toEqual([
-    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) },
+    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY), moved: false },
     {
       kind: "planned",
       writes: 1,
       versions: ["1.0.0", "1.1.0", "1.1.0"],
       added: { net: [A], planWrite: true },
       removed: {},
-      grown: true,
     },
   ]);
   // Capabilities the plan enables take an approval of the exact plan only.
@@ -429,8 +427,8 @@ test("an extension that asked for nothing is asked anew for what an update adds,
   if (grown.ok && grown.value.kind === "planned") applyPlan(folder, grown.value.plan, { yes: true });
   const dropped = await update("1.2.0", { capabilities: undefined });
   expect([outcome(grown), outcome(dropped)]).toMatchObject([
-    { added: { net: [A] }, removed: {}, grown: true },
-    { added: {}, removed: { net: [A] }, grown: false },
+    { added: { net: [A] }, removed: {} },
+    { added: {}, removed: { net: [A] } },
   ]);
 });
 
@@ -503,3 +501,29 @@ test("an update whose files cannot be staged plans nothing, so no entry pins a f
   const due = await planUpdate(folder, "acme.jira", unstageable, NOW + 3 * DAY);
   expect(outcome(due)).toEqual(stageFailed(expect.stringMatching(/^E[A-Z]+$/)));
 });
+
+test("the undo of a removal finds the extension's files where they were, also after later fetches", async () => {
+  const { state: folder } = await installed("undone");
+  const listed = installedExtensions(folder);
+  const version = join(folder, "extensions", "acme.jira", listed.ok ? String(listed.value[0]?.digest) : "");
+  const removal = planRemove(folder, "acme.jira");
+  const run = removal.ok ? applyPlan(folder, removal.value, { yes: true }) : removal;
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  utimesSync(version, dayAgo, dayAgo);
+  const other = publish("other", { "cedarloom-extension.json": manifest({ id: "acme.other" }), "main.mjs": ENTRY });
+  await planInstall(folder, { url: other, ref: "main" }, fetchLocal);
+  undoRun(folder, run.ok ? String(run.value.runId) : "", { yes: true });
+  expect(readdirSync(version).toSorted()).toEqual(["cedarloom-extension.json", "main.mjs"]);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a quarantine the sweep cannot read or remove is left for a later fetch, and the install goes on",
+  async () => {
+    const folder = state();
+    mkdirSync(join(folder, "fetch"), { recursive: true });
+    // A link to nothing: stat fails on it, as on a folder another CedarLoom process removed a moment before.
+    symlinkSync(join(folder, "nowhere"), join(folder, "fetch", "quarantine-gone"));
+    const url = publish("swept", { "cedarloom-extension.json": manifest(), "main.mjs": ENTRY });
+    expect(findingOf(await planInstall(folder, { url, ref: "main" }, fetchLocal))).toBe("planned");
+  },
+);

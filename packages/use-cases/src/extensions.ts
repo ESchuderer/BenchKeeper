@@ -5,18 +5,19 @@ import {
   EXTENSION_SCHEMA_VERSION,
   ExtensionManifest,
   type Finding,
+  ExtensionUpdates,
   formatInstalled,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,
   type Plan,
   type Result,
   readDocument,
+  UPDATES_SCHEMA_VERSION,
 } from "@cedarloom/contracts";
 import { speaks } from "@cedarloom/extension-host";
 import { type FetchOptions, fetchTree, type Source, type Tree } from "@cedarloom/git";
 import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { z } from "zod";
 import type { Approval } from "./use-cases.ts";
 import { parseDocument, readJson, readOptionalJson } from "./use-cases.ts";
 
@@ -35,7 +36,8 @@ const NONE: InstalledExtensions = {
   extensions: {},
 };
 // An update is offered once this machine has seen its commit for 3 days, A94's wait. A commit's own date is whatever
-// its author wrote, so the clock starts when CedarLoom first fetched it here (pending owner decision).
+// its author wrote, so the clock starts when CedarLoom first fetched it here. An add never waits: it is a new choice
+// with full consent, so a remove and an add install the newest commit at once.
 // shortcut: only the ref's newest commit is fetched, so a ref that moves more often than every 3 days never offers an
 // update; follow a tag or release branch (--ref) there. Upgrade: remember each commit seen and offer the newest one
 // that has waited, fetched by its SHA where the server allows that.
@@ -43,9 +45,8 @@ const UPDATE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
 // A quarantine older than any fetch can take (the git package's 5 minutes, twice over) was left behind, for example by
 // a Windows process holding one of its files when the fetch removed it.
 const SWEEP_MS = 10 * 60 * 1000;
-// A staged folder no entry pins (a version removed or replaced, a stage that broke off) is collected after an hour, so
-// an add or update running now keeps the folder it is staging.
-const COLLECT_MS = 60 * 60 * 1000;
+// A staging folder an hour old belongs to a stage that broke off, not to an add or update running now.
+const STAGING_MS = 60 * 60 * 1000;
 
 const refusal = (
   extension: string | null,
@@ -68,31 +69,41 @@ const readInstalled = (state: string): Result<Read> => {
   return installed.ok ? { ok: true, value: { text: file.value.text, installed: installed.value } } : installed;
 };
 
+// Best effort: a folder that cannot be read or removed now (a file held open, another CedarLoom sweeping at once) is
+// left for a later fetch.
 const removeOlder = (path: string, ms: number): void => {
-  if (Date.now() - statSync(path).mtimeMs > ms) rmSync(path, { recursive: true, force: true, maxRetries: 3 });
-};
-
-// The staged folders of `<state>/extensions` that no installed entry pins (plan section 3 step 3). An add re-plans and
-// stages again before it applies, so a folder it staged earlier and that was collected meanwhile comes back.
-const collect = (state: string, installed: InstalledExtensions): void => {
-  const root = join(state, "extensions");
-  const ids = existsSync(root) ? readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];
-  for (const { name: id } of ids) {
-    const pinned = Object.hasOwn(installed.extensions, id) ? installed.extensions[id]?.digest : undefined;
-    for (const name of readdirSync(join(root, id)).filter((each) => each !== pinned)) {
-      removeOlder(join(root, id, name), COLLECT_MS);
-    }
+  try {
+    if (Date.now() - statSync(path).mtimeMs > ms) rmSync(path, { recursive: true, force: true, maxRetries: 3 });
+  } catch {
+    // Left for a later fetch.
   }
 };
 
-// Fetches into `<state>/fetch`, after removing what earlier fetches and stages left behind.
-const fetchInto = async (state: string, read: Read, source: Source, fetch: Fetch): Promise<Result<Tree>> => {
+// The folders under `folder` named `prefix*`, that is, ones nothing pins.
+const leftovers = (folder: string, prefix: string): string[] =>
+  existsSync(folder)
+    ? readdirSync(folder)
+        .filter((name) => name.startsWith(prefix))
+        .map((name) => join(folder, name))
+    : [];
+
+// Removes what earlier fetches and stages left behind: quarantines and staging folders, which nothing pins. Version
+// folders stay, pinned or not, since the undo of a remove or an update pins one again.
+// shortcut: the disk grows by one folder per version; collect versions once the ledger tells which runs can still be
+// undone.
+const sweep = (state: string): void => {
+  const staged = join(state, "extensions");
+  const entries = existsSync(staged) ? readdirSync(staged, { withFileTypes: true }) : [];
+  const ids = entries.filter((entry) => entry.isDirectory()).map((entry) => join(staged, entry.name));
+  for (const path of leftovers(join(state, "fetch"), "quarantine-")) removeOlder(path, SWEEP_MS);
+  for (const path of ids.flatMap((id) => leftovers(id, "staging-"))) removeOlder(path, STAGING_MS);
+};
+
+// Fetches into `<state>/fetch`, after the sweep.
+const fetchInto = async (state: string, source: Source, fetch: Fetch): Promise<Result<Tree>> => {
+  sweep(state);
   const parent = join(state, "fetch");
   mkdirSync(parent, { recursive: true });
-  for (const name of readdirSync(parent).filter((each) => each.startsWith("quarantine-"))) {
-    removeOlder(join(parent, name), SWEEP_MS);
-  }
-  collect(state, read.installed);
   return fetch(source, { parent });
 };
 
@@ -190,7 +201,7 @@ export const planInstall = async (
 ): Promise<Result<InstallPlan>> => {
   const read = readInstalled(state);
   if (!read.ok) return read;
-  const tree = await fetchInto(state, read.value, source, fetch);
+  const tree = await fetchInto(state, source, fetch);
   if (!tree.ok) return tree;
   const manifest = manifestOf(tree.value);
   if (!manifest.ok) return manifest;
@@ -222,22 +233,25 @@ export const planRemove = (state: string, id: string): Result<Plan> => {
   return { ok: true, value: writeOf(state, read.value, { ...installed, extensions }) };
 };
 
-// Per extension, the commit last fetched at its ref and when this machine first saw it there. The file is CedarLoom's
-// own record, not the user's: one it cannot read starts every wait again.
-const Seen = z.record(z.string(), z.strictObject({ commit: z.string(), seen: z.iso.datetime() }));
 const seenPath = (state: string): string => join(state, "extension-updates.json");
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-const firstSeen = (state: string, id: string, commit: string, now: number): number => {
+// When this machine first saw `commit` at the extension's ref, and whether that ref held another one when last checked
+// (the wait started again). A record CedarLoom cannot read counts as none: every wait starts again.
+const firstSeen = (state: string, id: string, commit: string, now: number): { seen: number; moved: boolean } => {
   const file = readOptionalJson(seenPath(state));
-  const parsed = Seen.safeParse(file.ok ? file.value?.json : undefined);
-  const all = parsed.success ? parsed.data : {};
-  const known = all[id];
-  if (known?.commit === commit) return Date.parse(known.seen);
-  const next = { ...all, [id]: { commit, seen: iso(now) } };
-  writeFileSync(seenPath(state), `${JSON.stringify(next, null, 2)}\n`);
-  return now;
+  const read = readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, file.ok ? file.value?.json : undefined);
+  const all = read.ok ? read.value.extensions : {};
+  const known = Object.hasOwn(all, id) ? all[id] : undefined;
+  if (known?.commit === commit) return { seen: Date.parse(known.seen), moved: false };
+  const next: ExtensionUpdates = {
+    schemaVersion: UPDATES_SCHEMA_VERSION,
+    kind: "cedarloom.extension-updates",
+    extensions: { ...all, [id]: { commit, seen: iso(now) } },
+  };
+  writeFileSync(seenPath(state), `${JSON.stringify(ExtensionUpdates.parse(next), null, 2)}\n`);
+  return { seen: now, moved: known !== undefined };
 };
 
 // What `after` asks for that `before` did not: an origin, a credential that is new or bound otherwise, project reads,
@@ -282,8 +296,8 @@ const updatable = (id: string, tree: Tree): Result<ExtensionManifest> => {
 
 export type UpdatePlan =
   | { kind: "current"; commit: string }
-  | { kind: "waiting"; commit: string; seen: string; offered: string }
-  | (InstallPlan & { kind: "planned"; from: Pin; added: Capabilities; removed: Capabilities; grown: boolean });
+  | { kind: "waiting"; commit: string; seen: string; offered: string; moved: boolean }
+  | (InstallPlan & { kind: "planned"; from: Pin; removed: Capabilities });
 
 // The installed extension's update to the fetched tree, once it has waited, with what it asks for anew.
 const updateOf = (state: string, from: Pin, fetched: Fetched): Result<UpdatePlan> => {
@@ -294,24 +308,22 @@ const updateOf = (state: string, from: Pin, fetched: Fetched): Result<UpdatePlan
   const capabilities = manifest.capabilities ?? {};
   const added = beyond(approved, capabilities);
   const removed = beyond(capabilities, approved);
-  const grown = Object.keys(added).length > 0;
-  return { ok: true, value: { ...next.value, kind: "planned", from, added, removed, grown } };
+  return { ok: true, value: { ...next.value, kind: "planned", from, added, removed } };
 };
 
 // The update once this machine has seen its commit for 3 days, or until when it still waits.
 const afterWait = (state: string, from: Pin, fetched: Fetched, now: number): Result<UpdatePlan> => {
   const { commit } = fetched.tree;
-  const seen = firstSeen(state, fetched.manifest.id, commit, now);
+  const { seen, moved } = firstSeen(state, fetched.manifest.id, commit, now);
   if (now - seen >= UPDATE_WAIT_MS) return updateOf(state, from, fetched);
-  return { ok: true, value: { kind: "waiting", commit, seen: iso(seen), offered: iso(seen + UPDATE_WAIT_MS) } };
+  return { ok: true, value: { kind: "waiting", commit, seen: iso(seen), offered: iso(seen + UPDATE_WAIT_MS), moved } };
 };
 
 /**
  * Plans the update of an installed extension to the commit now at its ref. The same commit, or one with the same files,
- * is current. A new one is
- * offered once this machine has seen it for 3 days (pending owner decision): until then it is waiting, and another
- * new commit starts the wait again. The plan pins the new commit and digest and names the capabilities that grew and
- * shrank; grown ones need the user's consent again (`approvalOf`).
+ * is current. A new one is offered once this machine has seen it for 3 days: until then it is waiting, and another new
+ * commit starts the wait again (`moved`). The plan pins the new commit and digest and names the capabilities that grew
+ * and shrank; grown ones need the user's consent again (`approvalOf`).
  */
 export const planUpdate = async (
   state: string,
@@ -325,7 +337,7 @@ export const planUpdate = async (
   const from = Object.hasOwn(extensions, id) ? extensions[id] : undefined;
   if (from === undefined) return unknown(id);
   const source = sourceOf(from);
-  const tree = await fetchInto(state, read.value, source, fetch);
+  const tree = await fetchInto(state, source, fetch);
   if (!tree.ok) return tree;
   // A commit that leaves the extension's files as they are (a change elsewhere in the repository) updates nothing.
   const { commit, digest } = tree.value;

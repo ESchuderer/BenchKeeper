@@ -244,22 +244,17 @@ const mayDo = (capabilities: useCases.Capabilities): string[] => [
 const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): string => {
   const publisher = manifest.id.slice(0, manifest.id.indexOf("."));
   const folder = source.path === undefined ? "" : `, folder ${source.path}`;
+  const may = mayDo(manifest.capabilities ?? {});
   const lines = [
     `${manifest.id} ${manifest.version} (${manifest.name}) by ${publisher}, not verified; license ${manifest.license ?? "none stated"}`,
     `from ${source.git}${folder}, ${ref} at commit ${source.commit}; files ${digest}`,
     "community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
     ...(manifest.platforms === undefined ? [] : [`made for ${manifest.platforms.join(", ")}`]),
-    ...(mayDo(manifest.capabilities ?? {}).length > 0
-      ? mayDo(manifest.capabilities ?? {})
-      : ["asks for no capabilities"]),
+    ...(may.length > 0 ? may : ["asks for no capabilities"]),
   ];
   return lines.map((line) => `\n  ${line}`).join("");
 };
 
-/**
- * Shows the install of the extension at a Git source with what its approval consents to, or with --yes or --approve
- * installs it as one run. Its files are fetched and staged first, which changes nothing that is in use.
- */
 type Consent = { id: string; plan: Plan; note: string; data: object; added: useCases.Capabilities };
 
 // Shows an extension's plan, or applies it as approved. One that enables capabilities takes --approve only, so the
@@ -279,6 +274,11 @@ const consented = (ctx: Context, { id, plan, note, data, added }: Consent, appro
   return EXIT.ok;
 };
 
+/**
+ * Shows the install of the extension at a Git source with what its approval consents to, or installs it as one run:
+ * with --approve when it asks for capabilities, else also with --yes. Its files are fetched and staged first, which
+ * changes nothing that is in use. An add never waits for the 3 days an update does.
+ */
 export const extensionsAdd = async (
   ctx: Context,
   url: string,
@@ -308,11 +308,19 @@ const changes = ({ manifest, pin, from, added, removed }: Planned): string => {
 };
 
 // An update that is current or still waits: nothing to plan yet.
+type Waiting = Extract<useCases.UpdatePlan, { kind: "waiting" }>;
+
+// A ref that moves within every wait never offers an update: an extension that changes this often is better followed
+// at a tag.
+const waitingLine = (id: string, { commit, seen, offered, moved }: Waiting): string => {
+  const line = `${id}: commit ${commit} was first seen here at ${seen}; the update is offered from ${offered}, 3 days later.`;
+  const again =
+    " Its ref moved within the wait, so the wait started again; to follow releases instead, remove it and add it again with --ref <tag>.";
+  return moved ? `${line}${again}` : line;
+};
+
 const notYet = (ctx: Context, id: string, value: Exclude<useCases.UpdatePlan, Planned>): number => {
-  const human =
-    value.kind === "current"
-      ? `${id} is up to date at commit ${value.commit}.`
-      : `${id}: commit ${value.commit} was first seen here at ${value.seen}; the update is offered from ${value.offered}, 3 days later.`;
+  const human = value.kind === "current" ? `${id} is up to date at commit ${value.commit}.` : waitingLine(id, value);
   emit(ctx, "update", { extension: id, ...value }, human);
   return EXIT.ok;
 };
@@ -326,8 +334,8 @@ export const extensionsUpdate = async (ctx: Context, id: string, approval: Appro
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   const { value } = planned;
   if (value.kind !== "planned") return notYet(ctx, id, value);
-  const { pin, from, added, removed, grown } = value;
-  const data = { extension: { id, ...pin, trust: "community" }, from, added, removed, grown };
+  const { pin, from, added, removed } = value;
+  const data = { extension: { id, ...pin, trust: "community" }, from, added, removed };
   return consented(ctx, { id, plan: value.plan, note: changes(value), data, added }, approval);
 };
 

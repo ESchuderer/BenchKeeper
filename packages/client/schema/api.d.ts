@@ -484,18 +484,6 @@ export interface paths {
                     };
                 };
                 /** @description Default Response */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {string} */
-                            error: "FST_ERR_CTP_INVALID_JSON_BODY" | "FST_ERR_CTP_EMPTY_JSON_BODY" | "FST_ERR_CTP_INVALID_CONTENT_LENGTH" | "FST_ERR_BAD_URL" | "invalid-request";
-                        };
-                    };
-                };
-                /** @description Default Response */
                 409: {
                     headers: {
                         [name: string]: unknown;

@@ -23,22 +23,6 @@ const RunPath = z.strictObject({ runId: z.uuid() });
 const answers = <T extends object>(codes: T): T & { default: typeof Problem } => ({ ...codes, default: Problem });
 const Problem = z.object({ error: z.string() }).describe("A request the server refused, by error code");
 
-/**
- * A request with a JSON body refused before the route ran: no JSON the parser takes (it refuses `__proto__` keys and
- * `constructor` objects with a `prototype` key at any depth), an empty body, another length than announced, a path
- * that is no valid URL, or a request that does not match its schema. A code missing here fails the reply's
- * serialization, so the answer becomes a 500 and Schemathesis reports it.
- */
-const BadBody = z.strictObject({
-  error: z.enum([
-    "FST_ERR_CTP_INVALID_JSON_BODY",
-    "FST_ERR_CTP_EMPTY_JSON_BODY",
-    "FST_ERR_CTP_INVALID_CONTENT_LENGTH",
-    "FST_ERR_BAD_URL",
-    "invalid-request",
-  ]),
-});
-
 const status = (finding: Finding): 404 | 409 =>
   finding.code === "run.not-found" || finding.code === "draft.not-found" ? 404 : 409;
 const refusal = (finding: Finding): { findings: Finding[] } => ({ findings: [finding] });
@@ -156,7 +140,7 @@ export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app,
           workflow: WorkflowJson,
           replaces: Sha256.nullable().describe("The hash of the version this save replaces; null for a new draft"),
         }),
-        response: answers({ 200: DraftSaved, 400: BadBody, 409: Refusal }),
+        response: answers({ 200: DraftSaved, 409: Refusal }),
       },
     },
     async (req, reply) => {

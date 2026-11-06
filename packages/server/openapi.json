@@ -5257,32 +5257,6 @@
               }
             }
           },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "enum": [
-                        "FST_ERR_CTP_INVALID_JSON_BODY",
-                        "FST_ERR_CTP_EMPTY_JSON_BODY",
-                        "FST_ERR_CTP_INVALID_CONTENT_LENGTH",
-                        "FST_ERR_BAD_URL",
-                        "invalid-request"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
           "409": {
             "description": "Default Response",
             "content": {

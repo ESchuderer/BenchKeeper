@@ -37,6 +37,16 @@ export { type Result, readDocument } from "./documents.ts";
 export { canonicalJson, type Json } from "./json.ts";
 export { LaunchRecord, RunLabels, Verdict, WORKER_RESULT_SCHEMA_VERSION, WorkerResult } from "./launch.ts";
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
+export {
+  AttemptOutcome,
+  GraphRun,
+  JournalEvent,
+  NodeRun,
+  NodeState,
+  RunEvent,
+  RunState,
+  RunStatus,
+} from "./run.ts";
 export { DeleteFile, Operation, PLAN_SCHEMA_VERSION, Plan, Sha256, WriteFile } from "./plan.ts";
 export { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "./catalog.ts";
 export { isPlainText, PlainText, shown } from "./text.ts";

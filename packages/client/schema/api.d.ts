@@ -747,6 +747,38 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1328,6 +1360,38 @@ export interface components {
                 input: string;
                 /** @enum {string} */
                 type: "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
             };
         } | {
             /** @constant */

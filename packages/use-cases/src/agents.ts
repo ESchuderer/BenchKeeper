@@ -2,6 +2,10 @@ import type { AgentRuntime, ContractCheck, Launch, UsageWindow } from "@cedarloo
 import type { Agent, ContractCheckRecord, Result } from "@cedarloom/contracts";
 import { withStore } from "./use-cases.ts";
 
+// A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
+// later CedarLoom would otherwise keep a version's readings off for good.
+const RETRY_FAILED_MS = 24 * 60 * 60 * 1000;
+
 const unavailable = (agent: Agent, error: unknown): Result<never> => ({
   ok: false,
   finding: {
@@ -17,16 +21,40 @@ export interface CheckedVersions {
   readonly verified: readonly string[];
 }
 
-const record = (state: string, check: ContractCheckRecord): Result<ContractCheckRecord[]> =>
+// Whether a recorded check settles its version: a passed one always, a failed one for a day.
+const settles = (check: ContractCheckRecord, now: number): boolean =>
+  check.missing.length === 0 || now - Date.parse(check.at) < RETRY_FAILED_MS;
+
+// The probes running in this process, by state folder, agent and version: launches on a new version share one.
+// shortcut: per process; two CedarLoom processes launching on a new version at once still probe twice.
+const probes = new Map<string, Promise<ContractCheck>>();
+const probeOnce = (key: string, probe: () => Promise<ContractCheck>): Promise<ContractCheck> => {
+  const running = probes.get(key) ?? probe().finally(() => probes.delete(key));
+  probes.set(key, running);
+  return running;
+};
+
+// The check is kept under the version the probe ran. When that is not the version read, an update came in between or
+// the init line reports another form: the read version is kept without its init line, so it is not probed on every
+// launch.
+const records = (agent: Agent, version: string, check: ContractCheck): ContractCheckRecord[] => {
+  const at = new Date().toISOString();
+  const ran = check.version ?? version;
+  const own = { agent, version: ran, missing: [...check.missing], at };
+  return ran === version ? [own] : [own, { agent, version, missing: ["init"], at }];
+};
+
+const record = (state: string, agent: Agent, checks: readonly ContractCheckRecord[]): Result<ContractCheckRecord[]> =>
   withStore(state, (store) => {
-    store.recordContractCheck(check);
-    return { ok: true, value: store.contractChecks(check.agent) };
+    for (const check of checks) store.recordContractCheck(check);
+    return { ok: true, value: store.contractChecks(agent) };
   });
 
 /**
  * Reads the version of the agent CLI that `env` runs, before each launch, because the CLI updates itself (A100). On a
- * version without a recorded check, it runs the contract check outside the store's lock, since the probe is a short
- * agent session, and records it under the version the probe ran. A version whose check failed is not checked again.
+ * version without a check, or whose check failed a day ago or earlier, it runs the contract check outside the store's
+ * lock, since the probe is a short agent session. Only the CLI's failures are `launch.agent-unavailable`; the store's
+ * own errors are reported as they are.
  */
 export const checkedVersions = async <L extends Launch>(
   state: string,
@@ -38,32 +66,26 @@ export const checkedVersions = async <L extends Launch>(
   }: { readonly env: Readonly<Record<string, string>>; readonly probe: Omit<L, "prompt" | "verifiedVersions"> },
 ): Promise<Result<CheckedVersions>> => {
   let version: string;
-  let check: ContractCheck | null = null;
   try {
     version = await runtime.version(env);
-    const known = withStore(state, (store) => ({ ok: true, value: store.contractChecks(agent) }));
-    if (!known.ok) return known;
-    if (!known.value.some((each) => each.version === version)) check = await runtime.checkContract(probe);
-    const checks =
-      check === null
-        ? known
-        : record(state, {
-            agent,
-            version: check.version ?? version,
-            missing: [...check.missing],
-            at: new Date().toISOString(),
-          });
-    if (!checks.ok) return checks;
-    return {
-      ok: true,
-      value: {
-        version,
-        verified: checks.value.filter((each) => each.missing.length === 0).map((each) => each.version),
-      },
-    };
   } catch (error) {
     return unavailable(agent, error);
   }
+  let checks = withStore(state, (store) => ({ ok: true, value: store.contractChecks(agent) }));
+  if (!checks.ok) return checks;
+  const now = Date.now();
+  if (!checks.value.some((each) => each.version === version && settles(each, now))) {
+    let check: ContractCheck;
+    try {
+      check = await probeOnce(JSON.stringify([state, agent, version]), () => runtime.checkContract(probe));
+    } catch (error) {
+      return unavailable(agent, error);
+    }
+    checks = record(state, agent, records(agent, version, check));
+    if (!checks.ok) return checks;
+  }
+  const verified = checks.value.filter((each) => each.missing.length === 0).map((each) => each.version);
+  return { ok: true, value: { version, verified } };
 };
 
 /**

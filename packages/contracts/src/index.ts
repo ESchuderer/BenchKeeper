@@ -4,6 +4,7 @@ export {
   AccountRegistry,
   AccountSwitch,
   Agent,
+  AgentVersion,
   ContractCheckRecord,
   formatRegistry,
   QuotaWindow,

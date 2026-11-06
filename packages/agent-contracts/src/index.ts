@@ -1,4 +1,4 @@
-import type { Json, QuotaWindow } from "@cedarloom/contracts";
+import type { ContractCheckRecord, Json, QuotaWindow } from "@cedarloom/contracts";
 
 /** How far an adapter supports a feature; `unknown` means untested and is never read as `unsupported`. */
 export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown";
@@ -92,7 +92,7 @@ export interface AgentSession {
 export interface ContractCheck {
   readonly version: string | null;
   /** Empty when the check passed. */
-  readonly missing: readonly ("init" | "usage" | "result")[];
+  readonly missing: readonly ContractCheckRecord["missing"][number][];
 }
 
 /** The contract of an agent adapter; `L` is the adapter's launch options. */

@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRuntime, ContractCheck, UsageWindow } from "@cedarloom/agent-contracts";
@@ -45,6 +45,9 @@ const probe = {
   allowedDomains: [],
 } as const;
 const input = { env: {}, probe };
+const checked = (dir: string, cli: ReturnType<typeof runtime>) => checkedVersions(dir, "claude", cli, input);
+const passed = (version: string, verified: string[]) => ({ ok: true, value: { version, verified } });
+const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
 test("a version is checked once, before its first launch; a new version is checked again", async () => {
   const dir = state();
@@ -56,19 +59,13 @@ test("a version is checked once, before its first launch; a new version is check
       { version: null, missing: ["init", "usage", "result"] },
     ],
   );
-  await expect(checkedVersions(dir, "claude", cli, input)).resolves.toEqual({
-    ok: true,
-    value: { version: "2.1.316", verified: ["2.1.316"] },
-  });
-  await checkedVersions(dir, "claude", cli, input);
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.316"]));
+  await checked(dir, cli);
   expect(cli.checkContract).toHaveBeenCalledTimes(1);
   // A failed check keeps readings off for that version and is not repeated on every launch.
-  await expect(checkedVersions(dir, "claude", cli, input)).resolves.toEqual({
-    ok: true,
-    value: { version: "2.1.317", verified: ["2.1.316"] },
-  });
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.317", ["2.1.316"]));
   // A probe without an init line is recorded under the version that was read.
-  await checkedVersions(dir, "claude", cli, input);
+  await checked(dir, cli);
   const store = openRunStore(dir);
   if (!store.ok) throw new Error(store.finding.code);
   expect(store.value.contractChecks("claude").map(({ version, missing }) => [version, missing])).toEqual([
@@ -117,6 +114,58 @@ test("a store the check cannot use, before the probe or after it, is reported", 
     finding: { code: "store.busy" },
   });
   holder?.close();
+});
+
+test("a failed check is repeated once it is a day old; a younger failed check is not", async () => {
+  const dir = state();
+  const store = openRunStore(dir);
+  if (!store.ok) throw new Error(store.finding.code);
+  store.value.recordContractCheck({ agent: "claude", version: "2.1.316", missing: ["result"], at: hoursAgo(25) });
+  store.value.recordContractCheck({ agent: "claude", version: "2.1.317", missing: ["result"], at: hoursAgo(23) });
+  store.value.close();
+  const cli = runtime(["2.1.316", "2.1.317"], [{ version: "2.1.316", missing: [] }]);
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.316"]));
+  await checked(dir, cli);
+  expect(cli.checkContract).toHaveBeenCalledTimes(1);
+});
+
+test("a check is kept under the version the probe ran, and the version read is not probed on every launch", async () => {
+  const dir = state();
+  // An update between the version read and the probe, or an init line that reports another form than --version.
+  const cli = runtime(["2.1.316", "2.1.317", "2.1.316"], [{ version: "2.1.317", missing: [] }]);
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.317"]));
+  await checked(dir, cli);
+  await checked(dir, cli);
+  expect(cli.checkContract).toHaveBeenCalledTimes(1);
+  const store = openRunStore(dir);
+  if (!store.ok) throw new Error(store.finding.code);
+  expect(store.value.contractChecks("claude").map(({ version, missing }) => [version, missing])).toEqual([
+    ["2.1.316", ["init"]],
+    ["2.1.317", []],
+  ]);
+  store.value.close();
+});
+
+test("launches on a new version at once share one probe", async () => {
+  const dir = state();
+  const cli = runtime(["2.1.316", "2.1.316"], []);
+  let finish: (check: ContractCheck) => void = unused;
+  cli.checkContract.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+  const both = Promise.all([checked(dir, cli), checked(dir, cli)]);
+  // Both launches read the version and the store without waiting on I/O, so they wait on the probe by the next turn.
+  await new Promise((resolve) => setImmediate(resolve));
+  finish({ version: "2.1.316", missing: [] });
+  await expect(both).resolves.toEqual([passed("2.1.316", ["2.1.316"]), passed("2.1.316", ["2.1.316"])]);
+  expect(cli.checkContract).toHaveBeenCalledTimes(1);
+});
+
+test("the store's own errors are reported as they are, not as an unavailable CLI", async () => {
+  const file = join(state(), "not-a-folder");
+  writeFileSync(file, "");
+  await expect(checkedVersions(file, "claude", runtime(["2.1.316"], []), input)).rejects.toThrow(/ENOTDIR|EEXIST/);
+  // A version the ledger refuses, such as one with a terminal escape, is refused on write.
+  const escaped = runtime(["2.1.316"], [{ version: "2.1.316\u001b[31m", missing: [] }]);
+  await expect(checkedVersions(state(), "claude", escaped, input)).rejects.toThrow(/pattern/i);
 });
 
 const window = (name: string, quota: UsageWindow["quota"], percent: number | null, resetsAt: string | null) => ({

@@ -46,8 +46,8 @@ const Checked = z.looseObject({
  * The per-launch settings passed with --settings, the worker profile of the settings defaults; --settings can set any
  * key the user settings file can (https://code.claude.com/docs/en/cli-reference). Throws when a value is not one the
  * documented syntax takes.
- * shortcut: a key a later CLI version stops taking still drops the settings silently; the per-version check of slice 2
- * should prove they applied.
+ * shortcut: a key a later CLI version stops taking still drops the settings silently, until the launcher's contract
+ * check proves they applied (the next launcher slice).
  */
 export const overlay = ({ cwd, allow, denyRead, allowedDomains, env }: OverlayInput) => {
   const workflows = join(cwd, ".github", "workflows");

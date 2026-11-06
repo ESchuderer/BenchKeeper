@@ -8,6 +8,12 @@ export const ACCOUNTS_SCHEMA_VERSION = 1;
 
 /** The agents whose accounts the registry holds. */
 export const Agent = z.enum(["claude", "codex"]);
+
+/**
+ * An agent CLI version as its `--version` output and its session lines report it, such as `2.1.316`. The form is
+ * bounded, so a CLI cannot put a long or escaped string into the ledger or onto a screen that shows it.
+ */
+export const AgentVersion = z.string().regex(/^\d{1,9}\.\d{1,9}\.\d{1,9}[0-9A-Za-z.+-]{0,40}$/);
 export type Agent = z.infer<typeof Agent>;
 
 // BenchKeeper's rule for account and pool names, so its names import unchanged.
@@ -127,7 +133,7 @@ export type AccountSwitch = z.infer<typeof AccountSwitch>;
  */
 export const ContractCheckRecord = z.strictObject({
   agent: Agent,
-  version: z.string().min(1),
+  version: AgentVersion,
   missing: z.array(z.enum(["init", "usage", "result"])),
   at: z.iso.datetime({ precision: 3 }),
 });

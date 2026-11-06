@@ -2,6 +2,7 @@ import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionError } from "@cedarloom/agent-contracts";
+import { AgentVersion } from "@cedarloom/contracts";
 import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
 import { lines, streamParser } from "./stream.ts";
@@ -131,9 +132,10 @@ export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<Claud
         windowsHide: true,
         timeout: 10_000,
       });
-      const match = /^\d+\.\d+\.\d+\S*/.exec(stdout.trim());
-      if (match === null) throw new Error(`unrecognized claude --version output: ${stdout.trim()}`);
-      return match[0];
+      // The output's first word, such as 2.1.316 in "2.1.316 (Claude Code)", in the form the init line reports too.
+      const version = AgentVersion.safeParse(stdout.trim().split(/\s/, 1)[0]);
+      if (!version.success) throw new Error("unrecognized claude --version output");
+      return version.data;
     },
     checkContract: async (launch) => {
       const probe = { ...launch, prompt: PROBE_PROMPT, verifiedVersions: [] };

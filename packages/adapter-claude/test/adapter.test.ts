@@ -1,3 +1,5 @@
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeRuntime, type ClaudeLaunch, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
@@ -234,9 +236,19 @@ test("resumes a session by its ID", async () => {
 
 test("reads the version of the CLI that a launch's environment runs", async () => {
   await expect(runtime.version({})).resolves.toBe("2.1.316");
-  await expect(runtime.version({ FAKE_VERSION: "unknown" })).rejects.toThrow(
-    "unrecognized claude --version output: unknown",
-  );
+  await expect(runtime.version({ FAKE_VERSION: "2.1.316-beta.1 (Claude Code)" })).resolves.toBe("2.1.316-beta.1");
+  // Neither a version of another form nor one that is long or holds a terminal escape is taken.
+  for (const FAKE_VERSION of ["unknown", `2.1.316-${"x".repeat(40)}`, "2.1.316\u001b[31m"]) {
+    await expect(runtime.version({ FAKE_VERSION })).rejects.toThrow("unrecognized claude --version output");
+  }
+});
+
+test("an init line whose version has another form counts as no init line", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-stream-"));
+  const line = readFileSync(join(fixtures, "no-reset.jsonl"), "utf8").replace('"2.1.316"', '"2.1.316\\u001b[31m"');
+  writeFileSync(join(dir, "escaped.jsonl"), line);
+  const { prompt: _, verifiedVersions: __, ...probe } = launch({ FAKE_STREAM: join(dir, "escaped.jsonl") });
+  await expect(runtime.checkContract(probe)).resolves.toEqual({ version: null, missing: ["init", "usage"] });
 });
 
 test("a contract check passes only with the version, a usage share with its reset and a successful result", async () => {

@@ -337,6 +337,25 @@ test("a store of schema 1 gains the account and check tables on open and keeps i
   after.close();
 });
 
+test("a store of schema 2 gains the check table on open and keeps its readings", () => {
+  const dir = fresh();
+  const reading = {
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 40,
+    resetsAt: "2026-11-05T17:00:00.000Z",
+    readAt: "2026-11-05T12:00:00.000Z",
+  } as const;
+  opened(dir).recordReading(reading);
+  open.splice(0).forEach((store) => store.close());
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("DROP TABLE contract_checks; PRAGMA user_version = 2");
+  db.close();
+  const store = opened(dir);
+  expect(store.readings()).toEqual([reading]);
+  expect(store.contractChecks("claude")).toEqual([]);
+});
+
 test("the latest reading per account and window stays; an older one arriving late, or no reading, never gets in", () => {
   const store = opened(fresh());
   const reading = {
@@ -408,5 +427,7 @@ test("one contract check per agent CLI version: a check of the same version agai
     { ...check, version: "2.1.317", missing: ["result"], at: "2026-11-06T09:00:00.000Z" },
     { ...check, at: "2026-11-06T10:00:00.000Z" },
   ]);
-  expect(() => store.recordContractCheck({ ...check, version: "" })).toThrow(/too small|>=1/i);
+  for (const version of ["", "2.1.316\u001b[31m", `2.1.316-${"x".repeat(40)}`]) {
+    expect(() => store.recordContractCheck({ ...check, version })).toThrow(/pattern/i);
+  }
 });

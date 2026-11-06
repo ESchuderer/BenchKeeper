@@ -1,5 +1,5 @@
 import type { AgentEvent, UsageWindow } from "@cedarloom/agent-contracts";
-import type { Json } from "@cedarloom/contracts";
+import { AgentVersion, type Json } from "@cedarloom/contracts";
 import { z } from "zod";
 
 // Only the fields CedarLoom reads; the CLI adds fields with most releases, and the whole line stays in `raw`.
@@ -7,7 +7,8 @@ const Init = z.looseObject({
   type: z.literal("system"),
   subtype: z.literal("init"),
   session_id: z.string(),
-  claude_code_version: z.string(),
+  // A version of another form makes the line no init line, so the contract check fails on it.
+  claude_code_version: AgentVersion,
   model: z.string(),
 });
 

@@ -21,6 +21,7 @@ import { planHash, sha256 } from "./hash.ts";
 import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, TABLES } from "./rows.ts";
 
 const SCHEMA = 4;
+const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
 const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES];
 
@@ -317,9 +318,11 @@ export class RunStore extends RunView {
 
   /** Ends a launch's lease with its verdict. */
   finishLaunch(runId: string, verdict: NonNullable<LaunchRecord["verdict"]>, at: string = now()): void {
+    // Checked on write, so a malformed time never makes every later read of the launches fail.
+    const end = FinishedLaunch.parse({ runId, finishedAt: at, verdict });
     this.db
       .prepare("UPDATE launches SET finishedAt = ?, verdict = ? WHERE runId = ? AND finishedAt IS NULL")
-      .run(at, verdict, runId);
+      .run(end.finishedAt, end.verdict, end.runId);
   }
 
   /** The launches, oldest first. */

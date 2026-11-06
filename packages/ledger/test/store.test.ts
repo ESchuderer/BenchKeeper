@@ -455,6 +455,8 @@ test("an account gives at most max leases; an ended lease frees one, another acc
   store.finishLaunch(runIdOf(1), "pass", "2026-11-06T08:10:00.000Z");
   // A second finish keeps the first verdict.
   store.finishLaunch(runIdOf(1), "failed");
+  // A finish time that is no time is refused on write, so the launches stay readable.
+  expect(() => store.finishLaunch(runIdOf(2), "pass", "not a time")).toThrow(/datetime/i);
   expect(store.leaseAccount({ ...launch, runId: runIdOf(5) }, 2, alive)).toBe(true);
   expect(store.launches().map((row) => [row.runId.at(-1), row.account, row.verdict])).toEqual([
     ["1", "work", "pass"],

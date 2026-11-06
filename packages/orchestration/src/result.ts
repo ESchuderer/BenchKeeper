@@ -1,7 +1,7 @@
-import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { readDocument, WORKER_RESULT_SCHEMA_VERSION, WorkerResult } from "@cedarloom/contracts";
 
-// A valid result holds a summary of 2,000 characters at most, so a larger file is refused unread.
+// A valid result holds a summary of 2,000 characters at most, so a larger file is refused unparsed.
 const MAX_BYTES = 64 * 1024;
 // No symbolic link is followed, and a FIFO the worker put in place does not block the open. Windows has neither flag,
 // and a missing one counts as 0 in a bitwise or.
@@ -19,9 +19,13 @@ export const readResult = (path: string, runId: string): WorkerResult | null => 
     return null;
   }
   try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size > MAX_BYTES) return null;
-    const result = readDocument(WorkerResult, WORKER_RESULT_SCHEMA_VERSION, JSON.parse(readFileSync(fd, "utf8")));
+    if (!fstatSync(fd).isFile()) return null;
+    // At most one byte past the limit is read, even when the worker grows the file after the open.
+    const buffer = Buffer.alloc(MAX_BYTES + 1);
+    const size = readSync(fd, buffer, 0, buffer.length, 0);
+    if (size > MAX_BYTES) return null;
+    const text = buffer.subarray(0, size).toString("utf8");
+    const result = readDocument(WorkerResult, WORKER_RESULT_SCHEMA_VERSION, JSON.parse(text));
     return result.ok && result.value.runId === runId ? result.value : null;
   } catch {
     return null;

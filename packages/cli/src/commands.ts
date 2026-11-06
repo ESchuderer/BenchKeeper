@@ -1,3 +1,4 @@
+import { claudeTelemetryEnv } from "@cedarloom/adapter-claude";
 import {
   type Account,
   Agent,
@@ -217,6 +218,15 @@ export const accountsHome = (ctx: Context, name: string, { yes }: { yes?: true }
   }
   const note = `\nThen log in there with: cedarloom accounts login ${name}`;
   return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
+};
+
+/** Plans the interactive homes' telemetry settings, whose posts the receiver of `cedarloom ui` takes. */
+export const accountsTelemetry = (ctx: Context, { yes }: { yes?: true }): number => {
+  const planned = useCases.planTelemetry(ctx.config, ctx.state, claudeTelemetryEnv);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, homes } = planned.value;
+  const note = `\nSessions in ${homes.join(", ")} send their token counts while cedarloom ui runs.`;
+  return change(ctx, plan, { note, data: { homes }, findings: [] }, yes);
 };
 
 /** Runs the agent's own login for the account, in its own home only. */

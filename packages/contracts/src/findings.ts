@@ -105,6 +105,12 @@ export const Finding = z
     finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
+    // No account names an interactive home (an alias) whose sessions could send their telemetry.
+    finding("accounts.no-alias", {}),
+    // An interactive home's settings already send telemetry somewhere: CedarLoom does not take that over.
+    finding("accounts.telemetry-set", { account: z.string(), path: z.string() }),
+    // Another program holds the receiver's port: the interactive homes' telemetry waits until it is free.
+    finding("telemetry.port-taken", { port: z.int() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
     finding("doctor.logged-out", { account: z.string(), home: z.string() }),
     finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
@@ -245,6 +251,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
+  "accounts.no-alias": { severity: "error", effort: "manual" },
+  "accounts.telemetry-set": { severity: "error", effort: "manual" },
+  "telemetry.port-taken": { severity: "warning", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },

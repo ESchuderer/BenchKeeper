@@ -1100,6 +1100,23 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.no-alias";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "accounts.telemetry-set";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "telemetry.port-taken";
+            params: {
+                port: number;
+            };
+        } | {
+            /** @constant */
             code: "doctor.logged-out";
             params: {
                 account: string;
@@ -1871,6 +1888,23 @@ export interface components {
             params: {
                 account: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.no-alias";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "accounts.telemetry-set";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "telemetry.port-taken";
+            params: {
+                port: number;
             };
         } | {
             /** @constant */

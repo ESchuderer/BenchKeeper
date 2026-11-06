@@ -6,6 +6,7 @@ import {
   accountsHome,
   accountsList,
   accountsLogin,
+  accountsTelemetry,
   doctor,
   extensionsAdd,
   extensionsList,
@@ -133,6 +134,13 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .description("log an account in with the agent's own login, in its own home")
     .argument("<account>")
     .action((name) => done(accountsLogin(ctx(), name)));
+  accounts
+    .command("telemetry")
+    .description(
+      "show how the accounts' interactive homes send their token counts to cedarloom ui; with --yes, set them up",
+    )
+    .option("--yes", "set up as planned now")
+    .action((options) => done(accountsTelemetry(ctx(), options)));
 };
 
 const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {

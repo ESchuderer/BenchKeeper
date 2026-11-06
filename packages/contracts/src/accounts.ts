@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sortKeys } from "./json.ts";
-import { AbsolutePath } from "./plan.ts";
+import { AbsolutePath, Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 
 /** The account registry format this CedarLoom writes and reads; readers refuse a newer one. */
@@ -36,7 +36,9 @@ const Account = z.strictObject({
   aliases: z
     .array(AbsolutePath)
     .optional()
-    .describe("Other tools' config folders of the same account, for readings only: nothing is written into them"),
+    .describe(
+      "Other tools' config folders of the same account: read for usage, and written only by `accounts telemetry`",
+    ),
   pool: Name.nullable(),
   minimum: Minimums.partial().optional().describe("The account's own minimums, in place of the registry's"),
   added: z.iso.datetime(),
@@ -83,6 +85,12 @@ export const AccountRegistry = z
     minimum: Minimums,
     accounts: z.array(Account),
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
+    telemetryPort: z
+      .int()
+      .min(1024)
+      .max(65535)
+      .optional()
+      .describe("The loopback port of the receiver of the interactive homes' telemetry; TELEMETRY_PORT when unset"),
   })
   .superRefine((registry, ctx) => {
     // shortcut: folders compare without trailing separators but otherwise as written, so another case of a folder passes;
@@ -121,6 +129,12 @@ export const AccountRegistry = z
   .register(fileFormats, { id: "AccountRegistry" });
 export type AccountRegistry = z.infer<typeof AccountRegistry>;
 export type Account = AccountRegistry["accounts"][number];
+
+/**
+ * The receiver's port when the registry names none: below the ephemeral ranges of Linux (from 32768), macOS and Windows
+ * (from 49152), and not OTLP/HTTP's 4318 (https://opentelemetry.io/docs/specs/otlp/), which a collector may hold.
+ */
+export const TELEMETRY_PORT = 24318;
 
 /** The registry file's text: keys in schema order, pools sorted by name, two-space indentation. */
 export const formatRegistry = (registry: AccountRegistry): string =>
@@ -172,11 +186,12 @@ const Count = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const Reported = z.string().min(1).max(200);
 
 /**
- * One API request of a worker's session, from Claude Code's OpenTelemetry `api_request` event (A84): the run and account
- * the receiver's token names, the model, the token counts, the cost and the time. No identity of the user is kept.
+ * One API request of a session, from Claude Code's OpenTelemetry `api_request` event (A84): the run (null for an
+ * interactive session) and account the receiver's token names, the model, the token counts, the cost and the time. No
+ * identity of the user is kept.
  */
 export const TokenRow = z.strictObject({
-  runId: z.uuid(),
+  runId: z.uuid().nullable(),
   account: Name,
   sessionId: Reported.nullable(),
   model: Reported,
@@ -195,6 +210,27 @@ export const TokenRow = z.strictObject({
   at: z.iso.datetime({ precision: 3 }),
 });
 export type TokenRow = z.infer<typeof TokenRow>;
+
+/** The telemetry tokens format this CedarLoom writes and reads; readers refuse a newer one. */
+export const TELEMETRY_TOKENS_SCHEMA_VERSION = 1;
+
+/**
+ * The tokens of the accounts' interactive homes as the receiver checks them: each account's token by its SHA-256. The
+ * token itself is only in the homes' settings files.
+ */
+export const TelemetryTokens = z
+  .strictObject({
+    schemaVersion: z.literal(TELEMETRY_TOKENS_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.telemetry-tokens"),
+    accounts: z.record(Name, Sha256),
+  })
+  .register(fileFormats, { id: "TelemetryTokens" });
+export type TelemetryTokens = z.infer<typeof TelemetryTokens>;
+
+/** The tokens file's text: accounts sorted by name, two-space indentation. */
+export const formatTelemetryTokens = (tokens: TelemetryTokens): string =>
+  `${JSON.stringify(TelemetryTokens.parse(sortKeys(tokens)), null, 2)}
+`;
 
 /**
  * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it

@@ -166,10 +166,10 @@ CREATE TABLE gates (
 ) STRICT;
 `;
 
-/** One row per API request of a worker's session (A84), from its OpenTelemetry api_request event. */
+/** One row per API request of a session (A84), from its OpenTelemetry api_request event; no run for an interactive one. */
 export const TOKEN_TABLES = `
 CREATE TABLE token_rows (
-  runId TEXT NOT NULL,
+  runId TEXT,
   account TEXT NOT NULL,
   sessionId TEXT,
   model TEXT NOT NULL,

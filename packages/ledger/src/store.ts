@@ -47,7 +47,7 @@ const BASELINE = [
   TOKEN_TABLES,
 ];
 // Its number follows every schema before 0.1.0, so a store from before it is never read as this one.
-const SCHEMA = 12;
+const SCHEMA = 13;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);

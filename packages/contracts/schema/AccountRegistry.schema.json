@@ -53,7 +53,7 @@
             "description": "The account's config folder (CLAUDE_CONFIG_DIR or CODEX_HOME); its login stays there"
           },
           "aliases": {
-            "description": "Other tools' config folders of the same account, for readings only: nothing is written into them",
+            "description": "Other tools' config folders of the same account: read for usage, and written only by `accounts telemetry`",
             "type": "array",
             "items": {
               "type": "string",
@@ -151,6 +151,12 @@
           "additionalProperties": false
         }
       }
+    },
+    "telemetryPort": {
+      "description": "The loopback port of the receiver of the interactive homes' telemetry; TELEMETRY_PORT when unset",
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535
     }
   },
   "required": [

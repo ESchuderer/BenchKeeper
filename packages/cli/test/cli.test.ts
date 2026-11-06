@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -248,6 +249,25 @@ const withRegistry = () => {
   return { root, state, logins, cli };
 };
 
+test("accounts: telemetry sets up the interactive homes by a plan, and is refused without one", async () => {
+  const { root, cli } = withRegistry();
+  const none = await cli("accounts", "telemetry", "--json");
+  expect([none.code, json(none.out)]).toEqual([
+    EXIT.refused,
+    expect.objectContaining({ findings: [expect.objectContaining({ code: "accounts.no-alias" })] }),
+  ]);
+  const alias = join(root, "claude-home");
+  mkdirSync(alias);
+  const registry = { schemaVersion: 1 as const, minimum: { fiveHour: 8, sevenDay: 3 }, pools: {} };
+  const accounts = [{ ...account("work", null), aliases: [alias] }];
+  writeFileSync(join(root, "config", "accounts.json"), formatRegistry({ ...registry, accounts }));
+  const shown = await cli("accounts", "telemetry");
+  expect([shown.code, existsSync(join(alias, "settings.json"))]).toEqual([EXIT.ok, false]);
+  const applied = json((await cli("accounts", "telemetry", "--yes", "--json")).out);
+  expect(applied).toMatchObject({ status: "applied", homes: [alias] });
+  expect(readFileSync(join(alias, "settings.json"), "utf8")).toContain("OTEL_EXPORTER_OTLP_LOGS_HEADERS");
+});
+
 test("accounts: an account moves into its own home with --yes, and its login runs only there", async () => {
   const { state, logins, cli } = withRegistry();
   const home = join(state, "homes", "work");
@@ -431,6 +451,7 @@ test("every finding code has an English sentence", () => {
     "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
     "workflow.schedule-input": { input: "branch" },
     "launch.account-full": { account: "work", max: 2 },
+    "telemetry.port-taken": { port: 24318 },
     "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
     "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
     "extension.install-refused": { extension: null, reason: "no-manifest" },
@@ -577,28 +598,52 @@ test("a plan whose chain of edits breaks is refused with exit 1 and writes nothi
   ]).toEqual([EXIT.refused, true, false]);
 });
 
-test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, and prints the one-time link", async () => {
-  const { state } = setup();
+const Ui = z.object({ url: z.string(), telemetry: z.string().nullable(), findings: z.array(z.unknown()) });
+
+// Starts cedarloom ui with the registry's receiver port `port`; returns what it printed once it listens, and its stop.
+const startUi = async (port: number) => {
+  const root = mkdtempSync(join(tmpdir(), "cedarloom-cli-"));
+  const config = join(root, "config");
+  mkdirSync(config);
+  const registry = { schemaVersion: 1 as const, minimum: { fiveHour: 8, sevenDay: 3 }, accounts: [], pools: {} };
+  writeFileSync(join(config, "accounts.json"), formatRegistry({ ...registry, telemetryPort: port }));
   const stopped = Promise.withResolvers<void>();
   const printed = Promise.withResolvers<string>();
   const io = {
     out: printed.resolve,
     err: () => undefined,
-    env: {},
+    env: { CEDARLOOM_CONFIG_DIR: config },
     untilStopped: () => stopped.promise,
     login: () => ({ code: null }),
     authStatus: async () => ({ kind: "logged-out" }) as const,
   };
-  const running = main(["--state", state, "--json", "ui"], io);
+  const running = main(["--state", join(root, "state"), "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a
   // second on a slow runner. A failed start prints cedarloom.error instead.
   const out = await printed.promise;
   expect(out).toContain("cedarloom.ui");
-  const { url } = z.object({ url: z.string() }).parse(JSON.parse(out));
-  expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#t=[\w-]{43}$/);
-  expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);
-  stopped.resolve();
-  expect(await running).toBe(EXIT.ok);
+  const stop = (): Promise<number> => {
+    stopped.resolve();
+    return running;
+  };
+  return { ui: Ui.parse(JSON.parse(out)), stop };
+};
+
+test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, and the interactive homes' receiver", async () => {
+  // Another program on the receiver's port costs only the receiver, with a warning.
+  const held = createServer();
+  await new Promise<void>((resolve) => held.listen(0, "127.0.0.1", resolve));
+  const port = z.object({ port: z.number() }).parse(held.address()).port;
+  const taken = await startUi(port);
+  expect(taken.ui).toMatchObject({ telemetry: null, findings: [{ code: "telemetry.port-taken", params: { port } }] });
+  expect(taken.ui.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#t=[\w-]{43}$/);
+  expect((await fetch(`${new URL(taken.ui.url).origin}/api/runs`)).status).toBe(401);
+  expect(await taken.stop()).toBe(EXIT.ok);
+  await new Promise<void>((resolve) => held.close(() => resolve()));
+  const free = await startUi(port);
+  expect(free.ui).toMatchObject({ telemetry: `http://127.0.0.1:${port}/v1/logs`, findings: [] });
+  expect((await fetch(free.ui.telemetry ?? "", { method: "POST" })).status).toBe(401);
+  expect(await free.stop()).toBe(EXIT.ok);
 });
 
 // t -> a, a command that greets the input `name`.

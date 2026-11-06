@@ -26,7 +26,7 @@ export const WriteFile = z
       .min(0)
       .max(0o7777)
       .optional()
-      .describe("Permission bits of a file the write creates; a replaced file keeps its own"),
+      .describe("Permission bits of the file after the write; when unset, a replaced file keeps its own"),
   })
   .register(contracts, { id: "WriteFile" });
 

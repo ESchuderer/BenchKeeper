@@ -259,7 +259,9 @@ const workerFolders = (state: string) =>
 
 test("a worker's API requests reach its run's token rows through the receiver, and its token ends with the run", async () => {
   const { state, config, work } = setup();
-  const receiver = await startTelemetry(state);
+  const started = await startTelemetry(state);
+  if (!started.ok) throw new Error(started.finding.code);
+  const receiver = started.value;
   // The receiver as the launcher gets it, keeping the token it hands out.
   const tokens: string[] = [];
   const register = (run: TelemetryRun) => {

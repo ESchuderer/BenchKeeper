@@ -14,7 +14,7 @@ import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
 import { lines, streamParser } from "./stream.ts";
 
-export { type ClaudeLaunch, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
+export { type ClaudeLaunch, claudeTelemetryEnv, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
 
 type Command = readonly [string, ...string[]];
 

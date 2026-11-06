@@ -85,7 +85,13 @@ const change = (run: Run, index: number, op: Operation, mode: number | null): Fi
     if (op.kind === "delete") remove(op.path, op.before, aside, onSetAside);
     else {
       const temp = tempPath(op.path, run.runId, index);
-      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, onSetAside);
+      // The planned mode wins, so a file that gets a secret becomes private, and undo restores the mode it had.
+      writeStep(
+        { path: op.path, before: op.before, temp, aside },
+        op.content,
+        op.mode ?? mode ?? undefined,
+        onSetAside,
+      );
     }
     return undefined;
   } catch (error) {

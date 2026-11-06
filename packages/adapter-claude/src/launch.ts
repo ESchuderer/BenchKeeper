@@ -146,19 +146,23 @@ const telemetrySettings = (telemetry: ClaudeLaunch["telemetry"]): Record<string,
         OTEL_METRICS_INCLUDE_VERSION: "true",
       };
 
-// The run's token, for the logs signal only, in the process environment only: the settings travel on the command line,
-// which every local user can read. The loopback stays off the worker's proxy, whose bypass of the loopback Claude Code
-// documents for WebSockets only (https://code.claude.com/docs/en/network-config); both spellings get one list, as
-// Windows keeps one of them.
+/**
+ * The env block that sends Claude Code's telemetry to the receiver at `endpoint` with `token`, for the logs signal
+ * only: a worker's process environment, or an interactive home's settings.json (`accounts telemetry`).
+ */
+export const claudeTelemetryEnv = (telemetry: { readonly endpoint: string; readonly token: string }) => ({
+  ...telemetrySettings(telemetry),
+  OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${telemetry.token}`,
+});
+
+// The worker's block, in the process environment only: the settings travel on the command line, which every local user
+// can read. The loopback stays off the worker's proxy, whose bypass of the loopback Claude Code documents for
+// WebSockets only (https://code.claude.com/docs/en/network-config); both spellings get one list, as Windows keeps one
+// of them.
 const telemetryEnv = ({ telemetry, env }: ClaudeLaunch): Record<string, string> => {
   if (telemetry === null) return {};
   const bypass = [env["NO_PROXY"], env["no_proxy"], "127.0.0.1,localhost"].filter(Boolean).join(",");
-  return {
-    ...telemetrySettings(telemetry),
-    OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${telemetry.token}`,
-    NO_PROXY: bypass,
-    no_proxy: bypass,
-  };
+  return { ...claudeTelemetryEnv(telemetry), NO_PROXY: bypass, no_proxy: bypass };
 };
 const OWN_NAMES = new Set([
   "CLAUDE_CODE_SIMPLE",

@@ -112,16 +112,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 12 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 13 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 11 is the last schema before the token rows.
-  const dir = storeAt(11);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 11, known: 12 } } };
+  // 12 is the last schema whose token rows all had a run.
+  const dir = storeAt(12);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 12, known: 13 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 11 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 12 });
   after.close();
 });
 
@@ -609,7 +609,8 @@ const tokenRow = {
 
 test("a run's token rows are kept once as the receiver passes them, read per run, and refused when they are no token row", () => {
   const store = opened(fresh());
-  const other = { ...tokenRow, runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62", requestId: "req_2", effort: null };
+  // An interactive session's row has no run.
+  const other = { ...tokenRow, runId: null, requestId: "req_2", effort: null };
   store.recordTokenRows([tokenRow, other]);
   // A request kept already, sent again, is skipped: OTLP delivers at least once.
   store.recordTokenRows([{ ...tokenRow, inputTokens: 9 }]);

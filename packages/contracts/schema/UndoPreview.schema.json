@@ -53,7 +53,7 @@
                         "description": "Hash the file must have when the plan applies; null: the file must not exist"
                       },
                       "mode": {
-                        "description": "Permission bits of a file the write creates; a replaced file keeps its own",
+                        "description": "Permission bits of the file after the write; when unset, a replaced file keeps its own",
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 4095

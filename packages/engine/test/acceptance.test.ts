@@ -435,22 +435,26 @@ test.skipIf(!posix)("issue 1031: a write that fails leaves the old file in place
   expect(undo(store, applied.runId)).toMatchObject({ status: "applied", skipped: [] });
 });
 
-test.skipIf(!posix)("issue 1031: file modes survive apply and undo; a created file gets the planned mode", () => {
+test.skipIf(!posix)("issue 1031: file modes survive apply and undo; a write gets the planned mode", () => {
   const { store, file } = fresh();
   const [secret, key, made] = [file(".env.local", "TOKEN=1\n", 0o600), file("run.sh", "k\n", 0o755), file("new")];
+  const shared = file("settings.json", "{}\n", 0o644);
   const applied = run(
     store,
     plan(
       { kind: "write", path: secret, before: hash("TOKEN=1\n"), content: "TOKEN=2\n" },
       { kind: "delete", path: key, before: hash("k\n") },
       { kind: "write", path: made, before: null, content: "n\n", mode: 0o600 },
+      // A replaced file that gets a secret becomes private.
+      { kind: "write", path: shared, before: hash("{}\n"), content: '{"token":1}\n', mode: 0o600 },
     ),
   );
-  expect([modeOf(secret), modeOf(made), modeOf(store.backupPath(applied.runId ?? "", 0))]).toEqual([
-    0o600, 0o600, 0o600,
+  expect([modeOf(secret), modeOf(made), modeOf(shared), modeOf(store.backupPath(applied.runId ?? "", 0))]).toEqual([
+    0o600, 0o600, 0o600, 0o600,
   ]);
   undo(store, applied.runId);
   expect([read(secret), modeOf(secret), read(key), modeOf(key)]).toEqual(["TOKEN=1\n", 0o600, "k\n", 0o755]);
+  expect([read(shared), modeOf(shared)]).toEqual(["{}\n", 0o644]);
 });
 
 test("backups of runs older than 90 days go before the next apply; undo of such a run reports the missing backup", () => {

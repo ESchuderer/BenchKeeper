@@ -1,0 +1,211 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import type { Result } from "@cedarloom/contracts";
+import { afterAll, afterEach, expect, test, vi } from "vitest";
+import { type FetchOptions, fetchTree, fetchTreeOver, type Limits, type Source, type Tree } from "@cedarloom/git";
+
+// GitHub's Windows runners keep os.tmpdir() on the slow system drive.
+const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-git-"));
+// The fixtures are local repositories, so the tests let git fetch over file:// too; `fetchTree` never does.
+const fetchLocal = fetchTreeOver(["https", "ssh", "file"]);
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+afterAll(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+const git = (cwd: string, args: string[], input?: string): string =>
+  execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args], {
+    cwd,
+    input,
+    encoding: "utf8",
+  }).trim();
+
+type Entry = string | { mode: "100755" | "120000"; content: string } | { submodule: string };
+
+const object = (dir: string, entry: Entry): [string, string] => {
+  if (typeof entry === "string") return ["100644", git(dir, ["hash-object", "-w", "--stdin"], entry)];
+  if ("submodule" in entry) return ["160000", entry.submodule];
+  return [entry.mode, git(dir, ["hash-object", "-w", "--stdin"], entry.content)];
+};
+
+/** A repository whose `main` and tag `v1` hold exactly `files`, built from objects: no file system links needed. */
+const source = (files: Record<string, Entry>): { url: string; commit: string; dir: string } => {
+  const dir = mkdtempSync(join(root, "source-"));
+  git(dir, ["init", "--quiet"]);
+  for (const [path, entry] of Object.entries(files)) {
+    git(dir, ["update-index", "--add", "--cacheinfo", object(dir, entry).concat(path).join(",")]);
+  }
+  const commit = git(dir, ["commit-tree", "-m", "fixture", git(dir, ["write-tree"])]);
+  git(dir, ["update-ref", "refs/heads/main", commit]);
+  git(dir, ["tag", "v1", commit]);
+  return { url: pathToFileURL(dir).href, commit, dir };
+};
+
+const parent = (): string => mkdtempSync(join(root, "parent-"));
+const codeOf = (result: Result<unknown>): unknown => (result.ok ? "ok" : result.finding);
+const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+const plugin = source({
+  "README.md": "outside the plugin folder\n",
+  "plugin/cedarloom-plugin.json": '{ "id": "acme.jira" }\n',
+  "plugin/dist/main.js": { mode: "100755", content: "console.log(1);\n" },
+});
+
+test("reads the files of a folder at a tag or a commit, with the commit and the digest of their listing", async () => {
+  const into = parent();
+  const byTag = await fetchLocal({ url: plugin.url, ref: "v1", path: "plugin" }, { parent: into });
+  const byCommit = await fetchLocal({ url: plugin.url, ref: plugin.commit, path: "plugin" }, { parent: into });
+  const files: ["100644" | "100755", string, string][] = [
+    ["100644", "cedarloom-plugin.json", '{ "id": "acme.jira" }\n'],
+    ["100755", "dist/main.js", "console.log(1);\n"],
+  ];
+  const listing = files.map(([mode, path, text]) => `${mode} ${sha256(text)} ${path}\n`).join("");
+  const expected: Tree = {
+    commit: plugin.commit,
+    files: files.map(([mode, path, text]) => ({ mode, path, sha256: sha256(text), content: Buffer.from(text) })),
+    digest: sha256(listing),
+  };
+  expect([byTag, byCommit]).toEqual([
+    { ok: true, value: expected },
+    { ok: true, value: expected },
+  ]);
+  // Each quarantine is gone once the files are read.
+  expect(readdirSync(into)).toEqual([]);
+}, 30_000);
+
+test("the whole tree when no folder is named, in path order", async () => {
+  const tree = await fetchLocal({ url: plugin.url, ref: "main" }, { parent: parent() });
+  expect(tree.ok ? tree.value.files.map((file) => file.path) : tree).toEqual([
+    "README.md",
+    "plugin/cedarloom-plugin.json",
+    "plugin/dist/main.js",
+  ]);
+}, 30_000);
+
+test("a tree with a link, a submodule or a name that is not portable is refused whole", async () => {
+  const trees: [Entry, string, string][] = [
+    [{ mode: "120000", content: "../../.ssh/id_ed25519" }, "link", "dir/x"],
+    [{ submodule: plugin.commit }, "submodule", "dir/x"],
+    ["text", "name", "dir/a file.txt"],
+  ];
+  const results = await Promise.all(
+    trees.map(async ([entry, , path]) => {
+      const repo = source({ "main.js": "ok\n", [path]: entry });
+      return codeOf(await fetchLocal({ url: repo.url, ref: "v1" }, { parent: parent() }));
+    }),
+  );
+  expect(results).toEqual(trees.map(([, kind, path]) => ({ code: "git.unsafe-entry", params: { path, kind } })));
+}, 30_000);
+
+const many = (count: number, text = "x"): Record<string, Entry> =>
+  Object.fromEntries(Array.from({ length: count }, (_, index) => [`file-${index}.txt`, text]));
+
+test("a tree over a limit is refused whole: files, one file's bytes, all bytes, and a listing too long to read", async () => {
+  const cases: [Record<string, Entry>, Limits, unknown][] = [
+    [many(3), { files: 2, bytes: 100, fileBytes: 100 }, { path: null, found: 3, limit: 2, unit: "files" }],
+    [
+      many(1, "12345678901"),
+      { files: 9, bytes: 100, fileBytes: 10 },
+      { path: "file-0.txt", found: 11, limit: 10, unit: "bytes" },
+    ],
+    [many(2, "123456"), { files: 9, bytes: 10, fileBytes: 10 }, { path: null, found: 12, limit: 10, unit: "bytes" }],
+  ];
+  const results = await Promise.all(
+    cases.map(async ([files, limits]) =>
+      codeOf(await fetchLocal({ url: source(files).url, ref: "v1" }, { parent: parent(), limits })),
+    ),
+  );
+  expect(results).toEqual(cases.map(([, , params]) => ({ code: "git.too-large", params })));
+  const listing = await fetchLocal(
+    { url: source(many(40)).url, ref: "v1" },
+    { parent: parent(), limits: { files: 1, bytes: 9, fileBytes: 9 } },
+  );
+  expect(codeOf(listing)).toEqual({ code: "git.failed", params: { step: "list", error: "output over 2400 bytes" } });
+}, 30_000);
+
+test("a source is refused before git runs: a password, a space, an option, refspec syntax, a path out or not portable", async () => {
+  const into = parent();
+  const urls = [
+    "https://bot:token@git.example.org/acme/jira.git",
+    "https://git.example.org/a b.git",
+    "-oProxyCommand=x",
+  ];
+  const refs = ["main:refs/heads/x", "v1^{tree}", "a..b", "main.lock", "-x"];
+  const paths = ["../x", ".git/hooks", "plugin/.", "CON", "nul.txt", "a.", "a\\b"];
+  const sources: [Source, string][] = [
+    ...urls.map((url): [Source, string] => [{ url, ref: "v1" }, "url"]),
+    ...refs.map((ref): [Source, string] => [{ url: plugin.url, ref }, "ref"]),
+    ...paths.map((path): [Source, string] => [{ url: plugin.url, ref: "v1", path }, "path"]),
+  ];
+  const results = await Promise.all(sources.map(([from]) => fetchLocal(from, { parent: into })));
+  expect(results.map(codeOf)).toEqual(sources.map(([, field]) => ({ code: "git.refused-source", params: { field } })));
+  expect(readdirSync(into)).toEqual([]);
+});
+
+test("fetchTree takes https and ssh only: git refuses the file and ext transports", async () => {
+  const results = await Promise.all(
+    [plugin.url, "ext::false"].map(async (url) => codeOf(await fetchTree({ url, ref: "v1" }, { parent: parent() }))),
+  );
+  expect(results).toEqual([
+    { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'file' not allowed/) } },
+    { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'ext' not allowed/) } },
+  ]);
+}, 30_000);
+
+test("no hook runs, not even one the user's own configuration names", async () => {
+  const home = mkdtempSync(join(root, "home-"));
+  const hooks = join(home, "hooks");
+  const marker = join(home, "ran");
+  mkdirSync(hooks);
+  writeFileSync(join(hooks, "reference-transaction"), `#!/bin/sh\necho ran >> '${marker.replaceAll("\\", "/")}'\n`, {
+    mode: 0o755,
+  });
+  writeFileSync(join(home, ".gitconfig"), `[core]\n\thooksPath = ${hooks.replaceAll("\\", "/")}\n`);
+  vi.stubEnv("HOME", home);
+  vi.stubEnv("USERPROFILE", home);
+  // Plain git runs that hook on every ref update, and the fetch updates a ref too.
+  git(plugin.dir, ["update-ref", "refs/heads/hooked", plugin.commit]);
+  const before = existsSync(marker) ? readFileSync(marker, "utf8") : "";
+  const tree = await fetchLocal({ url: plugin.url, ref: "v1" }, { parent: parent() });
+  expect([before.length > 0, tree.ok, readFileSync(marker, "utf8")]).toEqual([true, true, before]);
+}, 30_000);
+
+test("GIT_DIR in CedarLoom's environment does not send git to another repository", async () => {
+  const other = source({ "x.txt": "x" });
+  vi.stubEnv("GIT_DIR", join(other.dir, ".git"));
+  const tree = await fetchLocal({ url: plugin.url, ref: "v1", path: "plugin" }, { parent: parent() });
+  vi.unstubAllEnvs();
+  expect([tree.ok, git(other.dir, ["for-each-ref", "refs/cedarloom"])]).toEqual([true, ""]);
+}, 30_000);
+
+test("git failures name their step: no git, out of time, an unknown ref, a ref to no commit, a missing folder", async () => {
+  const blob = git(plugin.dir, ["hash-object", "-w", "--stdin"], "a file, not a commit");
+  git(plugin.dir, ["tag", "blob-tag", blob]);
+  const tries: [Omit<Source, "url">, Omit<FetchOptions, "parent">, string, RegExp][] = [
+    [{ ref: "missing" }, {}, "fetch", /missing/],
+    [{ ref: "blob-tag" }, {}, "fetch", /expected commit/],
+    [{ ref: "v1", path: "nope" }, {}, "list", /nope/],
+    [{ ref: "v1" }, { timeoutMs: 0 }, "start", /stopped after 0 ms/],
+  ];
+  const results = await Promise.all(
+    tries.map(async ([from, options]) =>
+      codeOf(await fetchLocal({ url: plugin.url, ...from }, { parent: parent(), ...options })),
+    ),
+  );
+  vi.stubEnv("PATH", "");
+  const noGit = await fetchLocal({ url: plugin.url, ref: "v1" }, { parent: parent() });
+  expect([...results, codeOf(noGit)]).toEqual([
+    ...tries.map(([, , step, error]) => ({
+      code: "git.failed",
+      params: { step, error: expect.stringMatching(error) },
+    })),
+    { code: "git.failed", params: { step: "start", error: expect.stringMatching(/ENOENT/) } },
+  ]);
+}, 30_000);

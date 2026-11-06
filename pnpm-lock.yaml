@@ -158,6 +158,12 @@ importers:
         specifier: 'catalog:'
         version: 4.10.2
 
+  packages/git:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/ledger:
     dependencies:
       '@cedarloom/contracts':

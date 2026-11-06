@@ -15,6 +15,8 @@ const issueList = (issues: { path: string; code: string }[]): string =>
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
 
+const ENTRY_KINDS = { link: "symbolic link", submodule: "submodule" } as const;
+
 // shortcut: English text in code until the Lingui catalog package exists; the codes and parameters are the contract.
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
@@ -101,6 +103,15 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
+  "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
+  "git.refused-source": (p) =>
+    `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,
+  "git.unsafe-entry": (p) =>
+    p.kind === "name"
+      ? `${p.path} is not a portable file name (letters, digits, ".", "_" and "-"), so nothing of this tree is used.`
+      : `${p.path} is a ${ENTRY_KINDS[p.kind]}, which a fetched tree may not hold, so nothing of it is used.`,
+  "git.too-large": (p) =>
+    `${p.path ?? "The tree"} has ${p.found} ${p.unit}, more than the ${p.limit} a fetched tree may have; nothing of it is used.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

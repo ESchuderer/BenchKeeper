@@ -162,3 +162,8 @@ CREATE TABLE gates (
   "by" TEXT
 ) STRICT;
 `;
+
+/** Schema 9: the plugins each launch's init line named (canonical JSON); null before the line, and on older launches. */
+export const PLUGIN_TABLES = `
+ALTER TABLE launches ADD COLUMN plugins TEXT;
+`;

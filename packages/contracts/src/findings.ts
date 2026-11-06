@@ -120,6 +120,10 @@ export const Finding = z
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
     // The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why).
     finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
+    // The latest run's init line: no workflow plugin went with it, as the pinned marketplace commit has none (info).
+    finding("doctor.plugin-none", { plugin: z.string(), commit: z.string() }),
+    // The latest run's init line: a plugin it passed did not load with its skills (errors: the plugins' load errors).
+    finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
     // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
@@ -236,6 +240,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
   "launch.not-logged-in": { severity: "error", effort: "manual" },
+  "doctor.plugin-none": { severity: "info", effort: "manual" },
+  "doctor.plugin-not-loaded": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },

@@ -1166,6 +1166,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.plugin-none";
+            params: {
+                plugin: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-not-loaded";
+            params: {
+                plugin: string;
+                errors: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1887,6 +1901,20 @@ export interface components {
             params: {
                 account: string;
                 reason: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-none";
+            params: {
+                plugin: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.plugin-not-loaded";
+            params: {
+                plugin: string;
+                errors: string;
             };
         } | {
             /** @constant */

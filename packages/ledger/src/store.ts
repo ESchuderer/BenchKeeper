@@ -31,6 +31,7 @@ import {
   LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
+  PROJECT_TABLES,
   TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
@@ -47,9 +48,13 @@ const MIGRATIONS = [
   LABEL_TABLES,
   GRAPH_TABLES,
   PLUGIN_TABLES,
+  PROJECT_TABLES,
 ];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
+// The schemas that added the graph runs and their project folder: their places among the migrations.
+export const GRAPH_SCHEMA = MIGRATIONS.indexOf(GRAPH_TABLES) + 1;
+export const PROJECT_SCHEMA = MIGRATIONS.indexOf(PROJECT_TABLES) + 1;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
 // The schema that added the plugins of each launch, by its place in the migrations.
@@ -135,6 +140,21 @@ export const newLease = (dir: string, name: string): LeaseLock => {
 
 /** Whether a process holds the lease lock `name` in the store `dir`. */
 export const leaseHeld = (dir: string, name: string): boolean => lockHeld(leaseLockPath(dir, name));
+
+/** `leaseHeld` for a read: a shared lock is tried and given back, and no file is made or removed. */
+export const leaseSeen = (dir: string, name: string): boolean => {
+  const path = leaseLockPath(dir, name);
+  if (!existsSync(path)) return false;
+  const probe = new DatabaseSync(path, { readOnly: true });
+  try {
+    probe.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master");
+    return false;
+  } catch {
+    return true;
+  } finally {
+    probe.close();
+  }
+};
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -663,10 +683,17 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
 
 /** Opens a store for reading; null when no run was ever recorded in `dir`. */
 export const openRunView = (dir: string): Result<RunView | null> => {
+  const opened = openReadOnly(dir);
+  if (!opened.ok) return opened;
+  return { ok: true, value: opened.value === null ? null : new RunView(dir, opened.value.db) };
+};
+
+/** The store in `dir` opened for reading only, with its schema version; null when no run was ever recorded. */
+export const openReadOnly = (dir: string): Result<{ db: DatabaseSync; version: number } | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true, timeout: SETTLE_MS });
   const found = versionOf(db);
-  if (found > 0 && found <= SCHEMA) return { ok: true, value: new RunView(dir, db) };
+  if (found > 0 && found <= SCHEMA) return { ok: true, value: { db, version: found } };
   db.close();
   // Version 0: a first open created the file but not (yet) its schema, so no run was ever recorded.
   if (found === 0) return { ok: true, value: null };

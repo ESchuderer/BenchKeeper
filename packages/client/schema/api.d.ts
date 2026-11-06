@@ -1056,6 +1056,23 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -1620,6 +1637,23 @@ export interface components {
                 path: string;
                 /** @enum {string} */
                 kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
             };
         } | {
             /** @constant */

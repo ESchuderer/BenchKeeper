@@ -15,6 +15,16 @@ const issueList = (issues: { path: string; code: string }[]): string =>
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
 
+const EXTENSION_REFUSALS = {
+  "sandbox-unavailable": "an extension from elsewhere runs only in an OS sandbox, and this CedarLoom has none yet",
+  windows: "extensions from elsewhere do not run on native Windows",
+  protocol: "it speaks another version of the extension protocol",
+  actions: "it serves other actions than its manifest names",
+  folder: "its folder has a * or ? in its path or a link inside, which would widen what it may read",
+  runtime: "Node denies an extension the network only from version 25 on",
+} as const;
+const EXTENSION_STEPS = { start: "start", initialize: "answer its handshake", run: "run an action" } as const;
+
 const ENTRY_KINDS = {
   link: "is a symbolic link",
   submodule: "is a submodule",
@@ -122,6 +132,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
+  "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
+  "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
   "git.refused-source": (p) =>
     `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,

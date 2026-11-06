@@ -2008,6 +2008,83 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "extension.refused"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "sandbox-unavailable",
+                "windows",
+                "protocol",
+                "actions",
+                "folder",
+                "runtime"
+              ]
+            }
+          },
+          "required": [
+            "extension",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "extension.failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "start",
+                "initialize",
+                "run"
+              ]
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "extension",
+            "step",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "git.too-large"
         },
         "params": {

@@ -1,8 +1,8 @@
 import { NotificationType, NotificationType0, RequestType, RequestType0 } from "vscode-jsonrpc";
 
 /**
- * The extension protocol version this SDK speaks. A manifest's `api` names the version its extension needs; the host starts a
- * extension only for the same major version and at least that minor one.
+ * The extension protocol version this SDK speaks. A manifest's `api` names the version its extension needs; the host
+ * starts an extension only for the same major version and at least that minor one.
  */
 export const PROTOCOL = "1.0";
 

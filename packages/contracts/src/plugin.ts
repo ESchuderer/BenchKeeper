@@ -74,23 +74,33 @@ const Capabilities = z.strictObject({
 
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 // A keyword whose text would make a validator load or register a schema from elsewhere: a reference out of this
-// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another plugin. A
-// key named `$ref` can also be a property's name; its value is then a schema, which `outside` looks into.
+// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another plugin.
 const foreign = (key: string, item: unknown): boolean => {
   if (typeof item !== "string") return false;
   if (key === "$ref" || key === "$dynamicRef") return item !== "" && !item.startsWith("#");
   return key === "$id" || (key === "$schema" && item !== DRAFT_2020_12);
 };
-const outside = (value: unknown): boolean =>
-  typeof value === "object" &&
-  value !== null &&
-  Object.entries(value).some(([key, item]) => foreign(key, item) || outside(item));
+// Keywords whose values are data, not schemas, and keywords whose values map any names (a property called `$ref`)
+// to schemas.
+const LITERALS = new Set(["const", "enum", "default", "examples"]);
+const SCHEMA_MAPS = new Set(["properties", "patternProperties", "dependentSchemas", "$defs", "definitions"]);
+/** Whether a schema, or a list of schemas, holds a foreign keyword anywhere. */
+const outside = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.some(outside);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).some(([key, item]) => {
+    if (LITERALS.has(key)) return false;
+    if (SCHEMA_MAPS.has(key)) return typeof item === "object" && item !== null && Object.values(item).some(outside);
+    return foreign(key, item) || outside(item);
+  });
+};
 
 const PluginAction = z.strictObject({
   title: z.string().min(1).max(200),
   description,
+  // JSON Schema 2020-12 allows `true` (any value) and `false` (none) as schemas too.
   config: z
-    .record(z.string(), JsonValue)
+    .union([z.boolean(), z.record(z.string(), JsonValue)])
     .refine((schema) => !outside(schema), "a schema that stays inside itself")
     .optional()
     .describe(
@@ -185,10 +195,10 @@ const userInfo = (value: string): string | undefined => {
   const at = authority.lastIndexOf("@");
   return at < 0 ? undefined : authority.slice(0, at);
 };
-const plain = (url: URL): boolean =>
-  host.test(url.hostname.toLowerCase()) && url.pathname.length > 1 && url.search === "" && url.hash === "";
+const plain = (url: URL): boolean => host.test(url.hostname.toLowerCase()) && url.pathname.length > 1;
 const isGitUrl = (value: string): boolean => {
-  if (!printable.test(value) || encodedControl.test(value)) return false;
+  // A query or fragment is no part of a Git URL, and a token there would escape git's own redaction.
+  if (!printable.test(value) || encodedControl.test(value) || /[?#]/.test(value)) return false;
   if (scpLike.test(value)) return true;
   // Git matches the scheme in lower case only.
   if (!/^(?:https|ssh):\/\//.test(value) || !URL.canParse(value)) return false;
@@ -199,7 +209,15 @@ const isGitUrl = (value: string): boolean => {
 };
 
 /** Where Git fetches a plugin: an https or ssh URL, or `user@host:path`. */
-const GitUrl = z.string().max(2048).refine(isGitUrl, "an https or ssh Git URL without a password, or user@host:path");
+const GitUrl = z
+  .string()
+  .max(2048)
+  // What a pattern can say: the scheme or user@host form, and printable ASCII without a backslash.
+  .regex(/^(?:https:\/\/|ssh:\/\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\]-~]*$/)
+  .refine(isGitUrl, "an https or ssh Git URL without a password, or user@host:path")
+  .describe(
+    "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~",
+  );
 
 const PluginPin = z.strictObject({
   version: semver,

@@ -32,7 +32,9 @@
             "properties": {
               "git": {
                 "type": "string",
-                "maxLength": 2048
+                "maxLength": 2048,
+                "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
               },
               "commit": {
                 "type": "string",

@@ -149,13 +149,10 @@ const manifestChanges: Change[] = [
 const lockChanges: Change[] = [
   ["a password in the URL", [...jira, "source", "git"], "https://bot:secret@git.example.org/acme/jira.git", false],
   ["a user over https", [...jira, "source", "git"], "https://bot@git.example.org/acme/jira.git", false],
+  ["a local repository", [...jira, "source", "git"], "file:///srv/jira.git", true],
+  ["a query in a user@host:path URL", [...jira, "source", "git"], "git@git.example.org:acme/jira.git?t=x", false],
   // The URL parser reads the backslash as "/" and sees no user; git sees user "git.example.org\\" and its password.
-  [
-    "a backslash before a password",
-    [...jira, "source", "git"],
-    "https://git.example.org\\:secret@127.0.0.1:1/a",
-    false,
-  ],
+  ["a backslash before a password", [...jira, "source", "git"], "https://git.example.org\\:secret@127.0.0.1:1/a", true],
   ["an empty user over https", [...jira, "source", "git"], "https://@git.example.org/acme/jira.git", false],
   ["an encoded line break", [...jira, "source", "git"], "https://git.example.org/acme/jira%0d%0ahost=x", false],
   ["501 plugins", ["plugins"], many(501, PluginLock.parse(lock).plugins["acme.jira"], "acme.p"), true],
@@ -241,15 +238,37 @@ test("each action's configuration schema compiles in Ajv's strict mode, and chec
   ]);
 });
 
-test("a configuration schema may refer to itself, name the 2020-12 meta-schema, and have properties named like keywords", () => {
+test("a configuration schema may refer to itself, name the 2020-12 meta-schema, hold keywords as data, or be a boolean", () => {
   const config = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     type: "object",
-    properties: { $id: { type: "string" }, $ref: { type: "string" }, child: { $ref: "" } },
+    properties: {
+      $id: { type: "string" },
+      $ref: { type: "string" },
+      child: { $ref: "" },
+      ticket: { const: { $id: "ticket-1" }, default: { $ref: "x" }, examples: [{ $schema: "y" }] },
+      kind: { enum: [{ $id: "a" }] },
+    },
   };
-  const changed = set(manifest, [...search, "config"], config);
-  expect([PluginManifest.safeParse(changed).success, ajv.compile(config)({ $id: "x", child: {} })]).toEqual([
+  const taken = [config, true, false].map((value) =>
+    PluginManifest.safeParse(set(manifest, [...search, "config"], value)),
+  );
+  expect([...taken.map((result) => result.success), ajv.compile(config)({ $id: "x", child: {} })]).toEqual([
+    true,
+    true,
     true,
     true,
   ]);
+});
+
+test("a foreign keyword is found in a subschema whatever the property is called, and in lists of subschemas", () => {
+  const configs = [
+    { properties: { const: { $ref: "https://x.example/s.json" } } },
+    { $defs: { enum: { $id: "other" } } },
+    { allOf: [{ type: "string" }, { $ref: "https://x.example/s.json" }] },
+    { items: { $schema: "https://x.example/meta" } },
+  ];
+  expect(
+    configs.map((config) => PluginManifest.safeParse(set(manifest, [...search, "config"], config)).success),
+  ).toEqual([false, false, false, false]);
 });

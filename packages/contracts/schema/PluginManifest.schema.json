@@ -166,13 +166,20 @@
               },
               "config": {
                 "description": "JSON Schema 2020-12 of the node's `with`: a `$ref` points inside it (`#...`), no `$id`, no other `$schema`",
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "$ref": "JsonValue.schema.json"
-                }
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "$ref": "JsonValue.schema.json"
+                    }
+                  }
+                ]
               },
               "inputs": {
                 "type": "object",

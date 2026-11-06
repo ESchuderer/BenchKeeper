@@ -14,8 +14,11 @@ export interface OverlayInput {
 const TOOLCHAINS = ["~/.nvm", "~/.local/share/pnpm", "~/Library/pnpm", "~/.cargo", "~/.local/bin", "~/.npm-global"];
 
 // The documented rule syntax: a tool name with an optional specifier in parentheses that holds no closing parenthesis,
-// an MCP tool without one, or a glob in the tool name such as mcp__github__* (https://code.claude.com/docs/en/permissions).
+// or an MCP tool without one. Deny and ask rules also take a glob in the tool name such as mcp__* or *; an allow rule
+// takes only a server's own wildcard, mcp__github__*, since 2.1.316 skips the others there
+// (https://code.claude.com/docs/en/permissions).
 const Rule = z.string().regex(/^(?:\*|[A-Z][A-Za-z]*(?:\([^)]+\))?|mcp__[\w*-]+)$/);
+const Allowed = z.string().regex(/^(?:[A-Z][A-Za-z]*(?:\([^)]+\))?|mcp__[\w-]+(?:__(?:[\w-]+|\*))?)$/);
 const Domain = z.string().regex(/^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d+)?$/i);
 const Paths = z.array(z.string().min(1));
 // A denied path is matched literally: one with a glob character is refused rather than escaped.
@@ -30,7 +33,7 @@ const rulePath = (path: string): string => {
 // One invalid value makes Claude Code skip the whole --settings object without a word, sandbox and deny rules
 // included (2.1.316 trial), so every value a launch puts in is checked before it starts.
 const Checked = z.looseObject({
-  permissions: z.looseObject({ allow: z.array(Rule), ask: z.array(Rule), deny: z.array(Rule) }),
+  permissions: z.looseObject({ allow: z.array(Allowed), ask: z.array(Rule), deny: z.array(Rule) }),
   sandbox: z.looseObject({
     filesystem: z.looseObject({ denyRead: Literal, denyWrite: Paths, allowRead: Paths }),
     network: z.looseObject({ allowedDomains: z.array(Domain) }),

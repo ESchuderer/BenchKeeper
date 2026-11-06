@@ -61,6 +61,7 @@ test("a worker may not read any account's home or the user's credential folders,
       home(".ssh"),
       home(".config", "gh"),
       home(".git-credentials"),
+      home(".cargo", "credentials.toml"),
       home("Library", "Keychains"),
     ]),
   );
@@ -98,6 +99,8 @@ test.skipIf(process.platform === "win32")("a gh that is killed or cannot start r
   // One that ignores SIGTERM is killed when the time is up.
   const stubborn = ghProbe({ ...env, FAKE_GH_STUBBORN: "1" }, gh, 500);
   await expect(stubborn).resolves.toMatchObject({ finding: { params: { error: "killed" } } });
+  // A path through a file: spawn throws ENOTDIR at once, which becomes the same typed refusal.
+  await expect(ghProbe(env, [join(gh[1], "gh")])).resolves.toMatchObject({ finding: { params: { error: "ENOTDIR" } } });
   // The fixture is no executable: spawning it fails with EACCES.
   await expect(ghProbe(env, [gh[1]])).resolves.toMatchObject({ finding: { params: { error: "EACCES" } } });
 });

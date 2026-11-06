@@ -44,6 +44,9 @@ const CREDENTIALS = [
   ".netrc",
   ".npmrc",
   ".git-credentials",
+  // allowRead reopens ~/.cargo for toolchains; the narrower deny keeps its tokens out.
+  join(".cargo", "credentials.toml"),
+  join(".cargo", "credentials"),
   join(".config", "git", "credentials"),
   join(".config", "gh"),
   join(".config", "gcloud"),

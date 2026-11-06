@@ -18,18 +18,25 @@ export const ghProbe = async (
 ): Promise<Result<null>> => {
   const [file, ...prefix] = command;
   const without = Object.fromEntries(Object.entries(env).filter(([name]) => name.toUpperCase() !== "GH_TOKEN"));
-  // SIGKILL on the timeout: a gh that ignores SIGTERM would keep the launch waiting.
-  const child = spawn(file, [...prefix, "auth", "token"], {
-    env: without,
-    stdio: "ignore",
-    timeout: timeoutMs,
-    killSignal: "SIGKILL",
-    windowsHide: true,
-  });
   // An exit code (0: gh has a token), a spawn error code such as EACCES, or "killed" when it ended by a signal.
   const outcome = await new Promise<number | string>((resolve) => {
-    child.once("error", (error) => resolve(String(Reflect.get(error, "code"))));
-    child.once("exit", (code) => resolve(code ?? "killed"));
+    const failed = (error: unknown) => resolve(String(Reflect.get(Object(error), "code")));
+    try {
+      // SIGKILL on the timeout: a gh that ignores SIGTERM would keep the launch waiting.
+      const options = {
+        env: without,
+        stdio: "ignore",
+        timeout: timeoutMs,
+        killSignal: "SIGKILL",
+        windowsHide: true,
+      } as const;
+      const child = spawn(file, [...prefix, "auth", "token"], options);
+      child.once("error", failed);
+      child.once("exit", (code) => resolve(code ?? "killed"));
+    } catch (error) {
+      // Some spawn errors, such as ENOTDIR, are thrown at once rather than emitted.
+      failed(error);
+    }
   });
   if (NO_TOKEN.has(outcome)) return { ok: true, value: null };
   return { ok: false, finding: { code: "launch.gh-login", params: { error: outcome === 0 ? null : String(outcome) } } };

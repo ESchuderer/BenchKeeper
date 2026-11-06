@@ -15,7 +15,7 @@ import {
   resultPrompt,
   workerEnv,
 } from "@cedarloom/orchestration";
-import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
+import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownHome } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
@@ -108,12 +108,18 @@ interface Prepared<L extends Launch> {
 }
 
 // The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
-// a login of its own.
+// a login of its own, and for an account outside its own home, so nothing is written into another tool's.
 const decide = async <L extends Launch>(
   state: string,
   registry: AccountRegistry,
   { request, host, account }: { request: WorkerRequest<L>; host: LaunchHost; account: Account },
 ): Promise<Result<Prepared<L>>> => {
+  if (account.home !== ownHome(state, account.name)) {
+    return {
+      ok: false,
+      finding: { code: "accounts.home-not-own", params: { account: account.name, home: account.home } },
+    };
+  }
   const runId = randomUUID();
   const { dir, tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);
   const { parent, platform, home } = host;

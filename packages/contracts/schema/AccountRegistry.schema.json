@@ -52,6 +52,14 @@
             "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)",
             "description": "The account's config folder (CLAUDE_CONFIG_DIR or CODEX_HOME); its login stays there"
           },
+          "aliases": {
+            "description": "Other tools' config folders of the same account, for readings only: nothing is written into them",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+            }
+          },
           "pool": {
             "anyOf": [
               {

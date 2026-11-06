@@ -30,6 +30,10 @@ const Account = z.strictObject({
   agent: Agent,
   label: z.string().max(80).optional(),
   home: AbsolutePath.describe("The account's config folder (CLAUDE_CONFIG_DIR or CODEX_HOME); its login stays there"),
+  aliases: z
+    .array(AbsolutePath)
+    .optional()
+    .describe("Other tools' config folders of the same account, for readings only: nothing is written into them"),
   pool: Name.nullable(),
   minimum: Minimums.partial().optional().describe("The account's own minimums, in place of the registry's"),
   added: z.iso.datetime(),
@@ -47,9 +51,18 @@ const Pool = z.strictObject({
     .describe("The accounts the confirmation named; once the pool's accounts differ, it counts as unconfirmed"),
 });
 
+// An account's folders with their paths in the registry: its home, then its aliases.
+const folders = (account: z.infer<typeof Account>, index: number): [string, (string | number)[]][] => [
+  [account.home, ["accounts", index, "home"]],
+  ...(account.aliases ?? []).map((alias, at): [string, (string | number)[]] => [
+    alias,
+    ["accounts", index, "aliases", at],
+  ]),
+];
+
 /**
  * The accounts by config folder, their pools per agent and the minimums: never a credential, as every object is strict.
- * Names and folders are unique, and an account's pool is one of its agent's pools.
+ * Names and folders, homes and aliases alike, are unique, and an account's pool is one of its agent's pools.
  */
 export const AccountRegistry = z
   .strictObject({
@@ -60,14 +73,15 @@ export const AccountRegistry = z
   })
   .superRefine((registry, ctx) => {
     // shortcut: folders compare as written, so a trailing slash or other case passes; normalize once an edit command exists.
-    const seen = { name: new Set<string>(), home: new Set<string>() };
+    const names = new Set<string>();
+    const taken = new Set<string>();
+    const claim = (seen: Set<string>, value: string, path: (string | number)[]) => {
+      if (seen.has(value)) ctx.addIssue({ code: "custom", path, message: "taken" });
+      seen.add(value);
+    };
     for (const [index, account] of registry.accounts.entries()) {
-      for (const key of ["name", "home"] as const) {
-        if (seen[key].has(account[key])) {
-          ctx.addIssue({ code: "custom", path: ["accounts", index, key], message: "taken" });
-        }
-        seen[key].add(account[key]);
-      }
+      claim(names, account.name, ["accounts", index, "name"]);
+      for (const [folder, path] of folders(account, index)) claim(taken, folder, path);
       // Own keys only: a pool named constructor, the one inherited property the name rule admits, is not declared.
       if (account.pool !== null && !Object.hasOwn(registry.pools[account.agent] ?? {}, account.pool)) {
         ctx.addIssue({

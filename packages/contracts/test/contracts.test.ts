@@ -68,6 +68,7 @@ const issuePaths = (read: Result<unknown>): string[] =>
 
 // Each invalid registry breaks in one place, the one its name promises; a credential is an unknown key.
 const promisedAccounts: Record<string, string[]> = {
+  "invalid-alias-of-other-home.json": ["accounts.1.aliases.1"],
   "invalid-confirmed-codex-pool.json": ["pools.codex.main.confirmedAt"],
   "invalid-duplicate-home.json": ["accounts.1.home"],
   "invalid-duplicate-name.json": ["accounts.1.name"],

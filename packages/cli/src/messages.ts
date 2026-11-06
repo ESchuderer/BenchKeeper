@@ -101,6 +101,14 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
     'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
     "usage limit counts as one is not stated.",
+  "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.login-unsupported": (p) =>
+    `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
+  "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
+  "accounts.home-not-own": (p) =>
+    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+  "accounts.login-failed": (p) =>
+    `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

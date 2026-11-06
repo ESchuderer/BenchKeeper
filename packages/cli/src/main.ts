@@ -3,8 +3,10 @@ import { Agent } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, Option } from "@commander-js/extra-typings";
 import {
   accountsConfirm,
+  accountsHome,
   accountsImport,
   accountsList,
+  accountsLogin,
   doctor,
   levelCommand,
   modeCommand,
@@ -82,6 +84,19 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .addOption(new Option("--agent <agent>", "the pool's agent").choices(Agent.options).default("claude" as const))
     .option("--yes", "confirm as planned now")
     .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
+  accounts
+    .command("home")
+    .description(
+      "show the move of an account into its own home on this machine; with --yes, make it, keeping the old folder as an alias",
+    )
+    .argument("<account>")
+    .option("--yes", "move as planned now")
+    .action((name, options) => done(accountsHome(ctx(), name, options)));
+  accounts
+    .command("login")
+    .description("log an account in with the agent's own login, in its own home")
+    .argument("<account>")
+    .action((name) => done(accountsLogin(ctx(), name)));
 };
 
 const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {

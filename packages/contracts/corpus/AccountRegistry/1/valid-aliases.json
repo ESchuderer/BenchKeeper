@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "minimum": {
+    "fiveHour": 8,
+    "sevenDay": 3
+  },
+  "accounts": [
+    {
+      "name": "work",
+      "agent": "claude",
+      "home": "/home/dev/.local/state/cedarloom/homes/work",
+      "aliases": [
+        "/home/dev/Library/Application Support/orca/claude-profiles/1/home"
+      ],
+      "pool": null,
+      "added": "2026-11-02T09:00:00.000Z"
+    }
+  ],
+  "pools": {}
+}

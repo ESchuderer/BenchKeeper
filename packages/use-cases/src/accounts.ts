@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
 import {
+  type Account,
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   type Agent,
@@ -12,6 +13,7 @@ import {
   readDocument,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
+import { cleanEnv } from "@cedarloom/orchestration";
 import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
@@ -79,6 +81,98 @@ export const planConfirm = (
     operations: [{ kind: "write", path, before: sha256(text), content: formatRegistry(next) }],
   };
   return { ok: true, value: { plan, findings: [{ code: "accounts.pool-terms", params: { pool } }] } };
+};
+
+/**
+ * The account's own config folder on this machine, below the state folder. Workers run, and the login happens, only
+ * there, so nothing is written into another tool's folder (owner decision "Worker homes", 2026-11-06).
+ */
+export const ownHome = (state: string, name: string): string => join(state, "homes", name);
+
+interface Read {
+  readonly path: string;
+  readonly text: string;
+  readonly registry: AccountRegistry;
+  readonly account: Account;
+}
+
+// The registry file with its text and the account `name`, refused when there is none or it is not Claude Code's.
+const readAccount = (config: string, name: string): Result<Read> => {
+  const path = registryPath(config);
+  const read = readRegistry(path);
+  if (!read.ok) return read;
+  const account = read.value.registry.accounts.find((each) => each.name === name);
+  if (account === undefined)
+    return { ok: false, finding: { code: "accounts.unknown-account", params: { account: name } } };
+  if (account.agent !== "claude") {
+    return {
+      ok: false,
+      finding: { code: "accounts.login-unsupported", params: { account: name, agent: account.agent } },
+    };
+  }
+  return { ok: true, value: { path, ...read.value, account } };
+};
+
+/**
+ * Plans moving account `name` into its own home: the registry names that folder, and the folder it named before stays
+ * as an alias, read for usage only. The plan is null when the account is in its own home already.
+ */
+export const planHome = (config: string, state: string, name: string): Result<{ plan: Plan | null; home: string }> => {
+  const read = readAccount(config, name);
+  if (!read.ok) return read;
+  const { path, text, registry, account } = read.value;
+  const home = ownHome(state, account.name);
+  if (account.home === home) return { ok: true, value: { plan: null, home } };
+  if (registry.accounts.some((each) => each.home === home || each.aliases?.includes(home))) {
+    return { ok: false, finding: { code: "accounts.folder-taken", params: { path: home } } };
+  }
+  const moved = { ...account, home, aliases: [...(account.aliases ?? []), account.home] };
+  const next = { ...registry, accounts: registry.accounts.map((each) => (each === account ? moved : each)) };
+  const content = formatRegistry(next);
+  return {
+    ok: true,
+    value: { plan: { schemaVersion: 1, operations: [{ kind: "write", path, before: sha256(text), content }] }, home },
+  };
+};
+
+/** How the agent's login ended: its exit code, or null with the error when it did not start. */
+export interface LoginRun {
+  readonly code: number | null;
+  readonly error?: string;
+}
+
+/** Where a login runs: the launcher's environment and platform, and `run`, which starts the agent's login with `env`. */
+export interface LoginHost {
+  readonly parent: Readonly<Record<string, string | undefined>>;
+  readonly platform: NodeJS.Platform;
+  readonly run: (env: Record<string, string>) => LoginRun;
+}
+
+/**
+ * Runs the agent's own login (`claude auth login`, through `run`) in the account's own home, which it creates for the
+ * owner only. The login gets the clean environment of every agent process and the terminal's type for its prompts.
+ */
+export const loginAccount = (
+  config: string,
+  state: string,
+  name: string,
+  { parent, platform, run }: LoginHost,
+): Result<{ home: string }> => {
+  const read = readAccount(config, name);
+  if (!read.ok) return read;
+  const { account } = read.value;
+  const home = ownHome(state, account.name);
+  if (account.home !== home) {
+    return {
+      ok: false,
+      finding: { code: "accounts.home-not-own", params: { account: account.name, home: account.home } },
+    };
+  }
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  const ran = run({ ...cleanEnv(parent, platform, ["TERM"]), CLAUDE_CONFIG_DIR: home });
+  if (ran.code === 0) return { ok: true, value: { home } };
+  const error = ran.error ?? `exit code ${ran.code}`;
+  return { ok: false, finding: { code: "accounts.login-failed", params: { account: account.name, error } } };
 };
 
 /** How many workers run on one account at once: two per Claude Code account, one per Codex home. */

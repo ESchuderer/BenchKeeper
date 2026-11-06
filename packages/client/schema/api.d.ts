@@ -986,6 +986,39 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1550,6 +1583,39 @@ export interface components {
             code: "accounts.pool-terms";
             params: {
                 pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
             };
         } | {
             /** @constant */

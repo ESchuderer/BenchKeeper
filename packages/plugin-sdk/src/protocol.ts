@@ -19,8 +19,8 @@ export type RunResult = { outputs: Record<string, unknown> };
 /** The host cancels a run with the protocol's `$/cancelRequest`. */
 export const runAction = new RequestType<RunParams, RunResult, void>("action/run");
 
-/** A line for the run's log, which the host bounds and redacts. */
-export type LogParams = { level: "info" | "warning" | "error"; message: string };
+/** A line for the log of a run, which the host bounds and redacts. */
+export type LogParams = { run: string; level: "info" | "warning" | "error"; message: string };
 export const log = new NotificationType<LogParams>("host/log");
 
 /** The host ends a plugin with `shutdown`, then `exit`. */

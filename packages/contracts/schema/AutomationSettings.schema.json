@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AutomationSettings.schema.json",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "default": {
+      "type": "string",
+      "enum": [
+        "supervised",
+        "checkpoint",
+        "auto"
+      ]
+    },
+    "projects": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "supervised",
+          "checkpoint",
+          "auto"
+        ]
+      }
+    },
+    "modeScope": {
+      "type": "string",
+      "enum": [
+        "running",
+        "until-off"
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "default",
+    "projects"
+  ],
+  "additionalProperties": false
+}

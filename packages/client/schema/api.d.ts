@@ -986,6 +986,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "automation.unknown-folder";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.agent-unavailable";
             params: {
                 agent: string;
@@ -1544,6 +1550,12 @@ export interface components {
             code: "accounts.pool-terms";
             params: {
                 pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "automation.unknown-folder";
+            params: {
+                path: string;
             };
         } | {
             /** @constant */

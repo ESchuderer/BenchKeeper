@@ -2839,13 +2839,66 @@
                       "no-manifest",
                       "entry",
                       "protocol",
-                      "installed"
+                      "installed",
+                      "id"
                     ]
                   }
                 },
                 "required": [
                   "extension",
                   "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.consent-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
                 ],
                 "additionalProperties": false
               }
@@ -6272,13 +6325,66 @@
                       "no-manifest",
                       "entry",
                       "protocol",
-                      "installed"
+                      "installed",
+                      "id"
                     ]
                   }
                 },
                 "required": [
                   "extension",
                   "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.consent-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
                 ],
                 "additionalProperties": false
               }

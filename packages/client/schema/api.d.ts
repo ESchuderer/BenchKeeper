@@ -1222,7 +1222,19 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+            };
+        } | {
+            /** @constant */
+            code: "extension.unknown";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.consent-needed";
+            params: {
+                extension: string;
             };
         } | {
             /** @constant */
@@ -1968,7 +1980,19 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+            };
+        } | {
+            /** @constant */
+            code: "extension.unknown";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.consent-needed";
+            params: {
+                extension: string;
             };
         } | {
             /** @constant */

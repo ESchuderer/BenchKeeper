@@ -1474,6 +1474,62 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "workflow.report-only-plugin"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "node": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "workflow.plugin-missing"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "node": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "node",
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "workflow.unreachable"
         },
         "params": {

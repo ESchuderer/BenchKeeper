@@ -1,11 +1,12 @@
 import { type Finding, type HandleType, NODE_CONFIGS, type WorkflowDefinition } from "@cedarloom/contracts";
-import { compatibility, NODE_TYPES, type NodeType, own } from "./graph.ts";
+import { type ActionCatalog, compatibility, isPluginType, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
 type Resolved = HandleType | Finding | null;
 type Graph = {
   workflow: WorkflowDefinition;
+  actions: ActionCatalog;
   /** One node and one edge per id, the first of duplicates (a finding of its own), in document order. */
   nodes: WorkflowDefinition["nodes"];
   edges: Edge[];
@@ -30,21 +31,34 @@ const duplicates = ({ workflow }: Graph): Finding[] =>
 
 const isTrigger = (node: { type: string }): boolean => node.type.startsWith("trigger.");
 
-const nodeFindings = ({ nodes }: Graph): Finding[] => {
+type Node = WorkflowDefinition["nodes"][number];
+
+/** The issues of a node's `with` (checked as `{}` when absent), or a finding when its type is unknown. */
+const configIssues = (node: Node, actions: ActionCatalog): { path: string; code: string }[] | Finding => {
+  // A plugin action the catalog lacks is not installed: the workflow is fine, but cannot run here.
+  if (isPluginType(node.type)) {
+    const action = actions.get(node.type);
+    return (
+      action?.check(node.with ?? {}) ?? { code: "workflow.plugin-missing", params: { node: node.id, type: node.type } }
+    );
+  }
+  const schema = own(NODE_CONFIGS, node.type);
+  // NODE_CONFIGS names the same types as NODE_TYPES (a test checks it).
+  if (own(NODE_TYPES, node.type) === undefined || schema === undefined) {
+    return { code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } };
+  }
+  const config = schema.safeParse(node.with ?? {});
+  return config.success ? [] : config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
+};
+
+const nodeFindings = ({ nodes, actions }: Graph): Finding[] => {
   const triggers = nodes.filter(isTrigger).length;
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
     ...nodes.flatMap((node): Finding[] => {
-      const schema = own(NODE_CONFIGS, node.type);
-      // NODE_CONFIGS names the same types as NODE_TYPES (a test checks it).
-      if (own(NODE_TYPES, node.type) === undefined || schema === undefined) {
-        return [{ code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } }];
-      }
-      // A node without `with` is checked as `{}`, so a type that needs configuration says what is missing.
-      const config = schema.safeParse(node.with ?? {});
-      if (config.success) return [];
-      const issues = config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
-      return [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];
+      const issues = configIssues(node, actions);
+      if (!Array.isArray(issues)) return [issues];
+      return issues.length === 0 ? [] : [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];
     }),
   ];
 };
@@ -180,13 +194,16 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 
 /**
  * A28: a run a schedule starts only reports in 0.1.0, so its workflow has no node that may write a file: no file.write,
- * and no workflow.run, whose child the validator cannot see.
+ * and no workflow.run, whose child the validator cannot see. No plugin action either, which may write through the
+ * host or change other systems (pending owner decision).
  */
 const reportOnly = ({ nodes }: Graph): Finding[] =>
   nodes.some((node) => node.type === "trigger.schedule")
-    ? nodes
-        .filter((node) => node.type === "file.write" || node.type === "workflow.run")
-        .map((node): Finding => ({ code: "workflow.report-only-write", params: { node: node.id } }))
+    ? nodes.flatMap((node): Finding[] => {
+        if (isPluginType(node.type)) return [{ code: "workflow.report-only-plugin", params: { node: node.id } }];
+        const writes = node.type === "file.write" || node.type === "workflow.run";
+        return writes ? [{ code: "workflow.report-only-write", params: { node: node.id } }] : [];
+      })
     : [];
 
 const strays = ({ workflow, types }: Graph): Finding[] =>
@@ -260,12 +277,12 @@ const valid = ({ from, to }: Item): boolean => typeof from === "string" && typeo
 /**
  * The findings of a workflow's graph, beyond its schema: duplicate ids, one trigger, known node types, edges between
  * existing, compatible handles, one source per data input and output, joins with branches, no cycle, and every node
- * reached. Edges of nodes of an unknown type get no further findings. None with severity `error`: the editor and the
- * CLI accept the workflow.
+ * reached. Edges of nodes of an unknown type, or of a plugin action `actions` lacks, get no further findings. None with
+ * severity `error`: the editor and the CLI accept the workflow.
  */
-export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
+export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCatalog = new Map()): Finding[] => {
   const [nodes, edges] = [unique(workflow.nodes), unique(workflow.edges)];
-  const types = new Map(nodes.map((node) => [node.id, own(NODE_TYPES, node.type)]));
+  const types = new Map(nodes.map((node) => [node.id, nodeType(node.type, actions)]));
   const lookup = { workflow, types };
   const resolved = edges.map((edge) => ({
     edge,
@@ -278,7 +295,15 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     types.has(from.node) &&
     types.has(to.node) &&
     (type === "control" || typeof type !== "string");
-  const graph = { ...lookup, nodes, edges, resolved, next: links(resolved, valid), reach: links(resolved, named) };
+  const graph = {
+    ...lookup,
+    actions,
+    nodes,
+    edges,
+    resolved,
+    next: links(resolved, valid),
+    reach: links(resolved, named),
+  };
   const checks = [
     duplicates,
     nodeFindings,

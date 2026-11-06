@@ -46,6 +46,38 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "workflow.run": { inputs: run, outputs: ended },
 };
 
+type DataType = Exclude<HandleType, "control">;
+
+/**
+ * A plugin action as the validator and the editor see it: its data handles, and the check of a node's `with` against
+ * the action's JSON Schema, which the plugin host supplies (the engine holds no JSON Schema validator).
+ */
+export type PluginAction = {
+  inputs: Readonly<Record<string, { type: DataType; required?: boolean }>>;
+  outputs: Readonly<Record<string, { type: DataType }>>;
+  check: (config: unknown) => { path: string; code: string }[];
+};
+/** The installed plugins' actions by node type, `<plugin id>/<action>`. */
+export type ActionCatalog = ReadonlyMap<string, PluginAction>;
+
+/** Whether a node type names a plugin action, `publisher.name/action`; any other type is built in or unknown. */
+export const isPluginType = (type: string): boolean =>
+  /^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9-]{0,63}$/.test(type);
+
+/** The handles of a node of a type: a built-in one, or an action of the catalog, which `run` starts like a command. */
+export const nodeType = (type: string, actions: ActionCatalog): NodeType | undefined => {
+  const action = isPluginType(type) ? actions.get(type) : undefined;
+  if (action === undefined) return own(NODE_TYPES, type);
+  const inputs = Object.entries(action.inputs).map(([name, { type: data, required }]) => [
+    name,
+    required === true ? { type: data, required } : { type: data },
+  ]);
+  return {
+    inputs: { ...Object.fromEntries(inputs), ...run },
+    outputs: { ...action.outputs, ...ended },
+  };
+};
+
 type End = WorkflowDefinition["edges"][number]["from"] | WorkflowDefinition["edges"][number]["to"];
 
 type Field = { input: string } | { output: string };

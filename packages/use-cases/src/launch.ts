@@ -19,6 +19,7 @@ import {
 import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { type FetchTree, workflowPlugin } from "./plugins.ts";
+import type { TelemetryReceiver } from "./telemetry.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 /** What the launcher decided for one worker; the adapter's launch options take these as they are. */
@@ -33,6 +34,7 @@ export type Decided = Pick<
   | "allowedDomains"
   | "verifiedVersions"
   | "pluginDirs"
+  | "telemetry"
 > & { readonly runId: string; readonly account: Account };
 
 export interface WorkerRequest<L extends Launch> extends AccountRequest {
@@ -59,6 +61,8 @@ export interface LaunchHost {
   readonly managedDir?: string | null;
   /** Reads the marketplace's plugins at the pinned commit; the git package's fetch over https when unset. */
   readonly fetchTree?: FetchTree;
+  /** The launcher's receiver of its workers' OpenTelemetry logs; telemetry stays off when unset. */
+  readonly telemetry?: TelemetryReceiver;
 }
 
 // Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
@@ -116,7 +120,10 @@ const refused = <T>(dir: string, result: Result<T> & { ok: false }): Result<neve
 interface Prepared<L extends Launch> {
   readonly runId: string;
   readonly dir: string;
-  readonly build: (verifiedVersions: readonly string[]) => L;
+  /** The launch, exporting telemetry when `exports` is set: the run does, its contract probe does not. */
+  readonly build: (verifiedVersions: readonly string[], exports: boolean) => L;
+  /** Ends the run's telemetry token. */
+  readonly release: () => void;
 }
 
 // The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
@@ -148,9 +155,21 @@ const decide = async <L extends Launch>(
     allowedDomains: GITHUB_DOMAINS,
     pluginDirs: plugin === null ? [] : [plugin],
   };
+  // A token of the run's own, so its posts count for this run and account only.
+  const { telemetry: receiver } = host;
+  const token = receiver?.register({ runId, account: account.name });
+  const telemetry = receiver === undefined || token === undefined ? null : { endpoint: receiver.endpoint, token };
   return {
     ok: true,
-    value: { runId, dir, build: (verifiedVersions) => request.launch({ ...fixed, verifiedVersions }) },
+    value: {
+      runId,
+      dir,
+      build: (verifiedVersions, exports) =>
+        request.launch({ ...fixed, verifiedVersions, telemetry: exports ? telemetry : null }),
+      release: () => {
+        if (token !== undefined) receiver?.release(token);
+      },
+    },
   };
 };
 
@@ -298,8 +317,21 @@ export const launchWorker = async <L extends Launch>(
   const account = selection.value.account;
   const prepared = await decide(state, accounts, { request, host, account });
   if (!prepared.ok) return prepared;
-  const { runId, dir, build } = prepared.value;
-  const probe = build([]);
+  try {
+    return await startRun(state, request, account, prepared.value);
+  } finally {
+    prepared.value.release();
+  }
+};
+
+// After the launch is decided: the version check, the lease, and the run on it.
+const startRun = async <L extends Launch>(
+  state: string,
+  request: WorkerRequest<L>,
+  account: Account,
+  { runId, dir, build }: Prepared<L>,
+): Promise<Result<WorkerOutcome>> => {
+  const probe = build([], false);
   const { agent, task, runtime } = request;
   const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe, account: account.name });
   if (!checked.ok) return refused(dir, checked);
@@ -322,5 +354,5 @@ export const launchWorker = async <L extends Launch>(
     labels,
   });
   if (!held.ok) return refused(dir, held);
-  return runLeased(state, runtime, () => build(verified), held.value);
+  return runLeased(state, runtime, () => build(verified, true), held.value);
 };

@@ -20,6 +20,7 @@ import {
   launchWorker,
   MAX_CONCURRENT,
   ownHome,
+  startTelemetry,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -254,6 +255,24 @@ const fill = (state: string, account: string, from: number) =>
   );
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
+
+test("a worker's API requests reach its run's token rows through the receiver, and its token ends with the run", async () => {
+  const { state, config, work } = setup();
+  const receiver = await startTelemetry(state);
+  const release = vi.spyOn(receiver, "release");
+  try {
+    const otlp = join(import.meta.dirname, "fixtures", "otlp-logs.jsonl");
+    const sent = request(work, { result: passing, runEnv: { FAKE_OTLP: otlp } });
+    const outcome = await launchWorker(state, config, sent, { ...host, telemetry: receiver });
+    expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", verdict: "pass" } });
+    const runId = outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null;
+    // The rows carry the run and account the token names; the probe before the run exported nothing.
+    expect(withLedger(state, (store) => store.tokenRows())).toMatchObject([{ runId, account: "work", inputTokens: 2 }]);
+    expect(release).toHaveBeenCalledTimes(1);
+  } finally {
+    await receiver.close();
+  }
+});
 
 test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {
   const { state, config, work } = setup();

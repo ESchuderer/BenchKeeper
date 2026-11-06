@@ -112,7 +112,7 @@ const newerStore = (): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 10 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 11 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -321,7 +321,8 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-const DROP_GRAPH = "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs;";
+const DROP_GRAPH =
+  "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; DROP TABLE token_rows;";
 
 test("a store of schema 1 gains the account, check, launch and mode tables on open and keeps its runs", () => {
   const dir = fresh();
@@ -337,7 +338,7 @@ test("a store of schema 1 gains the account, check, launch and mode tables on op
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 11 });
   after.close();
 });
 
@@ -655,6 +656,37 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   db.exec("ALTER TABLE launches DROP COLUMN plugins; PRAGMA user_version = 8");
   db.close();
   expect(latest()).toBeNull();
+});
+
+// One API request of a worker's session, as the telemetry receiver keeps it.
+const tokenRow = {
+  runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e61",
+  account: "work",
+  sessionId: "s1",
+  model: "claude-haiku-5-5",
+  querySource: "sdk",
+  effort: "low",
+  inputTokens: 2,
+  outputTokens: 4,
+  cacheReadTokens: 0,
+  cacheCreationTokens: 21226,
+  cacheCreation5mTokens: 0,
+  cacheCreation1hTokens: 21226,
+  costUsdMicros: 4247,
+  durationMs: 1126,
+  requestId: "req_1",
+  agentVersion: "2.1.316",
+  at: "2026-11-06T21:24:15.848Z",
+} as const;
+
+test("a run's token rows are kept as the receiver passes them, read per run, and refused when they are no token row", () => {
+  const store = opened(fresh());
+  const other = { ...tokenRow, runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62", sessionId: null, effort: null };
+  store.recordTokenRows([tokenRow, other]);
+  expect(store.tokenRows()).toEqual([tokenRow, other]);
+  expect(store.tokenRows(tokenRow.runId)).toEqual([tokenRow]);
+  expect(() => store.recordTokenRows([{ ...tokenRow, inputTokens: -1 }])).toThrow(/too_small|>=0/);
+  expect(store.tokenRows()).toHaveLength(2);
 });
 
 const sample = {

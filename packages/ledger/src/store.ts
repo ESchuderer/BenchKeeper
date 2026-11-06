@@ -13,6 +13,7 @@ import {
   type Finding,
   PLAN_SCHEMA_VERSION,
   ModeSwitch,
+  TokenRow,
   UsageSample,
   Plan,
   Reading,
@@ -33,6 +34,7 @@ import {
   MODE_TABLES,
   PROJECT_TABLES,
   TABLES,
+  TOKEN_TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
 
@@ -49,6 +51,7 @@ const MIGRATIONS = [
   GRAPH_TABLES,
   PLUGIN_TABLES,
   PROJECT_TABLES,
+  TOKEN_TABLES,
 ];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
@@ -394,6 +397,25 @@ export class RunStore extends RunView {
          WHERE excluded.readAt >= readings.readAt`,
       )
       .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
+  }
+
+  /** Keeps the token rows of one telemetry post, in one transaction; a row that is no TokenRow throws, and none is kept. */
+  recordTokenRows(input: readonly TokenRow[]): void {
+    const rows = input.map((row) => TokenRow.parse(row));
+    const insert = this.db.prepare(
+      `INSERT INTO token_rows VALUES (:runId, :account, :sessionId, :model, :querySource, :effort, :inputTokens,
+       :outputTokens, :cacheReadTokens, :cacheCreationTokens, :cacheCreation5mTokens, :cacheCreation1hTokens,
+       :costUsdMicros, :durationMs, :requestId, :agentVersion, :at)`,
+    );
+    transaction(this.db, () => {
+      for (const row of rows) insert.run(row);
+    });
+  }
+
+  /** The token rows, of one run when `runId` is given, in the order they were kept. */
+  tokenRows(runId?: string): TokenRow[] {
+    const select = this.db.prepare("SELECT * FROM token_rows WHERE ?1 IS NULL OR runId = ?1 ORDER BY rowid");
+    return select.all(runId ?? null).map((row) => TokenRow.parse(row));
   }
 
   /**

@@ -126,6 +126,24 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 // variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
 // CLAUDE_CODE_USE_POWERSHELL_TOOL is kept: it turns a tool on or off and selects no login.
 const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_TOOL$))/i;
+// Telemetry is the adapter's alone: no exporter, endpoint or content flag of the launch's environment reaches the CLI.
+const TELEMETRY = /^(?:OTEL_|CLAUDE_CODE_ENABLE_TELEMETRY$)/i;
+
+// OpenTelemetry logs only, to the launcher's loopback receiver with the run's token, metrics off, and no content flag
+// (https://code.claude.com/docs/en/monitoring-usage); the receiver keeps the api_request events. Process environment
+// only: Claude Code reads these at startup.
+const telemetryEnv = (telemetry: ClaudeLaunch["telemetry"]): Record<string, string> =>
+  telemetry === null
+    ? {}
+    : {
+        CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+        OTEL_LOGS_EXPORTER: "otlp",
+        OTEL_METRICS_EXPORTER: "none",
+        OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+        OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: telemetry.endpoint,
+        OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Bearer ${telemetry.token}`,
+        OTEL_METRICS_INCLUDE_VERSION: "true",
+      };
 const OWN_NAMES = new Set([
   "CLAUDE_CODE_SIMPLE",
   "CLAUDE_CONFIG_DIR",
@@ -145,8 +163,11 @@ const OWN_NAMES = new Set([
  */
 export const launchEnv = (launch: ClaudeLaunch): Record<string, string> => ({
   ...Object.fromEntries(
-    Object.entries(launch.env).filter(([name]) => !OWN_NAMES.has(name.toUpperCase()) && !LOGIN.test(name)),
+    Object.entries(launch.env).filter(
+      ([name]) => !OWN_NAMES.has(name.toUpperCase()) && !LOGIN.test(name) && !TELEMETRY.test(name),
+    ),
   ),
+  ...telemetryEnv(launch.telemetry),
   ...WORKER_VARIABLES,
   ...pinned(launch),
   // Read from the process environment only, so it is not repeated in the settings.

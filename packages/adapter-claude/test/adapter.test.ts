@@ -28,6 +28,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
   pluginDirs: [],
+  telemetry: null,
   ...change,
 });
 
@@ -149,6 +150,32 @@ test("the login status of a home is read from claude auth status, and anything e
     kind: "unknown",
     error: expect.stringContaining("ENOENT"),
   });
+});
+
+test("a launch with a receiver exports its logs only there, with its token and no content flags", async () => {
+  // The launch's own telemetry variables never reach the CLI, whatever they say.
+  const own = {
+    OTEL_LOG_USER_PROMPTS: "1",
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://elsewhere",
+    CLAUDE_CODE_ENABLE_TELEMETRY: "0",
+  };
+  const telemetry = { endpoint: "http://127.0.0.1:4318/v1/logs", token: "t0k" };
+  const on = started(await events(runtime.start(launch(own, { telemetry }))));
+  expect(on.env).toMatchObject({
+    CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+    OTEL_LOGS_EXPORTER: "otlp",
+    OTEL_METRICS_EXPORTER: "none",
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: telemetry.endpoint,
+    OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer t0k",
+    OTEL_METRICS_INCLUDE_VERSION: "true",
+  });
+  const off = started(await events(runtime.start(launch(own))));
+  for (const name of ["OTEL_LOG_USER_PROMPTS", "OTEL_EXPORTER_OTLP_ENDPOINT"]) expect(on.env).not.toHaveProperty(name);
+  // Without a receiver telemetry stays off.
+  for (const name of Object.keys({ ...own, OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: "" })) {
+    expect(off.env).not.toHaveProperty(name);
+  }
 });
 
 test("maps the stream-json lines to events", async () => {

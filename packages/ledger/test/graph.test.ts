@@ -276,7 +276,7 @@ test("a store of schema 9 gains the project folder when a graph store opens it, 
   before.release();
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("ALTER TABLE graph_runs DROP COLUMN project; PRAGMA user_version = 9");
+  db.exec("ALTER TABLE graph_runs DROP COLUMN project; DROP TABLE token_rows; PRAGMA user_version = 9");
   db.close();
   expect(openGraphStore(dir, () => "nfs4")).toEqual({
     ok: false,
@@ -304,7 +304,7 @@ test("a store of schema 9 gains the project folder when a graph store opens it, 
   ]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   expect([after.prepare("PRAGMA user_version").get(), after.prepare("SELECT count(*) AS n FROM runs").get()]).toEqual([
-    { user_version: 10 },
+    { user_version: 11 },
     { n: 1 },
   ]);
   after.close();
@@ -367,7 +367,7 @@ test("a view of graph runs is none without a store or before the graph runs, and
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
     `DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs;
-     ALTER TABLE launches DROP COLUMN plugins; PRAGMA user_version = 7`,
+     ALTER TABLE launches DROP COLUMN plugins; DROP TABLE token_rows; PRAGMA user_version = 7`,
   );
   expect(openGraphView(dir)).toEqual({ ok: true, value: null });
   db.exec("PRAGMA user_version = 99");

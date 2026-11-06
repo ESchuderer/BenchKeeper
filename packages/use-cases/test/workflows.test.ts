@@ -199,8 +199,9 @@ test("a resume says why a stored run no longer starts, and refuses a journal it 
   const created = openGraphStore(at.state);
   if (!created.ok) throw new Error(created.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
-  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null, project: null } as const;
-  const [changed, corrupt] = [1, 2].map(() => created.value.create({ ...run, definition }));
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const folder = realpathSync(at.root);
+  const [changed, corrupt] = [1, 2].map(() => created.value.create({ ...run, definition, project: folder }));
   for (const lease of [changed, corrupt]) lease?.release();
   created.value.close();
   const db = new DatabaseSync(join(at.state, "runs.sqlite"));

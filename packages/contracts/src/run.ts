@@ -96,8 +96,8 @@ export const GraphRun = z.object({
   status: z.enum([...RunStatus.options, "waiting", "interrupted"]),
   parentRun: z.uuid().nullable(),
   parentNode: WorkflowId.nullable(),
-  /** The real path of the project folder its commands run in; null on a run recorded before it was. */
-  project: z.string().nullable(),
+  /** The real path of the project folder its commands run in. */
+  project: z.string(),
   /** The process that holds the run, or held it last. */
   pid: z.int().positive(),
   /** 1 for the run's first runner, raised by each takeover. */

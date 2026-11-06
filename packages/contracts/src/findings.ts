@@ -59,6 +59,8 @@ export const Finding = z
     finding("draft.not-found", { id: z.string() }),
     finding("draft.too-large", { id: z.string(), bytes: z.int(), limit: z.int() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
+    // A run store from before 0.1.0, which is not carried over (pre-release only).
+    finding("store.older-schema", { dir: z.string(), found: z.int(), known: z.int() }),
     // Graph findings of a workflow; `node: null` names one of the workflow's own outputs.
     finding("workflow.duplicate-id", { kind: z.enum(["node", "edge"]), id: z.string() }),
     finding("workflow.trigger-count", { count: z.int() }),
@@ -206,6 +208,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "draft.not-found": { severity: "error", effort: "manual" },
   "draft.too-large": { severity: "error", effort: "manual" },
   "store.newer-schema": { severity: "error", effort: "manual" },
+  "store.older-schema": { severity: "error", effort: "manual" },
   "workflow.duplicate-id": { severity: "error", effort: "manual" },
   "workflow.trigger-count": { severity: "error", effort: "manual" },
   "workflow.unknown-node-type": { severity: "error", effort: "manual" },

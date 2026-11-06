@@ -292,7 +292,7 @@ const capabilities = {
 const SECRETS: Record<string, { secret: string; user?: string }> = {
   token: { secret: "s3cret-token" },
   login: { user: "ada", secret: "pw" },
-  key: { secret: "k3y" },
+  key: { secret: "k3y/+=" },
 };
 // The user's store of credentials: one it cannot open throws.
 const store = (id: string) => {
@@ -316,6 +316,9 @@ const SERVED: Record<string, (hop: Hop) => HopAnswer | Promise<HopAnswer>> = {
   "/slow": (hop) =>
     new Promise((_, reject) => hop.signal.addEventListener("abort", () => reject(new Error("aborted")))),
   "/down": () => Promise.reject(new Error("connect ECONNREFUSED")),
+  "/echo-key": (hop) => answer(200, `key=${encodeURIComponent(hop.headers["x-api-key"] ?? "")}`),
+  "/gzip": () => answer(200, "\u001f\u008b", { "content-encoding": "gzip" }),
+  "/identity": () => answer(200, "ok", { "content-encoding": "Identity" }),
 };
 const sent: { url: string; method: string; headers: Record<string, string>; body?: string | undefined }[] = [];
 const fake: Transport = (hop) => {
@@ -330,6 +333,7 @@ const no = (message: string) => ({ error: { code: 2, message } });
 const down = (message: string) => ({ error: { code: 3, message } });
 const basic = `Basic ${Buffer.from("ada:pw").toString("base64")}`;
 
+const JSON_BODY = { "Content-Type": "application/json" };
 const FETCHES: [string, unknown, unknown][] = [
   ["a granted origin", { url: `${API}/ok` }, ok(`${API}/ok`)],
   ["another origin", { url: "https://elsewhere.example/" }, no("https://elsewhere.example is not granted")],
@@ -348,13 +352,30 @@ const FETCHES: [string, unknown, unknown][] = [
   ["a header value over lines", { url: API, headers: { "x-a": "1\r\nx-b: 2" } }, no("invalid headers.x-a")],
   ["a body on GET", { url: API, body: "x" }, no("invalid body")],
   ["another method", { url: API, method: "TRACE" }, no("invalid method")],
+  [
+    "a coded answer asked for",
+    { url: API, headers: { "Accept-Encoding": "gzip" } },
+    no("invalid headers.Accept-Encoding"),
+  ],
   ["an unknown field", { url: API, timeout: 5 }, no("invalid request")],
   ["a redirect within the grant", { url: `${API}/redirect`, credential: "token" }, ok(`${OTHER}/landed`)],
   ["a redirect elsewhere", { url: `${API}/away` }, no("a redirect to https://elsewhere.example, which is not granted")],
   ["a redirect loop", { url: `${API}/loop` }, down("more than 5 redirects")],
-  ["a 303 after a POST", { url: `${API}/see-other`, method: "POST", body: "{}" }, ok(`${API}/landed`)],
-  ["a 302 after a POST", { url: `${API}/redirect`, method: "POST", body: "{}" }, ok(`${OTHER}/landed`)],
-  ["a POST through 307s", { url: `${API}/loop`, method: "POST", body: "{}" }, down("more than 5 redirects")],
+  [
+    "a 303 after a POST",
+    { url: `${API}/see-other`, method: "POST", body: "{}", headers: JSON_BODY },
+    ok(`${API}/landed`),
+  ],
+  [
+    "a 302 after a POST",
+    { url: `${API}/redirect`, method: "POST", body: "{}", headers: JSON_BODY },
+    ok(`${OTHER}/landed`),
+  ],
+  [
+    "a POST through 307s",
+    { url: `${API}/loop`, method: "POST", body: "{}", headers: JSON_BODY },
+    down("more than 5 redirects"),
+  ],
   [
     "a credential echoed back",
     { url: `${API}/echo`, credential: "token" },
@@ -362,6 +383,17 @@ const FETCHES: [string, unknown, unknown][] = [
   ],
   ["basic", { url: `${API}/basic`, credential: "login" }, ok(`${API}/basic`)],
   ["an API key", { url: `${API}/key`, credential: "key", method: "DELETE" }, ok(`${API}/key`)],
+  [
+    "a credential echoed URL-encoded",
+    { url: `${API}/echo-key`, credential: "key" },
+    ok(`${API}/echo-key`, "key=[redacted]"),
+  ],
+  ["a coded answer", { url: `${API}/gzip` }, down("an answer coded as gzip, which the host does not decode")],
+  [
+    "an identity-coded answer",
+    { url: `${API}/identity` },
+    ok(`${API}/identity`, "ok", { "content-encoding": "Identity" }),
+  ],
   ["a host that is down", { url: `${API}/down` }, down("connect ECONNREFUSED")],
   ["a credential without a value", { url: API, credential: "unset" }, down("credential unset has no value")],
   ["a store that cannot be read", { url: API, credential: "locked" }, down("the keychain is locked")],
@@ -382,22 +414,25 @@ test("host/fetch reaches granted origins only, adds a credential for its hosts o
     granted: { net: [API, OTHER], credentials: ["token", "login", "key", "unset", "locked"] },
   });
   // The credential goes to its host and not on to another; a 303, or a 302 after a POST, turns the POST into a GET
-  // without its body, and a 307 keeps it.
+  // without its body and the headers that describe it, and a 307 keeps them.
   const landed = { method: "GET", headers: {}, body: undefined };
-  const loops = at("/loop").map((hop) => `${hop.method} ${String(hop.body)}`);
+  const loops = at("/loop").map((hop) => `${hop.method} ${String(hop.body)} ${hop.headers["content-type"] ?? "-"}`);
   expect([at("/redirect"), at("/landed"), loops.toSorted(), at("/basic"), at("/key")]).toEqual([
     [
       { url: `${API}/redirect`, method: "GET", headers: { authorization: "Bearer s3cret-token" }, body: undefined },
-      { url: `${API}/redirect`, method: "POST", headers: {}, body: "{}" },
+      { url: `${API}/redirect`, method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
     ],
     [
       { url: `${API}/landed`, ...landed },
       { url: `${OTHER}/landed`, ...landed },
       { url: `${OTHER}/landed`, ...landed },
     ],
-    [...Array.from({ length: 6 }, () => "GET undefined"), ...Array.from({ length: 6 }, () => "POST {}")],
+    [
+      ...Array.from({ length: 6 }, () => "GET undefined -"),
+      ...Array.from({ length: 6 }, () => "POST {} application/json"),
+    ],
     [{ url: `${API}/basic`, method: "GET", headers: { authorization: basic }, body: undefined }],
-    [{ url: `${API}/key`, method: "DELETE", headers: { "x-api-key": "k3y" }, body: undefined }],
+    [{ url: `${API}/key`, method: "DELETE", headers: { "x-api-key": "k3y/+=" }, body: undefined }],
   ]);
 });
 

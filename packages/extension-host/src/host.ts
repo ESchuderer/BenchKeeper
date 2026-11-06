@@ -21,7 +21,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
-import { type Credentials, fetcher } from "./fetch.ts";
+import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
@@ -149,9 +149,6 @@ const launchOf = (launch: ExtensionLaunch, folder: string): Launch | Finding => 
 const within = <T>(promise: Promise<T>, ms: number, why: string): Promise<T> =>
   Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(why)), ms).unref())]);
 
-// Every rejection here is an Error: of a timer, of Node, or a ResponseError with the extension's own reason.
-const reason = (error: unknown): string => String(Reflect.get(Object(error), "message"));
-
 /** Log lines of the runs in progress only, bounded: an extension cannot fill the host's memory through `host/log`. */
 const logBook = (limits: HostLimits) => {
   const runs = new Map<string, RunLog>();
@@ -257,7 +254,7 @@ const greet = async (
     // before its message is read); a process that never started never closes, so the wait has a bound.
     session.kill();
     await Promise.race([session.stopped, new Promise((resolve) => setTimeout(resolve, limits.stopMs).unref())]);
-    return failed(launch.manifest.id, "initialize", session.broken() ?? reason(answer));
+    return failed(launch.manifest.id, "initialize", session.broken() ?? messageOf(answer));
   }
   const mismatch = handshake(answer, launch.manifest);
   return mismatch === undefined ? undefined : refused(launch.manifest.id, mismatch);
@@ -297,7 +294,7 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     return "code" in problem ? { ok: false, finding: problem } : problem;
   } catch (error) {
     session?.kill();
-    return failed(id, "start", reason(error));
+    return failed(id, "start", messageOf(error));
   }
 };
 
@@ -332,7 +329,7 @@ const running = (
       const ended = session.stopped.then(() => Promise.reject(new Error(session.broken() ?? "it ended")));
       const outcome = await Promise.race([answer, ended]).then(
         (answered) => outputsOf(id, answered),
-        (error: unknown) => failed(id, "run", session.broken() ?? reason(error)),
+        (error: unknown) => failed(id, "run", session.broken() ?? messageOf(error)),
       );
       return source.token.isCancellationRequested ? failed(id, "run", "cancelled by the host") : outcome;
     } finally {

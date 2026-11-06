@@ -7,6 +7,7 @@ declare module "@lingui/core" {
 
 /** The values each message of the catalog takes, by id. */
 export interface MessageValues {
+  "app.licenses": Record<never, never>;
   "app.title": Record<never, never>;
   "draft.discard": Record<never, never>;
   "draft.discardOne": { id: string | number };

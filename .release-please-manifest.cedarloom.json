@@ -6,10 +6,11 @@
   "packages/client": "0.0.0",
   "packages/contracts": "0.0.0",
   "packages/engine": "0.0.0",
+  "packages/extension-host": "0.0.0",
+  "packages/extension-sdk": "0.0.0",
   "packages/git": "0.0.0",
   "packages/ledger": "0.0.0",
   "packages/orchestration": "0.0.0",
-  "packages/plugin-sdk": "0.0.0",
   "packages/server": "0.0.0",
   "packages/ui": "0.0.0",
   "packages/use-cases": "0.0.0"

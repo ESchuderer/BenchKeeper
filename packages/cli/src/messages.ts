@@ -15,6 +15,16 @@ const issueList = (issues: { path: string; code: string }[]): string =>
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
 
+const EXTENSION_REFUSALS = {
+  "sandbox-unavailable": "an extension from elsewhere runs only in an OS sandbox, and this CedarLoom has none yet",
+  windows: "extensions from elsewhere do not run on native Windows",
+  protocol: "it speaks another version of the extension protocol",
+  actions: "it serves other actions than its manifest names",
+  folder: "its folder has a * or ? in its path or a link inside, which would widen what it may read",
+  runtime: "Node denies an extension the network only from version 25 on",
+} as const;
+const EXTENSION_STEPS = { start: "start", initialize: "answer its handshake", run: "run an action" } as const;
+
 const ENTRY_KINDS = {
   link: "is a symbolic link",
   submodule: "is a submodule",
@@ -48,6 +58,15 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.input-unknown": (p) => `The workflow has no input ${p.input}.`,
   "run.input-missing": (p) => `The workflow needs its input ${p.input}, which has no default.`,
   "run.input-invalid": (p) => `The input ${p.input} must be a ${p.type} value.`,
+  "run.event-invalid": (p) =>
+    `Event ${p.seq} of run ${p.runId} does not match its schema (${issueList(p.issues)}), so the run is not replayed.`,
+  "run.lease-held": (p) =>
+    `Process ${p.pid} holds run ${p.runId}; resuming the run takes it over once that process has ended.`,
+  "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
+  "run.report-only-apply": (p) =>
+    `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
+  "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
+  "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -84,23 +103,53 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
   "workflow.report-only-write": (p) =>
     `Node ${p.node} may write files, but a schedule starts this workflow, and a scheduled run only reports.`,
-  "workflow.report-only-plugin": (p) =>
-    `Node ${p.node} runs a plugin action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports.`,
-  "workflow.plugin-missing": (p) =>
-    `Node ${p.node} runs ${p.type}, a plugin action that is not installed, so the workflow cannot run until its plugin is.`,
+  "workflow.report-only-extension": (p) =>
+    `Node ${p.node} runs an extension action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports.`,
+  "workflow.extension-missing": (p) =>
+    `Node ${p.node} runs ${p.type}, an extension action that is not installed, so the workflow cannot run until its extension is.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.registry-exists": (p) =>
     `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
-  // Both quotes checked at their sources on 2026-11-06; the Usage Policy page is marked effective Nov 12, 2026.
+  // Every quote checked at its source on 2026-11-06: three bullets of the Usage Policy's "Do Not Abuse Our Platform",
+  // whose page is marked effective Nov 12, 2026, and the "ordinary use" sentence of the help article on logging in.
   "accounts.pool-terms": (p) =>
-    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy forbids ` +
-    'users to "intentionally bypass or interfere with capabilities, restrictions, or guardrails established within our ' +
-    'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
-    'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
-    "usage limit counts as one is not stated.",
+    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy, in ` +
+    "force from November 12, 2026 (https://www.anthropic.com/legal/aup), forbids users to " +
+    '"create multiple accounts, to avoid detection, circumvent product guardrails", to "intentionally bypass or ' +
+    'interfere with capabilities, restrictions, or guardrails established within our products", and to "provide ' +
+    "access to Claude through unauthorized means, including services that route requests through consumer " +
+    'subscriptions". Its help article says a subscription\'s usage "is designed to support ordinary use of native ' +
+    'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
+    "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
+    "you hold yourself falls under these rules.",
+  "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.login-unsupported": (p) =>
+    `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
+  "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
+  "accounts.home-not-own": (p) =>
+    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+  "accounts.home-linked": (p) =>
+    `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
+  "accounts.home-missing": (p) =>
+    `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
+  "accounts.home-unusable": (p) =>
+    `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.login-failed": (p) =>
+    `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
+  "doctor.logged-out": (p) =>
+    `Account ${p.account} is not logged in in its own home ${p.home}; log in with: cedarloom accounts login ${p.account}`,
+  "doctor.login-elsewhere": (p) =>
+    `Claude Code reads the login of account ${p.account} from ${p.configDirectory}, not from its own home ${p.home}; something in the environment points it there.`,
+  "doctor.login-method": (p) =>
+    `Account ${p.account} is logged in with ${p.method}, not with a Claude subscription (claude.ai); log in again with: cedarloom accounts login ${p.account}`,
+  "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
+  "doctor.login-skipped": (p) =>
+    `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
+  "launch.not-logged-in": (p) =>
+    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>
@@ -117,6 +166,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
+  "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
+  "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
   "git.refused-source": (p) =>
     `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,

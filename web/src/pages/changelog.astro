@@ -10,7 +10,7 @@ const html = (await changelog.compiledContent())
   .replace(/^\s*<h1[^>]*>.*?<\/h1>/, '')
   .replace(/href="(?!https?:|#)([^"]*)"/g, (_, h) => { const u = new URL(h, 'https://x/'); return `href="https://github.com/${SLUG}/blob/main${u.pathname}${u.search}${u.hash}"`; });
 ---
-<SiteLayout title="Changelog, BenchKeeper"
+<SiteLayout title="Changelog, CedarLoom"
   description="The versions of BenchKeeper and what each one changed, from CHANGELOG.md.">
   <ChangelogPage base={base} html={html} />
   <style is:global>

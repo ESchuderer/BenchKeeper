@@ -35,6 +35,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
+    "@cedarloom/adapter-claude": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/server": "workspace:*",
     "@cedarloom/use-cases": "workspace:*",

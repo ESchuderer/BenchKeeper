@@ -747,6 +747,49 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -934,13 +977,13 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "workflow.report-only-plugin";
+            code: "workflow.report-only-extension";
             params: {
                 node: string;
             };
         } | {
             /** @constant */
-            code: "workflow.plugin-missing";
+            code: "workflow.extension-missing";
             params: {
                 node: string;
                 type: string;
@@ -986,6 +1029,96 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-missing";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-unusable";
+            params: {
+                account: string;
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1026,6 +1159,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1053,6 +1193,23 @@ export interface components {
                 path: string;
                 /** @enum {string} */
                 kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
             };
         } | {
             /** @constant */
@@ -1314,6 +1471,49 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1501,13 +1701,13 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "workflow.report-only-plugin";
+            code: "workflow.report-only-extension";
             params: {
                 node: string;
             };
         } | {
             /** @constant */
-            code: "workflow.plugin-missing";
+            code: "workflow.extension-missing";
             params: {
                 node: string;
                 type: string;
@@ -1553,6 +1753,96 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.unknown-account";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-unsupported";
+            params: {
+                account: string;
+                agent: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.folder-taken";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-not-own";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-missing";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-unusable";
+            params: {
+                account: string;
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.login-failed";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1593,6 +1883,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1620,6 +1917,23 @@ export interface components {
                 path: string;
                 /** @enum {string} */
                 kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
             };
         } | {
             /** @constant */

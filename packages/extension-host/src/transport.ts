@@ -56,7 +56,7 @@ for (const [network, prefix] of [
 
 /**
  * Whether an address is a public host. The host reaches public addresses only, so a granted name that resolves to this
- * machine, the local network or a cloud metadata service reaches none of them (owner decision, 2026-11-06).
+ * machine, the local network or a cloud metadata service reaches none of them (Q-N19).
  */
 export const isPublic = (address: string): boolean => {
   const family = isIP(address);

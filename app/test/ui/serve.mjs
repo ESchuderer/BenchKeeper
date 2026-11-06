@@ -46,24 +46,24 @@ for (const name of DEMO ? [other] : [other, 'found']) {
   mkdirSync(join(parent, name), { recursive: true });
   writeFileSync(join(parent, `${name}/AGENTS.md`), `# ${name}\n`);
 }
+// A repository at d whose one commit holds a README; before runs between git init and the commit.
+const repoAt = (d, before = () => {}) => {
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, 'README.md'), `# ${basename(d)}\n`);
+  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't']]) execFileSync(GIT, ['-C', d, ...a]);
+  before();
+  for (const a of [['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
+};
 // A repository without a state file, for the step-by-step first setup. Git ignores its AGENTS.md: a committed one
 // would leave only the shared setup.
-for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
-appendFileSync(join(parent, other, '.git/info/exclude'), '/AGENTS.md\n');
-writeFileSync(join(parent, other, 'README.md'), `# ${other}\n`);
-for (const a of [['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
+repoAt(join(parent, other), () => appendFileSync(join(parent, other, '.git/info/exclude'), '/AGENTS.md\n'));
 // Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
 // others have none. A suggestion for duo or quatro waits while GATE exists, so a test can look at the progress page.
 export const ONE = join(ROOT, 'one');
 export const GATE = join(ROOT, 'gate');
 rmSync(ONE, { recursive: true, force: true });
 rmSync(GATE, { force: true });
-for (const name of ['uno', 'duo', 'tres', 'quatro']) {
-  const d = join(ONE, name);
-  mkdirSync(d, { recursive: true });
-  writeFileSync(join(d, 'README.md'), `# ${name}\n`);
-  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
-}
+for (const name of ['uno', 'duo', 'tres', 'quatro']) repoAt(join(ONE, name));
 // The automations runner answers only while RUNNER exists: the Automations test creates it, so the other views see no
 // runner (an installed one adds its skills to the global plan). A store in memory, in the CLI's JSON shapes.
 export const RUNNER = join(ROOT, 'runner');
@@ -84,12 +84,7 @@ const runner = (args) => {
   return { code: 2, stdout: '', stderr: 'unknown command' };
 };
 rmSync(BATCH, { recursive: true, force: true });
-for (const name of ['alpha', 'broken']) {
-  const d = join(BATCH, name);
-  mkdirSync(d, { recursive: true });
-  writeFileSync(join(d, 'README.md'), `# ${name}\n`);
-  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
-}
+for (const name of ['alpha', 'broken']) repoAt(join(BATCH, name));
 execFileSync(GIT, ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 // Two worktrees of the registered project, listed by the git stub below; a session in each folds into the project on the board.
 const TREES = ['a', 'b'].map((t) => join(ROOT, 'tree', t));

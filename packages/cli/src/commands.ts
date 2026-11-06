@@ -130,7 +130,7 @@ export const doctor = (ctx: Context): number => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (ctx: Context, format: "accounts" | "levels" | "mode" | "plan", finding: Finding): number => {
+const refused = (ctx: Context, format: "accounts" | "levels" | "login" | "mode" | "plan", finding: Finding): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
   return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
@@ -154,6 +154,10 @@ interface Change {
   readonly findings: Finding[];
 }
 
+// An account's aliases, after its home in the list.
+const aliases = ({ aliases: folders = [] }: Account): string =>
+  folders.length > 0 ? `  (alias ${folders.join(", ")})` : "";
+
 export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
@@ -162,7 +166,7 @@ export const accountsList = (ctx: Context): number => {
     registry !== null && useCases.isConfirmed(registry, { agent, pool });
   const pool = ({ agent, pool: name }: Account): string =>
     name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
-  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}`);
+  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
   const none = "No accounts yet. Import BenchKeeper's with: cedarloom accounts import";
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
   const pools = Agent.options.flatMap((agent) =>
@@ -191,6 +195,28 @@ export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { ag
   const planned = useCases.planConfirm(ctx.config, { agent, pool });
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
+};
+
+/** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */
+export const accountsHome = (ctx: Context, name: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planHome(ctx.config, ctx.state, name);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, home } = planned.value;
+  if (plan === null) {
+    emit(ctx, "home", { account: name, home }, `Account ${name} is in its own home: ${home}`);
+    return EXIT.ok;
+  }
+  const note = `\nThen log in there with: cedarloom accounts login ${name}`;
+  return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
+};
+
+/** Runs the agent's own login for the account, in its own home only. */
+export const accountsLogin = (ctx: Context, name: string): number => {
+  const host = { parent: ctx.io.env, platform: process.platform, run: ctx.io.login };
+  const login = useCases.loginAccount(ctx.config, ctx.state, name, host);
+  if (!login.ok) return refused(ctx, "login", login.finding);
+  emit(ctx, "login", { account: name, home: login.value.home }, `Logged in: account ${name}, in ${login.value.home}.`);
+  return EXIT.ok;
 };
 
 // What the latest switch of running work does, by the settings' modeScope (running when unset; pending owner decision).

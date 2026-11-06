@@ -125,6 +125,20 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
+  "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.login-unsupported": (p) =>
+    `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
+  "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
+  "accounts.home-not-own": (p) =>
+    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+  "accounts.home-linked": (p) =>
+    `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
+  "accounts.home-missing": (p) =>
+    `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
+  "accounts.home-unusable": (p) =>
+    `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.login-failed": (p) =>
+    `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

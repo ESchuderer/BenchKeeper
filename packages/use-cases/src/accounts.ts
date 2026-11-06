@@ -1,6 +1,6 @@
 import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
+import { counted, DEFAULT_MINIMUM, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
@@ -154,9 +154,6 @@ export const planHome = (config: string, state: string, name: string): Result<{ 
   };
 };
 
-/** The minimums a new registry starts with, in percent of each window. */
-const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
-
 /** An account to register: its name, agent, and the pool it joins (none when null). */
 export interface NewAccount {
   readonly name: string;
@@ -171,7 +168,10 @@ const registryToChange = (path: string): Result<{ registry: AccountRegistry; bef
   if (file.value === null) {
     return {
       ok: true,
-      value: { registry: { schemaVersion: 1, minimum: DEFAULT_MINIMUM, accounts: [], pools: {} }, before: null },
+      value: {
+        registry: { schemaVersion: ACCOUNTS_SCHEMA_VERSION, minimum: DEFAULT_MINIMUM, accounts: [], pools: {} },
+        before: null,
+      },
     };
   }
   const registry = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, file.value.json);
@@ -193,7 +193,8 @@ const withAccount = (registry: AccountRegistry, account: Account): AccountRegist
 /**
  * Plans the registration of an account with its own home on this machine, where `accounts login` then logs it in: the
  * registry's create when there is none, its replacement otherwise. Refused for a name or pool that is no name, a name
- * the registry has, and a home another account names.
+ * the registry has, and a home another account names. A Codex account is refused before anything is read: CedarLoom
+ * cannot log one in yet.
  */
 export const planAdd = (
   config: string,
@@ -201,9 +202,11 @@ export const planAdd = (
   { name, agent, pool }: NewAccount,
   now: string = new Date().toISOString(),
 ): Result<{ plan: Plan; home: string }> => {
-  const bad = [name, pool].find((each) => each !== null && !AccountName.safeParse(each).success);
-  if (bad !== undefined && bad !== null)
-    return { ok: false, finding: { code: "accounts.name-invalid", params: { name: bad } } };
+  if (agent === "codex") {
+    return { ok: false, finding: { code: "accounts.login-unsupported", params: { account: name, agent } } };
+  }
+  const bad = [name, pool ?? name].find((each) => !AccountName.safeParse(each).success);
+  if (bad !== undefined) return { ok: false, finding: { code: "accounts.name-invalid", params: { name: bad } } };
   const path = registryPath(config);
   const read = registryToChange(path);
   if (!read.ok) return read;
@@ -218,10 +221,8 @@ export const planAdd = (
     return { ok: false, finding: { code: "accounts.folder-taken", params: { path: home } } };
   }
   const content = formatRegistry(withAccount(registry, { name, agent, home, pool, added: now }));
-  const write =
-    before === null
-      ? { kind: "write" as const, path, before, content, mode: 0o600 }
-      : { kind: "write" as const, path, before, content };
+  // The mode applies only when the write creates the file; a replaced registry keeps its own.
+  const write = { kind: "write" as const, path, before, content, mode: 0o600 };
   return { ok: true, value: { plan: { schemaVersion: 1, operations: [write] }, home } };
 };
 

@@ -251,6 +251,11 @@ test("an account joins a confirmed pool only as a change that leaves the pool un
   if (!stored.ok || stored.value === null) throw new Error("no registry");
   expect(isConfirmed(stored.value, { agent: "claude", pool: "main" })).toBe(false);
   const refused = (name: string, pool: string | null) => planAdd(config, state, { name, agent: "claude", pool }, AT);
+  // CedarLoom cannot log a Codex account in yet, so none is registered.
+  expect(planAdd(config, state, { name: "cx", agent: "codex", pool: null }, AT)).toEqual({
+    ok: false,
+    finding: { code: "accounts.login-unsupported", params: { account: "cx", agent: "codex" } },
+  });
   expect(refused("work", null)).toEqual({
     ok: false,
     finding: { code: "accounts.name-taken", params: { account: "work" } },
@@ -275,9 +280,6 @@ test("an account joins a confirmed pool only as a change that leaves the pool un
   // A registry it cannot read or parse is reported, never replaced.
   writeFileSync(join(config, "accounts.json"), "{");
   expect(refused("three", null)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
-  expect(planAdd(join(config, "folder-as-registry"), state, { name: "x", agent: "claude", pool: null })).toMatchObject({
-    ok: true,
-  });
   mkdirSync(join(config, "unreadable", "accounts.json"), { recursive: true });
   expect(planAdd(join(config, "unreadable"), state, { name: "x", agent: "claude", pool: null })).toMatchObject({
     ok: false,

@@ -3,7 +3,6 @@ import {
   type CancellationToken,
   createMessageConnection,
   ErrorCodes,
-  type MessageConnection,
   ResponseError,
   StreamMessageReader,
   StreamMessageWriter,
@@ -37,8 +36,12 @@ export type Action = (context: ActionContext) => Record<string, unknown> | Promi
 export type PluginOptions = {
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
-  /** Called on the host's `exit`; on the real stdio the plugin's process exits there. */
-  onExit?: () => void;
+  /**
+   * Called once the host is gone: on its `exit`, or when the input ends or closes (a host that crashed or was
+   * killed). The code is 0 after `shutdown` and 1 otherwise, as a language server does; on the real stdio the plugin's
+   * process exits with it.
+   */
+  onExit?: (code: number) => void;
 };
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
@@ -50,8 +53,16 @@ const abortOn = (token: CancellationToken): AbortSignal => {
   return controller.signal;
 };
 
-const failure = (error: unknown): ResponseError =>
-  new ResponseError(ACTION_FAILED, error instanceof Error ? error.message : String(error));
+// The reason of a failure as text; a value without a text form (an object without a prototype) gets a fixed one.
+const reasonOf = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  try {
+    return String(error);
+  } catch {
+    return "the action failed";
+  }
+};
+const failure = (error: unknown): ResponseError => new ResponseError(ACTION_FAILED, reasonOf(error));
 
 // What an action returns reaches the host as JSON: an object of outputs, or the run fails here with a reason.
 const outputsOf = (value: unknown): Record<string, unknown> => {
@@ -74,12 +85,12 @@ const protocolOutput = (): Writable => {
 /* v8 ignore stop */
 
 /**
- * Serves a plugin's actions to the host over stdio (or the given streams) and returns the started connection. On the
- * real stdio everything else written to standard output goes to standard error; an action logs with `context.log`.
+ * Serves a plugin's actions to the host over stdio (or the given streams) until the host is gone. On the real stdio,
+ * what plugin code writes through `process.stdout` goes to standard error; an action logs with `context.log`.
  */
-export const definePlugin = (actions: Record<string, Action>, options: PluginOptions = {}): MessageConnection => {
+export const definePlugin = (actions: Record<string, Action>, options: PluginOptions = {}): void => {
   /* v8 ignore start -- a plugin's own process on its real stdio; the spawned plugin of the tests runs it */
-  const { input = process.stdin, output = protocolOutput(), onExit = () => process.exit(0) } = options;
+  const { input = process.stdin, output = protocolOutput(), onExit = (code) => process.exit(code) } = options;
   /* v8 ignore stop */
   const connection = createMessageConnection(new StreamMessageReader(input), new StreamMessageWriter(output));
   let locale = "en";
@@ -100,11 +111,19 @@ export const definePlugin = (actions: Record<string, Action>, options: PluginOpt
       return failure(error);
     }
   });
-  connection.onRequest(shutdown, () => null);
-  connection.onNotification(exit, () => {
+  let shutDown = false;
+  // Disposing the connection also removes its close listener, so the plugin ends once.
+  const end = (): void => {
     connection.dispose();
-    onExit();
+    onExit(shutDown ? 0 : 1);
+  };
+  connection.onRequest(shutdown, () => {
+    shutDown = true;
+    return null;
   });
+  connection.onNotification(exit, end);
+  // A host that crashed or was killed sends no exit: its end of the input closes, and a running action must not keep
+  // the plugin alive.
+  connection.onClose(end);
   connection.listen();
-  return connection;
 };

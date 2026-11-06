@@ -16,7 +16,10 @@ export const initialize = new RequestType<InitializeParams, InitializeResult, vo
 export type RunParams = { action: string; config: unknown; inputs: Record<string, unknown>; run: string };
 /** The values of the action's data outputs. */
 export type RunResult = { outputs: Record<string, unknown> };
-/** The host cancels a run with the protocol's `$/cancelRequest`. */
+/**
+ * The host cancels a run with the protocol's `$/cancelRequest` and treats any answer after it as cancelled: code 1 with
+ * "cancelled by the host", or the outputs of an action that ignored its signal.
+ */
 export const runAction = new RequestType<RunParams, RunResult, void>("action/run");
 
 /** A line for the log of a run, which the host bounds and redacts. */

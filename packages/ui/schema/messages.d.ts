@@ -87,6 +87,7 @@ export interface MessageValues {
   "problem.missingSource": { target: string | number };
   "problem.moreIssues": { issues: string | number; count: string | number };
   "problem.nodeInput": { handle: string | number; node: string | number };
+  "problem.nodeUnsupported": { node: string | number; type: string | number };
   "problem.optionalInput": { handle: string | number; node: string | number; input: string | number };
   "problem.reportOnlyExtension": { node: string | number };
   "problem.reportOnlyWrite": { node: string | number };

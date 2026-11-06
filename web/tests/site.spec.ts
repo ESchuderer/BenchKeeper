@@ -17,6 +17,14 @@ for (const path of ['./', './overview/', './app/', './writes/', './changelog/', 
     await expect(page.locator('main a[href="https://github.com/ESchuderer/BenchKeeper-research"]')).toHaveCount(1);
   });
 
+  test(`${path} names CedarLoom in the title, header and footer, with the brand mark as its icon`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page).toHaveTitle(/, CedarLoom$|^CedarLoom: /);
+    await expect(page.locator('header .wordmark')).toHaveText('CedarLoom');
+    await expect(page.locator('footer')).toContainText('CedarLoom, MIT License');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', `${BASE}brand/cedarloom-icon.svg`);
+  });
+
   test(`${path} theme button shows its state and follows the system scheme`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto(path);
@@ -33,6 +41,27 @@ for (const path of ['./', './overview/', './app/', './writes/', './changelog/', 
     await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
   });
 }
+
+test('the header and hero show the brand mark in the colors of each scheme, never filtered', async ({ page }) => {
+  await page.goto('./');
+  for (const [scheme, file] of [['light', 'cedarloom-icon.svg'], ['dark', 'cedarloom-dark.svg']]) {
+    await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    for (const mark of [page.locator('header img:visible'), page.locator('.hero img:visible')]) {
+      await expect(mark).toHaveCount(1);
+      await expect(mark).toHaveAttribute('src', `${BASE}brand/${file}`);
+      await expect(mark).toHaveCSS('filter', 'none');
+    }
+  }
+});
+
+test('the share image is the 1280x640 CedarLoom preview', async ({ page, request }) => {
+  await page.goto('./');
+  await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute('content', '1280');
+  await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute('content', '640');
+  const png = await (await request.get('./og.png')).body();
+  // The PNG header: width and height are the first two fields of IHDR.
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1280, 640]);
+});
 
 test('the sitemap lists the six pages', async ({ request }) => {
   const xml = await (await request.get('./sitemap.xml')).text();

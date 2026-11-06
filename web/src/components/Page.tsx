@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
+import Mark from './Mark';
 import { SiteShell } from './SiteShell';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
@@ -122,10 +123,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
               <Stack gap="lg">
                 <Badge variant="light" size="lg">Setup for Claude Code and Codex</Badge>
-                <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02}><span className="grad">BenchKeeper</span></Title>
+                <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02}><span className="grad">CedarLoom</span></Title>
                 <Text size="xl" maw={560}>
                   Short rules and a workflow skill that sizes each change for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
                   Each repository adds its dev container, AGENTS.md and stack skills.
+                </Text>
+                <Text c="dimmed" maw={560}>
+                  CedarLoom is the new name of BenchKeeper. Until CedarLoom 0.1.0 the released tool keeps the name <code>benchkeeper</code> on npm and in Claude Code.
                 </Text>
                 <Group mt="sm">
                   <Button component="a" href="#start" size="md">Set up your machine</Button>
@@ -134,7 +138,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 </Group>
               </Stack>
               <Box ta="center">
-                <img src={`${base}/logo.svg`} alt="BenchKeeper logo: a brain inside a gear, circled by a loop of arrows" className="logo" width={300} height={300} style={{ width: 'min(300px, 64vw)', height: 'auto' }} />
+                <Mark base={base} size={300} alt="CedarLoom logo: a workflow graph shaped like a cedar" style={{ width: 'min(300px, 64vw)' }} />
               </Box>
             </SimpleGrid>
           </Container>

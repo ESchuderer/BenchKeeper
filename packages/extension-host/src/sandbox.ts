@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { getDefaultWritePaths, SandboxManager } from "@anthropic-ai/sandbox-runtime";
 
 /** How the host starts an extension's process. */
 export type Launch = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv };
@@ -25,15 +25,19 @@ const quoted = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;
 const run = promisify(execFile);
 
 // What Node needs to start besides its own binary. Linux: the system's programs and libraries, srt's shell and `env`
-// among them. macOS maps its own libraries from the shared cache; Homebrew's Node also loads its kegs and its OpenSSL
-// configuration. A Node installed elsewhere fails the probe with the path it was refused.
+// among them. macOS maps its own libraries from the shared cache; Node reads its OpenSSL configuration at start (the
+// official build from /System/Library/OpenSSL, Homebrew's from its prefix), and Homebrew's loads its kegs. A Node
+// installed elsewhere fails the probe with the path it was refused.
 // shortcut: srt opens no link to the time zone (/etc/localtime, and on macOS /etc itself), so without TZ an extension
 // tells time in UTC; pass the host's zone once an extension needs local time.
 const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
   linux: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"],
-  darwin: ["/opt/homebrew", "/usr/local"].flatMap((prefix) =>
-    ["Cellar", "opt", "etc/openssl@3", "etc/openssl@4"].map((path) => `${prefix}/${path}`),
-  ),
+  darwin: [
+    "/System/Library/OpenSSL",
+    ...["/opt/homebrew", "/usr/local"].flatMap((prefix) =>
+      ["Cellar", "opt", "etc/openssl@3", "etc/openssl@4"].map((path) => `${prefix}/${path}`),
+    ),
+  ],
 };
 
 // One initialization per process: srt's proxies serve every wrapped launch, and no allowed host lets them pass anything.
@@ -50,8 +54,9 @@ const srt = dirname(dirname(fileURLToPath(import.meta.resolve("@anthropic-ai/san
 // on macOS a shell of its wrapper ran the user's startup file, whose exports reached the process.
 const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> => {
   const allowRead = [...policy.read, launch.command, srt, ...(SYSTEM[process.platform] ?? [])];
-  // srt makes its own temp folder writable in every sandbox: a channel between extensions, and into Claude Code's.
-  const denyWrite = ["/tmp/claude", "/private/tmp/claude"];
+  // srt opens its own temp folder (/tmp/claude) and a few folders in the home folder for writing in every sandbox: a
+  // channel between extensions, and into Claude Code's. Only stdio stays writable.
+  const denyWrite = getDefaultWritePaths().filter((path) => !path.startsWith("/dev/"));
   const filesystem = { denyRead: ["/"], allowRead, allowWrite: policy.write, denyWrite };
   const environment = Object.entries(launch.env).filter(([, value]) => value !== undefined);
   const assignments = environment.map(([name, value]) => `${name}=${String(value)}`);

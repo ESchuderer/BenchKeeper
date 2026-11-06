@@ -88,7 +88,7 @@ test("an api_request without the optional fields keeps them empty, and one witho
     },
   ]);
   expect(changed({}, ["event.timestamp"])).toEqual([]);
-  expect(changed({ input_tokens: { intValue: "many" } })).toEqual([]);
+  for (const intValue of ["many", "", " "]) expect(changed({ input_tokens: { intValue } })).toEqual([]);
 });
 
 const stored = (state: string) => {
@@ -144,7 +144,7 @@ const postOnce = async (state: string): Promise<number> => {
   const receiver = await startTelemetry(state);
   try {
     const headers = { "content-type": "application/json", authorization: `Bearer ${receiver.register(run)}` };
-    return (await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status;
+    return (await fetch(receiver.endpoint, { method: "POST", headers, body: new TextEncoder().encode(text) })).status;
   } finally {
     await receiver.close();
   }

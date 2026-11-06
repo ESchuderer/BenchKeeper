@@ -59,8 +59,10 @@ const stringOf = (values: Values, key: string): string | null => {
 };
 
 const count = (values: Values, key: string): number | null => {
-  const value = Number(values.get(key));
-  return values.has(key) && Number.isSafeInteger(value) ? value : null;
+  const raw = values.get(key);
+  // An int64 may come as a string of digits; Number would read "" or " " as 0.
+  const value = typeof raw === "string" && /^\d{1,16}$/.test(raw) ? Number(raw) : raw;
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
 };
 
 // One api_request record as a token row, or null when it is none; only the fields of the allowlist are read.
@@ -162,7 +164,10 @@ export const startTelemetry = async (state: string, limit = 1024 * 1024): Promis
     if (!(req.headers["content-type"] ?? "").startsWith("application/json")) return answer(res, 415);
     keep(req, res, run).catch(() => answer(res, 500));
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
   const { port } = z.object({ port: z.number() }).parse(server.address());
   return {
     endpoint: `http://127.0.0.1:${port}/v1/logs`,

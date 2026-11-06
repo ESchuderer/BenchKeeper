@@ -619,7 +619,8 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
       if (versionOf(db) === 0) db.exec(`${BASELINE.join("")} PRAGMA user_version = ${SCHEMA}`);
       return versionOf(db);
     };
-    const found = versionOf(db) === 0 ? transaction(db, created) : versionOf(db);
+    const version = versionOf(db);
+    const found = version === 0 ? transaction(db, created) : version;
     if (found === SCHEMA) return { ok: true, value: use(db) };
     db.close();
     return { ok: false, finding: otherSchema(dir, found) };

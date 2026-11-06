@@ -289,14 +289,14 @@ export class GraphStore {
 
 /**
  * Opens the graph runs of the state folder `dir` (created private), without the store lock: refused on a network
- * filesystem or when a newer CedarLoom wrote the store.
+ * filesystem or for a store at another schema.
  */
 export const openGraphStore = (dir: string, detect = filesystemType): Result<GraphStore> => {
   const refused = stateDir(dir, detect);
   return refused === null ? connect(dir, (db) => new GraphStore(dir, db)) : { ok: false, finding: refused };
 };
 
-/** Graph runs as `runs list` and `runs show` read them: no lock, no write, no migration. */
+/** Graph runs as `runs list` and `runs show` read them: no lock, no write. */
 export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "close">;
 
 /** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */

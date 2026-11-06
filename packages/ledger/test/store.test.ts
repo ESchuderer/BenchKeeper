@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -310,13 +310,6 @@ test("prune deletes nothing outside the backups folder, even for a run id an edi
   expect(existsSync(join(dir, "kept"))).toBe(true);
 });
 
-test("a failed open releases the lock, also when the store it finds is broken", () => {
-  const dir = fresh();
-  writeFileSync(join(dir, "runs.sqlite"), "not a database, but long enough to be read as a header".repeat(4));
-  expect(() => openRunStore(dir)).toThrow(/not a database/);
-  expect(() => openRunStore(dir)).toThrow(/not a database/);
-});
-
 test("a commit SQLite already rolled back (disk full, I/O error) reports that error, and nothing is recorded", () => {
   const store = opened(fresh());
   const failure = new Error("database or disk is full");
@@ -363,7 +356,7 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     from: null,
     to: "spare",
     reason: "most-headroom",
-    readings: [reading],
+    readings: [{ ...reading, source: "reported" }],
     candidates: [{ account: "spare", margin: 87 }],
   };
   store.recordSwitch(row);

@@ -429,6 +429,7 @@ test("every finding code has an English sentence", () => {
     "run.input-invalid": { input: "focus", type: "number" },
     "run.event-invalid": { runId: "r", seq: 3, issues: [{ path: "attempt", code: "too_small" }] },
     "run.lease-held": { runId: "r", pid: 4242 },
+    "run.node-unsupported": { node: "ask", type: "agent.run" },
     "workflow.duplicate-id": { kind: "node", id: "lint" },
     "workflow.trigger-count": { count: 0 },
     "workflow.invalid-config": { node: "j", issues: [{ path: "", code: "invalid_value" }] },

@@ -87,6 +87,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
     'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
     "usage limit counts as one is not stated.",
+  "launch.agent-unavailable": (p) =>
+    `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
   "accounts.codex-switching-off": (p) =>
     `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
   "launch.gh-login": (p) =>

@@ -1,4 +1,4 @@
-import type { Json } from "@cedarloom/contracts";
+import type { ContractCheckRecord, Json, QuotaWindow } from "@cedarloom/contracts";
 
 /** How far an adapter supports a feature; `unknown` means untested and is never read as `unsupported`. */
 export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown";
@@ -45,6 +45,8 @@ export interface UsageWindow {
   readonly percent: number | null;
   /** ISO time of the window's reset; null when the agent sent none. */
   readonly resetsAt: string | null;
+  /** The agent-neutral window it is, which readings are stored under; null for a window the quota model lacks. */
+  readonly quota: QuotaWindow | null;
 }
 
 /** Why a session ended in the adapter: the process failed to start or stop, or it wrote a line past the adapter's cap. */
@@ -90,7 +92,7 @@ export interface AgentSession {
 export interface ContractCheck {
   readonly version: string | null;
   /** Empty when the check passed. */
-  readonly missing: readonly ("init" | "usage" | "result")[];
+  readonly missing: readonly ContractCheckRecord["missing"][number][];
 }
 
 /** The contract of an agent adapter; `L` is the adapter's launch options. */

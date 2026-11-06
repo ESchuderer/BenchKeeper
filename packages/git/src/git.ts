@@ -4,7 +4,7 @@ import { readdirSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { join } from "node:path";
-import { type Finding, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
+import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
 export type Limits = { files: number; bytes: number; fileBytes: number };
@@ -154,13 +154,10 @@ const urlAllowed = (url: string, protocols: readonly string[]): boolean =>
   (/^[!-~]+$/.test(url) &&
     protocols.some((protocol) => !["https", "ssh"].includes(protocol) && url.startsWith(`${protocol}:`)));
 const portablePath = (path: string): boolean => PortablePath.safeParse(path).success;
-// A ref git can fetch into `<ref>:<local ref>`: no refspec syntax (`:`, `+`, `*`, `^`, `~`), no `..` and no `@{`.
-const isRef = (ref: string): boolean =>
-  /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/.test(ref) && !ref.includes("..") && !ref.endsWith(".lock");
 
 const sourceFinding = (source: Source, protocols: readonly string[]): Finding | undefined => {
   if (!urlAllowed(source.url, protocols)) return { code: "git.refused-source", params: { field: "url" } };
-  if (!isRef(source.ref)) return { code: "git.refused-source", params: { field: "ref" } };
+  if (!GitRef.safeParse(source.ref).success) return { code: "git.refused-source", params: { field: "ref" } };
   if (source.path !== undefined && !portablePath(source.path)) {
     return { code: "git.refused-source", params: { field: "path" } };
   }

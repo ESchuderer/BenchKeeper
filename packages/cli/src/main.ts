@@ -8,6 +8,8 @@ import {
   accountsList,
   accountsLogin,
   doctor,
+  extensionsAdd,
+  extensionsList,
   levelCommand,
   modeCommand,
   plansApply,
@@ -99,6 +101,25 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((name) => done(accountsLogin(ctx(), name)));
 };
 
+const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  const extensions = program
+    .command("extensions")
+    .description("extensions from Git, pinned by commit and digest; community code, run only inside an OS sandbox");
+  extensions
+    .command("list")
+    .description("list the installed extensions")
+    .action(() => done(extensionsList(ctx())));
+  extensions
+    .command("add")
+    .description("show the install of the extension at a Git URL and what it may do; with --yes, install it")
+    .argument("<url>", "an https or ssh Git URL, or user@host:path")
+    .option("--ref <ref>", "the branch or tag to install and later follow (default: the repository's default branch)")
+    .option("--path <folder>", "the extension's folder in the repository (default: its root)")
+    .option("--yes", "install as planned now")
+    .option("--approve <hash>", "install only the plan with this hash, as the preview showed it")
+    .action(async (url, options) => done(await extensionsAdd(ctx(), url, options)));
+};
+
 const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {
   program
     .command("mode")
@@ -168,6 +189,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);
   accountsGroup(program, ctx, done);
+  extensionsGroup(program, ctx, done);
   modeGroup(program, ctx, done);
   levelGroup(program, ctx, done);
   program

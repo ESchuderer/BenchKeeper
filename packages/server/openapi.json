@@ -2822,6 +2822,45 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.install-refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "no-manifest",
+                      "entry",
+                      "protocol",
+                      "installed"
+                    ]
+                  }
+                },
+                "required": [
+                  "extension",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.failed"
               },
               "params": {
@@ -2833,6 +2872,7 @@
                   "step": {
                     "type": "string",
                     "enum": [
+                      "stage",
                       "start",
                       "initialize",
                       "run"
@@ -6215,6 +6255,45 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.install-refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "no-manifest",
+                      "entry",
+                      "protocol",
+                      "installed"
+                    ]
+                  }
+                },
+                "required": [
+                  "extension",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.failed"
               },
               "params": {
@@ -6226,6 +6305,7 @@
                   "step": {
                     "type": "string",
                     "enum": [
+                      "stage",
                       "start",
                       "initialize",
                       "run"

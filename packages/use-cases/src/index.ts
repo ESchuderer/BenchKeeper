@@ -1,4 +1,5 @@
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
+export { type Fetch, type InstallPlan, installedExtensions, planInstall } from "./extensions.ts";
 export { isConfirmed } from "@cedarloom/accounts";
 export {
   automationSettings,

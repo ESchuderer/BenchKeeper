@@ -346,24 +346,14 @@ test("cancel stops the CLI with the command it runs, on Windows too, also after 
   const session = runtime.start(launch({ FAKE_CHILD: "1", FAKE_HANG: "1", FAKE_TICK: "1" }));
   const Command = z.object({ type: z.literal("command"), pid: z.int() });
   let pid: number | undefined;
-<<<<<<< HEAD
   // Leaves at the command line, as a launcher leaves at an init line without the settings proof.
-=======
-  let cancelled: Promise<void> | undefined;
-  // Read on to the end while cancelling: leaving early would close the fake's stdout, so it could die of EPIPE before
-  // the cancel reaches it and leave its command behind.
->>>>>>> origin/main
   for await (const event of session.events) {
-    pid ??= Command.safeParse(event.type === "other" ? event.raw : null).data?.pid;
-    if (pid !== undefined) cancelled ??= session.cancel();
+    pid = Command.safeParse(event.type === "other" ? event.raw : null).data?.pid;
+    if (pid !== undefined) break;
   }
-<<<<<<< HEAD
   // The CLI keeps writing meanwhile: a closed stdout would end it with EPIPE before the cancel and orphan its command.
   await new Promise((resolve) => setTimeout(resolve, 200));
   await session.cancel();
-=======
-  await cancelled;
->>>>>>> origin/main
   expect(pid).toBeDefined();
   await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 3000 });
 });

@@ -120,7 +120,7 @@ const command =
     });
     const abort = (): void => {
       // A timeout or a cancel ends the command's whole process tree.
-      stopTree(Number(child.pid));
+      stopTree(Number(child.pid), child);
       // A shell that has exited already, its background child holding the output, ends the attempt now.
       if (child.exitCode === null && child.signalCode === null) return;
       child.stdout.destroy();

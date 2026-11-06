@@ -380,7 +380,7 @@ export const ExtensionUpdates = z
       z.record(
         ExtensionId,
         z.strictObject({
-          commit: z.string().regex(/^[0-9a-f]{40}$/),
+          commit: Commit,
           seen: z.iso.datetime().describe("When this machine first fetched that commit at the ref"),
         }),
       ),

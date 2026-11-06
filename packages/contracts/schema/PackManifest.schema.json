@@ -90,7 +90,7 @@
                 "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
               },
               "source": {
-                "description": "Where Git fetches the skill; this pack's folder at the entry's path when absent",
+                "description": "Where Git fetches the skill: a branch or tag it follows, or a commit and digest it is pinned to, never both; this pack's folder at the entry's path when absent",
                 "anyOf": [
                   {
                     "type": "object",
@@ -164,7 +164,7 @@
       },
       "minProperties": 1,
       "maxProperties": 500,
-      "description": "Each entry by its path inside the pack: a rules text ends in .md, a profile in .json, a skill's last part is its name"
+      "description": "Each entry by its path inside the pack: a rules text ends in .md, a profile in .json, a skill's last part is its name; no two paths differ in case only, none lies inside another entry, no two skills share a name"
     }
   },
   "required": [

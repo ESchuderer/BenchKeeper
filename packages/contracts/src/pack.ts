@@ -12,25 +12,19 @@ const description = PlainText.max(2000).optional();
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
 const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
 
-/**
- * Where Git fetches a folder (A29 b): a text-only one follows a branch or tag, taking a new commit once CedarLoom has
- * seen it there for 3 days (A94); one with a file that runs is pinned by commit and digest, as an extension is.
- */
-const GitSource = z
-  .union([
-    z.strictObject({
-      git: GitUrl,
-      path: PortablePath.optional().describe("The folder inside the repository; its root when absent"),
-      ref: GitRef.describe("The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"),
-    }),
-    z.strictObject({
-      git: GitUrl,
-      path: PortablePath.optional().describe("The folder inside the repository; its root when absent"),
-      commit: Commit,
-      digest: FolderDigest,
-    }),
-  ])
-  .describe("A branch or tag it follows, or a commit and digest it is pinned to; never both");
+// Where Git fetches a folder (A29 b): a text-only one follows a branch or tag, taking a new commit once CedarLoom has
+// seen it there for 3 days (A94); one with a file that runs is pinned by commit and digest, as an extension is.
+const located = {
+  git: GitUrl,
+  path: PortablePath.optional().describe("The folder inside the repository; its root when absent"),
+};
+const GitSource = z.union([
+  z.strictObject({
+    ...located,
+    ref: GitRef.describe("The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"),
+  }),
+  z.strictObject({ ...located, commit: Commit, digest: FolderDigest }),
+]);
 
 const Entry = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.enum(["rules", "template", "profile"]), description }),
@@ -38,7 +32,7 @@ const Entry = z.discriminatedUnion("kind", [
     kind: z.literal("skill"),
     description,
     source: GitSource.optional().describe(
-      "Where Git fetches the skill; this pack's folder at the entry's path when absent",
+      "Where Git fetches the skill: a branch or tag it follows, or a commit and digest it is pinned to, never both; this pack's folder at the entry's path when absent",
     ),
   }),
 ]);
@@ -50,6 +44,25 @@ const fits = (path: string, kind: z.infer<typeof Entry>["kind"]): boolean => {
   if (kind === "skill") return skillName(path.slice(path.lastIndexOf("/") + 1));
   if (kind === "template") return true;
   return path.endsWith(kind === "rules" ? ".md" : ".json");
+};
+
+// Entries that collide on a file system that ignores case: two on one path, one inside another's folder or on the
+// manifest's own path, and two skills of one name, since a skill installs into a folder of its name. Each collision is
+// reported at the later or the inner entry.
+const collisions = (entries: Record<string, { kind: string }>): string[] => {
+  const all = new Set(Object.keys(entries).map((path) => path.toLowerCase()));
+  const seen = new Set(["cedarloom-pack.json"]);
+  const skills = new Set<string>();
+  return Object.entries(entries).flatMap(([path, { kind }]) => {
+    const parts = path.toLowerCase().split("/");
+    const key = parts.join("/");
+    const name = kind === "skill" ? key.slice(key.lastIndexOf("/") + 1) : undefined;
+    const inner = parts.some((_, at) => at > 0 && all.has(parts.slice(0, at).join("/")));
+    const clash = seen.has(key) || inner || (name !== undefined && skills.has(name));
+    seen.add(key);
+    if (name !== undefined) skills.add(name);
+    return clash ? [path] : [];
+  });
 };
 
 /**
@@ -68,13 +81,16 @@ export const PackManifest = z
     license: License.optional(),
     minApp: semver.describe("The oldest CedarLoom version that reads this pack"),
     entries: sized(z.record(PortablePath, Entry), 500, 1).describe(
-      "Each entry by its path inside the pack: a rules text ends in .md, a profile in .json, a skill's last part is its name",
+      "Each entry by its path inside the pack: a rules text ends in .md, a profile in .json, a skill's last part is its name; no two paths differ in case only, none lies inside another entry, no two skills share a name",
     ),
   })
   .superRefine((manifest, ctx) => {
     for (const [path, entry] of Object.entries(manifest.entries)) {
       if (!fits(path, entry.kind))
         ctx.addIssue({ code: "custom", path: ["entries", path], message: "a path for its kind" });
+    }
+    for (const path of collisions(manifest.entries)) {
+      ctx.addIssue({ code: "custom", path: ["entries", path], message: "a path and skill name no other entry has" });
     }
   })
   .describe("A CedarLoom pack manifest; readers also refuse values nested over 32 levels deep")

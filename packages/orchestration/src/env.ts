@@ -93,8 +93,8 @@ export const deniedPaths = (registry: AccountRegistry, home: string, xdgConfigHo
 ];
 
 /**
- * The hosts a worker reaches: GitHub only, until repositories name the package registries they need (pending owner
- * decision). Until then a package install fails: a tool that uses the sandbox proxy gets a 403 response from it, and
+ * The hosts a worker reaches: GitHub only, until repositories name the package registries they need (owner decision,
+ * 2026-11-06). Until then a package install fails: a tool that uses the sandbox proxy gets a 403 response from it, and
  * one that bypasses the proxy a name resolution error (https://code.claude.com/docs/en/sandboxing).
  */
 export const GITHUB_DOMAINS = ["github.com", "*.github.com", "*.githubusercontent.com"] as const;

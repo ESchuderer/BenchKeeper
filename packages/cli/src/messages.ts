@@ -35,6 +35,7 @@ const INSTALL_REFUSALS = {
   entry: "the entry file its manifest names is not in its folder",
   protocol: "it needs a version of the extension protocol this CedarLoom does not speak",
   installed: "it is installed already",
+  id: "its folder now holds another extension",
 } as const;
 
 const ENTRY_KINDS = {
@@ -127,8 +128,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Node ${p.node} runs ${p.type}, an extension action that is not installed, so the workflow cannot run until its extension is.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
-  "accounts.registry-exists": (p) =>
-    `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
   // Every quote checked at its source on 2026-11-06: three bullets of the Usage Policy's "Do Not Abuse Our Platform",
@@ -190,6 +189,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
+  "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
+  "extension.consent-needed": (p) =>
+    `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,
   "extension.install-refused": (p) =>
     `${p.extension === null ? "The extension" : `Extension ${p.extension}`} is not installed: ${INSTALL_REFUSALS[p.reason]}.`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,

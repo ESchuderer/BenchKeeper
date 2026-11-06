@@ -41,7 +41,7 @@ const LISTS = [
 // A proxy of the policy's own takes over filtering: Claude Code stops applying its domain lists to it
 // (#sandbox-network-httpproxyport, #sandbox-network-socksproxyport).
 const PORTS = ["network.httpProxyPort", "network.socksProxyPort"] as const;
-// Hosts beyond the workers' GitHub-only network (#sandbox-network-alloweddomains; pending owner decision).
+// Hosts beyond the workers' GitHub-only network (#sandbox-network-alloweddomains; owner decision, 2026-11-06).
 const DOMAINS = "network.allowedDomains";
 const GITHUB = new Set<string>(GITHUB_DOMAINS);
 

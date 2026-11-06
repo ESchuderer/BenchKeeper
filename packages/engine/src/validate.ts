@@ -206,7 +206,7 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 /**
  * A28: a run a schedule starts only reports, so its workflow has no node that may write a file: no file.write,
  * and no workflow.run, whose child the validator cannot see. No extension action either, which may write through the
- * host or change other systems (pending owner decision).
+ * host or change other systems (P9 b).
  */
 const reportOnly = ({ nodes }: Graph): Finding[] =>
   nodes.some((node) => node.type === "trigger.schedule")

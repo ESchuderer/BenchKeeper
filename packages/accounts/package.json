@@ -2,7 +2,7 @@
   "name": "@cedarloom/accounts",
   "version": "0.0.0",
   "private": true,
-  "description": "The account domain of CedarLoom: the registry of config folders, pools and minimums, the one-time import of BenchKeeper's registry, and the choice of the pool account with the most headroom.",
+  "description": "The account domain of CedarLoom: the registry of config folders, pools and minimums, and the launch-time choice of an account.",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -27,8 +27,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@cedarloom/contracts": "workspace:*",
-    "zod": "catalog:"
+    "@cedarloom/contracts": "workspace:*"
   },
   "devDependencies": {
     "fast-check": "catalog:"

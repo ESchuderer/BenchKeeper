@@ -124,7 +124,7 @@ export interface GateRun {
 /**
  * The level that applies at a gate of `run`, read at the gate itself. Route a question with the level read at the
  * step's last gate: reading it again in the middle of a step would let a switch take effect there. With modeScope
- * `running` (when unset; pending owner decision) only a switch made since the run started applies to it; with
+ * `running` (when unset; owner decision, 2026-11-06) only a switch made since the run started applies to it; with
  * `until-off`, the latest switch applies to every run.
  */
 export const levelAtGate = (state: string, config: string, run: GateRun): Result<AutomationLevel> => {

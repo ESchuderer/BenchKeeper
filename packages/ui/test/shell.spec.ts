@@ -236,7 +236,7 @@ test("a new tab has no session and says how to get one", async () => {
 
 test("a store the server cannot read any more is named in the page, live", async () => {
   const db = new DatabaseSync(join(stateDir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 9");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   await expect(page.getByRole("alert")).toContainText("store.newer-schema");
   await accessible();

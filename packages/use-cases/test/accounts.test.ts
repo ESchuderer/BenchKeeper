@@ -23,7 +23,7 @@ import {
   planHome,
   planImport,
 } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const AT = "2026-11-05T11:00:00.000Z";
@@ -232,6 +232,15 @@ const importedRegistry = () => {
   return { config, state };
 };
 
+// The imported registry with work moved into its own home by its plan; the home itself is the login's to make.
+const plannedHome = () => {
+  const { config, state } = importedRegistry();
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  return { config, state };
+};
+
 test("an account moves into its own home by a plan, and the folder it named before stays as an alias", () => {
   const { config, state } = importedRegistry();
   const home = ownHome(state, "work");
@@ -335,10 +344,7 @@ test("the login runs in the account's own home, made for the owner only, with th
 });
 
 test("a login never runs in an own home that is a link or lies in one, so nothing lands in the folder it points to", () => {
-  const { config, state } = importedRegistry();
-  const moved = planHome(config, state, "work");
-  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
-  applyPlan(state, moved.value.plan, { yes: true });
+  const { config, state } = plannedHome();
   const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
   const homes = join(state, "homes");
   const started: Record<string, string>[] = [];
@@ -364,10 +370,7 @@ test("a login never runs in an own home that is a link or lies in one, so nothin
 });
 
 test("an own home that cannot be made is a finding with its folder and cause", () => {
-  const { config, state } = importedRegistry();
-  const moved = planHome(config, state, "work");
-  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
-  applyPlan(state, moved.value.plan, { yes: true });
+  const { config, state } = plannedHome();
   // A file where the homes folder belongs.
   writeFileSync(join(state, "homes"), "");
   const ran = loginAccount(config, state, "work", { parent: {}, platform: "linux", run: () => ({ code: 0 }) });
@@ -375,6 +378,23 @@ test("an own home that cannot be made is a finding with its folder and cause", (
     ok: false,
     finding: { code: "accounts.home-unusable", params: { account: "work", path: join(state, "homes") } },
   });
+});
+
+test("a hand-edited own home with a trailing separator is still the own home: nothing to plan, and the login runs in it", () => {
+  const { config, state } = plannedHome();
+  const home = ownHome(state, "work");
+  const registryText = readFileSync(join(config, "accounts.json"), "utf8");
+  writeFileSync(
+    join(config, "accounts.json"),
+    registryText.replace(`"home": ${JSON.stringify(home)}`, `"home": ${JSON.stringify(`${home}/`)}`),
+  );
+  expect(planHome(config, state, "work")).toEqual({ ok: true, value: { plan: null, home } });
+  const run = vi.fn<(env: Record<string, string>) => { code: number }>(() => ({ code: 0 }));
+  expect(loginAccount(config, state, "work", { parent: {}, platform: "linux", run })).toEqual({
+    ok: true,
+    value: { home },
+  });
+  expect(run.mock.calls).toEqual([[{ CLAUDE_CONFIG_DIR: home }]]);
 });
 
 test("an import reports a BenchKeeper file it cannot read or map", () => {

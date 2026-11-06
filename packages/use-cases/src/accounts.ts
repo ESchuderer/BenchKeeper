@@ -108,7 +108,7 @@ export const ownFolder = (
   { create }: { readonly create: boolean },
 ): Result<string> => {
   const home = ownHome(state, name);
-  if (named !== home) {
+  if (!sameFolder(named, home)) {
     return { ok: false, finding: { code: "accounts.home-not-own", params: { account: name, home: named } } };
   }
   for (const path of [join(state, "homes"), home]) {
@@ -156,7 +156,7 @@ export const planHome = (config: string, state: string, name: string): Result<{ 
   if (!read.ok) return read;
   const { path, text, registry, account } = read.value;
   const home = ownHome(state, account.name);
-  if (account.home === home) return { ok: true, value: { plan: null, home } };
+  if (sameFolder(account.home, home)) return { ok: true, value: { plan: null, home } };
   const others = registry.accounts.filter((each) => each !== account);
   if (others.some((each) => [each.home, ...(each.aliases ?? [])].some((folder) => sameFolder(folder, home)))) {
     return { ok: false, finding: { code: "accounts.folder-taken", params: { path: home } } };

@@ -126,7 +126,8 @@ const decide = async <L extends Launch>(
     runId,
     account,
     env,
-    home: account.home,
+    // The own home as ownFolder spells it, as the login ran in it.
+    home: folder.value,
     prompt: `${request.prompt}\n\n${resultPrompt(resultFile, runId)}`,
     tmpDir,
     resultFile,

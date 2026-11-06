@@ -418,6 +418,23 @@ const Problems = ({ workflow }: { workflow: WorkflowDefinition }): ReactNode => 
   );
 };
 
+type Status = { text: string; count: number; at?: History };
+
+/**
+ * The status line's sentence. It is keyed by its count, so the same sentence again is a new node that a screen reader
+ * reads again; it belongs to the document it first showed with, so the next change of the document ends it.
+ */
+const useStatus = (history: History): [Status, (text: string) => void] => {
+  const [status, setStatus] = useState<Status>({ text: "", count: 0 });
+  useEffect(() => {
+    setStatus((last) => {
+      if (last.at === undefined) return { ...last, at: history };
+      return last.at === history ? last : { text: "", count: last.count };
+    });
+  }, [history, status.count]);
+  return [status, (text) => setStatus((last) => ({ text, count: last.count + 1 }))];
+};
+
 /**
  * The visual workflow editor: a document (new, imported from a file, exported in the canonical file form) with undo and
  * redo and a draft in the state folder, the graph on a React Flow canvas, and the validator's findings below it.
@@ -427,20 +444,20 @@ const Editor = ({ api }: { api: Api }): ReactNode => {
   // A refusal shows until the document changes: it is kept with the history it was raised on.
   const [problem, setProblem] = useState<{ text: string; at: History } | null>(null);
   const raise = (text: string): void => setProblem({ text, at: edit.history });
-  const [status, setStatus] = useState("");
+  const [status, say] = useStatus(edit.history);
   const announced = useRef<HTMLParagraphElement>(null);
   // Node sizes as React Flow measured them: the canvas shows nodes with them, the auto layout spaces nodes by them.
   const [sizes, setSizes] = useState<Sizes>({});
   const workflow = edit.history.present;
   const focus = (): void => announced.current?.focus();
-  const drafts = useDrafts({ api, workflow, loads: edit.loads, change: edit.change, onStatus: setStatus, focus });
+  const drafts = useDrafts({ api, workflow, loads: edit.loads, change: edit.change, onStatus: say, focus });
   return (
     <Stack>
       {drafts.offers}
-      <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={setStatus} onRelease={drafts.release} />
+      <Toolbar edit={edit} sizes={sizes} onProblem={raise} onStatus={say} onRelease={drafts.release} />
       {problem?.at === edit.history && <Alert color="red">{problem.text}</Alert>}
       <Text role="status" size="sm" ref={announced} tabIndex={-1}>
-        {status}
+        {status.text === "" ? null : <span key={status.count}>{status.text}</span>}
       </Text>
       <Text size="sm">{drafts.saved}</Text>
       <Canvas

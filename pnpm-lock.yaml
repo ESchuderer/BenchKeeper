@@ -84,6 +84,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@cedarloom/adapter-claude':
+        specifier: workspace:*
+        version: link:../adapter-claude
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts

@@ -1,4 +1,4 @@
-import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionError } from "@cedarloom/agent-contracts";
@@ -118,6 +118,19 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
     missing: (["init", "settings", "usage", "result"] as const).filter((part) => !passed[part]),
   };
 };
+
+/**
+ * Runs Claude Code's own login in this terminal, `claude auth login` (https://code.claude.com/docs/en/cli-reference),
+ * with `env`, which names the account's config folder. Tells the exit code, or null with the error when it did not
+ * start. `command` is the CLI as for claudeRuntime.
+ */
+export const claudeLogin =
+  (command: Command = ["claude"]) =>
+  (env: Record<string, string>): { readonly code: number | null; readonly error?: string } => {
+    const [file, ...prefix] = command;
+    const ran = spawnSync(file, [...prefix, "auth", "login"], { env, stdio: "inherit" });
+    return ran.error === undefined ? { code: ran.status } : { code: null, error: ran.error.message };
+  };
 
 /**
  * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the

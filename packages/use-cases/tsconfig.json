@@ -11,6 +11,7 @@
     { "path": "../agent-contracts" },
     { "path": "../contracts" },
     { "path": "../ledger" },
-    { "path": "../engine" }
+    { "path": "../engine" },
+    { "path": "../orchestration" }
   ]
 }

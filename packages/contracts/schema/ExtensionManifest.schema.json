@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "PluginManifest.schema.json",
+  "$id": "ExtensionManifest.schema.json",
   "type": "object",
   "properties": {
     "$schema": {
@@ -13,10 +13,10 @@
     },
     "kind": {
       "type": "string",
-      "const": "cedarloom.plugin"
+      "const": "cedarloom.extension"
     },
     "id": {
-      "$ref": "PluginId.schema.json"
+      "$ref": "ExtensionId.schema.json"
     },
     "version": {
       "type": "string",
@@ -42,7 +42,7 @@
     "api": {
       "type": "string",
       "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}$",
-      "description": "The plugin protocol version it needs: the same major version, at least this minor one"
+      "description": "The extension protocol version it needs: the same major version, at least this minor one"
     },
     "runtime": {
       "type": "object",
@@ -63,7 +63,7 @@
               "pattern": "\\.[cm]?js$"
             }
           ],
-          "description": "The script the host starts, inside the plugin's folder"
+          "description": "The script the host starts, inside the extension's folder"
         }
       },
       "required": [
@@ -91,7 +91,7 @@
       "type": "object",
       "properties": {
         "net": {
-          "description": "Hosts the plugin may call through the host's fetch, and no others",
+          "description": "Hosts the extension may call through the host's fetch, and no others",
           "maxItems": 32,
           "type": "array",
           "items": {
@@ -102,7 +102,7 @@
           "uniqueItems": true
         },
         "credentials": {
-          "description": "Credential types the plugin uses; it never receives their values",
+          "description": "Credential types the extension uses; it never receives their values",
           "type": "object",
           "propertyNames": {
             "type": "string",
@@ -163,7 +163,7 @@
                     "additionalProperties": false
                   }
                 ],
-                "description": "The host refuses a request in which the plugin sets this header itself"
+                "description": "The host refuses a request in which the extension sets this header itself"
               },
               "hosts": {
                 "minItems": 1,
@@ -353,5 +353,5 @@
     "contributes"
   ],
   "additionalProperties": false,
-  "description": "A CedarLoom plugin manifest; readers also refuse values nested over 32 levels deep"
+  "description": "A CedarLoom extension manifest; readers also refuse values nested over 32 levels deep"
 }

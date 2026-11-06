@@ -1725,7 +1725,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.report-only-plugin"
+                "const": "workflow.report-only-extension"
               },
               "params": {
                 "type": "object",
@@ -1751,7 +1751,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.plugin-missing"
+                "const": "workflow.extension-missing"
               },
               "params": {
                 "type": "object",
@@ -4829,7 +4829,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.report-only-plugin"
+                "const": "workflow.report-only-extension"
               },
               "params": {
                 "type": "object",
@@ -4855,7 +4855,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.plugin-missing"
+                "const": "workflow.extension-missing"
               },
               "params": {
                 "type": "object",

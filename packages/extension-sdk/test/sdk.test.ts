@@ -64,6 +64,7 @@ const actions: Record<string, Action> = {
     }),
   // Fetches through the host the request its node's `with` holds, and says what it was granted.
   fetch: async ({ config, fetch, granted }) => ({ answer: await fetch(Object(config)), granted }),
+  granted: ({ granted }) => ({ granted }),
 };
 
 type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
@@ -83,18 +84,21 @@ const connect = (): Connected => {
 };
 
 const params = { config: { query: "x" }, inputs: { project: "CL" }, run: "r1" };
-const hello = { protocol: PROTOCOL, locale: "de", granted: { net: [], credentials: [] } };
+// A host that sends no grant grants nothing.
+const hello = { protocol: PROTOCOL, locale: "de" };
 
 test("the extension names its protocol version and actions, runs an action with its context, and logs to the host", async () => {
   const { host, logs } = connect();
   const answer = await host.sendRequest(initialize, hello);
   const ran = await host.sendRequest(runAction, { action: "echo", ...params });
-  expect([answer, ran, logs]).toEqual([
+  const grant = await host.sendRequest(runAction, { action: "granted", ...params });
+  expect([answer, ran, grant, logs]).toEqual([
     {
       protocol: "1.0",
-      actions: ["echo", "fail", "rejects", "opaque", "text", "json", "big", "later", "wait", "fetch"],
+      actions: ["echo", "fail", "rejects", "opaque", "text", "json", "big", "later", "wait", "fetch", "granted"],
     },
     { outputs: { ...params, locale: "de" } },
+    { outputs: { granted: { net: [], credentials: [] } } },
     [
       { run: "r1", level: "info", message: "started" },
       { run: "r1", level: "warning", message: "almost done" },

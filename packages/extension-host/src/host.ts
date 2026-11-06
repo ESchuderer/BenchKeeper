@@ -196,6 +196,8 @@ type Session = {
   kill: () => void;
   /** Counts a message as read that the connection took without handing it to the message strategy. */
   consumed: () => void;
+  /** Aborts once the extension's process has ended. */
+  ended: AbortSignal;
 };
 
 // Starts the process and connects to it; the guard on its output and the end of the process are kept for the reasons.
@@ -230,13 +232,15 @@ const connect = (launch: Launch, limits: HostLimits): Session => {
     undefined,
     { messageStrategy: strategy },
   );
-  // An extension that ended answers nothing more: its open requests fail at once instead of waiting for their limit.
-  void stopped.then(() => connection.dispose());
+  // An extension that ended answers nothing more: its open requests fail at once instead of waiting for their limit,
+  // and the requests the host sends for it stop.
+  const ended = new AbortController();
+  void stopped.then(() => ended.abort()).then(() => connection.dispose());
   const why = (): string | undefined => broken ?? (child.exitCode === null ? undefined : stderr.trim() || "it ended");
   const consumed = (): void => {
     unread -= 1;
   };
-  return { connection, stopped, broken: why, kill: () => child.kill("SIGKILL"), consumed };
+  return { connection, stopped, broken: why, kill: () => child.kill("SIGKILL"), consumed, ended: ended.signal };
 };
 
 /** Greets the started extension; a wrong or missing answer ends it. */
@@ -277,7 +281,7 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     session = connect(how, limits);
     const logs = logBook(limits);
     session.connection.onNotification(log, logs.write);
-    const broker = { manifest: launch.manifest, credentials: launch.credentials, limits };
+    const broker = { manifest: launch.manifest, credentials: launch.credentials, limits, ended: session.ended };
     const fetch = fetcher({ ...broker, transport: launch.transport ?? transport() });
     const { consumed } = session;
     // vscode-jsonrpc 10.0.0 takes a `$/cancelRequest` for a request still being handled by cancelling the request's

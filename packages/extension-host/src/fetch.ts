@@ -14,6 +14,8 @@ type Broker = {
   credentials: Credentials | undefined;
   transport: Transport;
   limits: { fetchBytes: number; fetchMs: number; fetches: number };
+  /** Aborts when the extension's session ends: nothing it started goes on without it. */
+  ended: AbortSignal;
 };
 // The broker with the granted origins it checks every URL against.
 type Granting = Broker & { net: Set<string> };
@@ -27,6 +29,8 @@ const REDIRECTS = 5;
 const MOVED = new Set([301, 302, 303, 307, 308]);
 // Headers that describe a request's body: a redirect that drops the body drops them too (Fetch standard).
 const BODY_HEADERS = new Set(["content-type", "content-encoding", "content-language", "content-location"]);
+// The extension's own credentials: a redirect to another origin drops them, as Fetch and undici do.
+const ORIGIN_HEADERS = new Set(["authorization", "cookie"]);
 
 const Request = z
   .strictObject({
@@ -37,8 +41,7 @@ const Request = z
         z
           .string()
           .regex(/^[A-Za-z0-9-]{1,64}$/)
-          // Node decodes no answer, so the host asks for none coded: no Accept-Encoding of the extension's.
-          .refine((name) => ![...FORBIDDEN_HEADERS, "accept-encoding"].includes(name.toLowerCase())),
+          .refine((name) => !FORBIDDEN_HEADERS.includes(name.toLowerCase())),
         z.string().regex(/^[\t -~]{0,8192}$/),
       )
       .refine((headers) => Object.keys(headers).length <= 64)
@@ -106,11 +109,14 @@ const injected = async (broker: Broker, request: Request, url: URL): Promise<Inj
   return { name: headerOf(credential), value: header[kind], hosts: new Set(credential.hosts), secrets };
 };
 
-// What the extension gets back holds no credential's value, also not one a host echoed in its answer.
+// What the extension gets back holds no credential's value, also not one a host echoed in its answer. The longest form
+// goes first: a short secret inside the basic form would otherwise break that form's match and leave its rest.
 const hidden =
   (secrets: string[]) =>
   (text: string): string =>
-    secrets.reduce((shown, secret) => shown.replaceAll(secret, "[redacted]"), text);
+    secrets
+      .toSorted((one, two) => two.length - one.length)
+      .reduce((shown, secret) => shown.replaceAll(secret, "[redacted]"), text);
 
 // The answer as text, identity-coded only: Node decodes nothing, so a coded body would be garbled, would hide an echoed
 // value from the redaction, and its length could confirm a guess of it a piece at a time (BREACH).
@@ -127,21 +133,25 @@ const resultOf = (target: Target, answer: HopAnswer, hide: (text: string) => str
   };
 };
 
-// The request a redirect asks for, within the grant, or "done" for an answer that is no redirect. After a 303, or a
-// 301 or 302 that answered a POST, it is a GET without a body or the headers that describe one, as in the Fetch
-// standard (https://fetch.spec.whatwg.org/#http-redirect-fetch).
+const without = (headers: Record<string, string>, drop: (name: string) => boolean): Record<string, string> =>
+  Object.fromEntries(Object.entries(headers).filter(([name]) => !drop(name)));
+
+// The request a redirect asks for, within the grant, or "done" for an answer that is no redirect. To another origin it
+// goes without the extension's Authorization and Cookie. After a 303, or a 301 or 302 that answered a POST, it is a GET
+// without a body or the headers that describe one, as in the Fetch standard
+// (https://fetch.spec.whatwg.org/#http-redirect-fetch). A refusal names no origin: a host could put a value into one.
 const next = (net: Set<string>, target: Target, answer: HopAnswer): Target | ResponseError | "done" => {
   const location = answer.headers["location"];
   if (!MOVED.has(answer.status) || location === undefined) return "done";
   const moved = new URL(location, target.url);
-  if (typeof granted(net, moved.href) === "string")
-    return refused(`a redirect to ${moved.origin}, which is not granted`);
-  const { method, headers } = target;
+  if (typeof granted(net, moved.href) === "string") return refused("a redirect to an origin that is not granted");
+  const across = moved.origin !== target.url.origin;
+  const headers = without(target.headers, (name) => across && ORIGIN_HEADERS.has(name));
+  const { method } = target;
   if (method === "HEAD" || (answer.status !== 303 && (method !== "POST" || answer.status > 302))) {
-    return { ...target, url: moved };
+    return { ...target, url: moved, headers };
   }
-  const kept = Object.entries(headers).filter(([name]) => !BODY_HEADERS.has(name));
-  return { url: moved, method: "GET", headers: Object.fromEntries(kept), body: undefined };
+  return { url: moved, method: "GET", headers: without(headers, (name) => BODY_HEADERS.has(name)), body: undefined };
 };
 
 type Call = { credential: Injected | undefined; signal: AbortSignal; hide: (text: string) => string };
@@ -162,19 +172,21 @@ const follow = async (broker: Granting, call: Call, first: Target): Promise<Answ
   }
 };
 
-// Sends within the host's time limit and the extension's cancel; a failure reaches the extension without a value.
+// Sends within the host's time limit, the extension's cancel and its session, the credential's lookup included, so a
+// store that never answers holds no request past its limit; a failure reaches the extension without a value.
 const send = async (broker: Granting, request: Request, url: URL, token: CancellationToken): Promise<Answer> => {
   const cancelled = new AbortController();
   token.onCancellationRequested(() => cancelled.abort());
   const late = AbortSignal.timeout(broker.limits.fetchMs);
-  const signal = AbortSignal.any([cancelled.signal, late]);
-  const credential = await injected(broker, request, url).catch((error: unknown) => failed(messageOf(error)));
+  const signal = AbortSignal.any([cancelled.signal, late, broker.ended]);
+  const stopped = new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+  const failure = (hide: (text: string) => string) => (error: unknown) =>
+    failed(late.aborted ? `no answer within ${broker.limits.fetchMs} ms` : hide(messageOf(error)));
+  const credential = await Promise.race([injected(broker, request, url), stopped]).catch(failure(hidden([])));
   if (credential instanceof ResponseError) return credential;
   const hide = hidden(credential?.secrets ?? []);
   const first = { url, method: request.method, headers: request.headers, body: request.body };
-  return follow(broker, { credential, signal, hide }, first).catch((error: unknown) =>
-    failed(late.aborted ? `no answer within ${broker.limits.fetchMs} ms` : hide(messageOf(error))),
-  );
+  return follow(broker, { credential, signal, hide }, first).catch(failure(hide));
 };
 
 /**

@@ -80,6 +80,12 @@ const actions = {
     answers: await Promise.all(config.requests.map((r) => ask("host/fetch", r))),
     granted,
   }),
+  // Asks the host for a request that never answers, then ends.
+  "fetch-then-crash": () => {
+    send({ id: "hang", method: "host/fetch", params: { url: "https://api.acme.example/hang" } });
+    setTimeout(() => process.exit(3), 50);
+    return new Promise(() => undefined);
+  },
   // Cancels requests the host is still handling, as the SDK does for a cancelled run: the cancel goes out once the host
   // has had time to start on the request.
   "fetch-cancel": async ({ config }) => {

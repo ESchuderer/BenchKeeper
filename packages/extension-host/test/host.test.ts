@@ -31,6 +31,7 @@ const ACTIONS = [
   "wait",
   "fetch",
   "fetch-cancel",
+  "fetch-then-crash",
 ];
 const manifestOf = (actions: string[], api = "1.0", capabilities?: unknown): ExtensionManifest =>
   ExtensionManifest.parse({
@@ -287,17 +288,21 @@ const capabilities = {
     key: { scheme: { type: "apiKey", in: "header", name: "X-Api-Key" }, hosts: [API] },
     unset: { scheme: BEARER, hosts: [API] },
     locked: { scheme: BEARER, hosts: [API] },
+    short: { scheme: { type: "http", scheme: "basic" }, hosts: [API] },
+    stalled: { scheme: BEARER, hosts: [API] },
   },
 };
 const SECRETS: Record<string, { secret: string; user?: string }> = {
   token: { secret: "s3cret-token" },
   login: { user: "ada", secret: "pw" },
+  // A secret inside its own basic form: "YWRhOlk=" is ada:Y.
+  short: { user: "ada", secret: "Y" },
   key: { secret: "k3y/+=" },
 };
-// The user's store of credentials: one it cannot open throws.
+// The user's store of credentials: one it cannot open throws, one never answers.
 const store = (id: string) => {
   if (id === "locked") throw new Error("the keychain is locked");
-  return SECRETS[id];
+  return id === "stalled" ? new Promise<undefined>(() => undefined) : SECRETS[id];
 };
 const answer = (status: number, body = "ok", headers: Record<string, string> = {}): HopAnswer => ({
   status,
@@ -359,16 +364,21 @@ const FETCHES: [string, unknown, unknown][] = [
   ],
   ["an unknown field", { url: API, timeout: 5 }, no("invalid request")],
   ["a redirect within the grant", { url: `${API}/redirect`, credential: "token" }, ok(`${OTHER}/landed`)],
-  ["a redirect elsewhere", { url: `${API}/away` }, no("a redirect to https://elsewhere.example, which is not granted")],
+  ["a redirect elsewhere", { url: `${API}/away` }, no("a redirect to an origin that is not granted")],
   ["a redirect loop", { url: `${API}/loop` }, down("more than 5 redirects")],
   [
-    "a 303 after a POST",
-    { url: `${API}/see-other`, method: "POST", body: "{}", headers: JSON_BODY },
+    "a 303 after a POST, the extension's own Authorization kept on its origin",
+    { url: `${API}/see-other`, method: "POST", body: "{}", headers: { ...JSON_BODY, Authorization: "Bearer mine" } },
     ok(`${API}/landed`),
   ],
   [
-    "a 302 after a POST",
-    { url: `${API}/redirect`, method: "POST", body: "{}", headers: JSON_BODY },
+    "a 302 after a POST, its own Cookie dropped for another origin",
+    { url: `${API}/redirect`, method: "POST", body: "{}", headers: { ...JSON_BODY, Cookie: "s=1" } },
+    ok(`${OTHER}/landed`),
+  ],
+  [
+    "its own Authorization and Cookie dropped for another origin",
+    { url: `${API}/redirect`, headers: { Authorization: "Bearer mine", Cookie: "s=1" } },
     ok(`${OTHER}/landed`),
   ],
   [
@@ -397,6 +407,12 @@ const FETCHES: [string, unknown, unknown][] = [
   ["a host that is down", { url: `${API}/down` }, down("connect ECONNREFUSED")],
   ["a credential without a value", { url: API, credential: "unset" }, down("credential unset has no value")],
   ["a store that cannot be read", { url: API, credential: "locked" }, down("the keychain is locked")],
+  ["a store that never answers", { url: API, credential: "stalled" }, down("no answer within 100 ms")],
+  [
+    "a short secret inside its basic form",
+    { url: `${API}/echo`, credential: "short" },
+    ok(`${API}/echo`, 'you sent {"authorization":"Basic [redacted]"}', { "x-echo": "Basic [redacted]" }),
+  ],
   ["no answer in time", { url: `${API}/slow` }, down("no answer within 100 ms")],
 ];
 
@@ -411,19 +427,28 @@ test("host/fetch reaches granted origins only, adds a credential for its hosts o
   const answers = codeOf(await run(fetcher, "fetch", undefined, { requests }));
   expect(answers).toEqual({
     answers: FETCHES.map(([, , expected]) => expected),
-    granted: { net: [API, OTHER], credentials: ["token", "login", "key", "unset", "locked"] },
+    granted: { net: [API, OTHER], credentials: ["token", "login", "key", "unset", "locked", "short", "stalled"] },
   });
-  // The credential goes to its host and not on to another; a 303, or a 302 after a POST, turns the POST into a GET
-  // without its body and the headers that describe it, and a 307 keeps them.
+  // The credential goes to its host and not on to another, and so do the extension's own Authorization and Cookie; a
+  // 303, or a 302 after a POST, turns the POST into a GET without its body and the headers that describe it, and a 307
+  // keeps them.
   const landed = { method: "GET", headers: {}, body: undefined };
+  const json = { "content-type": "application/json" };
   const loops = at("/loop").map((hop) => `${hop.method} ${String(hop.body)} ${hop.headers["content-type"] ?? "-"}`);
   expect([at("/redirect"), at("/landed"), loops.toSorted(), at("/basic"), at("/key")]).toEqual([
     [
       { url: `${API}/redirect`, method: "GET", headers: { authorization: "Bearer s3cret-token" }, body: undefined },
-      { url: `${API}/redirect`, method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+      { url: `${API}/redirect`, method: "POST", headers: { ...json, cookie: "s=1" }, body: "{}" },
+      {
+        url: `${API}/redirect`,
+        method: "GET",
+        headers: { authorization: "Bearer mine", cookie: "s=1" },
+        body: undefined,
+      },
     ],
     [
-      { url: `${API}/landed`, ...landed },
+      { url: `${API}/landed`, method: "GET", headers: { authorization: "Bearer mine" }, body: undefined },
+      { url: `${OTHER}/landed`, ...landed },
       { url: `${OTHER}/landed`, ...landed },
       { url: `${OTHER}/landed`, ...landed },
     ],
@@ -463,4 +488,18 @@ test("S10: cancels of requests the host is still handling count as read, so they
     limits: { unreadMessages: 20 },
   });
   expect(codeOf(await run(fetcher, "fetch-cancel", undefined, { count: 60 }))).toEqual({});
+});
+
+test("an extension that ends stops the requests the host sends for it", async () => {
+  const ended: string[] = [];
+  const hanging: Transport = (hop) =>
+    new Promise((_, reject) =>
+      hop.signal.addEventListener("abort", () => {
+        ended.push(hop.url.pathname);
+        reject(new Error("aborted"));
+      }),
+    );
+  const fetcher = await extension({ manifest: manifestOf(ACTIONS, "1.0", capabilities), transport: hanging });
+  const result = await run(fetcher, "fetch-then-crash");
+  expect([codeOf(result), ended]).toEqual([failure("run", expect.any(String)), ["/hang"]]);
 });

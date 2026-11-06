@@ -62,9 +62,9 @@ const Origin = z
   .refine(isOrigin, "an https origin: lower case, no path, no default port");
 
 /**
- * Headers neither a credential nor an extension's request sets, in lower case: those that frame the request, and the
+ * Headers neither a credential nor an extension's request sets, in lower case: those that frame the request, the
  * hop-by-hop ones of RFC 9110 section 7.6.1 (https://www.rfc-editor.org/rfc/rfc9110#section-7.6.1), which a proxy
- * reads and removes.
+ * reads and removes, and Accept-Encoding, since the host takes identity-coded answers only.
  */
 export const FORBIDDEN_HEADERS: readonly string[] = [
   "host",
@@ -77,13 +77,14 @@ export const FORBIDDEN_HEADERS: readonly string[] = [
   "trailer",
   "upgrade",
   "proxy-authorization",
+  "accept-encoding",
 ];
 
 // A header the host sets for a credential.
 const HeaderName = z
   .string()
   .regex(/^[A-Za-z0-9-]{1,64}$/)
-  .refine((name) => !FORBIDDEN_HEADERS.includes(name.toLowerCase()), "not a header that frames the request or a hop");
+  .refine((name) => !FORBIDDEN_HEADERS.includes(name.toLowerCase()), "not a header of the request's framing or coding");
 
 // How the host adds a credential to a request, after the OpenAPI Security Scheme Object
 // (https://spec.openapis.org/oas/v3.1.0#security-scheme-object), headers only: `Authorization: Bearer <value>`,

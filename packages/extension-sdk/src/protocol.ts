@@ -8,8 +8,11 @@ export const PROTOCOL = "1.0";
 
 /** What the user granted the extension: the origins it may fetch, and the credentials the host adds for it. */
 export type Granted = { net: string[]; credentials: string[] };
-/** The host's first request: the protocol version, the user's language for the extension's own texts, and its grant. */
-export type InitializeParams = { protocol: string; locale: string; granted: Granted };
+/**
+ * The host's first request: the protocol version, the user's language for the extension's own texts, and its grant;
+ * a host that sends none grants nothing.
+ */
+export type InitializeParams = { protocol: string; locale: string; granted?: Granted };
 /** The extension's protocol version and the actions it serves, which the host checks against its manifest. */
 export type InitializeResult = { protocol: string; actions: string[] };
 export const initialize = new RequestType<InitializeParams, InitializeResult, void>("initialize");

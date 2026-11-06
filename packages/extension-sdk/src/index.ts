@@ -106,7 +106,7 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
   const connection = createMessageConnection(new StreamMessageReader(input), new StreamMessageWriter(output));
   let hello: Pick<ActionContext, "locale" | "granted"> = { locale: "en", granted: { net: [], credentials: [] } };
   const names = Object.keys(actions);
-  connection.onRequest(initialize, ({ locale, granted }) => {
+  connection.onRequest(initialize, ({ locale, granted = { net: [], credentials: [] } }) => {
     hello = { locale, granted };
     return { protocol: PROTOCOL, actions: names };
   });

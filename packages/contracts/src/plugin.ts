@@ -16,8 +16,14 @@ const unique = (items: readonly string[]): boolean => new Set(items).size === it
 const distinct = <T extends z.ZodType<string>>(item: T) =>
   z.array(item).refine(unique, "no entry twice").meta({ uniqueItems: true });
 const description = z.string().max(2000).optional();
-// zod checks a record's size by a refinement, which the JSON Schema document gets from this.
-const atLeastOne = { minProperties: 1 };
+// A record of `min` to `max` entries; zod checks it by a refinement, the JSON Schema document by these keywords.
+const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: number, min = 0): T =>
+  record
+    .refine((entries) => {
+      const count = Object.keys(entries).length;
+      return count >= min && count <= max;
+    }, `${min} to ${max} entries`)
+    .meta(min > 0 ? { minProperties: min, maxProperties: max } : { maxProperties: max });
 
 /** A plugin's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
 export const PluginId = z
@@ -45,6 +51,7 @@ const Origin = z
   .regex(/^https:\/\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$/)
   .refine(isOrigin, "an https origin: lower case, no path, no default port");
 
+// The host fetches for the plugin and adds its credentials, which the plugin never sees (pending owner decision).
 const Credential = z.strictObject({
   description,
   hosts: distinct(Origin)
@@ -53,51 +60,57 @@ const Credential = z.strictObject({
     .describe("The host adds the credential to requests to these hosts only; each is in `net`"),
 });
 
-// The host fetches for the plugin and adds its credentials, which the plugin never sees (pending owner decision).
-
 const Capabilities = z.strictObject({
   net: distinct(Origin)
     .max(32)
     .optional()
     .describe("Hosts the plugin may call through the host's fetch, and no others"),
-  credentials: z
-    .record(CredentialId, Credential)
+  credentials: sized(z.record(CredentialId, Credential), 16)
     .optional()
     .describe("Credential types the plugin uses; it never receives their values"),
   projectRead: z.boolean().optional().describe("Reads project files through the host"),
   planWrite: z.boolean().optional().describe("Proposes file writes, which apply only through a plan the user approves"),
 });
 
-// A reference that leaves the document would make the validator load a schema from elsewhere. A key named `$ref`
-// can also be a property's name, whose value is a schema to look into.
-const remoteRef = (value: unknown): boolean =>
+const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
+// A keyword whose text would make a validator load or register a schema from elsewhere: a reference out of this
+// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another plugin. A
+// key named `$ref` can also be a property's name; its value is then a schema, which `outside` looks into.
+const foreign = (key: string, item: unknown): boolean => {
+  if (typeof item !== "string") return false;
+  if (key === "$ref" || key === "$dynamicRef") return item !== "" && !item.startsWith("#");
+  return key === "$id" || (key === "$schema" && item !== DRAFT_2020_12);
+};
+const outside = (value: unknown): boolean =>
   typeof value === "object" &&
   value !== null &&
-  Object.entries(value).some(
-    ([key, item]) =>
-      (["$ref", "$dynamicRef"].includes(key) && typeof item === "string" && !item.startsWith("#")) || remoteRef(item),
-  );
-
-// `run` starts every action node and `done` or `failed` ends it, so data handles take other names.
-const notControl = (names: readonly string[]) => (handles: Record<string, unknown>) =>
-  Object.keys(handles).every((handle) => !names.includes(handle));
+  Object.entries(value).some(([key, item]) => foreign(key, item) || outside(item));
 
 const PluginAction = z.strictObject({
   title: z.string().min(1).max(200),
   description,
   config: z
     .record(z.string(), JsonValue)
-    .refine((schema) => !remoteRef(schema), "a `$ref` inside this schema only (`#...`)")
+    .refine((schema) => !outside(schema), "a schema that stays inside itself")
     .optional()
-    .describe("JSON Schema 2020-12 of the node's `with`; a `$ref` points inside it only"),
-  inputs: z
-    .record(HandleName, z.strictObject({ type: DataType, required: z.boolean().optional(), description }))
-    .refine(notControl(["run"]), "`run` is the action's control input")
-    .optional(),
-  outputs: z
-    .record(HandleName, z.strictObject({ type: DataType, description }))
-    .refine(notControl(["done", "failed"]), "`done` and `failed` are the action's control outputs")
-    .optional(),
+    .describe(
+      "JSON Schema 2020-12 of the node's `with`: a `$ref` points inside it (`#...`), no `$id`, no other `$schema`",
+    ),
+  // `run` starts every action node and `done` or `failed` ends it, so data handles take other names.
+  inputs: sized(
+    z.record(
+      HandleName.regex(/^(?!run$)/, "not `run`, the action's control input"),
+      z.strictObject({ type: DataType, required: z.boolean().optional(), description }),
+    ),
+    32,
+  ).optional(),
+  outputs: sized(
+    z.record(
+      HandleName.regex(/^(?!(?:done|failed)$)/, "not `done` or `failed`, the action's control outputs"),
+      z.strictObject({ type: DataType, description }),
+    ),
+    32,
+  ).optional(),
 });
 
 // A credential bound to a host the plugin may not reach would never be used, or widen `net` behind the user's back.
@@ -137,7 +150,7 @@ export const PluginManifest = z
       .describe("The plugin protocol version it needs: the same major version, at least this minor one"),
     runtime: z.strictObject({
       kind: z.literal("node"),
-      entry: ProjectPath.refine((path) => /\.[cm]?js$/.test(path), "a .js, .mjs or .cjs file").describe(
+      entry: ProjectPath.regex(/\.[cm]?js$/, "a .js, .mjs or .cjs file").describe(
         "The script the host starts, inside the plugin's folder",
       ),
     }),
@@ -146,17 +159,8 @@ export const PluginManifest = z
       .optional()
       .describe("Where it runs; every platform when absent"),
     capabilities: Capabilities.optional().describe("None when absent"),
-    contributes: z.strictObject({
-      actions: z
-        .record(ActionId, PluginAction)
-        .refine((actions) => Object.keys(actions).length > 0, "at least one action")
-        .meta(atLeastOne),
-    }),
-    catalogs: z
-      .record(
-        LanguageTag,
-        ProjectPath.refine((path) => path.endsWith(".po"), "a .po file"),
-      )
+    contributes: z.strictObject({ actions: sized(z.record(ActionId, PluginAction), 100, 1) }),
+    catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
       .describe("Translations of its texts by language; English is the manifest's own"),
   })
@@ -171,17 +175,27 @@ export type PluginManifest = z.infer<typeof PluginManifest>;
 const user = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const host = /^[a-z0-9][a-z0-9.-]*$/;
 const scpLike = /^[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.-]*:(?!-)[!-~]+$/;
+// Printable ASCII without a backslash, which the URL parser reads as "/" and git as part of the user or host.
+const printable = /^[!-[\]-~]+$/;
+// Percent-encoded control characters and bytes above ASCII: git decodes them for credential helpers and prompts.
+const encodedControl = /%(?:[01][0-9a-f]|7f|[89a-f][0-9a-f])/i;
+// The user part as git reads it: what comes before the last "@" of the authority.
+const userInfo = (value: string): string | undefined => {
+  const [authority = ""] = value.slice(value.indexOf("//") + 2).split("/");
+  const at = authority.lastIndexOf("@");
+  return at < 0 ? undefined : authority.slice(0, at);
+};
 const plain = (url: URL): boolean =>
-  url.password === "" && host.test(url.hostname) && url.pathname.length > 1 && url.search === "" && url.hash === "";
+  host.test(url.hostname.toLowerCase()) && url.pathname.length > 1 && url.search === "" && url.hash === "";
 const isGitUrl = (value: string): boolean => {
-  if (!/^[!-~]+$/.test(value)) return false;
+  if (!printable.test(value) || encodedControl.test(value)) return false;
   if (scpLike.test(value)) return true;
   // Git matches the scheme in lower case only.
   if (!/^(?:https|ssh):\/\//.test(value) || !URL.canParse(value)) return false;
-  const url = new URL(value);
-  // No user over https, where it would be a credential.
-  const named = url.protocol === "https:" ? url.username === "" : url.username === "" || user.test(url.username);
-  return named && plain(url);
+  // No user over https, where it would be a credential; over ssh a user name, never a password.
+  const named = userInfo(value);
+  const userOk = value.startsWith("https:") ? named === undefined : named === undefined || user.test(named);
+  return userOk && plain(new URL(value));
 };
 
 /** Where Git fetches a plugin: an https or ssh URL, or `user@host:path`. */
@@ -198,7 +212,7 @@ const PluginPin = z.strictObject({
     path: ProjectPath.optional().describe("The plugin's folder inside the repository; its root when absent"),
   }),
   digest: Sha256.describe(
-    "SHA-256 of the plugin folder's listing at the commit: one line `<mode> <SHA-256 of the file> <path>` per file, sorted by path",
+    "SHA-256 of the plugin folder's listing at the commit: a line `<mode> <SHA-256 of the file> <path>` per file, in the byte order of the paths, which use the portable file name characters only",
   ),
 });
 
@@ -211,14 +225,15 @@ export const PluginLock = z
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
     schemaVersion: z.literal(LOCK_SCHEMA_VERSION),
     kind: z.literal("cedarloom.lock"),
-    plugins: z.record(PluginId, PluginPin),
+    plugins: sized(z.record(PluginId, PluginPin), 500),
   })
   .register(fileFormats, { id: "PluginLock" });
 export type PluginLock = z.infer<typeof PluginLock>;
 
 /**
- * The index of an export folder: each workflow at `workflows/<id in lower case>/workflow.json` and the plugins they
- * need in `cedarloom.lock.json` beside this file. The workflow store keeps the same layout (pending owner decision).
+ * The index of an export folder: each workflow at `workflows/workflow-<id in lower case>.json`, named like a draft so
+ * no id becomes a Windows device name, and the plugins they need in `cedarloom.lock.json` beside this file. The
+ * workflow store keeps the same layout (pending owner decision).
  */
 export const ExportIndex = z
   .strictObject({
@@ -232,6 +247,7 @@ export const ExportIndex = z
       .array(WorkflowId)
       .min(1)
       .max(1000)
+      .meta({ uniqueItems: true })
       // Workflow files are named in lower case (the drafts too), so ids that differ in case only would share a file.
       .refine((ids) => unique(ids.map((id) => id.toLowerCase())), "no workflow twice, also in another case"),
   })

@@ -56,7 +56,7 @@
           "digest": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$",
-            "description": "SHA-256 of the plugin folder's listing at the commit: one line `<mode> <SHA-256 of the file> <path>` per file, sorted by path"
+            "description": "SHA-256 of the plugin folder's listing at the commit: a line `<mode> <SHA-256 of the file> <path>` per file, in the byte order of the paths, which use the portable file name characters only"
           }
         },
         "required": [
@@ -65,7 +65,8 @@
           "digest"
         ],
         "additionalProperties": false
-      }
+      },
+      "maxProperties": 500
     }
   },
   "required": [

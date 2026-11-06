@@ -52,7 +52,14 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1024,
-          "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$",
+          "allOf": [
+            {
+              "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+            },
+            {
+              "pattern": "\\.[cm]?js$"
+            }
+          ],
           "description": "The script the host starts, inside the plugin's folder"
         }
       },
@@ -122,7 +129,8 @@
               "hosts"
             ],
             "additionalProperties": false
-          }
+          },
+          "maxProperties": 16
         },
         "projectRead": {
           "description": "Reads project files through the host",
@@ -157,7 +165,7 @@
                 "maxLength": 2000
               },
               "config": {
-                "description": "JSON Schema 2020-12 of the node's `with`; a `$ref` points inside it only",
+                "description": "JSON Schema 2020-12 of the node's `with`: a `$ref` points inside it (`#...`), no `$id`, no other `$schema`",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -170,7 +178,14 @@
                 "type": "object",
                 "propertyNames": {
                   "type": "string",
-                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                  "allOf": [
+                    {
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                    },
+                    {
+                      "pattern": "^(?!run$)"
+                    }
+                  ]
                 },
                 "additionalProperties": {
                   "type": "object",
@@ -190,13 +205,21 @@
                     "type"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "maxProperties": 32
               },
               "outputs": {
                 "type": "object",
                 "propertyNames": {
                   "type": "string",
-                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                  "allOf": [
+                    {
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                    },
+                    {
+                      "pattern": "^(?!(?:done|failed)$)"
+                    }
+                  ]
                 },
                 "additionalProperties": {
                   "type": "object",
@@ -213,7 +236,8 @@
                     "type"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "maxProperties": 32
               }
             },
             "required": [
@@ -221,7 +245,8 @@
             ],
             "additionalProperties": false
           },
-          "minProperties": 1
+          "minProperties": 1,
+          "maxProperties": 100
         }
       },
       "required": [
@@ -240,8 +265,16 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 1024,
-        "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
-      }
+        "allOf": [
+          {
+            "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+          },
+          {
+            "pattern": "\\.po$"
+          }
+        ]
+      },
+      "maxProperties": 100
     }
   },
   "required": [

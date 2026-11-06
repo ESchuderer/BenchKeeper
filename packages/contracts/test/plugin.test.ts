@@ -58,11 +58,15 @@ const manifest = await read("corpus/PluginManifest/1/valid-full.json");
 const lock = await read("corpus/PluginLock/1/valid-pins.json");
 const index = await read("corpus/ExportIndex/1/valid-export.json");
 
-// A copy of `value` with the value at `path` replaced.
+// `count` entries named `<prefix><index>`, each `value`.
+const many = (count: number, value: unknown, prefix = "a"): Record<string, unknown> =>
+  Object.fromEntries(Array.from({ length: count }, (_, at) => [`${prefix}${at}`, value]));
+
+// A copy of `value` with the value at `path` replaced; missing objects on the way are created.
 const set = (value: unknown, path: (string | number)[], next: unknown): unknown => {
   const [key, ...rest] = path;
   if (key === undefined) return next;
-  const copy: unknown = structuredClone(value);
+  const copy: unknown = structuredClone(value ?? {});
   if (typeof copy !== "object" || copy === null) throw new Error(`no object at ${key}`);
   return Object.assign(copy, { [key]: set(Reflect.get(copy, key), rest, next) });
 };
@@ -107,14 +111,24 @@ const manifestChanges: Change[] = [
     false,
     "contributes.actions.search-issues.config",
   ],
-  ["an output named done", [...report, "outputs"], { done: { type: "string" } }, false],
   [
-    "an input named run",
-    [...report, "inputs", "run"],
-    { type: "string" },
+    "another meta-schema",
+    [...search, "config", "$schema"],
+    "https://x.example/meta",
     false,
-    "contributes.actions.write-report.inputs",
+    "contributes.actions.search-issues.config",
   ],
+  [
+    "an $id",
+    [...search, "config", "$defs", "jql", "$id"],
+    "PluginManifest.schema.json",
+    false,
+    "contributes.actions.search-issues.config",
+  ],
+  ["an output named done", [...report, "outputs", "done"], { type: "string" }, true],
+  ["an input named run", [...report, "inputs", "run"], { type: "string" }, true],
+  ["101 actions", ["contributes", "actions"], many(101, { title: "x" }), true],
+  ["33 outputs", [...report, "outputs"], many(33, { type: "string" }), true],
   ["a host with a path", ["capabilities", "net", 1], "https://api.acme.example/v2", true],
   ["a host over http", ["capabilities", "net", 1], "http://api.acme.example", true],
   ["a host in upper case", ["capabilities", "net", 1], "https://API.acme.example", true],
@@ -122,19 +136,29 @@ const manifestChanges: Change[] = [
   ["a host in hexadecimal", ["capabilities", "net", 1], "https://0x7f.1", false],
   ["a host twice", ["capabilities", "net", 1], "https://acme.atlassian.net", true, "capabilities.net"],
   ["an entry outside the folder", ["runtime", "entry"], "../main.js", true],
-  ["an entry that is no script", ["runtime", "entry"], "dist/main.ts", false],
+  ["an entry that is no script", ["runtime", "entry"], "dist/main.ts", true],
   ["a WebAssembly runtime", ["runtime", "kind"], "wasm", true],
   ["hooks (A30)", ["hooks"], { preRun: "x" }, true],
   ["no action", ["contributes", "actions"], {}, true],
   ["an id in upper case", ["id"], "Acme.jira", true],
   ["an id without publisher", ["id"], "jira", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
-  ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", false],
+  ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", true],
 ];
 
 const lockChanges: Change[] = [
   ["a password in the URL", [...jira, "source", "git"], "https://bot:secret@git.example.org/acme/jira.git", false],
   ["a user over https", [...jira, "source", "git"], "https://bot@git.example.org/acme/jira.git", false],
+  // The URL parser reads the backslash as "/" and sees no user; git sees user "git.example.org\\" and its password.
+  [
+    "a backslash before a password",
+    [...jira, "source", "git"],
+    "https://git.example.org\\:secret@127.0.0.1:1/a",
+    false,
+  ],
+  ["an empty user over https", [...jira, "source", "git"], "https://@git.example.org/acme/jira.git", false],
+  ["an encoded line break", [...jira, "source", "git"], "https://git.example.org/acme/jira%0d%0ahost=x", false],
+  ["501 plugins", ["plugins"], many(501, PluginLock.parse(lock).plugins["acme.jira"], "acme.p"), true],
   ["a branch for a commit", [...jira, "source", "commit"], "main", true],
   ["a path outside the repository", [...jira, "source", "path"], "../other", true],
   [
@@ -147,6 +171,7 @@ const lockChanges: Change[] = [
 
 const indexChanges: Change[] = [
   ["a workflow twice in another case", ["workflows"], ["nightly-report", "Nightly-Report"], false],
+  ["a workflow twice", ["workflows"], ["nightly-report", "nightly-report"], true],
   ["no workflow", ["workflows"], [], true],
 ];
 
@@ -174,6 +199,8 @@ test("Git URLs over https and ssh, without a password, an option or a character 
     "ssh://github.com:2222/acme/jira",
     "git@github.com:acme/jira.git",
     "deploy_key.1@git.example.org:/srv/jira.git",
+    "ssh://git@GitHub.com/acme/jira.git",
+    "https://dev.azure.com/acme/My%20Project/_git/jira",
   ];
   const refusedUrls = [
     "http://github.com/acme/jira",
@@ -193,6 +220,12 @@ test("Git URLs over https and ssh, without a password, an option or a character 
     "https://github.com/acme/jira\r\nhost=x",
     "https://gïthub.com/acme/jira",
     "https://[::1]/acme/jira",
+    "https://git.example.org\\@127.0.0.1/acme/jira",
+    "https://:@git.example.org/acme/jira",
+    "ssh://:secret@git.example.org/acme/jira",
+    "https://git.example.org/acme/jira%7f",
+    "https://git.example.org/acme/j%C3%BCra",
+    "git@git.example.org:acme/jira%1b[31m",
   ];
   expect([taken.filter((url) => !git(url)), refusedUrls.filter(git)]).toEqual([[], []]);
 });
@@ -205,5 +238,18 @@ test("each action's configuration schema compiles in Ajv's strict mode, and chec
     true,
     false,
     false,
+  ]);
+});
+
+test("a configuration schema may refer to itself, name the 2020-12 meta-schema, and have properties named like keywords", () => {
+  const config = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: { $id: { type: "string" }, $ref: { type: "string" }, child: { $ref: "" } },
+  };
+  const changed = set(manifest, [...search, "config"], config);
+  expect([PluginManifest.safeParse(changed).success, ajv.compile(config)({ $id: "x", child: {} })]).toEqual([
+    true,
+    true,
   ]);
 });

@@ -24,14 +24,32 @@ export type Selection =
       readonly candidates: readonly Candidate[];
     };
 
-// A reading is unknown once its window resets, or when its reset time does not parse: it never makes an account qualify.
-// A known window below its minimum disqualifies the account even when the other window is unknown.
-const margin = (registry: AccountRegistry, account: Account, readings: readonly Current[], now: number) => {
+/**
+ * The readings as a choice at `now` counts them. A window whose reset time has passed since its last reading counts as
+ * 0 percent used, with the source `assumed-after-reset`, until the next reading replaces it; the restart-on-limit rule
+ * bounds a wrong guess (owner decision "Idle window after reset", 2026-11-06). A reading whose reset time does not
+ * parse is left out, so its window is unknown, as is a window never read.
+ */
+export const counted = <T extends Current>(readings: readonly T[], now: number): Counted<T>[] =>
+  readings.flatMap((reading): Counted<T>[] => {
+    const resetsAt = Date.parse(reading.resetsAt);
+    if (Number.isNaN(resetsAt)) return [];
+    return resetsAt > now
+      ? [{ ...reading, source: "reported" }]
+      : [{ ...reading, usedPercent: 0, source: "assumed-after-reset" }];
+  });
+
+/** A reading with the source of its share: reported by the agent, or assumed after its window's reset. */
+export type Counted<T extends Current> = T & { readonly source: "reported" | "assumed-after-reset" };
+
+// A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
+// disqualifies the account even when the other window is unknown.
+const margin = (registry: AccountRegistry, account: Account, readings: readonly Current[]) => {
   let smallest = Number.POSITIVE_INFINITY;
   let unknown = false;
   for (const window of QuotaWindow.options) {
     const reading = readings.find((each) => each.account === account.name && each.window === window);
-    if (reading === undefined || !(Date.parse(reading.resetsAt) > now)) unknown = true;
+    if (reading === undefined) unknown = true;
     else
       smallest = Math.min(
         smallest,
@@ -86,7 +104,7 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
  * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
  * or on the pool's first account (pending owner decision, 2026-11-05). An account in `busy` runs its most workers at
- * once and is passed over. `readings` holds the latest reading per account and window; `now` is in milliseconds.
+ * once and is passed over. `readings` holds the latest reading per account and window, counted at `now` (milliseconds).
  */
 export const selectAccount = (
   registry: AccountRegistry,
@@ -102,7 +120,8 @@ export const selectAccount = (
   if (!isConfirmed(registry, ref)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
   const members = freeMembers(registry, ref, busy ?? new Set());
   if (members === null) return { ok: false, reason: "all-leased", candidates: [] };
-  const scored = members.map((account) => ({ account, margin: margin(registry, account, readings, now) }));
+  const current = counted(readings, now);
+  const scored = members.map((account) => ({ account, margin: margin(registry, account, current) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);
   if (best !== undefined) return { ok: true, account: best.account, reason: "most-headroom", candidates };

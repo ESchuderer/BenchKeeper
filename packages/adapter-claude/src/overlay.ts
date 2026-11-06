@@ -1,7 +1,10 @@
 import { join } from "node:path";
+import { sameFolder } from "@cedarloom/contracts";
 import { z } from "zod";
 
 export interface OverlayInput {
+  /** The account's config folder the worker runs in; one of `denyRead`. */
+  readonly home: string;
   readonly cwd: string;
   readonly resultFile: string;
   readonly allow: readonly string[];
@@ -11,6 +14,20 @@ export interface OverlayInput {
   /** Plugin folders the session loads; its file tools may read them, never change them. */
   readonly pluginDirs: readonly string[];
 }
+
+// The worker's own home stays closed to its file tools only where the login and the account's state live, so the model
+// reads what the CLI keeps there for the session, such as a large tool output saved under projects/; every other home
+// stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06). The four
+// files end in *, so their .signature.json and .stamp.json sidecars, which repeat them or name the account, are closed
+// too; ide/ holds each IDE connection's lock file with its auth token.
+const OWN_STATE = [
+  ".credentials.json*",
+  ".claude.json*",
+  "backups",
+  "remote-settings.json*",
+  "policy-limits.json*",
+  "ide",
+];
 
 /**
  * A core tool the settings deny by its bare name, which removes it from the session's tools
@@ -59,8 +76,9 @@ const Checked = z.looseObject({
  * documented syntax takes. A key a later CLI version stops taking drops the settings silently; the session's init line
  * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
-export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs }: OverlayInput) => {
+export const overlay = ({ home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs }: OverlayInput) => {
   const workflows = join(cwd, ".github", "workflows");
+  const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...OWN_STATE.map((name) => join(home, name))];
   const settings = {
     permissions: {
       // Edit rules cover every tool that writes a file (https://code.claude.com/docs/en/permissions).
@@ -68,7 +86,7 @@ export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env,
       ask: ["Bash(git push *)"],
       // The path itself and everything below it: a credential file inside the working folder is matched too.
       deny: [
-        ...denyRead
+        ...closed
           .map(rulePath)
           .flatMap((path) => ["Read", "Edit"].flatMap((tool) => [`${tool}(${path})`, `${tool}(${path}/**)`])),
         "Read(**/.env*)",

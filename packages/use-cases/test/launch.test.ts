@@ -120,7 +120,7 @@ test("a worker runs end to end: account, version check, lease, readings, and the
   ]);
   expect(launches[0]?.runId).toBe(outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null);
   expect(launches[0]?.finishedAt).not.toBeNull();
-  // The settings it ran with: the request's phase, mode, review and level, and the built launch's models and effort.
+  // The settings it ran with: the request's phase, review, level and tier, and the built launch's models, effort and permission mode.
   expect(launches[0]?.labels).toEqual(LABELS);
   expect(withLedger(state, (store) => store.readings().map((reading) => reading.window))).toEqual([
     "fiveHour",

@@ -99,9 +99,14 @@ CREATE TABLE usage_samples (
 CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
 `;
 
+/** Schema 7: the settings each launch ran with (A90), as JSON; null on a launch from before. */
+export const LABEL_TABLES = `
+ALTER TABLE launches ADD COLUMN labels TEXT;
+`;
+
 /**
- * Schema 7: graph runs (M6). The events are the source of truth; a run's status and its attempts are projections,
- * written in the same transaction as their event. A run's runner holds it by a lease that heartbeats renew.
+ * Schema 8: graph runs (M6). The events are the source of truth; a run's status and its attempts are projections,
+ * written in the same transaction as their event. A run's runner holds it by its lease lock, as a launch does.
  */
 export const GRAPH_TABLES = `
 CREATE TABLE graph_runs (

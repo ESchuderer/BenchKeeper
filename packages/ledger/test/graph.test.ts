@@ -268,7 +268,7 @@ test("a store from before the graph tables gains them when a graph store opens i
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; PRAGMA user_version = 6",
+    "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; PRAGMA user_version = 7",
   );
   db.close();
   expect(openGraphStore(dir, () => "nfs4")).toEqual({
@@ -279,7 +279,7 @@ test("a store from before the graph tables gains them when a graph store opens i
   expect(store.graphRun(store.create(manual).runId)?.status).toBe("running");
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   expect([after.prepare("PRAGMA user_version").get(), after.prepare("SELECT count(*) AS n FROM runs").get()]).toEqual([
-    { user_version: 7 },
+    { user_version: 8 },
     { n: 1 },
   ]);
   after.close();

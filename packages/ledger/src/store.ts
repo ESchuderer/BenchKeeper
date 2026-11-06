@@ -7,6 +7,7 @@ import {
   canonicalJson,
   ContractCheckRecord,
   LaunchRecord,
+  type RunLabels,
   type Finding,
   PLAN_SCHEMA_VERSION,
   ModeSwitch,
@@ -24,6 +25,7 @@ import {
   ACCOUNT_TABLES,
   CHECK_TABLES,
   GRAPH_TABLES,
+  LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
   TABLES,
@@ -32,11 +34,23 @@ import {
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
+const MIGRATIONS = [
+  TABLES,
+  ACCOUNT_TABLES,
+  CHECK_TABLES,
+  LAUNCH_TABLES,
+  MODE_TABLES,
+  USAGE_TABLES,
+  LABEL_TABLES,
+  GRAPH_TABLES,
+];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
+
+/** A launch as its lease takes it: the settings it runs with are required, though older rows have none. */
+export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels"> & { readonly labels: RunLabels };
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -451,7 +465,7 @@ export class RunStore extends RunView {
    * Takes one of the account's `max` leases for a launch, in one transaction; null when all are taken. The launcher holds
    * the returned lock until it has finished the launch: a lease whose lock nobody holds counts as interrupted.
    */
-  leaseAccount(input: Omit<LaunchRecord, "finishedAt" | "verdict">, max: number): LeaseLock | null {
+  leaseAccount(input: Lease, max: number): LeaseLock | null {
     const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
     const lock = newLease(this.dir, launch.runId);
     const { release } = lock;
@@ -460,8 +474,20 @@ export class RunStore extends RunView {
       taken = transaction(this.db, () => {
         if ((this.#countLive().get(launch.account) ?? 0) >= max) return false;
         this.db
-          .prepare("INSERT INTO launches VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)")
-          .run(launch.runId, launch.task, launch.agent, launch.account, launch.version, launch.pid, launch.startedAt);
+          .prepare(
+            `INSERT INTO launches (runId, task, agent, account, version, pid, startedAt, labels)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            launch.runId,
+            launch.task,
+            launch.agent,
+            launch.account,
+            launch.version,
+            launch.pid,
+            launch.startedAt,
+            canonicalJson(launch.labels),
+          );
         return true;
       });
     } catch (error) {
@@ -487,10 +513,13 @@ export class RunStore extends RunView {
   launches(): LaunchRecord[] {
     return this.db
       .prepare(
-        "SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict FROM launches ORDER BY startedAt, rowid",
+        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels FROM launches
+         ORDER BY startedAt, rowid`,
       )
       .all()
-      .map((row) => LaunchRecord.parse(row));
+      .map((row) =>
+        LaunchRecord.parse({ ...row, labels: row["labels"] == null ? null : JSON.parse(String(row["labels"])) }),
+      );
   }
 
   /** The account choices in the order they were made. */

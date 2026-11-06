@@ -64,14 +64,15 @@ const reasonOf = (error: unknown): string => {
 };
 const failure = (error: unknown): ResponseError => new ResponseError(ACTION_FAILED, reasonOf(error));
 
-// What an action returns reaches the host as JSON: an object of outputs, or the run fails here with a reason.
+// What an action returns reaches the host as JSON: what JSON makes of it (a toJSON method can turn an object into
+// anything) must be an object of outputs, or the run fails here with a reason. Throws for a BigInt or a cycle too.
 const outputsOf = (value: unknown): Record<string, unknown> => {
-  const plain =
-    typeof value === "object" && value !== null && [Object.prototype, null].includes(Object.getPrototypeOf(value));
-  if (!plain) throw new TypeError("an action returns an object of its outputs");
-  // Throws for a BigInt or a cycle.
-  JSON.stringify(value);
-  return Object.fromEntries(Object.entries(value));
+  // In a list, so an undefined result becomes null rather than no text at all.
+  const [json]: unknown[] = JSON.parse(JSON.stringify([value]));
+  if (typeof json !== "object" || json === null || Array.isArray(json)) {
+    throw new TypeError("an action returns an object of its outputs");
+  }
+  return Object.fromEntries(Object.entries(json));
 };
 
 /* v8 ignore start -- a plugin's own process on its real stdio; the spawned plugin of the tests runs it */
@@ -80,6 +81,8 @@ const outputsOf = (value: unknown): Record<string, unknown> => {
 const protocolOutput = (): Writable => {
   const write = process.stdout.write.bind(process.stdout);
   process.stdout.write = process.stderr.write.bind(process.stderr);
+  // A writer that waits for stdout's drain gets the drain of the stream its writes went to.
+  process.stderr.on("drain", () => process.stdout.emit("drain"));
   return new Writable({ write: (chunk, encoding, done) => write(chunk, encoding, done) });
 };
 /* v8 ignore stop */
@@ -102,9 +105,15 @@ export const definePlugin = (actions: Record<string, Action>, options: PluginOpt
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);
-    // A log line that cannot be sent is lost, not a crash of the plugin: String turns the refusal into nothing.
-    const send = (message: string, level: LogParams["level"] = "info"): void =>
-      void connection.sendNotification(log, { run: given.run, level, message }).catch(String);
+    // A log line that cannot be sent is lost, not a crash of the plugin: String turns a refusal into nothing, and a
+    // connection already gone (an action logging after its host ended) throws at once.
+    const send = (message: string, level: LogParams["level"] = "info"): void => {
+      try {
+        void connection.sendNotification(log, { run: given.run, level, message }).catch(String);
+      } catch {
+        // The host is gone; so is the line.
+      }
+    };
     try {
       return { outputs: outputsOf(await run({ ...given, locale, signal: abortOn(token), log: send })) };
     } catch (error) {

@@ -24,6 +24,7 @@ import {
 import { expect, test } from "vitest";
 
 const aborted: unknown[] = [];
+const kept: ((message: string) => void)[] = [];
 
 const actions: Record<string, Action> = {
   echo: ({ config, inputs, run, locale, log: write }) => {
@@ -38,9 +39,15 @@ const actions: Record<string, Action> = {
   rejects: () => Promise.reject(Object.assign(Object.create(null), { toString: () => "a plain refusal" })),
   // A value with no text form at all.
   opaque: () => Promise.reject(Object.create(null)),
-  // Outputs that are no object, or that JSON cannot carry.
+  // Outputs that are no object, that JSON turns into none, or that JSON cannot carry.
   text: () => Promise.resolve(Object("not an object")),
+  json: () => ({ toJSON: () => 42 }),
   big: () => ({ count: 10n }),
+  // Keeps its log for after the run, as a timer left behind would.
+  later: ({ log: write }) => {
+    kept.push(write);
+    return {};
+  },
   // Ends only by the host's cancel, also one that came before it started, and keeps the reason its signal got.
   wait: ({ signal, log: write }) =>
     new Promise((_, reject) => {
@@ -77,7 +84,7 @@ test("the plugin names its protocol version and actions, runs an action with its
   const hello = await host.sendRequest(initialize, { protocol: PROTOCOL, locale: "de" });
   const ran = await host.sendRequest(runAction, { action: "echo", ...params });
   expect([hello, ran, logs]).toEqual([
-    { protocol: "1.0", actions: ["echo", "fail", "rejects", "opaque", "text", "big", "wait"] },
+    { protocol: "1.0", actions: ["echo", "fail", "rejects", "opaque", "text", "json", "big", "later", "wait"] },
     { outputs: { ...params, locale: "de" } },
     [
       { run: "r1", level: "info", message: "started" },
@@ -89,7 +96,7 @@ test("the plugin names its protocol version and actions, runs an action with its
 test("an unknown action, an Object property among them, and an action that throws answer with a code and a reason", async () => {
   const { host } = connect();
   const answers = await Promise.all(
-    ["nope", "constructor", "fail", "rejects", "opaque", "text", "big"].map((action) =>
+    ["nope", "constructor", "fail", "rejects", "opaque", "text", "json", "big"].map((action) =>
       host.sendRequest(runAction, { action, ...params }).then(
         () => "answered",
         (error: unknown) => [Reflect.get(Object(error), "code"), Reflect.get(Object(error), "message")],
@@ -102,6 +109,7 @@ test("an unknown action, an Object property among them, and an action that throw
     [ACTION_FAILED, "the tracker answered 500"],
     [ACTION_FAILED, "a plain refusal"],
     [ACTION_FAILED, "the action failed"],
+    [ACTION_FAILED, "an action returns an object of its outputs"],
     [ACTION_FAILED, "an action returns an object of its outputs"],
     [ACTION_FAILED, expect.stringMatching(/BigInt/)],
   ]);
@@ -137,6 +145,14 @@ test("the plugin ends with code 0 after shutdown and exit, and with 1 on exit al
   const lost = connect();
   lost.toPlugin.end();
   expect(await Promise.all([clean.exited, abrupt.exited, lost.exited])).toEqual([0, 1, 1]);
+});
+
+test("a log line after the host is gone is dropped, not thrown into the plugin", async () => {
+  const { host, exited } = connect();
+  await host.sendRequest(runAction, { action: "later", ...params });
+  await host.sendNotification(exit);
+  await exited;
+  expect(() => kept[0]?.("too late")).not.toThrow();
 });
 
 // One message on the wire, as the protocol's base layer frames it.

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
@@ -97,6 +97,25 @@ interface Read {
   readonly account: Account;
 }
 
+/**
+ * The account's own home as a real folder for the owner only, made when missing. Refused when the account names another
+ * folder, or when the homes folder or the home is a link, so nothing written for the account lands in another folder.
+ */
+export const ownFolder = (state: string, { name, home: named }: Account): Result<string> => {
+  const home = ownHome(state, name);
+  if (named !== home) {
+    return { ok: false, finding: { code: "accounts.home-not-own", params: { account: name, home: named } } };
+  }
+  for (const path of [join(state, "homes"), home]) {
+    if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+      return { ok: false, finding: { code: "accounts.home-linked", params: { account: name, path } } };
+    }
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    chmodSync(path, 0o700);
+  }
+  return { ok: true, value: home };
+};
+
 // The registry file with its text and the account `name`, refused when there is none or it is not Claude Code's.
 const readAccount = (config: string, name: string): Result<Read> => {
   const path = registryPath(config);
@@ -162,14 +181,9 @@ export const loginAccount = (
   const read = readAccount(config, name);
   if (!read.ok) return read;
   const { account } = read.value;
-  const home = ownHome(state, account.name);
-  if (account.home !== home) {
-    return {
-      ok: false,
-      finding: { code: "accounts.home-not-own", params: { account: account.name, home: account.home } },
-    };
-  }
-  mkdirSync(home, { recursive: true, mode: 0o700 });
+  const folder = ownFolder(state, account);
+  if (!folder.ok) return folder;
+  const home = folder.value;
   const ran = run({ ...cleanEnv(parent, platform, ["TERM"]), CLAUDE_CONFIG_DIR: home });
   if (ran.code === 0) return { ok: true, value: { home } };
   const error = ran.error ?? `exit code ${ran.code}`;
@@ -195,12 +209,13 @@ const problems = (account: string, home: string, login: LoginStatus): Finding[] 
   ];
 };
 
-// One account's check, while the ledger holds the account for it.
-const checkOne = (state: string, { name, home: named }: Account, host: StatusHost): Result<Finding[]> => {
-  const home = ownHome(state, name);
-  if (named !== home) {
-    return { ok: true, value: [{ code: "accounts.home-not-own", params: { account: name, home: named } }] };
-  }
+// One account's check, while the ledger holds the account for it. A home that is not the account's own, or is a link,
+// is reported and never checked: the check can write into it.
+const checkOne = (state: string, account: Account, host: StatusHost): Result<Finding[]> => {
+  const { name } = account;
+  const folder = ownFolder(state, account);
+  if (!folder.ok) return { ok: true, value: [folder.finding] };
+  const home = folder.value;
   const store = openRunStore(state);
   if (!store.ok) return store;
   let held: ReturnType<typeof store.value.checkAccount>;

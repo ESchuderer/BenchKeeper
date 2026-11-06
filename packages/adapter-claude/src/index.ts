@@ -176,7 +176,8 @@ export const claudeLogin =
   (command: Command = ["claude"]) =>
   (env: Record<string, string>): { readonly code: number | null; readonly error?: string } => {
     const [file, ...prefix] = command;
-    const ran = spawnSync(file, [...prefix, "auth", "login"], { env, stdio: "inherit" });
+    // Its output goes to stderr, the same terminal, so stdout keeps only CedarLoom's result (also with --json).
+    const ran = spawnSync(file, [...prefix, "auth", "login"], { env, stdio: ["inherit", 2, "inherit"] });
     return ran.error === undefined ? { code: ran.status } : { code: null, error: ran.error.message };
   };
 

@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -226,6 +236,15 @@ const importedRegistry = () => {
   return { config, state };
 };
 
+// The imported registry with work moved into its own home.
+const movedRegistry = () => {
+  const { config, state } = importedRegistry();
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  return { config, state };
+};
+
 test("an account moves into its own home by a plan, and the folder it named before stays as an alias", () => {
   const { config, state } = importedRegistry();
   const home = ownHome(state, "work");
@@ -286,6 +305,9 @@ test("the login runs in the account's own home, made for the owner only, with th
   if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
   applyPlan(state, moved.value.plan, { yes: true });
   const home = ownHome(state, "work");
+  // A home made earlier with a looser mode is closed to the owner again.
+  mkdirSync(home, { recursive: true });
+  chmodSync(home, 0o755);
   expect(loginAccount(config, state, "work", { ...linux, run: run(0) })).toEqual({ ok: true, value: { home } });
   expect(seen).toEqual([{ PATH: "/bin", HOME: "/home/dev", TERM: "xterm", CLAUDE_CONFIG_DIR: home }]);
   // Windows keeps no POSIX mode.
@@ -372,10 +394,7 @@ test("the doctor checks each Claude Code login in its own home, one at a time, n
 });
 
 test("the doctor's login check never runs beside a worker, no worker starts during it, and it reports what stops it", () => {
-  const { config, state } = importedRegistry();
-  const moved = planHome(config, state, "work");
-  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
-  applyPlan(state, moved.value.plan, { yes: true });
+  const { config, state } = movedRegistry();
   const seen: Record<string, string>[] = [];
   const loggedIn = { kind: "logged-in", authMethod: "claude.ai", configDirectory: ownHome(state, "work") } as const;
   const answering = (login: LoginStatus) => ({
@@ -417,6 +436,32 @@ test("the doctor's login check never runs beside a worker, no worker starts duri
   db.exec("PRAGMA user_version = 99");
   db.close();
   expect(found(loggedIn)).toMatchObject([{ code: "store.newer-schema" }]);
+});
+
+test("a login never runs in an own home that is a link or lies in one, so nothing lands in the folder it points to", () => {
+  const { config, state } = movedRegistry();
+  const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
+  const homes = join(state, "homes");
+  const started: Record<string, string>[] = [];
+  const linking = {
+    parent: {},
+    platform: "linux" as const,
+    run: (env: Record<string, string>) => (started.push(env), { code: 0 }),
+  };
+  // Junctions on Windows, which need no privilege; elsewhere the type is ignored.
+  mkdirSync(homes);
+  symlinkSync(elsewhere, ownHome(state, "work"), "junction");
+  expect(loginAccount(config, state, "work", linking)).toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: ownHome(state, "work") } },
+  });
+  renameSync(homes, join(state, "homes-before"));
+  symlinkSync(elsewhere, homes, "junction");
+  expect(loginAccount(config, state, "work", linking)).toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: homes } },
+  });
+  expect([started, readdirSync(elsewhere)]).toEqual([[], []]);
 });
 
 test("an import reports a BenchKeeper file it cannot read or map", () => {

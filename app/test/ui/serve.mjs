@@ -46,8 +46,12 @@ for (const name of DEMO ? [other] : [other, 'found']) {
   mkdirSync(join(parent, name), { recursive: true });
   writeFileSync(join(parent, `${name}/AGENTS.md`), `# ${name}\n`);
 }
-// A repository without a state file, for the step-by-step first setup.
-for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
+// A repository without a state file, for the step-by-step first setup. Git ignores its AGENTS.md: a committed one
+// would leave only the shared setup.
+for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
+appendFileSync(join(parent, other, '.git/info/exclude'), '/AGENTS.md\n');
+writeFileSync(join(parent, other, 'README.md'), `# ${other}\n`);
+for (const a of [['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
 // Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
 // others have none. A suggestion for duo or quatro waits while GATE exists, so a test can look at the progress page.
 export const ONE = join(ROOT, 'one');

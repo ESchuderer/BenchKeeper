@@ -121,8 +121,8 @@ function SetupSteps({ dir, onFinish, prefill }) {
     if (!setup.data || a) return;
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
-    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
-      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], agentFiles: [], tier: '', share: false });
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true || setup.data.agentsMd }
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], agentFiles: [], tier: '', share: setup.data.agentsMd });
   }, [setup.data]);
   // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
   const envTouched = useRef(false);
@@ -173,7 +173,7 @@ function SetupSteps({ dir, onFinish, prefill }) {
             {!s.agents.length && <Note color="yellow" mt="sm">No agent is installed on this machine.</Note>}
             <Radio.Group mt="md" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
               <Stack gap="xs" mt="xs">
-                <Radio value="local" label="On this machine" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository. Not for a repository that commits AGENTS.md: its setup is shared." />
+                <Radio value="local" label="On this machine" disabled={setup.data.agentsMd} description={`CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository.${setup.data.agentsMd ? ' Not here: this repository commits AGENTS.md, so its setup is shared.' : ''}`} />
                 <Radio value="share" label="In the repository, on a branch" description="The AGENTS.md block, CLAUDE.md and the skills on a local branch with one commit, which you push, for everyone who clones it." />
               </Stack>
             </Radio.Group>

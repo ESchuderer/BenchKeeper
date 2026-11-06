@@ -902,12 +902,14 @@ const q = (o) => new URLSearchParams(o);
 
 test('one-run: lists the agents, the advisers and each project with its state and why one is left to Update all', async () => {
   const { ctx, routes } = fixture(realGit);
-  const fresh = repo('fresh'), local = repo('local'), shared = repo('shared'), plain = mkdtempSync(join(TMP, 'bk-one-plain-'));
+  const fresh = repo('fresh'), local = repo('local'), shared = repo('shared'), manual = repo('manual'), plain = mkdtempSync(join(TMP, 'bk-one-plain-'));
+  writeFileSync(join(manual, 'AGENTS.md'), '# manual\n');
+  execFileSync('git', ['-C', manual, 'add', 'AGENTS.md']);
   for (const [dir, share] of [[local, false], [shared, true]]) {
     const pctx = { ...ctx, roots: [dir] };
     apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', share } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
   }
-  for (const path of [fresh, local, shared, plain]) routes['POST /api/projects']({ path });
+  for (const path of [fresh, local, shared, manual, plain]) routes['POST /api/projects']({ path });
   const r = await routes['GET /api/one-run']();
   assert.deepEqual(r.agents.map((a) => a.id), ['claude']);
   assert.deepEqual(r.advisers.map((a) => a.id), ['claude']);
@@ -915,6 +917,7 @@ test('one-run: lists the agents, the advisers and each project with its state an
   assert.deepEqual([by[fresh].state, by[fresh].blocked], ['none', null]);
   assert.equal(by[local].blocked, null);
   assert.match(by[shared].blocked, /shared setup/);
+  assert.match(by[manual].blocked, /^commits AGENTS\.md, so its setup is shared/);
   assert.match(by[plain].blocked, /no repository/);
 });
 

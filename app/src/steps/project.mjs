@@ -322,6 +322,8 @@ export function suggest(dir) {
 
 // True when git tracks the state file: a setup committed in the repository.
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
+// True when git tracks AGENTS.md: the project's agent manual is committed, so its setup is shared.
+export const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md';
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
@@ -426,7 +428,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     // the block twice and change tracked files.
     if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
     // A committed AGENTS.md is the project's agent manual: the block belongs in it, not in files beside it on one machine.
-    if (git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md') throw new Error(`${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`);
+    if (commitsAgentsMd(ctx, dir)) throw new Error(`${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`);
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();

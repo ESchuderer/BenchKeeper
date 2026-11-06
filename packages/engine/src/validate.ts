@@ -1,4 +1,4 @@
-import { type Finding, type HandleType, JoinConfig, type WorkflowDefinition } from "@cedarloom/contracts";
+import { type Finding, type HandleType, NODE_CONFIGS, type WorkflowDefinition } from "@cedarloom/contracts";
 import { compatibility, NODE_TYPES, type NodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
@@ -14,7 +14,10 @@ type Graph = {
   resolved: { edge: Edge; from: Resolved; to: Resolved }[];
   /** Node to node links of the edges without a finding of their own, for the cycle check. */
   next: Map<string, string[]>;
-  /** Node to node links of every edge between existing nodes, whatever its handles: one bad edge hides no node. */
+  /**
+   * Node to node links of the edges that can order a node to run: into a control input, or into a handle that did not
+   * resolve, so one bad edge hides no node. An edge into a data input starts nothing.
+   */
   reach: Map<string, string[]>;
 };
 
@@ -32,10 +35,13 @@ const nodeFindings = ({ nodes }: Graph): Finding[] => {
   return [
     ...(triggers === 1 ? [] : [{ code: "workflow.trigger-count", params: { count: triggers } } as const]),
     ...nodes.flatMap((node): Finding[] => {
-      if (own(NODE_TYPES, node.type) === undefined) {
+      const schema = own(NODE_CONFIGS, node.type);
+      // NODE_CONFIGS names the same types as NODE_TYPES (a test checks it).
+      if (own(NODE_TYPES, node.type) === undefined || schema === undefined) {
         return [{ code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } }];
       }
-      const config = node.type === "join" ? JoinConfig.safeParse(node.with ?? {}) : { success: true as const };
+      // A node without `with` is checked as `{}`, so a type that needs configuration says what is missing.
+      const config = schema.safeParse(node.with ?? {});
       if (config.success) return [];
       const issues = config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
       return [{ code: "workflow.invalid-config", params: { node: node.id, issues } }];
@@ -152,14 +158,14 @@ const cycle = ({ nodes, next }: Graph): Finding[] => {
   return found === undefined ? [] : [{ code: "workflow.cycle", params: { nodes: found } }];
 };
 
-/** Nodes of a known type that no path from the trigger or a workflow input reaches: they would never run. */
-const unreachable = ({ nodes, edges, types, reach }: Graph): Finding[] => {
+/**
+ * Nodes of a known type that no path of control edges from the trigger reaches: they would never run, since a node
+ * runs only once a control edge into it fired. Data alone (from a workflow input or a node) starts nothing.
+ */
+const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
   const triggers = nodes.filter(isTrigger);
   if (triggers.length !== 1) return [];
-  const inputs = edges.flatMap(({ from, to }) =>
-    "input" in from && "node" in to && types.has(to.node) ? [to.node] : [],
-  );
-  const seen = new Set([...triggers.map((node) => node.id), ...inputs]);
+  const seen = new Set(triggers.map((node) => node.id));
   const queue = [...seen];
   for (const node of queue) {
     for (const to of (reach.get(node) ?? []).filter((item) => !seen.has(item))) {
@@ -171,6 +177,17 @@ const unreachable = ({ nodes, edges, types, reach }: Graph): Finding[] => {
     .filter((node) => !seen.has(node.id) && types.get(node.id) !== undefined)
     .map((node): Finding => ({ code: "workflow.unreachable", params: { node: node.id } }));
 };
+
+/**
+ * A28: a run a schedule starts only reports in 0.1.0, so its workflow has no node that may write a file: no file.write,
+ * and no workflow.run, whose child the validator cannot see.
+ */
+const reportOnly = ({ nodes }: Graph): Finding[] =>
+  nodes.some((node) => node.type === "trigger.schedule")
+    ? nodes
+        .filter((node) => node.type === "file.write" || node.type === "workflow.run")
+        .map((node): Finding => ({ code: "workflow.report-only-write", params: { node: node.id } }))
+    : [];
 
 const strays = ({ workflow, types }: Graph): Finding[] =>
   (["execution", "layout"] as const).flatMap((section) =>
@@ -255,8 +272,12 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     from: resolve(lookup, edge.id, "from", edge.from),
     to: resolve(lookup, edge.id, "to", edge.to),
   }));
-  const named = ({ edge: { from, to } }: Item): boolean =>
-    "node" in from && "node" in to && types.has(from.node) && types.has(to.node);
+  const named = ({ edge: { from, to }, to: type }: Item): boolean =>
+    "node" in from &&
+    "node" in to &&
+    types.has(from.node) &&
+    types.has(to.node) &&
+    (type === "control" || typeof type !== "string");
   const graph = { ...lookup, nodes, edges, resolved, next: links(resolved, valid), reach: links(resolved, named) };
   const checks = [
     duplicates,
@@ -269,6 +290,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     cycle,
     unreachable,
     strays,
+    reportOnly,
   ];
   return checks.flatMap((check) => check(graph));
 };

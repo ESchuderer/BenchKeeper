@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AgentRunConfig.schema.json",
+  "type": "object",
+  "properties": {
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000
+    },
+    "provider": {
+      "description": "`claude-code` when absent",
+      "type": "string",
+      "enum": [
+        "claude-code"
+      ]
+    },
+    "phase": {
+      "description": "Picks the pinned model and effort of the phase; `implement` when absent",
+      "type": "string",
+      "enum": [
+        "plan",
+        "implement",
+        "review"
+      ]
+    }
+  },
+  "required": [
+    "task"
+  ],
+  "additionalProperties": false
+}

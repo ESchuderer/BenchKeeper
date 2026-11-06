@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { LoginStatus } from "@cedarloom/use-cases";
-import { Finding, type Plan } from "@cedarloom/contracts";
+import type { Fetch, LoginStatus } from "@cedarloom/use-cases";
+import { Finding, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
-import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
+import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
@@ -19,7 +19,10 @@ interface Logins {
   status: LoginStatus | null;
 }
 
-const setup = (): {
+const setup = (
+  // When the program is to stop (Ctrl+C), which cancels a graph run: never, unless a test says so. A Git source's fetch.
+  { stopped = new Promise<void>(() => undefined), fetch }: { stopped?: Promise<void>; fetch?: Fetch } = {},
+): {
   root: string;
   state: string;
   logins: Logins;
@@ -34,7 +37,7 @@ const setup = (): {
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
-      untilStopped: () => Promise.resolve(),
+      untilStopped: () => stopped,
       login: (env: Record<string, string>) => {
         logins.started.push(env);
         return { code: logins.code };
@@ -45,6 +48,7 @@ const setup = (): {
           authMethod: "claude.ai",
           configDirectory: env["CLAUDE_CONFIG_DIR"] ?? null,
         },
+      ...(fetch === undefined ? {} : { fetch }),
     };
     return { code: await main(argv, io), out, err };
   };
@@ -190,6 +194,7 @@ test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit
   db.exec("PRAGMA user_version = 99");
   db.close();
   expect((await cli("runs", "list")).code).toBe(EXIT.refused);
+  expect((await cli("runs", "show", "x")).code).toBe(EXIT.refused);
   expect((await cli("mode")).code).toBe(EXIT.refused);
   const report = await cli("doctor", "--json");
   expect([report.code, report.out.includes("store.newer-schema")]).toEqual([EXIT.refused, true]);
@@ -448,6 +453,7 @@ test("every finding code has an English sentence", () => {
     "launch.account-full": { account: "work", max: 2 },
     "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
     "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
+    "extension.install-refused": { extension: null, reason: "no-manifest" },
     "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
     "git.refused-source": { field: "url" },
     "git.unsafe-entry": { path: "dist/link", kind: "link" },
@@ -613,4 +619,213 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);
   stopped.resolve();
   expect(await running).toBe(EXIT.ok);
+});
+
+// t -> a, a command that greets the input `name`.
+const workflow = WorkflowDefinition.parse({
+  schemaVersion: 1,
+  kind: "cedarloom.workflow",
+  metadata: { id: "greet", name: "Greet", version: "1.0.0" },
+  inputs: { name: { type: "string" } },
+  nodes: [
+    { id: "t", type: "trigger.manual" },
+    { id: "a", type: "command.run", with: { command: 'printf "hello %s" "$CEDARLOOM_INPUT_name"' } },
+  ],
+  edges: [{ id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } }],
+});
+
+test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
+  const { root, cli } = setup();
+  const file = planFile(root, workflow, "greet.json");
+  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  expect(ran).toMatchObject({ format: "cedarloom.run", status: "succeeded" });
+  const runId = String(ran["runId"]);
+  expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
+  expect((await cli("runs", "show", runId)).out).toMatch(
+    /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
+  );
+});
+
+test("runs resume and cancel take over a graph run no process runs, and Ctrl+C cancels one this process runs", async () => {
+  const { root, state, cli } = setup();
+  const file = planFile(root, workflow, "greet.json");
+  // Two runs whose runner died while a ran with pid 4242: a resume counts the attempt as failed, a cancel ends the run.
+  const store = openGraphStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const [one = "", two = ""] = [1, 2].map(() => {
+    const lease = store.value.create({
+      definition: workflow,
+      inputs: {},
+      trigger: "manual",
+      mode: "act",
+      parentRun: null,
+      parentNode: null,
+      project: realpathSync(root),
+    });
+    store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: 4242 });
+    lease.release();
+    return lease.runId;
+  });
+  store.value.close();
+  // Without --yes a resume or a cancel shows what it would do, and changes nothing.
+  const plan = "Left running when its runner died; they end interrupted";
+  const again = "\n  a#1  pid 4242\nNothing changed. Run the command again with --yes to";
+  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(
+    `${plan}, count as failed, and retries rerun them:${again} resume it.`,
+  );
+  expect((await cli("runs", "cancel", two)).out).toContain(`${plan}:${again} cancel it.`);
+  expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
+    code: EXIT.refused,
+    out: `Run ${one}: failed.\n`,
+    err: "",
+  });
+  expect((await cli("runs", "show", one)).out).toMatch(/a#1 +interrupted +pid 4242/);
+  // The plan refuses what --yes would: a run that has ended.
+  expect((await cli("runs", "resume", one)).err).toContain("has ended (failed)");
+  // A resume or cancel runs only in the run's own folder.
+  expect((await cli("runs", "cancel", two, "--project", state)).err).toContain(`runs in ${realpathSync(root)}, not in`);
+  expect((await cli("runs", "cancel", two, "--yes")).out).toBe(`Run ${two}: cancelled.\n`);
+  expect((await cli("runs", "list")).out.trim().split("\n")).toHaveLength(2);
+  // Ctrl+C while a run runs cancels it.
+  const slow = planFile(
+    root,
+    { ...workflow, nodes: [workflow.nodes[0], { id: "a", type: "command.run", with: { command: "sleep 30" } }] },
+    "slow.json",
+  );
+  const stopping = setup({ stopped: new Promise((resolve) => setTimeout(resolve, 500)) });
+  expect((await stopping.cli("workflows", "run", slow, "--project", root)).out).toMatch(/: cancelled\.\n$/);
+  expect((await cli("runs", "resume", "nope")).code).toBe(EXIT.refused);
+  expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);
+  expect((await cli("workflows", "run", file, "--input", "Ada")).code).toBe(EXIT.usage);
+  expect((await cli("workflows", "run", join(root, "none.json"))).code).toBe(EXIT.noInput);
+});
+
+test("a cancel's plan of a run its runner holds says the runner ends the attempts cancelled", async () => {
+  const { root, state, cli } = setup();
+  const store = openGraphStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  // Held by this process, with a folder that is gone: a cancel starts nothing, so it needs none.
+  const lease = store.value.create({ ...run, definition: workflow, project: join(root, "gone") });
+  store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: 4242 });
+  const plan = await cli("runs", "cancel", lease.runId);
+  expect(plan.out).toContain(`graph greet, running.\nRunning now; its runner ends them cancelled:\n  a#1  pid 4242\n`);
+  lease.release();
+  store.value.close();
+});
+
+const MANIFEST = {
+  schemaVersion: 1,
+  kind: "cedarloom.extension",
+  id: "acme.jira",
+  version: "1.0.0",
+  name: "Jira",
+  license: "MIT",
+  api: "1.0",
+  platforms: ["darwin", "linux"],
+  runtime: { kind: "node", entry: "main.mjs" },
+  capabilities: {
+    net: ["https://acme.atlassian.net"],
+    credentials: {
+      "jira-token": { scheme: { type: "http", scheme: "bearer" }, hosts: ["https://acme.atlassian.net"] },
+    },
+    projectRead: true,
+    planWrite: true,
+  },
+  contributes: { actions: { search: { title: "Search" } } },
+};
+const fileOf = (path: string, body: string) => ({
+  path,
+  mode: "100644" as const,
+  sha256: sha256(body),
+  content: Buffer.from(body),
+});
+// A Git source as the fetch hands it over, without a network: the folder holds the manifest and its entry.
+const published =
+  (manifest: object): Fetch =>
+  () =>
+    Promise.resolve({
+      ok: true,
+      value: {
+        commit: "c".repeat(40),
+        digest: "d".repeat(64),
+        files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
+      },
+    });
+const SOURCE = "https://git.example.org/acme/jira.git";
+
+test("extensions: add shows the source, the trust and the capabilities, and installs with --approve; list shows it", async () => {
+  const { state, cli } = setup({ fetch: published(MANIFEST) });
+  const none = await cli("extensions", "list");
+  const add = ["extensions", "add", SOURCE, "--ref", "v1", "--path", "jira"];
+  const shown = await cli(...add);
+  const preview = json((await cli(...add, "--json")).out);
+  const installed = await cli(...add, "--approve", String(preview["planHash"]));
+  const listed = await cli("extensions", "list");
+  const listedJson = json((await cli("extensions", "list", "--json")).out);
+  const again = await cli("extensions", "add", SOURCE, "--yes");
+  expect([none.out, shown.code, existsSync(join(state, "extensions.json"))]).toEqual([
+    "No extensions installed. Add one with: cedarloom extensions add <Git URL>\n",
+    EXIT.ok,
+    true,
+  ]);
+  expect(shown.out).toContain(
+    [
+      "  acme.jira 1.0.0 (Jira) by acme, not verified; license MIT",
+      `  from ${SOURCE}, folder jira, v1 at commit ${"c".repeat(40)}; files ${"d".repeat(64)}`,
+      "  community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
+      "  made for darwin, linux",
+      "  may send requests through CedarLoom to https://acme.atlassian.net",
+      "  uses your credential jira-token for https://acme.atlassian.net; CedarLoom adds it, the extension never sees it",
+      "  reads files of your projects",
+      "  proposes file changes, applied only through a plan you approve",
+      `Nothing changed. Run the command again with --yes, or with --approve ${String(preview["planHash"])} to install exactly this.`,
+    ].join("\n"),
+  );
+  expect([preview["extension"], preview["capabilities"]]).toEqual([
+    expect.objectContaining({ id: "acme.jira", trust: "community", ref: "v1" }),
+    MANIFEST.capabilities,
+  ]);
+  expect([installed.code, installed.out.includes("applied."), listed.out, listedJson["extensions"]]).toEqual([
+    EXIT.ok,
+    true,
+    `acme.jira  1.0.0  community  ${SOURCE} (jira)  ${"c".repeat(12)}\n`,
+    [expect.objectContaining({ id: "acme.jira", digest: "d".repeat(64) })],
+  ]);
+  expect([again.code, again.err]).toEqual([
+    EXIT.refused,
+    "error: Extension acme.jira is not installed: it is installed already.\n",
+  ]);
+});
+
+test("extensions: one without capabilities asks for none; a source the CLI never fetches is refused before Git runs", async () => {
+  const { license: _license, platforms: _platforms, capabilities: _capabilities, ...plain } = MANIFEST;
+  const { state, cli } = setup({ fetch: published(plain) });
+  const shown = await cli("extensions", "add", SOURCE);
+  await cli("extensions", "add", SOURCE, "--yes");
+  const listed = await cli("extensions", "list");
+  const local = await setup().cli("extensions", "add", "file:///srv/jira.git");
+  writeFileSync(join(state, "extensions.json"), '{"schemaVersion":2}');
+  const newer = await cli("extensions", "list");
+  expect([shown.out.includes("license none stated"), shown.out.includes("  asks for no capabilities\n")]).toEqual([
+    true,
+    true,
+  ]);
+  expect([listed.out, newer.code]).toEqual([`acme.jira  1.0.0  community  ${SOURCE}  ${"c".repeat(12)}\n`, EXIT.data]);
+  expect([local.code, local.err]).toEqual([
+    EXIT.refused,
+    `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
+  ]);
+});
+
+test("extensions: a manifest's unknown key reaches the terminal escaped, never as control characters", async () => {
+  const key = "\u001b[2K\u001b]8;;https://evil.example\u0007x";
+  const { cli } = setup({ fetch: published({ ...MANIFEST, [key]: 1 }) });
+  const refused = await cli("extensions", "add", SOURCE);
+  expect([refused.code, refused.err.includes("\u001b"), refused.err.includes("\u0007")]).toEqual([
+    EXIT.data,
+    false,
+    false,
+  ]);
+  expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
 });

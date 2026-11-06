@@ -162,3 +162,13 @@ CREATE TABLE gates (
   "by" TEXT
 ) STRICT;
 `;
+
+/** Schema 9: the plugins each launch's init line named (canonical JSON); null before the line, and on older launches. */
+export const PLUGIN_TABLES = `
+ALTER TABLE launches ADD COLUMN plugins TEXT;
+`;
+
+/** Schema 10: the real path of the project folder a graph run's commands run in; null on a run from before. */
+export const PROJECT_TABLES = `
+ALTER TABLE graph_runs ADD COLUMN project TEXT;
+`;

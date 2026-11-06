@@ -31,6 +31,8 @@
     "@cedarloom/agent-contracts": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
+    "@cedarloom/extension-host": "workspace:*",
+    "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/orchestration": "workspace:*"
   },

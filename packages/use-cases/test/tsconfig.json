@@ -7,5 +7,10 @@
     "types": ["node"]
   },
   "include": ["."],
-  "references": [{ "path": ".." }, { "path": "../../ledger" }, { "path": "../../adapter-claude" }]
+  "references": [
+    { "path": ".." },
+    { "path": "../../ledger" },
+    { "path": "../../adapter-claude" },
+    { "path": "../../git" }
+  ]
 }

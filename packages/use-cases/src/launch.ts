@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
 import type { Account, AccountRegistry, Agent, LaunchRecord, Result, RunLabels } from "@cedarloom/contracts";
+import { fetchTree } from "@cedarloom/git";
 import type { Lease, LeaseLock } from "@cedarloom/ledger";
 import {
   deniedPaths,
@@ -17,12 +18,21 @@ import {
 } from "@cedarloom/orchestration";
 import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
+import { type FetchTree, workflowPlugin } from "./plugins.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 /** What the launcher decided for one worker; the adapter's launch options take these as they are. */
 export type Decided = Pick<
   Launch,
-  "home" | "prompt" | "env" | "tmpDir" | "resultFile" | "denyRead" | "allowedDomains" | "verifiedVersions"
+  | "home"
+  | "prompt"
+  | "env"
+  | "tmpDir"
+  | "resultFile"
+  | "denyRead"
+  | "allowedDomains"
+  | "verifiedVersions"
+  | "pluginDirs"
 > & { readonly runId: string; readonly account: Account };
 
 export interface WorkerRequest<L extends Launch> extends AccountRequest {
@@ -47,6 +57,8 @@ export interface LaunchHost {
   readonly gh?: readonly [string, ...string[]];
   /** The folder of Claude Code's managed settings files; the platform's when unset, none when null. */
   readonly managedDir?: string | null;
+  /** Reads the marketplace's plugins at the pinned commit; the git package's fetch over https when unset. */
+  readonly fetchTree?: FetchTree;
 }
 
 // Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
@@ -122,6 +134,7 @@ const decide = async <L extends Launch>(
   const env = workerEnv({ parent, platform, ghToken: request.ghToken, ghConfigDir });
   const gh = await ghProbe(env, host.gh);
   if (!gh.ok) return refused(dir, gh);
+  const plugin = await workflowPlugin(state, host.fetchTree ?? fetchTree);
   const fixed = {
     runId,
     account,
@@ -133,6 +146,7 @@ const decide = async <L extends Launch>(
     resultFile,
     denyRead: deniedPaths(registry, home, parent["XDG_CONFIG_HOME"]),
     allowedDomains: GITHUB_DOMAINS,
+    pluginDirs: plugin === null ? [] : [plugin],
   };
   return {
     ok: true,
@@ -180,9 +194,29 @@ const keepUsage = async (state: string, lease: Lease, event: Extract<AgentEvent,
   }
 };
 
+// Keeps the plugins the run's init line names, with the skills of the ones the launch passed, for the doctor; a store
+// error drops them, as the run's outcome does not depend on them.
+const keepPlugins = async (state: string, lease: Lease, expected: readonly string[], event: AgentEvent) => {
+  if (event.type !== "init" || event.plugins === null) return;
+  const { loaded, skills, errors } = event.plugins;
+  const own = skills.filter((skill) => expected.some((name) => skill.startsWith(`${name}:`)));
+  const plugins = { expected: [...expected], loaded: [...loaded], skills: own, errors: [...errors] };
+  try {
+    await retryBusy(() =>
+      withStore(state, (store) => {
+        store.recordPlugins(lease.runId, plugins);
+        return { ok: true, value: null };
+      }),
+    );
+  } catch {
+    // Dropped: the doctor reads the latest launch that kept them.
+  }
+};
+
 // Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
 // the CLI applied the worker settings, and returns the version it named. `proved`: the session's init line proved them.
-const observe = async (state: string, session: AgentSession, lease: Lease) => {
+// `expected`: the plugins the launch passed, by folder name.
+const observe = async (state: string, session: AgentSession, lease: Lease, expected: readonly string[]) => {
   let exit: Exit | null = null;
   let proved = false;
   for await (const event of session.events) {
@@ -190,6 +224,7 @@ const observe = async (state: string, session: AgentSession, lease: Lease) => {
       return { exit, proved, unproven: event.agentVersion ?? lease.version };
     }
     if (event.type === "init") proved = true;
+    await keepPlugins(state, lease, expected, event);
     if (event.type === "usage") await keepUsage(state, lease, event);
     if (event.type === "exit") exit = event;
   }
@@ -212,7 +247,12 @@ const runLeased = async <L extends Launch>(
   try {
     const launch = build();
     session = runtime.start(launch);
-    const seen = await observe(state, session, lease);
+    const seen = await observe(
+      state,
+      session,
+      lease,
+      launch.pluginDirs.map((dir) => basename(dir)),
+    );
     exit = seen.exit;
     if (seen.unproven !== null) {
       return {

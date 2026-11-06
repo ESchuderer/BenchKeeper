@@ -14,7 +14,15 @@ import { join, resolve } from "node:path";
 import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore, type RunStore } from "@cedarloom/ledger";
-import { type Decided, launchWorker, MAX_CONCURRENT, ownHome, type WorkerRequest } from "@cedarloom/use-cases";
+import {
+  type Decided,
+  doctor,
+  launchWorker,
+  MAX_CONCURRENT,
+  ownHome,
+  WORKFLOW_PLUGIN,
+  type WorkerRequest,
+} from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
@@ -23,6 +31,21 @@ const runtime = claudeRuntime([process.execPath, join(fixtures, "fake-claude.ts"
 const AT = "2026-11-05T11:00:00.000Z";
 const node = process.execPath;
 // gh exits 1 when it finds no token.
+// The marketplace's plugins folder at the pinned commit, with the workflow plugin; `plugins` lists its folders.
+const marketplace = (plugins: readonly string[]) => async (source: { ref: string }) => ({
+  ok: true as const,
+  value: {
+    commit: source.ref,
+    files: plugins.map((name) => ({
+      path: `${name}/.claude-plugin/plugin.json`,
+      mode: "100644" as const,
+      sha256: "0".repeat(64),
+      content: Buffer.from(`{"name":"${name}"}`),
+    })),
+    digest: "d",
+  },
+});
+
 const host = {
   parent: { PATH: process.env["PATH"] },
   platform: process.platform,
@@ -30,6 +53,7 @@ const host = {
   gh: [node, "-e", "process.exit(1)"],
   // No managed settings: the machine's own would make these tests depend on it.
   managedDir: null,
+  fetchTree: marketplace(["workflow", "benchkeeper"]),
 } as const;
 
 // A config folder with one confirmed Claude Code pool of `names`, each in its own home, which exists.
@@ -131,6 +155,14 @@ test("a worker runs end to end: account, version check, lease, readings, and the
   expect(launches[0]?.finishedAt).not.toBeNull();
   // The settings it ran with: the request's phase, review, level and tier, and the built launch's models, effort and permission mode.
   expect(launches[0]?.labels).toEqual(LABELS);
+  // The workflow plugin went with the launch, and its init line names it loaded with its skills: nothing to report.
+  expect(launches[0]?.plugins).toEqual({
+    expected: ["workflow"],
+    loaded: ["workflow"],
+    skills: ["workflow:workflow", "workflow:tier"],
+    errors: ["extra: no plugin.json"],
+  });
+  expect(doctor(state)).toEqual([]);
   expect(withLedger(state, (store) => store.readings().map((reading) => reading.window))).toEqual([
     "fiveHour",
     "sevenDay",
@@ -222,6 +254,17 @@ const fill = (state: string, account: string, from: number) =>
   );
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
+
+test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {
+  const { state, config, work } = setup();
+  const without = { ...host, fetchTree: marketplace(["benchkeeper"]) };
+  const outcome = await launchWorker(state, config, request(work, { result: passing }), without);
+  expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", verdict: "pass" } });
+  expect(withLedger(state, (store) => store.launches()[0]?.plugins?.expected)).toEqual([]);
+  expect(doctor(state)).toEqual([
+    { code: "doctor.plugin-none", params: { plugin: "workflow", commit: WORKFLOW_PLUGIN.commit } },
+  ]);
+});
 
 test("a worker starts only in its account's own home, so nothing is written into another tool's", async () => {
   const { state, config, work } = setup();

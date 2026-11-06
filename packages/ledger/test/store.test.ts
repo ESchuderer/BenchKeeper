@@ -108,11 +108,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 9");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 9, known: 8 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 10 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -337,7 +337,7 @@ test("a store of schema 1 gains the account, check, launch and mode tables on op
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 8 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
   after.close();
 });
 
@@ -490,6 +490,7 @@ test("an account gives at most max leases; a finished lease frees one, another a
     runId: runIdOf(1),
     finishedAt: "2026-11-06T08:10:00.000Z",
     verdict: "pass",
+    plugins: null,
   });
   expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
   // A run takes one lease: a second lease of a run whose lock is held is refused.
@@ -615,13 +616,45 @@ test("a launch keeps the settings it ran with; a launch from before the labels h
   open.splice(0).forEach((each) => each.close());
   // A schema-6 store: its launches have no labels column yet.
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec(`ALTER TABLE launches DROP COLUMN labels; ${DROP_GRAPH} PRAGMA user_version = 6`);
+  db.exec(
+    `ALTER TABLE launches DROP COLUMN plugins; ALTER TABLE launches DROP COLUMN labels; ${DROP_GRAPH}
+     PRAGMA user_version = 6`,
+  );
   db.close();
   expect(
     opened(dir)
       .launches()
       .map((row) => [row.runId.at(-1), row.labels]),
   ).toEqual([["1", null]]);
+});
+
+test("a launch keeps the plugins its init line named, and a view reads the latest; an older store has none", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  for (const n of [1, 2]) store.leaseAccount({ ...launch, runId: runIdOf(n) }, 2)?.release();
+  const plugins = { expected: ["workflow"], loaded: ["workflow"], skills: ["workflow:tier"], errors: [] };
+  store.recordPlugins(runIdOf(1), plugins);
+  expect(store.launches().map((row) => row.plugins)).toEqual([plugins, null]);
+  const latest = () => {
+    const view = openRunView(dir);
+    if (!view.ok || view.value === null) throw new Error("no view");
+    try {
+      return view.value.latestPlugins();
+    } finally {
+      view.value.close();
+    }
+  };
+  expect(latest()).toEqual(plugins);
+  store.recordPlugins(runIdOf(2), { ...plugins, loaded: [], errors: ["workflow: no plugin.json"] });
+  expect(latest()).toEqual({ ...plugins, loaded: [], errors: ["workflow: no plugin.json"] });
+  // Checked on write, so the launches stay readable.
+  expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
+  open.splice(0).forEach((each) => each.close());
+  // A schema-8 store, read without a change: no plugins column, so none.
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec("ALTER TABLE launches DROP COLUMN plugins; PRAGMA user_version = 8");
+  db.close();
+  expect(latest()).toBeNull();
 });
 
 const sample = {

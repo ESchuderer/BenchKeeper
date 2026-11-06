@@ -17,14 +17,14 @@ import { execSync } from 'node:child_process';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const { tagline: description } = facts;
-const title = 'BenchKeeper: rules, workflow and setup for Claude Code and Codex';
+const title = 'CedarLoom: rules, workflow and setup for Claude Code and Codex';
 // Last commit for the footer; builds without git (e.g. a slim container) omit it.
 let updated: string | undefined, commit: string | undefined;
 try {
   [updated, commit] = execSync('git log -1 --format=%cs%n%H', { encoding: 'utf8' }).trim().split('\n');
 } catch {}
 ---
-<SiteLayout title={title} description={description} imageAlt={`BenchKeeper logo. ${description}`}>
+<SiteLayout title={title} description={description} imageAlt={`CedarLoom logo. ${description}`}>
   <Page base={base} updated={updated} commit={commit} />
   <script is:inline>
     (function () {

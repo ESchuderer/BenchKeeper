@@ -104,6 +104,12 @@ export const Finding = z
     finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
+    // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
+    finding("doctor.logged-out", { account: z.string(), home: z.string() }),
+    finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
+    finding("doctor.login-method", { account: z.string(), method: z.string() }),
+    finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
+    finding("doctor.login-skipped", { account: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
@@ -116,6 +122,8 @@ export const Finding = z
     finding("launch.gh-login", { error: z.string().nullable() }),
     // A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings.
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
+    // The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why).
+    finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
     // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
@@ -221,6 +229,11 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
+  "doctor.logged-out": { severity: "error", effort: "manual" },
+  "doctor.login-elsewhere": { severity: "error", effort: "manual" },
+  "doctor.login-method": { severity: "warning", effort: "manual" },
+  "doctor.login-unchecked": { severity: "warning", effort: "manual" },
+  "doctor.login-skipped": { severity: "info", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },
@@ -228,6 +241,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.gh-login": { severity: "error", effort: "manual" },
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
+  "launch.not-logged-in": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },

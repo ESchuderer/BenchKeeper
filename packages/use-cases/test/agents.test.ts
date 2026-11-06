@@ -27,6 +27,11 @@ const runtime = (versions: string[], checks: ContractCheck[]) => {
     },
     version: vi.fn<AgentRuntime["version"]>(async () => versions.shift() ?? "none left"),
     checkContract: vi.fn<AgentRuntime["checkContract"]>(async () => checks.shift() ?? { version: null, missing: [] }),
+    loginStatus: vi.fn<AgentRuntime["loginStatus"]>(async () => ({
+      kind: "logged-in",
+      authMethod: "claude.ai",
+      configDirectory: "/accounts/work",
+    })),
     start: unused,
     resume: unused,
     handover: unused,
@@ -47,13 +52,33 @@ const probe = {
   denyRead: [],
   allowedDomains: [],
 } as const;
-const input = { env: {}, probe };
+const input = { env: {}, probe, account: "work" };
 const checked = (dir: string, cli: ReturnType<typeof runtime>) => checkedVersions(dir, "claude", cli, input);
 const passed = (version: string, verified: string[], settingsApplied = true) => ({
   ok: true,
   value: { version, verified, settingsApplied },
 });
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+
+// A launch refused before its probe, because the home shows no login.
+const notLoggedIn = (reason: string) => ({
+  ok: false,
+  finding: { code: "launch.not-logged-in", params: { account: "work", reason } },
+});
+
+test("a home the agent's own login check does not show logged in is not probed, so no failure stands for the version", async () => {
+  const dir = state();
+  const cli = runtime(Array(4).fill("2.1.316"), [{ version: "2.1.316", missing: [] }]);
+  cli.loginStatus.mockResolvedValueOnce({ kind: "logged-out" });
+  cli.loginStatus.mockResolvedValueOnce({ kind: "unknown", error: "timed out" });
+  await expect(checked(dir, cli)).resolves.toEqual(notLoggedIn("logged out"));
+  await expect(checked(dir, cli)).resolves.toEqual(notLoggedIn("timed out"));
+  expect(cli.checkContract).not.toHaveBeenCalled();
+  // Nothing stood for the version: logged in again, it is probed and passes; once checked, no login check runs.
+  await expect(checked(dir, cli)).resolves.toEqual(passed("2.1.316", ["2.1.316"]));
+  await checked(dir, cli);
+  expect([cli.loginStatus.mock.calls.length, cli.checkContract.mock.calls.length]).toEqual([3, 1]);
+});
 
 test("a version is checked once, before its first launch; a new version is checked again", async () => {
   const dir = state();

@@ -1,6 +1,7 @@
 export {
   ACCOUNTS_SCHEMA_VERSION,
   type Account,
+  AccountName,
   AccountRegistry,
   AccountSwitch,
   Agent,
@@ -60,6 +61,7 @@ export {
   ExtensionId,
   ExtensionLock,
   ExtensionManifest,
+  FORBIDDEN_HEADERS,
   GitUrl,
   isExtensionType,
   LOCK_SCHEMA_VERSION,

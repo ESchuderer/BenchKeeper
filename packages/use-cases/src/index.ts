@@ -18,8 +18,10 @@ export {
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
+export type { LoginStatus } from "@cedarloom/agent-contracts";
 export {
   type AccountRequest,
+  checkLogins,
   chooseAccount,
   type LoginHost,
   type LoginRun,
@@ -30,6 +32,7 @@ export {
   planConfirm,
   planHome,
   planImport,
+  type StatusHost,
 } from "./accounts.ts";
 export {
   type Approval,

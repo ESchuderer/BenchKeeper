@@ -72,6 +72,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Input ${p.handle} of node ${p.node} needs a value, but the workflow input ${p.input} it comes from is optional and has no default.`,
   "workflow.schedule-input": (p) =>
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
+  "workflow.report-only-write": (p) =>
+    `Node ${p.node} writes a file, but a schedule starts this workflow, and a scheduled run only reports.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.registry-exists": (p) =>

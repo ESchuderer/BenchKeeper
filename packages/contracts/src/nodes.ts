@@ -1,0 +1,113 @@
+import { z } from "zod";
+import { fileFormats } from "./registry.ts";
+import { JoinConfig } from "./workflow.ts";
+
+// minute, hour, day of month, month, day of week (0 is Sunday).
+const CRON_FIELDS: readonly (readonly [number, number])[] = [
+  [0, 59],
+  [0, 23],
+  [1, 31],
+  [1, 12],
+  [0, 6],
+];
+const number = (text: string): number => (/^\d{1,2}$/.test(text) ? Number(text) : Number.NaN);
+
+// `*`, `n` or `n-m` within the field's bounds.
+const cronRange = (range: string, [min, max]: readonly [number, number]): boolean => {
+  if (range === "*") return true;
+  const [from = "", to = from, ...more] = range.split("-");
+  const [low, high] = [number(from), number(to)];
+  return more.length === 0 && low >= min && high <= max && low <= high;
+};
+
+// One list item of a cron field: a range with an optional `/step`.
+const cronItem = (item: string, bounds: readonly [number, number]): boolean => {
+  const [range = "", step, ...extra] = item.split("/");
+  const stepOk = step === undefined || /^[1-9]\d?$/.test(step);
+  return extra.length === 0 && stepOk && cronRange(range, bounds);
+};
+
+/** Whether a text is a five-field cron schedule in numbers (no month or weekday names, no seconds). */
+export const isCron = (text: string): boolean => {
+  const fields = text.trim().split(/\s+/);
+  return (
+    fields.length === CRON_FIELDS.length &&
+    fields.every((field, index) => {
+      const bounds = CRON_FIELDS[index];
+      return bounds !== undefined && field.split(",").every((item) => cronItem(item, bounds));
+    })
+  );
+};
+
+const isTimeZone = (name: string): boolean => {
+  try {
+    return new Intl.DateTimeFormat("en", { timeZone: name }).resolvedOptions().timeZone !== "";
+  } catch {
+    return false;
+  }
+};
+
+/** A command line, run by the platform's shell: `sh` on Linux, macOS and WSL, `cmd.exe` on Windows. */
+const Command = z.string().min(1).max(10_000);
+
+/** A path inside the project: relative, `/` between its parts, no `..` part. */
+const ProjectPath = z
+  .string()
+  .min(1)
+  .max(1024)
+  .regex(/^(?![/\\])(?![A-Za-z]:)(?!(?:.*\/)?\.\.(?:\/|$))[^\\]+$/, {
+    message: "a relative path inside the project, with / between its parts and no .. part",
+  });
+
+const precheck = Command.describe(
+  "A read-only command run before the workflow: exit code 0 starts the run, any other skips it",
+);
+
+const config = <T extends z.ZodType>(id: string, schema: T): T => {
+  fileFormats.add(schema, { id });
+  return schema;
+};
+
+/**
+ * The configuration (`with`) of each node type of workflow schema version 1. A node without `with` is checked as `{}`.
+ * Values never reach a command as text: a command gets the workflow's inputs as environment variables only.
+ */
+export const NODE_CONFIGS = {
+  "trigger.manual": config("TriggerManualConfig", z.strictObject({ precheck: precheck.optional() })),
+  "trigger.schedule": config(
+    "TriggerScheduleConfig",
+    z.strictObject({
+      cron: z
+        .string()
+        .refine(isCron, "a five-field cron schedule in numbers")
+        .describe("Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, `/step`, lists"),
+      timezone: z
+        .string()
+        .refine(isTimeZone, "an IANA time zone")
+        .optional()
+        .describe("An IANA time zone such as Europe/Berlin; the machine's when absent"),
+      precheck,
+    }),
+  ),
+  "agent.run": config(
+    "AgentRunConfig",
+    z.strictObject({
+      task: z.string().min(1).max(100_000),
+      provider: z.enum(["claude-code"]).optional().describe("`claude-code` when absent"),
+      phase: z
+        .enum(["plan", "implement", "review"])
+        .optional()
+        .describe("Picks the pinned model and effort of the phase; `implement` when absent"),
+    }),
+  ),
+  "command.run": config(
+    "CommandRunConfig",
+    z.strictObject({ command: Command, cwd: ProjectPath.optional().describe("The project folder when absent") }),
+  ),
+  "file.read": config("FileReadConfig", z.strictObject({ path: ProjectPath })),
+  "file.write": config("FileWriteConfig", z.strictObject({ path: ProjectPath })),
+  condition: config("ConditionConfig", z.strictObject({})),
+  join: JoinConfig,
+  "human.approval": config("HumanApprovalConfig", z.strictObject({ message: z.string().min(1).max(2000) })),
+  "workflow.run": config("WorkflowRunConfig", z.strictObject({ workflow: ProjectPath })),
+} satisfies Readonly<Record<string, z.ZodType>>;

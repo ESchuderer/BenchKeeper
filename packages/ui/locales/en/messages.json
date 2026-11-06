@@ -124,6 +124,11 @@
       ["input"],
       " is optional and has no default."
     ],
+    "problem.reportOnlyWrite": [
+      "Node ",
+      ["node"],
+      " writes a file, but a schedule starts this workflow, and a scheduled run only reports."
+    ],
     "problem.scheduleInput": [
       "A schedule starts this workflow without inputs, so the required input ",
       ["input"],

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "WorkflowRunConfig.schema.json",
+  "type": "object",
+  "properties": {
+    "workflow": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*\\/)?\\.\\.(?:\\/|$))[^\\\\]+$"
+    }
+  },
+  "required": [
+    "workflow"
+  ],
+  "additionalProperties": false
+}

@@ -7,6 +7,8 @@ import {
   formatRegistry,
   type Json,
   formatWorkflow,
+  isCron,
+  NODE_CONFIGS,
   PLAN_SCHEMA_VERSION,
   Plan,
   readDocument,
@@ -212,4 +214,26 @@ test("canonical JSON sorts keys at every depth, keeps array order and has no whi
   const a = canonicalJson({ b: [3, { y: null, x: true }], a: "é\n", "": 1 });
   expect(a).toBe('{"":1,"a":"é\\n","b":[3,{"x":true,"y":null}]}');
   expect(canonicalJson({ a: "é\n", "": 1, b: [3, { x: true, y: null }], gone: undefined })).toBe(a);
+});
+
+const path = (value: string): boolean => NODE_CONFIGS["file.read"].safeParse({ path: value }).success;
+
+test("node configuration: five-field numeric cron, IANA time zones, paths inside the project", () => {
+  const valid = ["0 3 * * *", "*/15 * * * *", "0 9-17/2 * * 1-5", "0,30 8 1 1,6 0", "59 23 31 12 6"];
+  const invalid = ["", "0 3 * *", "0 3 * * * *", "60 3 * * *", "0 24 * * *", "0 3 0 * *", "0 3 * 13 *", "0 3 * * 7"];
+  const more = ["0 3 * * MON", "5-1 * * * *", "*/0 * * * *", "1-2-3 * * * *", "0/5/1 * * * *", "100 * * * *"];
+  expect(valid.map(isCron)).toEqual(valid.map(() => true));
+  expect([...invalid, ...more].map(isCron)).toEqual([...invalid, ...more].map(() => false));
+  const schedule = NODE_CONFIGS["trigger.schedule"];
+  const ok = (value: object): boolean => schedule.safeParse({ cron: "0 3 * * *", precheck: "true", ...value }).success;
+  expect([ok({}), ok({ timezone: "Europe/Berlin" }), ok({ timezone: "Mars/Olympus" }), ok({ precheck: "" })]).toEqual([
+    true,
+    true,
+    false,
+    false,
+  ]);
+  const inside = ["notes/a.md", "a/..b", "...", ".github/x.yml"];
+  const outside = ["/etc/hosts", "C:/x", "c:x", "../a", "a/../b", "a/..", "a\\b", "\\server\\x", ""];
+  expect(inside.map(path)).toEqual(inside.map(() => true));
+  expect(outside.map(path)).toEqual(outside.map(() => false));
 });

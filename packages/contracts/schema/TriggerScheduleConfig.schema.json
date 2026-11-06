@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "TriggerScheduleConfig.schema.json",
+  "type": "object",
+  "properties": {
+    "cron": {
+      "type": "string",
+      "description": "Five numeric fields, minute hour day month weekday (0 is Sunday): `*`, `n`, `n-m`, `/step`, lists"
+    },
+    "timezone": {
+      "description": "An IANA time zone such as Europe/Berlin; the machine's when absent",
+      "type": "string"
+    },
+    "precheck": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "description": "A read-only command run before the workflow: exit code 0 starts the run, any other skips it"
+    }
+  },
+  "required": [
+    "cron",
+    "precheck"
+  ],
+  "additionalProperties": false
+}

@@ -3,7 +3,10 @@ import { t } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
 /** The findings the editor shows: the validator's, and why an imported file or a draft was refused. */
-type Shown = Extract<Finding["code"], `workflow.${string}` | `draft.${string}` | `document.${string}`>;
+type Shown = Extract<
+  Finding["code"],
+  `workflow.${string}` | `draft.${string}` | `document.${string}` | "run.node-unsupported"
+>;
 
 // A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
 const SHOWN = 10;
@@ -47,6 +50,7 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.extension-missing": (p) => t("problem.extensionMissing", p),
   "workflow.unreachable": (p) => t("problem.unreachable", p),
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
+  "run.node-unsupported": (p) => t("problem.nodeUnsupported", p),
 };
 
 const text = <C extends Shown>(code: C, params: Params[C]): string => texts[code](params);

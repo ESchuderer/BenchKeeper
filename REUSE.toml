@@ -1,0 +1,39 @@
+version = 1
+
+# Copyright and license of every file, checked by `reuse lint` in checks.yml. When several annotations match a file,
+# the last one wins; `precedence = "override"` also ignores notices inside the file.
+
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "2026 ESchuderer"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "patches/thread-stream@4.2.0.patch"
+SPDX-FileCopyrightText = ["2021 Matteo Collina", "2026 ESchuderer"]
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "packages/ui/notices/react-remove-scroll-bar.txt"
+SPDX-FileCopyrightText = "2025 Anton Korzunov"
+SPDX-License-Identifier = "MIT"
+
+# The test quotes the copyright notice of elkjs, which is not this file's own.
+[[annotations]]
+path = "packages/ui/test/editor.spec.ts"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 ESchuderer"
+SPDX-License-Identifier = "MIT"
+
+# The CedarLoom name and logos are not under the code license: TRADEMARKS.md.
+[[annotations]]
+path = "brand/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 CedarLoom contributors"
+SPDX-License-Identifier = "LicenseRef-Brand"
+
+# Derived from the Model Trademark Guidelines (CC BY 4.0, credit line at its end).
+[[annotations]]
+path = "TRADEMARKS.md"
+SPDX-FileCopyrightText = ["Model Trademark Guidelines contributors", "2026 ESchuderer"]
+SPDX-License-Identifier = "CC-BY-4.0"

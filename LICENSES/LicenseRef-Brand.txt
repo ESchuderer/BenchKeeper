@@ -1,0 +1,3 @@
+The CedarLoom name and the CedarLoom logos are not covered by the license of the code in
+this repository. All rights are reserved, except as the trademark policy in TRADEMARKS.md
+allows. You may show the unmodified logo to refer to the CedarLoom project.

@@ -1,12 +1,19 @@
-<p align="center"><img src="assets/logo.svg" alt="BenchKeeper logo" width="160"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/cedarloom-dark.svg">
+    <img src="brand/cedarloom-light.svg" alt="CedarLoom" width="400">
+  </picture>
+</p>
 
-# BenchKeeper
+# CedarLoom
 
 <!-- generated:description -->
 BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.
 
 [What BenchKeeper is](https://eschuderer.github.io/BenchKeeper/overview/): the workflow, what each part brings and the defaults it sets.
 <!-- /generated:description -->
+
+CedarLoom is the new name of BenchKeeper. Until CedarLoom 0.1.0 the released tool keeps the name `benchkeeper` on npm and in Claude Code, so the commands below stay as they are.
 
 For developers who run Claude Code or Codex in more than one repository and want the same rules, skills and dev container setup in each.
 
@@ -68,4 +75,4 @@ Fix everything shows each file change as a diff and each command as its command 
 
 ## License
 
-[MIT](LICENSE)
+The code is under the [MIT license](LICENSE). The CedarLoom name and logos are not: see the [trademark policy](TRADEMARKS.md). [`REUSE.toml`](REUSE.toml) maps every file to its license.

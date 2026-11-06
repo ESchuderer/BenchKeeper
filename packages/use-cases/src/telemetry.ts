@@ -73,8 +73,10 @@ const stringOf = (values: Values, key: string): string | null => {
 };
 
 const count = (values: Values, key: string): number | null => {
-  const value = Number(values.get(key));
-  return values.has(key) && Number.isSafeInteger(value) ? value : null;
+  const raw = values.get(key);
+  // An int64 may come as a string of digits; Number would read "" or " " as 0.
+  const value = typeof raw === "string" && /^\d{1,16}$/.test(raw) ? Number(raw) : raw;
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
 };
 
 // One api_request record as a token row, or null when it is none; only the fields of the allowlist are read.

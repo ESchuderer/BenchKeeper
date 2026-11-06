@@ -170,13 +170,10 @@ test("a launch with a receiver exports its logs only there, with its token and n
     OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: telemetry.endpoint,
     OTEL_METRICS_INCLUDE_VERSION: "true",
   };
-  const bypass = "corp.example,127.0.0.1,localhost";
-  expect(on.env).toMatchObject({
-    ...settings,
-    OTEL_EXPORTER_OTLP_LOGS_HEADERS: "Authorization=Bearer t0k",
-    NO_PROXY: bypass,
-    no_proxy: bypass,
-  });
+  expect(on.env).toMatchObject({ ...settings, OTEL_EXPORTER_OTLP_LOGS_HEADERS: "Authorization=Bearer t0k" });
+  // One list for both spellings: Windows keeps one of them, other systems both.
+  const bypass = Object.entries(on.env).flatMap(([name, value]) => (name.toUpperCase() === "NO_PROXY" ? [value] : []));
+  expect(new Set(bypass)).toEqual(new Set(["corp.example,127.0.0.1,localhost"]));
   for (const name of ["OTEL_LOG_USER_PROMPTS", "OTEL_EXPORTER_OTLP_ENDPOINT"]) expect(on.env).not.toHaveProperty(name);
   // The settings on the command line, which every local user can read, repeat them without the token.
   const flag = z

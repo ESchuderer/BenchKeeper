@@ -468,7 +468,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        workflow: unknown;
+                        workflow: components["schemas"]["WorkflowJsonInput"];
                         replaces: components["schemas"]["Sha256Input"] | null;
                     };
                 };
@@ -481,6 +481,18 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["DraftSaved"];
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            error: "FST_ERR_CTP_INVALID_JSON_BODY" | "FST_ERR_CTP_EMPTY_JSON_BODY" | "FST_ERR_CTP_INVALID_CONTENT_LENGTH" | "FST_ERR_BAD_URL" | "invalid-request";
+                        };
                     };
                 };
                 /** @description Default Response */
@@ -1026,6 +1038,9 @@ export interface components {
         RunsEventInput: {
             runs: components["schemas"]["RunInput"][];
         };
+        WorkflowJsonInput: unknown | {
+            [key: string]: components["schemas"]["WorkflowJsonInput"];
+        };
         DraftInfoInput: {
             id: string;
             /** Format: date-time */
@@ -1037,7 +1052,7 @@ export interface components {
             /** Format: date-time */
             savedAt: string;
             hash: components["schemas"]["Sha256Input"];
-            workflow: unknown;
+            workflow: components["schemas"]["WorkflowJsonInput"];
         };
         DraftSavedInput: {
             id: string;
@@ -1484,6 +1499,7 @@ export interface components {
         RunsEvent: {
             runs: components["schemas"]["Run"][];
         };
+        WorkflowJson: unknown;
         DraftInfo: {
             id: string;
             /** Format: date-time */
@@ -1495,7 +1511,7 @@ export interface components {
             /** Format: date-time */
             savedAt: string;
             hash: components["schemas"]["Sha256"];
-            workflow: unknown;
+            workflow: components["schemas"]["WorkflowJson"];
         };
         DraftSaved: {
             id: string;

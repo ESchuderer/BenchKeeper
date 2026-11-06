@@ -2063,6 +2063,42 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJsonInput": {
+        "anyOf": [
+          {
+            "not": {
+              "type": "object"
+            },
+            "items": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "const": "__proto__"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            },
+            "not": {
+              "required": [
+                "constructor"
+              ],
+              "properties": {
+                "constructor": {
+                  "type": "object",
+                  "required": [
+                    "prototype"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
       "DraftInfoInput": {
         "type": "object",
         "properties": {
@@ -2103,7 +2139,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256Input"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJsonInput"
+          }
         },
         "required": [
           "id",
@@ -4204,6 +4242,7 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJson": {},
       "DraftInfo": {
         "type": "object",
         "properties": {
@@ -4244,7 +4283,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJson"
+          }
         },
         "required": [
           "id",
@@ -4819,7 +4860,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "workflow": {},
+                  "workflow": {
+                    "$ref": "#/components/schemas/WorkflowJsonInput"
+                  },
                   "replaces": {
                     "anyOf": [
                       {
@@ -4858,6 +4901,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DraftSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "FST_ERR_CTP_INVALID_JSON_BODY",
+                        "FST_ERR_CTP_EMPTY_JSON_BODY",
+                        "FST_ERR_CTP_INVALID_CONTENT_LENGTH",
+                        "FST_ERR_BAD_URL",
+                        "invalid-request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }

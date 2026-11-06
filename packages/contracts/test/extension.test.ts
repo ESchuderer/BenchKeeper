@@ -6,6 +6,7 @@ import {
   EXTENSION_SCHEMA_VERSION,
   ExtensionLock,
   ExtensionManifest,
+  ExtensionUpdates,
   formatInstalled,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,
@@ -13,6 +14,7 @@ import {
   LOCK_SCHEMA_VERSION,
   readDocument,
   type Result,
+  UPDATES_SCHEMA_VERSION,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -21,8 +23,12 @@ import { describe, expect, test } from "vitest";
 const root = join(import.meta.dirname, "..");
 const read = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(root, path), "utf8"));
 
-// Every published document, so the extension formats' references resolve; strict mode refuses unknown keywords.
-const ajv = new Ajv2020({ strict: true });
+// Every published document, so the extension formats' references resolve; strict mode refuses unknown keywords. The
+// date-time format is zod's ISO form in UTC.
+const ajv = new Ajv2020({
+  strict: true,
+  formats: { "date-time": /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/ },
+});
 for (const name of await readdir(join(root, "schema"))) {
   ajv.addSchema(JSON.parse(await readFile(join(root, "schema", name), "utf8")));
 }
@@ -36,6 +42,7 @@ const formats: Record<string, (value: unknown) => Result<unknown>> = {
   ExtensionLock: (value) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, value),
   ExportIndex: (value) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, value),
   InstalledExtensions: (value) => readDocument(InstalledExtensions, INSTALLED_SCHEMA_VERSION, value),
+  ExtensionUpdates: (value) => readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, value),
 };
 
 const issuePaths = (result: Result<unknown>): string[] =>

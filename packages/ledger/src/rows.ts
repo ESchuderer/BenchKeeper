@@ -1,3 +1,4 @@
+/** Runs of plans and their steps; store.ts creates these tables and the ones below at once, as the 0.1.0 schema. */
 export const TABLES = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) STRICT;
 INSERT INTO meta VALUES ('epoch', 0);
@@ -26,7 +27,7 @@ CREATE TABLE steps (
 ) STRICT;
 `;
 
-/** Schema 2: the latest reading per account and usage window, and one row per launch-time account choice. */
+/** The latest reading per account and usage window, and one row per launch-time account choice. */
 export const ACCOUNT_TABLES = `
 CREATE TABLE readings (
   account TEXT NOT NULL,
@@ -47,7 +48,7 @@ CREATE TABLE switches (
 ) STRICT;
 `;
 
-/** Schema 3: one contract check per agent CLI version; a check of the same version again replaces it. */
+/** One contract check per agent CLI version; a check of the same version again replaces it. */
 export const CHECK_TABLES = `
 CREATE TABLE contract_checks (
   agent TEXT NOT NULL,
@@ -58,7 +59,10 @@ CREATE TABLE contract_checks (
 ) STRICT;
 `;
 
-/** Schema 4: one row per worker launch; a row without finishedAt is a lease on its account. */
+/**
+ * One row per worker launch; a row without finishedAt is a lease on its account. Each keeps the settings it ran with
+ * (A90), and the plugins its init line named (canonical JSON; null before the line).
+ */
 export const LAUNCH_TABLES = `
 CREATE TABLE launches (
   runId TEXT PRIMARY KEY,
@@ -69,12 +73,14 @@ CREATE TABLE launches (
   pid INTEGER NOT NULL,
   startedAt TEXT NOT NULL,
   finishedAt TEXT,
-  verdict TEXT CHECK (verdict IN ('pass', 'findings', 'not-run', 'failed', 'interrupted'))
+  verdict TEXT CHECK (verdict IN ('pass', 'findings', 'not-run', 'failed', 'interrupted')),
+  labels TEXT NOT NULL,
+  plugins TEXT
 ) STRICT;
 CREATE INDEX launches_running ON launches (account) WHERE finishedAt IS NULL;
 `;
 
-/** Schema 5: the switches of the automation level for running work, in order; level NULL ends the switch. */
+/** The switches of the automation level for running work, in order; level NULL ends the switch. */
 export const MODE_TABLES = `
 CREATE TABLE mode_switches (
   at TEXT NOT NULL,
@@ -82,7 +88,7 @@ CREATE TABLE mode_switches (
 ) STRICT;
 `;
 
-/** Schema 6: every usage window a session reported, as history (A84); readings keeps the latest per quota. */
+/** Every usage window a session reported, as history (A84); readings keeps the latest per quota. */
 export const USAGE_TABLES = `
 CREATE TABLE usage_samples (
   account TEXT NOT NULL,
@@ -99,14 +105,10 @@ CREATE TABLE usage_samples (
 CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
 `;
 
-/** Schema 7: the settings each launch ran with (A90), as JSON; null on a launch from before. */
-export const LABEL_TABLES = `
-ALTER TABLE launches ADD COLUMN labels TEXT;
-`;
-
 /**
- * Schema 8: graph runs (M6). The events are the source of truth; a run's status and its attempts are projections,
- * written in the same transaction as their event. A run's runner holds it by its lease lock, as a launch does.
+ * Graph runs (M6), each in the real path of its project folder. The events are the source of truth; a run's status
+ * and its attempts are projections, written in the same transaction as their event. A run's runner holds it by its
+ * lease lock, as a launch does.
  */
 export const GRAPH_TABLES = `
 CREATE TABLE graph_runs (
@@ -120,6 +122,7 @@ CREATE TABLE graph_runs (
   status TEXT NOT NULL CHECK (status IN ('running', 'waiting', 'succeeded', 'failed', 'cancelled', 'skipped')),
   parentRun TEXT REFERENCES graph_runs (id),
   parentNode TEXT,
+  project TEXT NOT NULL,
   pid INTEGER NOT NULL,
   epoch INTEGER NOT NULL,
   startedAt TEXT NOT NULL,
@@ -163,17 +166,7 @@ CREATE TABLE gates (
 ) STRICT;
 `;
 
-/** Schema 9: the plugins each launch's init line named (canonical JSON); null before the line, and on older launches. */
-export const PLUGIN_TABLES = `
-ALTER TABLE launches ADD COLUMN plugins TEXT;
-`;
-
-/** Schema 10: the real path of the project folder a graph run's commands run in; null on a run from before. */
-export const PROJECT_TABLES = `
-ALTER TABLE graph_runs ADD COLUMN project TEXT;
-`;
-
-/** Schema 11: one row per API request of a worker's session (A84), from its OpenTelemetry api_request event. */
+/** One row per API request of a worker's session (A84), from its OpenTelemetry api_request event. */
 export const TOKEN_TABLES = `
 CREATE TABLE token_rows (
   runId TEXT NOT NULL,

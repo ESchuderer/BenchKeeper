@@ -198,9 +198,9 @@ export type TokenRow = z.infer<typeof TokenRow>;
 
 /**
  * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it
- * counted as 0 percent used. Absent on a choice from before that rule, which counted such a window as unknown.
+ * counted as 0 percent used.
  */
-const CountedReading = Reading.extend({ source: z.enum(["reported", "assumed-after-reset"]).optional() });
+const CountedReading = Reading.extend({ source: z.enum(["reported", "assumed-after-reset"]) });
 
 /**
  * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first

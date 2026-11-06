@@ -8,16 +8,19 @@ export {
   stricterLevel,
   waitsForOwner,
 } from "./automation.ts";
+export {
+  type Attempt,
+  capped,
+  type ExecuteOptions,
+  type Executors,
+  execute,
+  OUTPUT_CAP,
+  type Prepared,
+} from "./execute.ts";
 export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";
 export { recover } from "./recover.ts";
 export {
   type Action,
-  type AttemptOutcome,
-  type NodeRun,
-  type NodeState,
-  type RunEvent,
-  type RunState,
-  type RunStatus,
   replay,
   resolveInputs,
   type Step,

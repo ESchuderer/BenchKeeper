@@ -1,0 +1,32 @@
+{
+  "name": "@cedarloom/extension-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Write a CedarLoom extension: the JSON-RPC protocol between the extension host and an extension, and defineExtension, which serves an extension's actions over stdio.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "10.0.0"
+  }
+}

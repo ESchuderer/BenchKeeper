@@ -36,6 +36,17 @@ export const Finding = z
     finding("run.input-unknown", { input: z.string() }),
     finding("run.input-missing", { input: z.string() }),
     finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
+    // A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust.
+    finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
+    // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
+    finding("run.lease-held", { runId: z.string(), pid: z.int() }),
+    finding("run.finished", { runId: z.string(), status: z.string() }),
+    // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
+    finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
+    // A node type this CedarLoom does not run yet; nothing of the run starts.
+    finding("run.node-unsupported", { node: z.string(), type: z.string() }),
+    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe; pending owner decision).
+    finding("run.shell-missing", {}),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -62,10 +73,10 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
-    // A plugin action under a schedule: it may write through the host or change other systems (pending owner decision).
-    finding("workflow.report-only-plugin", { node: z.string() }),
-    // A node of a plugin action that is not installed here: the workflow can be kept and shared, not run.
-    finding("workflow.plugin-missing", { node: z.string(), type: z.string() }),
+    // An extension action under a schedule: it may write through the host or change other systems (pending owner decision).
+    finding("workflow.report-only-extension", { node: z.string() }),
+    // A node of an extension action that is not installed here: the workflow can be kept and shared, not run.
+    finding("workflow.extension-missing", { node: z.string(), type: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
     finding("accounts.registry-exists", { path: z.string() }),
@@ -74,6 +85,27 @@ export const Finding = z
     finding("accounts.codex-switching-off", { pool: z.string() }),
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
+    finding("accounts.unknown-account", { account: z.string() }),
+    // Own homes and their login are Claude Code's only, until a Codex adapter starts workers.
+    finding("accounts.login-unsupported", { account: z.string(), agent: z.string() }),
+    // The own home of the account is a folder another account names: it is not taken over.
+    finding("accounts.folder-taken", { path: z.string() }),
+    // Workers run, and logins happen, only in the account's own home, so nothing is written into another tool's.
+    finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
+    // The own home, or the homes folder above it, is a link: what is written there would land in another folder.
+    finding("accounts.home-linked", { account: z.string(), path: z.string() }),
+    // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
+    finding("accounts.home-missing", { account: z.string(), home: z.string() }),
+    // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
+    finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
+    // The agent's login ended with an error or did not start.
+    finding("accounts.login-failed", { account: z.string(), error: z.string() }),
+    // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
+    finding("doctor.logged-out", { account: z.string(), home: z.string() }),
+    finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
+    finding("doctor.login-method", { account: z.string(), method: z.string() }),
+    finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
+    finding("doctor.login-skipped", { account: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
@@ -86,6 +118,8 @@ export const Finding = z
     finding("launch.gh-login", { error: z.string().nullable() }),
     // A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings.
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
+    // The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why).
+    finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
     // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
@@ -93,6 +127,18 @@ export const Finding = z
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
+    // An extension its trust level may not run here (P1 a, A31) or this Node (before 25), whose folder could widen its
+    // grant, or that speaks another protocol or serves other actions than its manifest names; it is stopped at once.
+    finding("extension.refused", {
+      extension: z.string(),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime"]),
+    }),
+    // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
+    finding("extension.failed", {
+      extension: z.string(),
+      step: z.enum(["start", "initialize", "run"]),
+      error: z.string(),
+    }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -130,6 +176,12 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.input-unknown": { severity: "error", effort: "command" },
   "run.input-missing": { severity: "error", effort: "command" },
   "run.input-invalid": { severity: "error", effort: "command" },
+  "run.event-invalid": { severity: "error", effort: "manual" },
+  "run.lease-held": { severity: "error", effort: "manual" },
+  "run.finished": { severity: "error", effort: "manual" },
+  "run.report-only-apply": { severity: "error", effort: "manual" },
+  "run.node-unsupported": { severity: "error", effort: "manual" },
+  "run.shell-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },
@@ -155,14 +207,27 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.optional-input": { severity: "error", effort: "manual" },
   "workflow.schedule-input": { severity: "error", effort: "manual" },
   "workflow.report-only-write": { severity: "error", effort: "manual" },
-  "workflow.report-only-plugin": { severity: "error", effort: "manual" },
-  "workflow.plugin-missing": { severity: "error", effort: "manual" },
+  "workflow.report-only-extension": { severity: "error", effort: "manual" },
+  "workflow.extension-missing": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
   "accounts.registry-exists": { severity: "error", effort: "manual" },
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
+  "accounts.unknown-account": { severity: "error", effort: "manual" },
+  "accounts.login-unsupported": { severity: "error", effort: "manual" },
+  "accounts.folder-taken": { severity: "error", effort: "manual" },
+  "accounts.home-not-own": { severity: "error", effort: "manual" },
+  "accounts.home-linked": { severity: "error", effort: "manual" },
+  "accounts.home-missing": { severity: "error", effort: "manual" },
+  "accounts.home-unusable": { severity: "error", effort: "manual" },
+  "accounts.login-failed": { severity: "error", effort: "manual" },
+  "doctor.logged-out": { severity: "error", effort: "manual" },
+  "doctor.login-elsewhere": { severity: "error", effort: "manual" },
+  "doctor.login-method": { severity: "warning", effort: "manual" },
+  "doctor.login-unchecked": { severity: "warning", effort: "manual" },
+  "doctor.login-skipped": { severity: "info", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },
@@ -170,6 +235,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.gh-login": { severity: "error", effort: "manual" },
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
+  "launch.not-logged-in": { severity: "error", effort: "manual" },
+  "extension.refused": { severity: "error", effort: "manual" },
+  "extension.failed": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },

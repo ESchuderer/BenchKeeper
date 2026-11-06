@@ -49,20 +49,20 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
 type DataType = Exclude<HandleType, "control">;
 
 /**
- * A plugin action as the validator and the editor see it: its data handles, and the check of a node's `with` against
- * the action's JSON Schema, which the plugin host supplies (the engine holds no JSON Schema validator).
+ * An extension action as the validator and the editor see it: its data handles, and the check of a node's `with` against
+ * the action's JSON Schema, which the extension host supplies (the engine holds no JSON Schema validator).
  */
-export type PluginAction = {
+export type ExtensionAction = {
   inputs: Readonly<Record<string, { type: DataType; required?: boolean }>>;
   outputs: Readonly<Record<string, { type: DataType }>>;
   check: (config: unknown) => { path: string; code: string }[];
 };
-/** The installed plugins' actions by node type, `<plugin id>/<action>`. */
-export type ActionCatalog = ReadonlyMap<string, PluginAction>;
+/** The installed extensions' actions by node type, `<extension id>/<action>`. */
+export type ActionCatalog = ReadonlyMap<string, ExtensionAction>;
 
 /**
  * The handles of a node of a type: a built-in one, or an action of the catalog, which `run` starts like a command. A
- * built-in type always wins; the caller passes a catalog of plugin types only (the contracts' `isPluginType`).
+ * built-in type always wins; the caller passes a catalog of extension types only (the contracts' `isExtensionType`).
  */
 export const nodeType = (type: string, actions: ActionCatalog): NodeType | undefined => {
   const action = own(NODE_TYPES, type) === undefined ? actions.get(type) : undefined;

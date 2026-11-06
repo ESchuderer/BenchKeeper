@@ -19,6 +19,7 @@ import {
   sha256,
 } from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
+import { failCommits } from "./helpers.ts";
 
 const plan: Plan = {
   schemaVersion: 1,
@@ -107,11 +108,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 8");
+  db.exec("PRAGMA user_version = 9");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 8, known: 7 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 9, known: 8 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -315,14 +316,12 @@ test("a failed open releases the lock, also when the store it finds is broken", 
 test("a commit SQLite already rolled back (disk full, I/O error) reports that error, and nothing is recorded", () => {
   const store = opened(fresh());
   const failure = new Error("database or disk is full");
-  // COMMIT fails the way SQLite fails it on a full disk: the transaction is already rolled back.
-  vi.spyOn(DatabaseSync.prototype, "exec").mockImplementation(function (this: DatabaseSync, sql) {
-    this.prepare(sql === "COMMIT" ? "ROLLBACK" : sql).run();
-    if (sql === "COMMIT") throw failure;
-  });
+  failCommits(failure);
   expect(() => store.begin("apply", plan, planHash(plan))).toThrow(failure);
   expect(store.runs()).toEqual([]);
 });
+
+const DROP_GRAPH = "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs;";
 
 test("a store of schema 1 gains the account, check, launch and mode tables on open and keeps its runs", () => {
   const dir = fresh();
@@ -330,14 +329,15 @@ test("a store of schema 1 gains the account, check, launch and mode tables on op
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; PRAGMA user_version = 1",
+    `DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches;
+     DROP TABLE usage_samples; ${DROP_GRAPH} PRAGMA user_version = 1`,
   );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 7 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 8 });
   after.close();
 });
 
@@ -354,7 +354,8 @@ test("a store of schema 2 gains the check, launch and mode tables on open and ke
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; PRAGMA user_version = 2",
+    `DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; ${DROP_GRAPH}
+     PRAGMA user_version = 2`,
   );
   db.close();
   const store = opened(dir);
@@ -495,6 +496,29 @@ test("an account gives at most max leases; a finished lease frees one, another a
   expect(() => store.leaseAccount({ ...launch, runId: runIdOf(5) }, 9)).toThrow(/held already/);
 });
 
+test("a login check holds its account: never beside a running lease, and while it runs the account counts as full", () => {
+  const store = opened(fresh());
+  const running = store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2);
+  expect(store.checkAccount("work")).toBeNull();
+  const check = store.checkAccount("spare");
+  expect(check).not.toBeNull();
+  // One check of an account at a time; meanwhile no worker starts on it, and the choice passes it over.
+  expect(store.checkAccount("spare")).toBeNull();
+  expect(store.liveLeases()).toEqual(
+    new Map([
+      ["work", 1],
+      ["spare", Number.POSITIVE_INFINITY],
+    ]),
+  );
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), account: "spare" }, 2)).toBeNull();
+  check?.release();
+  expect(store.liveLeases()).toEqual(new Map([["work", 1]]));
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3), account: "spare" }, 2)).not.toBeNull();
+  running?.release();
+  // The name becomes a file name: only an account name is taken.
+  expect(() => store.checkAccount("../work")).toThrow(/pattern/i);
+});
+
 // The garbage collector, which node exposes to a new context once the flag is set.
 setFlagsFromString("--expose-gc");
 const gc: unknown = runInNewContext("gc");
@@ -591,7 +615,7 @@ test("a launch keeps the settings it ran with; a launch from before the labels h
   open.splice(0).forEach((each) => each.close());
   // A schema-6 store: its launches have no labels column yet.
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("ALTER TABLE launches DROP COLUMN labels; PRAGMA user_version = 6");
+  db.exec(`ALTER TABLE launches DROP COLUMN labels; ${DROP_GRAPH} PRAGMA user_version = 6`);
   db.close();
   expect(
     opened(dir)

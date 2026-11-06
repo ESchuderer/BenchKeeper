@@ -1,11 +1,20 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
 import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore, type RunStore } from "@cedarloom/ledger";
-import { type Decided, launchWorker, MAX_CONCURRENT, type WorkerRequest } from "@cedarloom/use-cases";
+import { type Decided, launchWorker, MAX_CONCURRENT, ownHome, type WorkerRequest } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
@@ -23,20 +32,20 @@ const host = {
   managedDir: null,
 } as const;
 
-// A config folder with one confirmed Claude Code pool of `names`, whose homes exist.
+// A config folder with one confirmed Claude Code pool of `names`, each in its own home, which exists.
 const setup = (names: readonly string[] = ["work"]) => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-launch-"));
   const state = join(root, "state");
   const config = join(root, "config");
   const work = join(root, "repo");
-  for (const dir of [config, work, ...names.map((name) => join(root, `${name}-home`))]) mkdirSync(dir);
+  for (const dir of [config, work, ...names.map((name) => ownHome(state, name))]) mkdirSync(dir, { recursive: true });
   const registry: AccountRegistry = {
     schemaVersion: 1,
     minimum: { fiveHour: 8, sevenDay: 3 },
     accounts: names.map((name) => ({
       name,
       agent: "claude",
-      home: join(root, `${name}-home`),
+      home: ownHome(state, name),
       pool: "main",
       added: AT,
     })),
@@ -213,6 +222,43 @@ const fill = (state: string, account: string, from: number) =>
   );
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
+
+test("a worker starts only in its account's own home, so nothing is written into another tool's", async () => {
+  const { state, config, work } = setup();
+  const registry = JSON.parse(readFileSync(join(config, "accounts.json"), "utf8"));
+  const ade = join(state, "..", "ade-home");
+  registry.accounts[0].home = ade;
+  writeFileSync(join(config, "accounts.json"), JSON.stringify(registry));
+  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "accounts.home-not-own", params: { account: "work", home: ade } },
+  });
+  expect(workerFolders(state)).toEqual([]);
+});
+
+test("a worker never starts in an own home that is a link, so nothing is written into the folder it points to", async () => {
+  const { state, config, work } = setup();
+  const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
+  symlinkSync(elsewhere, ownHome(state, "work"), "junction");
+  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: ownHome(state, "work") } },
+  });
+  expect([workerFolders(state), readdirSync(elsewhere)]).toEqual([[], []]);
+});
+
+test("a worker never starts before its account's login made the own home: no probe runs logged out", async () => {
+  const { state, config, work } = setup();
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
+  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "accounts.home-missing", params: { account: "work", home: ownHome(state, "work") } },
+  });
+  // No contract check ran, so none is recorded for the CLI version, and the home is left to the login to make.
+  expect(withLedger(state, (store) => store.contractChecks("claude"))).toEqual([]);
+  expect([workerFolders(state), existsSync(ownHome(state, "work"))]).toEqual([[], false]);
+});
 
 test("the account choice passes over an account whose leases are all taken; with none free, no worker starts", async () => {
   const { state, config, work } = setup(["work", "spare"]);
@@ -392,8 +438,8 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
     ok: false,
     finding: { code: "launch.managed-settings-unreadable", params: { path: file, error: "not JSON" } },
   });
-  // Nothing was chosen, leased or created.
-  expect(existsSync(state)).toBe(false);
+  // Nothing was chosen, leased or created: the state folder holds only the accounts' homes.
+  expect(readdirSync(state)).toEqual(["homes"]);
   // Claude Code's managed settings do not apply to a Codex launch, which goes on to its own refusals.
   await expect(
     launchWorker(state, config, { ...request(work), agent: "codex" }, { ...host, managedDir }),

@@ -1,14 +1,5 @@
-import { type Json, WorkflowDefinition } from "@cedarloom/contracts";
-import {
-  type Action,
-  type AttemptOutcome,
-  type RunEvent,
-  type RunState,
-  replay,
-  resolveInputs,
-  startRun,
-  step,
-} from "@cedarloom/engine";
+import { type AttemptOutcome, type Json, RunEvent, RunState, WorkflowDefinition } from "@cedarloom/contracts";
+import { type Action, replay, resolveInputs, startRun, step } from "@cedarloom/engine";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
@@ -105,7 +96,8 @@ const drive = (
   const actions: Action[] = [];
   const events: RunEvent[] = [];
   const feed = (event: RunEvent): void => {
-    events.push(event);
+    // Each event the ledger would store passes its contract.
+    events.push(RunEvent.parse(event));
     const next = step(workflow, state, event);
     state = next.state;
     queue.push(...next.actions);
@@ -122,6 +114,7 @@ const drive = (
     if (event !== undefined) feed(event);
   }
   // Every driven run: its events, replayed from the start, give the same state (what a resume relies on).
+  expect(RunState.parse(state)).toEqual(state);
   expect(replay(workflow, options.inputs ?? {}, events)).toEqual({ ok: true, value: state });
   return { state, actions, events };
 };

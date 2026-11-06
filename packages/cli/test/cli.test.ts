@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
@@ -432,10 +432,16 @@ test("a plan whose chain of edits breaks is refused with exit 1 and writes nothi
 test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, and prints the one-time link", async () => {
   const { state } = setup();
   const stopped = Promise.withResolvers<void>();
-  let out = "";
-  const io = { out: (t: string) => (out += t), err: () => undefined, env: {}, untilStopped: () => stopped.promise };
+  const printed = Promise.withResolvers<string>();
+  const io = { out: printed.resolve, err: () => undefined, env: {}, untilStopped: () => stopped.promise };
   const running = main(["--state", state, "--json", "ui"], io);
-  await vi.waitFor(() => expect(out).toContain("cedarloom.ui"));
+  // The link comes once the server listens; the first start also loads the server package, which can take over a
+  // second on a slow runner. Bounded by the test's timeout, and a command that ends without printing fails at once.
+  const ended = running.then((code): never => {
+    throw new Error(`ui ended with ${code} before it printed`);
+  });
+  const out = await Promise.race([printed.promise, ended]);
+  expect(out).toContain("cedarloom.ui");
   const { url } = z.object({ url: z.string() }).parse(JSON.parse(out));
   expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#t=[\w-]{43}$/);
   expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);

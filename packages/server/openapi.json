@@ -888,6 +888,55 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.node-unsupported"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "run.shell-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "undo.file-edited"
               },
               "params": {
@@ -3742,6 +3791,55 @@
                   "runId",
                   "applyRun"
                 ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "run.node-unsupported"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "run.shell-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": false
               }
             },

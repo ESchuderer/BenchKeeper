@@ -43,6 +43,10 @@ export const Finding = z
     finding("run.finished", { runId: z.string(), status: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
+    // A node type this CedarLoom does not run yet; nothing of the run starts.
+    finding("run.node-unsupported", { node: z.string(), type: z.string() }),
+    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe; pending owner decision).
+    finding("run.shell-missing", {}),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -153,6 +157,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.lease-held": { severity: "error", effort: "manual" },
   "run.finished": { severity: "error", effort: "manual" },
   "run.report-only-apply": { severity: "error", effort: "manual" },
+  "run.node-unsupported": { severity: "error", effort: "manual" },
+  "run.shell-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

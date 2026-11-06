@@ -19,18 +19,24 @@ export interface WorkerEnvInput {
  * it. gh gets the access profile's token and an empty configuration folder of its own, so it never falls back to the
  * keyring login of `gh auth login`.
  */
-export const workerEnv = ({ parent, platform, ghToken, ghConfigDir }: WorkerEnvInput): Record<string, string> => {
+export const workerEnv = ({ parent, platform, ghToken, ghConfigDir }: WorkerEnvInput): Record<string, string> => ({
+  ...cleanEnv(parent, platform),
+  GH_CONFIG_DIR: ghConfigDir,
+  ...(ghToken === null ? {} : { GH_TOKEN: ghToken }),
+});
+
+/** What a child process inherits, from an allowlist: what a CLI needs to run, no login variable or token. */
+export const cleanEnv = (
+  parent: Readonly<Record<string, string | undefined>>,
+  platform: NodeJS.Platform,
+): Record<string, string> => {
   const names = new Set(platform === "darwin" ? [...INHERITED, "USER"] : INHERITED);
   // Only Windows names ignore case (it spells PATH as Path); elsewhere `path` or `Home` is another variable.
   const key = (name: string) => (platform === "win32" ? name.toUpperCase() : name);
   const inherited = Object.entries(parent).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && names.has(key(entry[0])),
   );
-  return {
-    ...Object.fromEntries(inherited),
-    GH_CONFIG_DIR: ghConfigDir,
-    ...(ghToken === null ? {} : { GH_TOKEN: ghToken }),
-  };
+  return Object.fromEntries(inherited);
 };
 
 // The user's credential stores and the agents' default homes, below the user's home folder.

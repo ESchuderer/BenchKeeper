@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "kind": "cedarloom.workflow",
   "metadata": {
-    "id": "nightly-notes",
-    "name": "Nightly notes",
+    "id": "build-notes",
+    "name": "Build notes",
     "version": "1.0.0"
   },
   "inputs": {
@@ -54,10 +54,7 @@
     },
     {
       "id": "start",
-      "type": "trigger.schedule",
-      "with": {
-        "cron": "0 3 * * *"
-      }
+      "type": "trigger.manual"
     }
   ],
   "edges": [

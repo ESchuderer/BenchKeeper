@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "node-configs",
+    "name": "One invalid configuration per node type",
+    "version": "1.0.0"
+  },
+  "inputs": {
+    "flag": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "nodes": [
+    {
+      "id": "agent",
+      "type": "agent.run",
+      "with": {
+        "phase": "ship",
+        "task": ""
+      }
+    },
+    {
+      "id": "ask",
+      "type": "human.approval",
+      "with": {}
+    },
+    {
+      "id": "child",
+      "type": "workflow.run",
+      "with": {
+        "workflow": "C:\\flows\\other.json"
+      }
+    },
+    {
+      "id": "command",
+      "type": "command.run",
+      "with": {}
+    },
+    {
+      "id": "gate",
+      "type": "condition",
+      "with": {
+        "value": true
+      }
+    },
+    {
+      "id": "read",
+      "type": "file.read",
+      "with": {
+        "path": "/etc/hosts"
+      }
+    },
+    {
+      "id": "start",
+      "type": "trigger.manual",
+      "with": {
+        "precheck": ""
+      }
+    },
+    {
+      "id": "write",
+      "type": "file.write",
+      "with": {
+        "path": "../outside.md"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "agent",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "ask",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "child",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "command",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "read",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "write",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "input": "flag"
+      },
+      "to": {
+        "node": "gate",
+        "handle": "value"
+      }
+    }
+  ]
+}

@@ -22,12 +22,16 @@ const sample = (code: string): Record<string, unknown> => {
 test("every workflow finding and every refusal of a file or draft has a sentence; other codes show as the code", () => {
   const codes = Finding.options.map((option) => option.shape.code.value);
   const shown = codes.filter((code) => /^(workflow|draft|document)\./.test(code));
-  expect(shown.length).toBe(23);
+  expect(shown.length).toBe(24);
   for (const code of shown) {
     const finding = Finding.parse({ code, params: sample(code) });
     expect([code, describe(finding)]).toEqual([code, expect.stringMatching(/^\S.{15,}/s)]);
     expect(describe(finding)).not.toContain(code);
   }
+  // Only control edges from the trigger make a node run; a workflow input does not.
+  expect(describe({ code: "workflow.unreachable", params: { node: "x" } })).toBe(
+    "Nothing leads to node x from the trigger, so it never runs.",
+  );
   expect(describe(Finding.parse({ code: "store.busy", params: { dir: "/s" } }))).toBe("store.busy");
   // A workflow output names itself as such; a node input names its node.
   const output = Finding.parse({ code: "workflow.missing-source", params: { node: null, handle: "report" } });

@@ -13,9 +13,9 @@ export type AutomationLevel = z.infer<typeof AutomationLevel>;
 export const AUTOMATION_SCHEMA_VERSION = 1;
 
 /**
- * How long a `cedarloom mode` switch lasts. `running` (when unset; pending owner decision): only for the runs that are
- * running when it is made, while later runs start at their project's level. `until-off`: for every run in every project
- * until `cedarloom mode off`.
+ * How long a `cedarloom mode` switch lasts. `running` (when unset; owner decision, 2026-11-06): only for the runs
+ * that are running when it is made, while later runs start at their project's level. `until-off`: for every run in
+ * every project until `cedarloom mode off`.
  */
 export const ModeScope = z.enum(["running", "until-off"]);
 export type ModeScope = z.infer<typeof ModeScope>;

@@ -69,6 +69,7 @@ export {
   ExtensionId,
   ExtensionLock,
   ExtensionManifest,
+  ExtensionUpdates,
   FORBIDDEN_HEADERS,
   formatInstalled,
   GitRef,
@@ -78,6 +79,7 @@ export {
   isExtensionType,
   LOCK_SCHEMA_VERSION,
   PortablePath,
+  UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";

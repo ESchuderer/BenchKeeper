@@ -15,6 +15,3 @@ export const stateDir = (env: Env): string =>
 
 /** The config folder, which holds the account registry: CEDARLOOM_CONFIG_DIR, else `cedarloom` in XDG_CONFIG_HOME, else in ~/.config. */
 export const configDir = (env: Env): string => folder(env, "CEDARLOOM_CONFIG_DIR", "XDG_CONFIG_HOME", ".config");
-
-/** BenchKeeper's registry file: BenchKeeper keeps it in ~/.config/benchkeeper whatever XDG_CONFIG_HOME says. */
-export const benchKeeperRegistry = (): string => join(homedir(), ".config", "benchkeeper", "accounts.json");

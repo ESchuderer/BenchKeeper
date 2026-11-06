@@ -505,7 +505,7 @@ test("an extension action that is not installed is a finding of its own, and its
   ]);
 });
 
-test("A28: under a schedule an extension action is refused, installed or not (pending owner decision)", () => {
+test("A28: under a schedule an extension action is refused, installed or not", () => {
   const nodes = ["start:trigger.schedule", 's:acme.jira/search:{"query":"x"}', "x:acme.other/act"];
   expect(
     found(

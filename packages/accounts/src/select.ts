@@ -69,7 +69,7 @@ const most = <T extends { readonly margin: number | null }>(scored: readonly T[]
 };
 
 // The confirmation that one person holds and pays for every account of the pool covers the accounts it named; once the
-// pool's accounts differ, the pool needs a new one (pending owner decision, 2026-11-05: the stricter choice).
+// pool's accounts differ, the pool needs a new one (owner decision, 2026-11-06: the stricter choice).
 const confirmed = (settings: { confirmedAt: string | null; confirmedFor: readonly string[] }, members: Account[]) => {
   const named = new Set(settings.confirmedFor);
   return settings.confirmedAt !== null && named.size === members.length && members.every((m) => named.has(m.name));
@@ -103,7 +103,7 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
 /**
  * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
- * or on the pool's first account (pending owner decision, 2026-11-05). An account in `busy` runs its most workers at
+ * or on the pool's first account (owner decision, 2026-11-06). An account in `busy` runs its most workers at
  * once and is passed over. `readings` holds the latest reading per account and window, counted at `now` (milliseconds).
  */
 export const selectAccount = (

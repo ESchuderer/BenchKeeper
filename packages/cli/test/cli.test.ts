@@ -4,8 +4,8 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Fetch, LoginStatus } from "@cedarloom/use-cases";
-import { Finding, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
-import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
+import { Finding, formatRegistry, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
+import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test } from "vitest";
 import { z } from "zod";
@@ -221,26 +221,35 @@ test("the state folder comes from CEDARLOOM_STATE_DIR, then XDG_STATE_HOME, then
   }
 });
 
-test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config; BenchKeeper's is fixed", () => {
+test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config", () => {
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "/c", XDG_CONFIG_HOME: "/x" })).toBe("/c");
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "c", XDG_CONFIG_HOME: "/x" })).toBe(join("/x", "cedarloom"));
   expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
-  expect(benchKeeperRegistry()).toBe(join(homedir(), ".config", "benchkeeper", "accounts.json"));
 });
 
-const host = (name: string, pool?: string) => ({ name, agent: "claude", mode: "host", dir: `/accounts/${name}`, pool });
+// A Claude Code account in /accounts.
+const account = (name: string, pool: string | null) => {
+  return { name, agent: "claude" as const, home: `/accounts/${name}`, pool, added: "2026-11-05T12:00:00.000Z" };
+};
 
-// A temporary setup with BenchKeeper's registry file: one pooled and one single host account, one container account.
-const withBenchKeeper = () => {
+// A temporary setup with a registry: work in the unconfirmed pool main, solo in none.
+const withRegistry = () => {
   const { root, state, logins, cli } = setup();
-  const boxed = { name: "boxed", agent: "claude", mode: "container", volume: "v", mount: "/m" };
-  const registry = { accounts: [host("work", "main"), host("solo"), boxed], settings: { autoPick: true } };
-  return { root, state, logins, cli, from: planFile(root, registry, "benchkeeper.json") };
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(
+    join(root, "config", "accounts.json"),
+    formatRegistry({
+      schemaVersion: 1,
+      minimum: { fiveHour: 8, sevenDay: 3 },
+      accounts: [account("work", "main"), account("solo", null)],
+      pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
+    }),
+  );
+  return { root, state, logins, cli };
 };
 
 test("accounts: an account moves into its own home with --yes, and its login runs only there", async () => {
-  const { state, logins, cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { state, logins, cli } = withRegistry();
   const home = join(state, "homes", "work");
   const early = await cli("accounts", "login", "work");
   expect([early.code, early.err]).toEqual([
@@ -279,55 +288,26 @@ test("accounts: an account moves into its own home with --yes, and its login run
 });
 
 test("accounts: a relative --state is taken from the working folder, so an own home is an absolute folder", async () => {
-  const { root, cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { root, cli } = withRegistry();
   const state = relative(process.cwd(), join(root, "elsewhere"));
   const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
   expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
-test("accounts: the one-time import is shown first and applied with --yes", async () => {
-  const { root, cli, from } = withBenchKeeper();
-  expect(await cli("accounts", "list")).toMatchObject({
-    code: EXIT.ok,
-    out: expect.stringContaining("No accounts yet"),
-  });
-  expect((await cli("accounts", "import", "--from", join(root, "none.json"))).code).toBe(EXIT.noInput);
-  const shown = await cli("accounts", "import", "--from", from);
-  expect([shown.code, shown.out]).toEqual([
-    EXIT.ok,
-    expect.stringContaining("not imported: container-account of boxed"),
-  ]);
-  expect(existsSync(join(root, "config", "accounts.json"))).toBe(false);
-  expect(json((await cli("accounts", "import", "--from", from, "--json")).out)).toMatchObject({
-    format: "cedarloom.plan",
-    left: [
-      { account: null, item: "autoPick" },
-      { account: "boxed", item: "container-account" },
-    ],
-  });
-  // The applied run's JSON keeps the list of what was not imported.
-  expect(json((await cli("accounts", "import", "--from", from, "--yes", "--json")).out)).toMatchObject({
-    format: "cedarloom.run",
-    status: "applied",
-    left: [
-      { account: null, item: "autoPick" },
-      { account: "boxed", item: "container-account" },
-    ],
-  });
+test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
+  // No registry yet: no accounts, checked in the JSON form rather than the text.
+  expect(json((await setup().cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null, confirmed: [] });
+  const { root, cli } = withRegistry();
   expect((await cli("accounts", "list")).out).toBe(
     "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
   );
-  // Once: the default file is never read, as the registry exists.
-  expect(await cli("accounts", "import")).toMatchObject({ code: EXIT.refused, err: expect.stringContaining("once") });
   writeFileSync(join(root, "config", "accounts.json"), "{}");
   expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
 });
 
 test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
-  const { cli, from } = withBenchKeeper();
-  await cli("accounts", "import", "--from", from, "--yes");
+  const { cli } = withRegistry();
   const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
   expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
   const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
@@ -741,61 +721,44 @@ const fileOf = (path: string, body: string) => ({
   content: Buffer.from(body),
 });
 // A Git source as the fetch hands it over, without a network: the folder holds the manifest and its entry.
+const treeOf = (manifest: object, commit = "c") => ({
+  commit: commit.repeat(40),
+  digest: commit.repeat(64),
+  files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
+});
 const published =
   (manifest: object): Fetch =>
   () =>
-    Promise.resolve({
-      ok: true,
-      value: {
-        commit: "c".repeat(40),
-        digest: "d".repeat(64),
-        files: [fileOf("cedarloom-extension.json", JSON.stringify(manifest)), fileOf("main.mjs", "")],
-      },
-    });
+    Promise.resolve({ ok: true, value: treeOf(manifest) });
 const SOURCE = "https://git.example.org/acme/jira.git";
 
-test("extensions: add shows the source, the trust and the capabilities, and installs with --approve; list shows it", async () => {
-  const { state, cli } = setup({ fetch: published(MANIFEST) });
-  const none = await cli("extensions", "list");
+// Runs a command with --json: its exit code and the JSON object it printed.
+const jsonRun =
+  (cli: ReturnType<typeof setup>["cli"]) =>
+  async (...argv: string[]): Promise<Record<string, unknown>> => {
+    const ran = await cli(...argv, "--json");
+    return { code: ran.code, ...json(ran.out) };
+  };
+test("extensions: add plans the install with its source, trust and capabilities, installs it by --approve, and list shows it", async () => {
+  const { cli } = setup({ fetch: published(MANIFEST) });
+  const run = jsonRun(cli);
+  const none = await run("extensions", "list");
   const add = ["extensions", "add", SOURCE, "--ref", "v1", "--path", "jira"];
-  const shown = await cli(...add);
-  const preview = json((await cli(...add, "--json")).out);
-  const installed = await cli(...add, "--approve", String(preview["planHash"]));
-  const listed = await cli("extensions", "list");
-  const listedJson = json((await cli("extensions", "list", "--json")).out);
-  const again = await cli("extensions", "add", SOURCE, "--yes");
-  expect([none.out, shown.code, existsSync(join(state, "extensions.json"))]).toEqual([
-    "No extensions installed. Add one with: cedarloom extensions add <Git URL>\n",
-    EXIT.ok,
-    true,
+  const preview = await run(...add);
+  const installed = await run(...add, "--approve", String(preview["planHash"]));
+  const listed = await run("extensions", "list");
+  const again = await run("extensions", "add", SOURCE, "--yes");
+  const pin = { id: "acme.jira", trust: "community", ref: "v1", source: expect.objectContaining({ path: "jira" }) };
+  expect([none, preview, installed, listed]).toMatchObject([
+    { code: EXIT.ok, extensions: [] },
+    { code: EXIT.ok, extension: pin, capabilities: MANIFEST.capabilities },
+    { code: EXIT.ok, status: "applied" },
+    { code: EXIT.ok, extensions: [expect.objectContaining({ id: "acme.jira", digest: "c".repeat(64) })] },
   ]);
-  expect(shown.out).toContain(
-    [
-      "  acme.jira 1.0.0 (Jira) by acme, not verified; license MIT",
-      `  from ${SOURCE}, folder jira, v1 at commit ${"c".repeat(40)}; files ${"d".repeat(64)}`,
-      "  community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
-      "  made for darwin, linux",
-      "  may send requests through CedarLoom to https://acme.atlassian.net",
-      "  uses your credential jira-token for https://acme.atlassian.net; CedarLoom adds it, the extension never sees it",
-      "  reads files of your projects",
-      "  proposes file changes, applied only through a plan you approve",
-      `Nothing changed. Run the command again with --yes, or with --approve ${String(preview["planHash"])} to install exactly this.`,
-    ].join("\n"),
-  );
-  expect([preview["extension"], preview["capabilities"]]).toEqual([
-    expect.objectContaining({ id: "acme.jira", trust: "community", ref: "v1" }),
-    MANIFEST.capabilities,
-  ]);
-  expect([installed.code, installed.out.includes("applied."), listed.out, listedJson["extensions"]]).toEqual([
-    EXIT.ok,
-    true,
-    `acme.jira  1.0.0  community  ${SOURCE} (jira)  ${"c".repeat(12)}\n`,
-    [expect.objectContaining({ id: "acme.jira", digest: "d".repeat(64) })],
-  ]);
-  expect([again.code, again.err]).toEqual([
-    EXIT.refused,
-    "error: Extension acme.jira is not installed: it is installed already.\n",
-  ]);
+  expect(again).toMatchObject({
+    code: EXIT.refused,
+    findings: [{ code: "extension.install-refused", params: { extension: "acme.jira", reason: "installed" } }],
+  });
 });
 
 test("extensions: one without capabilities asks for none; a source the CLI never fetches is refused before Git runs", async () => {
@@ -815,6 +778,75 @@ test("extensions: one without capabilities asks for none; a source the CLI never
   expect([local.code, local.err]).toEqual([
     EXIT.refused,
     `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
+  ]);
+});
+
+// This machine's record that it first saw the commit at the extension's ref four days ago.
+const seenBefore = (state: string, commit: string): void =>
+  writeFileSync(
+    join(state, "extension-updates.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      kind: "cedarloom.extension-updates",
+      extensions: { "acme.jira": { commit: commit.repeat(40), seen: new Date(Date.now() - 4 * 864e5).toISOString() } },
+    }),
+  );
+
+const NEEDED = [{ code: "extension.consent-needed", params: { extension: "acme.jira" } }];
+
+test("extensions: what enables capabilities takes --approve only; an update waits 3 days and asks again for what grew", async () => {
+  const small = { ...MANIFEST, capabilities: { net: ["https://acme.atlassian.net"] } };
+  let tree = treeOf(small);
+  const { state, cli } = setup({ fetch: () => Promise.resolve({ ok: true, value: tree }) });
+  const run = jsonRun(cli);
+  const yes = await run("extensions", "add", SOURCE, "--yes");
+  const added = await run(
+    "extensions",
+    "add",
+    SOURCE,
+    "--approve",
+    String((await run("extensions", "add", SOURCE))["planHash"]),
+  );
+  const current = await run("extensions", "update", "acme.jira");
+  tree = treeOf({ ...MANIFEST, version: "1.1.0" }, "d");
+  const waiting = await run("extensions", "update", "acme.jira");
+  seenBefore(state, "d");
+  const grown = await run("extensions", "update", "acme.jira", "--yes");
+  const hash = String((await run("extensions", "update", "acme.jira"))["planHash"]);
+  const approved = await run("extensions", "update", "acme.jira", "--approve", hash);
+  tree = treeOf({ ...small, version: "1.2.0" }, "e");
+  seenBefore(state, "e");
+  const shrunk = await run("extensions", "update", "acme.jira", "--yes");
+  expect([yes, added]).toMatchObject([
+    { code: EXIT.refused, findings: NEEDED },
+    { code: EXIT.ok, status: "applied" },
+  ]);
+  expect([current, waiting]).toMatchObject([
+    { code: EXIT.ok, kind: "current", commit: "c".repeat(40) },
+    { code: EXIT.ok, kind: "waiting", commit: "d".repeat(40) },
+  ]);
+  expect([grown, approved, shrunk]).toMatchObject([
+    { code: EXIT.refused, findings: NEEDED },
+    { code: EXIT.ok, status: "applied", added: { projectRead: true, planWrite: true } },
+    { code: EXIT.ok, status: "applied", added: {}, removed: { projectRead: true, planWrite: true } },
+  ]);
+});
+
+test("extensions: remove takes an extension out with --yes; one not installed is refused by remove and update", async () => {
+  const { capabilities: _capabilities, ...plain } = MANIFEST;
+  const run = jsonRun(setup({ fetch: published(plain) }).cli);
+  const installed = await run("extensions", "add", SOURCE, "--yes");
+  const shown = await run("extensions", "remove", "acme.jira");
+  const removed = await run("extensions", "remove", "acme.jira", "--yes");
+  const unknown = [{ code: "extension.unknown", params: { extension: "acme.jira" } }];
+  expect([installed, shown, removed]).toMatchObject([
+    { code: EXIT.ok, status: "applied" },
+    { code: EXIT.ok, extension: "acme.jira", planHash: expect.any(String) },
+    { code: EXIT.ok, status: "applied" },
+  ]);
+  expect([await run("extensions", "remove", "acme.jira"), await run("extensions", "update", "acme.jira")]).toEqual([
+    { code: EXIT.refused, format: "cedarloom.plan", schemaVersion: 1, findings: unknown },
+    { code: EXIT.refused, format: "cedarloom.plan", schemaVersion: 1, findings: unknown },
   ]);
 });
 

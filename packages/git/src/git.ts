@@ -4,7 +4,7 @@ import { readdirSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { join } from "node:path";
-import type { Finding, Result } from "@cedarloom/contracts";
+import { type Finding, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
 export type Limits = { files: number; bytes: number; fileBytes: number };
@@ -36,13 +36,13 @@ const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]
 
 // BenchKeeper's hardened clone (app/src/origin.mjs): no hooks and no fsmonitor, only the given transports, every
 // object checked, no bundles a server offers, and a stalled transfer ends. `-c` wins over every configuration file.
-// Each hook the user's configuration defines by name is turned off too. `--git-dir` names the repository, as
-// safe.bareRepository=explicit asks.
-const config = (protocols: readonly string[], hooks: readonly string[]): string[] => [
+// No maintenance or gc runs after the fetch. `--git-dir` names the repository, as safe.bareRepository=explicit asks.
+const config = (protocols: readonly string[]): string[] => [
   ...flags([
     ["core.hooksPath", devNull],
-    ...hooks.map((name) => [`hook.${name}.enabled`, "false"]),
     ["core.fsmonitor", "false"],
+    ["maintenance.auto", "false"],
+    ["gc.auto", "0"],
     ["protocol.allow", "never"],
     ...protocols.map((protocol) => [`protocol.${protocol}.allow`, "always"]),
     ["transfer.fsckObjects", "true"],
@@ -66,6 +66,16 @@ const hookNames = (ran: Ran): string[] => [
       .filter(Boolean),
   ),
 ];
+
+// Each is turned off through the environment, where a name holding "=" stays one key; `-c` would split it there.
+const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
+  Object.fromEntries([
+    ["GIT_CONFIG_COUNT", String(names.length)],
+    ...names.flatMap((name, index) => [
+      [`GIT_CONFIG_KEY_${index}`, `hook.${name}.enabled`],
+      [`GIT_CONFIG_VALUE_${index}`, "false"],
+    ]),
+  ]);
 
 // The caller's environment without GIT_* variables, which would point git at another repository (GIT_DIR, set when
 // CedarLoom runs inside a hook) or add configuration; then no prompts, and ssh fails instead of asking.
@@ -106,7 +116,7 @@ const run = (args: string[], options: RunOptions): Promise<Ran> =>
       failure ??= reason instanceof Error ? reason.message : reason;
       child.kill();
     };
-    const timer = setTimeout(() => stop(`stopped after ${options.timeoutMs} ms`), options.timeoutMs);
+    const timer = setTimeout(() => stop("stopped at the time limit"), options.timeoutMs);
     const check = (): unknown => options.over?.() && stop("over its disk limit");
     check();
     const watch = setInterval(check, 250);
@@ -136,25 +146,20 @@ const run = (args: string[], options: RunOptions): Promise<Ran> =>
 const succeeded = (ran: Ran): boolean => ran.code === 0 && ran.failure === undefined;
 const why = (ran: Ran): string => ran.failure ?? (ran.stderr || `exit code ${ran.code}`);
 
-// Printable ASCII without spaces, not starting with "-" (an option to git or ssh), and without a query or fragment,
-// where a token could hide from git's own redaction.
-const printable = (text: string): boolean => /^[!-~]+$/.test(text) && !text.startsWith("-") && !/[?#]/.test(text);
-const hasPassword = (url: string): boolean => URL.canParse(url) && new URL(url).password !== "";
+// The contracts' Git URL rule for https and ssh: no password, no user over https, no backslash, no control character,
+// raw or percent-encoded (a carriage return reaches a credential helper as a new line), no query, no leading "-". A
+// transport the caller adds (the tests' file and ext) is git's own allowlist's to refuse, and needs printable text.
+const urlAllowed = (url: string, protocols: readonly string[]): boolean =>
+  GitUrl.safeParse(url).success ||
+  (/^[!-~]+$/.test(url) &&
+    protocols.some((protocol) => !["https", "ssh"].includes(protocol) && url.startsWith(`${protocol}:`)));
+const portablePath = (path: string): boolean => PortablePath.safeParse(path).success;
 // A ref git can fetch into `<ref>:<local ref>`: no refspec syntax (`:`, `+`, `*`, `^`, `~`), no `..` and no `@{`.
 const isRef = (ref: string): boolean =>
   /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/.test(ref) && !ref.includes("..") && !ref.endsWith(".lock");
 
-// The POSIX portable file name characters, not starting with "-", up to 255 of them; no `.git` in any case, nothing
-// Windows would rename or open as a device (a trailing dot, which also refuses `.` and `..`; CON, NUL, COM0, LPT9).
-const portable = (part: string): boolean =>
-  /^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}$/.test(part) &&
-  !/^\.git$|\.$/i.test(part) &&
-  !/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part);
-const portablePath = (path: string): boolean => path.length <= 1024 && path.split("/").every(portable);
-
-const sourceFinding = (source: Source): Finding | undefined => {
-  if (!printable(source.url) || hasPassword(source.url))
-    return { code: "git.refused-source", params: { field: "url" } };
+const sourceFinding = (source: Source, protocols: readonly string[]): Finding | undefined => {
+  if (!urlAllowed(source.url, protocols)) return { code: "git.refused-source", params: { field: "url" } };
   if (!isRef(source.ref)) return { code: "git.refused-source", params: { field: "ref" } };
   if (source.path !== undefined && !portablePath(source.path)) {
     return { code: "git.refused-source", params: { field: "path" } };
@@ -248,14 +253,22 @@ const tree = (commit: string, files: TreeFile[]): Tree => ({
 
 type Git = (args: string[], options?: Partial<Pick<RunOptions, "input" | "maxBytes" | "over">>) => Promise<Ran>;
 
-// The bytes of the files below `dir`; a file git renamed meanwhile counts 0.
-const bytesIn = (dir: string): number =>
-  readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .reduce(
-      (sum, entry) => sum + (statSync(join(entry.parentPath, entry.name), { throwIfNoEntry: false })?.size ?? 0),
-      0,
-    );
+// The bytes of the files below `dir`; a file git renamed meanwhile counts 0. It runs in a timer, where a throw would end
+// CedarLoom, so a folder git removes while it is read counts 0 too.
+const bytesIn = (dir: string): number => {
+  try {
+    return readdirSync(dir, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .reduce(
+        (sum, entry) => sum + (statSync(join(entry.parentPath, entry.name), { throwIfNoEntry: false })?.size ?? 0),
+        0,
+      );
+  } catch {
+    /* v8 ignore start -- git removing a folder between the listing and the read; no test can time that */
+    return 0;
+    /* v8 ignore stop */
+  }
+};
 
 const fetchCommit = async (git: Git, source: Source, dir: string, limits: Limits): Promise<Result<string>> => {
   const init = await git(["init", "--bare", "--quiet", "--template="]);
@@ -305,18 +318,26 @@ const readTree = async (git: Git, commit: string, source: Source, limits: Limits
 export const fetchTreeOver =
   (protocols: readonly string[], program = "git") =>
   async (source: Source, options: FetchOptions): Promise<Result<Tree>> => {
-    const refused = sourceFinding(source);
+    const refused = sourceFinding(source, protocols);
     if (refused !== undefined) return refuse(refused);
     const dir = await mkdtemp(join(options.parent, "quarantine-"));
     // Git never looks above the quarantine for a repository, also while it is none yet.
     const env = { ...environment(protocols), GIT_CEILING_DIRECTORIES: options.parent };
+    // One time limit for the whole read, not for each git call.
     const timeoutMs = options.timeoutMs ?? 300_000;
+    const deadline = Date.now() + timeoutMs;
     const limits = options.limits ?? LIMITS;
     const base = { program, cwd: dir, env, timeoutMs, maxBytes: 64 * 1024 };
     // Read before `init`, which runs them; the empty folder is no repository, so this reads the user's configuration.
-    const hooks = hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base));
+    const hooks = hooksOff(hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base)));
     const git: Git = async (args, extra = {}) => {
-      const ran = await run([...config(protocols, hooks), ...args], { ...base, ...extra });
+      const left = Math.max(0, deadline - Date.now());
+      const ran = await run([...config(protocols), ...args], {
+        ...base,
+        env: { ...env, ...hooks },
+        timeoutMs: left,
+        ...extra,
+      });
       // A URL may carry a token in its path: git's messages name the repository instead.
       return { ...ran, stderr: ran.stderr.replaceAll(source.url, "the repository") };
     };

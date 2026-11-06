@@ -180,6 +180,10 @@ test("a source is refused before git runs: a password, a space, an option, refsp
     "-oProxyCommand=x",
     "https://git.example.org/acme/jira.git?access_token=x",
     "https://git.example.org/acme/jira.git#x",
+    // A carriage return, encoded, reaches a credential helper as a new line on git without CVE-2024-52006's fix.
+    "https://%0dhost=github.com@127.0.0.1:1/x",
+    "https://bot@git.example.org/acme/jira.git",
+    "https://git.example.org\\@127.0.0.1/acme/jira",
   ];
   const refs = ["main:refs/heads/x", "v1^{tree}", "a..b", "main.lock", "-x"];
   const paths = ["../x", ".git/hooks", "plugin/.", "CON", "nul.txt", "COM0", "a.", "a\\b", "-x", "a".repeat(256)];
@@ -193,15 +197,15 @@ test("a source is refused before git runs: a password, a space, an option, refsp
   expect(readdirSync(into)).toEqual([]);
 });
 
-test("fetchTree takes https and ssh only, and git's messages name no URL, which may hold a token", async () => {
+test("fetchTree takes https and ssh URLs only, by the contracts' rule, and git's messages name no URL", async () => {
   const results = await Promise.all(
     [plugin.url, "ext::false", "https://127.0.0.1:1/acme/secret-token.git"].map(async (url) =>
       codeOf(await fetchTree({ url, ref: "v1" }, { parent: parent() })),
     ),
   );
   expect(results).toEqual([
-    { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'file' not allowed/) } },
-    { code: "git.failed", params: { step: "fetch", error: expect.stringMatching(/transport 'ext' not allowed/) } },
+    { code: "git.refused-source", params: { field: "url" } },
+    { code: "git.refused-source", params: { field: "url" } },
     {
       code: "git.failed",
       params: { step: "fetch", error: expect.stringMatching(/^(?!.*secret-token).*the repository/) },
@@ -222,6 +226,7 @@ test("no hook runs, not even one the user's own configuration names, and a bare 
     [
       `[core]\n\thooksPath = ${hooks.replaceAll("\\", "/")}`,
       `[hook "spy one"]\n\tevent = reference-transaction\n\tcommand = echo named >> '${marker}'`,
+      `[hook "a=b"]\n\tevent = reference-transaction\n\tcommand = echo equals >> '${marker}'`,
       "[safe]\n\tbareRepository = explicit\n",
     ].join("\n"),
   );
@@ -249,7 +254,7 @@ test("git failures name their step: no git, out of time, an unknown ref, a ref t
     [{ ref: "missing" }, {}, "fetch", /missing/],
     [{ ref: "blob-tag" }, {}, "fetch", /expected commit/],
     [{ ref: "v1", path: "nope" }, {}, "list", /nope/],
-    [{ ref: "v1" }, { timeoutMs: 0 }, "start", /stopped after 0 ms/],
+    [{ ref: "v1" }, { timeoutMs: 0 }, "start", /stopped at the time limit/],
   ];
   const results = await Promise.all(
     tries.map(async ([from, options]) =>
@@ -278,7 +283,7 @@ test.skipIf(process.platform === "win32")(
       { parent: parent(), timeoutMs: 500 },
     );
     expect([codeOf(tree), Date.now() - started < 3000]).toEqual([
-      { code: "git.failed", params: { step: "fetch", error: "stopped after 500 ms" } },
+      { code: "git.failed", params: { step: "fetch", error: "stopped at the time limit" } },
       true,
     ]);
   },

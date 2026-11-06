@@ -162,7 +162,7 @@ If you have any questions about this Policy, would like to speak with us about t
 
 A trademark is a word, phrase, symbol or design, or a combination of words, phrases, symbols or designs, that identifies and distinguishes the source of the goods of one party from those of others. A service mark is the same as a trademark, except that it identifies and distinguishes the source of a service rather than a product. "Trade dress" or "get up" refers to the look and feel of the packaging, which in this context can include the layout, colors, images, and design choices in a web page. Throughout this Policy, the terms "trademark" and "mark" refer to both trademarks, service marks and trade dress.
 
-However, the use of a word is "not as a trademark" when it is used functionally as part of the software program, for example, in a file, folder, directory, or path name. Use in this way is not a trademark infringement. The command names `cedarloom` and `cloom` and the package names that start with `@cedarloom/` are such functional uses.
+However, the use of a word is "not as a trademark" when it is used functionally as part of the software program, for example, in a file, folder, directory, or path name. Use in this way is not a trademark infringement.
 
 #### What is "likelihood of confusion"?
 
@@ -234,4 +234,14 @@ However, when the context requires the use of black-and-white graphics and the l
 
 ## Credit
 
-This Policy is derived from the Model Trademark Guidelines, available at [www.modeltrademarkguidelines.org](http://www.modeltrademarkguidelines.org), used under the [Creative Commons Attribution 4.0 International license](https://creativecommons.org/licenses/by/4.0/) (text in [`LICENSES/CC-BY-4.0.txt`](LICENSES/CC-BY-4.0.txt)). Changes: filled in for CedarLoom, examples adapted, and the sections on trademarks not licensed and on software preloaded on hardware left out. This Policy is available under the same license.
+This Policy is derived from the Model Trademark Guidelines, available at [www.modeltrademarkguidelines.org](http://www.modeltrademarkguidelines.org), used under the [Creative Commons Attribution 4.0 International license](https://creativecommons.org/licenses/by/4.0/) (text in [`LICENSES/CC-BY-4.0.txt`](LICENSES/CC-BY-4.0.txt)). Changes:
+
+- filled in for CedarLoom: the marks, the owner, the contact and the examples;
+- an opening sentence added above the introduction;
+- the source's statement that its source code holds no logo files turned into a duty: a modified version removes or replaces the Logos;
+- the references to brand standards replaced by the `brand/` folder;
+- of the guidelines' alternative examples, the narrow ones kept: modified software only with feature switches, translations and bug-fix patches; promotional goods only as free giveaways from the `brand/` files;
+- left out: the sections on trademarks not licensed and on software preloaded on hardware, and the example of an official-branding build flag;
+- typos fixed ("You own" to "Your own", "applied" to "applies", "is trademark of" to "is a trademark of", "such an application" to "such as application", "meetings are" to "meetings is", "put following" to "put the following").
+
+This Policy is available under the same license.

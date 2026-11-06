@@ -7,13 +7,13 @@
 
 # CedarLoom
 
+CedarLoom is the new name of BenchKeeper. Until CedarLoom 0.1.0 the released tool keeps the name `benchkeeper` on npm and in Claude Code, so the commands below stay as they are.
+
 <!-- generated:description -->
 BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.
 
 [What BenchKeeper is](https://eschuderer.github.io/BenchKeeper/overview/): the workflow, what each part brings and the defaults it sets.
 <!-- /generated:description -->
-
-CedarLoom is the new name of BenchKeeper. Until CedarLoom 0.1.0 the released tool keeps the name `benchkeeper` on npm and in Claude Code, so the commands below stay as they are.
 
 For developers who run Claude Code or Codex in more than one repository and want the same rules, skills and dev container setup in each.
 

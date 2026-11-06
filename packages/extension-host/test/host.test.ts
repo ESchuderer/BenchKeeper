@@ -9,11 +9,12 @@ import {
   type Hop,
   type HopAnswer,
   type RunningExtension,
+  sandboxRuntime,
   startExtension,
   type Transport,
 } from "@cedarloom/extension-host";
 import { afterAll, afterEach, expect, test } from "vitest";
-import { CONFORMANT, conformance, SANDBOX_ONLY } from "./conformance.ts";
+import { CONFORMANT, conformance, SANDBOX_ENVIRONMENT, SANDBOX_ONLY } from "./conformance.ts";
 
 const ACTIONS = [
   "echo",
@@ -104,7 +105,7 @@ test("a bundled extension runs an action, and keeps bounded, safely shown log li
 test("the conformance kit: no write, read outside, process, worker, network, DNS, addon, descriptor or sqlite", async () => {
   const kit = codeOf(await conformance(await extension()));
   // Signals stay a check only an OS sandbox can pass.
-  expect([kit, Reflect.get(Object(kit), "signal") === SANDBOX_ONLY.signal]).toEqual([CONFORMANT, false]);
+  expect([kit, SANDBOX_ONLY.signal.includes(String(Reflect.get(Object(kit), "signal")))]).toEqual([CONFORMANT, false]);
 });
 
 test("the host answers no call of the extension but its own: any other is a method that does not exist", async () => {
@@ -112,7 +113,9 @@ test("the host answers no call of the extension but its own: any other is a meth
 });
 
 test("an extension is refused for another protocol, other actions, an old Node, or a trust this machine cannot confine", async () => {
-  const wraps = { wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => launch };
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
   const results = await Promise.all([
     start({ manifest: manifestOf(ACTIONS, "2.0") }),
     start({ manifest: manifestOf(ACTIONS, "1.1") }),
@@ -223,7 +226,9 @@ test("S10: a flood of small frames past the unread bound ends the extension", as
 
 test("an extension that does not start or answer fails with the reason and ends, and one that ignores exit is killed", async () => {
   const gone = ExtensionManifest.parse({ ...manifestOf(ACTIONS), runtime: { kind: "node", entry: "gone.mjs" } });
-  const nowhere = { wrap: () => ({ command: join(folder, "no-such-program"), args: [], cwd: folder, env: {} }) };
+  const nowhere = {
+    wrap: () => Promise.resolve({ command: join(folder, "no-such-program"), args: [], cwd: folder, env: {} }),
+  };
   const failures = await Promise.all([
     start({ manifest: gone }),
     start({ locale: "x-silent", limits: { startMs: 200 } }),
@@ -502,4 +507,28 @@ test("an extension that ends stops the requests the host sends for it", async ()
   const fetcher = await extension({ manifest: manifestOf(ACTIONS, "1.0", capabilities), transport: hanging });
   const result = await run(fetcher, "fetch-then-crash");
   expect([codeOf(result), ended]).toEqual([failure("run", expect.any(String)), ["/hang"]]);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a community extension runs inside sandbox-runtime and passes the conformance kit, the host's signals included",
+  async ({ skip }) => {
+    const confined = await start({ trust: "community", sandbox: sandboxRuntime() });
+    // A machine where no sandboxed process starts (the rootless dev container) is skipped; CI's runners are not.
+    if (!confined.ok && process.env["CI"] !== "true") skip(JSON.stringify(confined.finding));
+    if (!confined.ok) throw new Error(JSON.stringify(confined.finding));
+    started.push(confined.value);
+    const kit = Object(codeOf(await conformance(confined.value)));
+    const signal = String(Reflect.get(kit, "signal"));
+    expect({ ...kit, signal: SANDBOX_ONLY.signal.includes(signal) ? "refused" : signal }).toEqual({
+      ...CONFORMANT,
+      signal: "refused",
+      environment: SANDBOX_ENVIRONMENT,
+    });
+  },
+  30_000,
+);
+
+test("sandbox-runtime wraps nothing on Windows, whose sandbox needs an install of its own", async () => {
+  const launch = { command: process.execPath, args: [], cwd: folder, env: {} };
+  expect(await sandboxRuntime("win32").wrap(launch, { read: [folder], write: [], network: "none" })).toBeUndefined();
 });

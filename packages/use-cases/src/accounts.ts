@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
+import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
   ACCOUNTS_SCHEMA_VERSION,
@@ -12,7 +13,7 @@ import {
   type Result,
   readDocument,
 } from "@cedarloom/contracts";
-import { sha256 } from "@cedarloom/ledger";
+import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
 import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
@@ -173,6 +174,65 @@ export const loginAccount = (
   if (ran.code === 0) return { ok: true, value: { home } };
   const error = ran.error ?? `exit code ${ran.code}`;
   return { ok: false, finding: { code: "accounts.login-failed", params: { account: account.name, error } } };
+};
+
+/** Where the doctor checks logins: the launcher's environment and platform, and `status`, the agent's own check. */
+export interface StatusHost {
+  readonly parent: Readonly<Record<string, string | undefined>>;
+  readonly platform: NodeJS.Platform;
+  readonly status: (env: Record<string, string>) => LoginStatus;
+}
+
+// What one home's login status shows to be wrong.
+const problems = (account: string, home: string, login: LoginStatus): Finding[] => {
+  if (login.kind === "unknown") return [{ code: "doctor.login-unchecked", params: { account, error: login.error } }];
+  if (login.kind === "logged-out") return [{ code: "doctor.logged-out", params: { account, home } }];
+  const { authMethod: method, configDirectory } = login;
+  const elsewhere = configDirectory !== null && configDirectory !== home;
+  return [
+    ...(elsewhere ? [{ code: "doctor.login-elsewhere" as const, params: { account, home, configDirectory } }] : []),
+    ...(method === "claude.ai" ? [] : [{ code: "doctor.login-method" as const, params: { account, method } }]),
+  ];
+};
+
+// One account's check, while the ledger holds the account for it.
+const checkOne = (state: string, { name, home: named }: Account, host: StatusHost): Result<Finding[]> => {
+  const home = ownHome(state, name);
+  if (named !== home) {
+    return { ok: true, value: [{ code: "accounts.home-not-own", params: { account: name, home: named } }] };
+  }
+  const store = openRunStore(state);
+  if (!store.ok) return store;
+  let held: ReturnType<typeof store.value.checkAccount>;
+  try {
+    held = store.value.checkAccount(name);
+  } finally {
+    store.value.close();
+  }
+  if (held === null) return { ok: true, value: [{ code: "doctor.login-skipped", params: { account: name } }] };
+  try {
+    const env = { ...cleanEnv(host.parent, host.platform), CLAUDE_CONFIG_DIR: home };
+    return { ok: true, value: problems(name, home, host.status(env)) };
+  } finally {
+    held.release();
+  }
+};
+
+/**
+ * Checks the login of each Claude Code account in its own home, one at a time: the doctor's login check. The check can
+ * renew a login, so it never runs beside a worker on the account, and no worker starts on it meanwhile (owner decision
+ * "Worker homes", 2026-11-06). An account outside its own home is reported instead.
+ */
+export const checkLogins = (state: string, config: string, host: StatusHost): Result<Finding[]> => {
+  const loaded = loadRegistry(config);
+  if (!loaded.ok) return loaded;
+  const findings: Finding[] = [];
+  for (const account of (loaded.value?.accounts ?? []).filter((each) => each.agent === "claude")) {
+    const found = checkOne(state, account, host);
+    if (!found.ok) return found;
+    findings.push(...found.value);
+  }
+  return { ok: true, value: findings };
 };
 
 /** How many workers run on one account at once: two per Claude Code account, one per Codex home. */

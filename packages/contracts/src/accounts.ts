@@ -19,6 +19,9 @@ export type Agent = z.infer<typeof Agent>;
 // BenchKeeper's rule for account and pool names, so its names import unchanged.
 const Name = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 
+/** An account's name: also safe as a file name. */
+export const AccountName = Name;
+
 // A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary.
 const Percent = z.number().min(0).max(100);
 

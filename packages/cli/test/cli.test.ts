@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { LoginStatus } from "@cedarloom/use-cases";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
@@ -10,10 +11,12 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
-// The agent logins the commands started, each by its environment, and the exit code the next one ends with.
+// The agent logins the commands started, each by its environment, the exit code the next one ends with, and the login
+// status every home reports; null: logged in, in the folder it was asked about.
 interface Logins {
   readonly started: Record<string, string>[];
   code: number;
+  status: LoginStatus | null;
 }
 
 const setup = (): {
@@ -24,7 +27,7 @@ const setup = (): {
 } => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-cli-"));
   const state = join(root, "state");
-  const logins: Logins = { started: [], code: 0 };
+  const logins: Logins = { started: [], code: 0, status: null };
   const cli = async (...argv: string[]): Promise<{ code: number; out: string; err: string }> => {
     let [out, err] = ["", ""];
     const io = {
@@ -36,6 +39,12 @@ const setup = (): {
         logins.started.push(env);
         return { code: logins.code };
       },
+      authStatus: (env: Record<string, string>): LoginStatus =>
+        logins.status ?? {
+          kind: "logged-in",
+          authMethod: "claude.ai",
+          configDirectory: env["CLAUDE_CONFIG_DIR"] ?? null,
+        },
     };
     return { code: await main(argv, io), out, err };
   };
@@ -244,6 +253,15 @@ test("accounts: an account moves into its own home with --yes, and its login run
   const login = await cli("accounts", "login", "work");
   expect([login.code, login.out]).toEqual([EXIT.ok, `Logged in: account work, in ${home}.\n`]);
   expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
+  // The doctor checks the login in each own home and names an account that is not in its own home yet.
+  const checked = await cli("doctor");
+  expect([checked.code, checked.out]).toEqual([
+    EXIT.refused,
+    expect.stringContaining("Account solo names /accounts/solo"),
+  ]);
+  logins.status = { kind: "logged-out" };
+  expect((await cli("doctor")).out).toContain(`Account work is not logged in in its own home ${home}`);
+  logins.status = null;
   logins.code = 1;
   const failed = await cli("accounts", "login", "work", "--json");
   expect([failed.code, json(failed.out)]).toEqual([
@@ -569,6 +587,7 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     env: {},
     untilStopped: () => stopped.promise,
     login: () => ({ code: null }),
+    authStatus: () => ({ kind: "logged-out" }) as const,
   };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a

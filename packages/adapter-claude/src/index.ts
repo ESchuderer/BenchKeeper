@@ -1,7 +1,14 @@
 import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionError } from "@cedarloom/agent-contracts";
+import type {
+  AgentEvent,
+  AgentRuntime,
+  AgentSession,
+  ContractCheck,
+  LoginStatus,
+  SessionError,
+} from "@cedarloom/agent-contracts";
 import { AgentVersion } from "@cedarloom/contracts";
 import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
@@ -118,6 +125,47 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
     missing: (["init", "settings", "usage", "result"] as const).filter((part) => !passed[part]),
   };
 };
+
+// The fields of `claude auth status` the doctor reads (https://code.claude.com/docs/en/cli-reference); the CLI prints
+// more, and `configDirectory` only from 2.1.268.
+const AuthStatus = z.object({ authMethod: z.string(), configDirectory: z.string().optional() });
+
+// The JSON a CLI printed, or undefined when it is none.
+const json = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Reads the login of the config folder `env` names with `claude auth status`, which prints JSON and exits 0 when logged
+ * in and 1 when not; anything else, a timeout included, is unknown. `command` is the CLI as for claudeRuntime.
+ */
+export const claudeAuthStatus =
+  (command: Command = ["claude"]) =>
+  (env: Record<string, string>): LoginStatus => {
+    const [file, ...prefix] = command;
+    const ran = spawnSync(file, [...prefix, "auth", "status"], {
+      env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+      windowsHide: true,
+    });
+    if (ran.error !== undefined) return { kind: "unknown", error: ran.error.message };
+    if (ran.status === 1) return { kind: "logged-out" };
+    const status = AuthStatus.safeParse(json(ran.stdout));
+    if (ran.status !== 0 || !status.success) {
+      return { kind: "unknown", error: `exit code ${ran.status} with output that is no login status` };
+    }
+    return {
+      kind: "logged-in",
+      authMethod: status.data.authMethod,
+      configDirectory: status.data.configDirectory ?? null,
+    };
+  };
 
 /**
  * Runs Claude Code's own login in this terminal, `claude auth login` (https://code.claude.com/docs/en/cli-reference),

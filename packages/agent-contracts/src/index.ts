@@ -110,6 +110,15 @@ export interface ContractCheck {
   readonly missing: readonly ContractCheckRecord["missing"][number][];
 }
 
+/**
+ * What an agent's own login check said about one config folder: logged in with a method and the folder it read (null
+ * when the CLI does not name it), logged out, or unknown with why it could not tell.
+ */
+export type LoginStatus =
+  | { readonly kind: "logged-in"; readonly authMethod: string; readonly configDirectory: string | null }
+  | { readonly kind: "logged-out" }
+  | { readonly kind: "unknown"; readonly error: string };
+
 /** The contract of an agent adapter; `L` is the adapter's launch options. */
 export interface AgentRuntime<L extends Launch = Launch> {
   readonly capabilities: Readonly<Record<Capability, CapabilityState>>;

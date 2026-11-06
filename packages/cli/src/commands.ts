@@ -122,7 +122,9 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 };
 
 export const doctor = (ctx: Context): number => {
-  const findings = useCases.doctor(ctx.state);
+  const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
+  const logins = useCases.checkLogins(ctx.state, ctx.config, host);
+  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding])];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;

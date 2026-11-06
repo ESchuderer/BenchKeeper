@@ -171,7 +171,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   levelGroup(program, ctx, done);
   program
     .command("doctor")
-    .description("report interrupted runs and store problems")
+    .description("report interrupted runs, store problems, and each account's login in its own home")
     .action(() => done(doctor(ctx())));
   program
     .command("ui")

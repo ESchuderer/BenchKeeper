@@ -495,6 +495,29 @@ test("an account gives at most max leases; a finished lease frees one, another a
   expect(() => store.leaseAccount({ ...launch, runId: runIdOf(5) }, 9)).toThrow(/held already/);
 });
 
+test("a login check holds its account: never beside a running lease, and while it runs the account counts as full", () => {
+  const store = opened(fresh());
+  const running = store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2);
+  expect(store.checkAccount("work")).toBeNull();
+  const check = store.checkAccount("spare");
+  expect(check).not.toBeNull();
+  // One check of an account at a time; meanwhile no worker starts on it, and the choice passes it over.
+  expect(store.checkAccount("spare")).toBeNull();
+  expect(store.liveLeases()).toEqual(
+    new Map([
+      ["work", 1],
+      ["spare", Number.POSITIVE_INFINITY],
+    ]),
+  );
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), account: "spare" }, 2)).toBeNull();
+  check?.release();
+  expect(store.liveLeases()).toEqual(new Map([["work", 1]]));
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3), account: "spare" }, 2)).not.toBeNull();
+  running?.release();
+  // The name becomes a file name: only an account name is taken.
+  expect(() => store.checkAccount("../work")).toThrow(/pattern/i);
+});
+
 // The garbage collector, which node exposes to a new context once the flag is set.
 setFlagsFromString("--expose-gc");
 const gc: unknown = runInNewContext("gc");

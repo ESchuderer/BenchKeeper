@@ -83,6 +83,12 @@ export const Finding = z
     finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
+    // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
+    finding("doctor.logged-out", { account: z.string(), home: z.string() }),
+    finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
+    finding("doctor.login-method", { account: z.string(), method: z.string() }),
+    finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
+    finding("doctor.login-skipped", { account: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
@@ -177,6 +183,11 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.folder-taken": { severity: "error", effort: "manual" },
   "accounts.home-not-own": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
+  "doctor.logged-out": { severity: "error", effort: "manual" },
+  "doctor.login-elsewhere": { severity: "error", effort: "manual" },
+  "doctor.login-method": { severity: "warning", effort: "manual" },
+  "doctor.login-unchecked": { severity: "warning", effort: "manual" },
+  "doctor.login-skipped": { severity: "info", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
   "launch.settings-unproven": { severity: "error", effort: "manual" },

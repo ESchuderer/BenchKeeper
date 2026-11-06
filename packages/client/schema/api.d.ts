@@ -1084,6 +1084,41 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1121,6 +1156,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
             };
         } | {
             /** @constant */
@@ -1780,6 +1822,41 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.logged-out";
+            params: {
+                account: string;
+                home: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-elsewhere";
+            params: {
+                account: string;
+                home: string;
+                configDirectory: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-method";
+            params: {
+                account: string;
+                method: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-unchecked";
+            params: {
+                account: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.login-skipped";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1817,6 +1894,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
             };
         } | {
             /** @constant */

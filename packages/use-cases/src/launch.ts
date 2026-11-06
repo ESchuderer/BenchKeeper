@@ -301,7 +301,7 @@ export const launchWorker = async <L extends Launch>(
   const { runId, dir, build } = prepared.value;
   const probe = build([]);
   const { agent, task, runtime } = request;
-  const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe });
+  const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe, account: account.name });
   if (!checked.ok) return refused(dir, checked);
   const { version, verified, settingsApplied } = checked.value;
   // The backstop: a version whose own check proved no settings starts no run, whatever a run's init line would say.

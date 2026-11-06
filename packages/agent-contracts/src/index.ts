@@ -122,6 +122,15 @@ export interface ContractCheck {
   readonly missing: readonly ContractCheckRecord["missing"][number][];
 }
 
+/**
+ * What an agent's own login check said about one config folder: logged in with a method and the folder it read (null
+ * when the CLI does not name it), logged out, or unknown with why it could not tell.
+ */
+export type LoginStatus =
+  | { readonly kind: "logged-in"; readonly authMethod: string; readonly configDirectory: string | null }
+  | { readonly kind: "logged-out" }
+  | { readonly kind: "unknown"; readonly error: string };
+
 /** The contract of an agent adapter; `L` is the adapter's launch options. */
 export interface AgentRuntime<L extends Launch = Launch> {
   readonly capabilities: Readonly<Record<Capability, CapabilityState>>;
@@ -129,6 +138,8 @@ export interface AgentRuntime<L extends Launch = Launch> {
   version(env: Readonly<Record<string, string>>): Promise<string>;
   /** Runs a probe session and checks the undocumented parts of its output; rerun whenever the version changes. */
   checkContract(launch: Omit<L, "prompt" | "verifiedVersions">): Promise<ContractCheck>;
+  /** The login of the config folder `env` (a launch's environment) names, by the agent's own documented check. */
+  loginStatus(env: Readonly<Record<string, string>>): Promise<LoginStatus>;
   start(launch: L): AgentSession;
   resume(sessionId: string, launch: L): AgentSession;
   /** Stops `from` first, then starts `to`, whose prompt carries the handover. */

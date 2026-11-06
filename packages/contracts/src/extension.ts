@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sortKeys } from "./json.ts";
 import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
@@ -11,6 +12,8 @@ export const EXTENSION_SCHEMA_VERSION = 1;
 export const LOCK_SCHEMA_VERSION = 1;
 /** The export folder's index format (`cedarloom-export.json`) this CedarLoom writes and reads. */
 export const EXPORT_SCHEMA_VERSION = 1;
+/** The format of the installed extensions (`extensions.json` in the state folder) this CedarLoom writes and reads. */
+export const INSTALLED_SCHEMA_VERSION = 1;
 
 const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
 // A list without repeats, in zod and in the JSON Schema document.
@@ -279,6 +282,15 @@ const isGitUrl = (value: string): boolean => {
   return userOk && plain(new URL(value));
 };
 
+/**
+ * A ref Git fetches as `<ref>:<local ref>`: a branch, a tag, HEAD or a commit, with no refspec syntax (`:`, `+`, `*`,
+ * `^`, `~`), no `@{`, no `..` and no `.lock` at its end, which Git keeps for its lock files.
+ */
+export const GitRef = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/)
+  .refine((ref) => !ref.includes("..") && !ref.endsWith(".lock"), "no .. and no .lock at the end");
+
 /** Where Git fetches an extension or a workflow folder: an https or ssh URL, or `user@host:path`. */
 export const GitUrl = z
   .string()
@@ -318,6 +330,37 @@ export const ExtensionLock = z
   })
   .register(fileFormats, { id: "ExtensionLock" });
 export type ExtensionLock = z.infer<typeof ExtensionLock>;
+
+/**
+ * The extensions installed on this machine, each pinned like a lock entry, with the ref an update follows and the
+ * capabilities the user approved. Git is the only source in 0.1.0 (pending owner decision), so each is a community
+ * extension: its trust comes from where its code came from, never from a field of its manifest or of this file.
+ */
+export const InstalledExtensions = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(INSTALLED_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.extensions"),
+    extensions: sized(
+      z.record(
+        ExtensionId,
+        ExtensionPin.extend({
+          // The ref forms Git fetches as `<ref>:<local ref>`, as the git package checks them.
+          ref: GitRef.describe("The branch or tag an update follows; HEAD for the repository's default branch"),
+          consented: Sha256.describe(
+            "SHA-256 of the canonical JSON of the capabilities the user approved; an update that asks for more asks again",
+          ),
+        }),
+      ),
+      500,
+    ),
+  })
+  .register(fileFormats, { id: "InstalledExtensions" });
+export type InstalledExtensions = z.infer<typeof InstalledExtensions>;
+
+/** The file text of the installed extensions: keys sorted, two spaces, a final line break. */
+export const formatInstalled = (installed: InstalledExtensions): string =>
+  `${JSON.stringify(InstalledExtensions.parse(sortKeys(installed)), null, 2)}\n`;
 
 /**
  * The index of an export folder: each workflow at `workflows/workflow-<id in lower case>.json`, named like a draft so

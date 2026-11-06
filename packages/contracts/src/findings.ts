@@ -141,10 +141,16 @@ export const Finding = z
       extension: z.string(),
       reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime"]),
     }),
+    // An extension that is not installed: no manifest at its folder's root, no entry file, another protocol than this
+    // CedarLoom speaks, or one installed already. Its id when the manifest names it.
+    finding("extension.install-refused", {
+      extension: z.string().nullable(),
+      reason: z.enum(["no-manifest", "entry", "protocol", "installed"]),
+    }),
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["start", "initialize", "run"]),
+      step: z.enum(["stage", "start", "initialize", "run"]),
       error: z.string(),
     }),
     finding("git.too-large", {
@@ -250,6 +256,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "doctor.plugin-not-loaded": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
+  "extension.install-refused": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },

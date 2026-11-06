@@ -2,6 +2,7 @@ import {
   type Account,
   Agent,
   type AutomationLevel,
+  type ExtensionManifest,
   type Finding,
   findingInfo,
   type Plan,
@@ -145,7 +146,11 @@ export const doctor = async (ctx: Context): Promise<number> => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (ctx: Context, format: "accounts" | "levels" | "login" | "mode" | "plan", finding: Finding): number => {
+const refused = (
+  ctx: Context,
+  format: "accounts" | "extensions" | "levels" | "login" | "mode" | "plan",
+  finding: Finding,
+): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
   return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
@@ -231,6 +236,74 @@ export const accountsLogin = (ctx: Context, name: string): number => {
   const login = useCases.loginAccount(ctx.config, ctx.state, name, host);
   if (!login.ok) return refused(ctx, "login", login.finding);
   emit(ctx, "login", { account: name, home: login.value.home }, `Logged in: account ${name}, in ${login.value.home}.`);
+  return EXIT.ok;
+};
+
+type Pin = useCases.InstallPlan["pin"];
+
+// What the extension may do, in plain words.
+const mayDo = ({ capabilities = {} }: ExtensionManifest): string[] => {
+  const lines = [
+    ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
+    ...Object.entries(capabilities.credentials ?? {}).map(
+      ([id, { hosts }]) =>
+        `uses your credential ${id} for ${hosts.join(", ")}; CedarLoom adds it, the extension never sees it`,
+    ),
+    ...(capabilities.projectRead === true ? ["reads files of your projects"] : []),
+    ...(capabilities.planWrite === true ? ["proposes file changes, applied only through a plan you approve"] : []),
+  ];
+  return lines.length > 0 ? lines : ["asks for no capabilities"];
+};
+
+// What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what
+// it may do. The publisher is the id's first part, which nothing verifies (pending owner decision, P5 a).
+const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): string => {
+  const publisher = manifest.id.slice(0, manifest.id.indexOf("."));
+  const folder = source.path === undefined ? "" : `, folder ${source.path}`;
+  const lines = [
+    `${manifest.id} ${manifest.version} (${manifest.name}) by ${publisher}, not verified; license ${manifest.license ?? "none stated"}`,
+    `from ${source.git}${folder}, ${ref} at commit ${source.commit}; files ${digest}`,
+    "community code: it runs only inside an OS sandbox, which this CedarLoom does not have yet, and never on native Windows",
+    ...(manifest.platforms === undefined ? [] : [`made for ${manifest.platforms.join(", ")}`]),
+    ...mayDo(manifest),
+  ];
+  return lines.map((line) => `\n  ${line}`).join("");
+};
+
+/**
+ * Shows the install of the extension at a Git source with what its approval consents to, or with --yes or --approve
+ * installs it as one run. Its files are fetched and staged first, which changes nothing that is in use.
+ */
+export const extensionsAdd = async (
+  ctx: Context,
+  url: string,
+  options: { ref?: string; path?: string } & Approval,
+): Promise<number> => {
+  const at = options.path === undefined ? {} : { path: options.path };
+  const planned = await useCases.planInstall(ctx.state, { url, ref: options.ref ?? "HEAD", ...at }, ctx.io.fetch);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, manifest, pin } = planned.value;
+  const preview = useCases.previewPlan(plan);
+  const shown = `${showPlan(preview)}${consent(manifest, pin)}`;
+  const data = {
+    extension: { id: manifest.id, ...pin, trust: "community" },
+    capabilities: manifest.capabilities ?? {},
+  };
+  if (approved(options)) return applyShown(ctx, plan, { shown, findings: [], data }, options);
+  const human = `${shown}\nNothing changed. Run the command again with --yes, or with --approve ${preview.planHash} to install exactly this.`;
+  emit(ctx, "plan", { ...preview, ...data }, human);
+  return EXIT.ok;
+};
+
+export const extensionsList = (ctx: Context): number => {
+  const listed = useCases.installedExtensions(ctx.state);
+  if (!listed.ok) return refused(ctx, "extensions", listed.finding);
+  const lines = listed.value.map(({ id, version, trust, source }) => {
+    const folder = source.path === undefined ? "" : ` (${source.path})`;
+    return `${id}  ${version}  ${trust}  ${source.git}${folder}  ${source.commit.slice(0, 12)}`;
+  });
+  const none = "No extensions installed. Add one with: cedarloom extensions add <Git URL>";
+  emit(ctx, "extensions", { extensions: listed.value }, lines.length > 0 ? lines.join("\n") : none);
   return EXIT.ok;
 };
 

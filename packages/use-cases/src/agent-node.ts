@@ -150,9 +150,10 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
   pid: null,
   run: async () => {
     const where = attempt.signal.aborted ? null : await worktree();
-    if (where?.ok === true) return watched(attempt, worker, stallMs);
+    // A stop may come while the worktree is added: the session then never starts.
+    if (where?.ok === true && !attempt.signal.aborted) return watched(attempt, worker, stallMs);
     await worker.release();
-    return where === null ? { ok: false } : { ok: false, values: { error: where.finding.code } };
+    return where?.ok === false ? { ok: false, values: { error: where.finding.code } } : { ok: false };
   },
 });
 

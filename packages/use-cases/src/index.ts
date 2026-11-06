@@ -26,6 +26,7 @@ export {
   type Decided,
   type LaunchHost,
   launchWorker,
+  leaseWorker,
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";

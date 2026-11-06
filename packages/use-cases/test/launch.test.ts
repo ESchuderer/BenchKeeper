@@ -28,8 +28,9 @@ import {
   type Decided,
   doctor,
   launchWorker,
-  MAX_CONCURRENT,
+  leaseWorker,
   listGraphRuns,
+  MAX_CONCURRENT,
   ownHome,
   resumeRun,
   runWorkflow,
@@ -645,6 +646,28 @@ const branches = (work: string) =>
   execFileSync("git", ["branch", "--list", "--format=%(refname:short)", "cedarloom/*"], { cwd: work, encoding: "utf8" })
     .split("\n")
     .filter(Boolean);
+
+test("a cancel while the worktree is added starts no session, and lets the lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const stop = new AbortController();
+  const onEvent = (event: JournalEvent) => event.type === "started" && stop.abort();
+  const agents = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), launch: phaseLaunch };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent, signal: stop.signal })).toMatchObject({
+    value: { status: "cancelled" },
+  });
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual(["not-run"]);
+}, 15_000);
+
+test("a leased worker whose signal ended already stops its session at once", async () => {
+  const { state, config, work } = setup();
+  const leased = await leaseWorker(state, config, request(work, { runEnv: { FAKE_HANG: "1" } }), host);
+  if (!leased.ok || leased.value.kind !== "leased") throw new Error("no lease");
+  expect(await leased.value.run({ signal: AbortSignal.abort() })).toMatchObject({
+    ok: true,
+    value: { kind: "finished", verdict: "failed" },
+  });
+}, 15_000);
 
 test("an agent waits for a free lease of its account before it starts, and a cancel ends the wait", async () => {
   const { state, config, work } = setup();

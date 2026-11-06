@@ -259,6 +259,8 @@ const observe = async (
 const watched = async (...[state, session, lease, seen]: Parameters<typeof observe>) => {
   const stop = (): void => void session.cancel().then(nothing, nothing);
   seen.watch.signal?.addEventListener("abort", stop, { once: true });
+  // A signal that ended already sends no abort event.
+  if (seen.watch.signal?.aborted === true) stop();
   try {
     return await observe(state, session, lease, seen);
   } finally {

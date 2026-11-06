@@ -25,17 +25,17 @@ const quoted = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;
 const run = promisify(execFile);
 
 // What Node needs to start besides its own binary. Linux: the system's programs and libraries, srt's shell and `env`
-// among them. macOS maps its own libraries from the shared cache; Node reads its OpenSSL configuration at start (the
-// official build from /System/Library/OpenSSL, Homebrew's from its prefix), and Homebrew's loads its kegs. A Node
-// installed elsewhere fails the probe with the path it was refused.
+// among them. macOS maps its own libraries from the shared cache; Node reads its OpenSSL configuration file at start (the
+// official build from /System/Library/OpenSSL, Homebrew's from its prefix), only that file, so the folders' private/
+// stays shut, and Homebrew's Node loads its kegs. A Node installed elsewhere fails the probe with the path it was refused.
 // shortcut: srt opens no link to the time zone (/etc/localtime, and on macOS /etc itself), so without TZ an extension
 // tells time in UTC; pass the host's zone once an extension needs local time.
 const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
   linux: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"],
   darwin: [
-    "/System/Library/OpenSSL",
+    "/System/Library/OpenSSL/openssl.cnf",
     ...["/opt/homebrew", "/usr/local"].flatMap((prefix) =>
-      ["Cellar", "opt", "etc/openssl@3", "etc/openssl@4"].map((path) => `${prefix}/${path}`),
+      ["Cellar", "opt", "etc/openssl@3/openssl.cnf", "etc/openssl@4/openssl.cnf"].map((path) => `${prefix}/${path}`),
     ),
   ],
 };
@@ -56,6 +56,8 @@ const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> 
   const allowRead = [...policy.read, launch.command, srt, ...(SYSTEM[process.platform] ?? [])];
   // srt opens its own temp folder (/tmp/claude) and a few folders in the home folder for writing in every sandbox: a
   // channel between extensions, and into Claude Code's. Only stdio stays writable.
+  // shortcut: on Linux srt binds its /tmp/claude into every sandbox read-only, so what lies there stays readable despite
+  // the denied `/`, and srt 0.0.81 has no switch for it; hide it once srt has one.
   const denyWrite = getDefaultWritePaths().filter((path) => !path.startsWith("/dev/"));
   const filesystem = { denyRead: ["/"], allowRead, allowWrite: policy.write, denyWrite };
   const environment = Object.entries(launch.env).filter(([, value]) => value !== undefined);
@@ -85,8 +87,9 @@ const probe = async (command: string): Promise<void> => {
  * program does not start inside it, the wrap fails with that program's error.
  *
  * A process inside reaches no network: srt's proxies, set up with no allowed host, refuse every request, and no Unix
- * socket outside. It reads only the policy's paths, its own binary and the system's (SYSTEM), writes only the policy's
- * paths, and cannot signal a process outside.
+ * socket outside. It reads only the policy's paths, its own binary and the system's (SYSTEM), and on Linux also srt's
+ * /tmp/claude, which srt binds into every sandbox. It writes only the policy's paths, and cannot signal a process
+ * outside.
  */
 export const sandboxRuntime = (platform: NodeJS.Platform = process.platform): Sandbox => ({
   wrap: async (launch, policy) => {

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,12 +14,14 @@ const own = join(scratch, "own");
 mkdirSync(own);
 writeFileSync(join(own, "file"), "own");
 writeFileSync(join(scratch, "outside"), "outside");
-// The temp folder srt opens for writing in every sandbox, under a name of this run's own.
+// The temp folder srt opens for writing in every sandbox, under a name of this run's own; removed again if this run made it.
+const made = !existsSync("/tmp/claude");
 mkdirSync("/tmp/claude", { recursive: true });
 const claude = join(realpathSync("/tmp/claude"), `cedarloom-${process.pid}`);
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true });
   rmSync(claude, { force: true });
+  if (made) rmdirSync("/tmp/claude");
 });
 
 const sandbox = sandboxRuntime();

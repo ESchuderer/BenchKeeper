@@ -7,6 +7,7 @@ import {
   CancellationTokenSource,
   createMessageConnection,
   type MessageConnection,
+  type MessageStrategy,
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
@@ -21,8 +22,9 @@ import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sa
 export type Trust = "bundled" | "community";
 
 export type HostLimits = {
-  /** The largest message an extension may send. */
+  /** The largest message an extension may send, and how many it may have sent that the host has not read yet. */
   messageBytes: number;
+  unreadMessages: number;
   /** Log lines kept per run, and the length of one; more are counted, not kept. */
   logLines: number;
   logChars: number;
@@ -32,6 +34,7 @@ export type HostLimits = {
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
+  unreadMessages: 1000,
   logLines: 1000,
   logChars: 2000,
   startMs: 10_000,
@@ -178,7 +181,12 @@ const connect = (launch: Launch, limits: HostLimits): Session => {
   const child = spawn(launch.command, launch.args, { cwd: launch.cwd, env: launch.env, windowsHide: true });
   let broken: string | undefined;
   let stderr = "";
-  const output = child.stdout.pipe(framesUpTo(limits.messageBytes));
+  // vscode-jsonrpc queues what it reads without a bound: a flood of small frames would fill the host's memory, so the
+  // frames the guard passed on and the reader has not yet handed out are counted, and too many end the extension.
+  let unread = 0;
+  const admit = (): string | undefined =>
+    (unread += 1) > limits.unreadMessages ? `over ${limits.unreadMessages} messages unread` : undefined;
+  const output = child.stdout.pipe(framesUpTo(limits.messageBytes, admit));
   output.on("error", (error) => {
     broken ??= error.message;
     child.kill("SIGKILL");
@@ -186,7 +194,18 @@ const connect = (launch: Launch, limits: HostLimits): Session => {
   child.on("error", (error) => (broken ??= error.message));
   child.stderr.on("data", (chunk: Buffer) => (stderr = (stderr + chunk.toString()).slice(-2000)));
   const stopped = new Promise((resolve) => child.on("close", resolve));
-  const connection = createMessageConnection(new StreamMessageReader(output), new StreamMessageWriter(child.stdin));
+  const strategy: MessageStrategy = {
+    handleMessage: (message, next) => {
+      unread -= 1;
+      return next(message);
+    },
+  };
+  const connection = createMessageConnection(
+    new StreamMessageReader(output),
+    new StreamMessageWriter(child.stdin),
+    undefined,
+    { messageStrategy: strategy },
+  );
   // An extension that ended answers nothing more: its open requests fail at once instead of waiting for their limit.
   void stopped.then(() => connection.dispose());
   const why = (): string | undefined => broken ?? (child.exitCode === null ? undefined : stderr.trim() || "it ended");
@@ -259,8 +278,12 @@ const running = (
     };
     signal?.addEventListener("abort", cancel);
     try {
-      const outcome = await session.connection.sendRequest(runAction, request, source.token).then(
-        (answer) => outputsOf(id, answer),
+      // In a promise, so a connection already gone answers a Result too; and raced with the end of the extension's
+      // process, so a run whose answer the reader can never build still ends when the process does.
+      const answer = Promise.resolve().then(() => session.connection.sendRequest(runAction, request, source.token));
+      const ended = session.stopped.then(() => Promise.reject(new Error(session.broken() ?? "it ended")));
+      const outcome = await Promise.race([answer, ended]).then(
+        (answered) => outputsOf(id, answered),
         (error: unknown) => failed(id, "run", session.broken() ?? reason(error)),
       );
       return source.token.isCancellationRequested ? failed(id, "run", "cancelled by the host") : outcome;

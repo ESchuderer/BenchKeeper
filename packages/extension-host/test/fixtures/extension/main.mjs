@@ -7,6 +7,7 @@ import { lookup } from "node:dns/promises";
 import { fstatSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
+import { isatty } from "node:tty";
 import { Worker } from "node:worker_threads";
 
 let mode = "";
@@ -34,12 +35,13 @@ const reach = () =>
     socket.on("connect", resolve);
   });
 
-// Node's flags do not cover a descriptor a process was given: none past stdio may be a file or a socket. Node opens
-// descriptors of its own: pipes for its event loop, and on macOS folders, which a plain node process has too.
+// Node's flags do not cover a descriptor a process was given: none past stdio may be a file, a socket or a terminal.
+// Node opens descriptors of its own: pipes for its event loop, on Linux a device such as /dev/urandom, on macOS folders,
+// which a plain node process has too.
 const inherited = () => {
-  for (let fd = 3; fd < 64; fd += 1) {
+  for (let fd = 3; fd < 1024; fd += 1) {
     const kind = attemptSync(() => fstatSync(fd));
-    if (kind !== undefined && (kind.isFile() || kind.isSocket())) return `descriptor ${fd}`;
+    if (kind?.isFile() || kind?.isSocket() || isatty(fd)) return `descriptor ${fd}`;
   }
   return "none";
 };
@@ -76,6 +78,11 @@ const actions = {
   },
   // Ignores the host's cancel and never answers.
   stubborn: () => new Promise(() => undefined),
+  // Sends more small frames than the host reads at once, then answers.
+  flood: () => {
+    for (let index = 0; index < 20_000; index += 1) send({ method: "host/log", params: { run: "x", message: "." } });
+    return {};
+  },
   abuse: async () => ({
     write: await attempt(() => writeFileSync(join(import.meta.dirname, "written.txt"), "x")),
     writeOutside: await attempt(() => writeFileSync(join(import.meta.dirname, "..", "written.txt"), "x")),
@@ -117,18 +124,37 @@ const requests = {
   shutdown: () => null,
 };
 
-const handle = async (message) => {
-  if (message.method === undefined) pending.get(message.id)?.(message);
-  else if (message.method === "exit") {
+// An error whose message is an array nested 200,000 deep: the reader cannot build its answer.
+const DEEP = Symbol("deep");
+const answerDeep = (id) => {
+  const body = `{"jsonrpc":"2.0","id":${JSON.stringify(id)},"error":{"code":1,"message":${"[".repeat(200_000)}${"]".repeat(200_000)}}}`;
+  process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+};
+actions["deep-error"] = () => {
+  throw DEEP;
+};
+
+const specials = {
+  exit: () => {
     if (mode !== "x-deaf") process.exit(0);
-  } else if (message.method === "$/cancelRequest") {
+  },
+  "$/cancelRequest": () => {
     for (const answer of waiting.values()) answer();
-  } else if (message.id !== undefined) {
-    try {
-      send({ id: message.id, result: await requests[message.method](message.params) });
-    } catch (error) {
-      send({ id: message.id, error: { code: 1, message: error.message } });
-    }
+  },
+};
+
+const handle = async (message) => {
+  const special = message.method === undefined ? () => pending.get(message.id)?.(message) : specials[message.method];
+  if (special !== undefined) {
+    special();
+    return;
+  }
+  if (message.id === undefined) return;
+  try {
+    send({ id: message.id, result: await requests[message.method](message.params) });
+  } catch (error) {
+    if (error === DEEP) answerDeep(message.id);
+    else send({ id: message.id, error: { code: 1, message: error.message } });
   }
 };
 

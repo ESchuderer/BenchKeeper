@@ -15,9 +15,9 @@ const contentLength = (header: Buffer): number | undefined => {
  * The extension's output as the protocol reader may take it. vscode-jsonrpc 10.0.0's reader buffers whatever a frame
  * announces, so this follows the frames (headers, a blank line, then as many bytes as `Content-Length` says), ends the
  * stream at a header over 1 KiB, one without exactly one length, or a frame longer than `limit`, and passes each frame
- * on under a header of its own, so the reader sees the length this guard checked.
+ * on under a header of its own, so the reader sees the length this guard checked. `admit` may refuse a frame too.
  */
-export const framesUpTo = (limit: number): Transform => {
+export const framesUpTo = (limit: number, admit: () => string | undefined = () => undefined): Transform => {
   let header = EMPTY;
   let body = 0;
   // The bytes of `chunk` to pass on, or why the stream must end.
@@ -35,9 +35,13 @@ export const framesUpTo = (limit: number): Transform => {
         header = head;
         return head.length > HEADER_LIMIT ? `a frame header over ${HEADER_LIMIT} bytes` : Buffer.concat(out);
       }
+      // A header that came whole in one chunk is held to the same bound as one that came in pieces.
+      if (end > HEADER_LIMIT) return `a frame header over ${HEADER_LIMIT} bytes`;
       const length = contentLength(head.subarray(0, end));
       if (length === undefined) return "a frame without exactly one Content-Length";
       if (length > limit) return `a message over ${limit} bytes`;
+      const refused = admit();
+      if (refused !== undefined) return refused;
       out.push(Buffer.from(`Content-Length: ${length}\r\n\r\n`, "ascii"));
       [header, body, rest] = [EMPTY, length, head.subarray(end + 4)];
     }

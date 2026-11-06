@@ -16,6 +16,8 @@ const ACTIONS = [
   "bad-outputs",
   "refuse",
   "stubborn",
+  "deep-error",
+  "flood",
   "abuse",
   "wait",
 ];
@@ -183,6 +185,24 @@ test("a cancelled run that the extension ignores ends at the stop limit, and an 
   ]);
 });
 
+test("S1: a run whose answer the reader cannot build ends with the extension, after the deadline and the kill", async () => {
+  const deep = await extension({ limits: { stopMs: 100 } });
+  const began = Date.now();
+  const unbuilt = await run(deep, "deep-error", AbortSignal.timeout(100));
+  expect([codeOf(unbuilt), Date.now() - began < 3000]).toEqual([failure("run", "cancelled by the host"), true]);
+});
+
+test("S9: a run after the extension ended answers a Result", async () => {
+  const crashed = await extension();
+  await run(crashed, "crash");
+  expect(codeOf(await run(crashed, "echo"))).toEqual(failure("run", expect.any(String)));
+});
+
+test("S10: a flood of small frames past the unread bound ends the extension", async () => {
+  const flooded = await extension({ limits: { unreadMessages: 200 } });
+  expect(codeOf(await run(flooded, "flood"))).toEqual(failure("run", "over 200 messages unread"));
+});
+
 test("an extension that does not start or answer fails with the reason and ends, and one that ignores exit is killed", async () => {
   const gone = PluginManifest.parse({ ...manifestOf(ACTIONS), runtime: { kind: "node", entry: "gone.mjs" } });
   const nowhere = { wrap: () => ({ command: join(folder, "no-such-program"), args: [], cwd: folder, env: {} }) };
@@ -224,6 +244,7 @@ test("the frame guard passes frames under its own header, split anywhere, and en
   const results = await Promise.all([
     through(10, frames.split("")),
     through(10, [`X-Long: ${"x".repeat(1100)}`]),
+    through(10, [`X-Long: ${"x".repeat(1100)}\r\nContent-Length: 2\r\n\r\n{}`]),
     through(10, ["X-Other: 1\r\n\r\n{}"]),
     // vscode-jsonrpc reads the last length of two, which could pass a large frame this guard never checked.
     through(10, ["Content-Length: 2\r\nContent-Length: 500000000\r\n\r\n{}"]),
@@ -231,6 +252,7 @@ test("the frame guard passes frames under its own header, split anywhere, and en
   ]);
   expect(results).toEqual([
     "Content-Length: 2\r\n\r\n{}Content-Length: 3\r\n\r\n[1]",
+    "error: a frame header over 1024 bytes",
     "error: a frame header over 1024 bytes",
     "error: a frame without exactly one Content-Length",
     "error: a frame without exactly one Content-Length",

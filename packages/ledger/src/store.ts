@@ -20,11 +20,19 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, TABLES, USAGE_TABLES } from "./rows.ts";
+import {
+  ACCOUNT_TABLES,
+  CHECK_TABLES,
+  GRAPH_TABLES,
+  LAUNCH_TABLES,
+  MODE_TABLES,
+  TABLES,
+  USAGE_TABLES,
+} from "./rows.ts";
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES];
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
 // The schema that added the switches of the automation level.
@@ -80,7 +88,7 @@ export interface RunDetail {
   steps: Step[];
 }
 
-const transaction = <T>(db: DatabaseSync, work: () => T): T => {
+export const transaction = <T>(db: DatabaseSync, work: () => T): T => {
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = work();
@@ -93,7 +101,7 @@ const transaction = <T>(db: DatabaseSync, work: () => T): T => {
   }
 };
 
-const now = (): string => new Date().toISOString();
+export const now = (): string => new Date().toISOString();
 const RUN_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
 /** A run's backup folder: inside the store's folder only, also for an id read back from an edited journal. */
@@ -494,20 +502,46 @@ const SETTLE_MS = 1000;
 
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
 
-const refuse = (db: DatabaseSync, lock: DatabaseSync, found: number): Result<RunStore> => {
-  db.close();
-  lock.close();
-  return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+/** Creates the state folder private, or refuses it on a network filesystem, where SQLite's locks do not hold. */
+export const stateDir = (dir: string, detect: typeof filesystemType): Finding | null => {
+  // A folder this call creates is private; one that existed keeps its mode (a store inside it is still private).
+  mkdirSync(join(dir, "backups"), { recursive: true, mode: 0o700 });
+  const fsType = detect(realpathSync.native(dir));
+  return fsType !== undefined && isNetworkFilesystem(fsType)
+    ? { code: "store.network-filesystem", params: { dir, fsType } }
+    : null;
+};
+
+/**
+ * Opens runs.sqlite in `dir` at this CedarLoom's schema and hands it to `use`; refused when a newer CedarLoom wrote
+ * it. A migration runs in one transaction, so a crash halfway leaves no partial schema to block the next open.
+ */
+export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T> => {
+  const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
+  try {
+    chmodSync(join(dir, "runs.sqlite"), 0o600);
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
+    const found = versionOf(db);
+    // Read again in the transaction: a graph store opens without the store lock, so another process may migrate first.
+    if (found < SCHEMA) {
+      transaction(db, () => {
+        const version = versionOf(db);
+        if (version < SCHEMA) db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`);
+      });
+    }
+    if (found <= SCHEMA) return { ok: true, value: use(db) };
+    db.close();
+    return { ok: false, finding: { code: "store.newer-schema", params: { found, known: SCHEMA } } };
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 };
 
 /** Opens the run store in `dir` (created private): refused on a network filesystem, while another process holds it, or when a newer CedarLoom wrote it. */
 export const openRunStore = (dir: string, detect = filesystemType): Result<RunStore> => {
-  // A folder this call creates is private; one that existed keeps its mode (a store inside it is still private).
-  mkdirSync(join(dir, "backups"), { recursive: true, mode: 0o700 });
-  const fsType = detect(realpathSync.native(dir));
-  if (fsType !== undefined && isNetworkFilesystem(fsType)) {
-    return { ok: false, finding: { code: "store.network-filesystem", params: { dir, fsType } } };
-  }
+  const refused = stateDir(dir, detect);
+  if (refused !== null) return { ok: false, finding: refused };
   // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
   // outlasts a reader's probe, whose read meets no WAL cleanup (writers close runs.sqlite first); others are refused.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
@@ -519,21 +553,9 @@ export const openRunStore = (dir: string, detect = filesystemType): Result<RunSt
   }
   // Every failure below releases the lock, else each later open in this process would answer "busy".
   try {
-    const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
-    try {
-      chmodSync(join(dir, "runs.sqlite"), 0o600);
-      db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-      const version = versionOf(db);
-      if (version > SCHEMA) return refuse(db, lock, version);
-      // One transaction: a crash halfway through leaves no partial schema that blocks the next open.
-      if (version < SCHEMA) {
-        transaction(db, () => db.exec(`${MIGRATIONS.slice(version).join("")}; PRAGMA user_version = ${SCHEMA}`));
-      }
-      return { ok: true, value: new RunStore(dir, db, lock) };
-    } catch (error) {
-      db.close();
-      throw error;
-    }
+    const store = connect(dir, (db) => new RunStore(dir, db, lock));
+    if (!store.ok) lock.close();
+    return store;
   } catch (error) {
     lock.close();
     throw error;

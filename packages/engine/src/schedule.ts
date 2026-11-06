@@ -1,4 +1,15 @@
-import { type Finding, findingInfo, type Json, type Result, type WorkflowDefinition } from "@cedarloom/contracts";
+import {
+  type Finding,
+  findingInfo,
+  type Json,
+  type NodeRun,
+  type NodeState,
+  type Result,
+  type RunEvent,
+  type RunState,
+  type RunStatus,
+  type WorkflowDefinition,
+} from "@cedarloom/contracts";
 import { NODE_TYPES, own } from "./graph.ts";
 import { validateWorkflow } from "./validate.ts";
 
@@ -6,39 +17,6 @@ type Workflow = WorkflowDefinition;
 type Edge = Workflow["edges"][number];
 type Values = Record<string, Json>;
 
-/** `cancelling`: the run asked to cancel the running attempt, so however it ends, the node ends `cancelled`. */
-export type NodeState = "pending" | "running" | "cancelling" | "waiting" | "done" | "failed" | "skipped" | "cancelled";
-export interface NodeRun {
-  readonly state: NodeState;
-  readonly attempts: number;
-  /** The outputs that fired: the control output the node took and its data outputs that hold a value. */
-  readonly fired: readonly string[];
-  readonly values: Readonly<Values>;
-}
-export type RunStatus = "running" | "succeeded" | "failed" | "cancelled" | "skipped";
-export interface RunState {
-  readonly status: RunStatus;
-  readonly inputs: Readonly<Values>;
-  readonly nodes: Readonly<Record<string, NodeRun>>;
-  /** A failure that no edge routed: the run ends failed. */
-  readonly failed: boolean;
-  /** Why nothing new starts: a cancel, or a failure under `fail_fast`. */
-  readonly stop: "cancelled" | "failed" | null;
-}
-
-/** How an attempt of a node the executor runs ended; an interrupted attempt counts as a failed one. */
-export type AttemptOutcome = "done" | "failed" | "timed-out" | "interrupted" | "cancelled";
-export type RunEvent =
-  | { readonly type: "precheck"; readonly passed: boolean }
-  | {
-      readonly type: "ended";
-      readonly node: string;
-      readonly attempt: number;
-      readonly outcome: AttemptOutcome;
-      readonly values?: Readonly<Values>;
-    }
-  | { readonly type: "decided"; readonly node: string; readonly approved: boolean }
-  | { readonly type: "cancel" };
 export type Action =
   | { readonly type: "precheck"; readonly node: string }
   | {

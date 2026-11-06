@@ -48,6 +48,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.input-unknown": (p) => `The workflow has no input ${p.input}.`,
   "run.input-missing": (p) => `The workflow needs its input ${p.input}, which has no default.`,
   "run.input-invalid": (p) => `The input ${p.input} must be a ${p.type} value.`,
+  "run.event-invalid": (p) =>
+    `Event ${p.seq} of run ${p.runId} does not match its schema (${issueList(p.issues)}), so the run is not replayed.`,
+  "run.lease-held": (p) => `Another process drives run ${p.runId} until ${p.until}; resume it once that has passed.`,
+  "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
+  "run.report-only-apply": (p) =>
+    `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,

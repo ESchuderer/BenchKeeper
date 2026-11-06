@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
-import { DataType, HandleName, JsonValue, semver, WorkflowId } from "./workflow.ts";
+import { DataType, HandleName, JsonValue, License, semver, WorkflowId } from "./workflow.ts";
 
 /** The plugin manifest format (`cedarloom-plugin.json`) this CedarLoom reads; readers refuse a newer one. */
 export const PLUGIN_SCHEMA_VERSION = 1;
@@ -34,11 +34,6 @@ export const PluginId = z
 // Lower case, so a node type `<plugin id>/<action>` matches the workflow's type pattern.
 const ActionId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const CredentialId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
-// SPDX license expression characters (`MIT`, `MIT OR Apache-2.0`, `LicenseRef-x`); the reader shows it, never parses it.
-const License = z
-  .string()
-  .regex(/^[A-Za-z0-9.+() -]{1,200}$/)
-  .describe("SPDX license expression");
 const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/);
 
 // The URL parser decides: an origin is canonical when it is its own `origin` (lower case, no default port, no path,
@@ -51,9 +46,30 @@ const Origin = z
   .regex(/^https:\/\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$/)
   .refine(isOrigin, "an https origin: lower case, no path, no default port");
 
+// A header the host sets for a credential; never one that frames the request.
+const HeaderName = z
+  .string()
+  .regex(/^[A-Za-z0-9-]{1,64}$/)
+  .refine(
+    (name) => !["host", "content-length", "transfer-encoding", "connection"].includes(name.toLowerCase()),
+    "not Host, Content-Length, Transfer-Encoding or Connection",
+  );
+
+// How the host adds a credential to a request, after the OpenAPI Security Scheme Object
+// (https://spec.openapis.org/oas/v3.1.0#security-scheme-object), headers only: `Authorization: Bearer <value>`,
+// `Authorization: Basic <user:value>` with the user part the user enters, or a header of its own. It comes from the
+// manifest, never from the request, so a plugin cannot place the value where a host would store and return it.
+const CredentialScheme = z
+  .discriminatedUnion("type", [
+    z.strictObject({ type: z.literal("http"), scheme: z.enum(["bearer", "basic"]) }),
+    z.strictObject({ type: z.literal("apiKey"), in: z.literal("header"), name: HeaderName }),
+  ])
+  .describe("The host refuses a request in which the plugin sets this header itself");
+
 // The host fetches for the plugin and adds its credentials, which the plugin never sees (pending owner decision).
 const Credential = z.strictObject({
   description,
+  scheme: CredentialScheme,
   hosts: distinct(Origin)
     .min(1)
     .max(32)
@@ -83,7 +99,15 @@ const foreign = (key: string, item: unknown): boolean => {
 // Keywords whose values are data, not schemas, and keywords whose values map any names (a property called `$ref`)
 // to schemas.
 const LITERALS = new Set(["const", "enum", "default", "examples"]);
-const SCHEMA_MAPS = new Set(["properties", "patternProperties", "dependentSchemas", "$defs", "definitions"]);
+// `dependencies` is draft 7's, which Ajv still compiles: a map to schemas (or to lists of names, which hold no text).
+const SCHEMA_MAPS = new Set([
+  "properties",
+  "patternProperties",
+  "dependentSchemas",
+  "dependencies",
+  "$defs",
+  "definitions",
+]);
 /** Whether a schema, or a list of schemas, holds a foreign keyword anywhere. */
 const outside = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.some(outside);
@@ -179,6 +203,22 @@ export const PluginManifest = z
   .register(fileFormats, { id: "PluginManifest" });
 export type PluginManifest = z.infer<typeof PluginManifest>;
 
+// A name of the POSIX portable file name characters, not starting with "-", up to 255 of them; no `.git` in any case,
+// nothing Windows would rename or open as a device (a trailing dot, which also refuses `.` and `..`; CON, NUL, COM0).
+const portable = (part: string): boolean =>
+  !/^\.git$|\.$/i.test(part) && !/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part);
+
+/**
+ * A path inside a fetched tree that every platform can write, in one spelling: portable names joined by "/", no
+ * empty, `.` or `..` part. Git reads and stages trees only with such names.
+ */
+export const PortablePath = z
+  .string()
+  .max(1024)
+  .regex(/^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$/)
+  .refine((path) => path.split("/").every(portable), "no .git, no trailing dot, no Windows device name")
+  .describe("Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1");
+
 // The URL forms Git fetches over https and ssh, without a password and without a character a shell, a terminal or a
 // credential helper reads specially (control characters, spaces, non-ASCII); a user or host never starts with `-`,
 // which ssh would read as an option.
@@ -208,8 +248,8 @@ const isGitUrl = (value: string): boolean => {
   return userOk && plain(new URL(value));
 };
 
-/** Where Git fetches a plugin: an https or ssh URL, or `user@host:path`. */
-const GitUrl = z
+/** Where Git fetches a plugin or a workflow folder: an https or ssh URL, or `user@host:path`. */
+export const GitUrl = z
   .string()
   .max(2048)
   // What a pattern can say: the scheme or user@host form, and printable ASCII without a backslash.
@@ -227,10 +267,10 @@ const PluginPin = z.strictObject({
       .string()
       .regex(/^[0-9a-f]{40}$/)
       .describe("The commit, never a branch or tag that can move"),
-    path: ProjectPath.optional().describe("The plugin's folder inside the repository; its root when absent"),
+    path: PortablePath.optional().describe("The plugin's folder inside the repository; its root when absent"),
   }),
   digest: Sha256.describe(
-    "SHA-256 of the plugin folder's listing at the commit: a line `<mode> <SHA-256 of the file> <path>` per file, in the byte order of the paths, which use the portable file name characters only",
+    "SHA-256 of the plugin folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
   ),
 });
 
@@ -260,7 +300,7 @@ export const ExportIndex = z
     kind: z.literal("cedarloom.export"),
     name: z.string().min(1).max(200),
     description,
-    license: License.optional(),
+    license: License.optional().describe("The license of each workflow here that names none in its metadata"),
     workflows: z
       .array(WorkflowId)
       .min(1)

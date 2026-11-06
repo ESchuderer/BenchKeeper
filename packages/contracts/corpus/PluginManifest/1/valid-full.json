@@ -13,7 +13,11 @@
   "capabilities": {
     "net": ["https://acme.atlassian.net", "https://api.acme.example:8443"],
     "credentials": {
-      "jira-token": { "description": "A Jira API token", "hosts": ["https://acme.atlassian.net"] }
+      "jira-token": {
+        "description": "A Jira API token, with the account's email as the user",
+        "scheme": { "type": "http", "scheme": "basic" },
+        "hosts": ["https://acme.atlassian.net"]
+      }
     },
     "projectRead": true,
     "planWrite": true

@@ -25,9 +25,10 @@
       "maxLength": 2000
     },
     "license": {
+      "description": "The license of each workflow here that names none in its metadata",
       "type": "string",
-      "pattern": "^[A-Za-z0-9.+() -]{1,200}$",
-      "description": "SPDX license expression"
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$"
     },
     "workflows": {
       "minItems": 1,

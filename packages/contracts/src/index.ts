@@ -31,11 +31,13 @@ export { CSRF_HEADER } from "./http.ts";
 export {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
+  GitUrl,
   LOCK_SCHEMA_VERSION,
   PLUGIN_SCHEMA_VERSION,
   PluginId,
   PluginLock,
   PluginManifest,
+  PortablePath,
 } from "./plugin.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";

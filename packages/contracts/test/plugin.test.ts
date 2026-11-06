@@ -9,6 +9,7 @@ import {
   PluginManifest,
   type Result,
   readDocument,
+  WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
@@ -72,6 +73,7 @@ const set = (value: unknown, path: (string | number)[], next: unknown): unknown 
 };
 
 const search = ["contributes", "actions", "search-issues"];
+const credential = ["capabilities", "credentials", "jira-token"];
 const report = ["contributes", "actions", "write-report"];
 const jira = ["plugins", "acme.jira"];
 
@@ -110,6 +112,21 @@ const manifestChanges: Change[] = [
     "https://x.example/s",
     false,
     "contributes.actions.search-issues.config",
+  ],
+  ["a credential without its scheme", [...credential, "scheme"], undefined, true],
+  [
+    "a credential in the query",
+    [...credential, "scheme"],
+    { type: "apiKey", in: "query", name: "token" },
+    true,
+    "capabilities.credentials.jira-token.scheme.in",
+  ],
+  [
+    "a credential header that frames the request",
+    [...credential, "scheme"],
+    { type: "apiKey", in: "header", name: "Content-Length" },
+    false,
+    "capabilities.credentials.jira-token.scheme.name",
   ],
   [
     "another meta-schema",
@@ -157,7 +174,11 @@ const lockChanges: Change[] = [
   ["an encoded line break", [...jira, "source", "git"], "https://git.example.org/acme/jira%0d%0ahost=x", false],
   ["501 plugins", ["plugins"], many(501, PluginLock.parse(lock).plugins["acme.jira"], "acme.p"), true],
   ["a branch for a commit", [...jira, "source", "commit"], "main", true],
-  ["a path outside the repository", [...jira, "source", "path"], "../other", true],
+  ["a path outside the repository", [...jira, "source", "path"], "../other", false],
+  ["a path into .git", [...jira, "source", "path"], "plugins/.git", false],
+  ["a path to a Windows device", [...jira, "source", "path"], "plugins/COM1", false],
+  ["a path spelled with ./", [...jira, "source", "path"], "./plugins", false],
+  ["a path ending in /", [...jira, "source", "path"], "plugins/", true],
   [
     "a digest in upper case",
     [...jira, "digest"],
@@ -170,6 +191,7 @@ const indexChanges: Change[] = [
   ["a workflow twice in another case", ["workflows"], ["nightly-report", "Nightly-Report"], false],
   ["a workflow twice", ["workflows"], ["nightly-report", "nightly-report"], true],
   ["no workflow", ["workflows"], [], true],
+  ["a blank license", ["license"], " ", true],
 ];
 
 describe.each([
@@ -271,4 +293,52 @@ test("a foreign keyword is found in a subschema whatever the property is called,
   expect(
     configs.map((config) => PluginManifest.safeParse(set(manifest, [...search, "config"], config)).success),
   ).toEqual([false, false, false, false]);
+});
+
+// Every keyword of JSON Schema 2020-12 and draft 7 that holds a subschema, as Ajv compiles them: a map of names to
+// schemas (where a property may be named like a data keyword), one schema, or a list of them.
+const maps = ["properties", "patternProperties", "dependentSchemas", "dependencies", "$defs", "definitions"];
+const single = [
+  "additionalProperties",
+  "items",
+  "additionalItems",
+  "contains",
+  "propertyNames",
+  "not",
+  "if",
+  "then",
+  "else",
+  "unevaluatedItems",
+  "unevaluatedProperties",
+  "contentSchema",
+];
+const lists = ["allOf", "anyOf", "oneOf", "prefixItems"];
+
+test("a reference out of the schema is found under every keyword that holds a subschema", () => {
+  // A relative `$ref` resolves into a schema the host registered; a property named const looks like data.
+  const ref = { $ref: "host-secret.json" };
+  const configs = [
+    ...maps.flatMap((keyword) => [{ [keyword]: { const: ref } }, { [keyword]: { default: { $id: "x.json" } } }]),
+    ...single.map((keyword) => ({ [keyword]: ref })),
+    ...lists.map((keyword) => ({ [keyword]: [{ type: "string" }, ref] })),
+  ];
+  const taken = configs.filter(
+    (config) => PluginManifest.safeParse(set(manifest, [...search, "config"], config)).success,
+  );
+  expect([configs.length, taken]).toEqual([2 * maps.length + single.length + lists.length, []]);
+});
+
+const licensed = (license: string): boolean =>
+  WorkflowDefinition.safeParse({
+    schemaVersion: 1,
+    kind: "cedarloom.workflow",
+    metadata: { id: "w", name: "W", version: "1.0.0", license },
+    nodes: [{ id: "start", type: "trigger.manual" }],
+    edges: [],
+  }).success;
+
+test("a workflow names its own license; an SPDX expression is words of its characters one space apart", () => {
+  const taken = ["MIT", "MIT OR Apache-2.0", "(MIT AND BSD-3-Clause)", "DocumentRef-spdx:LicenseRef-x"];
+  const refused = ["", " ", "MIT  OR Apache-2.0", " MIT", "MIT\n", "MIT/X11"];
+  expect([taken.filter((license) => !licensed(license)), refused.filter(licensed)]).toEqual([[], []]);
 });

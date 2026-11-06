@@ -13,6 +13,13 @@ export const WorkflowId = id;
 export const HandleName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
 export const semver = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
 const description = z.string().max(2000).optional();
+// SPDX license expression (`MIT`, `MIT OR Apache-2.0`, `DocumentRef-x:LicenseRef-y`): its characters, words one space
+// apart; readers show it, never parse it.
+export const License = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$/)
+  .describe("SPDX license expression");
 
 /** Any JSON value. */
 export const JsonValue = z.json().register(fileFormats, { id: "JsonValue" });
@@ -97,6 +104,7 @@ export const WorkflowDefinition = z
         version: semver,
         description,
         minApp: semver.optional().describe("The oldest CedarLoom version that runs this workflow"),
+        license: License.optional().describe("The workflow's own license, which an import keeps"),
       })
       .catchall(JsonValue),
     inputs: z.record(HandleName, WorkflowInput).optional(),

@@ -69,6 +69,9 @@ html:root[data-mantine-color-scheme="dark"] { --mantine-color-dimmed: #b0b0b0; -
 }
 [data-mantine-color-scheme="dark"] .grad { background-image: linear-gradient(90deg, #7fbfa6, #e08566); }
 
+/* Mantine's focus ring takes the primary color, shade 7, which is 2.09:1 on the dark body: the link color keeps it above 3:1. */
+[data-mantine-color-scheme] .mantine-focus-auto:focus-visible, [data-mantine-color-scheme] .mantine-focus-always:focus { outline-color: var(--mantine-color-anchor); }
+
 .skip { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 8px 14px; border-radius: 8px; background: var(--mantine-color-body); color: var(--mantine-color-text); border: 2px solid var(--mantine-color-anchor); }
 .skip:focus { top: 8px; }
 main:focus { outline: none; }
@@ -81,7 +84,7 @@ main:focus { outline: none; }
 
 .cmd { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 [data-copy] .i-done, [data-copy].copied .i-copy { display: none; }
-[data-copy].copied .i-done { display: block; color: var(--mantine-color-teal-7); }
+[data-copy].copied .i-done { display: block; color: var(--mantine-color-anchor); }
 .ring .chev { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ring .ah { fill: var(--mantine-color-dimmed); }
 .ring .req rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-teal-6); stroke-width: 2; }

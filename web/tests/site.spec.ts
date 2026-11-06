@@ -2,6 +2,16 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { BASE } from './base';
 
+// WCAG 2.2 contrast ratio of two computed colors (rgb() or rgba() from getComputedStyle).
+const contrast = (a: string, b: string): number => {
+  const lum = (c: string) => {
+    const [r, g, bl] = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => Number(v) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
 for (const path of ['./', './overview/', './app/', './writes/', './changelog/', './benchmark/', './404.html']) {
   test(`${path} links back to the repository and its security policy`, async ({ page }) => {
     await page.goto(path);
@@ -50,6 +60,19 @@ test('the header and hero show the brand mark in the colors of each scheme, neve
       await expect(mark).toHaveCount(1);
       await expect(mark).toHaveAttribute('src', `${BASE}brand/${file}`);
       await expect(mark).toHaveCSS('filter', 'none');
+    }
+  }
+});
+
+test('focus rings keep 3:1 against the page in both schemes (WCAG 2.2, 1.4.11)', async ({ page }) => {
+  await page.goto('./');
+  for (const scheme of ['light', 'dark']) {
+    await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    for (const target of [page.getByRole('link', { name: 'Set up your machine' }), page.locator('[data-theme-toggle]').first()]) {
+      await target.focus();
+      const [style, ring, body] = await target.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineColor, getComputedStyle(document.body).backgroundColor]);
+      expect(style).toBe('solid');
+      expect(contrast(ring, body), `${scheme}: ${ring} on ${body}`).toBeGreaterThanOrEqual(3);
     }
   }
 });

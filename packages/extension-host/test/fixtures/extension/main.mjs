@@ -11,13 +11,25 @@ import { isatty } from "node:tty";
 import { Worker } from "node:worker_threads";
 
 let mode = "";
+let granted;
 let input = Buffer.alloc(0);
 const pending = new Map();
+let asked = 0;
 
 const send = (message) => {
   const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", ...message }));
   process.stdout.write(Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]));
 };
+
+// Asks the host and answers its result or its error.
+const ask = (method, params) =>
+  new Promise((resolve) => {
+    const id = `h${(asked += 1)}`;
+    pending.set(id, ({ result, error }) =>
+      resolve(error ? { error: { code: error.code, message: error.message } } : { result }),
+    );
+    send({ id, method, params });
+  });
 
 // What one attempt the permission flags must stop answers: its error code, or "allowed".
 const attempt = async (act) => {
@@ -62,11 +74,31 @@ const actions = {
     send({ method: "host/log", params: { run: "another run", level: "info", message: "not this run's" } });
     return {};
   },
-  "call-host": () =>
-    new Promise((resolve) => {
-      pending.set("h1", (answer) => resolve({ code: answer.error?.code }));
-      send({ id: "h1", method: "host/fetch", params: { url: "https://example.org" } });
-    }),
+  "call-host": async () => ({ code: (await ask("host/exec", { command: "id" })).error?.code }),
+  // Sends the requests its node's `with` lists at once, and the host's grant.
+  fetch: async ({ config }) => ({
+    answers: await Promise.all(config.requests.map((r) => ask("host/fetch", r))),
+    granted,
+  }),
+  // Asks the host for a request that never answers, then ends.
+  "fetch-then-crash": () => {
+    send({ id: "hang", method: "host/fetch", params: { url: "https://api.acme.example/hang" } });
+    setTimeout(() => process.exit(3), 50);
+    return new Promise(() => undefined);
+  },
+  // Cancels requests the host is still handling, as the SDK does for a cancelled run: the cancel goes out once the host
+  // has had time to start on the request.
+  "fetch-cancel": async ({ config }) => {
+    for (let index = 0; index < config.count; index += 1) {
+      const id = `c${index}`;
+      const answered = new Promise((resolve) => pending.set(id, resolve));
+      send({ id, method: "host/fetch", params: { url: "https://api.acme.example/slow" } });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      send({ method: "$/cancelRequest", params: { id } });
+      await answered;
+    }
+    return {};
+  },
   oversize: () => {
     process.stdout.write(`Content-Length: ${64 * 1024 * 1024}\r\n\r\n`);
     return new Promise(() => undefined);
@@ -122,8 +154,9 @@ const waiting = new Map();
 actions.wait = ({ run }) => new Promise((resolve) => waiting.set(run, () => resolve({ late: true })));
 
 const requests = {
-  initialize: ({ locale }) => {
+  initialize: ({ locale, granted: given }) => {
     mode = locale;
+    granted = given;
     if (mode === "x-silent") return new Promise(() => undefined);
     const names = Object.keys(actions).filter((name) => mode !== "x-fewer" || name !== "abuse");
     const protocol = { "x-old": "0.9", "x-garbled": "one" }[mode] ?? "1.0";

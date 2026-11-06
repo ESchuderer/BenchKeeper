@@ -2,7 +2,10 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 section[id] { scroll-margin-top: 64px; }
 
-[data-mantine-color-scheme="dark"] .logo { filter: invert(1); }
+/* The brand mark (Mark.tsx) is square: the dark logo shows only its left square, which is the mark. */
+.mark { aspect-ratio: 1; height: auto; object-fit: cover; object-position: left center; }
+.mark-dark, [data-mantine-color-scheme="dark"] .mark-light { display: none; }
+[data-mantine-color-scheme="dark"] .mark-dark { display: inline; }
 
 .header {
   position: sticky; top: 0; z-index: 10;
@@ -15,7 +18,7 @@ section[id] { scroll-margin-top: 64px; }
 .hero::before {
   content: ""; position: absolute; inset: 0; z-index: -1;
   background-image:
-    radial-gradient(ellipse 60% 50% at 80% 35%, color-mix(in srgb, var(--mantine-color-teal-5) 18%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 35%, color-mix(in srgb, var(--mantine-color-evergreen-5) 18%, transparent), transparent 70%),
     linear-gradient(color-mix(in srgb, var(--mantine-color-default-border) 45%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--mantine-color-default-border) 45%, transparent) 1px, transparent 1px);
   background-size: auto, 48px 48px, 48px 48px;
@@ -56,17 +59,20 @@ section[id] { scroll-margin-top: 64px; }
 .mantine-Title-root { color: var(--mantine-color-bright); }
 
 
-/* contrast: Mantine's dimmed and link colors fall below WCAG AA on these backgrounds */
-html:root[data-mantine-color-scheme="light"] { --mantine-color-dimmed: #5c6670; --decide: #b33d0a; --mantine-color-anchor: var(--mantine-color-teal-9); }
-html:root[data-mantine-color-scheme="dark"] { --mantine-color-dimmed: #b0b0b0; --decide: var(--mantine-color-orange-4); --mantine-color-anchor: var(--mantine-color-teal-4); }
+/* contrast: Mantine's dimmed and link colors fall below WCAG AA on these backgrounds; links take the brand evergreen of each scheme */
+html:root[data-mantine-color-scheme="light"] { --mantine-color-dimmed: #5c6670; --decide: #b33d0a; --mantine-color-anchor: var(--mantine-color-evergreen-7); }
+html:root[data-mantine-color-scheme="dark"] { --mantine-color-dimmed: #b0b0b0; --decide: var(--mantine-color-orange-4); --mantine-color-anchor: #7fbfa6; }
 
 .grad {
-  background-image: linear-gradient(90deg, var(--mantine-color-teal-8), var(--mantine-color-cyan-8));
+  background-image: linear-gradient(90deg, var(--mantine-color-evergreen-7), #a4472e);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-[data-mantine-color-scheme="dark"] .grad { background-image: linear-gradient(90deg, var(--mantine-color-teal-4), var(--mantine-color-cyan-4)); }
+[data-mantine-color-scheme="dark"] .grad { background-image: linear-gradient(90deg, #7fbfa6, #e08566); }
 
-.skip { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 8px 14px; border-radius: 8px; background: var(--mantine-color-body); color: var(--mantine-color-text); border: 2px solid var(--mantine-color-teal-6); }
+/* Mantine's focus ring takes the primary color, shade 7, which is 2.09:1 on the dark body: the link color keeps it above 3:1. */
+[data-mantine-color-scheme] .mantine-focus-auto:focus-visible, [data-mantine-color-scheme] .mantine-focus-always:focus { outline-color: var(--mantine-color-anchor); }
+
+.skip { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 8px 14px; border-radius: 8px; background: var(--mantine-color-body); color: var(--mantine-color-text); border: 2px solid var(--mantine-color-anchor); }
 .skip:focus { top: 8px; }
 main:focus { outline: none; }
 .decide { color: var(--decide); border-color: var(--decide); }
@@ -78,7 +84,7 @@ main:focus { outline: none; }
 
 .cmd { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 [data-copy] .i-done, [data-copy].copied .i-copy { display: none; }
-[data-copy].copied .i-done { display: block; color: var(--mantine-color-teal-7); }
+[data-copy].copied .i-done { display: block; color: var(--mantine-color-anchor); }
 .ring .chev { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ring .ah { fill: var(--mantine-color-dimmed); }
 .ring .req rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-teal-6); stroke-width: 2; }
@@ -91,13 +97,13 @@ code:not([data-block]) { white-space: nowrap; }
 .ring-tip { position: absolute; z-index: 5; max-width: 280px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; pointer-events: none;
   background: var(--mantine-color-body); color: var(--mantine-color-text); border: 1px solid var(--mantine-color-default-border); box-shadow: var(--mantine-shadow-md); }
 .ring [data-tip] { cursor: pointer; }
-.ring a.step:focus-visible .node circle { stroke: var(--mantine-color-teal-6); stroke-width: 3; }
+.ring a.step:focus-visible .node circle { stroke: var(--mantine-color-anchor); stroke-width: 3; }
 .ring a:focus { outline: none; }
-.ring a:focus-visible { outline: 3px solid var(--mantine-color-teal-6); outline-offset: 4px; }
+.ring a:focus-visible { outline: 3px solid var(--mantine-color-anchor); outline-offset: 4px; }
 .mantine-Timeline-item { scroll-margin-top: 80px; }
 .mantine-Timeline-item:target { animation: flash 1.6s ease-out; border-radius: 8px; }
-@keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-teal-5) 22%, transparent); } to { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-teal-6); } }
+@keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-evergreen-5) 22%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-anchor); } }
 /* Phones: the two step lists stack, so the first one's line continues into the second; ring labels sized for the 40% scale. */
 @media (max-width: 639px) { .steps-first .mantine-Timeline-item:last-of-type { --timeline-line-display: block; } .ring .flow-t { display: none; } .ring text.ph-l { font-size: 17px; } .ring .req-t { font-size: 22px; } }
 /* Repository widget in the header (name, then latest release, stars, forks); icon plus name alone when the GitHub API is unavailable. */
@@ -106,7 +112,7 @@ code:not([data-block]) { white-space: nowrap; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .repo { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 260px; padding: 3px 6px; border-radius: var(--mantine-radius-md); color: var(--mantine-color-text); text-decoration: none; }
 .repo:hover { background: var(--mantine-color-default-hover); }
-.repo:focus-visible { outline: 2px solid var(--mantine-color-teal-6); outline-offset: 2px; }
+.repo:focus-visible { outline: 2px solid var(--mantine-color-anchor); outline-offset: 2px; }
 .repo-icon { flex: none; }
 .repo-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
@@ -120,8 +126,8 @@ code:not([data-block]) { white-space: nowrap; }
 .qs-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--mantine-color-default-border); }
 .qs-tabs[hidden] { display: none; }
 .qs-tabs [role="tab"] { margin-bottom: -1px; padding: 10px 18px; font: inherit; font-weight: 700; color: var(--mantine-color-dimmed); background: none; border: 0; border-bottom: 3px solid transparent; cursor: pointer; }
-.qs-tabs [role="tab"][aria-selected="true"] { color: var(--mantine-color-bright); border-bottom-color: var(--mantine-color-teal-6); }
-.qs-tabs [role="tab"]:focus-visible { outline: 2px solid var(--mantine-color-teal-6); outline-offset: 2px; }
+.qs-tabs [role="tab"][aria-selected="true"] { color: var(--mantine-color-bright); border-bottom-color: var(--mantine-color-anchor); }
+.qs-tabs [role="tab"]:focus-visible { outline: 2px solid var(--mantine-color-anchor); outline-offset: 2px; }
 .qs-panel + .qs-panel { margin-top: 32px; }
 .qs-js .qs-h { display: none; }
 .qs-js .qs-panel + .qs-panel { margin-top: 0; }

@@ -12,6 +12,7 @@ import {
   PLAN_SCHEMA_VERSION,
   Plan,
   readDocument,
+  sameFolder,
   type Result,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
@@ -69,6 +70,7 @@ const issuePaths = (read: Result<unknown>): string[] =>
 // Each invalid registry breaks in one place, the one its name promises; a credential is an unknown key.
 const promisedAccounts: Record<string, string[]> = {
   "invalid-alias-of-other-home.json": ["accounts.1.aliases.1"],
+  "invalid-alias-with-trailing-separator.json": ["accounts.1.aliases.0"],
   "invalid-confirmed-codex-pool.json": ["pools.codex.main.confirmedAt"],
   "invalid-duplicate-home.json": ["accounts.1.home"],
   "invalid-duplicate-name.json": ["accounts.1.name"],
@@ -79,6 +81,13 @@ const promisedAccounts: Record<string, string[]> = {
   "invalid-relative-home.json": ["accounts.0.home"],
   "invalid-token.json": ["accounts.0.token"],
 };
+
+test("registry folders are the same without trailing separators, a root stays a root, and others differ", () => {
+  expect(sameFolder("/a/b/", "/a/b")).toBe(true);
+  expect(sameFolder("C:\\x\\", "C:\\x")).toBe(true);
+  expect(sameFolder("/", "/")).toBe(true);
+  expect(sameFolder("/a/b", "/a/c")).toBe(false);
+});
 
 describe("golden corpus of account registries: valid files are also in their written form", async () => {
   for (const [version, name, text] of await corpus("AccountRegistry")) {

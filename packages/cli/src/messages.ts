@@ -133,6 +133,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
   "accounts.home-missing": (p) =>
     `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
+  "accounts.home-unusable": (p) =>
+    `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "launch.settings-unproven": (p) =>

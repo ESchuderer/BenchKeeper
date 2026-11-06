@@ -3,7 +3,16 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
-import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
+import {
+  deniedPaths,
+  GITHUB_DOMAINS,
+  ghProbe,
+  managedProblems,
+  managedSettingsDir,
+  readResult,
+  resultPrompt,
+  workerEnv,
+} from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 
 // A launcher environment with lower- and mixed-case copies of the names, which only Windows takes for the real ones.
@@ -147,4 +156,127 @@ test("the prompt names the result file and the run, in the form the result is re
   expect(prompt).toContain("/state/workers/0b9f4c1e/out/result.json");
   expect(prompt).toContain(`"runId":"${runId}"`);
   expect(prompt).toContain('"schemaVersion":1');
+});
+
+// A managed settings folder with these files, by name below it.
+const managed = (files: Record<string, unknown>): string => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(join(dir, name, ".."), { recursive: true });
+    writeFileSync(join(dir, name), typeof content === "string" ? content : JSON.stringify(content));
+  }
+  return dir;
+};
+const drop = (name: string) => join("managed-settings.d", name);
+const MAIN = "managed-settings.json";
+// The keys the one managed-settings.json of `sandbox` loosens.
+const loosened = (settings: unknown) => {
+  const dir = managed({ [MAIN]: settings });
+  return managedProblems(dir).map((problem) => (problem.kind === "loosens" ? problem.key : problem.error));
+};
+
+test("the managed settings folder is the platform's documented system folder", () => {
+  expect(managedSettingsDir("darwin")).toBe("/Library/Application Support/ClaudeCode");
+  expect(managedSettingsDir("linux")).toBe("/etc/claude-code");
+  expect(managedSettingsDir("win32")).toBe("C:\\Program Files\\ClaudeCode");
+  expect(managedSettingsDir("freebsd")).toBeNull();
+});
+
+test("each documented sandbox escape is found, with the file that sets it", () => {
+  const escapes = {
+    enabled: false,
+    failIfUnavailable: "false",
+    allowUnsandboxedCommands: true,
+    allowAppleEvents: "true",
+    allowNestedUserNamespaces: true,
+    excludedCommands: ["docker"],
+    filesystem: { disabled: true },
+    network: { allowAllUnixSockets: true, allowUnixSockets: ["/var/run/docker.sock"], allowMachLookup: ["*"] },
+  };
+  expect(loosened({ sandbox: escapes }).toSorted()).toEqual(
+    [
+      "sandbox.enabled",
+      "sandbox.failIfUnavailable",
+      "sandbox.allowUnsandboxedCommands",
+      "sandbox.allowAppleEvents",
+      "sandbox.allowNestedUserNamespaces",
+      "sandbox.excludedCommands",
+      "sandbox.filesystem.disabled",
+      "sandbox.network.allowAllUnixSockets",
+      "sandbox.network.allowUnixSockets",
+      "sandbox.network.allowMachLookup",
+    ].toSorted(),
+  );
+  const dir = managed({ [MAIN]: { sandbox: { enabled: false } } });
+  expect(managedProblems(dir)).toEqual([{ kind: "loosens", path: join(dir, MAIN), key: "sandbox.enabled" }]);
+  // A strict policy, an invalid value (strict until fixed), empty lists and the keys left out loosen nothing.
+  const strict = {
+    enabled: "on",
+    failIfUnavailable: true,
+    allowUnsandboxedCommands: false,
+    allowAppleEvents: false,
+    excludedCommands: [],
+    filesystem: { disabled: false, allowWrite: ["/tmp/build"] },
+    network: { allowedDomains: ["GitHub.com", "*.githubusercontent.com"], allowLocalBinding: true },
+    enableWeakerNestedSandbox: true,
+  };
+  expect(loosened({ sandbox: strict })).toEqual([]);
+  expect(managedProblems(managed({}))).toEqual([]);
+});
+
+test("hosts beyond GitHub, a proxy of the policy's own, and a policy helper are found", () => {
+  expect(loosened({ sandbox: { network: { allowedDomains: ["github.com", "registry.npmjs.org"] } } })).toEqual([
+    "sandbox.network.allowedDomains",
+  ]);
+  expect(loosened({ sandbox: { network: { httpProxyPort: 8080, socksProxyPort: 8081 } } })).toEqual([
+    "sandbox.network.httpProxyPort",
+    "sandbox.network.socksProxyPort",
+  ]);
+  // A port set to null names no proxy.
+  expect(loosened({ sandbox: { network: { httpProxyPort: null } } })).toEqual([]);
+  // Its output replaces the files, so what they say is not what applies.
+  expect(loosened({ policyHelper: { path: "/usr/local/bin/policy" } })).toEqual(["policyHelper"]);
+});
+
+test("a managed file that cannot be read or holds no JSON object counts against the launch", () => {
+  // A byte order mark, text that is no JSON, a top level that is no object, and a folder in a file's place.
+  expect(loosened(`\uFEFF${JSON.stringify({ sandbox: { enabled: true } })}`)).toEqual(["not JSON"]);
+  expect(loosened("{")).toEqual(["not JSON"]);
+  // An empty file holds no settings, as Claude Code reads it.
+  expect(loosened("")).toEqual([]);
+  expect(loosened(" \n")).toEqual([]);
+  expect(loosened([])).toEqual(["not a JSON object"]);
+  const folder = managed({ [join(MAIN, "inner.json")]: {} });
+  expect(managedProblems(folder)).toEqual([{ kind: "unreadable", path: join(folder, MAIN), error: "EISDIR" }]);
+  // A drop-in folder that is a file cannot be listed.
+  const dropFile = managed({ "managed-settings.d": "not a folder" });
+  expect(managedProblems(dropFile)).toEqual([
+    { kind: "unreadable", path: join(dropFile, "managed-settings.d"), error: "ENOTDIR" },
+  ]);
+});
+
+test("drop-in files merge after managed-settings.json in name order, the later value winning", () => {
+  const dir = managed({
+    [MAIN]: { sandbox: { enabled: true, failIfUnavailable: "false" } },
+    [drop("10-off.json")]: { sandbox: { enabled: false } },
+    [drop("20-on.json")]: { sandbox: { enabled: true } },
+    [drop("30-fail.json")]: { sandbox: { failIfUnavailable: true } },
+    // Hidden, not JSON by name, or no sandbox block: none of them counts.
+    [drop(".hidden.json")]: { sandbox: { enabled: false } },
+    [drop("notes.txt")]: { sandbox: { enabled: false } },
+    [drop("50-other.json")]: { model: "claude-sonnet-5-5", sandbox: "off" },
+  });
+  expect(managedProblems(dir)).toEqual([]);
+  const off = managed({
+    [MAIN]: { sandbox: { enabled: true } },
+    [drop("90-off.json")]: { sandbox: { enabled: false } },
+  });
+  expect(managedProblems(off)).toEqual([
+    { kind: "loosens", path: join(off, drop("90-off.json")), key: "sandbox.enabled" },
+  ]);
+  // A broken drop-in counts against the launch like a broken main file.
+  const broken = managed({ [drop("40-broken.json")]: "{" });
+  expect(managedProblems(broken)).toEqual([
+    { kind: "unreadable", path: join(broken, drop("40-broken.json")), error: "not JSON" },
+  ]);
 });

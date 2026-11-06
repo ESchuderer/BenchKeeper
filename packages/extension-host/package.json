@@ -29,6 +29,7 @@
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/extension-sdk": "workspace:*",
-    "vscode-jsonrpc": "10.0.0"
+    "vscode-jsonrpc": "10.0.0",
+    "zod": "catalog:"
   }
 }

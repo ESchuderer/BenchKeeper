@@ -1,13 +1,11 @@
 import { z } from "zod";
-import { Commit, FolderDigest, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
+import { Commit, description, FolderDigest, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText } from "./text.ts";
 import { License, semver } from "./workflow.ts";
 
 /** The pack manifest format (`cedarloom-pack.json`) this CedarLoom reads; readers refuse a newer one. */
 export const PACK_SCHEMA_VERSION = 1;
-
-const description = PlainText.max(2000).optional();
 
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
 const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
@@ -21,7 +19,10 @@ const located = {
 const GitSource = z.union([
   z.strictObject({
     ...located,
-    ref: GitRef.describe("The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"),
+    // A commit never moves, so following one would only skip the digest a pin needs.
+    ref: GitRef.regex(/^(?![0-9a-f]{40}$)/, "a branch or tag, not a commit").describe(
+      "The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs",
+    ),
   }),
   z.strictObject({ ...located, commit: Commit, digest: FolderDigest }),
 ]);

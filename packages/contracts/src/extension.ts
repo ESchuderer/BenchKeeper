@@ -22,7 +22,7 @@ const unique = (items: readonly string[]): boolean => new Set(items).size === it
 const distinct = <T extends z.ZodType<string>>(item: T) =>
   z.array(item).refine(unique, "no entry twice").meta({ uniqueItems: true });
 // The texts a manifest shows, which its catalogs translate: plain text.
-const description = PlainText.max(2000).optional();
+export const description = PlainText.max(2000).optional();
 // A record of `min` to `max` entries; zod checks it by a refinement, the JSON Schema document by these keywords.
 export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: number, min = 0): T =>
   record

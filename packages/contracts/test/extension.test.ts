@@ -262,6 +262,12 @@ const packChanges: Change[] = [
   ["a pinned skill that also follows a branch", [...pinned, "ref"], "main", true, pinned.join(".")],
   ["a pin by a short commit", [...pinned, "commit"], "9b2e4c1", true],
   [
+    "a commit followed as if it were a branch",
+    ["entries", "skills/frontend-design", "source", "ref"],
+    "9b2e4c1f0a8d7e6b5c4a3f2e1d0c9b8a7f6e5d4c",
+    true,
+  ],
+  [
     "a Git source for a rules text",
     ["entries", "rules/ui.md", "source"],
     { git: "https://x.example/a.git", ref: "main" },

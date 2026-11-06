@@ -317,9 +317,11 @@ test("a project folder that is not there refuses a run and a resume before anyth
   mkdirSync(work);
   const dead = await runner({ ...at, root: work }, 1);
   await dead.exited;
+  // The run recorded the folder's real path (on macOS /var is a link to /private/var).
+  const real = realpathSync(work);
   renameSync(work, `${work}-moved`);
   const recorded = { sleep: now };
-  expect(await resumeRun(at.state, dead.runId, recorded)).toEqual(refused("run.project-missing", { project: work }));
+  expect(await resumeRun(at.state, dead.runId, recorded)).toEqual(refused("run.project-missing", { project: real }));
   expect(codeOf(await resumeRun(at.state, dead.runId, { ...recorded, project: `${work}-moved` }))).toBe(
     "run.project-mismatch",
   );

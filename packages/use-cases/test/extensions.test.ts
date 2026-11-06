@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,7 +15,16 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { type Finding, InstalledExtensions } from "@cedarloom/contracts";
 import { fetchTreeOver } from "@cedarloom/git";
-import { applyPlan, type Fetch, installedExtensions, planInstall, undoRun } from "@cedarloom/use-cases";
+import {
+  applyPlan,
+  type Fetch,
+  installedExtensions,
+  planInstall,
+  planRemove,
+  planUpdate,
+  approvalOf,
+  undoRun,
+} from "@cedarloom/use-cases";
 import { afterAll, expect, test } from "vitest";
 
 // GitHub's Windows runners keep os.tmpdir() on the slow system drive.
@@ -31,11 +41,19 @@ const git = (cwd: string, args: string[]): string =>
 
 // Each published URL is a local repository: the tests let git fetch over file://, which the CLI never does.
 const repositories = new Map<string, string>();
-const fetchLocal: Fetch = (source, options) =>
-  fetchTreeOver(["file"])({ ...source, url: repositories.get(source.url) ?? source.url }, options);
+const fetchLocal: Fetch = (source, options) => {
+  const folder = repositories.get(source.url);
+  return fetchTreeOver(["file"])(
+    { ...source, url: folder === undefined ? source.url : pathToFileURL(folder).href },
+    options,
+  );
+};
+// Publishes the files as the newest commit of the repository `name`, a new one or the next commit of one published before.
 const publish = (name: string, files: Record<string, string>): string => {
-  const dir = mkdtempSync(join(root, "repository-"));
-  git(dir, ["init", "--quiet", "--initial-branch=main"]);
+  const url = `https://git.example.org/acme/${name}.git`;
+  const known = repositories.get(url);
+  const dir = known ?? mkdtempSync(join(root, "repository-"));
+  if (known === undefined) git(dir, ["init", "--quiet", "--initial-branch=main"]);
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), content);
@@ -46,8 +64,7 @@ const publish = (name: string, files: Record<string, string>): string => {
     git(dir, ["update-index", "--chmod=+x", path]);
   }
   git(dir, ["commit", "--quiet", "--message=publish"]);
-  const url = `https://git.example.org/acme/${name}.git`;
-  repositories.set(url, pathToFileURL(dir).href);
+  repositories.set(url, dir);
   return url;
 };
 
@@ -195,6 +212,228 @@ test("an installed set CedarLoom cannot read refuses installs and the list alike
   ]);
 });
 
+const NOW = Date.parse("2026-11-06T12:00:00.000Z");
+const DAY = 24 * 60 * 60 * 1000;
+const at = (ms: number): string => new Date(ms).toISOString();
+const A = "https://acme.atlassian.net";
+const B = "https://api.example.org";
+// An extension installed from the repository `name`, with the manifest's other fields.
+const installed = async (name: string, more: object = {}): Promise<{ state: string; url: string }> => {
+  const folder = state();
+  const url = publish(name, { "cedarloom-extension.json": manifest(more), "main.mjs": ENTRY });
+  const planned = await planInstall(folder, { url, ref: "main" }, fetchLocal);
+  if (!planned.ok) throw new Error(planned.finding.code);
+  applyPlan(folder, planned.value.plan, { yes: true });
+  return { state: folder, url };
+};
+const outcome = (result: Awaited<ReturnType<typeof planUpdate>>): unknown => {
+  if (!result.ok) return result.finding;
+  const { value } = result;
+  if (value.kind !== "planned") return { ...value, commit: "c" };
+  const { plan, manifest: next, pin, from, added, removed, grown } = value;
+  return {
+    kind: value.kind,
+    writes: plan.operations.length,
+    versions: [from.version, next.version, pin.version],
+    added,
+    removed,
+    grown,
+  };
+};
+
+test("an update is offered once this machine has seen the new commit for 3 days, and names what it asks for anew", async () => {
+  const { state: folder } = await installed("moving");
+  const current = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  publish("moving", {
+    "cedarloom-extension.json": manifest({ version: "1.1.0", capabilities: { net: [A, B], projectRead: true } }),
+  });
+  const first = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  const later = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 2 * DAY);
+  const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
+  const waiting = { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) };
+  expect([outcome(current), outcome(first), outcome(later), outcome(due)]).toEqual([
+    { kind: "current", commit: "c" },
+    waiting,
+    waiting,
+    {
+      kind: "planned",
+      writes: 1,
+      versions: ["1.0.0", "1.1.0", "1.1.0"],
+      added: { net: [B], projectRead: true },
+      removed: {},
+      grown: true,
+    },
+  ]);
+  if (due.ok && due.value.kind === "planned") applyPlan(folder, due.value.plan, { yes: true });
+  const listed = installedExtensions(folder);
+  expect(listed.ok && listed.value.map(({ version }) => version)).toEqual(["1.1.0"]);
+});
+
+test("a newer commit during the wait starts it again, and capabilities that shrink ask for no new consent", async () => {
+  const { state: folder } = await installed("shrinking", { capabilities: { net: [A], projectRead: true } });
+  publish("shrinking", { "cedarloom-extension.json": manifest({ version: "1.1.0" }) });
+  const first = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  publish("shrinking", { "cedarloom-extension.json": manifest({ version: "1.2.0" }) });
+  const restarted = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 2 * DAY);
+  const still = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 4 * DAY);
+  const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 5 * DAY);
+  expect([outcome(first), outcome(restarted), outcome(still), outcome(due)]).toEqual([
+    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) },
+    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY) },
+    { kind: "waiting", commit: "c", seen: at(NOW + 2 * DAY), offered: at(NOW + 5 * DAY) },
+    {
+      kind: "planned",
+      writes: 1,
+      versions: ["1.0.0", "1.2.0", "1.2.0"],
+      added: {},
+      removed: { projectRead: true },
+      grown: false,
+    },
+  ]);
+});
+
+test("remove plans the installed set without the extension and its undo puts it back; an unknown id is refused", async () => {
+  const { state: folder } = await installed("removed");
+  const planned = planRemove(folder, "acme.jira");
+  const run = planned.ok ? applyPlan(folder, planned.value, { yes: true }) : planned;
+  const after = installedExtensions(folder);
+  const runId = run.ok ? String(run.value.runId) : "";
+  undoRun(folder, runId, { yes: true });
+  const back = installedExtensions(folder);
+  const unknown = { code: "extension.unknown", params: { extension: "acme.none" } };
+  expect([after.ok && after.value.length, back.ok && back.value.map(({ id }) => id)]).toEqual([0, ["acme.jira"]]);
+  expect([
+    findingOf(planRemove(folder, "acme.none")),
+    outcome(await planUpdate(folder, "acme.none", fetchLocal, NOW)),
+  ]).toEqual([unknown, unknown]);
+});
+
+test("an update whose folder now holds another extension is refused at once; a fetch sweeps what old fetches and stages left, never the installed version", async () => {
+  const { state: folder } = await installed("taken");
+  publish("taken", { "cedarloom-extension.json": manifest({ id: "acme.other" }) });
+  const listed = installedExtensions(folder);
+  const pinned = listed.ok ? String(listed.value[0]?.digest) : "";
+  const [parent, staged] = [join(folder, "fetch"), join(folder, "extensions")];
+  const old = [
+    join(parent, "quarantine-old"),
+    join(parent, "kept-old"),
+    join(staged, "acme.jira", pinned),
+    join(staged, "acme.jira", "f".repeat(64)),
+    join(staged, "acme.jira", "staging-old"),
+    join(staged, "acme.gone", "e".repeat(64)),
+  ];
+  const fresh = [join(parent, "quarantine-new"), join(staged, "acme.jira", "staging-new")];
+  for (const path of [...old, ...fresh]) mkdirSync(path, { recursive: true });
+  const hourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  for (const path of old) utimesSync(path, hourAgo, hourAgo);
+  const refused = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  expect([
+    outcome(refused),
+    readdirSync(parent).toSorted(),
+    readdirSync(join(staged, "acme.jira")).toSorted(),
+    readdirSync(join(staged, "acme.gone")),
+  ]).toEqual([
+    { code: "extension.install-refused", params: { extension: "acme.other", reason: "id" } },
+    ["kept-old", "quarantine-new"],
+    [pinned, "staging-new"].toSorted(),
+    [],
+  ]);
+});
+
+const BEARER = { type: "http", scheme: "bearer" };
+// An extension in the folder ext of its repository.
+const inFolder = (more: object) => ({ "ext/cedarloom-extension.json": manifest(more), "ext/main.mjs": ENTRY });
+
+test("a credential bound to more hosts is asked for anew and one unchanged is not, also for an extension in a folder", async () => {
+  const folder = state();
+  const credentials = { kept: { scheme: BEARER, hosts: [A] }, moved: { scheme: BEARER, hosts: [A] } };
+  const url = publish("credentials", inFolder({ capabilities: { net: [A], credentials } }));
+  const planned = await planInstall(folder, { url, ref: "main", path: "ext" }, fetchLocal);
+  if (planned.ok) applyPlan(folder, planned.value.plan, { yes: true });
+  // A commit outside the extension's folder leaves its files as they are.
+  publish("credentials", { "README.md": "notes" });
+  const elsewhere = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  const moved = { scheme: BEARER, hosts: [A, B] };
+  const fresh = { scheme: BEARER, hosts: [B] };
+  publish(
+    "credentials",
+    inFolder({ version: "1.1.0", capabilities: { net: [A, B], credentials: { ...credentials, moved, fresh } } }),
+  );
+  await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
+  expect([outcome(elsewhere), outcome(due)]).toMatchObject([
+    { kind: "current" },
+    { added: { net: [B], credentials: { moved, fresh } }, removed: {}, grown: true },
+  ]);
+});
+
+test("approved capabilities that cannot be read count as none, and a record of first sight that cannot be read starts the wait", async () => {
+  const { state: folder } = await installed("unread", { capabilities: { net: [A], planWrite: true } });
+  const pin = installedExtensions(folder);
+  const digest = pin.ok ? String(pin.value[0]?.digest) : "";
+  rmSync(join(folder, "extensions", "acme.jira", digest), { recursive: true, force: true });
+  writeFileSync(join(folder, "extension-updates.json"), "{not json");
+  publish("unread", {
+    "cedarloom-extension.json": manifest({ version: "1.1.0", capabilities: { net: [A], planWrite: true } }),
+  });
+  const first = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  const due = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
+  expect([outcome(first), outcome(due)]).toEqual([
+    { kind: "waiting", commit: "c", seen: at(NOW), offered: at(NOW + 3 * DAY) },
+    {
+      kind: "planned",
+      writes: 1,
+      versions: ["1.0.0", "1.1.0", "1.1.0"],
+      added: { net: [A], planWrite: true },
+      removed: {},
+      grown: true,
+    },
+  ]);
+  // Capabilities the plan enables take an approval of the exact plan only.
+  expect([approvalOf({ net: [A] }, { yes: true, approve: "h" }), approvalOf({}, { yes: true })]).toEqual([
+    { approve: "h" },
+    { yes: true },
+  ]);
+});
+
+test("update and remove report an installed set they cannot read, a manifest that broke, and a source gone", async () => {
+  const newer = state();
+  writeFileSync(join(newer, "extensions.json"), '{"schemaVersion":2}');
+  const { state: folder, url } = await installed("broken");
+  publish("broken", { "cedarloom-extension.json": "{" });
+  const broke = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  repositories.delete(url);
+  const gone = await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+  const unreadable = { code: "document.newer-schema", params: { found: 2, known: 1 } };
+  expect([
+    findingOf(planRemove(newer, "acme.jira")),
+    outcome(await planUpdate(newer, "acme.jira", fetchLocal, NOW)),
+    outcome(broke),
+    outcome(gone),
+  ]).toEqual([
+    unreadable,
+    unreadable,
+    { code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } },
+    { code: "git.failed", params: expect.objectContaining({ step: "fetch" }) },
+  ]);
+});
+
+test("an extension that asked for nothing is asked anew for what an update adds, and for nothing once it drops it", async () => {
+  const { state: folder } = await installed("bare", { capabilities: undefined });
+  const update = async (version: string, more: object = {}) => {
+    publish("bare", { "cedarloom-extension.json": manifest({ version, ...more }) });
+    await planUpdate(folder, "acme.jira", fetchLocal, NOW);
+    return planUpdate(folder, "acme.jira", fetchLocal, NOW + 3 * DAY);
+  };
+  const grown = await update("1.1.0");
+  if (grown.ok && grown.value.kind === "planned") applyPlan(folder, grown.value.plan, { yes: true });
+  const dropped = await update("1.2.0", { capabilities: undefined });
+  expect([outcome(grown), outcome(dropped)]).toMatchObject([
+    { added: { net: [A] }, removed: {}, grown: true },
+    { added: {}, removed: { net: [A] }, grown: false },
+  ]);
+});
+
 // A file of a tree handed over without Git, and the finding of a stage that failed.
 const fileOf = (path: string, text: string) => ({
   path,
@@ -241,4 +480,26 @@ test("a failure to stage the files is a finding, and leaves no staging folder be
     stageFailed(expect.stringMatching(/^E[A-Z]+$/)),
     [],
   ]);
+});
+
+// A newer commit whose files no file system can take.
+const unstageable: Fetch = () =>
+  Promise.resolve({
+    ok: true,
+    value: {
+      commit: "a".repeat(40),
+      digest: "b".repeat(64),
+      files: [
+        fileOf("cedarloom-extension.json", manifest({ version: "1.1.0" })),
+        fileOf("main.mjs", ENTRY),
+        fileOf(`${"x".repeat(300)}.txt`, ""),
+      ],
+    },
+  });
+
+test("an update whose files cannot be staged plans nothing, so no entry pins a folder that is not there", async () => {
+  const { state: folder } = await installed("unstaged");
+  await planUpdate(folder, "acme.jira", unstageable, NOW);
+  const due = await planUpdate(folder, "acme.jira", unstageable, NOW + 3 * DAY);
+  expect(outcome(due)).toEqual(stageFailed(expect.stringMatching(/^E[A-Z]+$/)));
 });

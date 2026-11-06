@@ -1,29 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { setTimeout } from "node:timers/promises";
 import type { Selection } from "@cedarloom/accounts";
-import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
-import type { Account, AccountRegistry, Agent, LaunchRecord, Result } from "@cedarloom/contracts";
+import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
+import type { Account, AccountRegistry, LaunchRecord, Result } from "@cedarloom/contracts";
+import type { LeaseLock } from "@cedarloom/ledger";
 import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
-import { type AccountRequest, chooseAccount, loadRegistry } from "./accounts.ts";
+import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
-import { withStore } from "./use-cases.ts";
-
-/** How many workers run on one account at once: two per Claude Code account, one per Codex home. */
-export const MAX_CONCURRENT: Readonly<Record<Agent, number>> = { claude: 2, codex: 1 };
-
-const BUSY_TRIES = 3;
-
-// Runs `work` again while another CedarLoom process holds the store: three tries, a second apart.
-const retryBusy = async <T>(work: () => Result<T>): Promise<Result<T>> => {
-  let result = work();
-  for (let tries = 1; tries < BUSY_TRIES && !result.ok && result.finding.code === "store.busy"; tries += 1) {
-    await setTimeout(1000);
-    result = work();
-  }
-  return result;
-};
+import { retryBusy, withStore } from "./use-cases.ts";
 
 /** What the launcher decided for one worker; the adapter's launch options take these as they are. */
 export type Decided = Pick<
@@ -66,30 +51,47 @@ export type WorkerOutcome =
     };
 
 type Lease = Omit<LaunchRecord, "finishedAt" | "verdict">;
+type Exit = Extract<AgentEvent, { type: "exit" }>;
+interface Held {
+  readonly lease: Lease;
+  readonly lock: LeaseLock;
+}
 
 // The worker's folder in the state folder, named short for the socket path limit: its temporary folder, gh's empty
 // configuration, and the folder of its result file, the one folder outside the working folder it may write.
-// shortcut: the folders stay after the run; remove them with a sweep of finished launches once they pile up.
+// shortcut: a run's folders stay after it; remove them with a sweep of finished launches once they pile up.
 const workerFolders = (state: string, runId: string) => {
   const dir = join(state, "workers", runId.slice(0, 8));
   const folders = { tmpDir: join(dir, "tmp"), ghConfigDir: join(dir, "gh"), out: join(dir, "out") };
   for (const folder of Object.values(folders)) mkdirSync(folder, { recursive: true, mode: 0o700 });
-  return { ...folders, resultFile: join(folders.out, "result.json") };
+  return { dir, ...folders, resultFile: join(folders.out, "result.json") };
 };
 
-// The run's id and its launch options on `account`, given the versions whose check passed; refused while gh finds a
-// login of its own.
+// A launch refused before its run removes the worker's folder.
+const refused = <T>(dir: string, result: Result<T> & { ok: false }): Result<never> => {
+  rmSync(dir, { recursive: true, force: true });
+  return result;
+};
+
+interface Prepared<L extends Launch> {
+  readonly runId: string;
+  readonly dir: string;
+  readonly build: (verifiedVersions: readonly string[]) => L;
+}
+
+// The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
+// a login of its own.
 const decide = async <L extends Launch>(
   state: string,
   registry: AccountRegistry,
   { request, host, account }: { request: WorkerRequest<L>; host: LaunchHost; account: Account },
-): Promise<Result<{ runId: string; build: (verifiedVersions: readonly string[]) => L }>> => {
+): Promise<Result<Prepared<L>>> => {
   const runId = randomUUID();
-  const { tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);
+  const { dir, tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);
   const { parent, platform, home } = host;
   const env = workerEnv({ parent, platform, ghToken: request.ghToken, ghConfigDir });
   const gh = await ghProbe(env, host.gh);
-  if (!gh.ok) return gh;
+  if (!gh.ok) return refused(dir, gh);
   const fixed = {
     runId,
     account,
@@ -101,51 +103,95 @@ const decide = async <L extends Launch>(
     denyRead: deniedPaths(registry, home, parent["XDG_CONFIG_HOME"]),
     allowedDomains: GITHUB_DOMAINS,
   };
-  return { ok: true, value: { runId, build: (verifiedVersions) => request.launch({ ...fixed, verifiedVersions }) } };
+  return {
+    ok: true,
+    value: { runId, dir, build: (verifiedVersions) => request.launch({ ...fixed, verifiedVersions }) },
+  };
 };
 
-// Takes one of the account's leases: launch.account-full while all are taken.
-const takeLease = (state: string, lease: Lease): Promise<Result<null>> => {
+// Takes one of the account's leases and holds its lock: launch.account-full while all are taken.
+const takeLease = (state: string, lease: Lease): Promise<Result<Held>> => {
   const max = MAX_CONCURRENT[lease.agent];
   return retryBusy(() =>
-    withStore(state, (store) =>
-      store.leaseAccount(lease, max)
-        ? { ok: true, value: null }
-        : { ok: false, finding: { code: "launch.account-full", params: { account: lease.account, max } } },
-    ),
+    withStore(state, (store) => {
+      const lock = store.leaseAccount(lease, max);
+      if (lock === null) {
+        return { ok: false, finding: { code: "launch.account-full", params: { account: lease.account, max } } };
+      }
+      return { ok: true, value: { lease, lock } };
+    }),
   );
 };
 
-// Runs the leased worker to its end with its usage stored as readings, and ends the lease with its verdict: failed when
-// the run throws.
-const runLeased = async <L extends Launch>(state: string, runtime: AgentRuntime<L>, launch: L, lease: Lease) => {
-  let verdict: Verdict = "failed";
+// Ends the lease with the run's verdict, then lets go of its lock; a lease let go without a finish reads as interrupted.
+const end = async (state: string, { lease, lock }: Held, verdict: Verdict): Promise<void> => {
   try {
-    let exit: Extract<AgentEvent, { type: "exit" }> | null = null;
-    for await (const event of runtime.start(launch).events) {
-      // A reading the store cannot take is dropped; the run goes on.
-      if (event.type === "usage") await retryBusy(() => recordUsage(state, lease.account, event.windows));
-      if (event.type === "exit") exit = event;
-    }
-    const result = readResult(launch.resultFile, lease.runId);
-    if (result !== null && exit?.code === 0) verdict = result.verdict;
-    const summary = result?.summary ?? null;
-    return { kind: "finished", runId: lease.runId, account: lease.account, verdict, summary, exit } as const;
-  } finally {
-    // shortcut: a store busy for all three tries leaves the lease taken until this process ends.
     await retryBusy(() =>
       withStore(state, (store) => {
         store.finishLaunch(lease.runId, verdict);
         return { ok: true, value: null };
       }),
     );
+  } finally {
+    lock.release();
+  }
+};
+
+// Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
+// the CLI applied the worker settings, and returns the version it named.
+const observe = async (state: string, session: AgentSession, lease: Lease) => {
+  let exit: Exit | null = null;
+  for await (const event of session.events) {
+    if (event.type === "init" && !event.settingsApplied) return { exit, unproven: event.agentVersion ?? lease.version };
+    // A reading the store cannot take is dropped; the run goes on.
+    if (event.type === "usage") await retryBusy(() => recordUsage(state, lease.account, event.windows));
+    if (event.type === "exit") exit = event;
+  }
+  return { exit, unproven: null };
+};
+
+// Runs the leased worker to its end and reads its verdict. Every path that leaves without the CLI's exit (a throw, a
+// session without the settings proof) stops the CLI and its commands first; the lease then ends, as failed unless the
+// result file holds a verdict.
+const runLeased = async <L extends Launch>(
+  state: string,
+  runtime: AgentRuntime<L>,
+  build: () => L,
+  held: Held,
+): Promise<Result<WorkerOutcome>> => {
+  const { lease } = held;
+  let verdict: Verdict = "failed";
+  let session: AgentSession | undefined;
+  let exit: Exit | null = null;
+  try {
+    const launch = build();
+    session = runtime.start(launch);
+    const seen = await observe(state, session, lease);
+    exit = seen.exit;
+    if (seen.unproven !== null) {
+      return {
+        ok: false,
+        finding: { code: "launch.settings-unproven", params: { agent: lease.agent, version: seen.unproven } },
+      };
+    }
+    const result = readResult(launch.resultFile, lease.runId);
+    if (result !== null && exit?.code === 0) verdict = result.verdict;
+    const { runId, account } = lease;
+    return { ok: true, value: { kind: "finished", runId, account, verdict, summary: result?.summary ?? null, exit } };
+  } finally {
+    try {
+      if (exit === null) await session?.cancel();
+    } finally {
+      await end(state, held, verdict);
+    }
   }
 };
 
 /**
- * Starts a worker of the task end to end: chooses its account, builds its clean environment, refuses while gh finds a
- * keyring login, checks the CLI version, refuses a version without proof that the CLI applies the worker settings,
- * takes one of the account's leases, runs the worker, and reads its verdict from the result file.
+ * Starts a worker of the task end to end: chooses an account with a free lease, builds its clean environment, refuses
+ * while gh finds a keyring login, checks the CLI version, takes one of the account's leases, runs the worker, stops it
+ * at once when its session gives no proof that the CLI applied the worker settings, and reads its verdict from the
+ * result file. A launch refused before its run leaves no worker folder.
  */
 export const launchWorker = async <L extends Launch>(
   state: string,
@@ -161,18 +207,24 @@ export const launchWorker = async <L extends Launch>(
   if (!selection.ok) return selection;
   if (!selection.value.ok) return { ok: true, value: { kind: "no-account", reason: selection.value.reason } };
   const account = selection.value.account;
-  const launch = await decide(state, accounts, { request, host, account });
-  if (!launch.ok) return launch;
-  const { runId, build } = launch.value;
+  const prepared = await decide(state, accounts, { request, host, account });
+  if (!prepared.ok) return prepared;
+  const { runId, dir, build } = prepared.value;
   const probe = build([]);
   const { agent, task, runtime } = request;
   const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe });
-  if (!checked.ok) return checked;
-  const { version, verified, settingsApplied } = checked.value;
-  if (!settingsApplied) return { ok: false, finding: { code: "launch.settings-unproven", params: { agent, version } } };
+  if (!checked.ok) return refused(dir, checked);
+  const { version, verified } = checked.value;
   const startedAt = new Date().toISOString();
-  const lease = { runId, task, agent, account: account.name, version, pid: process.pid, startedAt };
-  const leased = await takeLease(state, lease);
-  if (!leased.ok) return leased;
-  return { ok: true, value: await runLeased(state, runtime, build(verified), lease) };
+  const held = await takeLease(state, {
+    runId,
+    task,
+    agent,
+    account: account.name,
+    version,
+    pid: process.pid,
+    startedAt,
+  });
+  if (!held.ok) return refused(dir, held);
+  return runLeased(state, runtime, () => build(verified), held.value);
 };

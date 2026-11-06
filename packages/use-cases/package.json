@@ -35,6 +35,7 @@
     "@cedarloom/orchestration": "workspace:*"
   },
   "devDependencies": {
-    "@cedarloom/adapter-claude": "workspace:*"
+    "@cedarloom/adapter-claude": "workspace:*",
+    "zod": "catalog:"
   }
 }

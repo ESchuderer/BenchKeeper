@@ -1,6 +1,6 @@
 import type { AgentRuntime, ContractCheck, Launch, UsageWindow } from "@cedarloom/agent-contracts";
 import { type Agent, AgentVersion, type ContractCheckRecord, type Result } from "@cedarloom/contracts";
-import { withStore } from "./use-cases.ts";
+import { retryBusy, withStore } from "./use-cases.ts";
 
 // A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
 // later CedarLoom would otherwise keep a version's readings off for good.
@@ -74,7 +74,7 @@ export const checkedVersions = async <L extends Launch>(
   } catch (error) {
     return unavailable(agent, error);
   }
-  let checks = withStore(state, (store) => ({ ok: true, value: store.contractChecks(agent) }));
+  let checks = await retryBusy(() => withStore(state, (store) => ({ ok: true, value: store.contractChecks(agent) })));
   if (!checks.ok) return checks;
   const now = Date.now();
   if (!checks.value.some((each) => each.version === version && settles(each, now))) {
@@ -84,7 +84,8 @@ export const checkedVersions = async <L extends Launch>(
     } catch (error) {
       return unavailable(agent, error);
     }
-    checks = record(state, agent, records(agent, version, check));
+    const found = check;
+    checks = await retryBusy(() => record(state, agent, records(agent, version, found)));
     if (!checks.ok) return checks;
   }
   const verified = checks.value.filter((each) => each.missing.length === 0).map((each) => each.version);

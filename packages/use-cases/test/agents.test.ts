@@ -107,7 +107,8 @@ test("a store the check cannot use, before the probe or after it, is reported", 
     ok: false,
     finding: { code: "store.newer-schema" },
   });
-  // Another holder takes the store while the probe runs, so the check cannot be recorded.
+  // Another holder takes the store while the probe runs and keeps it through all three tries, so the check cannot be
+  // recorded.
   const dir = state();
   const cli = runtime(["2.1.316"], []);
   let holder: { close: () => void } | undefined;
@@ -121,7 +122,7 @@ test("a store the check cannot use, before the probe or after it, is reported", 
     finding: { code: "store.busy" },
   });
   holder?.close();
-});
+}, 15_000);
 
 test("a failed check is repeated once it is a day old; a younger failed check is not", async () => {
   const dir = state();

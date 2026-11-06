@@ -5,7 +5,6 @@ export {
   type Decided,
   type LaunchHost,
   launchWorker,
-  MAX_CONCURRENT,
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
@@ -13,6 +12,7 @@ export {
   type AccountRequest,
   chooseAccount,
   loadRegistry,
+  MAX_CONCURRENT,
   planConfirm,
   planImport,
 } from "./accounts.ts";

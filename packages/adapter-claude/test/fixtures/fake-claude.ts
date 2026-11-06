@@ -13,7 +13,7 @@ if (args.includes("--version")) {
   process.exitCode = 3;
 } else {
   const prompt = readFileSync(0, "utf8");
-  process.stdout.write(`${JSON.stringify({ type: "fake", args, prompt, env: process.env })}\n`);
+  process.stdout.write(`${JSON.stringify({ type: "fake", pid: process.pid, args, prompt, env: process.env })}\n`);
   const stream = process.env["FAKE_STREAM"];
   if (stream !== undefined) process.stdout.write(readFileSync(stream, "utf8"));
   if (process.env["FAKE_CHILD"] !== undefined) {

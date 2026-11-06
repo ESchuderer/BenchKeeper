@@ -19,7 +19,8 @@ export type Selection =
     }
   | {
       readonly ok: false;
-      readonly reason: "unknown-pool" | "unconfirmed-pool" | "no-headroom";
+      /** `all-leased`: every account of the pool runs its most workers at once. */
+      readonly reason: "unknown-pool" | "unconfirmed-pool" | "no-headroom" | "all-leased";
       readonly candidates: readonly Candidate[];
     };
 
@@ -67,6 +68,13 @@ const settingsOf = (registry: AccountRegistry, { agent, pool }: PoolRef) => {
 const membersOf = (registry: AccountRegistry, { agent, pool }: PoolRef): Account[] =>
   registry.accounts.filter((account) => account.agent === agent && account.pool === pool);
 
+// The pool's accounts with a free lease; null when every one of them runs its most workers.
+const freeMembers = (registry: AccountRegistry, ref: PoolRef, busy: ReadonlySet<string>): Account[] | null => {
+  const pool = membersOf(registry, ref);
+  const free = pool.filter((account) => !busy.has(account.name));
+  return pool.length > 0 && free.length === 0 ? null : free;
+};
+
 /** Whether the pool exists and its confirmation covers the pool's accounts as they are now. */
 export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean => {
   const settings = settingsOf(registry, ref);
@@ -77,18 +85,23 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
 /**
  * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
- * or on the pool's first account (pending owner decision, 2026-11-05). `readings` holds the latest reading per account
- * and window; `now` is in milliseconds.
+ * or on the pool's first account (pending owner decision, 2026-11-05). An account in `busy` runs its most workers at
+ * once and is passed over. `readings` holds the latest reading per account and window; `now` is in milliseconds.
  */
 export const selectAccount = (
   registry: AccountRegistry,
-  { previous = null, ...ref }: PoolRef & { readonly previous?: string | null },
+  {
+    previous = null,
+    busy,
+    ...ref
+  }: PoolRef & { readonly previous?: string | null; readonly busy?: ReadonlySet<string> },
   readings: readonly Current[],
   now: number,
 ): Selection => {
   if (settingsOf(registry, ref) === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };
   if (!isConfirmed(registry, ref)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
-  const members = membersOf(registry, ref);
+  const members = freeMembers(registry, ref, busy ?? new Set());
+  if (members === null) return { ok: false, reason: "all-leased", candidates: [] };
   const scored = members.map((account) => ({ account, margin: margin(registry, account, readings, now) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);

@@ -104,13 +104,18 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
-  // Both quotes checked at their sources on 2026-11-06; the Usage Policy page is marked effective Nov 12, 2026.
+  // Every quote checked at its source on 2026-11-06: three bullets of the Usage Policy's "Do Not Abuse Our Platform",
+  // whose page is marked effective Nov 12, 2026, and the "ordinary use" sentence of the help article on logging in.
   "accounts.pool-terms": (p) =>
-    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy forbids ` +
-    'users to "intentionally bypass or interfere with capabilities, restrictions, or guardrails established within our ' +
-    'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
-    'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
-    "usage limit counts as one is not stated.",
+    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy, in ` +
+    "force from November 12, 2026 (https://www.anthropic.com/legal/aup), forbids users to " +
+    '"create multiple accounts, to avoid detection, circumvent product guardrails", to "intentionally bypass or ' +
+    'interfere with capabilities, restrictions, or guardrails established within our products", and to "provide ' +
+    "access to Claude through unauthorized means, including services that route requests through consumer " +
+    'subscriptions". Its help article says a subscription\'s usage "is designed to support ordinary use of native ' +
+    'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
+    "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
+    "you hold yourself falls under these rules.",
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

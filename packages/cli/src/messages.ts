@@ -65,6 +65,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
   "run.report-only-apply": (p) =>
     `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
+  "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
+  "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,

@@ -779,6 +779,17 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1448,6 +1459,17 @@ export interface components {
                 runId: string;
                 applyRun: string;
             };
+        } | {
+            /** @constant */
+            code: "run.node-unsupported";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.shell-missing";
+            params: Record<string, never>;
         } | {
             /** @constant */
             code: "undo.file-edited";

@@ -5,6 +5,7 @@ import { fastifySSE } from "@fastify/sse";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
+import { sweepDrafts } from "@cedarloom/use-cases";
 import fp from "fastify-plugin";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
@@ -145,6 +146,7 @@ export const startServer = async (
   options: Omit<AppOptions, "session"> & { port?: number; tokenMs?: number },
 ): Promise<Started> => {
   const session = new Session(options.tokenMs);
+  sweepDrafts(options.state);
   const app = await buildApp({ ...options, session });
   await app.listen({ host: "127.0.0.1", port: options.port ?? 0 });
   return { url: `http://127.0.0.1:${portOf(app.server)}/#t=${session.token}`, close: () => app.close() };

@@ -436,11 +436,8 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   const io = { out: printed.resolve, err: () => undefined, env: {}, untilStopped: () => stopped.promise };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a
-  // second on a slow runner. Bounded by the test's timeout, and a command that ends without printing fails at once.
-  const ended = running.then((code): never => {
-    throw new Error(`ui ended with ${code} before it printed`);
-  });
-  const out = await Promise.race([printed.promise, ended]);
+  // second on a slow runner. A failed start prints cedarloom.error instead.
+  const out = await printed.promise;
   expect(out).toContain("cedarloom.ui");
   const { url } = z.object({ url: z.string() }).parse(JSON.parse(out));
   expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#t=[\w-]{43}$/);

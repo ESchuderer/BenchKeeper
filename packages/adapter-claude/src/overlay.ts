@@ -15,8 +15,17 @@ export interface OverlayInput {
 
 // The worker's own home stays closed to its file tools only where the login and the account's state live, so the model
 // reads what the CLI keeps there for the session, such as a large tool output saved under projects/; every other home
-// stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06).
-const OWN_STATE = [".credentials.json", ".claude.json", "backups", "remote-settings.json", "policy-limits.json"];
+// stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06). The four
+// files end in *, so their .signature.json and .stamp.json sidecars, which repeat them or name the account, are closed
+// too; ide/ holds each IDE connection's lock file with its auth token.
+const OWN_STATE = [
+  ".credentials.json*",
+  ".claude.json*",
+  "backups",
+  "remote-settings.json*",
+  "policy-limits.json*",
+  "ide",
+];
 
 /**
  * A core tool the settings deny by its bare name, which removes it from the session's tools

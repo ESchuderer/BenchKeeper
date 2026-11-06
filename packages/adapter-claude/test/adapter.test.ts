@@ -212,9 +212,16 @@ test("the worker's own home stays closed to its file tools only where the login 
   const { deny } = settings.permissions;
   // Not the home whole, so the model reads what the CLI saves there for the session, such as a large tool output.
   expect(deny.filter((rule) => rule.endsWith("/fixtures)") || rule.endsWith("/fixtures/**)"))).toEqual([]);
-  for (const name of [".credentials.json", ".claude.json", "backups", "remote-settings.json", "policy-limits.json"]) {
-    expect(deny.filter((rule) => rule.includes(`/fixtures/${name}`))).toHaveLength(4);
-  }
+  // The four files end in *, so their .signature.json and .stamp.json sidecars are closed too; ide/ holds the IDE's token.
+  const state = [
+    ".credentials.json*",
+    ".claude.json*",
+    "backups",
+    "remote-settings.json*",
+    "policy-limits.json*",
+    "ide",
+  ];
+  for (const name of state) expect(deny.filter((rule) => rule.includes(`/fixtures/${name}`))).toHaveLength(4);
   // Every other home stays closed whole, and shell commands keep the whole home closed.
   expect(deny).toEqual(expect.arrayContaining(["Read(//accounts/other)", "Edit(//accounts/other/**)"]));
   expect(settings.sandbox.filesystem.denyRead).toEqual([fixtures, "/accounts/other"]);

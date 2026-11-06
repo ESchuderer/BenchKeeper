@@ -14,7 +14,10 @@ type Graph = {
   resolved: { edge: Edge; from: Resolved; to: Resolved }[];
   /** Node to node links of the edges without a finding of their own, for the cycle check. */
   next: Map<string, string[]>;
-  /** Node to node links of every edge between existing nodes, whatever its handles: one bad edge hides no node. */
+  /**
+   * Node to node links of the edges that can order a node to run: into a control input, or into a handle that did not
+   * resolve, so one bad edge hides no node. An edge into a data input starts nothing.
+   */
   reach: Map<string, string[]>;
 };
 
@@ -152,14 +155,14 @@ const cycle = ({ nodes, next }: Graph): Finding[] => {
   return found === undefined ? [] : [{ code: "workflow.cycle", params: { nodes: found } }];
 };
 
-/** Nodes of a known type that no path from the trigger or a workflow input reaches: they would never run. */
-const unreachable = ({ nodes, edges, types, reach }: Graph): Finding[] => {
+/**
+ * Nodes of a known type that no path of control edges from the trigger reaches: they would never run, since a node
+ * runs only once a control edge into it fired. Data alone (from a workflow input or a node) starts nothing.
+ */
+const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
   const triggers = nodes.filter(isTrigger);
   if (triggers.length !== 1) return [];
-  const inputs = edges.flatMap(({ from, to }) =>
-    "input" in from && "node" in to && types.has(to.node) ? [to.node] : [],
-  );
-  const seen = new Set([...triggers.map((node) => node.id), ...inputs]);
+  const seen = new Set(triggers.map((node) => node.id));
   const queue = [...seen];
   for (const node of queue) {
     for (const to of (reach.get(node) ?? []).filter((item) => !seen.has(item))) {
@@ -255,8 +258,12 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     from: resolve(lookup, edge.id, "from", edge.from),
     to: resolve(lookup, edge.id, "to", edge.to),
   }));
-  const named = ({ edge: { from, to } }: Item): boolean =>
-    "node" in from && "node" in to && types.has(from.node) && types.has(to.node);
+  const named = ({ edge: { from, to }, to: type }: Item): boolean =>
+    "node" in from &&
+    "node" in to &&
+    types.has(from.node) &&
+    types.has(to.node) &&
+    (type === "control" || typeof type !== "string");
   const graph = { ...lookup, nodes, edges, resolved, next: links(resolved, valid), reach: links(resolved, named) };
   const checks = [
     duplicates,

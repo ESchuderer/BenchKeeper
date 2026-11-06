@@ -6,7 +6,8 @@ type Workflow = WorkflowDefinition;
 type Edge = Workflow["edges"][number];
 type Values = Record<string, Json>;
 
-export type NodeState = "pending" | "running" | "waiting" | "done" | "failed" | "skipped" | "cancelled";
+/** `cancelling`: the run asked to cancel the running attempt, so however it ends, the node ends `cancelled`. */
+export type NodeState = "pending" | "running" | "cancelling" | "waiting" | "done" | "failed" | "skipped" | "cancelled";
 export interface NodeRun {
   readonly state: NodeState;
   readonly attempts: number;
@@ -70,7 +71,7 @@ interface Ctx {
 }
 
 const DEFAULT_CONCURRENCY = 4;
-const ACTIVE: readonly NodeState[] = ["running", "waiting"];
+const ACTIVE: readonly NodeState[] = ["running", "cancelling", "waiting"];
 
 const byNode = (edges: readonly Edge[], end: "from" | "to"): Map<string, Edge[]> => {
   const map = new Map<string, Edge[]>();
@@ -146,7 +147,12 @@ const edgeVerdict = (ctx: Ctx, id: string, edge: Edge): "skip" | "open" | "ok" =
  * control edge, or a dead edge into a required data input, is skipped; branches meet again only in a join with `any`.
  */
 const readiness = (ctx: Ctx, id: string): "ready" | "skip" | "wait" => {
-  const verdicts = (ctx.incoming.get(id) ?? []).map((edge) => edgeVerdict(ctx, id, edge));
+  const incoming = ctx.incoming.get(id) ?? [];
+  // A node no control edge leads into never gets the order to run.
+  if (!incoming.some((edge) => handleOf(ctx, id, "node" in edge.to ? edge.to.handle : "")?.type === "control")) {
+    return "skip";
+  }
+  const verdicts = incoming.map((edge) => edgeVerdict(ctx, id, edge));
   if (verdicts.includes("skip")) return "skip";
   return verdicts.includes("open") ? "wait" : "ready";
 };
@@ -180,14 +186,22 @@ const joined = (ctx: Ctx, id: string, policy: unknown): "done" | "skip" | "wait"
   return flows.includes("open") ? "wait" : "done";
 };
 
+/**
+ * A pending node ends cancelled; a waiting approval or a running precheck ends at once and the executor drops it; a
+ * running attempt is asked to stop and becomes `cancelling`, recorded, so a resumed run knows it too.
+ */
 const cancelNode = (ctx: Ctx, id: string): void => {
   const node = ctx.run.nodes.get(id);
-  if (node?.state === "pending") end(node, "cancelled");
-  else if (node?.state === "waiting") {
-    end(node, "cancelled");
-    ctx.actions.push({ type: "cancel", node: id });
-  } else if (node?.state === "running") ctx.actions.push({ type: "cancel", node: id });
+  if (node?.state === "pending") return end(node, "cancelled");
+  if (node === undefined || !(node.state === "waiting" || node.state === "running")) return;
+  if (stopsAtOnce(ctx, id, node)) end(node, "cancelled");
+  else node.state = "cancelling";
+  ctx.actions.push({ type: "cancel", node: id });
 };
+
+// An approval's question or a trigger's precheck has no attempt to wait for.
+const stopsAtOnce = (ctx: Ctx, id: string, node: Mutable<NodeRun>): boolean =>
+  node.state === "waiting" || kind(ctx.types.get(id) ?? "") === "trigger";
 
 // Q5: the branches a `join any` no longer needs are cancelled, so their agents spend nothing more.
 const settleJoin = (ctx: Ctx, id: string, node: Mutable<NodeRun>, policy: unknown): boolean => {
@@ -295,9 +309,15 @@ const finish = (ctx: Ctx): void => {
   ctx.actions.push({ type: "finish", status, outputs: outputsOf(ctx) });
 };
 
+// Nothing settles or starts before the trigger fired, which waits for its precheck.
+const triggered = (ctx: Ctx): boolean =>
+  ctx.workflow.nodes.some((node) => kind(node.type) === "trigger" && ctx.run.nodes.get(node.id)?.state === "done");
+
 const advance = (ctx: Ctx): Step => {
-  settle(ctx);
-  launch(ctx);
+  if (triggered(ctx)) {
+    settle(ctx);
+    launch(ctx);
+  }
   finish(ctx);
   return { state: { ...ctx.run, nodes: Object.fromEntries(ctx.run.nodes) }, actions: ctx.actions };
 };
@@ -306,12 +326,24 @@ const advance = (ctx: Ctx): Step => {
 const retryable = (ctx: Ctx, id: string, attempts: number): boolean =>
   ctx.run.stop === null && attempts <= (own(ctx.workflow.execution?.nodes, id)?.retries ?? 0);
 
+// The values of the node type's data outputs only: a value named like a control output fires nothing.
+const dataValues = (ctx: Ctx, id: string, values: Readonly<Values> = {}): Values => {
+  const outputs = own(NODE_TYPES, ctx.types.get(id) ?? "")?.outputs;
+  return Object.fromEntries(
+    Object.entries(values).filter(([name]) => (own(outputs, name)?.type ?? "control") !== "control"),
+  );
+};
+
+/**
+ * The end of an attempt. After a cancel the run asked for, any end is `cancelled`; a `cancelled` the run did not ask
+ * for counts as a failure, like an interrupted attempt, since its effect is unknown.
+ */
 const ended = (ctx: Ctx, event: Extract<RunEvent, { type: "ended" }>): void => {
   const node = ctx.run.nodes.get(event.node);
-  if (node?.state !== "running" || event.attempt !== node.attempts) return;
-  const values = { ...event.values };
+  if (event.attempt !== node?.attempts || !(node.state === "running" || node.state === "cancelling")) return;
+  if (node.state === "cancelling") return end(node, "cancelled");
+  const values = dataValues(ctx, event.node, event.values);
   if (event.outcome === "done") return end(node, "done", ["done", ...Object.keys(values)], values);
-  if (event.outcome === "cancelled") return end(node, "cancelled");
   if (!retryable(ctx, event.node, node.attempts)) return fail(ctx, event.node, node, values);
   node.attempts += 1;
   start(ctx, event.node, ctx.types.get(event.node) ?? "", node.attempts);

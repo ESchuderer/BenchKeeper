@@ -9,6 +9,7 @@ import {
   startRun,
   step,
 } from "@cedarloom/engine";
+import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
 type Values = Record<string, Json>;
@@ -56,19 +57,29 @@ const verdict = (action: Action, planned: Planned | undefined): RunEvent | undef
 };
 
 // A cancel taking effect, or the end of an attempt the script names.
+// A cancel ends the attempt as the script says (it may have failed just before), else cancelled.
+const cancelEnd = (action: Action, planned: Planned | undefined, state: RunState): RunEvent | undefined => {
+  const node = action.type === "cancel" ? state.nodes[action.node] : undefined;
+  if (action.type !== "cancel" || !(node?.state === "running" || node?.state === "cancelling")) return undefined;
+  return {
+    type: "ended",
+    node: action.node,
+    attempt: node.attempts,
+    outcome: typeof planned === "string" ? planned : "cancelled",
+  };
+};
+
+// The end of a started attempt the script names: an outcome, or values for a done one (no entry: done).
 const ending = (action: Action, planned: Planned | undefined, state: RunState): RunEvent | undefined => {
-  const node = action.type === "finish" ? undefined : state.nodes[action.node];
-  if (node?.state !== "running") return undefined;
-  if (action.type === "cancel")
-    return { type: "ended", node: action.node, attempt: node.attempts, outcome: "cancelled" };
-  if (action.type !== "start") return undefined;
-  const values = typeof planned === "object" ? planned : {};
+  if (action.type !== "start" || state.nodes[action.node]?.state !== "running")
+    return cancelEnd(action, planned, state);
+  const outcome = typeof planned === "string" ? planned : "done";
   return {
     type: "ended",
     node: action.node,
     attempt: action.attempt,
-    outcome: typeof planned === "string" ? planned : "done",
-    values,
+    outcome,
+    values: typeof planned === "object" ? planned : {},
   };
 };
 
@@ -98,6 +109,8 @@ const drive = (
     const next = step(workflow, state, event);
     state = next.state;
     queue.push(...next.actions);
+    // Nothing starts before the trigger, and its precheck, are done.
+    if (next.actions.some((item) => item.type === "start")) expect(state.nodes["t"]?.state).toBe("done");
   };
   for (let action = queue.shift(); action !== undefined; action = queue.shift()) {
     actions.push(action);
@@ -108,6 +121,8 @@ const drive = (
     const event = answer(action, script, state);
     if (event !== undefined) feed(event);
   }
+  // Every driven run: its events, replayed from the start, give the same state (what a resume relies on).
+  expect(replay(workflow, options.inputs ?? {}, events)).toEqual({ ok: true, value: state });
   return { state, actions, events };
 };
 
@@ -119,27 +134,26 @@ const starts = (actions: Action[]): string[] =>
   actions.flatMap((action) => (action.type === "start" ? [`${action.node}#${action.attempt}`] : []));
 const finished = (actions: Action[]) => actions.find((action) => action.type === "finish");
 
-// Every scenario: the events the driver fed, replayed from the start, give the same state (what a resume relies on).
-const replays = (workflow: WorkflowDefinition, result: ReturnType<typeof drive>, inputs: Values = {}): void => {
-  expect(replay(workflow, inputs, result.events)).toEqual({ ok: true, value: result.state });
-};
+// The trigger with a precheck.
+const checked = (workflow: WorkflowDefinition): WorkflowDefinition => ({
+  ...workflow,
+  nodes: workflow.nodes.map((node) => (node.id === "t" ? { ...node, with: { precheck: "test -f x" } } : node)),
+});
 
-test("a chain runs in order; the run succeeds with the outputs its edges name", () => {
+test("a chain runs in order with the outputs its edges name; a value named like a control output fires nothing", () => {
   const workflow = graph(
-    ["a:command.run", "b:agent.run"],
-    ["t.start>a.run", "a.done>b.run", "a.stdout>b.context", "b.result>@out"],
-    {
-      outputs: { out: { type: "string" } },
-    },
+    ["a:command.run", "b:agent.run", "fix:command.run"],
+    ["t.start>a.run", "a.done>b.run", "a.stdout>b.context", "b.result>@out", "a.failed>fix.run"],
+    { outputs: { out: { type: "string" } } },
   );
-  const result = drive(workflow, { a: [{ stdout: "built" }], b: [{ result: "fine" }] });
+  const result = drive(workflow, { a: [{ stdout: "built", failed: "x" }], b: [{ result: "fine" }] });
+  expect([result.state.nodes["fix"]?.state, result.state.nodes["a"]?.values]).toEqual(["skipped", { stdout: "built" }]);
   expect(starts(result.actions)).toEqual(["a#1", "b#1"]);
   expect(result.actions.find((action) => action.type === "start" && action.node === "b")).toMatchObject({
     inputs: { context: "built" },
     timeoutSeconds: 7200,
   });
   expect(finished(result.actions)).toEqual({ type: "finish", status: "succeeded", outputs: { out: "fine" } });
-  replays(workflow, result);
 });
 
 test("skip propagation: an untaken branch skips its nodes and theirs; a merge without a join is skipped, a join any runs", () => {
@@ -165,7 +179,6 @@ test("skip propagation: an untaken branch skips its nodes and theirs; a merge wi
   const result = drive(workflow);
   expect(states(result.state)).toBe("t:done c:done yes:skipped after:skipped no:done both:skipped j:done end:done");
   expect(finished(result.actions)?.status).toBe("succeeded");
-  replays(workflow, result);
 });
 
 test("join all waits for every branch and is skipped when one is dead; a condition on a value that is no boolean fails", () => {
@@ -196,22 +209,30 @@ test("join all waits for every branch and is skipped when one is dead; a conditi
   expect([states(failed.state), finished(failed.actions)?.status]).toEqual(["t:done c:failed x:cancelled", "failed"]);
 });
 
-test("join any fires at the first branch and cancels the nodes that lead only into it, not one that feeds more", () => {
+test("join any fires at the first branch and cancels what leads only into it; a cancelled branch stays cancelled", () => {
   const workflow = graph(
     ["fast:command.run", "slow:agent.run", "both:command.run", "j:join.any", "end:command.run"],
     ["t.start>fast.run", "t.start>slow.run", "t.start>both.run", "fast.done>j.branches", "slow.done>j.branches"].concat(
       ["both.done>j.branches", "both.stdout>@log", "j.done>end.run"],
     ),
-    { outputs: { log: { type: "string" } } },
+    { outputs: { log: { type: "string" } }, execution: { nodes: { slow: { retries: 2 } } } },
   );
   const started = startRun(workflow, {});
   if (!started.ok) throw new Error("not started");
-  const [first] = [step(workflow, started.value.state, { type: "ended", node: "fast", attempt: 1, outcome: "done" })];
+  const done = (state: RunState, node: string) =>
+    step(workflow, state, { type: "ended", node, attempt: 1, outcome: "done" });
+  const first = done(started.value.state, "fast");
   expect(first.actions).toEqual([
     { type: "cancel", node: "slow" },
     { type: "start", node: "end", attempt: 1, delayMs: 0, timeoutSeconds: 600, inputs: {} },
   ]);
-  expect(states(first.state)).toBe("t:done fast:done slow:running both:running j:done end:running");
+  expect(states(first.state)).toBe("t:done fast:done slow:cancelling both:running j:done end:running");
+  // The cancel is recorded: however the slow attempt ends, it ends cancelled, is never retried and fails nothing.
+  for (const outcome of ["interrupted", "failed", "timed-out", "done", "cancelled"] as const) {
+    const late = step(workflow, first.state, { type: "ended", node: "slow", attempt: 1, outcome });
+    expect([late.actions, late.state.nodes["slow"]?.state]).toEqual([[], "cancelled"]);
+    expect(finished([...done(done(late.state, "both").state, "end").actions])?.status).toBe("succeeded");
+  }
 });
 
 test("failure policies: fail_fast cancels the rest, continue_independent runs the other branch, a failed edge routes", () => {
@@ -243,7 +264,6 @@ test("failure policies: fail_fast cancels the rest, continue_independent runs th
     "t:done a:failed next:skipped b:done fix:done",
     "succeeded",
   ]);
-  replays(routed, route);
 });
 
 test("retries: a failed, timed-out or interrupted attempt runs again after a doubling delay; then the failure counts", () => {
@@ -261,7 +281,6 @@ test("retries: a failed, timed-out or interrupted attempt runs again after a dou
   const retried = step(workflow, started.value.state, { type: "ended", node: "a", attempt: 1, outcome: "failed" });
   const stale = step(workflow, retried.state, { type: "ended", node: "a", attempt: 1, outcome: "done" });
   expect(stale).toEqual({ state: retried.state, actions: [] });
-  replays(workflow, result);
 });
 
 test("at most maxConcurrency nodes run at once; the next starts when one ends", () => {
@@ -278,11 +297,7 @@ test("at most maxConcurrency nodes run at once; the next starts when one ends", 
 });
 
 test("a precheck that finds no work skips the run; approvals wait and take their branch; a cancel stops everything", () => {
-  const checked = graph(["a:command.run"], ["t.start>a.run"]);
-  const withPrecheck = {
-    ...checked,
-    nodes: checked.nodes.map((n) => (n.id === "t" ? { ...n, with: { precheck: "test -f x" } } : n)),
-  };
+  const withPrecheck = checked(graph(["a:command.run"], ["t.start>a.run"]));
   const skipped = drive(withPrecheck, { t: ["failed"] });
   expect([states(skipped.state), finished(skipped.actions)]).toEqual([
     "t:skipped a:skipped",
@@ -310,7 +325,6 @@ test("a precheck that finds no work skips the run; approvals wait and take their
       { type: "finish", status: "cancelled", outputs: {} },
     ],
   );
-  replays(withPrecheck, skipped);
 });
 
 test("inputs: a given value is checked against its type, a missing one takes its default; a required one must be there", () => {
@@ -340,7 +354,6 @@ test("inputs: a given value is checked against its type, a missing one takes its
   expect(startRun(required, {})).toMatchObject({ ok: false, finding: { code: "run.input-missing" } });
   const result = drive(workflow, {}, { inputs: { focus: "docs" } });
   expect(result.actions.find((action) => action.type === "start")).toMatchObject({ inputs: { context: "docs" } });
-  replays(workflow, result, { focus: "docs" });
 });
 
 test("a workflow with an error finding does not start, and a finished run takes no more events", () => {
@@ -357,4 +370,116 @@ test("a workflow with an error finding does not start, and a finished run takes 
     state: done.state,
     actions: [],
   });
+});
+
+test("nothing runs before the trigger and its precheck; a node no control edge reaches is skipped, not started", () => {
+  const workflow = checked(
+    graph(["c:condition", "cmd:command.run", "lone:command.run"], ["@c>c.value", "c.true>cmd.run"], {
+      inputs: { c: { type: "boolean", default: true } },
+    }),
+  );
+  const started = startRun(workflow, {});
+  expect(started.ok && started.value.actions).toEqual([{ type: "precheck", node: "t" }]);
+  const run = drive(workflow);
+  expect([states(run.state), starts(run.actions)]).toEqual(["t:done c:skipped cmd:skipped lone:skipped", []]);
+  const none = drive(workflow, { t: ["failed"] });
+  expect([states(none.state), finished(none.actions)?.status]).toEqual([
+    "t:skipped c:skipped cmd:skipped lone:skipped",
+    "skipped",
+  ]);
+});
+
+test("a cancelled end the run did not ask for counts as a failure; a cancel during the precheck ends the run at once", () => {
+  const chain = graph(["a:command.run", "b:command.run"], ["t.start>a.run", "a.done>b.run"]);
+  const run = drive(chain, { a: ["cancelled"] });
+  expect([states(run.state), finished(run.actions)?.status]).toEqual(["t:done a:failed b:cancelled", "failed"]);
+  const workflow = checked(chain);
+  const started = startRun(workflow, {});
+  if (!started.ok) throw new Error("not started");
+  const cancelled = step(workflow, started.value.state, { type: "cancel" });
+  expect(cancelled.actions).toEqual([
+    { type: "cancel", node: "t" },
+    { type: "finish", status: "cancelled", outputs: {} },
+  ]);
+  expect(step(workflow, cancelled.state, { type: "precheck", passed: false })).toEqual({
+    state: cancelled.state,
+    actions: [],
+  });
+});
+
+// Random clean graphs: each node after the trigger takes one or two control edges from earlier nodes.
+const KINDS = ["command.run", "agent.run", "condition", "join.any", "join.all", "human.approval"] as const;
+const OUT: Record<string, readonly string[]> = {
+  "trigger.manual": ["start"],
+  "command.run": ["done", "failed"],
+  "agent.run": ["done", "failed"],
+  condition: ["true", "false"],
+  join: ["done"],
+  "human.approval": ["approved", "rejected"],
+};
+const runs = fc.integer({ min: 1, max: 6 }).chain((count) => {
+  const each = <T>(arbitrary: fc.Arbitrary<T>) => fc.array(arbitrary, { minLength: count, maxLength: count });
+  return fc.record({
+    kinds: each(fc.constantFrom(...KINDS)),
+    sources: each(fc.uniqueArray(fc.nat(count), { minLength: 1, maxLength: 2 })),
+    picks: each(fc.nat()),
+    script: each(
+      fc.array(fc.constantFrom<Planned>("done", "failed", "timed-out", "interrupted", "cancelled"), { maxLength: 3 }),
+    ),
+    retries: each(fc.nat({ max: 2 })),
+    precheck: fc.boolean(),
+    passes: fc.constantFrom<Planned>("done", "failed"),
+    cancelAt: fc.option(fc.nat(count - 1), { nil: undefined }),
+  });
+});
+
+test("random runs: nothing before the trigger, starts within retries, none after a cancel, one finish with nothing open", () => {
+  fc.assert(
+    fc.property(runs, ({ kinds, sources, picks, script, retries, precheck, passes, cancelAt }) => {
+      const ids = kinds.map((_, index) => `n${index}`);
+      const nodes = kinds.map((kind, index) => `${ids[index]}:${kind}`);
+      const edges = kinds.flatMap((kind, index) => {
+        const into = kind.startsWith("join") ? "branches" : "run";
+        const from = [...new Set(sources[index]?.map((source) => source % (index + 1)))].map((source) => {
+          const type = source === 0 ? "trigger.manual" : (kinds[source - 1] ?? "").replace(/^join\..*/, "join");
+          const handles = OUT[type] ?? [];
+          return `${source === 0 ? "t" : ids[source - 1]}.${handles[(picks[index] ?? 0) % handles.length]}>${ids[index]}.${into}`;
+        });
+        return kind === "condition" ? [...from, `@flag>${ids[index]}.value`] : from;
+      });
+      const execution = { nodes: Object.fromEntries(ids.map((id, index) => [id, { retries: retries[index] ?? 0 }])) };
+      const base = graph(nodes, [...new Set(edges)], {
+        inputs: { flag: { type: "boolean", default: true } },
+        execution,
+      });
+      const workflow = precheck ? checked(base) : base;
+      if (!startRun(workflow, {}).ok) return;
+      const plan: Script = {
+        t: [passes],
+        ...Object.fromEntries(ids.map((id, index) => [id, [...(script[index] ?? [])]])),
+      };
+      const run = drive(workflow, plan, cancelAt === undefined ? {} : { cancelAt: ids[cancelAt] ?? "" });
+      expect(run.actions.filter((action) => action.type === "finish")).toHaveLength(1);
+      expect(
+        Object.values(run.state.nodes).filter((node) => ["pending", "running", "waiting"].includes(node.state)),
+      ).toEqual([]);
+      ids.forEach((id, index) => {
+        const mine = run.actions.filter((action) => "node" in action && action.node === id);
+        expect(mine.filter((action) => action.type === "start").length).toBeLessThanOrEqual((retries[index] ?? 0) + 1);
+        const cancelled = mine.findIndex((action) => action.type === "cancel");
+        expect(cancelled >= 0 && mine.slice(cancelled).some((action) => action.type === "start")).toBe(false);
+      });
+      // In a run that succeeded, a node is cancelled only because a join any no longer needed it.
+      if (finished(run.actions)?.status !== "succeeded") return;
+      const next = (id: string): string[] =>
+        workflow.edges.flatMap((edge) =>
+          "node" in edge.from && edge.from.node === id && "node" in edge.to ? [edge.to.node] : [],
+        );
+      const anyJoin = (id: string): boolean =>
+        next(id).some((to) => kinds[Number(to.slice(1))] === "join.any" || anyJoin(to));
+      const stray = Object.entries(run.state.nodes).filter(([id, node]) => node.state === "cancelled" && !anyJoin(id));
+      expect(stray).toEqual([]);
+    }),
+    { numRuns: 400 },
+  );
 });

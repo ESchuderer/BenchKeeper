@@ -222,7 +222,14 @@ test("edges must start and end at handles that exist, in the right direction", (
 test("typed handles: an incompatible edge is an error, json into a typed input a warning", () => {
   const graph = workflow(
     [start, "a:command.run", "r:agent.run", "c:condition"],
-    ["start.start>a.run", "a.exitCode>r.context", "a.done>c.value", "@flag>c.value"],
+    [
+      "start.start>a.run",
+      "a.exitCode>r.context",
+      "a.done>c.value",
+      "@flag>c.value",
+      "a.done>r.run",
+      "start.start>c.run",
+    ],
     { inputs: { flag: { type: "json", required: true } } },
   );
   expect(validateWorkflow(graph)).toEqual([
@@ -271,13 +278,14 @@ test("a cycle is found with its nodes in order, a self-loop too; policies and po
   ]);
 });
 
-test("a node no path from the trigger or an input reaches never runs; duplicate ids give each finding once", () => {
+test("a node no control path from the trigger reaches never runs, input data alone too; duplicate ids give each finding once", () => {
   const graph = workflow([start, "a:command.run", "c:condition", "c:condition"], ["@flag>c.value"], {
     inputs: { flag: { type: "boolean", required: true } },
   });
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.duplicate-id", params: { kind: "node", id: "c" } },
     { code: "workflow.unreachable", params: { node: "a" } },
+    { code: "workflow.unreachable", params: { node: "c" } },
   ]);
   // Without one trigger, reach is not judged: the trigger count is the finding.
   expect(codes(workflow(["a:command.run"], []))).toEqual(["workflow.trigger-count"]);
@@ -332,4 +340,10 @@ test("random DAGs have clean graphs, and one edge back along the chain makes exa
       expect(cycle.every((node, index) => linked.has(`${node}>${cycle[(index + 1) % cycle.length]}`))).toBe(true);
     }),
   );
+});
+
+test("only control edges from the trigger make a node run: a node that data alone reaches is unreachable", () => {
+  const inputs = { flag: { type: "boolean", default: true } };
+  const graph = workflow([start, "c:condition", "x:command.run"], ["@flag>c.value", "c.true>x.run"], { inputs });
+  expect(codes(graph)).toEqual(["workflow.unreachable", "workflow.unreachable"]);
 });

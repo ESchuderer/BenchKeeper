@@ -265,7 +265,13 @@ test("an update is offered once this machine has seen the new commit for 3 days,
   ]);
   if (due.ok && due.value.kind === "planned") applyPlan(folder, due.value.plan, { yes: true });
   const listed = installedExtensions(folder);
-  expect(listed.ok && listed.value.map(({ version }) => version)).toEqual(["1.1.0"]);
+  // The first new commit after an applied update starts a wait, not a restart of one.
+  publish("moving", { "cedarloom-extension.json": manifest({ version: "1.2.0" }) });
+  const next = await planUpdate(folder, "acme.jira", fetchLocal, NOW + 4 * DAY);
+  expect([listed.ok && listed.value.map(({ version }) => version), outcome(next)]).toEqual([
+    ["1.1.0"],
+    { kind: "waiting", commit: "c", seen: at(NOW + 4 * DAY), offered: at(NOW + 7 * DAY), moved: false },
+  ]);
 });
 
 test("a newer commit during the wait starts it again, and capabilities that shrink ask for no new consent", async () => {

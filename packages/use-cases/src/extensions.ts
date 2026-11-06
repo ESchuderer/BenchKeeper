@@ -237,9 +237,17 @@ const seenPath = (state: string): string => join(state, "extension-updates.json"
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-// When this machine first saw `commit` at the extension's ref, and whether that ref held another one when last checked
-// (the wait started again). A record CedarLoom cannot read counts as none: every wait starts again.
-const firstSeen = (state: string, id: string, commit: string, now: number): { seen: number; moved: boolean } => {
+// A commit at an extension's ref, and the commit the extension is installed at.
+type Sighting = { id: string; commit: string; installed: string };
+
+// When this machine first saw `commit` at the extension's ref, and whether the ref held another new commit when last
+// checked (the wait started again); the installed commit is no such restart. A record CedarLoom cannot read counts as
+// none: every wait starts again.
+const firstSeen = (
+  state: string,
+  { id, commit, installed }: Sighting,
+  now: number,
+): { seen: number; moved: boolean } => {
   const file = readOptionalJson(seenPath(state));
   const read = readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, file.ok ? file.value?.json : undefined);
   const all = read.ok ? read.value.extensions : {};
@@ -251,7 +259,7 @@ const firstSeen = (state: string, id: string, commit: string, now: number): { se
     extensions: { ...all, [id]: { commit, seen: iso(now) } },
   };
   writeFileSync(seenPath(state), `${JSON.stringify(ExtensionUpdates.parse(next), null, 2)}\n`);
-  return { seen: now, moved: known !== undefined };
+  return { seen: now, moved: known !== undefined && known.commit !== installed };
 };
 
 // What `after` asks for that `before` did not: an origin, a credential that is new or bound otherwise, project reads,
@@ -314,7 +322,7 @@ const updateOf = (state: string, from: Pin, fetched: Fetched): Result<UpdatePlan
 // The update once this machine has seen its commit for 3 days, or until when it still waits.
 const afterWait = (state: string, from: Pin, fetched: Fetched, now: number): Result<UpdatePlan> => {
   const { commit } = fetched.tree;
-  const { seen, moved } = firstSeen(state, fetched.manifest.id, commit, now);
+  const { seen, moved } = firstSeen(state, { id: fetched.manifest.id, commit, installed: from.source.commit }, now);
   if (now - seen >= UPDATE_WAIT_MS) return updateOf(state, from, fetched);
   return { ok: true, value: { kind: "waiting", commit, seen: iso(seen), offered: iso(seen + UPDATE_WAIT_MS), moved } };
 };

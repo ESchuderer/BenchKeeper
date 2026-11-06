@@ -162,7 +162,8 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .configureOutput({ writeOut: io.out, writeErr: io.err });
   const ctx = (): Context => {
     const { json, state } = program.opts();
-    return { io, json: json ?? false, state: state ?? stateDir(io.env), config: configDir(io.env) };
+    // Resolved once, so every path built from it, an own home's too, is absolute.
+    return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env) };
   };
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { counted, importBenchKeeper, type Left, type Selection, selectAccount } from "@cedarloom/accounts";
 import {
@@ -96,6 +96,25 @@ interface Read {
   readonly account: Account;
 }
 
+/**
+ * The account's own home as a real folder for the owner only, made when missing. Refused when the account names another
+ * folder, or when the homes folder or the home is a link, so nothing written for the account lands in another folder.
+ */
+export const ownFolder = (state: string, { name, home: named }: Account): Result<string> => {
+  const home = ownHome(state, name);
+  if (named !== home) {
+    return { ok: false, finding: { code: "accounts.home-not-own", params: { account: name, home: named } } };
+  }
+  for (const path of [join(state, "homes"), home]) {
+    if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+      return { ok: false, finding: { code: "accounts.home-linked", params: { account: name, path } } };
+    }
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    chmodSync(path, 0o700);
+  }
+  return { ok: true, value: home };
+};
+
 // The registry file with its text and the account `name`, refused when there is none or it is not Claude Code's.
 const readAccount = (config: string, name: string): Result<Read> => {
   const path = registryPath(config);
@@ -161,14 +180,9 @@ export const loginAccount = (
   const read = readAccount(config, name);
   if (!read.ok) return read;
   const { account } = read.value;
-  const home = ownHome(state, account.name);
-  if (account.home !== home) {
-    return {
-      ok: false,
-      finding: { code: "accounts.home-not-own", params: { account: account.name, home: account.home } },
-    };
-  }
-  mkdirSync(home, { recursive: true, mode: 0o700 });
+  const folder = ownFolder(state, account);
+  if (!folder.ok) return folder;
+  const home = folder.value;
   const ran = run({ ...cleanEnv(parent, platform, ["TERM"]), CLAUDE_CONFIG_DIR: home });
   if (ran.code === 0) return { ok: true, value: { home } };
   const error = ran.error ?? `exit code ${ran.code}`;

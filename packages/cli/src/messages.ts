@@ -112,6 +112,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
   "accounts.home-not-own": (p) =>
     `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+  "accounts.home-linked": (p) =>
+    `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "launch.settings-unproven": (p) =>

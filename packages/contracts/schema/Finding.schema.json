@@ -1810,6 +1810,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "accounts.home-linked"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "accounts.login-failed"
         },
         "params": {

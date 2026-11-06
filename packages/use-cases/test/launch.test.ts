@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
@@ -225,6 +234,18 @@ test("a worker starts only in its account's own home, so nothing is written into
     finding: { code: "accounts.home-not-own", params: { account: "work", home: ade } },
   });
   expect(workerFolders(state)).toEqual([]);
+});
+
+test("a worker never starts in an own home that is a link, so nothing is written into the folder it points to", async () => {
+  const { state, config, work } = setup();
+  const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
+  symlinkSync(elsewhere, ownHome(state, "work"), "junction");
+  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
+    ok: false,
+    finding: { code: "accounts.home-linked", params: { account: "work", path: ownHome(state, "work") } },
+  });
+  expect([workerFolders(state), readdirSync(elsewhere)]).toEqual([[], []]);
 });
 
 test("the account choice passes over an account whose leases are all taken; with none free, no worker starts", async () => {

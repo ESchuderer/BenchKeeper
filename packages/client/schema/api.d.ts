@@ -1012,6 +1012,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -1609,6 +1616,13 @@ export interface components {
             params: {
                 account: string;
                 home: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.home-linked";
+            params: {
+                account: string;
+                path: string;
             };
         } | {
             /** @constant */

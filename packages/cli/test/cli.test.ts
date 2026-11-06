@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Finding, type Plan } from "@cedarloom/contracts";
 import { benchKeeperRegistry, configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
@@ -253,6 +253,15 @@ test("accounts: an account moves into its own home with --yes, and its login run
     }),
   ]);
   expect((await cli("accounts", "home", "nobody")).code).toBe(EXIT.refused);
+});
+
+test("accounts: a relative --state is taken from the working folder, so an own home is an absolute folder", async () => {
+  const { root, cli, from } = withBenchKeeper();
+  await cli("accounts", "import", "--from", from, "--yes");
+  const state = relative(process.cwd(), join(root, "elsewhere"));
+  const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
+  expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
+  expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
 test("accounts: the one-time import is shown first and applied with --yes", async () => {

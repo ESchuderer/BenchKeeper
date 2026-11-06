@@ -190,6 +190,20 @@ jobs:
         run: |
           echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
           echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      # The OS sandbox of community extensions (sandbox-runtime), whose conformance kit the extension-host tests run:
+      # bubblewrap, socat and ripgrep on Linux, where Ubuntu 24.04 strips the capabilities bubblewrap needs from an
+      # unprivileged user namespace unless told otherwise; ripgrep on macOS, which ships sandbox-exec.
+      - if: runner.os == 'Linux'
+        name: Sandbox programs and user namespaces
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - if: runner.os == 'macOS'
+        name: Sandbox programs
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: command -v rg || brew install ripgrep
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed

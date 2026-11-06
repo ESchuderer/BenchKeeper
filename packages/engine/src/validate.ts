@@ -1,5 +1,11 @@
-import { type Finding, type HandleType, NODE_CONFIGS, type WorkflowDefinition } from "@cedarloom/contracts";
-import { type ActionCatalog, compatibility, isPluginType, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
+import {
+  type Finding,
+  type HandleType,
+  isPluginType,
+  NODE_CONFIGS,
+  type WorkflowDefinition,
+} from "@cedarloom/contracts";
+import { type ActionCatalog, compatibility, NODE_TYPES, type NodeType, nodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
 type End = Edge["from"] | Edge["to"];
@@ -282,7 +288,9 @@ const valid = ({ from, to }: Item): boolean => typeof from === "string" && typeo
  */
 export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCatalog = new Map()): Finding[] => {
   const [nodes, edges] = [unique(workflow.nodes), unique(workflow.edges)];
-  const types = new Map(nodes.map((node) => [node.id, nodeType(node.type, actions)]));
+  // Only plugin types by the contracts' rules: a catalog never stands in for a built-in type or any other name.
+  const plugins: ActionCatalog = new Map([...actions].filter(([type]) => isPluginType(type)));
+  const types = new Map(nodes.map((node) => [node.id, nodeType(node.type, plugins)]));
   const lookup = { workflow, types };
   const resolved = edges.map((edge) => ({
     edge,

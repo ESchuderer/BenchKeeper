@@ -40,6 +40,7 @@ export {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   GitUrl,
+  isPluginType,
   LOCK_SCHEMA_VERSION,
   PLUGIN_SCHEMA_VERSION,
   PluginId,

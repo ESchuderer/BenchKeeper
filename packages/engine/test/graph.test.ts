@@ -1,12 +1,18 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Finding, HandleType, NODE_CONFIGS, WorkflowDefinition } from "@cedarloom/contracts";
+import {
+  type Finding,
+  HandleType,
+  isPluginType,
+  NODE_CONFIGS,
+  PluginId,
+  WorkflowDefinition,
+} from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
 import {
   type ActionCatalog,
   compatibility,
   endType,
-  isPluginType,
   NODE_TYPES,
   nodeType,
   type PluginAction,
@@ -464,8 +470,29 @@ test("a plugin action that is not installed is a finding of its own, and its edg
   ]);
   expect(nodeType("command.run", named)).toBe(NODE_TYPES["command.run"]);
   // A publisher named like a built-in namespace would make `trigger.acme/go` a trigger.
-  const names = ["acme.jira/search", "Acme.jira/search", "acme.jira", "trigger.acme/go", "file.x/write", "join.x/y"];
-  expect(names.map(isPluginType)).toEqual([true, false, false, false, false, false]);
+  const long = `${"a".repeat(65)}.jira/search`;
+  const names = [
+    "acme.jira/search",
+    "Acme.jira/search",
+    "acme.jira",
+    "trigger.acme/go",
+    "file.x/write",
+    "join.x/y",
+    "acme.jira/search/more",
+    long,
+  ];
+  expect(names.map(isPluginType)).toEqual([true, false, false, false, false, false, false, false]);
+  // The same rule as a manifest's id: what a manifest may name, a node type may run.
+  expect(names.map((name) => PluginId.safeParse(name.split("/")[0]).success)).toEqual([
+    true,
+    false,
+    true,
+    false,
+    false,
+    false,
+    true,
+    false,
+  ]);
   const trigger = new Map([["trigger.acme/go", search]]);
   expect(validateWorkflow(workflow([start, "t:trigger.acme/go"], ["start.start>t.run"]), trigger)).toEqual([
     { code: "workflow.trigger-count", params: { count: 2 } },

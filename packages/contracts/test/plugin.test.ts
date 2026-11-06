@@ -8,6 +8,7 @@ import {
   PluginLock,
   PluginManifest,
   type Result,
+  isPluginType,
   readDocument,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
@@ -159,6 +160,9 @@ const manifestChanges: Change[] = [
   ["no action", ["contributes", "actions"], {}, true],
   ["an id in upper case", ["id"], "Acme.jira", true],
   ["an id without publisher", ["id"], "jira", true],
+  // The engine reserves the built-in namespaces for its own node types.
+  ["an id in a built-in namespace", ["id"], "trigger.acme", true],
+  ["an id in the join namespace", ["id"], "join.x", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
   ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", true],
 ];
@@ -341,4 +345,16 @@ test("a workflow names its own license; an SPDX expression is words of its chara
   const taken = ["MIT", "MIT OR Apache-2.0", "(MIT AND BSD-3-Clause)", "DocumentRef-spdx:LicenseRef-x"];
   const refused = ["", " ", "MIT  OR Apache-2.0", " MIT", "MIT\n", "MIT/X11"];
   expect([taken.filter((license) => !licensed(license)), refused.filter(licensed)]).toEqual([[], []]);
+});
+
+test("a node type names a plugin action by the manifest's own rules: a plugin id, a slash, an action name", () => {
+  const types = [
+    "acme.jira/search",
+    "acme.jira",
+    "trigger.acme/go",
+    "acme.jira/Search",
+    "acme.jira/search/x",
+    "/search",
+  ];
+  expect(types.map(isPluginType)).toEqual([true, false, false, false, false, false]);
 });

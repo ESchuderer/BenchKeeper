@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -134,25 +134,32 @@ test("an extension is refused for another protocol, other actions, an old Node, 
   ]);
 });
 
-// A copy of the fixture's folder under `name` in the scratch folder, with a link to `/` inside when asked.
-const copyOf = (name: string, link = false): string => {
+// A copy of the fixture's folder under `name` in the scratch folder, with a link inside to `target` when given.
+const copyOf = (name: string, target?: string): string => {
   const copy = join(scratch, name);
   mkdirSync(copy);
   copyFileSync(join(folder, "main.mjs"), join(copy, "main.mjs"));
-  if (link) symlinkSync(join(copy, ".."), join(copy, "outside"));
+  if (target !== undefined) symlinkSync(target, join(copy, "outside"));
   return copy;
 };
 
 test.skipIf(process.platform === "win32")(
-  "a folder that would widen the grant is refused: a * or ? in its path, a link inside",
+  "a folder that would widen the grant is refused: a * or ? in its path, a link inside, found without following it",
   async () => {
+    // A folder this user may not read: a link to it is refused, not followed into an error.
+    const closed = join(scratch, "closed");
+    mkdirSync(closed, { mode: 0o000 });
     const results = await Promise.all([
       start({ folder: copyOf("with*star") }),
       start({ folder: copyOf("with?mark") }),
-      start({ folder: copyOf("with-link", true) }),
+      start({ folder: copyOf("with-link", scratch) }),
+      start({ folder: copyOf("with-closed-link", closed) }),
       start({ folder: copyOf("plain") }),
     ]);
+    // Readable again, so the scratch folder can be removed.
+    chmodSync(closed, 0o700);
     expect(results.map((result) => (result.ok ? "started" : result.finding))).toEqual([
+      refusal("folder"),
       refusal("folder"),
       refusal("folder"),
       refusal("folder"),

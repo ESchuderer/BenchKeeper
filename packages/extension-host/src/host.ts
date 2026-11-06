@@ -118,14 +118,19 @@ export const speaks = (version: string): boolean => {
   return major === hostMajor && Number(minor) <= Number(hostMinor);
 };
 
+// Whether a link lies anywhere below `folder`, read from the entries themselves (a link is never followed): Node 26's
+// recursive readdir descends into a link to a folder, where it may loop, fail or walk the whole disk.
+const holdsLink = (folder: string): boolean =>
+  readdirSync(folder, { withFileTypes: true }).some(
+    (entry) => entry.isSymbolicLink() || (entry.isDirectory() && holdsLink(join(folder, entry.name))),
+  );
+
 /**
  * The folder becomes the read grant, so it must be what it says: no `*` or `?` in its path, which Node reads as a
  * wildcard and so would grant its siblings, and no link inside it, which Node follows outside the grant
  * (https://nodejs.org/api/permissions.html, known issues).
  */
-const folderIsPlain = (folder: string): boolean =>
-  !/[*?]/.test(folder) &&
-  !readdirSync(folder, { recursive: true, withFileTypes: true }).some((entry) => entry.isSymbolicLink());
+const folderIsPlain = (folder: string): boolean => !/[*?]/.test(folder) && !holdsLink(folder);
 
 /**
  * How to start the extension: under Node's permission flags, reading its folder only, `node:sqlite` off (it reaches

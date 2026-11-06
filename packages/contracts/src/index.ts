@@ -35,6 +35,7 @@ export { canonicalJson, type Json } from "./json.ts";
 export { LaunchRecord, Verdict, WORKER_RESULT_SCHEMA_VERSION, WorkerResult } from "./launch.ts";
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export { DeleteFile, Operation, PLAN_SCHEMA_VERSION, Plan, Sha256, WriteFile } from "./plan.ts";
+export { CATALOG_LIMITS, type Catalog, type CatalogRead, readCatalog, translate } from "./catalog.ts";
 export { CSRF_HEADER } from "./http.ts";
 export {
   EXPORT_SCHEMA_VERSION,

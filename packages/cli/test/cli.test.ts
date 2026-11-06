@@ -298,6 +298,24 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
+test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
+  const { state, logins, cli } = setup();
+  // The preview changes nothing: still no registry.
+  expect((await cli("accounts", "add", "work", "--pool", "main")).code).toBe(EXIT.ok);
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null });
+  expect(json((await cli("accounts", "add", "work", "--pool", "main", "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+  });
+  const home = join(state, "homes", "work");
+  expect((await cli("accounts", "list")).out).toBe(`work  claude  main (not confirmed)  ${home}\n`);
+  expect((await cli("accounts", "login", "work")).code).toBe(EXIT.ok);
+  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
+  const again = await cli("accounts", "add", "work", "--json");
+  expect(again.code).toBe(EXIT.refused);
+  expect(json(again.out)).toMatchObject({ findings: [{ code: "accounts.name-taken", params: { account: "work" } }] });
+});
+
 test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
   // No registry yet: no accounts, checked in the JSON form rather than the text.
   expect(json((await setup().cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null, confirmed: [] });

@@ -83,6 +83,28 @@
       }
     },
     {
+      "files": ["packages/orchestration/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@cedarloom/*",
+                  "!@cedarloom/contracts",
+                  "!@cedarloom/agent-contracts",
+                  "!@cedarloom/accounts",
+                  "!@cedarloom/engine"
+                ],
+                "message": "orchestration takes the domain packages and the agent contract, never an adapter or a front end"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/accounts/src/**"],
       "rules": {
         "no-restricted-imports": [

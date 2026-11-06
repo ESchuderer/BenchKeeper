@@ -86,6 +86,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "usage limit counts as one is not stated.",
   "accounts.codex-switching-off": (p) =>
     `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
+  "launch.gh-login": (p) =>
+    p.error === null
+      ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
+      : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

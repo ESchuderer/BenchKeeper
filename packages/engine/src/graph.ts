@@ -29,6 +29,12 @@ const ended = { done: branch, failed: branch };
 export const own = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
   record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
 
+/**
+ * Node types that wait until after 0.1.0 (owner, 2026-11-06): a schedule of CedarLoom's own, as users schedule
+ * `cloom workflows run` themselves, and child workflows. The validator refuses them, and the editor does not offer them.
+ */
+export const LATER_TYPES: ReadonlySet<string> = new Set(["trigger.schedule", "workflow.run"]);
+
 /** The node types of workflow schema version 1, with their handles. Their configuration and execution come later. */
 export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "trigger.manual": { inputs: {}, outputs: { start: control } },

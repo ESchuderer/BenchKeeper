@@ -10,7 +10,7 @@ import {
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { NODE_TYPES } from "@cedarloom/engine/graph";
+import { LATER_TYPES, NODE_TYPES } from "@cedarloom/engine/graph";
 import { validateWorkflow } from "@cedarloom/engine/validate";
 import { Alert, Anchor, Button, FileButton, Group, List, Select, Stack, Text, Title } from "@mantine/core";
 import { useDisclosure, useHotkeys } from "@mantine/hooks";
@@ -47,7 +47,8 @@ import { describe } from "./problems.ts";
 import { type CardData, endsOf, isBoundary, project } from "./projection.ts";
 
 const nodeTypes = { card: NodeCard };
-const TYPES = Object.keys(NODE_TYPES);
+// An imported file with a later type still shows it, with its error.
+const TYPES = Object.keys(NODE_TYPES).filter((type) => !LATER_TYPES.has(type));
 
 /** The document, its history, and how many documents were opened (New, Import): the canvas starts over for each. */
 type Edit = { history: History; loads: number; change: (change: Change) => void; undo: () => void; redo: () => void };

@@ -18,6 +18,7 @@
         "git",
         "ledger",
         "orchestration",
+        "plugin-host",
         "server",
         "ui",
         "use-cases"
@@ -35,6 +36,7 @@
     "packages/git": { "component": "git" },
     "packages/ledger": { "component": "ledger" },
     "packages/orchestration": { "component": "orchestration" },
+    "packages/plugin-host": { "component": "plugin-host" },
     "packages/plugin-sdk": { "component": "plugin-sdk" },
     "packages/server": {
       "component": "server",

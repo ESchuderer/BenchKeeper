@@ -15,6 +15,14 @@ const issueList = (issues: { path: string; code: string }[]): string =>
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
 
+const PLUGIN_REFUSALS = {
+  "sandbox-unavailable": "a plugin from elsewhere runs only in an OS sandbox, and this CedarLoom has none yet",
+  windows: "plugins from elsewhere do not run on native Windows",
+  protocol: "it speaks another version of the plugin protocol",
+  actions: "it serves other actions than its manifest names",
+} as const;
+const PLUGIN_STEPS = { start: "start", initialize: "answer its handshake", run: "run an action" } as const;
+
 const ENTRY_KINDS = {
   link: "is a symbolic link",
   submodule: "is a submodule",
@@ -117,6 +125,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
+  "plugin.refused": (p) => `Plugin ${p.plugin} is not run: ${PLUGIN_REFUSALS[p.reason]}.`,
+  "plugin.failed": (p) => `Plugin ${p.plugin} failed to ${PLUGIN_STEPS[p.step]} (${p.error}).`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
   "git.refused-source": (p) =>
     `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,

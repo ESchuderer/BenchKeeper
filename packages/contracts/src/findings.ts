@@ -93,6 +93,14 @@ export const Finding = z
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
+    // A plugin its tier may not run here (P1 a, A31), or one that speaks another protocol or serves other actions than
+    // its manifest names; it is not started, or stopped at once.
+    finding("plugin.refused", {
+      plugin: z.string(),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions"]),
+    }),
+    // A plugin that could not start, answer its handshake, or run an action; `error` says why.
+    finding("plugin.failed", { plugin: z.string(), step: z.enum(["start", "initialize", "run"]), error: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -170,6 +178,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "launch.gh-login": { severity: "error", effort: "manual" },
   "launch.sandbox-overridden": { severity: "error", effort: "manual" },
   "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
+  "plugin.refused": { severity: "error", effort: "manual" },
+  "plugin.failed": { severity: "error", effort: "manual" },
   "git.failed": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },

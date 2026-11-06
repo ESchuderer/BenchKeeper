@@ -1,5 +1,5 @@
 {
-  "name": "benchkeeper",
+  "name": "cedarloom",
   "initializeCommand": [
     "sh",
     "-c",

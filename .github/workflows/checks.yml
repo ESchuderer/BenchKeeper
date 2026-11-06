@@ -27,6 +27,10 @@ jobs:
       # The image digest is bumped by hand: Dependabot does not read `run:` lines.
       - name: actionlint
         run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint@sha256:9d36088643581e728c969f35141f88139fec77280b2be23c1f66f8e40e1025e7 -color # 1.7.12
+      # REUSE 3.3: every file has a copyright and a license through REUSE.toml; the CedarLoom name and logos are LicenseRef-Brand.
+      # A docker step because the allowed-actions list lacks fsfe/reuse-action; the image trusts git only at /data.
+      - name: REUSE
+        run: docker run --rm -v "$PWD":/data:ro -w /data docker.io/fsfe/reuse@sha256:2748d04c2adeb747c9a44831bc99a9cbfd7bf7ff6fc371a4b63204944e3e47b6 lint # 6.3.0
       - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
           version: 1.31.1

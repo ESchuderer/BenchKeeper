@@ -10,7 +10,7 @@ export default function SiteFooter({ base, size = 'lg', updated, commit }: { bas
       <Container size={size}>
         <Group justify="space-between">
           <Text size="sm" c="dimmed">
-            BenchKeeper, MIT License
+            CedarLoom, MIT License
             {updated && commit && <>, updated {updated} (<Anchor href={`${REPO}/commit/${commit}`} size="sm">{commit.slice(0, 7)}</Anchor>)</>}
           </Text>
           <Group gap="md">

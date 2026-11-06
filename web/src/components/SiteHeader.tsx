@@ -1,6 +1,7 @@
 import { ActionIcon, Anchor, Box, Container, Group, Text } from '@mantine/core';
 import { IconBrandGithub, IconGitFork, IconMoon, IconStar, IconSun, IconTag } from '@tabler/icons-react';
 import { SLUG, facts } from '../lib/repo-facts';
+import Mark from './Mark';
 
 const REPO = `https://github.com/${SLUG}`;
 const SECTIONS = [['sdlc', 'Workflow'], ['parts', 'What gets installed'], ['start', 'Quick start'], ['selected', 'Why this stack'], ['where', 'Where things run']];
@@ -14,8 +15,8 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
         <Group h="100%" justify="space-between" wrap="nowrap">
           <Anchor href={home ? '#main' : `${base}/`} underline="never" c="var(--mantine-color-text)">
             <Group gap={10} wrap="nowrap">
-              <img src={`${base}/logo.svg`} alt="" width={28} height={28} className="logo" />
-              <Text fw={800} size="lg" className="wordmark">BenchKeeper</Text>
+              <Mark base={base} size={28} />
+              <Text fw={800} size="lg" className="wordmark">CedarLoom</Text>
             </Group>
           </Anchor>
           <Group component="nav" aria-label="Sections" gap={14} wrap="nowrap" visibleFrom="lg" style={{ flex: 'none' }}>

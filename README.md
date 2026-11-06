@@ -1,6 +1,13 @@
-<p align="center"><img src="assets/logo.svg" alt="BenchKeeper logo" width="160"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/cedarloom-dark.svg">
+    <img src="brand/cedarloom-light.svg" alt="CedarLoom" width="400">
+  </picture>
+</p>
 
-# BenchKeeper
+# CedarLoom
+
+CedarLoom is the new name of BenchKeeper. Until CedarLoom 0.1.0 the released tool keeps the name `benchkeeper` on npm and in Claude Code, so the commands below stay as they are.
 
 <!-- generated:description -->
 BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.
@@ -64,8 +71,8 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Restart-safe coordinator](docs/restart-safe-coordinator.md): one Orca coordinator kept through usage limits, account switches and restarts, by a model-free loop, short decision cycles and a watchdog you set up
 - [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
-- [Changelogs](docs/releasing.md#components) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
+- [Changelogs](docs/releasing.md#components). This repository takes no issues: see the [issue policy](docs/agents/issue-tracker.md).
 
 ## License
 
-[MIT](LICENSE)
+The code is under the [MIT license](LICENSE). The CedarLoom name and logos are not: see [their terms](LICENSES/LicenseRef-Brand.txt). [`REUSE.toml`](REUSE.toml) maps every file to its license.

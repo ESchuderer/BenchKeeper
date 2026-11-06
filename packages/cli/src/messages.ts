@@ -162,6 +162,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
   "launch.not-logged-in": (p) =>
     `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
+  "doctor.plugin-none": (p) =>
+    `Workers run without the ${p.plugin} plugin: the pinned marketplace commit ${p.commit} has none yet, or it could not be fetched.`,
+  "doctor.plugin-not-loaded": (p) =>
+    `The ${p.plugin} plugin went with the latest worker but did not load with its skills${p.errors === "" ? "" : ` (${p.errors})`}.`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

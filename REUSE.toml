@@ -1,0 +1,35 @@
+version = 1
+
+# Copyright and license of every file, checked by `reuse lint` in checks.yml. When several annotations match a file,
+# the last one wins; `precedence = "override"` also ignores notices inside the file.
+
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "2026 ESchuderer"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "patches/thread-stream@4.2.0.patch"
+SPDX-FileCopyrightText = ["2021 Matteo Collina", "2026 ESchuderer"]
+SPDX-License-Identifier = "MIT"
+
+# Keeps the notice MIT when `**` becomes ISC at launch; the file's own copyright line already wins.
+[[annotations]]
+path = "packages/ui/notices/react-remove-scroll-bar.txt"
+SPDX-FileCopyrightText = "2025 Anton Korzunov"
+SPDX-License-Identifier = "MIT"
+
+# Both files hold text REUSE reads as a copyright notice (elkjs's notice, and the pattern that finds it), not their own.
+[[annotations]]
+path = ["packages/ui/test/editor.spec.ts", "packages/ui/vite.config.ts"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 ESchuderer"
+SPDX-License-Identifier = "MIT"
+
+# The CedarLoom name and logos are not under the code license: LICENSES/LicenseRef-Brand.txt, the brand repository's
+# own text. The site serves copies from web/public.
+[[annotations]]
+path = ["brand/**", "web/public/brand/**", "web/public/og.png"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 CedarLoom contributors"
+SPDX-License-Identifier = "LicenseRef-Brand"

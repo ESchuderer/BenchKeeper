@@ -8,6 +8,8 @@ export interface OverlayInput {
   readonly denyRead: readonly string[];
   readonly allowedDomains: readonly string[];
   readonly env: Readonly<Record<string, string>>;
+  /** Plugin folders the session loads; its file tools may read them, never change them. */
+  readonly pluginDirs: readonly string[];
 }
 
 /**
@@ -57,7 +59,7 @@ const Checked = z.looseObject({
  * documented syntax takes. A key a later CLI version stops taking drops the settings silently; the session's init line
  * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
-export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env }: OverlayInput) => {
+export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs }: OverlayInput) => {
   const workflows = join(cwd, ".github", "workflows");
   const settings = {
     permissions: {
@@ -72,6 +74,8 @@ export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env 
         "Read(**/.env*)",
         SETTINGS_SENTINEL,
         `Edit(${rulePath(workflows)}/**)`,
+        // The plugins join the working folders, which lets their skills read their own files, but not change them.
+        ...pluginDirs.map(rulePath).flatMap((path) => [`Edit(${path})`, `Edit(${path}/**)`]),
       ],
       disableBypassPermissionsMode: "disable",
       blockReadsOutsideWorkingDirectories: true,

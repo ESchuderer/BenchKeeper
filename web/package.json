@@ -14,7 +14,7 @@
     "@mantine/core": "9.7.4",
     "@mantine/hooks": "9.7.4",
     "@tabler/icons-react": "3.50.0",
-    "astro": "7.4.4",
+    "astro": "7.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

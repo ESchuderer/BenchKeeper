@@ -200,6 +200,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "git.unsafe-entry": (p) => `${p.path} ${ENTRY_KINDS[p.kind]}, so nothing of the fetched tree is used.`,
   "git.too-large": (p) =>
     `${p.path ?? "The tree"} has ${p.found} ${p.unit}, more than the ${p.limit} a fetched tree may have; nothing of it is used.`,
+  "profile.foreign-kind": (p) =>
+    `This is a "${p.kind}" file, not a CedarLoom profile. CedarLoom does not import BenchKeeper profiles or presets; remove BenchKeeper's setup with BenchKeeper, then apply a CedarLoom profile.`,
+  "profile.secret-like": (p) =>
+    `The profile holds what looks like a credential at ${p.path}. A profile is shared, so it is refused; keep the value in your environment or a secret store.`,
+  "profile.forbidden-setting": (p) =>
+    `The profile sets ${p.path}, which CedarLoom never writes: it removes a guard, runs a command or keeps your own choice.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

@@ -14,30 +14,19 @@ import {
   LOCK_SCHEMA_VERSION,
   PACK_SCHEMA_VERSION,
   PackManifest,
+  ProfileSelection,
   readDocument,
+  readProfile,
   type Result,
+  SELECTION_SCHEMA_VERSION,
   UPDATES_SCHEMA_VERSION,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
+import { ajv, published, set } from "./published.ts";
 
 const root = join(import.meta.dirname, "..");
 const read = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(root, path), "utf8"));
-
-// Every published document, so the extension formats' references resolve; strict mode refuses unknown keywords. The
-// date-time format is zod's ISO form in UTC.
-const ajv = new Ajv2020({
-  strict: true,
-  formats: { "date-time": /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/ },
-});
-for (const name of await readdir(join(root, "schema"))) {
-  ajv.addSchema(JSON.parse(await readFile(join(root, "schema", name), "utf8")));
-}
-const published =
-  (name: string) =>
-  (value: unknown): boolean =>
-    ajv.getSchema(`${name}.schema.json`)?.(value) === true;
 
 const formats: Record<string, (value: unknown) => Result<unknown>> = {
   ExtensionManifest: (value) => readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, value),
@@ -46,6 +35,8 @@ const formats: Record<string, (value: unknown) => Result<unknown>> = {
   InstalledExtensions: (value) => readDocument(InstalledExtensions, INSTALLED_SCHEMA_VERSION, value),
   ExtensionUpdates: (value) => readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, value),
   PackManifest: (value) => readDocument(PackManifest, PACK_SCHEMA_VERSION, value),
+  CedarLoomProfile: readProfile,
+  ProfileSelection: (value) => readDocument(ProfileSelection, SELECTION_SCHEMA_VERSION, value),
 };
 
 const issuePaths = (result: Result<unknown>): string[] =>
@@ -77,15 +68,6 @@ const index = await read("corpus/ExportIndex/1/valid-export.json");
 // `count` entries named `<prefix><index>`, each `value`.
 const many = (count: number, value: unknown, prefix = "a"): Record<string, unknown> =>
   Object.fromEntries(Array.from({ length: count }, (_, at) => [`${prefix}${at}`, value]));
-
-// A copy of `value` with the value at `path` replaced; missing objects on the way are created.
-const set = (value: unknown, path: (string | number)[], next: unknown): unknown => {
-  const [key, ...rest] = path;
-  if (key === undefined) return next;
-  const copy: unknown = structuredClone(value ?? {});
-  if (typeof copy !== "object" || copy === null) throw new Error(`no object at ${key}`);
-  return Object.assign(copy, { [key]: set(Reflect.get(copy, key), rest, next) });
-};
 
 const search = ["contributes", "actions", "search-issues"];
 const credential = ["capabilities", "credentials", "jira-token"];

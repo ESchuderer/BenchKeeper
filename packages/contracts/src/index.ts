@@ -81,6 +81,14 @@ export {
   UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";
 export { PACK_SCHEMA_VERSION, PackManifest } from "./pack.ts";
+export {
+  Profile,
+  PROFILE_SCHEMA_VERSION,
+  ProfileFile,
+  ProfileSelection,
+  readProfile,
+  SELECTION_SCHEMA_VERSION,
+} from "./profile.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {

@@ -1,0 +1,1432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "CedarLoomProfile.schema.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this JSON Schema; readers ignore it",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.profile"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$",
+      "description": "`publisher.name`, as a pack's"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$",
+      "description": "SPDX license expression"
+    },
+    "minApp": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$",
+      "description": "The oldest CedarLoom version that reads this profile"
+    },
+    "extends": {
+      "description": "Parent profiles, each a profile entry of a pack named in `packs`",
+      "minItems": 1,
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pack": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+            "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+          }
+        },
+        "required": [
+          "pack",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "uniqueItems": true
+    },
+    "agents": {
+      "description": "Claude Code only in schema 1",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "claude-code"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "packs": {
+      "description": "Packs of the cedarloom publisher are bundled",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "bundled": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "bundled"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "git": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                    "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                  },
+                  "path": {
+                    "description": "The folder inside the repository; its root when absent",
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                      },
+                      {
+                        "pattern": "^(?![0-9a-f]{40}$)"
+                      }
+                    ],
+                    "description": "The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"
+                  }
+                },
+                "required": [
+                  "git",
+                  "ref"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "git": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                    "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                  },
+                  "path": {
+                    "description": "The folder inside the repository; its root when absent",
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                  },
+                  "commit": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$",
+                    "description": "The commit, never a branch or tag that can move"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "SHA-256 of the folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths"
+                  }
+                },
+                "required": [
+                  "git",
+                  "commit",
+                  "digest"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        ]
+      },
+      "maxProperties": 50
+    },
+    "machine": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "plugin"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "plugin": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,63}@[a-z0-9][a-z0-9-]{0,63}$",
+                "description": "`<plugin>@<marketplace>`"
+              },
+              "marketplace": {
+                "description": "Declared when Claude Code does not know it; named as in the plugin id",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                      },
+                      "autoUpdate": {
+                        "type": "boolean"
+                      },
+                      "github": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}$"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "github"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                      },
+                      "autoUpdate": {
+                        "type": "boolean"
+                      },
+                      "git": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                        "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "git"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "options": {
+                "description": "The plugin's own config file, merged as a settings `set` is",
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                    "description": "Relative to the user's home"
+                  },
+                  "set": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "$ref": "JsonValue.schema.json"
+                    }
+                  }
+                },
+                "required": [
+                  "file",
+                  "set"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "skill"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pack": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "path": {
+                        "type": "string",
+                        "maxLength": 1024,
+                        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                        "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                      }
+                    },
+                    "required": [
+                      "pack",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "git": {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                            "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                          },
+                          "path": {
+                            "description": "The folder inside the repository; its root when absent",
+                            "type": "string",
+                            "maxLength": 1024,
+                            "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                          },
+                          "ref": {
+                            "type": "string",
+                            "allOf": [
+                              {
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                              },
+                              {
+                                "pattern": "^(?![0-9a-f]{40}$)"
+                              }
+                            ],
+                            "description": "The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"
+                          }
+                        },
+                        "required": [
+                          "git",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "git": {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                            "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                          },
+                          "path": {
+                            "description": "The folder inside the repository; its root when absent",
+                            "type": "string",
+                            "maxLength": 1024,
+                            "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                          },
+                          "commit": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$",
+                            "description": "The commit, never a branch or tag that can move"
+                          },
+                          "digest": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$",
+                            "description": "SHA-256 of the folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths"
+                          }
+                        },
+                        "required": [
+                          "git",
+                          "commit",
+                          "digest"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "rules"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "file": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\\.md$",
+                "description": "The file's name in the rules folder"
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pack": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "path": {
+                        "type": "string",
+                        "maxLength": 1024,
+                        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                        "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                      }
+                    },
+                    "required": [
+                      "pack",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "inline": {
+                        "type": "string",
+                        "maxLength": 16384
+                      }
+                    },
+                    "required": [
+                      "inline"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "settings"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "set": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "JsonValue.schema.json"
+                },
+                "description": "Merged into the agent's user settings"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "maxProperties": 100
+    },
+    "workspace": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "hub"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "labels": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50,
+                  "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{6}$"
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 100,
+                      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                    }
+                  },
+                  "required": [
+                    "color"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxProperties": 100
+              },
+              "projectLabel": {
+                "type": "object",
+                "properties": {
+                  "prefix": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{6}$"
+                  }
+                },
+                "required": [
+                  "prefix",
+                  "color"
+                ],
+                "additionalProperties": false
+              },
+              "rules": {
+                "description": "The question rule, a machine rules file while this part is on",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pack": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "path": {
+                        "type": "string",
+                        "maxLength": 1024,
+                        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                        "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                      }
+                    },
+                    "required": [
+                      "pack",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "inline": {
+                        "type": "string",
+                        "maxLength": 16384
+                      }
+                    },
+                    "required": [
+                      "inline"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "memory"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "scaffold": {
+                "type": "object",
+                "properties": {
+                  "pack": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                    "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                  }
+                },
+                "required": [
+                  "pack",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              "loader": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "maxProperties": 100
+    },
+    "project": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "manual"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "rules": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pack": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                        },
+                        "path": {
+                          "type": "string",
+                          "maxLength": 1024,
+                          "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                          "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                        }
+                      },
+                      "required": [
+                        "pack",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "inline": {
+                          "type": "string",
+                          "maxLength": 16384
+                        }
+                      },
+                      "required": [
+                        "inline"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "claudeImport": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "local-manual"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "rules": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pack": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                        },
+                        "path": {
+                          "type": "string",
+                          "maxLength": 1024,
+                          "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                          "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                        }
+                      },
+                      "required": [
+                        "pack",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "inline": {
+                          "type": "string",
+                          "maxLength": 16384
+                        }
+                      },
+                      "required": [
+                        "inline"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "files"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "files": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pack": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                        },
+                        "path": {
+                          "type": "string",
+                          "maxLength": 1024,
+                          "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                          "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+                        }
+                      },
+                      "required": [
+                        "pack",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "inline": {
+                          "type": "string",
+                          "maxLength": 16384
+                        }
+                      },
+                      "required": [
+                        "inline"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "minProperties": 1,
+                "maxProperties": 100
+              },
+              "commit": {
+                "type": "boolean"
+              },
+              "onlyIfAbsent": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "settings"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "set": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "JsonValue.schema.json"
+                }
+              },
+              "commit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "packs"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "packs": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "tier"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "tier": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "quick",
+                      "standard",
+                      "full",
+                      "research"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "gates"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "callers": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                },
+                "uniqueItems": true
+              },
+              "dependabotCooldownDays": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 90
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "maxProperties": 100
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "version",
+    "name",
+    "minApp"
+  ],
+  "additionalProperties": false,
+  "description": "A CedarLoom profile; readers also refuse values nested over 32 levels deep"
+}

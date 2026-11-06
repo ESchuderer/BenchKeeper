@@ -19,7 +19,7 @@ export const UPDATES_SCHEMA_VERSION = 1;
 
 const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
 // A list without repeats, in zod and in the JSON Schema document.
-const distinct = <T extends z.ZodType<string>>(item: T) =>
+export const distinct = <T extends z.ZodType<string>>(item: T) =>
   z.array(item).refine(unique, "no entry twice").meta({ uniqueItems: true });
 // The texts a manifest shows, which its catalogs translate: plain text.
 export const description = PlainText.max(2000).optional();

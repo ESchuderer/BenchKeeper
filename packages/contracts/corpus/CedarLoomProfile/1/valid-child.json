@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.profile",
+  "id": "acme.team",
+  "version": "1.0.0",
+  "name": "Acme team setup",
+  "minApp": "0.1.0",
+  "extends": [{ "pack": "cedarloom.core", "path": "profiles/default.json" }],
+  "packs": {
+    "cedarloom.core": { "bundled": true },
+    "acme.frontend": { "git": "https://git.example.org/acme/packs.git", "ref": "main", "path": "frontend" }
+  },
+  "machine": {
+    "plugin.ponytail": { "type": "plugin", "default": "off" },
+    "settings.claude-code": { "type": "settings", "set": { "env": { "DISABLE_FEEDBACK_COMMAND": "0" } } }
+  },
+  "workspace": {
+    "memory": { "type": "memory", "default": "off" }
+  },
+  "project": {
+    "guards": { "type": "settings", "set": { "permissions": { "deny": ["Bash(npm publish *)"] } } },
+    "packs": { "type": "packs", "packs": ["acme.frontend"] },
+    "notes": {
+      "type": "files",
+      "title": "A note for agents",
+      "default": "on",
+      "commit": true,
+      "onlyIfAbsent": true,
+      "files": { "docs/agents/notes.md": { "inline": "# Notes\n\nAsk in the team channel before a release.\n" } }
+    }
+  }
+}

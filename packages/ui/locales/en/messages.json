@@ -149,7 +149,7 @@
     ],
     "problem.unknownHandle": ["Edge ", ["edge"], " uses the handle ", ["handle"], ", which that node type lacks."],
     "problem.unknownNodeType": ["Node ", ["node"], " has the type ", ["type"], ", which this CedarLoom does not know."],
-    "problem.unreachable": ["Nothing leads to node ", ["node"], " from the trigger or an input, so it never runs."],
+    "problem.unreachable": ["Nothing leads to node ", ["node"], " from the trigger, so it never runs."],
     "problem.workflowOutput": ["The workflow output ", ["handle"]],
     "run.kind": [["kind", "select", { "apply": ["Apply"], "undo": ["Undo"], "other": [["kind"]] }]],
     "run.nothingToUndo": ["Nothing to undo."],

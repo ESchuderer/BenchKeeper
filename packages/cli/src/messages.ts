@@ -75,7 +75,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Input ${p.handle} of node ${p.node} needs a value, but the workflow input ${p.input} it comes from is optional and has no default.`,
   "workflow.schedule-input": (p) =>
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
-  "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
+  "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.registry-exists": (p) =>
     `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,

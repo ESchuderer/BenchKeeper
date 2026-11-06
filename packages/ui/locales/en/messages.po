@@ -257,7 +257,7 @@ msgstr "A schedule starts this workflow without inputs, so the required input {i
 
 #. js-lingui-explicit-id
 msgid "problem.unreachable"
-msgstr "Nothing leads to node {node} from the trigger or an input, so it never runs."
+msgstr "Nothing leads to node {node} from the trigger, so it never runs."
 
 #. js-lingui-explicit-id
 msgid "problem.strayEntry"

@@ -253,7 +253,7 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
 // machine account's variables, or the user's own over them, in the local settings; Claude Code only), workflowLoad (default true: the
 // rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
-// repository; otherwise (the default) it stays on this machine, in files git ignores.
+// repository; otherwise (the default) it stays on this machine, in files git ignores (refused when the repository commits AGENTS.md).
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, machine: prev.machine ?? null, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
@@ -409,7 +409,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const dc = offered[0];
 
   // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
-  // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
+  // a CLAUDE.md that imports it. Local (only in a repository that commits no AGENTS.md): CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so its
   // block carries AGENTS.md's text too and is rebuilt from it on every apply; the user's lines around it stay).
   const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
@@ -425,6 +425,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
     // the block twice and change tracked files.
     if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
+    // A committed AGENTS.md is the project's agent manual: the block belongs in it, not in files beside it on one machine.
+    if (git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md') throw new Error(`${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`);
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();

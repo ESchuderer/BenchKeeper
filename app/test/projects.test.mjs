@@ -313,7 +313,7 @@ test('Update all pushes nothing and opens no pull request, also for a GitHub ori
   assert.deepEqual([again.status, again.push], ['current', r.push]);
 });
 
-test('an untracked local setup with a newer shared one on origin: Update all applies it in the checkout and runs no gh', async () => {
+test('an untracked local setup with a newer shared one on origin: Update all stops, since the repository commits AGENTS.md, and runs no gh', async () => {
   const h = home();
   const p = project(h);
   const other = cloneOrigin(p);
@@ -336,7 +336,8 @@ test('an untracked local setup with a newer shared one on origin: Update all app
   const [listed] = await api(ctx)['GET /api/projects']();
   assert.equal(listed.share, true);
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.ok(['applied', 'current'].includes(r.status), r.reason);
+  assert.equal(r.status, 'stopped');
+  assert.match(r.reason, /commits AGENTS\.md, so its setup is shared: benchkeeper projects apply --share/);
   assert.deepEqual(calls, []);
 });
 

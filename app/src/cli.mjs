@@ -128,7 +128,8 @@ Usage: benchkeeper <command> [options]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
-                                    local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
+                                    local (the default; refused when the repository commits AGENTS.md):
+                                    CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
                                     --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-standards workflow file (never GitHub settings);

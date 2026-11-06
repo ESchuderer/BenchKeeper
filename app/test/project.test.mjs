@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, win32 } from 'node:path';
 import { test } from 'node:test';
@@ -52,11 +52,10 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community ski
   assert.match(prompts[0].prompt, /setting-up-projects/);
 });
 
-test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md carries it, git ignores it all; shared moves it back', () => {
+test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md carries it, git ignores it all; a committed AGENTS.md makes it shared', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
-  r.git('add', '-A');
-  r.git('commit', '-qm', 'agents');
+  appendFileSync(join(r.dir, '.git/info/exclude'), 'AGENTS.md\n');
   const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
   assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) }).status, 'done');
   assert.equal(read(join(r.dir, 'AGENTS.md')), '# Project\n\nmy notes\n');
@@ -70,6 +69,9 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   for (const p of ['/.benchkeeper/', '/CLAUDE.local.md', '/AGENTS.override.md', '/.claude/skills/designing-technical-uis/', '/.agents/skills/designing-technical-uis/']) assert.ok(exclude.includes(`\n${p}\n`), p);
   assert.equal(r.git('status', '--porcelain').toString(), '');
 
+  r.git('add', '-f', 'AGENTS.md');
+  r.git('commit', '-qm', 'agents');
+  assert.throws(() => plan(r, {}), /commits AGENTS\.md, so its setup is shared: benchkeeper projects apply --share/);
   apply(preview(plan(r, { share: true }).changes), r.ctx, { scope: r.dir });
   assert.match(read(join(r.dir, 'AGENTS.md')), /- Default tier: quick/);
   assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
@@ -99,7 +101,7 @@ test('AGENTS.override.md keeps the user\'s own lines: a re-apply follows AGENTS.
   assert.equal(go().status, 'done');
   const text = read(at);
   assert.ok(text.startsWith('my note above\n\n<!-- benchkeeper:override start -->\n# Project\n\nsecond\n') && text.endsWith('<!-- benchkeeper:override end -->\n\n## Agent skills\n\n- mine\n'), text);
-  assert.doesNotMatch(text, /first/);
+  assert.doesNotMatch(text, /^first$/m);
 
   // Removing the setup takes out BenchKeeper's block only; the file goes when nothing else is in it.
   const removal = preview(localSetup(r.ctx, r.dir)).filter((c) => c.step === 'local-codex');

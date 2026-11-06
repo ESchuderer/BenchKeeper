@@ -173,7 +173,7 @@ function SetupSteps({ dir, onFinish, prefill }) {
             {!s.agents.length && <Note color="yellow" mt="sm">No agent is installed on this machine.</Note>}
             <Radio.Group mt="md" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
               <Stack gap="xs" mt="xs">
-                <Radio value="local" label="On this machine (recommended)" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository." />
+                <Radio value="local" label="On this machine" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository. Not for a repository that commits AGENTS.md: its setup is shared." />
                 <Radio value="share" label="In the repository, on a branch" description="The AGENTS.md block, CLAUDE.md and the skills on a local branch with one commit, which you push, for everyone who clones it." />
               </Stack>
             </Radio.Group>

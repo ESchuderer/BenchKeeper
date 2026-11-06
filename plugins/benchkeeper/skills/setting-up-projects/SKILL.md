@@ -2,14 +2,14 @@
 name: setting-up-projects
 description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration and where the agent runs, AGENTS.md, domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
-writes: "After you approve its plan: the dev container configuration, the commands and conventions in `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md` in a shared setup, stack and library skills with `skills-lock.json`, and the removals you confirm in step 6: skills, plugin and marketplace entries, MCP servers, hooks, other agent rules files and tool folders. The BenchKeeper block and `.benchkeeper/state.json` come from `benchkeeper projects apply`."
+writes: "After you approve its plan: the dev container configuration, `AGENTS.md` (commands, first-class targets, footgun docs, pointers) and `CLAUDE.md` with only `@AGENTS.md`, both committed, short footgun docs under `docs/agents/`, stack and library skills with `skills-lock.json`, and the removals you confirm in step 6: skills, plugin and marketplace entries, MCP servers, hooks, other agent rules files and tool folders. The BenchKeeper block and `.benchkeeper/state.json` come from `benchkeeper projects apply`."
 ---
 
 # Setting up projects
 
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `docs/agents/`, every step compares the current state with what it would create and proposes only the differences.
 
-The BenchKeeper app owns the deterministic part: `npx benchkeeper@6 projects apply` writes the BenchKeeper block (the repository rules, where commands run, default tier, skill pointers), the pack and library skills and `.benchkeeper/state.json`. Local setup (the default, state `share: false`): the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; the app's block there also holds the text of `AGENTS.md` and is rebuilt on every apply, lines outside the block stay), and every file the app writes is listed in `.git/info/exclude`, so none of it is committed; the app's block in `.worktreeinclude` lists them for new worktrees, so leave it as written. Shared setup (`projects apply --share`): the block in `AGENTS.md`, `CLAUDE.md` importing it, all committed. With a state file, compare those parts and change an answer through `projects apply` (`--env`, `--tier`, `--pack`, `--skill`). Without one, propose `npx benchkeeper@6 projects plan` for them first. This skill does the steps that need judgement: the stack search, the commands in `AGENTS.md`, the dev container, cleanup.
+The BenchKeeper app owns the deterministic part: `npx benchkeeper@6 projects apply` writes the BenchKeeper block (the repository rules every project shares, where commands run, default tier, skill pointers), the pack and library skills and `.benchkeeper/state.json`. Every apply rewrites the block, so its rules stay current: never edit inside it. Every project commits its agent manual, so the setup is shared (`projects apply --share`, state `share: true`): the block in `AGENTS.md`, a `CLAUDE.md` that imports it, the skills and the state file, all committed. The app refuses a local setup in a repository that commits `AGENTS.md`; there `--share` also takes an earlier local setup's block out of `CLAUDE.local.md` and `AGENTS.override.md`. A local setup only when the user asks for one, in a repository that commits no `AGENTS.md`: the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; lines outside the block stay), and every file the app writes is listed in `.git/info/exclude`; the app's block in `.worktreeinclude` lists them for new worktrees, so leave it as written. With a state file, compare those parts and change an answer through `projects apply` (`--env`, `--tier`, `--pack`, `--skill`). Without one, propose `npx benchkeeper@6 projects plan --share` for them first. This skill does the steps that need judgement: the stack search, the project parts of `AGENTS.md`, the dev container, cleanup.
 
 Process: plan first, then apply.
 1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing. Do not build or start a container.
@@ -63,9 +63,17 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 
 ## 3. AGENTS.md and CLAUDE.md
 
-- `AGENTS.md` (committed in both setups): where project commands run sits in the BenchKeeper block (`projects apply --env`). Outside the block: the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands.
-- `CLAUDE.md`, only when Claude Code is selected and the setup is shared or the repository already has one: `@AGENTS.md`. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one. A local setup reads `AGENTS.md` through the import in `CLAUDE.local.md`.
-- After changing `AGENTS.md` in a local setup with Codex selected, run `npx benchkeeper@6 projects apply` so `AGENTS.override.md` carries the new text.
+Both are committed. `AGENTS.md`, short, in this order:
+1. `## Commands`: the real install, build, test, lint, format and run commands, and the changed-files check the block's push rule names (the command CI runs for the changed files, or the closest local one). Verify each where the block says commands run, when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation.
+2. The BenchKeeper block from `projects apply`: the shared rules (before a push, code, tests), where commands run, the default tier, skill pointers.
+3. `## Every change considers`: the first-class targets every change keeps working (platforms, runtimes, entry points such as a CLI, a server or a UI, browsers or devices, languages), then one link per risky area to a short footgun doc (for example git and child processes, platform paths). Link an existing doc; write a missing one under `docs/agents/`, a few lines on what goes wrong and how to avoid it, only for a risk the code shows.
+4. `## Pointers`: `docs/agents/` (domain, issue tracker, triage labels), the styleguide and design tokens of a project with a UI, and other docs an agent needs. Link deeper docs instead of copying them.
+
+Conventions found in the code that differ from the stack defaults go in one line each under Commands or Pointers. No project summary or layout. Update: compare each part, fix failing or changed commands, and after asking remove a project summary or layout section and hand-written lines that repeat a rule of the block.
+
+`CLAUDE.md`, when Claude Code is selected: exactly `@AGENTS.md`. Claude Code reads `AGENTS.md` on its own only without a `CLAUDE.md`, and the import keeps one source of instructions (https://code.claude.com/docs/en/memory). Move any other content into `AGENTS.md` first, after asking.
+
+A local setup (on request, no committed `AGENTS.md`) puts these parts outside the block of `CLAUDE.local.md` (Claude Code) and `AGENTS.override.md` (Codex).
 
 ## 4. Skills
 
@@ -122,6 +130,7 @@ For each item, say what it is and whether it still works, checked in its executi
 After the apply step, give the diff (`git diff` against the default branch plus untracked files, and in a local setup the ignored files from `git status --ignored`) and the plan to a review subagent (Claude Code: the Agent tool, Codex: a subagent). It reports each failed item with the file and line:
 - Every command and tool named in the touched `AGENTS.md` files exists where that file says it runs (container or host). Instructions for a tool whose skills or binary this run removed are gone.
 - Statements in `AGENTS.md` that the run checked (commands, test status, build output, reproducibility) match what the checks showed.
+- `AGENTS.md` has Commands, the BenchKeeper block, Every change considers and Pointers in that order, and each link in it resolves; `CLAUDE.md` is exactly `@AGENTS.md`; with `AGENTS.md` committed, no `CLAUDE.local.md` or `AGENTS.override.md` holds a BenchKeeper block.
 - A folder `AGENTS.md` or `CLAUDE.md` added inside a docs or site source folder is excluded from that build (for example `exclude_docs` in MkDocs).
 - Each installed skill passes the step 4 install checks, and each removal left no folder or lock entry.
 - The branch merges cleanly into the default branch. Otherwise merge the default branch in and resolve the conflicts before pushing.

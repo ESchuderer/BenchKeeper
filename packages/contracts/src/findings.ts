@@ -83,6 +83,8 @@ export const Finding = z
     finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
     // The own home, or the homes folder above it, is a link: what is written there would land in another folder.
     finding("accounts.home-linked", { account: z.string(), path: z.string() }),
+    // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
+    finding("accounts.home-missing", { account: z.string(), home: z.string() }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
@@ -179,6 +181,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.folder-taken": { severity: "error", effort: "manual" },
   "accounts.home-not-own": { severity: "error", effort: "manual" },
   "accounts.home-linked": { severity: "error", effort: "manual" },
+  "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },

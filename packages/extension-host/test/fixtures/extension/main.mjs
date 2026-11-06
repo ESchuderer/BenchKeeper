@@ -78,6 +78,16 @@ const actions = {
   },
   // Ignores the host's cancel and never answers.
   stubborn: () => new Promise(() => undefined),
+  // Stops reading its input, so the host's answers pile up, and sends requests at a steady rate: few enough at a time
+  // that the host reads each batch at once, so only the answers it cannot write stay unread.
+  "request-flood": async () => {
+    process.stdin.pause();
+    for (let batch = 0; batch < 300; batch += 1) {
+      for (let index = 0; index < 20; index += 1) send({ id: `f${batch}-${index}`, method: "host/fetch", params: {} });
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    return {};
+  },
   // Sends more small frames than the host reads at once, then answers.
   flood: () => {
     for (let index = 0; index < 20_000; index += 1) send({ method: "host/log", params: { run: "x", message: "." } });

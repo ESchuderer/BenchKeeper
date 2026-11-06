@@ -18,6 +18,7 @@ const ACTIONS = [
   "stubborn",
   "deep-error",
   "flood",
+  "request-flood",
   "abuse",
   "wait",
 ];
@@ -196,6 +197,11 @@ test("S9: a run after the extension ended answers a Result", async () => {
   const crashed = await extension();
   await run(crashed, "crash");
   expect(codeOf(await run(crashed, "echo"))).toEqual(failure("run", expect.any(String)));
+});
+
+test("S10: a flood of requests whose answers the extension never reads ends it at the unread bound", async () => {
+  const flooded = await extension({ limits: { unreadMessages: 200, stopMs: 100 } });
+  expect(codeOf(await run(flooded, "request-flood"))).toEqual(failure("run", "over 200 messages unread"));
 });
 
 test("S10: a flood of small frames past the unread bound ends the extension", async () => {

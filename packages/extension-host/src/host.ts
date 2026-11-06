@@ -194,11 +194,13 @@ const connect = (launch: Launch, limits: HostLimits): Session => {
   child.on("error", (error) => (broken ??= error.message));
   child.stderr.on("data", (chunk: Buffer) => (stderr = (stderr + chunk.toString()).slice(-2000)));
   const stopped = new Promise((resolve) => child.on("close", resolve));
+  // A message counts as read once its handling has ended, an answer to a request included: an extension that sends
+  // requests and never reads the answers would otherwise hold them in the host's memory, below the bound.
   const strategy: MessageStrategy = {
-    handleMessage: (message, next) => {
-      unread -= 1;
-      return next(message);
-    },
+    handleMessage: (message, next) =>
+      Promise.resolve(next(message)).finally(() => {
+        unread -= 1;
+      }),
   };
   const connection = createMessageConnection(
     new StreamMessageReader(output),

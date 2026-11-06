@@ -1,4 +1,12 @@
-import { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "@cedarloom/contracts";
+import {
+  CATALOG_LIMITS,
+  type Catalog,
+  isPlainText,
+  PluginManifest,
+  readCatalog,
+  shown,
+  translate,
+} from "@cedarloom/contracts";
 import { expect, test } from "vitest";
 
 // A German catalog as Lingui or msgmerge writes one.
@@ -39,20 +47,18 @@ const german = [
   'msgid "Found {count} in {project}"',
   'msgstr "{count} gefunden"',
   "",
-  'msgid "A \\"quoted\\" word,\\ta tab and a \\\\ backslash"',
-  'msgstr "Das \\"zitierte\\" Wort,\\tdas Tab und der \\\\ Backslash"',
+  'msgid "A \\"quoted\\" word and a \\\\ backslash"',
+  'msgstr "Das \\"zitierte\\" Wort und der \\\\ Backslash"',
 ].join("\r\n");
 
-test("a PO catalog gives the translations gettext would use, and names those with other placeholders", () => {
+test("a PO catalog gives the translations gettext would use, plain text shown as is", () => {
   const read = readCatalog(german);
-  expect(read.ok ? [Object.fromEntries(read.value.messages), read.value.mismatched] : read).toEqual([
-    {
-      "Search issues": "Vorgänge suchen",
-      "Runs a JQL query in {project}.": "Führt eine JQL-Abfrage in {project} aus.",
-      'A "quoted" word,\ta tab and a \\ backslash': 'Das "zitierte" Wort,\tdas Tab und der \\ Backslash',
-    },
-    ["Found {count} in {project}"],
-  ]);
+  expect(read.ok ? Object.fromEntries(read.value) : read).toEqual({
+    "Search issues": "Vorgänge suchen",
+    "Runs a JQL query in {project}.": "Führt eine JQL-Abfrage in {project} aus.",
+    "Found {count} in {project}": "{count} gefunden",
+    'A "quoted" word and a \\ backslash': 'Das "zitierte" Wort und der \\ Backslash',
+  });
 });
 
 const problem = (text: string): unknown => {
@@ -60,7 +66,7 @@ const problem = (text: string): unknown => {
   return read.ok ? "read" : read.finding.params;
 };
 
-test("a line that is no PO, a broken string or escape, a duplicate or a second msgid is refused with its line", () => {
+test("a line that is no PO, a broken string or escape, a duplicate, a second msgid or msgstr, or unsafe text is refused with its line", () => {
   const cases: [string, string][] = [
     ['msgid "a"\nmsgstr "b"\nnot po', "line 3 unexpected_line"],
     ['msgid "a\nmsgstr "b"', "line 1 bad_string"],
@@ -69,6 +75,11 @@ test("a line that is no PO, a broken string or escape, a duplicate or a second m
     ['msgid "a"\nmsgstr "b"\n\nmsgid "a"\nmsgstr "c"', "line 6 duplicate_msgid"],
     ['msgid "a"\nmsgid "b"\nmsgstr "c"', "line 2 unexpected_line"],
     ['"continues nothing"', "line 1 unexpected_line"],
+    ['msgid "a"\nmsgstr "b"\nmsgstr "c"', "line 3 unexpected_line"],
+    ['msgstr "b"\nmsgid "a"', "line 1 unexpected_line"],
+    ['msgid "a"\nmsgstr "a line\\nbreak"', "line 3 unsafe_character"],
+    ['msgid "a"\nmsgstr "reversed \u202e text"', "line 3 unsafe_character"],
+    ['msgid "an \u001b[2K escape"\nmsgstr "b"', "line 3 unsafe_character"],
   ];
   expect(cases.map(([text]) => problem(text))).toEqual(
     cases.map(([, issue]) => {
@@ -90,7 +101,8 @@ test("a catalog over the bounds is refused: its size, its entries, one text", ()
   ];
   expect(results.map((result) => JSON.stringify(result))).toEqual([
     JSON.stringify({ issues: [{ path: "line 1", code: "too_big" }] }),
-    expect.stringContaining("too_big"),
+    // Each entry takes three lines, so the one over the bound ends on its blank line.
+    JSON.stringify({ issues: [{ path: `line ${3 * CATALOG_LIMITS.entries + 3}`, code: "too_big" }] }),
     JSON.stringify({ issues: [{ path: "line 1", code: "too_big" }] }),
     JSON.stringify({ issues: [{ path: "line 2", code: "too_big" }] }),
   ]);
@@ -115,6 +127,8 @@ test("a text in the user's language: the locale, then its base language, then th
     translate("Search issues", "zh-Hant-TW", catalogs),
     translate("Search issues", "de", catalogs),
     translate("Unknown text", "pt", catalogs),
+    translate("Search issues", "pt_br", catalogs),
+    translate("Search issues", "not a tag!", catalogs),
   ];
   expect(texts).toEqual([
     "Pesquisar tickets",
@@ -123,5 +137,28 @@ test("a text in the user's language: the locale, then its base language, then th
     "搜尋問題",
     "Search issues",
     "Unknown text",
+    "Pesquisar tickets",
+    "Search issues",
+  ]);
+});
+
+const manifestNamed = (name: string) =>
+  PluginManifest.safeParse({
+    schemaVersion: 1,
+    kind: "cedarloom.plugin",
+    id: "acme.jira",
+    version: "1.0.0",
+    name,
+    api: "1.0",
+    runtime: { kind: "node", entry: "main.js" },
+    contributes: { actions: { go: { title: "Go" } } },
+  }).success;
+
+test("plain text: no control or bidirectional character in a manifest text, and other programs' text shown safely", () => {
+  const texts = ["Vorgänge suchen", "搜尋問題", "a\u001b[2Kb", "a\u202eb", "tab\tbed", "line\nbreak"];
+  expect([texts.map(isPlainText), texts.map(manifestNamed), shown("a\u001b[2Kb\r\nc\u202ed é", 11)]).toEqual([
+    [true, true, false, false, false, false],
+    [true, true, false, false, false, false],
+    "a\\u001b[2Kb",
   ]);
 });

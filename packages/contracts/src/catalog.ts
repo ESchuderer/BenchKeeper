@@ -1,9 +1,8 @@
 import type { Result } from "./documents.ts";
+import { isPlainText } from "./text.ts";
 
-/** A plugin's catalog for one language: each English text of its manifest to the text in that language. */
+/** An extension's catalog for one language: each English text of its manifest to the text in that language. */
 export type Catalog = ReadonlyMap<string, string>;
-/** A read catalog, and the English texts whose translation names other placeholders, which stay English. */
-export type CatalogRead = { messages: Catalog; mismatched: string[] };
 
 /** Bounds for a catalog from elsewhere: its size, its entries, and the length of one text. */
 export const CATALOG_LIMITS = { bytes: 256 * 1024, entries: 2000, text: 2000 };
@@ -36,21 +35,16 @@ const unquote = (quoted: string): string | { code: string } => {
   return text.length > CATALOG_LIMITS.text ? { code: "too_big" } : text;
 };
 
-// The placeholders of a message, `{name}` and the head of `{count, plural, ...}`.
-const placeholders = (text: string): Set<string | undefined> =>
-  new Set([...text.matchAll(/\{([A-Za-z0-9_]+)/g)].map(([, name]) => name));
-const samePlaceholders = (english: string, translated: string): boolean => {
-  const [mine, theirs] = [placeholders(english), placeholders(translated)];
-  return mine.size === theirs.size && [...mine].every((name) => theirs.has(name));
-};
-
-/** Keeps a finished entry: a translated message, not the header, not fuzzy, plural or in a context. */
-const keep = (entry: Entry, messages: Map<string, string>, mismatched: string[]): string | undefined => {
+/**
+ * Keeps a finished entry: a translated message, not the header, not fuzzy, plural or in a context. Its texts are plain
+ * text, as the manifest's are: shown as is, with no value formatted into them, so no placeholder needs checking.
+ */
+const keep = (entry: Entry, messages: Map<string, string>): string | undefined => {
   const { msgid = "", msgstr = "" } = entry;
   if (entry.skip || msgid === "" || msgstr === "") return undefined;
-  if (messages.has(msgid) || mismatched.includes(msgid)) return "duplicate_msgid";
-  if (samePlaceholders(msgid, msgstr)) messages.set(msgid, msgstr);
-  else mismatched.push(msgid);
+  if (!isPlainText(msgid) || !isPlainText(msgstr)) return "unsafe_character";
+  if (messages.has(msgid)) return "duplicate_msgid";
+  messages.set(msgid, msgstr);
   return undefined;
 };
 
@@ -58,16 +52,16 @@ const keep = (entry: Entry, messages: Map<string, string>, mismatched: string[])
 const KEYWORD = /^(msgid|msgstr|msgctxt|msgid_plural|msgstr\[\d+\])?[ \t]*("[\s\S]*)$/;
 
 /**
- * Reads a plugin's PO catalog, the gettext format Lingui reads too
+ * Reads an extension's PO catalog, the gettext format Lingui reads too
  * (https://www.gnu.org/software/gettext/manual/html_node/PO-Files.html): entries of a `msgid`, the English text, and a
  * `msgstr`, its translation, each a quoted string that more quoted lines continue. As gettext does, the header entry,
  * fuzzy entries (`#, fuzzy`) and empty translations are not used; entries in a context or with plural forms name no
- * manifest text and are skipped too. A file over the bounds, or with a line that is none of these, is refused whole.
+ * manifest text and are skipped too. A file over the bounds, with a line that is none of these, or with a text that
+ * holds a control or bidirectional character, is refused whole.
  */
-export const readCatalog = (text: string): Result<CatalogRead> => {
+export const readCatalog = (text: string): Result<Catalog> => {
   if (new TextEncoder().encode(text).length > CATALOG_LIMITS.bytes) return refused({ line: 1, code: "too_big" });
   const messages = new Map<string, string>();
-  const mismatched: string[] = [];
   let entry: Entry = { skip: false };
   let field: Field = "other";
   const lines = [...text.split(/\r?\n/), ""];
@@ -76,14 +70,13 @@ export const readCatalog = (text: string): Result<CatalogRead> => {
     const next = step(line, entry, field);
     if ("code" in next) return refused({ line: index + 1, code: next.code });
     if (next.ended) {
-      const problem = keep(entry, messages, mismatched);
+      const problem = keep(entry, messages);
       if (problem !== undefined) return refused({ line: index + 1, code: problem });
-      if (messages.size + mismatched.length > CATALOG_LIMITS.entries)
-        return refused({ line: index + 1, code: "too_big" });
+      if (messages.size > CATALOG_LIMITS.entries) return refused({ line: index + 1, code: "too_big" });
     }
     ({ entry, field } = next);
   }
-  return { ok: true, value: { messages, mismatched } };
+  return { ok: true, value: messages };
 };
 
 type Step = { entry: Entry; field: Field; ended: boolean } | { code: string };
@@ -95,10 +88,13 @@ const comment = (line: string, entry: Entry, field: Field): Step => {
 };
 
 // msgid and msgstr set their field; a context or plural forms mark an entry that names no manifest text. Entries are
-// separated by blank lines, as gettext writes them, so a second msgid in one entry is refused.
+// separated by blank lines, as gettext writes them, so a second msgid or msgstr in one entry, or a msgstr before its
+// msgid, is refused.
 const keyworded = (keyword: string, part: string, entry: Entry): Step => {
-  if (keyword === "msgid" && entry.msgid !== undefined) return { code: "unexpected_line" };
   if (keyword === "msgid" || keyword === "msgstr") {
+    if (entry[keyword] !== undefined || (keyword === "msgstr" && entry.msgid === undefined)) {
+      return { code: "unexpected_line" };
+    }
     return { entry: { ...entry, [keyword]: part }, field: keyword, ended: false };
   }
   return { entry: { ...entry, skip: true }, field: "other", ended: false };
@@ -125,12 +121,22 @@ const continued = (entry: Entry, field: Field, part: string): Step => {
     : { entry: { ...entry, [field]: joined }, field, ended: false };
 };
 
+// The canonical form of a language tag, as the manifest's catalog keys are written (`pt_br` is `pt-BR`); none for a tag
+// that is no language tag.
+const canonical = (locale: string): string => {
+  try {
+    return Intl.getCanonicalLocales(locale.replaceAll("_", "-"))[0] ?? "";
+  } catch {
+    return "";
+  }
+};
+
 /**
- * A text in the user's language: its translation for the locale, then for the locale without its last part (`pt-BR`,
- * then `pt`), else the English text itself.
+ * A text in the user's language: its translation for the locale in its canonical form, then for the locale without
+ * its last part (`pt-BR`, then `pt`), else the English text itself.
  */
 export const translate = (english: string, locale: string, catalogs: ReadonlyMap<string, Catalog>): string => {
-  const parts = locale.split("-");
+  const parts = canonical(locale).split("-");
   for (let count = parts.length; count > 0; count -= 1) {
     const text = catalogs.get(parts.slice(0, count).join("-"))?.get(english);
     if (text !== undefined) return text;

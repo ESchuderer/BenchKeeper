@@ -200,6 +200,7 @@ test("a Windows path becomes an absolute rule in POSIX form, and a server's MCP 
 test("refuses settings with a value the documented syntax does not take, which would drop them all silently", () => {
   const invalid = [
     [{ denyRead: ["/accounts/*"] }, "invalid worker settings at sandbox.filesystem.denyRead.0"],
+    [{ cwd: "/work/[repo]" }, "invalid worker settings at sandbox.filesystem.denyWrite.0"],
     // Allow rules with a glob in the tool name are skipped by the CLI.
     [{ allow: ["*"] }, "invalid worker settings at permissions.allow.0"],
     [{ allow: ["mcp__*"] }, "invalid worker settings at permissions.allow.0"],

@@ -21,7 +21,8 @@ const Rule = z.string().regex(/^(?:\*|[A-Z][A-Za-z]*(?:\([^)]+\))?|mcp__[\w*-]+)
 const Allowed = z.string().regex(/^(?:[A-Z][A-Za-z]*(?:\([^)]+\))?|mcp__[\w-]+(?:__(?:[\w-]+|\*))?)$/);
 const Domain = z.string().regex(/^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d+)?$/i);
 const Paths = z.array(z.string().min(1));
-// A denied path is matched literally: one with a glob character is refused rather than escaped.
+// A denied path is matched literally, the workflow folder below the working folder too: one with a glob character is
+// refused rather than escaped.
 const Literal = z.array(z.string().regex(/^[^*?[\]{}]+$/));
 
 // A path in a permission rule, absolute with two slashes; Windows paths in their POSIX form, C:\Users as //c/Users.
@@ -35,7 +36,7 @@ const rulePath = (path: string): string => {
 const Checked = z.looseObject({
   permissions: z.looseObject({ allow: z.array(Allowed), ask: z.array(Rule), deny: z.array(Rule) }),
   sandbox: z.looseObject({
-    filesystem: z.looseObject({ denyRead: Literal, denyWrite: Paths, allowRead: Paths }),
+    filesystem: z.looseObject({ denyRead: Literal, denyWrite: Literal, allowRead: Paths }),
     network: z.looseObject({ allowedDomains: z.array(Domain) }),
   }),
   env: z.record(z.string(), z.string()),

@@ -29,20 +29,42 @@ const git = (cwd: string, args: string[], input?: string): string =>
 
 type Entry = string | { mode: "100755" | "120000"; content: string } | { submodule: string };
 
-const object = (dir: string, entry: Entry): [string, string] => {
-  if (typeof entry === "string") return ["100644", git(dir, ["hash-object", "-w", "--stdin"], entry)];
-  if ("submodule" in entry) return ["160000", entry.submodule];
-  return [entry.mode, git(dir, ["hash-object", "-w", "--stdin"], entry.content)];
+// `<mode> <type> <object>` of a tree entry.
+const object = (dir: string, entry: Entry): string => {
+  if (typeof entry === "string") return `100644 blob ${git(dir, ["hash-object", "-w", "--stdin"], entry)}`;
+  if ("submodule" in entry) return `160000 commit ${entry.submodule}`;
+  return `${entry.mode} blob ${git(dir, ["hash-object", "-w", "--stdin"], entry.content)}`;
+};
+
+// A tree of the entries by their paths' parts, written level by level with mktree, which takes any name: the index,
+// which Git for Windows guards, would refuse a control character. --missing lets a submodule name a foreign commit.
+const mktree = (dir: string, entries: [string[], Entry][]): string => {
+  const folders = Map.groupBy(
+    entries.filter(([parts]) => parts.length > 1),
+    ([[folder = ""]]) => folder,
+  );
+  const lines = [
+    ...entries.filter(([parts]) => parts.length === 1).map(([[name], entry]) => `${object(dir, entry)}\t${name}`),
+    ...[...folders].map(([name, inner]) => {
+      const sub = mktree(
+        dir,
+        inner.map(([[, ...rest], entry]) => [rest, entry]),
+      );
+      return `040000 tree ${sub}\t${name}`;
+    }),
+  ];
+  return git(dir, ["mktree", "-z", "--missing"], lines.map((line) => `${line}\0`).join(""));
 };
 
 /** A repository whose `main` and tag `v1` hold exactly `files`, built from objects: no file system links needed. */
 const source = (files: Record<string, Entry>): { url: string; commit: string; dir: string } => {
   const dir = mkdtempSync(join(root, "source-"));
   git(dir, ["init", "--quiet"]);
-  for (const [path, entry] of Object.entries(files)) {
-    git(dir, ["update-index", "--add", "--cacheinfo", object(dir, entry).concat(path).join(",")]);
-  }
-  const commit = git(dir, ["commit-tree", "-m", "fixture", git(dir, ["write-tree"])]);
+  const top = mktree(
+    dir,
+    Object.entries(files).map(([path, entry]) => [path.split("/"), entry]),
+  );
+  const commit = git(dir, ["commit-tree", "-m", "fixture", top]);
   git(dir, ["update-ref", "refs/heads/main", commit]);
   git(dir, ["tag", "v1", commit]);
   return { url: pathToFileURL(dir).href, commit, dir };
@@ -234,8 +256,7 @@ test("git failures name their step: no git, out of time, an unknown ref, a ref t
       codeOf(await fetchLocal({ url: plugin.url, ...from }, { parent: parent(), ...options })),
     ),
   );
-  vi.stubEnv("PATH", "");
-  const noGit = await fetchLocal({ url: plugin.url, ref: "v1" }, { parent: parent() });
+  const noGit = await fetchTreeOver(["file"], "no-such-git")({ url: plugin.url, ref: "v1" }, { parent: parent() });
   expect([...results, codeOf(noGit)]).toEqual([
     ...tries.map(([, , step, error]) => ({
       code: "git.failed",

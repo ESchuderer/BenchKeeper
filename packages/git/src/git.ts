@@ -80,6 +80,7 @@ const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
 });
 
 type RunOptions = {
+  program: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
   input?: string;
@@ -95,7 +96,7 @@ type RunOptions = {
  */
 const run = (args: string[], options: RunOptions): Promise<Ran> =>
   new Promise((resolve) => {
-    const child = spawn("git", args, { cwd: options.cwd, env: options.env, windowsHide: true });
+    const child = spawn(options.program, args, { cwd: options.cwd, env: options.env, windowsHide: true });
     const chunks: Buffer[] = [];
     let bytes = 0;
     let stderr = "";
@@ -298,10 +299,11 @@ const readTree = async (git: Git, commit: string, source: Source, limits: Limits
 /**
  * Fetches one ref into a new bare repository below `parent` and reads the files of `source.path` at that commit:
  * nothing is checked out, no hook or filter runs, and the repository is removed afterwards. A tree holding a link, a
- * submodule, a name that is not portable, or more than the limits is refused whole.
+ * submodule, a name that is not portable, or more than the limits is refused whole. `program` is the git to run,
+ * the one on PATH unless the caller names another.
  */
 export const fetchTreeOver =
-  (protocols: readonly string[]) =>
+  (protocols: readonly string[], program = "git") =>
   async (source: Source, options: FetchOptions): Promise<Result<Tree>> => {
     const refused = sourceFinding(source);
     if (refused !== undefined) return refuse(refused);
@@ -310,7 +312,7 @@ export const fetchTreeOver =
     const env = { ...environment(protocols), GIT_CEILING_DIRECTORIES: options.parent };
     const timeoutMs = options.timeoutMs ?? 300_000;
     const limits = options.limits ?? LIMITS;
-    const base = { cwd: dir, env, timeoutMs, maxBytes: 64 * 1024 };
+    const base = { program, cwd: dir, env, timeoutMs, maxBytes: 64 * 1024 };
     // Read before `init`, which runs them; the empty folder is no repository, so this reads the user's configuration.
     const hooks = hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base));
     const git: Git = async (args, extra = {}) => {

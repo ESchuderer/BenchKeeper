@@ -582,6 +582,19 @@ test("a draft that is missing, broken, no workflow or too large is refused with 
   expect(await api({ path: DRAFT })).toMatchObject({ status: 200, body: { workflow } });
 });
 
+// The document's WorkflowJsonInput leaves out these keys, so Schemathesis sends them only as invalid requests.
+test("a save whose JSON the parser refuses, a __proto__ key or constructor.prototype at any depth, gets 400 with the parser's code", async () => {
+  const { api } = await drafting();
+  const refused: [string, string][] = [
+    ['{"workflow":{"a":[{"__proto__":1}]},"replaces":null}', "FST_ERR_CTP_INVALID_JSON_BODY"],
+    ['{"workflow":{"a":{"constructor":{"prototype":null}}},"replaces":null}', "FST_ERR_CTP_INVALID_JSON_BODY"],
+    ["", "FST_ERR_CTP_EMPTY_JSON_BODY"],
+  ];
+  for (const [body, error] of refused) {
+    expect(await api({ method: "PUT", path: DRAFT, body })).toMatchObject({ status: 400, body: { error } });
+  }
+});
+
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));

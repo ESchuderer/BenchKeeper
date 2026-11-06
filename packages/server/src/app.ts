@@ -44,6 +44,27 @@ const errors = (app: FastifyInstance, log: (text: string) => void): void => {
   });
 };
 
+const components = createJsonSchemaTransformObject({ schemaRegistry: contracts });
+const self = { $ref: "#/components/schemas/WorkflowJsonInput" };
+/**
+ * The workflow JSON as a request carries it. Fastify's JSON parser refuses a `__proto__` key and a `constructor` object
+ * with a `prototype` key at any depth (400 FST_ERR_CTP_INVALID_JSON_BODY), so the document says so, and clients and
+ * Schemathesis send only JSON that reaches the route. Only the document: a recursive zod schema would overflow the stack
+ * on deeply nested values, which readDocument refuses with a finding. The first branch has no `type: "array"`, so the
+ * generated client type stays `unknown` and not one TypeScript refuses as circular.
+ */
+const WorkflowJsonInput = {
+  anyOf: [
+    { not: { type: "object" }, items: self },
+    {
+      type: "object",
+      propertyNames: { not: { const: "__proto__" } },
+      additionalProperties: self,
+      not: { required: ["constructor"], properties: { constructor: { type: "object", required: ["prototype"] } } },
+    },
+  ],
+};
+
 const description = [
   "Answers on http://127.0.0.1:<port> only. Open the URL the server prints (#t=<token>) and send the token to",
   "POST /api/session once; every other request then needs the cookie cedarloom_session_<port> it sets and its csrf",
@@ -90,7 +111,12 @@ export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOpt
       info: { title: "CedarLoom local API", version: "0.0.0", description },
     },
     transform: createJsonSchemaTransform({ schemaRegistry: contracts }),
-    transformObject: createJsonSchemaTransformObject({ schemaRegistry: contracts }),
+    transformObject: (document) => {
+      const object = components(document);
+      // The transform builds a new object each time; "components" is there only to narrow away Swagger 2.
+      if ("components" in object) Object.assign(object.components?.schemas ?? {}, { WorkflowJsonInput });
+      return object;
+    },
   });
   // Plain HTTP on loopback: no HSTS, and the whole CSP spelled out (helmet's defaults allow https: sources and upgrade
   // requests to https). Mantine writes its CSS variables into a style element, so styles may be inline.

@@ -509,29 +509,13 @@ test("an extension that ends stops the requests the host sends for it", async ()
   expect([codeOf(result), ended]).toEqual([failure("run", expect.any(String)), ["/hang"]]);
 });
 
-// TEMPORARY diagnostic for CI: the adapter's probe, run by hand with its stderr.
-const whyNot = async (): Promise<string> => {
-  const { SandboxManager } = await import("@anthropic-ai/sandbox-runtime");
-  const { spawnSync } = await import("node:child_process");
-  const { homedir, tmpdir } = await import("node:os");
-  const { dirname: up } = await import("node:path");
-  const { fileURLToPath } = await import("node:url");
-  const srt = up(up(fileURLToPath(import.meta.resolve("@anthropic-ai/sandbox-runtime"))));
-  const filesystem = { denyRead: [homedir()], allowRead: [up(up(process.execPath)), srt], allowWrite: [], denyWrite: [] };
-  const command = `/usr/bin/env -i '${process.execPath}' -e ''`;
-  const wrapped = await SandboxManager.wrapWithSandboxArgv(command, undefined, { filesystem }, undefined, tmpdir());
-  const ran = spawnSync(wrapped.argv[0] ?? "", wrapped.argv.slice(1), { cwd: tmpdir(), env: {}, encoding: "utf8", timeout: 30_000 });
-  const plain = spawnSync("bwrap", ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--unshare-all", "true"], { encoding: "utf8" });
-  return JSON.stringify({ deps: await SandboxManager.checkDependenciesAsync(), status: ran.status, stderr: ran.stderr.slice(-2000), plain: [plain.status, plain.stderr] });
-};
-
 test.skipIf(process.platform === "win32")(
   "a community extension runs inside sandbox-runtime and passes the conformance kit, the host's signals included",
   async ({ skip }) => {
     const confined = await start({ trust: "community", sandbox: sandboxRuntime() });
     // A machine where no sandboxed process starts (the rootless dev container) is skipped; CI's runners are not.
     if (!confined.ok && process.env["CI"] !== "true") skip(JSON.stringify(confined.finding));
-    if (!confined.ok) throw new Error(`${JSON.stringify(confined.finding)} ${await whyNot()}`);
+    if (!confined.ok) throw new Error(JSON.stringify(confined.finding));
     started.push(confined.value);
     const kit = Object(codeOf(await conformance(confined.value)));
     const signal = String(Reflect.get(kit, "signal"));

@@ -32,12 +32,12 @@ export type LogParams = { run: string; level: "info" | "warning" | "error"; mess
 export const log = new NotificationType<LogParams>("host/log");
 
 /**
- * A request the host sends for the extension, which has no network of its own (pending owner decision, P7 a): to an
+ * A request the host sends for the extension, which has no network of its own (owner decision, 2026-11-06, P7 a): to an
  * origin it was granted, following redirects within the grant. `credential` names one of the manifest's credentials,
- * which the host adds for that credential's hosts only; the extension never sees its value (pending owner decision,
- * P8 a). Bodies are text, and answers identity-coded: the host sets no Accept-Encoding and refuses one of the
- * extension's. The host replaces the value in an answer as it is, URL-encoded and in its basic form, as best effort: a
- * host that reflects it otherwise still shows it, so use a token rather than a password for basic.
+ * which the host adds for that credential's hosts only; the extension never sees its value (owner decision,
+ * 2026-11-06, P8 a). Bodies are text, and answers identity-coded: the host sets no Accept-Encoding and refuses one of
+ * the extension's. The host replaces the value in an answer as it is, URL-encoded and in its basic form, as best
+ * effort: a host that reflects it otherwise still shows it, so use a token rather than a password for basic.
  */
 export type FetchParams = {
   url: string;

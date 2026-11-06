@@ -28,7 +28,7 @@ import { type Transport, transport } from "./transport.ts";
 
 /**
  * Where an extension comes from, which is how far it is trusted: inside the CedarLoom release, or from elsewhere. Only
- * a bundled extension runs without the OS sandbox (pending owner decision, P1 a); one from elsewhere never runs on
+ * a bundled extension runs without the OS sandbox (owner decision, 2026-11-06, P1 a); one from elsewhere never runs on
  * native Windows (A31 a).
  */
 export type Trust = "bundled" | "community";

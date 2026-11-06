@@ -245,7 +245,7 @@ const mayDo = ({ capabilities = {} }: ExtensionManifest): string[] => {
 };
 
 // What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what
-// it may do. The publisher is the id's first part, which nothing verifies (pending owner decision, P5 a).
+// it may do. The publisher is the id's first part, which nothing verifies (owner decision, 2026-11-06, P5 a).
 const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): string => {
   const publisher = manifest.id.slice(0, manifest.id.indexOf("."));
   const folder = source.path === undefined ? "" : `, folder ${source.path}`;

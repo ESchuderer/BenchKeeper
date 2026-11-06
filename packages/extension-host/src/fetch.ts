@@ -67,8 +67,8 @@ const requestOf = (params: unknown): Request | ResponseError => {
   return { ...parsed.data, headers: Object.fromEntries(headers) };
 };
 
-// A URL the extension may reach: one of its granted origins (P7 a: fixed origins, pending owner decision), with no user
-// or password, which the HTTP client would send as a credential of the extension's own.
+// A URL the extension may reach: one of its granted origins (P7 a: fixed origins, owner decision, 2026-11-06), with no
+// user or password, which the HTTP client would send as a credential of the extension's own.
 const granted = (net: Set<string>, url: string): URL | string => {
   const parsed = URL.parse(url);
   if (parsed === null) return "not a URL";
@@ -90,7 +90,8 @@ const declaredFor = (broker: Broker, id: string, request: Request, url: URL): De
   return Object.hasOwn(request.headers, name) ? refused(`the credential ${id} sets ${name}`) : credential;
 };
 
-// The header that carries the named credential's value (P8 a, pending owner decision), and the texts that would show it.
+// The header that carries the named credential's value (P8 a, owner decision, 2026-11-06), and the texts that would
+// show it.
 const injected = async (broker: Broker, request: Request, url: URL): Promise<Injected | ResponseError | undefined> => {
   const id = request.credential;
   if (id === undefined) return undefined;
@@ -104,7 +105,7 @@ const injected = async (broker: Broker, request: Request, url: URL): Promise<Inj
   const kind = scheme.type === "apiKey" ? "apiKey" : scheme.scheme;
   // shortcut: the value is hidden as it is, URL-encoded and in its basic form; a host that reflects it otherwise (in
   // another encoding, a Range slice, or a page that shows whether a guessed value matched) still shows it. Best effort,
-  // pending owner decision P8 a; tokens rather than passwords for basic. Upgrade if the owner refuses basic (P8 b).
+  // P8 a, owner decision 2026-11-06; tokens rather than passwords for basic.
   const secrets = [value.secret, encodeURIComponent(value.secret), basic];
   return { name: headerOf(credential), value: header[kind], hosts: new Set(credential.hosts), secrets };
 };
@@ -190,12 +191,12 @@ const send = async (broker: Granting, request: Request, url: URL, token: Cancell
 };
 
 /**
- * The extension's `host/fetch`, the only network it has (P7 a, pending owner decision). The host sends to its granted
- * origins only, adds a credential's value for that credential's hosts, and bounds how many requests run at once, how
- * long one takes and how large its answer is. Where the host connects is decided by the grant and the transport's
- * address check, never by text of the extension alone.
+ * The extension's `host/fetch`, the only network it has (P7 a, owner decision, 2026-11-06). The host sends to its
+ * granted origins only, adds a credential's value for that credential's hosts, and bounds how many requests run at
+ * once, how long one takes and how large its answer is. Where the host connects is decided by the grant and the
+ * transport's address check, never by text of the extension alone.
  *
- * The extension never holds the value (P8 a, pending owner decision), and hiding it in answers is best effort: the
+ * The extension never holds the value (P8 a, owner decision, 2026-11-06), and hiding it in answers is best effort: the
  * host takes identity-coded answers only and replaces the value as it is, URL-encoded and in its basic form. A host
  * that reflects it in another form still shows it, so a token is the better credential for basic than a password.
  */

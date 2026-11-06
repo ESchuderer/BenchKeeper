@@ -77,7 +77,8 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
-    // An extension action under a schedule: it may write through the host or change other systems (pending owner decision).
+    // An extension action under a schedule: it may write through the host or change other systems (owner decision,
+    // 2026-11-06).
     finding("workflow.report-only-extension", { node: z.string() }),
     // A node of an extension action that is not installed here: the workflow can be kept and shared, not run.
     finding("workflow.extension-missing", { node: z.string(), type: z.string() }),

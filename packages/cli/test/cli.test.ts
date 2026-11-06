@@ -296,7 +296,8 @@ test("accounts: a relative --state is taken from the working folder, so an own h
 });
 
 test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
-  expect(await setup().cli("accounts", "list")).toMatchObject({ code: EXIT.ok, out: "No accounts yet.\n" });
+  // No registry yet: no accounts, checked in the JSON form rather than the text.
+  expect(json((await setup().cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null, confirmed: [] });
   const { root, cli } = withRegistry();
   expect((await cli("accounts", "list")).out).toBe(
     "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",

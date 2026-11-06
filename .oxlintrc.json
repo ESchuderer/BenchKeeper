@@ -105,6 +105,28 @@
       }
     },
     {
+      "files": ["packages/use-cases/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@cedarloom/adapter-*",
+                  "@cedarloom/cli",
+                  "@cedarloom/server",
+                  "@cedarloom/ui",
+                  "@cedarloom/client"
+                ],
+                "message": "use-cases takes the agent contract, never an adapter or a front end: the caller hands the adapter in"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/accounts/src/**"],
       "rules": {
         "no-restricted-imports": [

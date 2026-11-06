@@ -157,6 +157,69 @@ test("an attempt past its timeout is stopped and counts as timed out; a type wit
   });
 });
 
+// An executor that waits `ms` before its attempt starts, as an agent for its account's lease, unless the attempt
+// stops; `stopped` gets why it stopped, and `begun` is called as the wait begins.
+const waiting = (ms: number, stopped: unknown[] = [], begun = (): void => undefined): Executors => ({
+  "command.run": async (attempt: Attempt) => {
+    begun();
+    await new Promise((resolve) => {
+      setTimeout(resolve, ms);
+      attempt.signal.addEventListener("abort", () => resolve(stopped.push(attempt.signal.reason)));
+    });
+    return { pid: null, run: () => Promise.resolve({ ok: true }) };
+  },
+});
+
+test("a wait before an attempt starts is no part of its timeout, and a cancel reaches the attempt while it waits", async () => {
+  const slow = await start(workflow({ nodes: { a: { timeoutSeconds: 1 } } }), {}, { executors: waiting(1500) });
+  expect([slow.result, trail(slow.events)]).toEqual([
+    { ok: true, value: "succeeded" },
+    "started a#1, ended a#1, started b#1, ended b#1, finished",
+  ]);
+  const stop = new AbortController();
+  const stopped: unknown[] = [];
+  const executors = waiting(60_000, stopped, () => stop.abort());
+  const cancelled = await start(workflow(), {}, { executors, signal: stop.signal });
+  expect([cancelled.result, trail(cancelled.events), cancelled.events[2], stopped]).toEqual([
+    { ok: true, value: "cancelled" },
+    "cancel, started a#1, ended a#1, finished",
+    expect.objectContaining({ outcome: "cancelled" }),
+    ["cancelled"],
+  ]);
+}, 10_000);
+
+test("an attempt whose run throws fails with the error's code, and the run goes on to its end", async () => {
+  const executors: Executors = {
+    "command.run": () => ({
+      pid: null,
+      run: () => Promise.reject(Object.assign(new Error("read EIO"), { code: "EIO" })),
+    }),
+  };
+  const { result, events } = await start(workflow(), {}, { executors });
+  expect([result, events[1]]).toEqual([
+    { ok: true, value: "failed" },
+    { type: "ended", node: "a", attempt: 1, outcome: "failed", values: { error: "EIO" } },
+  ]);
+});
+
+test("an attempt records its agent's session while it runs, and one that went quiet too long ends timed out", async () => {
+  const executors: Executors = {
+    "command.run": (attempt) => ({
+      pid: null,
+      run: () => {
+        attempt.session(`s-${attempt.node}`);
+        return Promise.resolve({ ok: false, stalled: true });
+      },
+    }),
+  };
+  const { result, events } = await start(workflow(), {}, { executors });
+  expect([result, trail(events)]).toEqual([
+    { ok: true, value: "failed" },
+    "started a#1, session a#1, ended a#1, finished",
+  ]);
+  expect(events.slice(1, 3)).toMatchObject([{ sessionId: "s-a" }, { outcome: "timed-out" }]);
+});
+
 test("a precheck that fails skips the run; one that passes starts it; a cancel while it runs ends the run", async () => {
   expect(trail((await start(workflow({}, "check"), { t: ["fail"] })).events)).toBe("precheck, finished");
   expect((await start(workflow({}, "check"), { t: [{}] })).result).toEqual({ ok: true, value: "succeeded" });

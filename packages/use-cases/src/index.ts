@@ -26,6 +26,7 @@ export {
   type Decided,
   type LaunchHost,
   launchWorker,
+  leaseWorker,
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
@@ -57,6 +58,7 @@ export {
   showRun,
   undoRun,
 } from "./use-cases.ts";
+export type { AgentOptions, Phase } from "./agent-node.ts";
 export {
   cancelRun,
   type GraphOutcome,

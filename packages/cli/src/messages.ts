@@ -82,8 +82,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "accounts.registry-exists": (p) =>
     `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
-  // Both quotes checked at their sources on 2026-11-06; the Usage Policy page is marked effective Nov 12, 2026.
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
+  // Both quotes checked at their sources on 2026-11-06; the Usage Policy page is marked effective Nov 12, 2026.
   "accounts.pool-terms": (p) =>
     `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy forbids ` +
     'users to "intentionally bypass or interfere with capabilities, restrictions, or guardrails established within our ' +

@@ -115,7 +115,7 @@ const canonicalSettings = (settings: AutomationSettings | null): AutomationSetti
   return { ...settings, projects: Object.fromEntries(projects) };
 };
 
-/** A run as its gates see it: its project's folder and the time it started. */
+/** A run as its gates see it: its project's folder and the time it started, an ISO date and time. */
 export interface GateRun {
   readonly project: string;
   readonly startedAt: string;
@@ -130,7 +130,9 @@ export interface GateRun {
 export const levelAtGate = (state: string, config: string, run: GateRun): Result<AutomationLevel> => {
   const settings = automationSettings(config);
   if (!settings.ok) return settings;
-  const since = settings.value?.modeScope === "until-off" ? null : run.startedAt;
+  // Compared as a time: the ledger's switch times carry milliseconds, and a start written without them would sort as
+  // text after every switch in the same second.
+  const since = settings.value?.modeScope === "until-off" ? null : new Date(run.startedAt).toISOString();
   const own = levelAt(canonicalSettings(settings.value), projectFolder(run.project) ?? run.project, null);
   return withView(state, (view) => {
     const switched = view?.modeSwitch(since) ?? null;

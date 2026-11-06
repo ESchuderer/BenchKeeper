@@ -66,6 +66,17 @@ test("a project key written by hand through a link still applies; two keys for o
   expect(levelAtGate(state, config, run(link))).toEqual({ ok: true, value: "checkpoint" });
 });
 
+test("a run's start is compared as a time, so a start written without milliseconds still takes a later switch", () => {
+  const { config, state } = folders();
+  switchMode(state, "auto", "2026-11-06T08:00:00.500Z");
+  // As text, "…08:00:00Z" sorts after "…08:00:00.500Z"; as times the switch came half a second after the start.
+  expect(levelAtGate(state, config, run("/work/app", "2026-11-06T08:00:00Z"))).toEqual({ ok: true, value: "auto" });
+  expect(levelAtGate(state, config, run("/work/app", "2026-11-06T08:00:01Z"))).toEqual({
+    ok: true,
+    value: "supervised",
+  });
+});
+
 test("with modeScope until-off, a switch reaches every later run too, until off", () => {
   const { config, state } = folders();
   mkdirSync(config, { recursive: true });

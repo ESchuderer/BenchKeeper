@@ -1,8 +1,8 @@
 import {
   CATALOG_LIMITS,
   type Catalog,
-  isPlainText,
   ExtensionManifest,
+  isPlainText,
   readCatalog,
   shown,
   translate,

@@ -54,13 +54,13 @@ export { CSRF_HEADER } from "./http.ts";
 export {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
-  GitUrl,
-  isExtensionType,
-  LOCK_SCHEMA_VERSION,
   EXTENSION_SCHEMA_VERSION,
   ExtensionId,
   ExtensionLock,
   ExtensionManifest,
+  GitUrl,
+  isExtensionType,
+  LOCK_SCHEMA_VERSION,
   PortablePath,
 } from "./extension.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";

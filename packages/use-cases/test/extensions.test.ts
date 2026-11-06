@@ -225,7 +225,6 @@ test("a failure to stage the files is a finding, and leaves no staging folder be
       },
     });
   const failed = await planInstall(folder, { url: "https://git.example.org/acme/long.git", ref: "main" }, tooLong);
-  writeFileSync(join(folder, "taken"), "");
   mkdirSync(join(folder, "extensions"), { recursive: true });
   writeFileSync(join(folder, "extensions", "acme.two"), "a file where its folder goes");
   const blocked = await planInstall(

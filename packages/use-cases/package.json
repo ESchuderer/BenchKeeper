@@ -31,6 +31,11 @@
     "@cedarloom/agent-contracts": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
-    "@cedarloom/ledger": "workspace:*"
+    "@cedarloom/ledger": "workspace:*",
+    "@cedarloom/orchestration": "workspace:*"
+  },
+  "devDependencies": {
+    "@cedarloom/adapter-claude": "workspace:*",
+    "zod": "catalog:"
   }
 }

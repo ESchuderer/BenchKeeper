@@ -149,6 +149,24 @@ test("a new worker gets the pool account with the most headroom above both of it
   expect(tie.ok && tie.account.name).toBe("one");
 });
 
+test("an account whose leases are all taken is passed over; with every one taken, the pool yields none", () => {
+  const readings = [...used("one", 50, 20), ...used("two", 30, 90), ...used("three", 30, 10)];
+  const passedOver = selectAccount(registry, { ...main, busy: new Set(["one"]) }, readings, NOW);
+  expect(passedOver).toMatchObject({ ok: true, reason: "most-headroom", account: { name: "three" } });
+  expect(passedOver.candidates.map((each) => each.account)).toEqual(["two", "three"]);
+  // With no readings the task stays on its account only while that one has a free lease.
+  expect(selectAccount(registry, { ...main, previous: "one", busy: new Set(["one"]) }, [], NOW)).toMatchObject({
+    ok: true,
+    reason: "no-readings",
+    account: { name: "two" },
+  });
+  expect(selectAccount(registry, { ...main, busy: new Set(["one", "two", "three"]) }, readings, NOW)).toEqual({
+    ok: false,
+    reason: "all-leased",
+    candidates: [],
+  });
+});
+
 test("an account below a minimum, or with a window it has no current reading of, never qualifies", () => {
   const readings = [...used("one", 95, 0), ...used("two", 0, 0).slice(0, 1), ...used("three", 0, 0, IMPORTED_AT)];
   expect(selectAccount(registry, main, readings, NOW)).toEqual({

@@ -80,7 +80,10 @@ const savedAt = z.iso.datetime().describe("When the draft was last saved");
  * A workflow document (WorkflowDefinition.schema.json). The API passes it as JSON, and each side reads it with
  * readDocument, which also refuses values nested over 32 levels before the schema runs.
  */
-export const WorkflowJson = z.unknown().describe("A workflow document, as in WorkflowDefinition.schema.json");
+export const WorkflowJson = z
+  .unknown()
+  .describe("A workflow document, as in WorkflowDefinition.schema.json")
+  .register(contracts, { id: "WorkflowJson" });
 
 /**
  * A draft as the list shows it, without its contents: the working copy of one workflow in the state folder, saved by

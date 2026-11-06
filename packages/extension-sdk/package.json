@@ -1,8 +1,8 @@
 {
-  "name": "@cedarloom/plugin-sdk",
+  "name": "@cedarloom/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "Write a CedarLoom plugin: the JSON-RPC protocol between the plugin host and a plugin, and definePlugin, which serves a plugin's actions over stdio.",
+  "description": "Write a CedarLoom extension: the JSON-RPC protocol between the extension host and an extension, and defineExtension, which serves an extension's actions over stdio.",
   "license": "MIT",
   "type": "module",
   "exports": {

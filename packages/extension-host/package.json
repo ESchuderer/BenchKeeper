@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
-    "@cedarloom/plugin-sdk": "workspace:*",
+    "@cedarloom/extension-sdk": "workspace:*",
     "vscode-jsonrpc": "10.0.0"
   }
 }

@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { PluginManifest, type Result } from "@cedarloom/contracts";
+import { ExtensionManifest, type Result } from "@cedarloom/contracts";
 import { type ExtensionLaunch, framesUpTo, type RunningExtension, startExtension } from "@cedarloom/extension-host";
 import { afterAll, afterEach, expect, test } from "vitest";
 import { CONFORMANT, conformance, SANDBOX_ONLY } from "./conformance.ts";
@@ -22,10 +22,10 @@ const ACTIONS = [
   "abuse",
   "wait",
 ];
-const manifestOf = (actions: string[], api = "1.0"): PluginManifest =>
-  PluginManifest.parse({
+const manifestOf = (actions: string[], api = "1.0"): ExtensionManifest =>
+  ExtensionManifest.parse({
     schemaVersion: 1,
-    kind: "cedarloom.plugin",
+    kind: "cedarloom.extension",
     id: "acme.fixture",
     version: "1.0.0",
     name: "Fixture",
@@ -210,7 +210,7 @@ test("S10: a flood of small frames past the unread bound ends the extension", as
 });
 
 test("an extension that does not start or answer fails with the reason and ends, and one that ignores exit is killed", async () => {
-  const gone = PluginManifest.parse({ ...manifestOf(ACTIONS), runtime: { kind: "node", entry: "gone.mjs" } });
+  const gone = ExtensionManifest.parse({ ...manifestOf(ACTIONS), runtime: { kind: "node", entry: "gone.mjs" } });
   const nowhere = { wrap: () => ({ command: join(folder, "no-such-program"), args: [], cwd: folder, env: {} }) };
   const failures = await Promise.all([
     start({ manifest: gone }),

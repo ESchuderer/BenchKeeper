@@ -49,6 +49,16 @@ const selected = /\bselected\b/;
 // The editor's status line; the problems panel's count, also a status, comes after it.
 const said = (): Locator => page.getByRole("status").first();
 const offers = (): Locator => page.getByRole("region", { name: "Unsaved drafts" });
+/**
+ * Waits until a searchable Select that focus opened takes keys. Mantine sets the open list's selected option in a
+ * zero-delay timer; an arrow key pressed before it runs is undone by it, and Enter then picks nothing (Firefox runs
+ * pending keys before timers, a few ms after the focus). A zero-delay timer queued now runs after Mantine's.
+ */
+const listening = async (field: Locator): Promise<void> => {
+  await expect(field).toBeFocused();
+  await expect(field).toHaveAttribute("aria-expanded", "true");
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
+};
 
 /** Sends a request of the page's own session, as another tab of it would, and returns the JSON answer. */
 const request = (path: string, init: { method?: string; body?: unknown } = {}): Promise<unknown> =>
@@ -235,7 +245,7 @@ test("handles connect from the keyboard: a dialog lists the outputs and the inpu
   const dialog = page.getByRole("dialog", { name: "Connect two handles" });
   // The trigger alone: no input can take its output, the To field says so, and Escape returns to the opener.
   await opener.press("Enter");
-  await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
+  await listening(dialog.getByRole("combobox", { name: "From output" }));
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(dialog.getByRole("combobox", { name: "To input" })).toHaveAccessibleDescription(
@@ -247,11 +257,12 @@ test("handles connect from the keyboard: a dialog lists the outputs and the inpu
   await page.getByRole("button", { name: "Add node" }).click();
   await opener.focus();
   await page.keyboard.press("Enter");
-  await expect(dialog.getByRole("combobox", { name: "From output" })).toBeFocused();
+  await listening(dialog.getByRole("combobox", { name: "From output" }));
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(dialog.getByRole("combobox", { name: "From output" })).toHaveValue("start · start (control)");
   await page.keyboard.press("Tab");
+  await listening(dialog.getByRole("combobox", { name: "To input" }));
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(dialog.getByRole("combobox", { name: "To input" })).toHaveValue("command-run-1 · run (control)");

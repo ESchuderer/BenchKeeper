@@ -1,10 +1,13 @@
 import { isAbsolute, resolve } from "node:path";
 import type { Finding, Operation, Plan } from "@cedarloom/contracts";
 import { type RunStore, sha256 } from "@cedarloom/ledger";
-import { backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeAtomic } from "./files.ts";
+import { asidePath, backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeStep } from "./files.ts";
 
-/** Points between the crash-ordered steps of one operation. */
-export type Phase = "backed-up" | "journaled" | "written" | "settled";
+/**
+ * Points between the crash-ordered steps of one operation. "set-aside": the file the step replaces or deletes is moved
+ * aside and checked (a new file: its content is ready), and the path is free for the new file.
+ */
+export type Phase = "backed-up" | "journaled" | "set-aside" | "written" | "settled";
 
 export interface ApplyOptions {
   kind?: "apply" | "undo";
@@ -66,20 +69,29 @@ interface Run {
   onPhase: Required<ApplyOptions>["onPhase"];
 }
 
-const change = (run: Run, index: number, op: Operation, mode: number | null): Finding | undefined => {
+/** What took the file's place: its hash, or (a folder, say) not a file at all, as the plan check reports it. */
+const changedFinding = (op: Operation): Finding => {
   try {
-    if (op.kind === "delete") remove(op.path, op.before);
-    else
-      writeAtomic(
-        { path: op.path, before: op.before, temp: tempPath(op.path, run.runId, index) },
-        op.content,
-        mode ?? op.mode,
-      );
+    return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
+  } catch (error) {
+    return { code: "plan.not-a-file", params: { path: op.path, error: errorCode(error) } };
+  }
+};
+
+const change = (run: Run, index: number, op: Operation, mode: number | null): Finding | undefined => {
+  const aside = asidePath(op.path, run.runId, index);
+  const onSetAside = (): void => run.onPhase(index, "set-aside");
+  try {
+    if (op.kind === "delete") remove(op.path, op.before, aside, onSetAside);
+    else {
+      const temp = tempPath(op.path, run.runId, index);
+      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, onSetAside);
+    }
     return undefined;
   } catch (error) {
     const code = errorCode(error);
     if (code !== "ECHANGED") return { code: "apply.write-failed", params: { path: op.path, error: code } };
-    return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
+    return changedFinding(op);
   }
 };
 

@@ -120,6 +120,10 @@ const command =
     const closed = new Promise<number | null>((resolve) => {
       child.once("error", () => resolve(null));
       child.once("close", (code) => resolve(code));
+      // On Windows a stopped command's tree can keep its output open (Git for Windows' sh): its shell's exit ends it.
+      child.once("exit", (code) => {
+        if (signal.aborted) resolve(code);
+      });
     }).finally(() => signal.removeEventListener("abort", abort));
     return {
       pid: child.pid ?? null,

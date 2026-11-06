@@ -79,7 +79,8 @@ const readManaged = (path: string): Settings | ManagedProblem | null => {
     return codeOf(error) === "ENOENT" ? null : { kind: "unreadable", path, error: codeOf(error) };
   }
   try {
-    const settings: unknown = JSON.parse(text);
+    // An empty file holds no settings, as Claude Code reads it.
+    const settings: unknown = text.trim() === "" ? {} : JSON.parse(text);
     return isObject(settings) ? { path, settings } : { kind: "unreadable", path, error: "not a JSON object" };
   } catch {
     return { kind: "unreadable", path, error: "not JSON" };
@@ -123,7 +124,8 @@ const listed = ({ path, settings }: Settings): ManagedProblem[] => {
  * outranks --settings. For a Boolean or a port, the last file that sets it wins, as Claude Code merges them; every list
  * entry counts. A file that cannot be read or parsed counts too.
  * shortcut: reads the files only. MDM profiles, the Windows HKLM registry and server-managed settings rank above them,
- * and wslInheritsWindowsSettings can make WSL read the Windows chain instead; all stay unchecked until a live sandbox
+ * the Windows HKCU registry applies when no admin source does, and wslInheritsWindowsSettings can make WSL read the
+ * Windows chain instead; all stay unchecked until a live sandbox
  * probe joins the contract check. Left out on purpose, as common policies set them for ordinary reasons:
  * filesystem.allowWrite, enableWeakerNestedSandbox, enableWeakerNetworkIsolation and network.allowLocalBinding.
  */
@@ -142,9 +144,10 @@ export const managedProblems = (dir: string): ManagedProblem[] => {
     problems.push(...listed(read));
   }
   for (const [key, { path, value }] of last) {
-    // A Boolean loosens with its value; a port loosens once it is set.
+    // A Boolean loosens with its value; a port loosens once it is set to anything but null.
     const loose = SWITCH_VALUES.get(key);
-    if (loose === undefined || loosens(value, loose)) problems.push({ kind: "loosens", path, key: `sandbox.${key}` });
+    const loosened = loose === undefined ? value !== null : loosens(value, loose);
+    if (loosened) problems.push({ kind: "loosens", path, key: `sandbox.${key}` });
   }
   return problems;
 };

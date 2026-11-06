@@ -232,6 +232,8 @@ test("hosts beyond GitHub, a proxy of the policy's own, and a policy helper are 
     "sandbox.network.httpProxyPort",
     "sandbox.network.socksProxyPort",
   ]);
+  // A port set to null names no proxy.
+  expect(loosened({ sandbox: { network: { httpProxyPort: null } } })).toEqual([]);
   // Its output replaces the files, so what they say is not what applies.
   expect(loosened({ policyHelper: { path: "/usr/local/bin/policy" } })).toEqual(["policyHelper"]);
 });
@@ -240,6 +242,9 @@ test("a managed file that cannot be read or holds no JSON object counts against 
   // A byte order mark, text that is no JSON, a top level that is no object, and a folder in a file's place.
   expect(loosened(`\uFEFF${JSON.stringify({ sandbox: { enabled: true } })}`)).toEqual(["not JSON"]);
   expect(loosened("{")).toEqual(["not JSON"]);
+  // An empty file holds no settings, as Claude Code reads it.
+  expect(loosened("")).toEqual([]);
+  expect(loosened(" \n")).toEqual([]);
   expect(loosened([])).toEqual(["not a JSON object"]);
   const folder = managed({ [join(MAIN, "inner.json")]: {} });
   expect(managedProblems(folder)).toEqual([{ kind: "unreadable", path: join(folder, MAIN), error: "EISDIR" }]);

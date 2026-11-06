@@ -1,6 +1,19 @@
 // BenchKeeper's documented apply and undo behavior (docs/security.md, "Recovery and concurrency" and "Secrets"), one test
 // per row that applies to file plans, plus the undo, write and mode cases of BenchKeeper issue 1031.
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { join, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Operation } from "@cedarloom/contracts";
@@ -258,6 +271,85 @@ test("a path that is relative or not normalized is refused", () => {
       findings: [{ code: "plan.path-not-absolute", params: { path } }],
     });
   }
+});
+
+/** The step's own leftovers next to its target: temporary and set-aside files. */
+const leftovers = (root: string): string[] => readdirSync(root).filter((name) => name.includes(".cedarloom-"));
+
+// The window the set-aside step closes: another process saves the file after the step's last check, before the new
+// file goes in. Before, a rename put ours over theirs. Now theirs lands in a new file at the path, which stays.
+test.each([
+  ["write", "in place"],
+  ["write", "by rename"],
+  ["delete", "in place"],
+  ["delete", "by rename"],
+] as const)("a %s step keeps a file another process saves %s after the step checked it", (kind, how) => {
+  const { store, root, file } = fresh();
+  const path = file("settings.json", "mine\n");
+  const race = (_: number, phase: string): void => {
+    if (phase !== "set-aside") return;
+    if (how === "in place") writeFileSync(path, "theirs\n");
+    else {
+      writeFileSync(join(root, "settings.json.save"), "theirs\n");
+      renameSync(join(root, "settings.json.save"), path);
+    }
+  };
+  const op: Operation =
+    kind === "write"
+      ? { kind: "write", path, before: hash("mine\n"), content: "ours\n" }
+      : { kind: "delete", path, before: hash("mine\n") };
+  const applied = run(store, plan(op), { onPhase: race });
+  // A write finds the path taken; a delete removes only the file it checked and then finds theirs.
+  const code = kind === "write" ? "plan.file-changed" : "apply.write-mismatch";
+  expect(applied).toMatchObject({ status: "failed", findings: [{ code }] });
+  expect([read(path), leftovers(root)]).toEqual(["theirs\n", []]);
+  expect(undo(store, applied.runId)).toMatchObject({ skipped: ["undo.file-edited"] });
+  expect(read(path)).toBe("theirs\n");
+});
+
+test.each(["write", "delete"])("a file deleted while the %s step is journaled is a change, not an error", (kind) => {
+  const { store, root, file } = fresh();
+  const path = file("old.md", "old\n");
+  const race = (_: number, phase: string): void => {
+    if (phase === "journaled") rmSync(path);
+  };
+  const op: Operation =
+    kind === "write"
+      ? { kind: "write", path, before: hash("old\n"), content: "ours\n" }
+      : { kind: "delete", path, before: hash("old\n") };
+  expect(run(store, plan(op), { onPhase: race })).toMatchObject({
+    status: "failed",
+    findings: [{ code: "plan.file-changed", params: { actual: null } }],
+  });
+  expect([existsSync(path), leftovers(root)]).toEqual([false, []]);
+});
+
+test.skipIf(!posix)("a link put at the path while the step is journaled goes back unread", () => {
+  const { store, root, file } = fresh();
+  const [path, other] = [file("a.md", "a\n"), file("other.md", "other\n")];
+  const race = (_: number, phase: string): void => {
+    if (phase !== "journaled") return;
+    rmSync(path);
+    symlinkSync(other, path);
+  };
+  const applied = run(store, plan({ kind: "write", path, before: hash("a\n"), content: "A\n" }), { onPhase: race });
+  expect(applied).toMatchObject({ status: "failed", findings: [{ code: "plan.file-changed" }] });
+  expect([read(path), read(other), leftovers(root)]).toEqual(["other\n", "other\n", []]);
+});
+
+// The one change the step cannot see: a process that opened the file before the check and writes through that handle
+// after it writes into the file set aside, which the step then removes.
+test("a write through a handle opened before the check and made after it is the window left", () => {
+  const { store, root, file } = fresh();
+  const path = file("a.md", "a\n");
+  let fd: number | undefined;
+  const race = (_: number, phase: string): void => {
+    if (phase === "journaled") fd = openSync(path, "r+");
+    if (phase === "set-aside" && fd !== undefined) writeSync(fd, "x", 0);
+  };
+  const applied = run(store, plan({ kind: "write", path, before: hash("a\n"), content: "A\n" }), { onPhase: race });
+  if (fd !== undefined) closeSync(fd);
+  expect([applied.status, read(path), leftovers(root)]).toEqual(["applied", "A\n", []]);
 });
 
 test("an unexpected error during a step marks the run failed before it reaches the caller", () => {

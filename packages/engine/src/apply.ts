@@ -1,10 +1,13 @@
 import { isAbsolute, resolve } from "node:path";
 import type { Finding, Operation, Plan } from "@cedarloom/contracts";
 import { type RunStore, sha256 } from "@cedarloom/ledger";
-import { backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeAtomic } from "./files.ts";
+import { asidePath, backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeStep } from "./files.ts";
 
-/** Points between the crash-ordered steps of one operation. */
-export type Phase = "backed-up" | "journaled" | "written" | "settled";
+/**
+ * Points between the crash-ordered steps of one operation. "set-aside": the file the step replaces or deletes is moved
+ * aside and checked (a new file: its content is ready), and the path is free for the new file.
+ */
+export type Phase = "backed-up" | "journaled" | "set-aside" | "written" | "settled";
 
 export interface ApplyOptions {
   kind?: "apply" | "undo";
@@ -67,14 +70,14 @@ interface Run {
 }
 
 const change = (run: Run, index: number, op: Operation, mode: number | null): Finding | undefined => {
+  const aside = asidePath(op.path, run.runId, index);
+  const setAside = (): void => run.onPhase(index, "set-aside");
   try {
-    if (op.kind === "delete") remove(op.path, op.before);
-    else
-      writeAtomic(
-        { path: op.path, before: op.before, temp: tempPath(op.path, run.runId, index) },
-        op.content,
-        mode ?? op.mode,
-      );
+    if (op.kind === "delete") remove(op.path, op.before, aside, setAside);
+    else {
+      const temp = tempPath(op.path, run.runId, index);
+      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, setAside);
+    }
     return undefined;
   } catch (error) {
     const code = errorCode(error);

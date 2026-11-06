@@ -35,6 +35,18 @@ export const storeAt = (dir: string): RunStore => {
 export const run = (store: RunStore, value: Plan, options?: ApplyOptions): Outcome =>
   apply(store, value, planHash(value), options);
 
+/** A run of `value` in the store at `dir` whose first step started and never finished; returns the run's id. */
+export const interruptedRun = (dir: string, value: Plan): string => {
+  const store = storeAt(dir);
+  const begun = store.begin("apply", value, planHash(value));
+  if (!begun.ok) throw new Error(begun.finding.code);
+  store.start(begun.value, 0, 0o644);
+  store.close();
+  // An earlier open marked the run interrupted and the process died before recover ran.
+  storeAt(dir).close();
+  return begun.value;
+};
+
 /** Plans the undo of a run and applies it as approved; returns the skipped files too. */
 export const undo = (store: RunStore, runId: string | null): Outcome & { skipped: string[] } => {
   const planned = planUndo(store, runId ?? "");

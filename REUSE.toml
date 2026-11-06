@@ -25,9 +25,9 @@ precedence = "override"
 SPDX-FileCopyrightText = "2026 ESchuderer"
 SPDX-License-Identifier = "MIT"
 
-# The CedarLoom name and logos are not under the code license: TRADEMARKS.md.
+# The CedarLoom name and logos are not under the code license: TRADEMARKS.md. The site serves copies from web/public.
 [[annotations]]
-path = "brand/**"
+path = ["brand/**", "web/public/brand/**", "web/public/favicon.svg", "web/public/og.png"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 CedarLoom contributors"
 SPDX-License-Identifier = "LicenseRef-Brand"

@@ -7,6 +7,7 @@ import {
   AccountSwitch,
   canonicalJson,
   ContractCheckRecord,
+  LaunchPlugins,
   LaunchRecord,
   type RunLabels,
   type Finding,
@@ -26,6 +27,7 @@ import {
   ACCOUNT_TABLES,
   CHECK_TABLES,
   GRAPH_TABLES,
+  PLUGIN_TABLES,
   LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
@@ -45,6 +47,7 @@ const MIGRATIONS = [
   USAGE_TABLES,
   LABEL_TABLES,
   GRAPH_TABLES,
+  PLUGIN_TABLES,
   PROJECT_TABLES,
 ];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
@@ -54,9 +57,16 @@ export const GRAPH_SCHEMA = MIGRATIONS.indexOf(GRAPH_TABLES) + 1;
 export const PROJECT_SCHEMA = MIGRATIONS.indexOf(PROJECT_TABLES) + 1;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
+// The schema that added the plugins of each launch, by its place in the migrations.
+const PLUGIN_SCHEMA = MIGRATIONS.indexOf(PLUGIN_TABLES) + 1;
+
+// A JSON column's value; null for SQL NULL.
+const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
 /** A launch as its lease takes it: the settings it runs with are required, though older rows have none. */
-export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels"> & { readonly labels: RunLabels };
+export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels" | "plugins"> & {
+  readonly labels: RunLabels;
+};
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -273,6 +283,18 @@ export class RunView {
       .prepare("SELECT at, level FROM mode_switches WHERE at >= ? ORDER BY rowid DESC LIMIT 1")
       .get(since ?? "");
     return row === undefined ? null : ModeSwitch.parse(row);
+  }
+
+  /**
+   * The plugins of the latest launch whose init line named them; null when none has. A store from before the plugins
+   * has none; a read view does not change its schema.
+   */
+  latestPlugins(): LaunchPlugins | null {
+    if (versionOf(this.db) < PLUGIN_SCHEMA) return null;
+    const row = this.db
+      .prepare("SELECT plugins FROM launches WHERE plugins IS NOT NULL ORDER BY startedAt DESC, rowid DESC LIMIT 1")
+      .get();
+    return row === undefined ? null : LaunchPlugins.parse(JSON.parse(String(row["plugins"])));
   }
 
   close(): void {
@@ -512,7 +534,7 @@ export class RunStore extends RunView {
    * the returned lock until it has finished the launch: a lease whose lock nobody holds counts as interrupted.
    */
   leaseAccount(input: Lease, max: number): LeaseLock | null {
-    const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
+    const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null, plugins: null });
     const lock = newLease(this.dir, launch.runId);
     let taken: boolean;
     try {
@@ -554,17 +576,21 @@ export class RunStore extends RunView {
       .run(end.finishedAt, end.verdict, end.runId);
   }
 
+  /** Keeps the plugins the run's init line named; ones that are no LaunchPlugins throw. */
+  recordPlugins(runId: string, input: LaunchPlugins): void {
+    const plugins = LaunchPlugins.parse(input);
+    this.db.prepare("UPDATE launches SET plugins = ? WHERE runId = ?").run(canonicalJson(plugins), runId);
+  }
+
   /** The launches, oldest first. */
   launches(): LaunchRecord[] {
     return this.db
       .prepare(
-        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels FROM launches
-         ORDER BY startedAt, rowid`,
+        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins
+         FROM launches ORDER BY startedAt, rowid`,
       )
       .all()
-      .map((row) =>
-        LaunchRecord.parse({ ...row, labels: row["labels"] == null ? null : JSON.parse(String(row["labels"])) }),
-      );
+      .map((row) => LaunchRecord.parse({ ...row, labels: column(row["labels"]), plugins: column(row["plugins"]) }));
   }
 
   /** The account choices in the order they were made. */

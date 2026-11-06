@@ -269,20 +269,20 @@ test("one process applies under the store lock while another appends events, and
   expect(runs.ok && new Set(runs.value.runs().map((run) => run.status))).toEqual(new Set(["applied"]));
 }, 15_000);
 
-test("a store of schema 8 gains the project folder when a graph store opens it, and keeps its runs", () => {
+test("a store of schema 9 gains the project folder when a graph store opens it, and keeps its runs", () => {
   const dir = fresh();
   applyRunIn(dir);
   const before = graphs(dir).create(manual);
   before.release();
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("ALTER TABLE graph_runs DROP COLUMN project; PRAGMA user_version = 8");
+  db.exec("ALTER TABLE graph_runs DROP COLUMN project; PRAGMA user_version = 9");
   db.close();
   expect(openGraphStore(dir, () => "nfs4")).toEqual({
     ok: false,
     finding: { code: "store.network-filesystem", params: { dir, fsType: "nfs4" } },
   });
-  // A read neither migrates nor writes: the view reads schema 8 as it is, and leaves a dead runner's lock file.
+  // A read neither migrates nor writes: the view reads schema 9 as it is, and leaves a dead runner's lock file.
   const left = join(dir, "leases", `${before.runId}.1.lock`);
   writeFileSync(left, "");
   const seen = (id: string) => {
@@ -292,7 +292,7 @@ test("a store of schema 8 gains the project folder when a graph store opens it, 
     return run;
   };
   expect(seen(before.runId)).toMatchObject({ project: null, status: "interrupted" });
-  expect([rows(dir, "PRAGMA user_version"), existsSync(left)]).toEqual([[{ user_version: 8 }], true]);
+  expect([rows(dir, "PRAGMA user_version"), existsSync(left)]).toEqual([[{ user_version: 9 }], true]);
   rmSync(left);
   expect(seen(before.runId)).toMatchObject({ status: "interrupted" });
   const store = graphs(dir);
@@ -304,7 +304,7 @@ test("a store of schema 8 gains the project folder when a graph store opens it, 
   ]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   expect([after.prepare("PRAGMA user_version").get(), after.prepare("SELECT count(*) AS n FROM runs").get()]).toEqual([
-    { user_version: 9 },
+    { user_version: 10 },
     { n: 1 },
   ]);
   after.close();
@@ -366,7 +366,8 @@ test("a view of graph runs is none without a store or before the graph runs, and
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; PRAGMA user_version = 7",
+    `DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs;
+     ALTER TABLE launches DROP COLUMN plugins; PRAGMA user_version = 7`,
   );
   expect(openGraphView(dir)).toEqual({ ok: true, value: null });
   db.exec("PRAGMA user_version = 99");

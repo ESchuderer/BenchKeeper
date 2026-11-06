@@ -14,6 +14,7 @@ import {
 } from "@cedarloom/contracts";
 import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
 import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
+import { pluginProblems } from "./plugins.ts";
 
 /** `yes` approves the plan as computed now, `approve` only the plan with that hash (it wins when both are given). */
 export interface Approval {
@@ -171,8 +172,14 @@ export const undoRun = (
     return { ok: true, value: settled(outcome, skipped, runId) };
   });
 
-/** Interrupted and failed runs no undo has dealt with, and a store this CedarLoom cannot read. */
+/**
+ * Interrupted and failed runs no undo has dealt with, what the latest run's init line shows about its plugins, and a
+ * store this CedarLoom cannot read.
+ */
 export const doctor = (state: string): Finding[] => {
-  const problems = withView(state, (view) => ({ ok: true, value: view?.problems() ?? [] }));
+  const problems = withView(state, (view) => ({
+    ok: true,
+    value: [...(view?.problems() ?? []), ...pluginProblems(view?.latestPlugins() ?? null)],
+  }));
   return problems.ok ? problems.value : [problems.finding];
 };

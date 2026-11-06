@@ -1140,6 +1140,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.managed-settings-unreadable";
             params: {
                 path: string;
@@ -1835,6 +1842,13 @@ export interface components {
             params: {
                 path: string;
                 key: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.not-logged-in";
+            params: {
+                account: string;
+                reason: string;
             };
         } | {
             /** @constant */

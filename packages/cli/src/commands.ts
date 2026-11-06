@@ -121,9 +121,9 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
   return undone.ok ? result(ctx, undone.value) : fail(ctx, "run", [undone.finding], EXIT.refused);
 };
 
-export const doctor = (ctx: Context): number => {
+export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
-  const logins = useCases.checkLogins(ctx.state, ctx.config, host);
+  const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
   const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding])];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");

@@ -2478,6 +2478,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "launch.not-logged-in"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.managed-settings-unreadable"
               },
               "params": {
@@ -5683,6 +5713,36 @@
                 "required": [
                   "path",
                   "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.not-logged-in"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account",
+                  "reason"
                 ],
                 "additionalProperties": false
               }

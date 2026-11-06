@@ -120,16 +120,16 @@ if (dir === "/old") say({ loggedIn: true, authMethod: "claude.ai" }, 0);
 say({ loggedIn: true, authMethod: "claude.ai", configDirectory: dir, subscriptionType: "max" }, 0);
 `;
 
-test("the login status of a home is read from claude auth status, and anything else is unknown", () => {
+test("the login status of a home is read from claude auth status, and anything else is unknown", async () => {
   const status = claudeAuthStatus([process.execPath, "-e", statusCli]);
   const of = (dir: string) => status({ CLAUDE_CONFIG_DIR: dir });
-  expect(of("/h")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: "/h" });
+  expect(await of("/h")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: "/h" });
   // Before Claude Code 2.1.268 the status names no config folder.
-  expect(of("/old")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: null });
-  expect(of("/out")).toEqual({ kind: "logged-out" });
-  expect(of("/bad")).toEqual({ kind: "unknown", error: "exit code 0 with output that is no login status" });
-  expect(of("/crash")).toEqual({ kind: "unknown", error: "exit code 2 with output that is no login status" });
-  expect(claudeAuthStatus([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
+  expect(await of("/old")).toEqual({ kind: "logged-in", authMethod: "claude.ai", configDirectory: null });
+  expect(await of("/out")).toEqual({ kind: "logged-out" });
+  expect(await of("/bad")).toEqual({ kind: "unknown", error: "exit code 0 with output that is no login status" });
+  expect(await of("/crash")).toEqual({ kind: "unknown", error: "exit code 2 with output that is no login status" });
+  expect(await claudeAuthStatus([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
     kind: "unknown",
     error: expect.stringContaining("ENOENT"),
   });

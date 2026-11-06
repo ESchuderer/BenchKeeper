@@ -144,6 +144,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
   "doctor.login-skipped": (p) =>
     `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
+  "launch.not-logged-in": (p) =>
+    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

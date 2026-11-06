@@ -126,6 +126,8 @@ export interface AgentRuntime<L extends Launch = Launch> {
   version(env: Readonly<Record<string, string>>): Promise<string>;
   /** Runs a probe session and checks the undocumented parts of its output; rerun whenever the version changes. */
   checkContract(launch: Omit<L, "prompt" | "verifiedVersions">): Promise<ContractCheck>;
+  /** The login of the config folder `env` (a launch's environment) names, by the agent's own documented check. */
+  loginStatus(env: Readonly<Record<string, string>>): Promise<LoginStatus>;
   start(launch: L): AgentSession;
   resume(sessionId: string, launch: L): AgentSession;
   /** Stops `from` first, then starts `to`, whose prompt carries the handover. */

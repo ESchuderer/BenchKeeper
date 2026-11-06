@@ -1,4 +1,5 @@
-// Stands in for the claude CLI: prints one line with its arguments, prompt and environment, then the stream-json file
+// Stands in for the claude CLI: answers --version and `auth status` (logged in); otherwise prints one line with its
+// arguments, prompt and environment, then the stream-json file
 // named by FAKE_STREAM, and exits with FAKE_EXIT; with FAKE_HANG it waits until it is killed, with FAKE_DEAF it exits
 // at once without reading the prompt. FAKE_CHILD starts a command and prints its process ID, FAKE_LONG writes a line of
 // that many bytes, FAKE_CUT a last line without its newline. FAKE_TICK writes a line every 20 ms until the fake ends, so
@@ -10,6 +11,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 if (args.includes("--version")) {
   process.stdout.write(`${process.env["FAKE_VERSION"] ?? "2.1.316 (Claude Code)"}\n`);
+} else if (args.join(" ") === "auth status") {
+  // Logged in with a subscription, in the folder it was asked about.
+  const status = { loggedIn: true, authMethod: "claude.ai", configDirectory: process.env["CLAUDE_CONFIG_DIR"] };
+  process.stdout.write(`${JSON.stringify(status)}\n`);
 } else if (process.env["FAKE_DEAF"] !== undefined) {
   process.exitCode = 3;
 } else {

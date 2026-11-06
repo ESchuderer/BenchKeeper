@@ -203,7 +203,7 @@ export const loginAccount = (
 export interface StatusHost {
   readonly parent: Readonly<Record<string, string | undefined>>;
   readonly platform: NodeJS.Platform;
-  readonly status: (env: Record<string, string>) => LoginStatus;
+  readonly status: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
 }
 
 // What one home's login status shows to be wrong.
@@ -220,7 +220,7 @@ const problems = (account: string, home: string, login: LoginStatus): Finding[] 
 
 // One account's check, while the ledger holds the account for it. A home that is not the account's own, or is a link,
 // is reported and never checked: the check can write into it.
-const checkOne = (state: string, account: Account, host: StatusHost): Result<Finding[]> => {
+const checkOne = async (state: string, account: Account, host: StatusHost): Promise<Result<Finding[]>> => {
   const { name } = account;
   const folder = ownFolder(state, account, { create: false });
   if (!folder.ok) return { ok: true, value: [folder.finding] };
@@ -236,7 +236,7 @@ const checkOne = (state: string, account: Account, host: StatusHost): Result<Fin
   if (held === null) return { ok: true, value: [{ code: "doctor.login-skipped", params: { account: name } }] };
   try {
     const env = { ...cleanEnv(host.parent, host.platform), CLAUDE_CONFIG_DIR: home };
-    return { ok: true, value: problems(name, home, host.status(env)) };
+    return { ok: true, value: problems(name, home, await host.status(env)) };
   } finally {
     held.release();
   }
@@ -247,12 +247,13 @@ const checkOne = (state: string, account: Account, host: StatusHost): Result<Fin
  * renew a login, so it never runs beside a worker on the account, and no worker starts on it meanwhile (owner decision
  * "Worker homes", 2026-11-06). An account outside its own home is reported instead.
  */
-export const checkLogins = (state: string, config: string, host: StatusHost): Result<Finding[]> => {
+export const checkLogins = async (state: string, config: string, host: StatusHost): Promise<Result<Finding[]>> => {
   const loaded = loadRegistry(config);
   if (!loaded.ok) return loaded;
   const findings: Finding[] = [];
   for (const account of (loaded.value?.accounts ?? []).filter((each) => each.agent === "claude")) {
-    const found = checkOne(state, account, host);
+    // One at a time, so no two checks of logins run at once.
+    const found = await checkOne(state, account, host);
     if (!found.ok) return found;
     findings.push(...found.value);
   }

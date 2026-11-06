@@ -65,7 +65,7 @@ const record = (state: string, agent: Agent, checks: readonly ContractCheckRecor
 /**
  * Reads the version of the agent CLI that `env` runs, before each launch, because the CLI updates itself (A100). On a
  * version without a check, or whose check failed a day ago or earlier, it runs the contract check outside the store's
- * lock, since the probe is a short agent session. Only the CLI's failures are `launch.agent-unavailable`; the store's
+ * lock, since the probe is a short agent session, and only when the agent's own check shows `account` logged in. Only the CLI's failures are `launch.agent-unavailable`; the store's
  * own errors are reported as they are.
  */
 export const checkedVersions = async <L extends Launch>(
@@ -75,7 +75,12 @@ export const checkedVersions = async <L extends Launch>(
   {
     env,
     probe,
-  }: { readonly env: Readonly<Record<string, string>>; readonly probe: Omit<L, "prompt" | "verifiedVersions"> },
+    account,
+  }: {
+    readonly env: Readonly<Record<string, string>>;
+    readonly probe: Omit<L, "prompt" | "verifiedVersions">;
+    readonly account: string;
+  },
 ): Promise<Result<CheckedVersions>> => {
   let version: string;
   try {
@@ -90,6 +95,12 @@ export const checkedVersions = async <L extends Launch>(
   if (!checks.ok) return checks;
   const now = Date.now();
   if (!checks.value.some((each) => each.version === version && settles(each, now))) {
+    // A probe that ran logged out, after an aborted or expired login, would stand as the version's failure for a day.
+    const login = await runtime.loginStatus(env);
+    if (login.kind !== "logged-in") {
+      const reason = login.kind === "unknown" ? login.error : "logged out";
+      return { ok: false, finding: { code: "launch.not-logged-in", params: { account, reason } } };
+    }
     let check: ContractCheck;
     try {
       check = await probeOnce(JSON.stringify([state, agent, version]), () => runtime.checkContract(probe));

@@ -145,27 +145,23 @@ const json = (text: string): unknown => {
  */
 export const claudeAuthStatus =
   (command: Command = ["claude"]) =>
-  (env: Record<string, string>): LoginStatus => {
-    const [file, ...prefix] = command;
-    const ran = spawnSync(file, [...prefix, "auth", "status"], {
-      env,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 30_000,
-      windowsHide: true,
+  (env: Readonly<Record<string, string>>): Promise<LoginStatus> =>
+    new Promise((resolve) => {
+      const [file, ...prefix] = command;
+      const options = { env, timeout: 30_000, windowsHide: true };
+      execFile(file, [...prefix, "auth", "status"], options, (error, stdout) => {
+        // The exit code, or the reason the CLI did not run or was stopped (ENOENT, a timeout's signal).
+        const code = error === null ? 0 : error.code;
+        if (code === 1) return resolve({ kind: "logged-out" });
+        const status = AuthStatus.safeParse(json(stdout));
+        if (code === 0 && status.success) {
+          const { authMethod, configDirectory = null } = status.data;
+          return resolve({ kind: "logged-in", authMethod, configDirectory });
+        }
+        const reason = typeof code === "number" ? `exit code ${code} with output that is no login status` : null;
+        return resolve({ kind: "unknown", error: reason ?? error?.message ?? "no login status" });
+      });
     });
-    if (ran.error !== undefined) return { kind: "unknown", error: ran.error.message };
-    if (ran.status === 1) return { kind: "logged-out" };
-    const status = AuthStatus.safeParse(json(ran.stdout));
-    if (ran.status !== 0 || !status.success) {
-      return { kind: "unknown", error: `exit code ${ran.status} with output that is no login status` };
-    }
-    return {
-      kind: "logged-in",
-      authMethod: status.data.authMethod,
-      configDirectory: status.data.configDirectory ?? null,
-    };
-  };
 
 /**
  * Runs Claude Code's own login in this terminal, `claude auth login` (https://code.claude.com/docs/en/cli-reference),
@@ -213,6 +209,7 @@ export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<Claud
       const probe = { ...launch, prompt: PROBE_PROMPT, verifiedVersions: [] };
       return contractCheck(run(command, probe, [], () => true));
     },
+    loginStatus: claudeAuthStatus(command),
     start,
     // The CLI reads a value that starts with `-` as a flag, and `--resume` also takes a title or a transcript path.
     resume: (sessionId, launch) => {

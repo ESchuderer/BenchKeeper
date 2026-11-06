@@ -12,7 +12,7 @@ export interface Io {
   /** Runs the agent's own login in this terminal with `env`, and tells how it ended. */
   login: (env: Record<string, string>) => LoginRun;
   /** Asks the agent for the login of the config folder `env` names. */
-  authStatus: (env: Record<string, string>) => LoginStatus;
+  authStatus: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
 }
 
 export interface Context {

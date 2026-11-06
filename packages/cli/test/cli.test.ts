@@ -39,7 +39,7 @@ const setup = (): {
         logins.started.push(env);
         return { code: logins.code };
       },
-      authStatus: (env: Record<string, string>): LoginStatus =>
+      authStatus: async (env: Readonly<Record<string, string>>): Promise<LoginStatus> =>
         logins.status ?? {
           kind: "logged-in",
           authMethod: "claude.ai",
@@ -600,7 +600,7 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     env: {},
     untilStopped: () => stopped.promise,
     login: () => ({ code: null }),
-    authStatus: () => ({ kind: "logged-out" }) as const,
+    authStatus: async () => ({ kind: "logged-out" }) as const,
   };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a

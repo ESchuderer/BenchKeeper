@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { Agent } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
+  accountsAdd,
   accountsConfirm,
   accountsHome,
   accountsList,
@@ -118,6 +119,14 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .addOption(new Option("--agent <agent>", "the pool's agent").choices(Agent.options).default("claude" as const))
     .option("--yes", "confirm as planned now")
     .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
+  accounts
+    .command("add")
+    .description("show the registration of an account with its own home on this machine; with --yes, make it")
+    .argument("<account>")
+    .addOption(new Option("--agent <agent>", "the account's agent").choices(Agent.options).default("claude" as const))
+    .option("--pool <pool>", "the pool it joins; none when unset")
+    .option("--yes", "add as planned now")
+    .action((name, options) => done(accountsAdd(ctx(), name, options)));
   accounts
     .command("home")
     .description(

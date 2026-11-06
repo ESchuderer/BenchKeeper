@@ -186,7 +186,7 @@ export const accountsList = (ctx: Context): number => {
   const pool = ({ agent, pool: name }: Account): string =>
     name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
   const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
-  const none = "No accounts yet.";
+  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
   const pools = Agent.options.flatMap((agent) =>
     Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
@@ -204,6 +204,19 @@ export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { ag
   const planned = useCases.planConfirm(ctx.config, { agent, pool });
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
+};
+
+/** Shows the registration of an account with its own home, or with --yes makes it. */
+export const accountsAdd = (
+  ctx: Context,
+  name: string,
+  { agent, pool, yes }: { agent: Agent; pool?: string; yes?: true },
+): number => {
+  const planned = useCases.planAdd(ctx.config, ctx.state, { name, agent, pool: pool ?? null });
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, home } = planned.value;
+  const note = `\nThen log in there with: cedarloom accounts login ${name}`;
+  return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
 };
 
 /** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */

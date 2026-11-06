@@ -1043,6 +1043,18 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-unsupported";
             params: {
                 account: string;
@@ -1794,6 +1806,18 @@ export interface components {
             code: "accounts.unknown-account";
             params: {
                 account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
             };
         } | {
             /** @constant */

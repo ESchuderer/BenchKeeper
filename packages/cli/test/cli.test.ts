@@ -295,8 +295,28 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
+test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
+  const { state, logins, cli } = setup();
+  expect((await cli("accounts", "list")).out).toBe("No accounts yet. Add one with: cedarloom accounts add <name>\n");
+  const shown = await cli("accounts", "add", "work", "--pool", "main");
+  expect([shown.code, shown.out]).toEqual([EXIT.ok, expect.stringContaining("Nothing changed")]);
+  expect(json((await cli("accounts", "add", "work", "--pool", "main", "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+  });
+  const home = join(state, "homes", "work");
+  expect((await cli("accounts", "list")).out).toBe(`work  claude  main (not confirmed)  ${home}\n`);
+  expect((await cli("accounts", "login", "work")).code).toBe(EXIT.ok);
+  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
+  const again = await cli("accounts", "add", "work");
+  expect([again.code, again.err]).toEqual([EXIT.refused, expect.stringContaining("already")]);
+});
+
 test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
-  expect(await setup().cli("accounts", "list")).toMatchObject({ code: EXIT.ok, out: "No accounts yet.\n" });
+  expect(await setup().cli("accounts", "list")).toMatchObject({
+    code: EXIT.ok,
+    out: expect.stringContaining("No accounts"),
+  });
   const { root, cli } = withRegistry();
   expect((await cli("accounts", "list")).out).toBe(
     "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",

@@ -30,6 +30,8 @@ export {
   loginAccount,
   MAX_CONCURRENT,
   ownHome,
+  type NewAccount,
+  planAdd,
   planConfirm,
   planHome,
   type StatusHost,

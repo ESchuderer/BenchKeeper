@@ -4,6 +4,7 @@ import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
+  AccountName,
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   type Agent,
@@ -151,6 +152,77 @@ export const planHome = (config: string, state: string, name: string): Result<{ 
     ok: true,
     value: { plan: { schemaVersion: 1, operations: [{ kind: "write", path, before: sha256(text), content }] }, home },
   };
+};
+
+/** The minimums a new registry starts with, in percent of each window. */
+const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
+
+/** An account to register: its name, agent, and the pool it joins (none when null). */
+export interface NewAccount {
+  readonly name: string;
+  readonly agent: Agent;
+  readonly pool: string | null;
+}
+
+// The registry to add to, with the hash its write checks; a new, empty one when there is none yet.
+const registryToChange = (path: string): Result<{ registry: AccountRegistry; before: string | null }> => {
+  const file = readOptionalJson(path);
+  if (!file.ok) return file;
+  if (file.value === null) {
+    return {
+      ok: true,
+      value: { registry: { schemaVersion: 1, minimum: DEFAULT_MINIMUM, accounts: [], pools: {} }, before: null },
+    };
+  }
+  const registry = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, file.value.json);
+  return registry.ok ? { ok: true, value: { registry: registry.value, before: sha256(file.value.text) } } : registry;
+};
+
+// The registry with the account added, and its pool added unconfirmed when it is new. An existing pool stays as it
+// is: its confirmation names its accounts, so it no longer covers the pool (owner decision, 2026-11-06).
+const withAccount = (registry: AccountRegistry, account: Account): AccountRegistry => {
+  const { agent, pool } = account;
+  const pools = registry.pools[agent] ?? {};
+  const joined =
+    pool === null || Object.hasOwn(pools, pool)
+      ? {}
+      : { [agent]: { ...pools, [pool]: { confirmedAt: null, confirmedFor: [] } } };
+  return { ...registry, accounts: [...registry.accounts, account], pools: { ...registry.pools, ...joined } };
+};
+
+/**
+ * Plans the registration of an account with its own home on this machine, where `accounts login` then logs it in: the
+ * registry's create when there is none, its replacement otherwise. Refused for a name or pool that is no name, a name
+ * the registry has, and a home another account names.
+ */
+export const planAdd = (
+  config: string,
+  state: string,
+  { name, agent, pool }: NewAccount,
+  now: string = new Date().toISOString(),
+): Result<{ plan: Plan; home: string }> => {
+  const bad = [name, pool].find((each) => each !== null && !AccountName.safeParse(each).success);
+  if (bad !== undefined && bad !== null)
+    return { ok: false, finding: { code: "accounts.name-invalid", params: { name: bad } } };
+  const path = registryPath(config);
+  const read = registryToChange(path);
+  if (!read.ok) return read;
+  const { registry, before } = read.value;
+  if (registry.accounts.some((each) => each.name === name)) {
+    return { ok: false, finding: { code: "accounts.name-taken", params: { account: name } } };
+  }
+  const home = ownHome(state, name);
+  if (
+    registry.accounts.some((each) => [each.home, ...(each.aliases ?? [])].some((folder) => sameFolder(folder, home)))
+  ) {
+    return { ok: false, finding: { code: "accounts.folder-taken", params: { path: home } } };
+  }
+  const content = formatRegistry(withAccount(registry, { name, agent, home, pool, added: now }));
+  const write =
+    before === null
+      ? { kind: "write" as const, path, before, content, mode: 0o600 }
+      : { kind: "write" as const, path, before, content };
+  return { ok: true, value: { plan: { schemaVersion: 1, operations: [write] }, home } };
 };
 
 /** How the agent's login ended: its exit code, or null with the error when it did not start. */

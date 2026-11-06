@@ -140,6 +140,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
   "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.name-taken": (p) => `The registry has an account named ${p.account} already.`,
+  "accounts.name-invalid": (p) =>
+    `${p.name} is no name for an account or a pool: a lowercase letter or digit, then up to 31 more of them, - or _.`,
   "accounts.login-unsupported": (p) =>
     `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
   "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,

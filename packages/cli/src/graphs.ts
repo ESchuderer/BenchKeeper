@@ -26,17 +26,22 @@ export const workflowsRun = async (
 ): Promise<number> => ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, runOptions(ctx, project)));
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
+// What becomes of the attempts still running: a live runner ends them cancelled; those a dead runner left end interrupted.
+const ATTEMPTS = {
+  live: "Running now; its runner ends them cancelled:",
+  resume: "Left running when its runner died; they end interrupted, count as failed, and retries rerun them:",
+  cancel: "Left running when its runner died; they end interrupted:",
+} as const;
+
 const preview = (ctx: Context, runId: string, project: string | undefined, verb: "resume" | "cancel"): number => {
-  const plan = useCases.planGraphRun(ctx.state, runId, project);
+  const plan = useCases.planGraphRun(ctx.state, runId, { verb, project });
   if (!plan.ok) return fail(ctx, "run", [plan.finding], EXIT.refused);
   const { run, attempts, project: folder } = plan.value;
-  const refused = !folder.ok && (verb === "resume" || folder.finding.code === "run.project-mismatch");
-  if (refused) return fail(ctx, "run", [folder.finding], EXIT.refused);
-  const where = folder.ok ? `, in ${folder.value}` : "";
+  const where = folder === null ? "" : `, in ${folder}`;
   const left = attempts.map((each) => `  ${each.node}#${each.attempt}  pid ${each.pid ?? "none"}`);
   const lines = [
     `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}${where}.`,
-    ...(left.length > 0 ? ["Left running, to be stopped and ended interrupted:", ...left] : []),
+    ...(left.length > 0 ? [ATTEMPTS[run.status === "interrupted" ? verb : "live"], ...left] : []),
     `Nothing changed. Run the command again with --yes to ${verb} it.`,
   ];
   emit(ctx, "run", { run, attempts }, lines.join("\n"));

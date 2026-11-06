@@ -69,7 +69,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.project-mismatch": (p) =>
     `Run ${p.runId} runs in ${p.project}, not in ${p.given}: a run stays in the folder it started in.`,
   "run.project-missing": (p) =>
-    `The project folder ${p.project} is not there, so no command could run; move it back, or cancel the run.`,
+    `The project folder ${p.project} is not there, so no command of the run could run there.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,

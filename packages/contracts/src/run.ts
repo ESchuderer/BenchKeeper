@@ -98,6 +98,8 @@ export const GraphRun = z.object({
   parentNode: WorkflowId.nullable(),
   /** The real path of the project folder its commands run in; null on a run recorded before it was. */
   project: z.string().nullable(),
+  /** The process that holds the run, or held it last. */
+  pid: z.int().positive(),
   /** 1 for the run's first runner, raised by each takeover. */
   epoch: z.int().positive(),
   startedAt: z.iso.datetime(),

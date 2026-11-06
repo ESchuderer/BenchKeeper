@@ -666,15 +666,20 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
   });
   store.value.close();
   // Without --yes a resume or a cancel shows what it would do, and changes nothing.
-  const plan = "Left running, to be stopped and ended interrupted:\n  a#1  pid 4242\nNothing changed. Run the command";
-  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(`${plan} again with --yes to resume it.`);
-  expect((await cli("runs", "cancel", two)).out).toContain(`${plan} again with --yes to cancel it.`);
+  const plan = "Left running when its runner died; they end interrupted";
+  const again = "\n  a#1  pid 4242\nNothing changed. Run the command again with --yes to";
+  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(
+    `${plan}, count as failed, and retries rerun them:${again} resume it.`,
+  );
+  expect((await cli("runs", "cancel", two)).out).toContain(`${plan}:${again} cancel it.`);
   expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
     code: EXIT.refused,
     out: `Run ${one}: failed.\n`,
     err: "",
   });
   expect((await cli("runs", "show", one)).out).toMatch(/a#1 +interrupted +pid 4242/);
+  // The plan refuses what --yes would: a run that has ended.
+  expect((await cli("runs", "resume", one)).err).toContain("has ended (failed)");
   // A resume or cancel runs only in the run's own folder.
   expect((await cli("runs", "cancel", two, "--project", state)).err).toContain(`runs in ${realpathSync(root)}, not in`);
   expect((await cli("runs", "cancel", two, "--yes")).out).toBe(`Run ${two}: cancelled.\n`);
@@ -691,4 +696,18 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
   expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);
   expect((await cli("workflows", "run", file, "--input", "Ada")).code).toBe(EXIT.usage);
   expect((await cli("workflows", "run", join(root, "none.json"))).code).toBe(EXIT.noInput);
+});
+
+test("a cancel's plan of a run its runner holds says the runner ends the attempts cancelled", async () => {
+  const { root, state, cli } = setup();
+  const store = openGraphStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  // Held by this process, with a folder that is gone: a cancel starts nothing, so it needs none.
+  const lease = store.value.create({ ...run, definition: workflow, project: join(root, "gone") });
+  store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: 4242 });
+  const plan = await cli("runs", "cancel", lease.runId);
+  expect(plan.out).toContain(`graph greet, running.\nRunning now; its runner ends them cancelled:\n  a#1  pid 4242\n`);
+  lease.release();
+  store.value.close();
 });

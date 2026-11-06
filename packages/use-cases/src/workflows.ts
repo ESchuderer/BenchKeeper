@@ -2,13 +2,13 @@ import { type ChildProcess, type ChildProcessByStdio, execFile, spawn } from "no
 import { closeSync, existsSync, openSync, readSync, realpathSync } from "node:fs";
 import { join, resolve as absolute, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
-import { isDeepStrictEqual } from "node:util";
 import {
   type Finding,
   type GraphRun,
   type JournalEvent,
   type NodeAttempt,
   type Json,
+  JsonValue,
   type Result,
   type RunStatus,
   readDocument,
@@ -233,7 +233,7 @@ const typedInputs = (workflow: WorkflowDefinition, inputs: Values): Values => {
     try {
       const parsed: Json = JSON.parse(value);
       // Text such as 1e400 parses to Infinity, which no JSON value holds: the text stays, and the check refuses it.
-      return isDeepStrictEqual(parsed, JSON.parse(JSON.stringify(parsed))) ? parsed : value;
+      return JsonValue.safeParse(parsed).success ? parsed : value;
     } catch {
       return value;
     }
@@ -351,14 +351,28 @@ export const showGraphRun = (state: string, runId: string): Result<{ run: GraphR
 export const planGraphRun = (
   state: string,
   runId: string,
-  project?: string,
-): Result<{ run: GraphRun; project: Result<string>; attempts: NodeAttempt[] }> => {
+  { verb, project }: { readonly verb: "resume" | "cancel"; readonly project?: string | undefined },
+): Result<{ run: GraphRun; project: string | null; attempts: NodeAttempt[] }> => {
   const shown = showGraphRun(state, runId);
   if (!shown.ok) return shown;
   const { run, attempts } = shown.value;
+  const folder = projectOf(run, project);
+  const refused = refusalOf(run, verb, folder);
+  if (refused !== null) return { ok: false, finding: refused };
   const running = attempts.filter((attempt) => attempt.state === "running");
-  return { ok: true, value: { run, project: projectOf(run, project), attempts: running } };
+  return { ok: true, value: { run, project: folder.ok ? folder.value : null, attempts: running } };
 };
+
+// The finding a resume or cancel with --yes would give: an ended run, a resume of a run its runner still holds, a folder
+// that is another one, or for a resume one that is not there (a cancel starts nothing).
+const refusalOf = (run: GraphRun, verb: "resume" | "cancel", folder: Result<string>): Finding | null => {
+  const { id: runId, status, pid } = run;
+  if (!ACTIVE.has(status)) return { code: "run.finished", params: { runId, status } };
+  if (verb === "resume" && status !== "interrupted") return { code: "run.lease-held", params: { runId, pid } };
+  const missing = !folder.ok && folder.finding.code === "run.project-missing";
+  return folder.ok || (missing && verb === "cancel") ? null : folder.finding;
+};
+const ACTIVE = new Set(["running", "waiting", "interrupted"]);
 
 /**
  * Cancels a graph run. A run another process runs gets SIGTERM, which its runner turns into a cancel (on Windows the

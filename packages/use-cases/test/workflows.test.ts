@@ -208,12 +208,18 @@ test("a resume says why a stored run no longer starts, and refuses a journal it 
 test("a cancel ends a run: its runner stops it, and a run no process runs is taken over and ends cancelled", async () => {
   const at = project([command("a", "sleep 30")], "t.start>a.run");
   const live = await runner(at, 0);
+  // The plan refuses what --yes would refuse: a resume of a run its runner holds; a cancel of it is planned.
+  expect(codeOf(planGraphRun(at.state, live.runId, { verb: "resume" }))).toBe("run.lease-held");
+  expect(planGraphRun(at.state, live.runId, { verb: "cancel" })).toMatchObject({
+    value: { run: { status: "running" } },
+  });
   const asked = { ok: true, value: { runId: live.runId, status: "cancelling" } };
   expect(await cancelRun(at.state, live.runId, at.options)).toEqual(asked);
   await live.exited;
   // On Windows the signal ends the runner itself, and the run is interrupted until the next cancel ends it.
   if ((await statusOf(at.state, live.runId)) !== "cancelled") await cancelRun(at.state, live.runId, at.options);
   expect(await statusOf(at.state, live.runId)).toBe("cancelled");
+  expect(codeOf(planGraphRun(at.state, live.runId, { verb: "cancel" }))).toBe("run.finished");
   // A runner that died after a started: the cancel takes the run over, and a's attempt ends interrupted with its pid.
   const dead = await runner(at, 1);
   await dead.exited;
@@ -275,10 +281,11 @@ test("a project folder that is not there refuses a run and a resume before anyth
   );
   expect(await statusOf(at.state, dead.runId)).toBe("interrupted");
   // The plan of a resume or cancel says why the folder is no good, and which attempt is left running.
-  expect(planGraphRun(at.state, dead.runId)).toMatchObject({
-    value: { project: { ok: false }, attempts: [{ node: "a", state: "running", pid: expect.any(Number) }] },
+  expect(codeOf(planGraphRun(at.state, dead.runId, { verb: "resume" }))).toBe("run.project-missing");
+  expect(planGraphRun(at.state, dead.runId, { verb: "cancel" })).toMatchObject({
+    value: { project: null, attempts: [{ node: "a", state: "running", pid: expect.any(Number) }] },
   });
-  expect(codeOf(planGraphRun(at.state, "nope"))).toBe("run.not-found");
+  expect(codeOf(planGraphRun(at.state, "nope", { verb: "cancel" }))).toBe("run.not-found");
   expect(await cancelRun(at.state, dead.runId, recorded)).toMatchObject({ value: { status: "cancelled" } });
   expect(codeOf(await runWorkflow(at.state, at.file, {}, { ...recorded, project: work }))).toBe("run.project-missing");
   expect(listGraphRuns(at.state)).toMatchObject({ value: [{ id: dead.runId }] });

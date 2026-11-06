@@ -331,20 +331,27 @@ export class RunStore extends RunView {
 
   /** The usage samples, oldest first: of one account, and read at `since` or later, when given. */
   usageSamples({ account, since }: { account?: string; since?: string } = {}): UsageSample[] {
-    return this.db
-      .prepare(
-        `SELECT account, agent, agentVersion, "window", quota, usedPercent, resetsAt, readAt, runId, raw FROM usage_samples
+    return (
+      this.db
+        .prepare(
+          `SELECT account, agent, agentVersion, "window", quota, usedPercent, resetsAt, readAt, runId, raw FROM usage_samples
          WHERE account = coalesce(?, account) AND readAt >= coalesce(?, '') ORDER BY readAt, rowid`,
-      )
-      .all(account ?? null, since ?? null)
-      .map((row) => UsageSample.parse(row));
+        )
+        // Compared as a time: the stored times carry milliseconds, and a since without them would sort after its second.
+        .all(account ?? null, since === undefined ? null : new Date(since).toISOString())
+        .map((row) => UsageSample.parse(row))
+    );
   }
 
+  /** The latest readings; a row the contract refuses, written before a bound or by hand, is left out. */
   readings(): Reading[] {
     return this.db
       .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt FROM readings ORDER BY account, "window"`)
       .all()
-      .map((row) => Reading.parse(row));
+      .flatMap((row) => {
+        const reading = Reading.safeParse(row);
+        return reading.success ? [reading.data] : [];
+      });
   }
 
   /** Records a switch of the automation level for running work; it takes effect at each run's next gate. */

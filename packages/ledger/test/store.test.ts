@@ -607,3 +607,22 @@ test("usage samples are kept as history and update the latest reading in one tra
   );
   expect(store.usageSamples()).toHaveLength(3);
 });
+
+test("a stored reading the contract refuses is left out of the readings, so it cannot stop every account choice", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.recordSamples([sample]);
+  // A row written before the 0 to 100 bound, or by hand.
+  const db = new DatabaseSync(join(dir, "runs.sqlite"));
+  db.exec(
+    `INSERT INTO readings VALUES ('spare', 'fiveHour', 140, '2026-11-06T12:00:00.000Z', '2026-11-06T08:00:00.000Z')`,
+  );
+  db.close();
+  expect(store.readings().map((reading) => reading.account)).toEqual(["work"]);
+});
+
+test("the history's since is compared as a time: a since without milliseconds keeps the samples of its second", () => {
+  const store = opened(fresh());
+  store.recordSamples([sample]);
+  expect(store.usageSamples({ since: "2026-11-06T08:00:00Z" })).toEqual([sample]);
+});

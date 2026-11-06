@@ -6,7 +6,7 @@ import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarlo
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore, type RunStore } from "@cedarloom/ledger";
 import { type Decided, launchWorker, MAX_CONCURRENT, type WorkerRequest } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
 const fixtures = join(import.meta.dirname, "..", "..", "adapter-claude", "test", "fixtures");
@@ -377,4 +377,22 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
     ok: true,
     value: { kind: "no-account", reason: "unknown-pool" },
   });
+});
+
+test("a storage error while keeping a run's usage drops that usage, and the run goes on to its verdict", async () => {
+  const { state, config, work } = setup();
+  const probe = openRunStore(state);
+  if (!probe.ok) throw new Error(probe.finding.code);
+  const writer = vi.spyOn(Object.getPrototypeOf(probe.value), "recordSamples").mockImplementation(() => {
+    throw new Error("disk I/O error");
+  });
+  probe.value.close();
+  try {
+    await expect(launchWorker(state, config, request(work, { result: passing }), host)).resolves.toMatchObject({
+      value: { kind: "finished", verdict: "pass" },
+    });
+    expect(writer).toHaveBeenCalled();
+  } finally {
+    writer.mockRestore();
+  }
 });

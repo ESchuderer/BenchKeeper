@@ -164,6 +164,18 @@ const end = async (state: string, { lease, lock }: Held, verdict: Verdict): Prom
   }
 };
 
+// Keeps a run's usage: busy tries are retried, and usage the store cannot take, busy for every try or failing, is
+// dropped, since losing a reading must never fail the run that reported it.
+const keepUsage = async (state: string, lease: Lease, event: Extract<AgentEvent, { type: "usage" }>): Promise<void> => {
+  try {
+    await retryBusy(() =>
+      recordUsage(state, { account: lease.account, agent: lease.agent, runId: lease.runId }, event),
+    );
+  } catch {
+    // Dropped: the readings are the launch-time choice's input, not the run's.
+  }
+};
+
 // Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
 // the CLI applied the worker settings, and returns the version it named. `proved`: the session's init line proved them.
 const observe = async (state: string, session: AgentSession, lease: Lease) => {
@@ -174,11 +186,7 @@ const observe = async (state: string, session: AgentSession, lease: Lease) => {
       return { exit, proved, unproven: event.agentVersion ?? lease.version };
     }
     if (event.type === "init") proved = true;
-    // A reading the store cannot take is dropped; the run goes on.
-    if (event.type === "usage") {
-      const of = { account: lease.account, agent: lease.agent, runId: lease.runId };
-      await retryBusy(() => recordUsage(state, of, event));
-    }
+    if (event.type === "usage") await keepUsage(state, lease, event);
     if (event.type === "exit") exit = event;
   }
   return { exit, proved, unproven: null };

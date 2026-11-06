@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PackManifest.schema.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this JSON Schema; readers ignore it",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.pack"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$",
+      "description": "SPDX license expression"
+    },
+    "minApp": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$",
+      "description": "The oldest CedarLoom version that reads this pack"
+    },
+    "entries": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "maxLength": 1024,
+        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+        "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "rules",
+                  "template",
+                  "profile"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "skill"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "source": {
+                "description": "Where Git fetches the skill: a branch or tag it follows, or a commit and digest it is pinned to, never both; this pack's folder at the entry's path when absent",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "git": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                        "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                      },
+                      "path": {
+                        "description": "The folder inside the repository; its root when absent",
+                        "type": "string",
+                        "maxLength": 1024,
+                        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "allOf": [
+                          {
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                          },
+                          {
+                            "pattern": "^(?![0-9a-f]{40}$)"
+                          }
+                        ],
+                        "description": "The branch or tag it follows; HEAD for the default branch. Refused when a file in it runs"
+                      }
+                    },
+                    "required": [
+                      "git",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "git": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                        "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                      },
+                      "path": {
+                        "description": "The folder inside the repository; its root when absent",
+                        "type": "string",
+                        "maxLength": 1024,
+                        "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$"
+                      },
+                      "commit": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$",
+                        "description": "The commit, never a branch or tag that can move"
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                        "description": "SHA-256 of the folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths"
+                      }
+                    },
+                    "required": [
+                      "git",
+                      "commit",
+                      "digest"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "minProperties": 1,
+      "maxProperties": 500,
+      "description": "Each entry by its path inside the pack: a rules text ends in .md, a profile in .json, a skill's last part is its name; no two paths differ in case only, none lies inside another entry, no two skills share a name"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "version",
+    "name",
+    "minApp",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "description": "A CedarLoom pack manifest; readers also refuse values nested over 32 levels deep"
+}

@@ -747,6 +747,38 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1100,6 +1132,23 @@ export interface components {
                 path: string;
                 /** @enum {string} */
                 kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
             };
         } | {
             /** @constant */
@@ -1361,6 +1410,38 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.event-invalid";
+            params: {
+                runId: string;
+                seq: number;
+                issues: {
+                    path: string;
+                    code: string;
+                }[];
+            };
+        } | {
+            /** @constant */
+            code: "run.lease-held";
+            params: {
+                runId: string;
+                pid: number;
+            };
+        } | {
+            /** @constant */
+            code: "run.finished";
+            params: {
+                runId: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.report-only-apply";
+            params: {
+                runId: string;
+                applyRun: string;
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1714,6 +1795,23 @@ export interface components {
                 path: string;
                 /** @enum {string} */
                 kind: "link" | "submodule" | "name" | "case";
+            };
+        } | {
+            /** @constant */
+            code: "extension.refused";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+            };
+        } | {
+            /** @constant */
+            code: "extension.failed";
+            params: {
+                extension: string;
+                /** @enum {string} */
+                step: "start" | "initialize" | "run";
+                error: string;
             };
         } | {
             /** @constant */

@@ -32,6 +32,10 @@ export interface LeaseLock {
 
 const leaseLockPath = (dir: string, runId: string): string => join(dir, "leases", `${runId}.lock`);
 
+// The locks of the leases this process holds. A lock the garbage collector takes closes its database and so lets go of
+// the lease: each stays referenced here until its release, whatever the launcher keeps.
+const heldLocks = new Set<DatabaseSync>();
+
 // Takes a run's lock without waiting, as the store lock is taken: an exclusive SQLite lock the OS releases when the
 // process ends, also on a crash. null when another connection holds it.
 const takeLock = (path: string): DatabaseSync | null => {
@@ -349,7 +353,9 @@ export class RunStore extends RunView {
     const path = leaseLockPath(this.dir, launch.runId);
     const lock = takeLock(path);
     if (lock === null) throw new Error(`the lease of run ${launch.runId} is held already`);
+    heldLocks.add(lock);
     const release = (): void => {
+      heldLocks.delete(lock);
       lock.close();
       removeLock(path);
     };

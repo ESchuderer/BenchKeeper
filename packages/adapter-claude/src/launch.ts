@@ -109,6 +109,9 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    // Workers read no settings file, so no enabledPlugins reaches them: their plugins come this way, start and resume
+    // alike (https://code.claude.com/docs/en/cli-reference).
+    ...launch.pluginDirs.flatMap((dir) => ["--plugin-dir", dir]),
     // The result file's folder joins the working folders, which the settings otherwise keep every write inside; last,
     // because the flag takes several folders.
     "--add-dir",

@@ -15,6 +15,10 @@ const Init = z.looseObject({
   claude_code_version: z.unknown(),
   model: z.string(),
   tools: z.array(z.string()).optional(),
+  // The Agent SDK's SDKSystemMessage (https://code.claude.com/docs/en/agent-sdk/typescript).
+  plugins: z.array(z.looseObject({ name: z.string() })).optional(),
+  skills: z.array(z.string()).optional(),
+  plugin_errors: z.array(z.looseObject({ plugin: z.string(), message: z.string() })).optional(),
 });
 
 // The usage share arrives as a fraction and the reset in Unix seconds; a share above 1 or a reset past the year 2286
@@ -98,7 +102,16 @@ const initEvent = (data: z.infer<typeof Init>, raw: Json): Extract<AgentEvent, {
   const tools = data.tools ?? null;
   // The settings deny the sentinel by its bare name, which removes it from the tools: its absence proves they applied.
   const settingsApplied = tools !== null && tools.includes(CORE_TOOL) && !tools.includes(SETTINGS_SENTINEL);
-  return { type: "init", sessionId: data.session_id, agentVersion, model: data.model, tools, settingsApplied, raw };
+  const plugins =
+    data.plugins === undefined
+      ? null
+      : {
+          loaded: data.plugins.map((plugin) => plugin.name),
+          skills: data.skills ?? [],
+          errors: (data.plugin_errors ?? []).map((error) => `${error.plugin}: ${error.message}`),
+        };
+  const { session_id: sessionId, model } = data;
+  return { type: "init", sessionId, agentVersion, model, tools, settingsApplied, plugins, raw };
 };
 
 /**

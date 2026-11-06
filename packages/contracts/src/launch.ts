@@ -41,6 +41,15 @@ export const RunLabels = z.strictObject({
 });
 export type RunLabels = z.infer<typeof RunLabels>;
 
+const Names = z.array(z.string().min(1));
+
+/**
+ * The plugins of a launch as its init line named them: the ones the launch passed (`expected`), the ones loaded, the
+ * skills of the expected plugins, and each plugin's load error as `<plugin>: <message>`.
+ */
+export const LaunchPlugins = z.strictObject({ expected: Names, loaded: Names, skills: Names, errors: Names });
+export type LaunchPlugins = z.infer<typeof LaunchPlugins>;
+
 /**
  * One worker launch as the ledger keeps it; while it runs (finishedAt null) it holds a lease on its account. `failed`:
  * no valid result of this run; `interrupted`: its launcher ended before it did.
@@ -57,5 +66,7 @@ export const LaunchRecord = z.strictObject({
   verdict: z.enum([...Verdict.options, "failed", "interrupted"]).nullable(),
   // Null on a launch from before the labels (ledger schema 6).
   labels: RunLabels.nullable(),
+  // Null until the run's init line names its plugins, and on a launch from before them (ledger schema 8).
+  plugins: LaunchPlugins.nullable(),
 });
 export type LaunchRecord = z.infer<typeof LaunchRecord>;

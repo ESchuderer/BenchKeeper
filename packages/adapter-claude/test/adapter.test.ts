@@ -21,6 +21,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allowedDomains: ["github.com"],
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
+  pluginDirs: [],
   ...change,
 });
 
@@ -55,7 +56,7 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
   };
   vi.stubEnv("CEDARLOOM_PARENT_ONLY", "1");
-  const all = await events(runtime.start(launch(env)));
+  const all = await events(runtime.start(launch(env, { pluginDirs: [join(fixtures, "plugins", "workflow")] })));
   vi.unstubAllEnvs();
   const fake = started(all);
   const flags = ["-p", "--output-format", "stream-json", "--verbose", "--include-hook-events"];
@@ -67,6 +68,8 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    "--plugin-dir",
+    join(fixtures, "plugins", "workflow"),
     "--add-dir",
     join(fixtures, "out"),
   ]);
@@ -106,6 +109,14 @@ test("maps the stream-json lines to events", async () => {
   const all = await events(runtime.start(launch(stream("stream.jsonl"))));
   expect(all.slice(1).map((event) => event.type)).toEqual(["init", "other", "usage", "other", "result", "exit"]);
   expect(all[1]).toMatchObject({ sessionId: "00000000-0000-4000-8000-000000000001", agentVersion: "2.1.316" });
+  // The plugins, skills and plugin errors the init line names (documented in the Agent SDK's SDKSystemMessage).
+  expect(all[1]).toMatchObject({
+    plugins: {
+      loaded: ["workflow"],
+      skills: ["workflow:workflow", "workflow:tier", "review"],
+      errors: ["extra: no plugin.json"],
+    },
+  });
   expect(all[3]).toMatchObject({
     agentVersion: "2.1.316",
     windows: [
@@ -173,7 +184,8 @@ test("reads the older single-window form and leaves lines it cannot read as they
   expect(all.slice(1)).toEqual([
     { type: "other", raw: "not json" },
     { type: "other", raw: expect.objectContaining({ type: "rate_limit_event" }) },
-    expect.objectContaining({ type: "init", agentVersion: "2.1.309", model: "claude-sonnet-5-5" }),
+    // An init line that names no plugins tells nothing about them.
+    expect.objectContaining({ type: "init", agentVersion: "2.1.309", model: "claude-sonnet-5-5", plugins: null }),
     expect.objectContaining({
       type: "usage",
       windows: [
@@ -247,8 +259,11 @@ test("refuses settings with a value the documented syntax does not take, which w
 });
 
 test("resumes a session by its ID", async () => {
-  const fake = started(await events(runtime.resume("00000000-0000-4000-8000-000000000001", launch({}))));
+  const resumed = launch({}, { pluginDirs: ["/state/plugins/abc/workflow"] });
+  const fake = started(await events(runtime.resume("00000000-0000-4000-8000-000000000001", resumed)));
   expect(fake.args.slice(-2)).toEqual(["--resume", "00000000-0000-4000-8000-000000000001"]);
+  // The plugin goes with every resume, as with every start.
+  expect(fake.args.join(" ")).toContain("--plugin-dir /state/plugins/abc/workflow");
   expect(() => runtime.resume("--version", launch({}))).toThrow("not a session ID: --version");
 });
 

@@ -170,6 +170,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/plugin-sdk:
+    dependencies:
+      vscode-jsonrpc:
+        specifier: 10.0.0
+        version: 10.0.0
+
   packages/server:
     dependencies:
       '@cedarloom/contracts':
@@ -2568,6 +2574,10 @@ packages:
       jsdom:
         optional: true
 
+  vscode-jsonrpc@10.0.0:
+    resolution: {integrity: sha512-USSfxg0vDIpTQqlQBGxF3mBARyoS8cU7LHLpbYNh6dOJt32dlskxPWB0Irrh5TllTmyf7oNLAvqDqzklbwwnpA==}
+    engines: {node: '>=14.17.0'}
+
   walk-up-path@4.0.0:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
     engines: {node: 20 || >=22}
@@ -4512,6 +4522,8 @@ snapshots:
       '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
     transitivePeerDependencies:
       - msw
+
+  vscode-jsonrpc@10.0.0: {}
 
   walk-up-path@4.0.0: {}
 

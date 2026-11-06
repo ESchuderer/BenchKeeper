@@ -8,6 +8,10 @@ msgid "app.title"
 msgstr "CedarLoom"
 
 #. js-lingui-explicit-id
+msgid "app.licenses"
+msgstr "Third-party licenses"
+
+#. js-lingui-explicit-id
 msgid "nav.label"
 msgstr "Views"
 

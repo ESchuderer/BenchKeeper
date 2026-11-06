@@ -78,8 +78,11 @@ const held = (runId: string) => ({
   ok: false,
   finding: { code: "run.lease-held", params: { runId, pid: process.pid } },
 });
+// Throws as spawn does: with an error code the first time, then a plain error.
+let throws = 0;
 const thrower = () => {
-  throw Object.assign(new Error("spawn E2BIG"), { code: "E2BIG" });
+  throws += 1;
+  throw throws === 1 ? Object.assign(new Error("spawn E2BIG"), { code: "E2BIG" }) : new Error("plain");
 };
 const trail = (events: readonly JournalEvent[]) =>
   events.map((event) => ("attempt" in event ? `${event.type} ${event.node}#${event.attempt}` : event.type)).join(", ");
@@ -131,10 +134,11 @@ test("an attempt past its timeout is stopped and counts as timed out; a type wit
   ]);
   expect((await start(workflow(), {}, { executors: {} })).result).toEqual({ ok: true, value: "failed" });
   // An executor that throws (spawn refuses an input) fails its attempt with the error's code; the runner goes on.
-  const thrown = await start(workflow(), {}, { executors: { "command.run": thrower } });
-  expect([thrown.result, thrown.events[1]]).toMatchObject([
+  const thrown = await start(workflow({ nodes: { a: { retries: 1 } } }), {}, { executors: { "command.run": thrower } });
+  expect([thrown.result, thrown.events[1], thrown.events[3]]).toMatchObject([
     { value: "failed" },
     { outcome: "failed", values: { error: "E2BIG" } },
+    { outcome: "failed", values: { error: "unknown" } },
   ]);
   // Inputs the workflow does not declare start nothing.
   const store = graphs();

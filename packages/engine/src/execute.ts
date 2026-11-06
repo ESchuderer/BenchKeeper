@@ -60,7 +60,7 @@ const isRunEvent = (event: JournalEvent): event is RunEvent => RUN_EVENTS.has(ev
 // A node type without an executor fails each attempt; so does one whose executor throws, with the error's code.
 const missing = (): Prepared => ({ pid: null, run: () => Promise.resolve({ ok: false }) });
 const thrown = (failure: unknown): Prepared => {
-  const code = Reflect.get(Object(failure), "code");
+  const code = Reflect.get(Object(failure), "code") ?? "unknown";
   return { pid: null, run: () => Promise.resolve({ ok: false, values: { error: String(code) } }) };
 };
 const wait = (ms: number, signal: AbortSignal) => sleep(ms, undefined, { signal });

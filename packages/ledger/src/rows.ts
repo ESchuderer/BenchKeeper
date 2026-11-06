@@ -115,8 +115,7 @@ CREATE TABLE graph_runs (
   status TEXT NOT NULL CHECK (status IN ('running', 'waiting', 'succeeded', 'failed', 'cancelled', 'skipped')),
   parentRun TEXT REFERENCES graph_runs (id),
   parentNode TEXT,
-  runner TEXT NOT NULL,
-  leaseUntil TEXT NOT NULL,
+  pid INTEGER NOT NULL,
   epoch INTEGER NOT NULL,
   startedAt TEXT NOT NULL,
   finishedAt TEXT

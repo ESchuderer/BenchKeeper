@@ -761,8 +761,7 @@ export interface components {
             code: "run.lease-held";
             params: {
                 runId: string;
-                /** Format: date-time */
-                until: string;
+                pid: number;
             };
         } | {
             /** @constant */
@@ -1361,8 +1360,7 @@ export interface components {
             code: "run.lease-held";
             params: {
                 runId: string;
-                /** Format: date-time */
-                until: string;
+                pid: number;
             };
         } | {
             /** @constant */

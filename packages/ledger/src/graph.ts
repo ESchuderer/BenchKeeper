@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { canonicalJson, GraphRun, JournalEvent, type Result } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
-import { connect, now, stateDir, transaction } from "./store.ts";
+import { connect, holdLease, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
 
 /** What a run starts from; the ledger adds its id, status, epoch and times. */
 export type NewGraphRun = Pick<GraphRun, "definition" | "inputs" | "trigger" | "mode" | "parentRun" | "parentNode">;
@@ -16,78 +16,90 @@ const NewGraphRun = GraphRun.pick({
   parentNode: true,
 });
 
-/** How long a runner holds a run without a heartbeat; it renews the lease every 10 s. */
-const LEASE_MS = 60_000;
-const leaseEnd = (): string => new Date(Date.now() + LEASE_MS).toISOString();
+/** A runner's hold on a graph run: its writes carry the epoch it took the run at, and the OS releases it on any exit. */
+export interface RunLease extends LeaseLock {
+  runId: string;
+  epoch: number;
+}
+
 const ACTIVE = new Set(["running", "waiting"]);
 const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, epoch, startedAt, finishedAt`;
 
-type Attempt = Extract<JournalEvent, { type: "ended" | "applying" }>;
-// An end or a link needs its attempt running; anything else is the executor's mistake, and nothing of it is kept.
-const mustRun = (changes: number | bigint, { node, attempt }: Attempt): void => {
-  if (Number(changes) === 0) throw new Error(`attempt ${attempt} of node ${node} is not running`);
+// A projection that changes no row is the executor's mistake, and nothing of its event is kept.
+const must = (changes: number | bigint, mistake: string): void => {
+  if (Number(changes) === 0) throw new Error(mistake);
 };
+const leaseHeldBy = (runId: string, pid: number): Result<never> => ({
+  ok: false,
+  finding: { code: "run.lease-held", params: { runId, pid } },
+});
 
 /**
  * The graph runs of a state folder. It takes no store lock: each write is one short `BEGIN IMMEDIATE` transaction, so
- * runs append events while another process applies a plan under the lock. A run is written only by the runner that
- * holds its lease; another runner takes it over once the lease has run out. The lease is checked by the runner's id,
- * so each runner process needs one of its own, such as a random UUID.
+ * runs append events while another process applies a plan under the lock. A runner holds its run through the run's
+ * lease lock (`leases/<id>.lock`, as a launch does), which the OS releases when the runner's process ends, so a crashed
+ * run can be taken over at once. A hung runner keeps its run until it is killed. Writes carry the epoch the runner took
+ * the run at: once another runner has taken it over, the old one's writes are refused.
  */
 export class GraphStore {
+  readonly #dir: string;
   readonly #db: DatabaseSync;
 
-  constructor(db: DatabaseSync) {
+  constructor(dir: string, db: DatabaseSync) {
+    this.#dir = dir;
     this.#db = db;
   }
 
-  /** Records a run with its definition and inputs as they start, held by `runner`; returns the run's id. */
-  create(input: NewGraphRun, runner: string): string {
+  /** Records a run with its definition and inputs as they start, and returns this process's lease on it (epoch 1). */
+  create(input: NewGraphRun): RunLease {
     const run = NewGraphRun.parse(input);
-    const id = randomUUID();
+    const runId = randomUUID();
+    const lock = newLease(this.#dir, runId);
     const definition = canonicalJson(run.definition);
-    this.#db
-      .prepare(
-        `INSERT INTO graph_runs (id, workflowId, definition, definitionHash, inputs, "trigger", mode, status, parentRun,
-         parentNode, runner, leaseUntil, epoch, startedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, 1, ?)`,
-      )
-      .run(
-        id,
-        run.definition.metadata.id,
-        definition,
-        sha256(definition),
-        canonicalJson(run.inputs),
-        run.trigger,
-        run.mode,
-        run.parentRun,
-        run.parentNode,
-        runner,
-        leaseEnd(),
-        now(),
-      );
-    return id;
+    try {
+      this.#db
+        .prepare(
+          `INSERT INTO graph_runs (id, workflowId, definition, definitionHash, inputs, "trigger", mode, status, parentRun,
+           parentNode, pid, epoch, startedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, 1, ?)`,
+        )
+        .run(
+          runId,
+          run.definition.metadata.id,
+          definition,
+          sha256(definition),
+          canonicalJson(run.inputs),
+          run.trigger,
+          run.mode,
+          run.parentRun,
+          run.parentNode,
+          process.pid,
+          now(),
+        );
+    } catch (error) {
+      lock.release();
+      throw error;
+    }
+    return { runId, epoch: 1, release: lock.release };
   }
 
-  /** A run as it stands: one whose lease ran out while it was running or waiting is `interrupted`. */
+  /** A run as it stands: one running or waiting while no process holds its lease is `interrupted`. */
   graphRun(id: string): GraphRun | undefined {
-    const row = this.#db
-      .prepare(`SELECT ${COLUMNS}, leaseUntil < ? AS expired FROM graph_runs WHERE id = ?`)
-      .get(now(), id);
+    const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
-    const status = ACTIVE.has(String(row["status"])) && row["expired"] === 1 ? "interrupted" : row["status"];
+    const status = ACTIVE.has(String(row["status"])) && !leaseHeld(this.#dir, id) ? "interrupted" : row["status"];
     const [definition, inputs] = [row["definition"], row["inputs"]].map((json) => JSON.parse(String(json)));
     return GraphRun.parse({ ...row, status, definition, inputs });
   }
 
   /**
    * Appends an event with its projection, in one transaction: a start or end of an attempt in `node_attempts`, an
-   * apply run linked to its attempt, the run's end in `graph_runs`. Refused when the runner no longer holds the run
-   * or it has ended; an apply run is never linked under a report run. Returns the event's sequence number.
+   * apply run linked to its attempt, the run's end in `graph_runs`. Refused when another runner took the run over
+   * after `epoch` or it has ended; an apply run is never linked under a report run. Returns the event's sequence number.
    */
-  append(runId: string, runner: string, input: JournalEvent): Result<number> {
+  append(runId: string, epoch: number, input: JournalEvent): Result<number> {
     const event = JournalEvent.parse(input);
     return transaction(this.#db, () => {
-      const held = this.#held(runId, runner);
+      const held = this.#held(runId, epoch);
       if (!held.ok) return held;
       if (event.type === "applying" && held.value === "report") {
         return { ok: false, finding: { code: "run.report-only-apply", params: { runId, applyRun: event.applyRun } } };
@@ -96,32 +108,28 @@ export class GraphStore {
     });
   }
 
-  /** Renews the runner's lease; refused as `append` is, and then the runner stops writing to the run. */
-  heartbeat(runId: string, runner: string): Result<void> {
-    return transaction(this.#db, () => {
-      const held = this.#held(runId, runner);
-      if (!held.ok) return held;
-      this.#db.prepare("UPDATE graph_runs SET leaseUntil = ? WHERE id = ?").run(leaseEnd(), runId);
-      return { ok: true, value: undefined };
-    });
-  }
-
   /**
-   * Takes over a run whose lease ran out: one transaction compares the lease, so of two runners only one wins. Raises
-   * the run's epoch and appends `resumed`; returns the new epoch.
+   * Takes over a run whose lease no process holds, such as one whose runner crashed: refused while a runner holds it,
+   * so of two runners only one wins. Raises the run's epoch and appends `resumed`; returns this process's lease.
    */
-  takeOver(runId: string, runner: string): Result<number> {
-    return transaction(this.#db, () => {
-      const run = this.#active(runId);
-      if (!run.ok) return run;
-      const { until } = run.value;
-      if (until >= now()) return { ok: false, finding: { code: "run.lease-held", params: { runId, until } } };
-      const epoch = this.#db
-        .prepare("UPDATE graph_runs SET runner = ?, leaseUntil = ?, epoch = epoch + 1 WHERE id = ? RETURNING epoch")
-        .get(runner, leaseEnd(), runId)?.["epoch"];
-      this.#append(runId, { type: "resumed" });
-      return { ok: true, value: Number(epoch) };
-    });
+  takeOver(runId: string): Result<RunLease> {
+    let lock = null as LeaseLock | null;
+    try {
+      return transaction(this.#db, () => {
+        const run = this.#active(runId);
+        if (!run.ok) return run;
+        lock = holdLease(this.#dir, runId);
+        if (lock === null) return leaseHeldBy(runId, run.value.pid);
+        const epoch = this.#db
+          .prepare("UPDATE graph_runs SET pid = ?, epoch = epoch + 1 WHERE id = ? RETURNING epoch")
+          .get(process.pid, runId)?.["epoch"];
+        this.#append(runId, { type: "resumed" });
+        return { ok: true, value: { runId, epoch: Number(epoch), release: lock.release } };
+      });
+    } catch (error) {
+      lock?.release();
+      throw error;
+    }
   }
 
   /** The run's events in order, each checked against its schema before a replay may use it. */
@@ -154,24 +162,21 @@ export class GraphStore {
     this.#db.close();
   }
 
-  // The lease and mode of a run that runs or waits; refused for an unknown or ended run.
-  #active(runId: string): Result<{ runner: unknown; until: string; mode: GraphRun["mode"] }> {
-    const row = this.#db.prepare("SELECT status, runner, leaseUntil, mode FROM graph_runs WHERE id = ?").get(runId);
+  // The epoch, holder and mode of a run that runs or waits; refused for an unknown or ended run.
+  #active(runId: string): Result<{ epoch: number; pid: number; mode: GraphRun["mode"] }> {
+    const row = this.#db.prepare("SELECT status, epoch, pid, mode FROM graph_runs WHERE id = ?").get(runId);
     if (row === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
     const status = String(row["status"]);
     if (!ACTIVE.has(status)) return { ok: false, finding: { code: "run.finished", params: { runId, status } } };
     const mode = GraphRun.shape.mode.parse(row["mode"]);
-    return { ok: true, value: { runner: row["runner"], until: String(row["leaseUntil"]), mode } };
+    return { ok: true, value: { epoch: Number(row["epoch"]), pid: Number(row["pid"]), mode } };
   }
 
-  // The run's mode while `runner` holds its lease, also one that ran out and nobody took over.
-  #held(runId: string, runner: string): Result<GraphRun["mode"]> {
+  // The run's mode while nobody took it over after `epoch`, also when its runner let go of the lease.
+  #held(runId: string, epoch: number): Result<GraphRun["mode"]> {
     const run = this.#active(runId);
     if (!run.ok) return run;
-    const { until, mode } = run.value;
-    return run.value.runner === runner
-      ? { ok: true, value: mode }
-      : { ok: false, finding: { code: "run.lease-held", params: { runId, until } } };
+    return run.value.epoch === epoch ? { ok: true, value: run.value.mode } : leaseHeldBy(runId, run.value.pid);
   }
 
   #append(runId: string, event: JournalEvent): number {
@@ -197,21 +202,27 @@ export class GraphStore {
   #project(runId: string, event: JournalEvent, at: string): void {
     const ofRunning = "WHERE runId = ? AND nodeId = ? AND attempt = ? AND state = 'running'";
     if (event.type === "started") {
-      this.#db
+      // A node of the run's workflow, and its next attempt: the one before has ended, since a node runs one at a time.
+      const { changes } = this.#db
         .prepare(
-          "INSERT INTO node_attempts (runId, nodeId, attempt, state, pid, startedAt) VALUES (?, ?, ?, 'running', ?, ?)",
+          `INSERT INTO node_attempts (runId, nodeId, attempt, state, pid, startedAt)
+           SELECT id, ?2, ?3, 'running', ?4, ?5 FROM graph_runs WHERE id = ?1
+           AND ?2 IN (SELECT value ->> '$.id' FROM json_each(definition, '$.nodes'))
+           AND ?3 = (SELECT count(*) + 1 FROM node_attempts WHERE runId = ?1 AND nodeId = ?2)
+           AND NOT EXISTS (SELECT 1 FROM node_attempts WHERE runId = ?1 AND nodeId = ?2 AND state = 'running')`,
         )
         .run(runId, event.node, event.attempt, event.pid, at);
+      must(changes, `node ${event.node} is not in the workflow, or ${event.attempt} is not its next attempt`);
     } else if (event.type === "ended") {
       const { changes } = this.#db
         .prepare(`UPDATE node_attempts SET state = ?, outputs = ?, finishedAt = ? ${ofRunning}`)
         .run(event.outcome, canonicalJson(event.values ?? {}), at, runId, event.node, event.attempt);
-      mustRun(changes, event);
+      must(changes, `attempt ${event.attempt} of node ${event.node} is not running`);
     } else if (event.type === "applying") {
       const { changes } = this.#db
         .prepare(`UPDATE node_attempts SET applyRun = ? ${ofRunning}`)
         .run(event.applyRun, runId, event.node, event.attempt);
-      mustRun(changes, event);
+      must(changes, `attempt ${event.attempt} of node ${event.node} is not running`);
     } else if (event.type === "finished") {
       // A run ends after its attempts: one left running could never be ended once the run refuses events.
       if (this.#db.prepare("SELECT 1 FROM node_attempts WHERE runId = ? AND state = 'running'").get(runId)) {
@@ -228,5 +239,5 @@ export class GraphStore {
  */
 export const openGraphStore = (dir: string, detect = filesystemType): Result<GraphStore> => {
   const refused = stateDir(dir, detect);
-  return refused === null ? connect(dir, (db) => new GraphStore(db)) : { ok: false, finding: refused };
+  return refused === null ? connect(dir, (db) => new GraphStore(dir, db)) : { ok: false, finding: refused };
 };

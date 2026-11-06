@@ -40,7 +40,7 @@ const MODE_SCHEMA = 5;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
-  release(): void;
+  release(this: void): void;
 }
 
 const leaseLockPath = (dir: string, runId: string): string => join(dir, "leases", `${runId}.lock`);
@@ -79,6 +79,32 @@ const lockHeld = (path: string): boolean => {
   removeLock(path);
   return false;
 };
+
+/** Takes the lease lock of run `runId` in the store `dir` and holds it until its release; null while another holds it. */
+export const holdLease = (dir: string, runId: string): LeaseLock | null => {
+  mkdirSync(join(dir, "leases"), { recursive: true, mode: 0o700 });
+  const path = leaseLockPath(dir, runId);
+  const lock = takeLock(path);
+  if (lock === null) return null;
+  heldLocks.add(lock);
+  return {
+    release: () => {
+      heldLocks.delete(lock);
+      lock.close();
+      removeLock(path);
+    },
+  };
+};
+
+/** Takes the lease lock of a run that starts now; only a run id used before can find it held. */
+export const newLease = (dir: string, runId: string): LeaseLock => {
+  const lock = holdLease(dir, runId);
+  if (lock === null) throw new Error(`the lease of run ${runId} is held already`);
+  return lock;
+};
+
+/** Whether a process holds the lease lock of run `runId` in the store `dir`. */
+export const leaseHeld = (dir: string, runId: string): boolean => lockHeld(leaseLockPath(dir, runId));
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -410,7 +436,7 @@ export class RunStore extends RunView {
     const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
     for (const row of this.db.prepare("SELECT runId, account FROM launches WHERE finishedAt IS NULL").all()) {
       const [runId, account] = [String(row["runId"]), String(row["account"])];
-      if (lockHeld(leaseLockPath(this.dir, runId))) counts.set(account, (counts.get(account) ?? 0) + 1);
+      if (leaseHeld(this.dir, runId)) counts.set(account, (counts.get(account) ?? 0) + 1);
       else end.run(now(), runId);
     }
     return counts;
@@ -427,16 +453,8 @@ export class RunStore extends RunView {
    */
   leaseAccount(input: Omit<LaunchRecord, "finishedAt" | "verdict">, max: number): LeaseLock | null {
     const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
-    mkdirSync(join(this.dir, "leases"), { recursive: true, mode: 0o700 });
-    const path = leaseLockPath(this.dir, launch.runId);
-    const lock = takeLock(path);
-    if (lock === null) throw new Error(`the lease of run ${launch.runId} is held already`);
-    heldLocks.add(lock);
-    const release = (): void => {
-      heldLocks.delete(lock);
-      lock.close();
-      removeLock(path);
-    };
+    const lock = newLease(this.dir, launch.runId);
+    const { release } = lock;
     let taken: boolean;
     try {
       taken = transaction(this.db, () => {
@@ -451,7 +469,7 @@ export class RunStore extends RunView {
       release();
       throw error;
     }
-    if (taken) return { release };
+    if (taken) return lock;
     release();
     return null;
   }

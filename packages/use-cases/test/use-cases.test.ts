@@ -198,9 +198,9 @@ test("a store another process holds refuses changes; one from a newer CedarLoom 
   expect(undoRun(state, "r4", { yes: true })).toEqual(busy);
   if (held.ok) held.value.close();
   const db = new DatabaseSync(join(state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 7");
+  db.exec("PRAGMA user_version = 8");
   db.close();
-  const newer = { code: "store.newer-schema", params: { found: 7, known: 6 } };
+  const newer = { code: "store.newer-schema", params: { found: 8, known: 7 } };
   for (const result of [listRuns(state), showRun(state, "r4"), previewUndo(state, "r4")]) {
     expect(result).toEqual({ ok: false, finding: newer });
   }

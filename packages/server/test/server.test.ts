@@ -398,7 +398,7 @@ test("a busy or newer store is a 409 with its finding; a broken one a 500 whose 
     { error: "internal" },
     expect.stringContaining("stored plan unreadable"),
   ]);
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   for (const path of ["/api/runs", `/api/runs/${runId}`, `/api/runs/${runId}/undo`]) {
     expect(await client.api({ path })).toMatchObject({
@@ -461,7 +461,7 @@ test("the event stream sends the runs at once and again whenever they change, be
   const head = await client.api({ method: "HEAD", path: "/api/events" });
   expect([head.status, head.headers["allow"]]).toEqual([405, "GET"]);
   const db = new DatabaseSync(join(client.state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   // Unchanged reads send nothing: one refusal in 150 ms of reads every 25 ms.
   const refused: unknown[] = [];

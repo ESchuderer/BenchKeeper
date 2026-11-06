@@ -134,7 +134,7 @@ export type AccountSwitch = z.infer<typeof AccountSwitch>;
 export const ContractCheckRecord = z.strictObject({
   agent: Agent,
   version: AgentVersion,
-  missing: z.array(z.enum(["init", "usage", "result"])),
+  missing: z.array(z.enum(["init", "settings", "usage", "result"])),
   at: z.iso.datetime({ precision: 3 }),
 });
 export type ContractCheckRecord = z.infer<typeof ContractCheckRecord>;

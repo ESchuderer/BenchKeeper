@@ -41,6 +41,7 @@ const probe = {
   effort: "high",
   env: {},
   tmpDir: "/tmp/worker",
+  resultFile: "/state/workers/0b9f4c1e/out/result.json",
   denyRead: [],
   allowedDomains: [],
 } as const;
@@ -83,6 +84,12 @@ test("a CLI that cannot tell its version or run its check starts no worker", asy
     ok: false,
     finding: { code: "launch.agent-unavailable", params: { agent: "claude", error: "spawn claude ENOENT" } },
   });
+  const escaped = runtime(["2.1.316\u001b[31m"], []);
+  await expect(checkedVersions(state(), "claude", escaped, input)).resolves.toEqual({
+    ok: false,
+    finding: { code: "launch.agent-unavailable", params: { agent: "claude", error: "unrecognized CLI version" } },
+  });
+  expect(escaped.checkContract).not.toHaveBeenCalled();
   const broken = runtime(["2.1.316"], []);
   broken.checkContract.mockRejectedValueOnce("not an Error");
   await expect(checkedVersions(state(), "claude", broken, input)).resolves.toMatchObject({

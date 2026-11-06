@@ -3,6 +3,8 @@ import { once } from "node:events";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import type { AccountSwitch, ContractCheckRecord, Plan } from "@cedarloom/contracts";
 import {
@@ -105,11 +107,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 5");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 4, known: 3 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 5, known: 4 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -322,22 +324,24 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-test("a store of schema 1 gains the account and check tables on open and keeps its runs", () => {
+test("a store of schema 1 gains the account, check and launch tables on open and keeps its runs", () => {
   const dir = fresh();
   const runId = opened(dir).begin("apply", plan, planHash(plan));
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; PRAGMA user_version = 1");
+  db.exec(
+    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 1",
+  );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 3 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 4 });
   after.close();
 });
 
-test("a store of schema 2 gains the check table on open and keeps its readings", () => {
+test("a store of schema 2 gains the check and launch tables on open and keeps its readings", () => {
   const dir = fresh();
   const reading = {
     account: "work",
@@ -349,7 +353,7 @@ test("a store of schema 2 gains the check table on open and keeps its readings",
   opened(dir).recordReading(reading);
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE contract_checks; PRAGMA user_version = 2");
+  db.exec("DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 2");
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([reading]);
@@ -431,3 +435,115 @@ test("one contract check per agent CLI version: a check of the same version agai
     expect(() => store.recordContractCheck({ ...check, version })).toThrow(/pattern/i);
   }
 });
+
+const launch = {
+  runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f",
+  task: "t1",
+  agent: "claude",
+  account: "work",
+  version: "2.1.316",
+  pid: 101,
+  startedAt: "2026-11-06T08:00:00.000Z",
+} as const;
+const runIdOf = (n: number): string => `${launch.runId.slice(0, -1)}${n}`;
+
+test("an account gives at most max leases; a finished lease frees one, another account has its own", () => {
+  const store = opened(fresh());
+  const first = store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 2)).not.toBeNull();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 2)).toBeNull();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(4), account: "spare" }, 1)).not.toBeNull();
+  store.finishLaunch(runIdOf(1), "pass", "2026-11-06T08:10:00.000Z");
+  first?.release();
+  // A second finish keeps the first verdict.
+  store.finishLaunch(runIdOf(1), "failed");
+  // A finish time that is no time is refused on write, so the launches stay readable.
+  expect(() => store.finishLaunch(runIdOf(2), "pass", "not a time")).toThrow(/datetime/i);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(5) }, 2)).not.toBeNull();
+  expect(store.liveLeases()).toEqual(
+    new Map([
+      ["work", 2],
+      ["spare", 1],
+    ]),
+  );
+  expect(store.launches().map((row) => [row.runId.at(-1), row.account, row.verdict])).toEqual([
+    ["1", "work", "pass"],
+    ["2", "work", null],
+    ["4", "spare", null],
+    ["5", "work", null],
+  ]);
+  expect(store.launches()[0]).toEqual({
+    ...launch,
+    runId: runIdOf(1),
+    finishedAt: "2026-11-06T08:10:00.000Z",
+    verdict: "pass",
+  });
+  expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
+  // A run takes one lease: a second lease of a run whose lock is held is refused.
+  expect(() => store.leaseAccount({ ...launch, runId: runIdOf(5) }, 9)).toThrow(/held already/);
+});
+
+// The garbage collector, which node exposes to a new context once the flag is set.
+setFlagsFromString("--expose-gc");
+const gc: unknown = runInNewContext("gc");
+const collect = async (): Promise<void> => {
+  for (const _ of [1, 2]) {
+    if (typeof gc === "function") Reflect.apply(gc, undefined, []);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+};
+
+test("a lease holds its lock for the lease's life, also when its launcher keeps no reference to it", async () => {
+  const store = opened(fresh());
+  // Taken and dropped at once: nothing of the launcher's refers to the lock any more.
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)).not.toBeNull();
+  await collect();
+  expect(typeof gc).toBe("function");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).toBeNull();
+  expect(store.liveLeases()).toEqual(new Map([["work", 1]]));
+});
+
+test("a lease whose row cannot be written lets go of its lock, so the error is not hidden behind a held lock", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)?.release();
+  store.finishLaunch(runIdOf(1), "pass");
+  // The run has a finished row, so its row cannot be written again.
+  for (const _ of [1, 2]) expect(() => store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)).toThrow(/UNIQUE/);
+  expect(existsSync(join(dir, "leases", `${runIdOf(1)}.lock`))).toBe(false);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).not.toBeNull();
+});
+
+test("a lease whose launcher let go of it without a finish (a crash, a kill) ends as interrupted, whatever its PID", () => {
+  const store = opened(fresh());
+  // This test's own PID runs, as a reused PID would: only the lock counts.
+  store.leaseAccount({ ...launch, runId: runIdOf(1), pid: process.pid }, 1)?.release();
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), pid: process.pid }, 1)).not.toBeNull();
+  expect(store.launches().map((row) => [row.runId.at(-1), row.verdict, row.finishedAt === null])).toEqual([
+    ["1", "interrupted", false],
+    ["2", null, true],
+  ]);
+});
+
+test("a lease counts while its launcher process holds the run's lock, and ends when the OS releases it", async () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)?.release();
+  // Another process holds the run's lock, as the launcher of the run does.
+  const lock = join(dir, "leases", `${runIdOf(1)}.lock`);
+  const holder = spawn(
+    process.execPath,
+    [
+      "-e",
+      `new (require("node:sqlite").DatabaseSync)(process.argv[1]).exec("BEGIN EXCLUSIVE"); console.log("held"); setInterval(() => {}, 1000);`,
+      lock,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  await once(holder.stdout, "data");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).toBeNull();
+  holder.kill("SIGKILL");
+  await once(holder, "exit");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 1)).not.toBeNull();
+  expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
+}, 15_000);

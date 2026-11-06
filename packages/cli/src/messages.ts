@@ -89,6 +89,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     'products" (https://www.anthropic.com/legal/aup), and its help article to "create or manage multiple accounts to ' +
     'evade detection or circumvent platform safeguards" (https://support.claude.com/en/articles/12005017); whether a ' +
     "usage limit counts as one is not stated.",
+  "launch.settings-unproven": (p) =>
+    `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
+  "launch.account-full": (p) =>
+    `Account ${p.account} runs ${p.max} workers already, its most at once; no worker starts on it until one ends.`,
   "launch.agent-unavailable": (p) =>
     `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
   "accounts.codex-switching-off": (p) =>

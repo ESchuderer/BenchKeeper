@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { dirname, isAbsolute } from "node:path";
 import type { Effort, Launch } from "@cedarloom/agent-contracts";
 import { overlay } from "./overlay.ts";
 
@@ -51,6 +51,7 @@ const refuse = (launch: ClaudeLaunch): void => {
   }
   // The settings deny writes below the working folder by its absolute path.
   if (!isAbsolute(launch.cwd)) throw new Error(`not an absolute working folder: "${launch.cwd}"`);
+  if (!isAbsolute(launch.resultFile)) throw new Error(`not an absolute result file: "${launch.resultFile}"`);
 };
 
 // The worker profile's variables (https://code.claude.com/docs/en/env-vars): auto memory off (A8), the A102 caps, no
@@ -108,6 +109,10 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    // The result file's folder joins the working folders, which the settings otherwise keep every write inside; last,
+    // because the flag takes several folders.
+    "--add-dir",
+    dirname(launch.resultFile),
   ];
 };
 

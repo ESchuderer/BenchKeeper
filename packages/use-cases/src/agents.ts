@@ -1,5 +1,5 @@
 import type { AgentRuntime, ContractCheck, Launch, UsageWindow } from "@cedarloom/agent-contracts";
-import type { Agent, ContractCheckRecord, Result } from "@cedarloom/contracts";
+import { type Agent, AgentVersion, type ContractCheckRecord, type Result } from "@cedarloom/contracts";
 import { withStore } from "./use-cases.ts";
 
 // A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
@@ -67,7 +67,10 @@ export const checkedVersions = async <L extends Launch>(
 ): Promise<Result<CheckedVersions>> => {
   let version: string;
   try {
-    version = await runtime.version(env);
+    // Checked here for every adapter: a version of another form reaches neither a probe nor the ledger.
+    const read = AgentVersion.safeParse(await runtime.version(env));
+    if (!read.success) return unavailable(agent, new Error("unrecognized CLI version"));
+    version = read.data;
   } catch (error) {
     return unavailable(agent, error);
   }

@@ -980,6 +980,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
+            };
+        } | {
+            /** @constant */
             code: "launch.gh-login";
             params: {
                 error: string | null;
@@ -1461,6 +1475,20 @@ export interface components {
             params: {
                 agent: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
             };
         } | {
             /** @constant */

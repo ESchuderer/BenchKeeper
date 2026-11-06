@@ -62,6 +62,10 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
+    // A plugin action under a schedule: it may write through the host or change other systems (pending owner decision).
+    finding("workflow.report-only-plugin", { node: z.string() }),
+    // A node of a plugin action that is not installed here: the workflow can be kept and shared, not run.
+    finding("workflow.plugin-missing", { node: z.string(), type: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
     finding("accounts.registry-exists", { path: z.string() }),
@@ -151,6 +155,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.optional-input": { severity: "error", effort: "manual" },
   "workflow.schedule-input": { severity: "error", effort: "manual" },
   "workflow.report-only-write": { severity: "error", effort: "manual" },
+  "workflow.report-only-plugin": { severity: "error", effort: "manual" },
+  "workflow.plugin-missing": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
   "accounts.registry-exists": { severity: "error", effort: "manual" },

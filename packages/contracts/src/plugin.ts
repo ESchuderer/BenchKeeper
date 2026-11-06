@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ProjectPath } from "./nodes.ts";
+import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 import { DataType, HandleName, JsonValue, License, semver, WorkflowId } from "./workflow.ts";
@@ -26,13 +26,25 @@ const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, max: num
     .meta(min > 0 ? { minProperties: min, maxProperties: max } : { maxProperties: max });
 
 /** A plugin's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
+// The first parts of the built-in node types (trigger, agent, command, file, human, workflow, condition, join): no
+// publisher takes one, so `trigger.acme/go` never counts as a trigger and no plugin passes for built in.
+const BUILT_IN = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
 export const PluginId = z
   .string()
-  .regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/)
+  .regex(new RegExp(`^(?!(?:${BUILT_IN.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))
   .register(fileFormats, { id: "PluginId" });
 
-// Lower case, so a node type `<plugin id>/<action>` matches the workflow's type pattern.
+// An action's name in its plugin, lower case, so a node type `<plugin id>/<action>` matches the workflow's pattern.
 const ActionId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
+
+/**
+ * Whether a node type names a plugin action, `<plugin id>/<action>` by the manifest's own rules, so a manifest and a
+ * node type never disagree; any other type is built in or unknown.
+ */
+export const isPluginType = (type: string): boolean => {
+  const [plugin = "", action = "", ...rest] = type.split("/");
+  return rest.length === 0 && PluginId.safeParse(plugin).success && ActionId.safeParse(action).success;
+};
 const CredentialId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/);
 

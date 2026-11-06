@@ -1,9 +1,11 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   symlinkSync,
   writeFileSync,
@@ -12,14 +14,23 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
 import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
-import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
-import { openRunStore, type RunStore } from "@cedarloom/ledger";
+import type { AgentRuntime } from "@cedarloom/agent-contracts";
+import {
+  type AccountRegistry,
+  formatRegistry,
+  type JournalEvent,
+  type Json,
+  WorkflowDefinition,
+} from "@cedarloom/contracts";
+import { openGraphStore, openRunStore, type RunStore } from "@cedarloom/ledger";
 import {
   type Decided,
   doctor,
   launchWorker,
   MAX_CONCURRENT,
   ownHome,
+  resumeRun,
+  runWorkflow,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -520,3 +531,166 @@ test("a storage error while keeping a run's usage drops that usage, and the run 
     writer.mockRestore();
   }
 });
+
+// A launch on the fake CLI with its stream and `more` of the fake's settings.
+const faked = <T extends ClaudeLaunch>(launch: T, more: Record<string, string>): T => ({
+  ...launch,
+  env: { ...launch.env, FAKE_STREAM: join(fixtures, "stream.jsonl"), ...more },
+});
+// The fake CLI as the runtime of agent nodes: a run also gets `env`, and writes a result of `verdict` with its own run
+// id, as the result prompt names it (none when null).
+const agentRuntime = (
+  env: Record<string, string> = {},
+  verdict: string | null = "pass",
+): AgentRuntime<ClaudeLaunch> => {
+  const start = (launch: ClaudeLaunch) => {
+    const runId = /"runId":"([^"]+)"/.exec(launch.prompt)?.[1] ?? "";
+    const result = { schemaVersion: 1, runId, verdict, summary: "Reviewed." };
+    const written =
+      verdict === null ? {} : { FAKE_RESULT: launch.resultFile, FAKE_RESULT_TEXT: JSON.stringify(result) };
+    return runtime.start(faked(launch, { ...env, ...written }));
+  };
+  const checkContract = (probe: Parameters<typeof runtime.checkContract>[0]) =>
+    runtime.checkContract(faked({ ...probe, prompt: "", verifiedVersions: [] }, {}));
+  return { ...runtime, checkContract, start };
+};
+
+// The project as a git repository with one commit, and a workflow file beside it: t -> a, an agent.run of `config`
+// whose result is the run's output.
+const agentWorkflow = (work: string, config: Record<string, Json>, execution: Record<string, Json> = {}): string => {
+  execFileSync("git", ["init", "--quiet"], { cwd: work });
+  const user = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org"];
+  execFileSync("git", [...user, "commit", "--quiet", "--allow-empty", "-m", "start"], { cwd: work });
+  const file = join(work, "..", "agent.json");
+  const workflow = {
+    schemaVersion: 1,
+    kind: "cedarloom.workflow",
+    metadata: { id: "agent", name: "Agent", version: "1.0.0" },
+    outputs: { result: { type: "string" } },
+    nodes: [
+      { id: "t", type: "trigger.manual" },
+      { id: "a", type: "agent.run", with: config },
+    ],
+    edges: [
+      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } },
+      { id: "e2", from: { node: "a", handle: "result" }, to: { output: "result" } },
+    ],
+    execution,
+  };
+  writeFileSync(file, JSON.stringify(workflow));
+  return file;
+};
+const REVIEW = { task: "Review the change.", phase: "review" };
+const attemptsOf = (state: string) =>
+  new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true })
+    .prepare("SELECT state, outputs, sessionId FROM node_attempts")
+    .all()
+    .map((row) => ({ state: row["state"], outputs: JSON.parse(String(row["outputs"])), sessionId: row["sessionId"] }));
+
+test("an agent node runs a worker in the run's worktree on its phase's settings, keeps its session and gives its summary", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const ran = await runWorkflow(state, file, {}, { project: work, agents: { config, host, runtime: agentRuntime() } });
+  expect(ran).toMatchObject({ ok: true, value: { status: "succeeded" } });
+  const runId = ran.ok ? ran.value.runId : "";
+  expect(attemptsOf(state)).toEqual([
+    {
+      state: "done",
+      outputs: { result: "Reviewed.", verdict: "pass" },
+      sessionId: "00000000-0000-4000-8000-000000000001",
+    },
+  ]);
+  const tree = join(state, "worktrees", runId);
+  expect(execFileSync("git", ["branch", "--show-current"], { cwd: tree, encoding: "utf8" }).trim()).toBe(
+    `cedarloom/${runId}`,
+  );
+  expect(withLedger(state, (store) => store.launches())).toMatchObject([
+    {
+      task: `${runId}:a`,
+      verdict: "pass",
+      labels: { phase: "review", model: "claude-opus-5-5", review: true, level: "supervised", tier: null },
+    },
+  ]);
+}, 30_000);
+
+test("an agent that sends nothing for its stall time is stopped and times out; a cancel stops a running one", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const hang = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), stallMs: 300 };
+  const stalled = await runWorkflow(state, file, {}, { project: work, agents: hang });
+  const stop = new AbortController();
+  const onEvent = (event: JournalEvent) => event.type === "session" && stop.abort();
+  const agents = { ...hang, stallMs: 60_000 };
+  const cancelled = await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal, onEvent });
+  expect([stalled, cancelled]).toMatchObject([{ value: { status: "failed" } }, { value: { status: "cancelled" } }]);
+  expect(attemptsOf(state).map((row) => row.state)).toEqual(["timed-out", "cancelled"]);
+}, 30_000);
+
+test("an agent waits for a free lease of its account, and the wait counts against no timeout", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW, { nodes: { a: { timeoutSeconds: 1 } } });
+  const held = fill(state, "work", 1);
+  setTimeout(() => held.forEach((lock) => lock?.release()), 1500);
+  const agents = { config, host, runtime: agentRuntime(), retryMs: 100 };
+  expect(await runWorkflow(state, file, {}, { project: work, agents })).toMatchObject({
+    ok: true,
+    value: { status: "succeeded" },
+  });
+  // A cancel ends the wait.
+  const again = fill(state, "work", 3);
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 300);
+  expect(await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal })).toMatchObject({
+    value: { status: "cancelled" },
+  });
+  for (const lock of again) lock?.release();
+}, 30_000);
+
+test("an agent fails, saying why, without a single Claude Code pool or a git repository; one stopped first lets its lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const none = { config: join(config, "none"), host, runtime: agentRuntime() };
+  await runWorkflow(state, file, {}, { project: work, agents: none });
+  const plain = join(work, "..", "plain");
+  mkdirSync(plain);
+  await runWorkflow(state, file, {}, { project: plain, agents: { config, host, runtime: agentRuntime() } });
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 20);
+  const agents = { config, host, runtime: agentRuntime() };
+  await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal });
+  // gh's own login refuses the launch; a session whose init line proves no settings is stopped.
+  const loggedIn = { ...host, gh: [node, "-e", "process.exit(0)"] } as const;
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, host: loggedIn } });
+  const unproven = agentRuntime({ FAKE_STREAM: join(fixtures, "unapplied.jsonl") });
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, runtime: unproven } });
+  // The level's settings file cannot be read.
+  writeFileSync(join(config, "automation.json"), "{");
+  await runWorkflow(state, file, {}, { project: work, agents });
+  expect(attemptsOf(state).map((row) => [row.state, row.outputs])).toEqual([
+    ["failed", { error: "no-single-pool" }],
+    ["failed", { error: "git.failed" }],
+    ["cancelled", {}],
+    ["failed", { error: "launch.gh-login" }],
+    ["failed", { error: "launch.settings-unproven" }],
+    ["failed", { error: "document.invalid" }],
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((launch) => launch.verdict))).toEqual(["not-run", "failed"]);
+}, 30_000);
+
+test("a later runner of a run works in the worktree the run has", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const graphs = openGraphStore(state);
+  if (!graphs.ok) throw new Error(graphs.finding.code);
+  const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(file, "utf8")));
+  const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const created = graphs.value.create({ ...base, definition, project: realpathSync(work) });
+  created.release();
+  graphs.value.close();
+  mkdirSync(join(state, "worktrees", created.runId), { recursive: true });
+  const agents = { config, host, runtime: agentRuntime() };
+  expect(await resumeRun(state, created.runId, { project: work, agents })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(execFileSync("git", ["branch", "--list", "cedarloom/*"], { cwd: work, encoding: "utf8" })).toBe("");
+}, 30_000);

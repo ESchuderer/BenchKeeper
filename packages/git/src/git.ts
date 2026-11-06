@@ -26,7 +26,7 @@ const shown = (text: string): string =>
     .replace(/[\t\n\r]+/g, " ")
     .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
-const failed = (step: "start" | "fetch" | "list" | "read", error: string): Result<never> => ({
+const failed = (step: "start" | "fetch" | "list" | "read" | "worktree", error: string): Result<never> => ({
   ok: false,
   finding: { code: "git.failed", params: { step, error: shown(error) } },
 });
@@ -346,3 +346,26 @@ export const fetchTreeOver =
       await Promise.allSettled([rm(dir, { recursive: true, force: true, maxRetries: 3 })]);
     }
   };
+
+/**
+ * Adds a worktree of the repository `repo` at `path`, on the new branch `branch` from its HEAD. No hook runs, not even
+ * one the user's configuration names, as for a fetch. `program` is the git to run, the one on PATH unless named.
+ */
+export const addWorktree = async (
+  repo: string,
+  path: string,
+  branch: string,
+  program = "git",
+): Promise<Result<string>> => {
+  const base = { program, cwd: repo, env: environment([]), timeoutMs: 60_000, maxBytes: 64 * 1024 };
+  const hooks = hooksOff(hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base)));
+  const off = flags([
+    ["core.hooksPath", devNull],
+    ["core.fsmonitor", "false"],
+  ]);
+  const added = await run([...off, "worktree", "add", "--quiet", "-b", branch, "--", path, "HEAD"], {
+    ...base,
+    env: { ...base.env, ...hooks },
+  });
+  return succeeded(added) ? { ok: true, value: path } : failed("worktree", why(added));
+};

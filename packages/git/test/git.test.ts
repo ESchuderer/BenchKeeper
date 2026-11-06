@@ -6,7 +6,15 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Result } from "@cedarloom/contracts";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { type FetchOptions, fetchTree, fetchTreeOver, type Limits, type Source, type Tree } from "@cedarloom/git";
+import {
+  addWorktree,
+  type FetchOptions,
+  fetchTree,
+  fetchTreeOver,
+  type Limits,
+  type Source,
+  type Tree,
+} from "@cedarloom/git";
 
 // GitHub's Windows runners keep os.tmpdir() on the slow system drive.
 const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-git-"));
@@ -289,3 +297,24 @@ test.skipIf(process.platform === "win32")(
   },
   30_000,
 );
+
+test("a worktree is added on a new branch from HEAD, and no hook of the repository runs; no repository is named", async () => {
+  const repo = source({ "a.txt": "a" });
+  git(repo.dir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  const marker = join(repo.dir, "ran").replaceAll("\\", "/");
+  mkdirSync(join(repo.dir, ".git", "hooks"), { recursive: true });
+  writeFileSync(join(repo.dir, ".git", "hooks", "post-checkout"), `#!/bin/sh\necho ran > '${marker}'\n`, {
+    mode: 0o755,
+  });
+  const path = join(parent(), "work");
+  expect(await addWorktree(repo.dir, path, "cedarloom/run-1")).toEqual({ ok: true, value: path });
+  expect([
+    readFileSync(join(path, "a.txt"), "utf8"),
+    git(path, ["branch", "--show-current"]),
+    existsSync(marker),
+  ]).toEqual(["a", "cedarloom/run-1", false]);
+  expect(codeOf(await addWorktree(parent(), join(parent(), "work"), "cedarloom/run-2"))).toMatchObject({
+    code: "git.failed",
+    params: { step: "worktree" },
+  });
+}, 30_000);

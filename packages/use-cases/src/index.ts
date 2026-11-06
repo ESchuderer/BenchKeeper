@@ -46,6 +46,7 @@ export {
   showRun,
   undoRun,
 } from "./use-cases.ts";
+export type { AgentOptions } from "./agent-node.ts";
 export {
   cancelRun,
   type GraphOutcome,

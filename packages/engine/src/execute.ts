@@ -29,6 +29,8 @@ export interface Attempt {
   readonly inputs: Readonly<Values>;
   /** Aborted with the reason `timed-out`, `cancelled` or `lost` (another runner took the run over). */
   readonly signal: AbortSignal;
+  /** Records the id of the agent session the attempt runs, so that a later runner can resume it. */
+  readonly session: (sessionId: string) => void;
 }
 
 /**
@@ -37,11 +39,15 @@ export interface Attempt {
  */
 export interface Prepared {
   readonly pid: number | null;
-  run(): Promise<{ readonly ok: boolean; readonly values?: Values }>;
+  /** `stalled`: the attempt went quiet for too long, and ends timed out. */
+  run(): Promise<{ readonly ok: boolean; readonly values?: Values; readonly stalled?: boolean }>;
 }
 
-/** The executors by node type; a trigger's precheck runs as a `command.run` of its command. */
-export type Executors = Readonly<Record<string, (attempt: Attempt) => Prepared>>;
+/**
+ * The executors by node type; a trigger's precheck runs as a `command.run` of its command. An executor may wait before
+ * its attempt starts, as an agent for an account's lease: the wait is no part of the attempt's timeout.
+ */
+export type Executors = Readonly<Record<string, (attempt: Attempt) => Prepared | Promise<Prepared>>>;
 
 export interface ExecuteOptions {
   readonly executors: Executors;
@@ -203,7 +209,7 @@ class Runner {
 
   #handle(action: Action): void {
     if (action.type === "start") void this.#start(action);
-    else if (action.type === "precheck") this.#precheck(action.node);
+    else if (action.type === "precheck") void this.#precheck(action.node);
     else if (action.type === "cancel") this.#cancel(action.node);
     else if (action.type === "finish") {
       this.#commit({ type: "finished", status: action.status, outputs: action.outputs });
@@ -211,23 +217,27 @@ class Runner {
     }
   }
 
-  #prepare(node: string, { type, config }: Typed): Going {
+  // Sets an attempt up; a cancel or a lost run reaches it already while its executor waits. `attempt` 0: a precheck.
+  async #prepare(node: string, attempt: number, { type, config }: Typed): Promise<Going> {
     const controller = new AbortController();
-    const attempt = { node, config, inputs: this.#state.inputs, signal: controller.signal };
+    this.#live.set(node, controller);
+    const session = (sessionId: string): void => {
+      this.#commit({ type: "session", node, attempt, sessionId });
+    };
+    const given = { node, config, inputs: this.#state.inputs, signal: controller.signal, session };
     try {
-      return { prepared: (own(this.#options.executors, type) ?? missing)(attempt), controller };
+      return { prepared: await (own(this.#options.executors, type) ?? missing)(given), controller };
     } catch (error) {
       return { prepared: thrown(error), controller };
     }
   }
 
   // Lets a prepared attempt go until its timeout; `end` gets its result and why it was aborted, if it was.
-  async #go(node: string, { prepared, controller }: Going, ms: number, end: Ended): Promise<void> {
-    this.#live.set(node, controller);
+  async #go({ prepared, controller }: Going, ms: number, end: Ended): Promise<void> {
     const timer = setTimeout(() => controller.abort("timed-out"), ms);
-    const { ok, values = {} } = await prepared.run();
+    const { ok, values = {}, stalled = false } = await prepared.run();
     clearTimeout(timer);
-    end(ok, capped(values), controller.signal.reason);
+    end(ok, capped(values), controller.signal.reason ?? (stalled ? "timed-out" : undefined));
   }
 
   async #start(action: Start): Promise<void> {
@@ -236,9 +246,9 @@ class Runner {
     const node = own(this.#state.nodes, id);
     // A backoff that a stop or a cancel overtook starts nothing.
     if (node?.state !== "running" || node.attempts !== attempt) return;
-    const going = this.#prepare(id, this.#of(id));
+    const going = await this.#prepare(id, attempt, this.#of(id));
     if (!this.#commit({ type: "started", node: id, attempt, pid: going.prepared.pid })) going.controller.abort("lost");
-    await this.#go(id, going, action.timeoutSeconds * 1000, (ok, values, why) => {
+    await this.#go(going, action.timeoutSeconds * 1000, (ok, values, why) => {
       this.#post({ type: "ended", node: id, attempt, outcome: outcomeOf(ok, why), values });
     });
   }
@@ -258,10 +268,10 @@ class Runner {
     return { type: item?.type ?? "", config: item?.with ?? {} };
   }
 
-  #precheck(node: string): void {
+  async #precheck(node: string): Promise<void> {
     const command = this.#of(node).config["precheck"] ?? "";
-    const going = this.#prepare(node, { type: "command.run", config: { command } });
-    void this.#go(node, going, PRECHECK_TIMEOUT_MS, (ok, _, why) => {
+    const going = await this.#prepare(node, 0, { type: "command.run", config: { command } });
+    await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, _, why) => {
       this.#live.delete(node);
       // A cancel ended the trigger already; a precheck that timed out found nothing to do.
       if (why !== "cancelled") this.#post({ type: "precheck", passed: ok && why === undefined });

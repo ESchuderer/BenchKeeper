@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { Finding, Result } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail } from "./output.ts";
@@ -15,7 +16,10 @@ const ran = (ctx: Context, result: Result<{ runId: string; status: string }>): n
 const runOptions = (ctx: Context, project: string | undefined): useCases.RunOptions => {
   const stop = new AbortController();
   void ctx.io.untilStopped().then(() => stop.abort());
-  return { project, signal: stop.signal };
+  const { agent, env } = ctx.io;
+  const host = { parent: env, platform: process.platform, home: homedir() };
+  const agents = agent === undefined ? undefined : { config: ctx.config, host, runtime: agent };
+  return { project, signal: stop.signal, agents };
 };
 
 export const workflowsRun = async (

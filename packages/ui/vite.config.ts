@@ -61,6 +61,8 @@ const supplied = (name: string): string | undefined => {
  * license text the package ships; a package that ships none takes it from notices/<name>.txt, and one without either
  * fails the build.
  */
+// shortcut: build.license sees chunks only; a package shipped only as an asset or CSS is not listed. Today that is the
+// elk worker, whose elkjs the elk-api chunk lists. Check dist/assets when a dependency adds one.
 const thirdParty = (): Plugin => ({
   name: "third-party-notices",
   generateBundle: {

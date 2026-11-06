@@ -1,4 +1,5 @@
-From https://github.com/theKashey/react-remove-scroll-bar/blob/master/LICENSE: the 2.3.8 release on npm ships no license file.
+From https://github.com/theKashey/react-remove-scroll-bar/blob/7301c160fda44cb8cf2b9fdfde61efad35736196/LICENSE,
+added upstream after the 2.3.8 release, which declares MIT in its package.json and README and ships no license file.
 
 MIT License
 

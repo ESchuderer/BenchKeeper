@@ -38,6 +38,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.not-found": (p) => `No run ${p.runId} in this state folder.`,
   "run.interrupted": (p) => `Run ${p.runId} was interrupted. ${undoHint(p)}`,
   "run.failed": (p) => `Run ${p.runId} stopped before its end; earlier changes of it stay. ${undoHint(p)}`,
+  "run.input-unknown": (p) => `The workflow has no input ${p.input}.`,
+  "run.input-missing": (p) => `The workflow needs its input ${p.input}, which has no default.`,
+  "run.input-invalid": (p) => `The input ${p.input} must be a ${p.type} value.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -74,7 +77,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `A schedule starts this workflow without inputs, so the required input ${p.input} needs a default.`,
   "workflow.report-only-write": (p) =>
     `Node ${p.node} may write files, but a schedule starts this workflow, and a scheduled run only reports.`,
-  "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger or an input, so it never runs.`,
+  "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.registry-exists": (p) =>
     `${p.path} exists: BenchKeeper's registry is imported once, into a new registry; nothing was changed.`,

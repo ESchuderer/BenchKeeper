@@ -261,7 +261,7 @@ msgstr "Node {node} may write files, but a schedule starts this workflow, and a 
 
 #. js-lingui-explicit-id
 msgid "problem.unreachable"
-msgstr "Nothing leads to node {node} from the trigger or an input, so it never runs."
+msgstr "Nothing leads to node {node} from the trigger, so it never runs."
 
 #. js-lingui-explicit-id
 msgid "problem.strayEntry"

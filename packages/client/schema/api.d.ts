@@ -727,6 +727,26 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.input-unknown";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-missing";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-invalid";
+            params: {
+                input: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "json";
+            };
+        } | {
+            /** @constant */
             code: "undo.file-edited";
             params: {
                 runId: string;
@@ -1188,6 +1208,26 @@ export interface components {
             params: {
                 runId: string;
                 undoes: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-unknown";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-missing";
+            params: {
+                input: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.input-invalid";
+            params: {
+                input: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "json";
             };
         } | {
             /** @constant */

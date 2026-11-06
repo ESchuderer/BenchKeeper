@@ -86,8 +86,8 @@ export class GraphStore {
   graphRun(id: string): GraphRun | undefined {
     const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
-    const held = leaseHeld(this.#dir, `${id}.${Number(row["epoch"])}`);
-    const status = ACTIVE.has(String(row["status"])) && !held ? "interrupted" : row["status"];
+    const interrupted = ACTIVE.has(String(row["status"])) && !leaseHeld(this.#dir, `${id}.${Number(row["epoch"])}`);
+    const status = interrupted ? "interrupted" : row["status"];
     const [definition, inputs] = [row["definition"], row["inputs"]].map((json) => JSON.parse(String(json)));
     return GraphRun.parse({ ...row, status, definition, inputs });
   }

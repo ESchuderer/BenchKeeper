@@ -1,0 +1,8 @@
+- Before every push, run the checks of the changed files; never commit or push with `--no-verify`.
+- Wait for CI with `gh run watch --exit-status` or `gh pr checks --watch`, never by polling.
+- `main` stays releasable.
+- Reuse before reimplementing, and prefer a well-maintained open-source package to own code.
+- Comment only where the code cannot say it: one line, the why.
+- No file or folder named `utils`, `helpers`, `common`, `misc` or `shared`.
+- UI follows the project's styleguide and design tokens.
+- Every change considers the first-class targets this file lists; read the footgun docs it links before changing their area.

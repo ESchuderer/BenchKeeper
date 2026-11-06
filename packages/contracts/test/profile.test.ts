@@ -13,12 +13,11 @@ import {
   SELECTION_SCHEMA_VERSION,
 } from "@cedarloom/contracts";
 import { expect, test } from "vitest";
-import { z } from "zod";
 import { set } from "./published.ts";
 
 const read = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(join(import.meta.dirname, "..", "corpus", path), "utf8"));
-const defaults = await read("CedarLoomProfile/1/valid-default.json");
+const defaults = await read("CedarLoomProfile/1/valid-full.json");
 const child = ProfileFile.parse(await read("CedarLoomProfile/1/valid-child.json"));
 
 const outcome = (result: Result<unknown>) => {
@@ -138,7 +137,7 @@ const loader =
   };
 const alone = (part: object) =>
   outcome(composeProfile(file({ ...own, id: "acme.root", machine: { x: part } }), loader({})));
-const library = loader({ "cedarloom.core/profiles/default.json": ProfileFile.parse(defaults) });
+const library = loader({ "acme.shared/profiles/full.json": ProfileFile.parse(defaults) });
 const tier = (id: string, value: string | null, parents: string[] = []) =>
   file({
     ...own,
@@ -158,29 +157,20 @@ test("a child states only what it changes: the later value wins, lists grow, and
     ponytail?.default,
     ponytail?.title,
     profile.machine["settings.claude-code"]?.type === "settings" && profile.machine["settings.claude-code"].set["env"],
-    guards?.type === "settings" &&
-      z
-        .object({ deny: z.array(z.string()) })
-        .parse(guards.set["permissions"])
-        .deny.slice(12),
+    guards?.type === "settings" && guards.set["permissions"],
     Object.keys(profile.packs),
     setBy["/machine/plugin.ponytail"],
     setBy["/machine/plugin.ponytail/default"],
-    setBy["/project/guards/set/permissions/deny/13"],
+    setBy["/project/guards/set/permissions/deny/2"],
     setBy["/project/notes"],
   ]).toEqual([
     "acme.team",
     "off",
-    "Ponytail, level full",
-    {
-      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
-      DISABLE_ERROR_REPORTING: "1",
-      DISABLE_FEEDBACK_COMMAND: "0",
-      CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1",
-    },
-    ["Bash(helm upgrade *)", "Bash(npm publish *)"],
-    ["cedarloom.core", "acme.frontend"],
-    "cedarloom.default",
+    "Ponytail at level ultra",
+    { DISABLE_ERROR_REPORTING: "1", DISABLE_FEEDBACK_COMMAND: "0" },
+    { deny: ["Bash(sudo *)", "Bash(git push *--force*)", "Bash(npm publish *)"] },
+    ["acme.shared", "acme.frontend"],
+    "acme.full",
     "acme.team",
     "acme.team",
     "acme.team",
@@ -207,10 +197,10 @@ test("a part of another type, and a text from another source, replace the parent
     ],
   ).toEqual([
     { type: "rules", title: "Mine", default: "on", file: "mine.md", text },
-    { type: "rules", title: "Global rules", default: "on", file: "00-global.md", text },
+    { type: "rules", title: "Acme rules", default: "on", file: "10-acme.md", text },
     {
-      "docs/agents/issue-tracker.md": { pack: "cedarloom.core", path: "templates/issue-tracker.md" },
-      "docs/agents/triage-labels.md": { pack: "cedarloom.core", path: "templates/triage-labels.md" },
+      "docs/agents/one.md": { pack: "acme.shared", path: "templates/one.md" },
+      "docs/agents/two.md": { pack: "acme.shared", path: "templates/two.md" },
       "docs/agents/domain.md": text,
     },
   ]);
@@ -249,7 +239,7 @@ test("a parent that leads back to a profile on the way is refused, with the circ
 test("a parent its pack does not hold is refused", () => {
   expect(outcome(composeProfile(child, loader({})))).toEqual({
     code: "profile.parent-unknown",
-    params: { pack: "cedarloom.core", path: "profiles/default.json" },
+    params: { pack: "acme.shared", path: "profiles/full.json" },
   });
 });
 

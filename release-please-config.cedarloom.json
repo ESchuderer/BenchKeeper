@@ -19,6 +19,7 @@
         "git",
         "ledger",
         "orchestration",
+        "packs",
         "server",
         "ui",
         "use-cases"
@@ -38,6 +39,7 @@
     "packages/git": { "component": "git" },
     "packages/ledger": { "component": "ledger" },
     "packages/orchestration": { "component": "orchestration" },
+    "packages/packs": { "component": "packs" },
     "packages/server": {
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]

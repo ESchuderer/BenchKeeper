@@ -1,0 +1,3 @@
+- No tests by default. Add a test only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior.
+- Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts. Delete such a test when you touch it instead of updating it.
+- No coverage thresholds.

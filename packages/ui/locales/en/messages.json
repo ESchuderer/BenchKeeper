@@ -1,5 +1,6 @@
 {
   "messages": {
+    "app.licenses": ["Third-party licenses"],
     "app.title": ["CedarLoom"],
     "draft.discard": ["Discard"],
     "draft.discardOne": ["Discard the draft of ", ["id"]],

@@ -65,8 +65,8 @@ const record = (state: string, agent: Agent, checks: readonly ContractCheckRecor
 /**
  * Reads the version of the agent CLI that `env` runs, before each launch, because the CLI updates itself (A100). On a
  * version without a check, or whose check failed a day ago or earlier, it runs the contract check outside the store's
- * lock, since the probe is a short agent session, and only when the agent's own check shows `account` logged in. Only the CLI's failures are `launch.agent-unavailable`; the store's
- * own errors are reported as they are.
+ * lock, since the probe is a short agent session, and only when the agent's own check shows `account` logged in. Only
+ * the CLI's failures are `launch.agent-unavailable`; the store's own errors are reported as they are.
  */
 export const checkedVersions = async <L extends Launch>(
   state: string,

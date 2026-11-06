@@ -139,27 +139,33 @@ const json = (text: string): unknown => {
   }
 };
 
+// The login status a finished `claude auth status` reports: its JSON with exit 0 (logged in) or 1 (logged out). `code`
+// is the exit code, or why the CLI did not run (ENOENT), with `message` the error's.
+const statusOf = (code: number | string | undefined, stdout: string, message: string | undefined): LoginStatus => {
+  const status = AuthStatus.safeParse(json(stdout));
+  if (status.success && code === 1) return { kind: "logged-out" };
+  if (status.success && code === 0) {
+    const { authMethod, configDirectory = null } = status.data;
+    return { kind: "logged-in", authMethod, configDirectory };
+  }
+  const reason = typeof code === "number" ? `exit code ${code} with output that is no login status` : null;
+  return { kind: "unknown", error: reason ?? message ?? "no login status" };
+};
+
 /**
- * Reads the login of the config folder `env` names with `claude auth status`, which prints JSON and exits 0 when logged
- * in and 1 when not; anything else, a timeout included, is unknown. `command` is the CLI as for claudeRuntime.
+ * Reads the login of the config folder `env` names with `claude auth status`, which prints its status as JSON and exits
+ * 0 when logged in and 1 when not; anything else, a crash or a timeout included, is unknown. `command` is the CLI as for
+ * claudeRuntime.
  */
 export const claudeAuthStatus =
-  (command: Command = ["claude"]) =>
+  (command: Command = ["claude"], timeoutMs = 30_000) =>
   (env: Readonly<Record<string, string>>): Promise<LoginStatus> =>
     new Promise((resolve) => {
       const [file, ...prefix] = command;
-      const options = { env, timeout: 30_000, windowsHide: true };
+      const options = { env, timeout: timeoutMs, windowsHide: true };
       execFile(file, [...prefix, "auth", "status"], options, (error, stdout) => {
-        // The exit code, or the reason the CLI did not run or was stopped (ENOENT, a timeout's signal).
-        const code = error === null ? 0 : error.code;
-        if (code === 1) return resolve({ kind: "logged-out" });
-        const status = AuthStatus.safeParse(json(stdout));
-        if (code === 0 && status.success) {
-          const { authMethod, configDirectory = null } = status.data;
-          return resolve({ kind: "logged-in", authMethod, configDirectory });
-        }
-        const reason = typeof code === "number" ? `exit code ${code} with output that is no login status` : null;
-        return resolve({ kind: "unknown", error: reason ?? error?.message ?? "no login status" });
+        if (error?.killed === true) resolve({ kind: "unknown", error: `timed out after ${timeoutMs / 1000} s` });
+        else resolve(statusOf(error === null ? 0 : error.code, stdout, error?.message));
       });
     });
 

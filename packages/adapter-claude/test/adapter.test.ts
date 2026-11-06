@@ -116,8 +116,10 @@ const say = (json, code) => { console.log(JSON.stringify(json)); process.exit(co
 if (dir === "/out") say({ loggedIn: false, authMethod: "none" }, 1);
 if (dir === "/bad") { console.log("not json"); process.exit(0); }
 if (dir === "/crash") process.exit(2);
+if (dir === "/crash1") process.exit(1);
+if (dir === "/hang") setInterval(() => undefined, 60_000);
 if (dir === "/old") say({ loggedIn: true, authMethod: "claude.ai" }, 0);
-say({ loggedIn: true, authMethod: "claude.ai", configDirectory: dir, subscriptionType: "max" }, 0);
+if (dir !== "/hang") say({ loggedIn: true, authMethod: "claude.ai", configDirectory: dir, subscriptionType: "max" }, 0);
 `;
 
 test("the login status of a home is read from claude auth status, and anything else is unknown", async () => {
@@ -129,6 +131,10 @@ test("the login status of a home is read from claude auth status, and anything e
   expect(await of("/out")).toEqual({ kind: "logged-out" });
   expect(await of("/bad")).toEqual({ kind: "unknown", error: "exit code 0 with output that is no login status" });
   expect(await of("/crash")).toEqual({ kind: "unknown", error: "exit code 2 with output that is no login status" });
+  // Exit 1 is logged out only with the status JSON; a crash that also exits 1 is unknown.
+  expect(await of("/crash1")).toEqual({ kind: "unknown", error: "exit code 1 with output that is no login status" });
+  const hung = claudeAuthStatus([process.execPath, "-e", statusCli], 200);
+  expect(await hung({ CLAUDE_CONFIG_DIR: "/hang" })).toEqual({ kind: "unknown", error: "timed out after 0.2 s" });
   expect(await claudeAuthStatus([join(tmpdir(), "no-such-claude")])({})).toMatchObject({
     kind: "unknown",
     error: expect.stringContaining("ENOENT"),

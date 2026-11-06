@@ -39,9 +39,10 @@ export const isCron = (text: string): boolean => {
   );
 };
 
-// An IANA name, not a UTC offset, in its exact case: a name Intl only matches case-insensitively is refused.
+// An IANA name (legacy ones such as EST5EDT and GMT0 too), not a UTC offset, in its exact case: a name Intl only
+// matches case-insensitively is refused.
 const isTimeZone = (name: string): boolean => {
-  if (!/^[A-Za-z][A-Za-z_]*(?:\/[A-Za-z0-9_+-]+)*$/.test(name)) return false;
+  if (!/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/.test(name)) return false;
   try {
     const resolved = new Intl.DateTimeFormat("en", { timeZone: name }).resolvedOptions().timeZone;
     return resolved === name || resolved.toLowerCase() !== name.toLowerCase();
@@ -76,9 +77,11 @@ const ProjectPath = z
   .string()
   .min(1)
   .max(1024)
-  .regex(/^(?![/\\])(?![A-Za-z]:)(?![\s\S]*(?:^|\/)\.\.(?:\/|$))[^\\\p{Cc}]+$/u, {
-    message: "a relative path inside the project, with / between its parts, no .. part and no control character",
+  // The pattern means the same with or without the u flag, which JSON Schema leaves to the validator.
+  .regex(/^(?![/\\])(?![A-Za-z]:)(?![\s\S]*(?:^|\/)\.\.(?:\/|$))[^\\]+$/, {
+    message: "a relative path inside the project, with / between its parts and no .. part",
   })
+  .refine((path) => !/\p{Cc}/u.test(path), "no control character")
   .refine(inside, "a path that stays inside the project");
 
 const precheck = Command.describe(
@@ -111,7 +114,7 @@ export const NODE_CONFIGS = {
         .refine(isTimeZone, "an IANA time zone")
         .optional()
         .describe(
-          "An IANA time zone name in its exact case, such as Europe/Berlin, no UTC offset; the machine's when absent",
+          "An IANA time zone name in its exact case, such as Europe/Berlin or EST5EDT, no UTC offset; the machine's when absent",
         ),
       precheck,
     }),

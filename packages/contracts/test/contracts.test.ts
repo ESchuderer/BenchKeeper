@@ -235,8 +235,8 @@ test("node configuration: five-field numeric cron, IANA time zones, paths inside
     false,
   ]);
   // An IANA name in its exact case: no UTC offset, no other case.
-  const zones = ["UTC", "Etc/GMT+1", "+01:00", "europe/berlin", "Europe/berlin"].map((timezone) => ok({ timezone }));
-  expect(zones).toEqual([true, true, false, false, false]);
+  const zones = ["UTC", "Etc/GMT+1", "EST5EDT", "GMT0", "+01:00", "europe/berlin", "Europe/berlin"];
+  expect(zones.map((timezone) => ok({ timezone }))).toEqual([true, true, true, true, false, false, false]);
   const inside = ["notes/a.md", "a/..b", "...", ".github/x.yml"];
   const outside = ["/etc/hosts", "C:/x", "c:x", "../a", "a/../b", "a/..", "a\\b", "\\server\\x", ""];
   // A line break or a space before `/..` must not hide a step out of the project; control characters are refused.
@@ -251,4 +251,13 @@ test("node configuration: five-field numeric cron, IANA time zones, paths inside
   );
   expect(inside.map(path)).toEqual(inside.map(() => true));
   expect(outside.map(path)).toEqual(outside.map(() => false));
+});
+
+test("the path pattern in the JSON Schema documents means the same without the u flag", async () => {
+  const document = JSON.parse(
+    await readFile(join(import.meta.dirname, "..", "schema", "FileReadConfig.schema.json"), "utf8"),
+  );
+  const pattern = new RegExp(String(document.properties.path.pattern));
+  expect(["src/package.json", "Cc/p{x}.md"].map((value) => pattern.test(value))).toEqual([true, true]);
+  expect(["../a", "a/\n/../../x", "/etc/hosts"].map((value) => pattern.test(value))).toEqual([false, false, false]);
 });

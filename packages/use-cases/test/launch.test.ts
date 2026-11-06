@@ -7,6 +7,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -28,6 +29,7 @@ import {
   doctor,
   launchWorker,
   MAX_CONCURRENT,
+  listGraphRuns,
   ownHome,
   resumeRun,
   runWorkflow,
@@ -631,43 +633,63 @@ test("an agent that sends nothing for its stall time is stopped and times out; a
   expect(attemptsOf(state).map((row) => row.state)).toEqual(["timed-out", "cancelled"]);
 }, 30_000);
 
-test("an agent waits for a free lease of its account, and the wait counts against no timeout", async () => {
+// A retry's backoff that does not wait.
+const noWait = () => Promise.resolve();
+// Waits until `done` holds.
+const until = async (done: () => boolean): Promise<void> => {
+  while (!done()) await new Promise((wake) => setTimeout(wake, 10));
+};
+const runFolders = (state: string) =>
+  existsSync(join(state, "worktrees")) ? readdirSync(join(state, "worktrees")) : [];
+const branches = (work: string) =>
+  execFileSync("git", ["branch", "--list", "--format=%(refname:short)", "cedarloom/*"], { cwd: work, encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean);
+
+test("an agent waits for a free lease of its account before it starts, and a cancel ends the wait", async () => {
   const { state, config, work } = setup();
-  const file = agentWorkflow(work, REVIEW, { nodes: { a: { timeoutSeconds: 1 } } });
+  const file = agentWorkflow(work, REVIEW);
   const held = fill(state, "work", 1);
-  setTimeout(() => held.forEach((lock) => lock?.release()), 1500);
-  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch, retryMs: 100 };
-  expect(await runWorkflow(state, file, {}, { project: work, agents })).toMatchObject({
-    ok: true,
+  let freed = false;
+  setTimeout(() => {
+    freed = true;
+    for (const lock of held) lock?.release();
+  }, 300);
+  const order: boolean[] = [];
+  const onEvent = (event: JournalEvent) => event.type === "started" && order.push(freed);
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch, retryMs: 50 };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent })).toMatchObject({
     value: { status: "succeeded" },
   });
-  // A cancel ends the wait.
+  expect(order).toEqual([true]);
+  // A run is listed once its runner listens for a stop.
   const again = fill(state, "work", 3);
   const stop = new AbortController();
-  setTimeout(() => stop.abort(), 300);
-  expect(await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal })).toMatchObject({
-    value: { status: "cancelled" },
+  const waiting = runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal });
+  await until(() => {
+    const listed = listGraphRuns(state);
+    return listed.ok && listed.value.length === 2;
   });
+  stop.abort();
+  expect(await waiting).toMatchObject({ value: { status: "cancelled" } });
   for (const lock of again) lock?.release();
 }, 30_000);
 
-test("an agent fails, saying why, without a single Claude Code pool or a git repository; one stopped first lets its lease go", async () => {
+test("an agent fails, saying why, before it makes a worktree or a branch; one stopped first lets its lease go", async () => {
   const { state, config, work } = setup();
   const file = agentWorkflow(work, REVIEW);
-  const none = { config: join(config, "none"), host, runtime: agentRuntime(), launch: phaseLaunch };
-  await runWorkflow(state, file, {}, { project: work, agents: none });
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, config: join(config, "none") } });
   const plain = join(work, "..", "plain");
   mkdirSync(plain);
-  await runWorkflow(
-    state,
-    file,
-    {},
-    { project: plain, agents: { config, host, runtime: agentRuntime(), launch: phaseLaunch } },
-  );
+  await runWorkflow(state, file, {}, { project: plain, agents });
+  // Stopped while its launch is built, before it goes.
   const stop = new AbortController();
-  setTimeout(() => stop.abort(), 20);
-  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
-  await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal });
+  const launch = (...args: Parameters<typeof phaseLaunch>) => {
+    stop.abort();
+    return phaseLaunch(...args);
+  };
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, launch }, signal: stop.signal });
   // gh's own login refuses the launch; a session whose init line proves no settings is stopped.
   const loggedIn = { ...host, gh: [node, "-e", "process.exit(0)"] } as const;
   await runWorkflow(state, file, {}, { project: work, agents: { ...agents, host: loggedIn } });
@@ -684,7 +706,39 @@ test("an agent fails, saying why, without a single Claude Code pool or a git rep
     ["failed", { error: "launch.settings-unproven" }],
     ["failed", { error: "document.invalid" }],
   ]);
-  expect(withLedger(state, (store) => store.launches().map((launch) => launch.verdict))).toEqual(["not-run", "failed"]);
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual([
+    "not-run",
+    "not-run",
+    "failed",
+  ]);
+  // Only the run whose session started has a worktree and a branch.
+  expect([runFolders(state).length, branches(work).length]).toEqual([1, 1]);
+}, 30_000);
+
+test("an add of the worktree that failed is tried again by the next attempt, and lets its lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW, { nodes: { a: { retries: 1 } } });
+  const folder = () => {
+    const listed = listGraphRuns(state);
+    return join(state, "worktrees", (listed.ok ? listed.value[0]?.id : undefined) ?? "none");
+  };
+  // A folder is in the worktree's way when the first attempt goes, and gone when the second does.
+  const onEvent = (event: JournalEvent) => {
+    if (event.type === "started" && event.attempt === 1) {
+      mkdirSync(folder(), { recursive: true });
+      writeFileSync(join(folder(), "x.txt"), "x");
+    }
+    if (event.type === "ended" && event.attempt === 1) rmSync(folder(), { recursive: true, force: true });
+  };
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent, sleep: noWait })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(attemptsOf(state).map((row) => [row.state, row.outputs])).toEqual([
+    ["failed", { error: "git.failed" }],
+    ["done", { result: "Reviewed.", verdict: "pass" }],
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual(["not-run", "pass"]);
 }, 30_000);
 
 test("a later runner of a run works in the worktree the run has", async () => {
@@ -697,10 +751,14 @@ test("a later runner of a run works in the worktree the run has", async () => {
   const created = graphs.value.create({ ...base, definition, project: realpathSync(work) });
   created.release();
   graphs.value.close();
-  mkdirSync(join(state, "worktrees", created.runId), { recursive: true });
+  const folder = join(state, "worktrees", created.runId);
+  execFileSync("git", ["worktree", "add", "--quiet", "-b", `cedarloom/${created.runId}`, folder, "HEAD"], {
+    cwd: work,
+  });
+  writeFileSync(join(folder, "kept.txt"), "kept");
   const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
   expect(await resumeRun(state, created.runId, { project: work, agents })).toMatchObject({
     value: { status: "succeeded" },
   });
-  expect(execFileSync("git", ["branch", "--list", "cedarloom/*"], { cwd: work, encoding: "utf8" })).toBe("");
+  expect([existsSync(join(folder, "kept.txt")), branches(work)]).toEqual([true, [`cedarloom/${created.runId}`]]);
 }, 30_000);

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { join } from "node:path";
@@ -347,25 +347,40 @@ export const fetchTreeOver =
     }
   };
 
+const real = (folder: string): string => (existsSync(folder) ? realpathSync.native(folder) : folder);
+
+// Whether git's porcelain listing of worktrees (`-z`) names the folder `path`, compared as real paths.
+const listed = (listing: Buffer, path: string): boolean =>
+  listing
+    .toString()
+    .split("\0")
+    .filter((line) => line.startsWith("worktree "))
+    .some((line) => real(line.slice("worktree ".length)) === real(path));
+
 /**
- * Adds a worktree of the repository `repo` at `path`, on the new branch `branch` from its HEAD. No hook runs, not even
- * one the user's configuration names, as for a fetch. `program` is the git to run, the one on PATH unless named.
+ * The worktree of the repository `repo` at `path` on the branch `branch`: the one git lists there, or a new one. The
+ * branch is made from HEAD unless an add that failed left it; a listed worktree whose folder is gone is added again. No
+ * hook runs, not even one the user's configuration names, as for a fetch. `program` is the git to run.
  */
-export const addWorktree = async (
+export const worktreeOf = async (
   repo: string,
   path: string,
   branch: string,
   program = "git",
 ): Promise<Result<string>> => {
-  const base = { program, cwd: repo, env: environment([]), timeoutMs: 60_000, maxBytes: 64 * 1024 };
+  const base = { program, cwd: repo, env: environment([]), timeoutMs: 60_000, maxBytes: 1024 * 1024 };
   const hooks = hooksOff(hookNames(await run(["config", "-z", "--get-regexp", "^hook\\."], base)));
   const off = flags([
     ["core.hooksPath", devNull],
     ["core.fsmonitor", "false"],
   ]);
-  const added = await run([...off, "worktree", "add", "--quiet", "-b", branch, "--", path, "HEAD"], {
-    ...base,
-    env: { ...base.env, ...hooks },
-  });
+  const git = (args: string[]): Promise<Ran> => run([...off, ...args], { ...base, env: { ...base.env, ...hooks } });
+  const listing = await git(["worktree", "list", "--porcelain", "-z"]);
+  if (!succeeded(listing)) return failed("worktree", why(listing));
+  const known = listed(listing.stdout, path);
+  if (known && existsSync(path)) return { ok: true, value: path };
+  const branched = succeeded(await git(["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]));
+  const target = branched ? ["--", path, branch] : ["-b", branch, "--", path, "HEAD"];
+  const added = await git(["worktree", "add", "--quiet", ...(known ? ["--force"] : []), ...target]);
   return succeeded(added) ? { ok: true, value: path } : failed("worktree", why(added));
 };

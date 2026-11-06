@@ -235,7 +235,8 @@ class Runner {
   // Lets a prepared attempt go until its timeout; `end` gets its result and why it was aborted, if it was.
   async #go({ prepared, controller }: Going, ms: number, end: Ended): Promise<void> {
     const timer = setTimeout(() => controller.abort("timed-out"), ms);
-    const { ok, values = {}, stalled = false } = await prepared.run();
+    // An executor whose run throws fails its attempt, as one whose setup throws does.
+    const { ok, values = {}, stalled = false } = await prepared.run().catch((error: unknown) => thrown(error).run());
     clearTimeout(timer);
     end(ok, capped(values), controller.signal.reason ?? (stalled ? "timed-out" : undefined));
   }

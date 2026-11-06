@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
 import type { Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared } from "@cedarloom/engine";
-import { addWorktree } from "@cedarloom/git";
+import { worktreeOf } from "@cedarloom/git";
 import { loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
 import { type Decided, type LaunchHost, type LeasedWorker, leaseWorker, type WorkerRequest } from "./launch.ts";
@@ -44,12 +44,20 @@ const failed = (why: string): Prepared => ({
   run: () => Promise.resolve({ ok: false, values: { error: why } }),
 });
 
-// The run's worktree on the branch cedarloom/<run>, from the project's HEAD (Q12): an act-mode agent works there, and
-// Git shows and undoes what it did. A later attempt or runner finds it made.
-const worktree = (run: AgentRun): Promise<Result<string>> => {
-  const path = join(run.state, "worktrees", run.runId);
-  if (existsSync(path)) return Promise.resolve({ ok: true, value: path });
-  return addWorktree(run.project, path, `cedarloom/${run.runId}`);
+// The folder of the run's worktree, on the branch cedarloom/<run> from the project's HEAD (Q12): an act-mode agent works
+// there, and Git shows and undoes what it did.
+const folderOf = (run: AgentRun): string => join(run.state, "worktrees", run.runId);
+
+// The run's worktree, made by the first attempt that goes and found again by a later one or a later runner. Only a
+// success is kept: the next attempt tries an add that failed again.
+const worktrees = (run: AgentRun) => {
+  let made: Promise<Result<string>> | undefined;
+  return async (): Promise<Result<string>> => {
+    made ??= worktreeOf(run.project, folderOf(run), `cedarloom/${run.runId}`);
+    const result = await made;
+    if (!result.ok) made = undefined;
+    return result;
+  };
 };
 
 // shortcut: an agent runs on the registry's only Claude Code pool; give the run a choice once someone keeps two.
@@ -81,25 +89,32 @@ const requestOf = (
     ghToken: null,
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
-    launch: (decided) => options.launch(decided, phase, cwd),
+    // The version check's probe comes before the worktree is made: it runs in the worker's own temporary folder.
+    launch: (decided) => options.launch(decided, phase, existsSync(cwd) ? cwd : decided.tmpDir),
   };
 };
 
 type Lease = () => ReturnType<typeof leaseWorker<Launch>>;
 
+// Whether `ms` passed before `signal` ended the wait.
+const waited = async (ms: number, signal: AbortSignal): Promise<boolean> => {
+  try {
+    await sleep(ms, undefined, { signal });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // Takes a lease on the pool, waiting while every account's leases are taken; the wait ends with the attempt.
 const leased = async (attempt: Attempt, lease: Lease, retryMs: number): ReturnType<Lease> => {
-  const got = await lease();
-  const full = got.ok
-    ? got.value.kind === "no-account" && got.value.reason === "all-leased"
-    : got.finding.code === "launch.account-full";
-  if (!full) return got;
-  try {
-    await sleep(retryMs, undefined, { signal: attempt.signal });
-  } catch {
-    return got;
+  for (;;) {
+    const got = await lease();
+    const full = got.ok
+      ? got.value.kind === "no-account" && got.value.reason === "all-leased"
+      : got.finding.code === "launch.account-full";
+    if (!full || !(await waited(retryMs, attempt.signal))) return got;
   }
-  return leased(attempt, lease, retryMs);
 };
 
 const outcomeOf = (ran: Awaited<ReturnType<LeasedWorker["run"]>>, stalled: boolean) => {
@@ -108,47 +123,53 @@ const outcomeOf = (ran: Awaited<ReturnType<LeasedWorker["run"]>>, stalled: boole
   return { ok: DONE.has(verdict), stalled, values: { result: summary ?? "", verdict } };
 };
 
-// The leased worker as an attempt: its session id is committed at init, and a session that sends nothing for `stallMs`
-// is stopped and counts as stalled. An attempt stopped before it went lets the lease go unused.
-const going = (attempt: Attempt, worker: LeasedWorker, stallMs: number): Prepared => ({
+// Runs the leased worker: its session id is committed at init, and a session that sends nothing for `stallMs` is
+// stopped and counts as stalled.
+const watched = async (attempt: Attempt, worker: LeasedWorker, stallMs: number) => {
+  const quiet = new AbortController();
+  const arm = () => setTimeout(() => quiet.abort(), stallMs);
+  let timer = arm();
+  const onEvent = (event: AgentEvent): void => {
+    clearTimeout(timer);
+    timer = arm();
+    if (event.type === "init") attempt.session(event.sessionId);
+  };
+  try {
+    const ran = await worker.run({ onEvent, signal: AbortSignal.any([attempt.signal, quiet.signal]) });
+    return outcomeOf(ran, quiet.signal.aborted);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+type Going = { readonly stallMs: number; readonly worktree: () => Promise<Result<string>> };
+
+// The leased worker as an attempt, in the run's worktree, made now that the attempt's start is committed. An attempt
+// stopped before it went, or without its worktree, lets the lease go unused.
+const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Going): Prepared => ({
   pid: null,
   run: async () => {
-    if (attempt.signal.aborted) {
-      await worker.release();
-      return { ok: false };
-    }
-    const quiet = new AbortController();
-    const arm = () => setTimeout(() => quiet.abort(), stallMs);
-    let timer = arm();
-    const onEvent = (event: AgentEvent): void => {
-      clearTimeout(timer);
-      timer = arm();
-      if (event.type === "init") attempt.session(event.sessionId);
-    };
-    try {
-      const ran = await worker.run({ onEvent, signal: AbortSignal.any([attempt.signal, quiet.signal]) });
-      return outcomeOf(ran, quiet.signal.aborted);
-    } finally {
-      clearTimeout(timer);
-    }
+    const where = attempt.signal.aborted ? null : await worktree();
+    if (where?.ok === true) return watched(attempt, worker, stallMs);
+    await worker.release();
+    return where === null ? { ok: false } : { ok: false, values: { error: where.finding.code } };
   },
 });
 
 /**
  * The executor of `agent.run` for one run: each attempt is a worker of the M3 launcher on the registry's Claude Code
- * pool, in the run's worktree. It waits for a free account lease before it starts, which no timeout counts.
+ * pool, in the run's worktree. Every check that can refuse it comes first; it then waits for a free account lease
+ * before it starts, which no timeout counts, and makes the worktree once it goes.
  */
 export const agentRun = (run: AgentRun, options: AgentOptions) => {
-  let made: Promise<Result<string>> | undefined;
+  const worktree = worktrees(run);
   return async (attempt: Attempt): Promise<Prepared> => {
-    made ??= worktree(run);
-    const where = await made;
-    const request = where.ok ? requestOf(attempt, run, options, where.value) : where.finding.code;
+    const request = requestOf(attempt, run, options, folderOf(run));
     if (typeof request === "string") return failed(request);
     const lease = () => leaseWorker(run.state, options.config, request, options.host);
     const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
     if (!got.ok) return failed(got.finding.code);
     if (got.value.kind === "no-account") return failed(got.value.reason);
-    return going(attempt, got.value, options.stallMs ?? STALL_MS);
+    return going(attempt, got.value, { stallMs: options.stallMs ?? STALL_MS, worktree });
   };
 };

@@ -158,9 +158,10 @@ test("an attempt past its timeout is stopped and counts as timed out; a type wit
 });
 
 // An executor that waits `ms` before its attempt starts, as an agent for its account's lease, unless the attempt
-// stops; `stopped` gets why it stopped.
-const waiting = (ms: number, stopped: unknown[] = []): Executors => ({
+// stops; `stopped` gets why it stopped, and `begun` is called as the wait begins.
+const waiting = (ms: number, stopped: unknown[] = [], begun = (): void => undefined): Executors => ({
   "command.run": async (attempt: Attempt) => {
+    begun();
     await new Promise((resolve) => {
       setTimeout(resolve, ms);
       attempt.signal.addEventListener("abort", () => resolve(stopped.push(attempt.signal.reason)));
@@ -176,9 +177,9 @@ test("a wait before an attempt starts is no part of its timeout, and a cancel re
     "started a#1, ended a#1, started b#1, ended b#1, finished",
   ]);
   const stop = new AbortController();
-  setTimeout(() => stop.abort(), 50);
   const stopped: unknown[] = [];
-  const cancelled = await start(workflow(), {}, { executors: waiting(60_000, stopped), signal: stop.signal });
+  const executors = waiting(60_000, stopped, () => stop.abort());
+  const cancelled = await start(workflow(), {}, { executors, signal: stop.signal });
   expect([cancelled.result, trail(cancelled.events), cancelled.events[2], stopped]).toEqual([
     { ok: true, value: "cancelled" },
     "cancel, started a#1, ended a#1, finished",
@@ -186,6 +187,20 @@ test("a wait before an attempt starts is no part of its timeout, and a cancel re
     ["cancelled"],
   ]);
 }, 10_000);
+
+test("an attempt whose run throws fails with the error's code, and the run goes on to its end", async () => {
+  const executors: Executors = {
+    "command.run": () => ({
+      pid: null,
+      run: () => Promise.reject(Object.assign(new Error("read EIO"), { code: "EIO" })),
+    }),
+  };
+  const { result, events } = await start(workflow(), {}, { executors });
+  expect([result, events[1]]).toEqual([
+    { ok: true, value: "failed" },
+    { type: "ended", node: "a", attempt: 1, outcome: "failed", values: { error: "EIO" } },
+  ]);
+});
 
 test("an attempt records its agent's session while it runs, and one that went quiet too long ends timed out", async () => {
   const executors: Executors = {

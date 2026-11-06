@@ -12,6 +12,7 @@
     { "path": "../contracts" },
     { "path": "../ledger" },
     { "path": "../engine" },
+    { "path": "../extension-host" },
     { "path": "../git" },
     { "path": "../orchestration" }
   ]

@@ -10,15 +10,22 @@ const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 /** The id of a workflow (its `metadata.id`), and of a node. */
 export const WorkflowId = id;
 // Names of handles and of the workflow's inputs and outputs.
-const name = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
-const semver = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
+export const HandleName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
+export const semver = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
 const description = z.string().max(2000).optional();
+// SPDX license expression (`MIT`, `MIT OR Apache-2.0`, `DocumentRef-x:LicenseRef-y`): its characters, words one space
+// apart; readers show it, never parse it.
+export const License = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$/)
+  .describe("SPDX license expression");
 
 /** Any JSON value. */
-const JsonValue = z.json().register(fileFormats, { id: "JsonValue" });
+export const JsonValue = z.json().register(fileFormats, { id: "JsonValue" });
 
 /** What a data handle carries; `json` takes any JSON value. */
-const DataType = z.enum(["string", "number", "boolean", "json"]).register(fileFormats, { id: "DataType" });
+export const DataType = z.enum(["string", "number", "boolean", "json"]).register(fileFormats, { id: "DataType" });
 
 /** What a handle carries: `control` orders nodes and carries no data. */
 export const HandleType = z.enum(["control", ...DataType.options]).register(fileFormats, { id: "HandleType" });
@@ -48,14 +55,14 @@ const WorkflowNode = z
   })
   .register(fileFormats, { id: "WorkflowNode" });
 
-const handleEnd = z.strictObject({ node: id, handle: name });
+const handleEnd = z.strictObject({ node: id, handle: HandleName });
 
 /** A directed connection from an output handle (or a workflow input) to an input handle (or a workflow output). */
 const WorkflowEdge = z
   .strictObject({
     id,
-    from: z.union([handleEnd, z.strictObject({ input: name })]),
-    to: z.union([handleEnd, z.strictObject({ output: name })]),
+    from: z.union([handleEnd, z.strictObject({ input: HandleName })]),
+    to: z.union([handleEnd, z.strictObject({ output: HandleName })]),
   })
   .register(fileFormats, { id: "WorkflowEdge" });
 
@@ -97,10 +104,11 @@ export const WorkflowDefinition = z
         version: semver,
         description,
         minApp: semver.optional().describe("The oldest CedarLoom version that runs this workflow"),
+        license: License.optional().describe("The workflow's own license, which an import keeps"),
       })
       .catchall(JsonValue),
-    inputs: z.record(name, WorkflowInput).optional(),
-    outputs: z.record(name, z.strictObject({ type: DataType, description })).optional(),
+    inputs: z.record(HandleName, WorkflowInput).optional(),
+    outputs: z.record(HandleName, z.strictObject({ type: DataType, description })).optional(),
     // Bounds for files from elsewhere: the editor and the validator stay quick, and recursion over paths shallow.
     nodes: z.array(WorkflowNode).min(1).max(1000),
     edges: z.array(WorkflowEdge).max(5000),

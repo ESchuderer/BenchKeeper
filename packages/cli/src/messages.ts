@@ -15,6 +15,13 @@ const issueList = (issues: { path: string; code: string }[]): string =>
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
 
+const ENTRY_KINDS = {
+  link: "is a symbolic link",
+  submodule: "is a submodule",
+  name: 'is not a portable file name (letters, digits, ".", "_" and "-")',
+  case: "differs from an earlier path in case only, which macOS and Windows would join",
+} as const;
+
 // shortcut: English text in code until the Lingui catalog package exists; the codes and parameters are the contract.
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
@@ -97,10 +104,20 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
   "accounts.codex-switching-off": (p) =>
     `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
+  "launch.sandbox-overridden": (p) =>
+    `The managed settings file ${p.path} sets ${p.key}, which loosens the worker sandbox or replaces the settings checked; no worker starts while it does.`,
+  "launch.managed-settings-unreadable": (p) =>
+    `The managed settings file ${p.path} cannot be read or parsed (${p.error}), so it may loosen the worker sandbox; no worker starts until it can.`,
   "launch.gh-login": (p) =>
     p.error === null
       ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
+  "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
+  "git.refused-source": (p) =>
+    `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,
+  "git.unsafe-entry": (p) => `${p.path} ${ENTRY_KINDS[p.kind]}, so nothing of the fetched tree is used.`,
+  "git.too-large": (p) =>
+    `${p.path ?? "The tree"} has ${p.found} ${p.unit}, more than the ${p.limit} a fetched tree may have; nothing of it is used.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

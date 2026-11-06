@@ -1864,6 +1864,218 @@
               "params"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.sandbox-overridden"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.managed-settings-unreadable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.failed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "step": {
+                    "type": "string",
+                    "enum": [
+                      "start",
+                      "fetch",
+                      "list",
+                      "read"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "step",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.refused-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "enum": [
+                      "url",
+                      "ref",
+                      "path"
+                    ]
+                  }
+                },
+                "required": [
+                  "field"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.unsafe-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "link",
+                      "submodule",
+                      "name",
+                      "case"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.too-large"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "found": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "files",
+                      "bytes"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "found",
+                  "limit",
+                  "unit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -4208,6 +4420,218 @@
                 },
                 "required": [
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.sandbox-overridden"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.managed-settings-unreadable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.failed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "step": {
+                    "type": "string",
+                    "enum": [
+                      "start",
+                      "fetch",
+                      "list",
+                      "read"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "step",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.refused-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "enum": [
+                      "url",
+                      "ref",
+                      "path"
+                    ]
+                  }
+                },
+                "required": [
+                  "field"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.unsafe-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "link",
+                      "submodule",
+                      "name",
+                      "case"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "git.too-large"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "found": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "files",
+                      "bytes"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "found",
+                  "limit",
+                  "unit"
                 ],
                 "additionalProperties": false
               }

@@ -10,6 +10,8 @@ import {
   doctor,
   extensionsAdd,
   extensionsList,
+  extensionsRemove,
+  extensionsUpdate,
   levelCommand,
   modeCommand,
   plansApply,
@@ -157,6 +159,19 @@ const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--yes", "install as planned now")
     .option("--approve <hash>", "install only the plan with this hash, as the preview showed it")
     .action(async (url, options) => done(await extensionsAdd(ctx(), url, options)));
+  extensions
+    .command("update")
+    .description("show the update of an installed extension to the commit at its ref; with --yes, apply it")
+    .argument("<id>", "the extension's id, publisher.name")
+    .option("--yes", "update as planned now, unless it asks for more than you approved")
+    .option("--approve <hash>", "update only by the plan with this hash, as the preview showed it")
+    .action(async (id, options) => done(await extensionsUpdate(ctx(), id, options)));
+  extensions
+    .command("remove")
+    .description("show the removal of an installed extension; with --yes, remove it")
+    .argument("<id>", "the extension's id, publisher.name")
+    .option("--yes", "remove as planned now")
+    .action((id, options) => done(extensionsRemove(ctx(), id, options)));
 };
 
 const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {

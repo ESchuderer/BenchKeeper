@@ -79,7 +79,7 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
-    // An extension action under a schedule: it may write through the host or change other systems (pending owner decision).
+    // An extension action under a schedule: it may write through the host or change other systems (P9 b).
     finding("workflow.report-only-extension", { node: z.string() }),
     // A node of an extension action that is not installed here: the workflow can be kept and shared, not run.
     finding("workflow.extension-missing", { node: z.string(), type: z.string() }),
@@ -144,12 +144,17 @@ export const Finding = z
       extension: z.string(),
       reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime"]),
     }),
-    // An extension that is not installed: no manifest at its folder's root, no entry file, another protocol than this
-    // CedarLoom speaks, or one installed already. Its id when the manifest names it.
+    // An extension that is not installed or updated: no manifest at its folder's root, no entry file, another protocol
+    // than this CedarLoom speaks, one installed already, or an update whose folder now holds another extension. Its id
+    // when the manifest names it.
     finding("extension.install-refused", {
       extension: z.string().nullable(),
-      reason: z.enum(["no-manifest", "entry", "protocol", "installed"]),
+      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id"]),
     }),
+    // An extension to update or remove that is not installed.
+    finding("extension.unknown", { extension: z.string() }),
+    // An update that asks for capabilities the user has not approved: only an approval of its exact plan applies it.
+    finding("extension.consent-needed", { extension: z.string() }),
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
@@ -261,6 +266,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
   "extension.install-refused": { severity: "error", effort: "manual" },
+  "extension.unknown": { severity: "error", effort: "manual" },
+  "extension.consent-needed": { severity: "error", effort: "command" },
   "git.failed": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },

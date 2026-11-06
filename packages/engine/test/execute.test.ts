@@ -50,7 +50,15 @@ const graphs = (dir = mkdtempSync(join(tmpdir(), "cedarloom-execute-"))): GraphS
   return store.value;
 };
 const created = (store: GraphStore, definition: WorkflowDefinition): RunLease =>
-  store.create({ definition, inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null });
+  store.create({
+    definition,
+    inputs: {},
+    trigger: "manual",
+    mode: "act",
+    parentRun: null,
+    parentNode: null,
+    project: null,
+  });
 const now = () => Promise.resolve();
 const start = async (
   definition: WorkflowDefinition,

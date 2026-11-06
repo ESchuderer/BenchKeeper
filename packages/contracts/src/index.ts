@@ -41,6 +41,7 @@ export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export {
   AttemptOutcome,
   GraphRun,
+  NodeAttempt,
   JournalEvent,
   NodeRun,
   NodeState,

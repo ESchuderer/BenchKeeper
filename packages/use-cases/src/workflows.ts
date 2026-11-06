@@ -1,10 +1,12 @@
 import { type ChildProcess, type ChildProcessByStdio, execFile, spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { closeSync, existsSync, openSync, readSync, realpathSync } from "node:fs";
+import { join, resolve as absolute, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
   type Finding,
+  type GraphRun,
   type JournalEvent,
+  type NodeAttempt,
   type Json,
   type Result,
   type RunStatus,
@@ -34,8 +36,11 @@ export interface GraphOutcome {
 }
 
 export interface RunOptions {
-  /** The project folder: commands run in it, and files are read below it. */
-  readonly project: string;
+  /**
+   * The project folder: commands run in it, and files are read below it. A new run takes the current folder when it
+   * is absent; a stored run runs in the folder it recorded, which a given one must be.
+   */
+  readonly project?: string | undefined;
   /** Cancels the run. */
   readonly signal?: AbortSignal | undefined;
   /** Called after each event is committed. */
@@ -46,11 +51,14 @@ export interface RunOptions {
   readonly sleep?: ExecuteOptions["sleep"];
 }
 
+// Stored outputs are blanked after the same 90 days as plan contents, since a command's output can hold a secret.
+const OUTPUT_DAYS = 90;
+
 // The node types that run in this version; the others come with agents, writes and approvals, and schedules.
 const RUNNABLE = new Set(["trigger.manual", "command.run", "file.read", "condition", "join"]);
 
 /** The POSIX `sh` that runs commands: /bin/sh, or on Windows Git for Windows' sh.exe on PATH or in its usual folder. */
-export const findShell = (platform: NodeJS.Platform = process.platform, env = process.env): string | null => {
+const findShell = (platform: NodeJS.Platform = process.platform, env = process.env): string | null => {
   if (platform !== "win32") return "/bin/sh";
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
   const git = win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin");
@@ -185,11 +193,13 @@ const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise
 type Held = Parameters<typeof execute>[2] & { readonly lease: RunLease };
 
 // Runs a run this process holds to its end, then lets go of it.
+type InProject = RunOptions & { readonly project: string };
+
 const runHeld = async (
   store: GraphStore,
   held: Held,
   shell: string,
-  options: RunOptions,
+  options: InProject,
 ): Promise<Result<GraphOutcome>> => {
   const { lease } = held;
   const executors: Executors = {
@@ -214,6 +224,21 @@ const check = (workflow: WorkflowDefinition, inputs: Values, options: RunOptions
   return started.ok ? { ok: true, value: shell ?? "" } : started;
 };
 
+// Text for a number, boolean or json input, as the CLI gives every input, is read as one; text that does not read
+// stays as it is, and the run's input check refuses it.
+const typedInputs = (workflow: WorkflowDefinition, inputs: Values): Values => {
+  const read = (name: string, value: Json): Json => {
+    if (typeof value !== "string" || workflow.inputs?.[name]?.type === "string") return value;
+    try {
+      const parsed: Json = JSON.parse(value);
+      return parsed;
+    } catch {
+      return value;
+    }
+  };
+  return Object.fromEntries(Object.entries(inputs).map(([name, value]) => [name, read(name, value)]));
+};
+
 /** Runs a workflow file as a manual run of this process, to its end; inputs not given take their defaults. */
 export const runWorkflow = async (
   state: string,
@@ -224,14 +249,57 @@ export const runWorkflow = async (
   const read = readJson(file);
   const workflow = read.ok ? readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, read.value.json) : read;
   if (!workflow.ok) return workflow;
-  const shell = check(workflow.value, inputs, options);
+  const typed = typedInputs(workflow.value, inputs);
+  const shell = check(workflow.value, typed, options);
   if (!shell.ok) return shell;
+  const project = realFolder(options.project ?? process.cwd());
   return withGraphs(state, (store) => {
+    store.prune(OUTPUT_DAYS);
     const definition = workflow.value;
-    const run = { definition, inputs, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
-    const held = { lease: store.create(run), workflow: definition, inputs, journal: [] };
-    return runHeld(store, held, shell.value, options);
+    const run = {
+      definition,
+      inputs: typed,
+      trigger: "manual",
+      mode: "act",
+      parentRun: null,
+      parentNode: null,
+      project,
+    } as const;
+    const held = { lease: store.create(run), workflow: definition, inputs: typed, journal: [] };
+    return runHeld(store, held, shell.value, { ...options, project });
   });
+};
+
+// Runs a run this process took over on from its journal; one whose journal it cannot trust it lets go of again.
+// A folder's real path; one that does not resolve is taken as given, and each command there fails.
+const realFolder = (path: string): string => {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return absolute(path);
+  }
+};
+
+// The folder a stored run's commands run in: the one it recorded, which a given folder must be. A run recorded before
+// the folder was takes the given one, else the current folder.
+const projectOf = (run: GraphRun, given: string | undefined): Result<string> => {
+  const real = given === undefined ? (run.project ?? process.cwd()) : realFolder(given);
+  if (run.project === null || real === run.project) return { ok: true, value: real };
+  return {
+    ok: false,
+    finding: { code: "run.project-mismatch", params: { runId: run.id, project: run.project, given: real } },
+  };
+};
+
+type TakenOver = { readonly run: GraphRun; readonly lease: RunLease };
+const runOn = (store: GraphStore, { run, lease }: TakenOver, shell: string, options: InProject) => {
+  const journal = store.events(run.id);
+  if (!journal.ok) {
+    lease.release();
+    return Promise.resolve(journal);
+  }
+  const held = { lease, workflow: run.definition, inputs: run.inputs, journal: journal.value };
+  return runHeld(store, held, shell, options);
 };
 
 /**
@@ -244,13 +312,56 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
     if (run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
     const shell = check(run.definition, run.inputs, options);
     if (!shell.ok) return shell;
+    const project = projectOf(run, options.project);
+    if (!project.ok) return project;
     const lease = store.takeOver(runId);
-    if (!lease.ok) return lease;
-    const journal = store.events(runId);
-    if (!journal.ok) {
-      lease.value.release();
-      return journal;
+    return lease.ok
+      ? runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value })
+      : lease;
+  });
+
+/** The graph runs, newest first; none while no run was ever recorded. */
+export const listGraphRuns = async (state: string): Promise<Result<GraphRun[]>> =>
+  existsSync(join(state, "runs.sqlite"))
+    ? withGraphs(state, (store) => Promise.resolve({ ok: true, value: store.graphRuns() }))
+    : { ok: true, value: [] };
+
+/** A graph run with its attempts; the pid of an attempt that ended interrupted is what a user checks by hand. */
+export const showGraphRun = async (
+  state: string,
+  runId: string,
+): Promise<Result<{ run: GraphRun; attempts: NodeAttempt[] }>> => {
+  const notFound = { ok: false, finding: { code: "run.not-found", params: { runId } } } as const;
+  if (!existsSync(join(state, "runs.sqlite"))) return notFound;
+  return withGraphs(state, (store) => {
+    const run = store.graphRun(runId);
+    return Promise.resolve(
+      run === undefined ? notFound : { ok: true, value: { run, attempts: store.attempts(runId) } },
+    );
+  });
+};
+
+/**
+ * Cancels a graph run. A run another process runs gets SIGTERM, which its runner turns into a cancel (on Windows the
+ * signal ends the runner, and the next cancel ends the run); a run no process holds is taken over and ends cancelled.
+ */
+export const cancelRun = (
+  state: string,
+  runId: string,
+  options: RunOptions,
+): Promise<Result<{ runId: string; status: RunStatus | "cancelling" }>> =>
+  withGraphs<{ runId: string; status: RunStatus | "cancelling" }>(state, async (store) => {
+    const run = store.graphRun(runId);
+    if (run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+    const project = projectOf(run, options.project);
+    if (!project.ok) return project;
+    const lease = store.takeOver(runId);
+    if (!lease.ok && lease.finding.code === "run.lease-held") {
+      process.kill(lease.finding.params.pid, "SIGTERM");
+      return { ok: true, value: { runId, status: "cancelling" } };
     }
-    const held = { lease: lease.value, workflow: run.definition, inputs: run.inputs, journal: journal.value };
-    return runHeld(store, held, shell.value, options);
+    if (!lease.ok) return lease;
+    // A cancelled run starts nothing, so it needs no shell.
+    store.append(runId, lease.value.epoch, { type: "cancel" });
+    return runOn(store, { run, lease: lease.value }, "", { ...options, project: project.value });
   });

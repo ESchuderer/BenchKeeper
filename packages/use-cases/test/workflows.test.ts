@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { type Json, WorkflowDefinition } from "@cedarloom/contracts";
 import { OUTPUT_CAP } from "@cedarloom/engine";
 import { openGraphStore } from "@cedarloom/ledger";
-import { type RunOptions, resumeRun, runWorkflow } from "@cedarloom/use-cases";
+import { cancelRun, listGraphRuns, type RunOptions, resumeRun, runWorkflow, showGraphRun } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 
 type Node = WorkflowDefinition["nodes"][number];
@@ -41,6 +41,25 @@ const project = (nodes: Node[], edges: string, more: Partial<WorkflowDefinition>
   return { root, state: join(root, "state"), file: join(root, "w.json"), options };
 };
 const command = (id: string, line: string): Node => ({ id, type: "command.run", with: { command: line } });
+
+// The fixture's runner of the project's workflow, killed after its event `at` (0: never), and the id of its run once
+// an attempt has started or the runner has died.
+const runner = async ({ root, state, file }: ReturnType<typeof project>, at: number) => {
+  const fixture = join(import.meta.dirname, "fixtures", "run.ts");
+  const child = spawn(process.execPath, [fixture, state, root, file, String(at)], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const exited = once(child, "exit");
+  await Promise.race([once(child.stdout, "data"), exited]);
+  const db = new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true });
+  const runId = String(db.prepare("SELECT id FROM graph_runs ORDER BY startedAt DESC LIMIT 1").get()?.["id"]);
+  db.close();
+  return { runId, exited };
+};
+const statusOf = async (state: string, runId: string) => {
+  const shown = await showGraphRun(state, runId);
+  return shown.ok ? shown.value.run.status : shown.finding.code;
+};
 
 const eventsOf = (state: string, runId: string) => {
   const store = openGraphStore(state);
@@ -90,14 +109,13 @@ test.each([1, 2, 3, 4])(
   async (at) => {
     const nodes = [command("a", "echo a >> a.log"), command("b", "echo b >> b.log")];
     const retried = { execution: { nodes: { a: { retries: 1 }, b: { retries: 1 } } } };
-    const { root, state, file, options } = project(nodes, "t.start>a.run a.done>b.run", retried);
-    const fixture = join(import.meta.dirname, "fixtures", "run.ts");
-    const runner = spawn(process.execPath, [fixture, state, root, file, String(at)], { stdio: "inherit" });
-    await once(runner, "exit");
-    const db = new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true });
-    const runId = String(db.prepare("SELECT id FROM graph_runs").get()?.["id"]);
-    db.close();
-    expect(await resumeRun(state, runId, options)).toEqual({ ok: true, value: { runId, status: "succeeded" } });
+    const where = project(nodes, "t.start>a.run a.done>b.run", retried);
+    const { root, state, options } = where;
+    const { runId, exited } = await runner(where, at);
+    await exited;
+    // Without a folder, the resume runs in the one the run recorded.
+    const recorded = { ...options, project: undefined };
+    expect(await resumeRun(state, runId, recorded)).toEqual({ ok: true, value: { runId, status: "succeeded" } });
     expect(readFileSync(join(root, "a.log"), "utf8") + readFileSync(join(root, "b.log"), "utf8")).toBe("a\nb\n");
     // A run that has ended is not taken over again.
     expect(await resumeRun(state, runId, options)).toMatchObject({ ok: false, finding: { code: "run.finished" } });
@@ -160,7 +178,7 @@ test("a resume says why a stored run no longer starts, and refuses a journal it 
   const created = openGraphStore(at.state);
   if (!created.ok) throw new Error(created.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
-  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null, project: null } as const;
   const [changed, corrupt] = [1, 2].map(() => created.value.create({ ...run, definition }));
   for (const lease of [changed, corrupt]) lease?.release();
   created.value.close();
@@ -176,4 +194,53 @@ test("a resume says why a stored run no longer starts, and refuses a journal it 
   expect(codeOf(await resumeRun(at.state, changedId, at.options))).toBe("workflow.dangling-edge");
   // A refused resume lets go of the run: the next one takes it over again, and is refused for the same reason.
   for (const _ of [1, 2]) expect(codeOf(await resumeRun(at.state, corruptId, at.options))).toBe("run.event-invalid");
+});
+
+test("a cancel ends a run: its runner stops it, and a run no process runs is taken over and ends cancelled", async () => {
+  const at = project([command("a", "sleep 30")], "t.start>a.run");
+  const live = await runner(at, 0);
+  const asked = { ok: true, value: { runId: live.runId, status: "cancelling" } };
+  expect(await cancelRun(at.state, live.runId, at.options)).toEqual(asked);
+  await live.exited;
+  // On Windows the signal ends the runner itself, and the run is interrupted until the next cancel ends it.
+  if ((await statusOf(at.state, live.runId)) !== "cancelled") await cancelRun(at.state, live.runId, at.options);
+  expect(await statusOf(at.state, live.runId)).toBe("cancelled");
+  // A runner that died after a started: the cancel takes the run over, and a's attempt ends interrupted with its pid.
+  const dead = await runner(at, 1);
+  await dead.exited;
+  expect(await cancelRun(at.state, dead.runId, at.options)).toEqual({
+    ok: true,
+    value: { runId: dead.runId, status: "cancelled" },
+  });
+  expect(await showGraphRun(at.state, dead.runId)).toMatchObject({
+    value: { attempts: [{ node: "a", attempt: 1, state: "interrupted", pid: expect.any(Number) }] },
+  });
+  expect(codeOf(await cancelRun(at.state, dead.runId, at.options))).toBe("run.finished");
+  // A resume or cancel from another folder is refused: the run's commands run only in its own.
+  const elsewhere = { ...at.options, project: join(at.root, "elsewhere") };
+  expect(codeOf(await resumeRun(at.state, dead.runId, elsewhere))).toBe("run.project-mismatch");
+  expect(codeOf(await cancelRun(at.state, dead.runId, elsewhere))).toBe("run.project-mismatch");
+  expect(await cancelRun(at.state, "nope", at.options)).toEqual(refused("run.not-found", { runId: "nope" }));
+  expect(await statusOf(at.state, "nope")).toBe("run.not-found");
+  const listed = await listGraphRuns(at.state);
+  expect(listed.ok && listed.value.map((run) => run.id)).toEqual([dead.runId, live.runId]);
+  expect([await listGraphRuns(join(at.root, "none")), await statusOf(join(at.root, "none"), "x")]).toEqual([
+    { ok: true, value: [] },
+    "run.not-found",
+  ]);
+}, 30_000);
+
+test("inputs given as text are read for number, boolean and json inputs; text that does not read is refused", async () => {
+  const types = { count: "number", loud: "boolean", data: "json", name: "string" } as const;
+  const inputs = Object.fromEntries(Object.entries(types).map(([name, type]) => [name, { type }]));
+  const at = project([command("a", "true")], "t.start>a.run", { inputs });
+  const run = await runWorkflow(
+    at.state,
+    at.file,
+    { count: "3", loud: "true", data: '{"a":1}', name: "3" },
+    at.options,
+  );
+  const shown = await showGraphRun(at.state, run.ok ? run.value.runId : "");
+  expect(shown).toMatchObject({ value: { run: { inputs: { count: 3, loud: true, data: { a: 1 }, name: "3" } } } });
+  expect(codeOf(await runWorkflow(at.state, at.file, { count: "three" }, at.options))).toBe("run.input-invalid");
 });

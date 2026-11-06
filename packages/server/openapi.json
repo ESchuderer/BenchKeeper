@@ -937,6 +937,40 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.project-mismatch"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "given": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "runId",
+                  "project",
+                  "given"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "undo.file-edited"
               },
               "params": {
@@ -4076,6 +4110,40 @@
               "params": {
                 "type": "object",
                 "properties": {},
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "run.project-mismatch"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "given": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "runId",
+                  "project",
+                  "given"
+                ],
                 "additionalProperties": false
               }
             },

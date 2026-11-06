@@ -10,6 +10,7 @@ import {
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
+import { graphRunShow } from "./graphs.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 import { benchKeeperRegistry } from "./state.ts";
 
@@ -74,16 +75,28 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
   return applyShown(ctx, plan, { shown: showPlan(preview), findings: [], data: {} }, approval);
 };
 
-export const runsList = (ctx: Context): number => {
+export const runsList = async (ctx: Context): Promise<number> => {
   const runs = useCases.listRuns(ctx.state);
-  if (!runs.ok) return fail(ctx, "runs", [runs.finding], EXIT.refused);
-  const lines = runs.value.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
-  emit(ctx, "runs", { runs: runs.value }, lines.length > 0 ? lines.join("\n") : "No runs yet.");
+  const graphRuns = runs.ok ? await useCases.listGraphRuns(ctx.state) : { ok: false as const, finding: runs.finding };
+  if (!graphRuns.ok) return fail(ctx, "runs", [graphRuns.finding], EXIT.refused);
+  const applied = runs.ok ? runs.value : [];
+  // Apply runs and graph runs, newest first.
+  const rows = [...applied, ...graphRuns.value.map((run) => ({ ...run, kind: "graph" }))].toSorted((a, b) =>
+    b.startedAt.localeCompare(a.startedAt),
+  );
+  const lines = rows.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
+  emit(
+    ctx,
+    "runs",
+    { runs: applied, graphRuns: graphRuns.value },
+    lines.length > 0 ? lines.join("\n") : "No runs yet.",
+  );
   return EXIT.ok;
 };
 
-export const runsShow = (ctx: Context, runId: string): number => {
+export const runsShow = async (ctx: Context, runId: string): Promise<number> => {
   const shown = useCases.showRun(ctx.state, runId);
+  if (!shown.ok && shown.finding.code === "run.not-found") return graphRunShow(ctx, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);
   const { run, steps } = shown.value;
   const lines = steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);

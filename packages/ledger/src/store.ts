@@ -28,6 +28,7 @@ import {
   LABEL_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
+  PROJECT_TABLES,
   TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
@@ -43,6 +44,7 @@ const MIGRATIONS = [
   USAGE_TABLES,
   LABEL_TABLES,
   GRAPH_TABLES,
+  PROJECT_TABLES,
 ];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;

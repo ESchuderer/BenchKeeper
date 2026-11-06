@@ -162,3 +162,8 @@ CREATE TABLE gates (
   "by" TEXT
 ) STRICT;
 `;
+
+/** Schema 9: the real path of the project folder a graph run's commands run in; null on a run from before. */
+export const PROJECT_TABLES = `
+ALTER TABLE graph_runs ADD COLUMN project TEXT;
+`;

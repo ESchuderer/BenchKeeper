@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { Agent } from "@cedarloom/contracts";
-import { Argument, Command, CommanderError, Option } from "@commander-js/extra-typings";
+import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsConfirm,
   accountsHome,
@@ -16,6 +16,7 @@ import {
   runsShow,
   runsUndo,
 } from "./commands.ts";
+import { runsCancel, runsResume, workflowsRun } from "./graphs.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
@@ -39,17 +40,53 @@ const plansGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((file, options) => done(plansApply(ctx(), file, options)));
 };
 
+const PROJECT = "the project folder the run's commands run in (default: the current folder)";
+const STORED = "the run's project folder, which must be the one it recorded";
+
+// One `--input name=value`; repeated, they collect.
+const input = (pair: string, inputs: Record<string, string>): Record<string, string> => {
+  const at = pair.indexOf("=");
+  if (at < 1) throw new InvalidArgumentError("give an input as name=value");
+  return { ...inputs, [pair.slice(0, at)]: pair.slice(at + 1) };
+};
+
+const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("workflows")
+    .description("workflow files")
+    .command("run")
+    .description("run a workflow file in this process to its end; Ctrl+C cancels it")
+    .argument("<file>")
+    .option("--input <name=value>", "a value for one of the workflow's inputs; repeat for more", input, {})
+    .option("--project <folder>", PROJECT)
+    .action(async (file, options) =>
+      done(await workflowsRun(ctx(), file, options.input, resolve(options.project ?? "."))),
+    );
+};
+
 const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const runs = program.command("runs").description("runs in the journal");
   runs
     .command("list")
     .description("list the runs, newest first")
-    .action(() => done(runsList(ctx())));
+    .action(async () => done(await runsList(ctx())));
   runs
     .command("show")
-    .description("show a run and its steps")
+    .description("show a run and its steps, or a graph run and its attempts")
     .argument("<run>")
-    .action((run) => done(runsShow(ctx(), run)));
+    .action(async (run) => done(await runsShow(ctx(), run)));
+  runs
+    .command("resume")
+    .description("take over a graph run no process runs, and run it to its end; Ctrl+C cancels it")
+    .argument("<run>")
+    .option("--project <folder>", STORED)
+    .action(async (run, options) => done(await runsResume(ctx(), run, options.project)));
+  runs
+    .command("cancel")
+    .description("cancel a graph run: the process that runs it stops it, or this one ends a run no process runs")
+    .argument("<run>")
+    .option("--project <folder>", STORED)
+    .action(async (run, options) => done(await runsCancel(ctx(), run, options.project)));
   runs
     .command("undo")
     .description("show the undo plan of a run; with --yes, apply it as a run of its own")
@@ -167,6 +204,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   };
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);
+  workflowsGroup(program, ctx, done);
   accountsGroup(program, ctx, done);
   modeGroup(program, ctx, done);
   levelGroup(program, ctx, done);

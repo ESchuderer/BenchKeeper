@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { canonicalJson, GraphRun, JournalEvent, type Result } from "@cedarloom/contracts";
+import { canonicalJson, GraphRun, JournalEvent, NodeAttempt, type Result } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
 import { connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
 
 /** What a run starts from; the ledger adds its id, status, epoch and times. */
-export type NewGraphRun = Pick<GraphRun, "definition" | "inputs" | "trigger" | "mode" | "parentRun" | "parentNode">;
+export type NewGraphRun = Pick<
+  GraphRun,
+  "definition" | "inputs" | "trigger" | "mode" | "parentRun" | "parentNode" | "project"
+>;
 const NewGraphRun = GraphRun.pick({
   definition: true,
   inputs: true,
@@ -14,6 +17,7 @@ const NewGraphRun = GraphRun.pick({
   mode: true,
   parentRun: true,
   parentNode: true,
+  project: true,
 });
 
 /** A runner's hold on a graph run: its writes carry the epoch it took the run at, and the OS releases it on any exit. */
@@ -23,7 +27,7 @@ export interface RunLease extends LeaseLock {
 }
 
 const ACTIVE = new Set(["running", "waiting"]);
-const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, epoch, startedAt, finishedAt`;
+const COLUMNS = `id, definition, definitionHash, inputs, "trigger", mode, status, parentRun, parentNode, project, epoch, startedAt, finishedAt`;
 
 // A projection that changes no row is the executor's mistake, and nothing of its event is kept.
 const must = (changes: number | bigint, mistake: string): void => {
@@ -60,7 +64,7 @@ export class GraphStore {
       this.#db
         .prepare(
           `INSERT INTO graph_runs (id, workflowId, definition, definitionHash, inputs, "trigger", mode, status, parentRun,
-           parentNode, pid, epoch, startedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, 1, ?)`,
+           parentNode, project, pid, epoch, startedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, 1, ?)`,
         )
         .run(
           runId,
@@ -72,6 +76,7 @@ export class GraphStore {
           run.mode,
           run.parentRun,
           run.parentNode,
+          run.project,
           process.pid,
           now(),
         );
@@ -158,6 +163,43 @@ export class GraphStore {
       events.push(event.data);
     }
     return { ok: true, value: events };
+  }
+
+  /** The runs, newest first, each as it stands. */
+  graphRuns(): GraphRun[] {
+    const ids = this.#db.prepare("SELECT id FROM graph_runs ORDER BY startedAt DESC, id").all();
+    return ids.flatMap((row) => this.graphRun(String(row["id"])) ?? []);
+  }
+
+  /** A run's attempts in the order they started. */
+  attempts(runId: string): NodeAttempt[] {
+    const rows = this.#db
+      .prepare(
+        `SELECT nodeId AS node, attempt, state, pid, startedAt, finishedAt FROM node_attempts WHERE runId = ?
+         ORDER BY startedAt, rowid`,
+      )
+      .all(runId);
+    return rows.map((row) => NodeAttempt.parse(row));
+  }
+
+  /**
+   * Blanks the outputs of ended runs started more than `days` days ago, in their attempts and their events, since a
+   * command's output can hold a secret; the events stay valid. As `prune` of the run store does for plan contents.
+   */
+  prune(days: number): void {
+    const old = `runId IN (SELECT id FROM graph_runs WHERE startedAt < ? AND status NOT IN ('running', 'waiting'))`;
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    transaction(this.#db, () => {
+      this.#db.prepare(`UPDATE node_attempts SET outputs = '{}' WHERE ${old} AND outputs <> '{}'`).run(cutoff);
+      this.#db
+        .prepare(`UPDATE run_events SET payload = json_remove(payload, '$.values') WHERE ${old} AND type = 'ended'`)
+        .run(cutoff);
+      this.#db
+        .prepare(
+          `UPDATE run_events SET payload = json_set(payload, '$.outputs', json('{}')) WHERE ${old} AND type = 'finished'`,
+        )
+        .run(cutoff);
+    });
   }
 
   close(): void {

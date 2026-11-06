@@ -47,6 +47,8 @@ export const Finding = z
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
     // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe; pending owner decision).
     finding("run.shell-missing", {}),
+    // A resume or cancel named another project folder than the run's own; its commands run only there.
+    finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -174,6 +176,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },
+  "run.project-mismatch": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },

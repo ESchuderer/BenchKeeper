@@ -28,6 +28,7 @@ const manual: NewGraphRun = {
   mode: "act",
   parentRun: null,
   parentNode: null,
+  project: "/work/lint",
 };
 const open: { close(): void }[] = [];
 afterEach(() => {
@@ -261,25 +262,70 @@ test("one process applies under the store lock while another appends events, and
   expect(runs.ok && new Set(runs.value.runs().map((run) => run.status))).toEqual(new Set(["applied"]));
 }, 15_000);
 
-test("a store from before the graph tables gains them when a graph store opens it, and keeps its apply runs", () => {
+test("a store of schema 8 gains the project folder when a graph store opens it, and keeps its runs", () => {
   const dir = fresh();
   applyRunIn(dir);
+  const before = graphs(dir).create(manual);
+  before.release();
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec(
-    "DROP TABLE gates; DROP TABLE run_events; DROP TABLE node_attempts; DROP TABLE graph_runs; PRAGMA user_version = 7",
-  );
+  db.exec("ALTER TABLE graph_runs DROP COLUMN project; PRAGMA user_version = 8");
   db.close();
   expect(openGraphStore(dir, () => "nfs4")).toEqual({
     ok: false,
     finding: { code: "store.network-filesystem", params: { dir, fsType: "nfs4" } },
   });
   const store = graphs(dir);
-  expect(store.graphRun(store.create(manual).runId)?.status).toBe("running");
+  expect(store.graphRun(before.runId)).toMatchObject({ project: null, status: "interrupted" });
+  expect(store.graphRun(store.create(manual).runId)).toMatchObject({ project: "/work/lint", status: "running" });
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
   expect([after.prepare("PRAGMA user_version").get(), after.prepare("SELECT count(*) AS n FROM runs").get()]).toEqual([
-    { user_version: 8 },
+    { user_version: 9 },
     { n: 1 },
   ]);
   after.close();
+});
+
+test("runs list newest first with their attempts; prune blanks the outputs of old ended runs, and the log stays valid", () => {
+  const dir = fresh();
+  const store = graphs(dir);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  // An ended run and a running one from August, an ended one from November, each with an output.
+  const run = (at: string, end: boolean): string => {
+    vi.setSystemTime(new Date(at));
+    const { runId } = store.create(manual);
+    store.append(runId, 1, { type: "started", node: "lint", attempt: 1, pid: 4242 });
+    store.append(runId, 1, { type: "ended", node: "lint", attempt: 1, outcome: "done", values: { stdout: "secret" } });
+    if (end) store.append(runId, 1, { type: "finished", status: "succeeded", outputs: { out: "secret" } });
+    return runId;
+  };
+  const [old, running, recent] = [
+    run("2026-08-01T00:00:00Z", true),
+    run("2026-08-02T00:00:00Z", false),
+    run("2026-11-06T00:00:00Z", true),
+  ];
+  expect(store.graphRuns().map((each) => each.id)).toEqual([recent, running, old]);
+  expect(store.attempts(old)).toEqual([
+    {
+      node: "lint",
+      attempt: 1,
+      state: "done",
+      pid: 4242,
+      startedAt: "2026-08-01T00:00:00.000Z",
+      finishedAt: "2026-08-01T00:00:00.000Z",
+    },
+  ]);
+  store.prune(90);
+  vi.useRealTimers();
+  const kept = (runId: string) => JSON.stringify(store.events(runId)).includes("secret");
+  expect([kept(old), kept(running), kept(recent)]).toEqual([false, true, true]);
+  expect(store.events(old)).toMatchObject({
+    ok: true,
+    value: [{ type: "started" }, { type: "ended", outcome: "done" }, { outputs: {} }],
+  });
+  expect(rows(dir, "SELECT outputs FROM node_attempts ORDER BY startedAt").map((row) => row["outputs"])).toEqual([
+    "{}",
+    '{"stdout":"secret"}',
+    '{"stdout":"secret"}',
+  ]);
 });

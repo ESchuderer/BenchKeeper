@@ -66,6 +66,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.report-only-apply": (p) =>
     `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
   "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
+  "run.project-mismatch": (p) =>
+    `Run ${p.runId} runs in ${p.project}, not in ${p.given}; leave --project out, or name that folder.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,

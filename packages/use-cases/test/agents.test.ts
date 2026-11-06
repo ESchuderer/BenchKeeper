@@ -5,6 +5,7 @@ import type { AgentRuntime, ContractCheck, UsageWindow } from "@cedarloom/agent-
 import { DatabaseSync } from "node:sqlite";
 import { openRunStore } from "@cedarloom/ledger";
 import { checkedVersions, recordUsage } from "@cedarloom/use-cases";
+import { canonicalJson, type Json, USAGE_RAW_LIMIT_BYTES } from "@cedarloom/contracts";
 import { expect, test, vi } from "vitest";
 
 const state = () => mkdtempSync(join(tmpdir(), "cedarloom-agents-"));
@@ -193,7 +194,11 @@ const window = (name: string, quota: UsageWindow["quota"], percent: number | nul
   quota,
 });
 
-test("a session's usage windows become readings, those the quota model can store", () => {
+const runId = "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f";
+const usage = (windows: UsageWindow[], raw: Json) =>
+  ({ type: "usage", agentVersion: "2.1.316", windows, raw }) as const;
+
+test("a session's usage is kept as one sample per window with its line; readings take what the quota model can store", () => {
   const dir = state();
   const at = "2026-11-06T08:00:00.000Z";
   const windows = [
@@ -202,11 +207,36 @@ test("a session's usage windows become readings, those the quota model can store
     window("seven_day_opus", null, 40, "2026-11-10T12:00:00.000Z"),
     window("seven_day", "sevenDay", 32, null),
   ];
-  expect(recordUsage(dir, "work", windows, at)).toEqual({ ok: true, value: 1 });
+  const raw = { type: "rate_limit_event", rate_limit_info: { status: "allowed" } };
+  const of = { account: "work", agent: "claude", runId } as const;
+  expect(recordUsage(dir, of, usage(windows, raw), at)).toEqual({ ok: true, value: 4 });
   const store = openRunStore(dir);
   if (!store.ok) throw new Error(store.finding.code);
   expect(store.value.readings()).toEqual([
     { account: "work", window: "fiveHour", usedPercent: 10, resetsAt: "2026-11-06T12:00:00.000Z", readAt: at },
   ]);
+  const samples = store.value.usageSamples();
+  expect(samples.map((each) => [each.window, each.quota, each.usedPercent])).toEqual([
+    ["five_hour", "fiveHour", 10],
+    ["seven_day", "sevenDay", null],
+    ["seven_day_opus", null, 40],
+    ["seven_day", "sevenDay", 32],
+  ]);
+  expect(samples[0]).toMatchObject({ agentVersion: "2.1.316", runId, raw: canonicalJson(raw) });
   store.value.close();
+});
+
+test("a line longer than the limit is cut on a character boundary, with a marker", () => {
+  const dir = state();
+  // Three-byte characters, so a cut at a fixed byte count would land inside one.
+  const raw = { text: "€".repeat(USAGE_RAW_LIMIT_BYTES) };
+  const one = [window("five_hour", "fiveHour", 10, "2026-11-06T12:00:00.000Z")];
+  recordUsage(dir, { account: "work", agent: "claude", runId: null }, usage(one, raw));
+  const store = openRunStore(dir);
+  if (!store.ok) throw new Error(store.finding.code);
+  const [kept] = store.value.usageSamples().map((each) => each.raw);
+  store.value.close();
+  expect(Buffer.byteLength(kept ?? "")).toBeLessThanOrEqual(USAGE_RAW_LIMIT_BYTES);
+  expect(kept).toMatch(/^\{"text":"€+…\[cut\]$/);
+  expect(kept).not.toContain("\uFFFD");
 });

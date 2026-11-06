@@ -107,11 +107,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 6");
+  db.exec("PRAGMA user_version = 7");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 6, known: 5 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 7, known: 6 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -330,14 +330,14 @@ test("a store of schema 1 gains the account, check, launch and mode tables on op
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; PRAGMA user_version = 1",
+    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; PRAGMA user_version = 1",
   );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 6 });
   after.close();
 });
 
@@ -353,7 +353,9 @@ test("a store of schema 2 gains the check, launch and mode tables on open and ke
   opened(dir).recordReading(reading);
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; PRAGMA user_version = 2");
+  db.exec(
+    "DROP TABLE contract_checks; DROP TABLE launches; DROP TABLE mode_switches; DROP TABLE usage_samples; PRAGMA user_version = 2",
+  );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([reading]);
@@ -569,4 +571,39 @@ test("the latest switch of the level for running work, overall or since a time; 
   const view = openRunView(dir);
   expect(view.ok && view.value?.modeSwitch()).toBeNull();
   if (view.ok) view.value?.close();
+});
+
+const sample = {
+  account: "work",
+  agent: "claude",
+  agentVersion: "2.1.316",
+  window: "five_hour",
+  quota: "fiveHour",
+  usedPercent: 10,
+  resetsAt: "2026-11-06T12:00:00.000Z",
+  readAt: "2026-11-06T08:00:00.000Z",
+  runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f",
+  raw: '{"type":"rate_limit_event"}',
+} as const;
+
+test("usage samples are kept as history and update the latest reading in one transaction", () => {
+  const store = opened(fresh());
+  const opus = { ...sample, window: "seven_day_opus", quota: null, usedPercent: null, resetsAt: null, runId: null };
+  const later = { ...sample, account: "spare", usedPercent: 20, readAt: "2026-11-06T09:00:00.000Z" };
+  store.recordSamples([sample, opus]);
+  store.recordSamples([later]);
+  expect(store.usageSamples()).toEqual([sample, opus, later]);
+  expect(store.usageSamples({ account: "work" })).toEqual([sample, opus]);
+  expect(store.usageSamples({ since: "2026-11-06T08:30:00.000Z" })).toEqual([later]);
+  // Only a sample with a quota, a share and a reset is a reading.
+  expect(store.readings().map((reading) => [reading.account, reading.usedPercent])).toEqual([
+    ["spare", 20],
+    ["work", 10],
+  ]);
+  // A share outside 0 to 100 is refused, and nothing of the batch is kept.
+  const over = { ...sample, usedPercent: 140, readAt: "2026-11-06T10:00:00.000Z" };
+  expect(() => store.recordSamples([{ ...sample, readAt: "2026-11-06T10:00:00.000Z" }, over])).toThrow(
+    /too_big|<=100/i,
+  );
+  expect(store.usageSamples()).toHaveLength(3);
 });

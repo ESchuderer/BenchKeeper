@@ -175,7 +175,10 @@ const observe = async (state: string, session: AgentSession, lease: Lease) => {
     }
     if (event.type === "init") proved = true;
     // A reading the store cannot take is dropped; the run goes on.
-    if (event.type === "usage") await retryBusy(() => recordUsage(state, lease.account, event.windows));
+    if (event.type === "usage") {
+      const of = { account: lease.account, agent: lease.agent, runId: lease.runId };
+      await retryBusy(() => recordUsage(state, of, event));
+    }
     if (event.type === "exit") exit = event;
   }
   return { exit, proved, unproven: null };

@@ -10,6 +10,7 @@ import {
   type Finding,
   PLAN_SCHEMA_VERSION,
   ModeSwitch,
+  UsageSample,
   Plan,
   Reading,
   type Result,
@@ -19,12 +20,12 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, TABLES } from "./rows.ts";
+import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, TABLES, USAGE_TABLES } from "./rows.ts";
 
-const SCHEMA = 5;
+const SCHEMA = 6;
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES];
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES];
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
 
@@ -296,6 +297,46 @@ export class RunStore extends RunView {
          WHERE excluded.readAt >= readings.readAt`,
       )
       .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
+  }
+
+  /**
+   * Keeps usage samples as history, in one transaction with the latest readings they update: a sample with a quota, a
+   * share and a reset updates its account's reading. A sample that is no UsageSample throws, and nothing is kept.
+   */
+  recordSamples(input: readonly UsageSample[]): void {
+    const samples = input.map((sample) => UsageSample.parse(sample));
+    transaction(this.db, () => {
+      const insert = this.db.prepare("INSERT INTO usage_samples VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const s of samples) {
+        insert.run(
+          s.account,
+          s.agent,
+          s.agentVersion,
+          s.window,
+          s.quota,
+          s.usedPercent,
+          s.resetsAt,
+          s.readAt,
+          s.runId,
+          s.raw,
+        );
+        const { quota: window, usedPercent, resetsAt } = s;
+        if (window !== null && usedPercent !== null && resetsAt !== null) {
+          this.recordReading({ account: s.account, window, usedPercent, resetsAt, readAt: s.readAt });
+        }
+      }
+    });
+  }
+
+  /** The usage samples, oldest first: of one account, and read at `since` or later, when given. */
+  usageSamples({ account, since }: { account?: string; since?: string } = {}): UsageSample[] {
+    return this.db
+      .prepare(
+        `SELECT account, agent, agentVersion, "window", quota, usedPercent, resetsAt, readAt, runId, raw FROM usage_samples
+         WHERE account = coalesce(?, account) AND readAt >= coalesce(?, '') ORDER BY readAt, rowid`,
+      )
+      .all(account ?? null, since ?? null)
+      .map((row) => UsageSample.parse(row));
   }
 
   readings(): Reading[] {

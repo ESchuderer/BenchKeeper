@@ -19,7 +19,8 @@ export type Agent = z.infer<typeof Agent>;
 // BenchKeeper's rule for account and pool names, so its names import unchanged.
 const Name = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 
-const Percent = z.number().min(0).max(100);
+/** A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary. */
+export const Percent = z.number().min(0).max(100);
 
 /** The headroom a launch needs in each usage window, in percent of the window. */
 const Minimums = z.strictObject({ fiveHour: Percent, sevenDay: Percent });
@@ -105,12 +106,34 @@ export type QuotaWindow = z.infer<typeof QuotaWindow>;
 export const Reading = z.strictObject({
   account: Name,
   window: QuotaWindow,
-  usedPercent: z.number(),
+  usedPercent: Percent,
   // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
   resetsAt: z.iso.datetime({ precision: 3 }),
   readAt: z.iso.datetime({ precision: 3 }),
 });
 export type Reading = z.infer<typeof Reading>;
+
+/** The most of an agent's own line a usage sample keeps, in bytes; a longer line is cut and marked. */
+export const USAGE_RAW_LIMIT_BYTES = 16 * 1024;
+
+/**
+ * One usage window as a session reported it, kept as history (A84): the agent's own window name and line, its CLI
+ * version, and the run it came from. Windows without a quota name, a share or a reset are kept too.
+ */
+export const UsageSample = z.strictObject({
+  account: Name,
+  agent: Agent,
+  agentVersion: AgentVersion,
+  window: z.string().min(1).max(64),
+  quota: QuotaWindow.nullable(),
+  usedPercent: Percent.nullable(),
+  resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
+  readAt: z.iso.datetime({ precision: 3 }),
+  runId: z.uuid().nullable(),
+  // The agent's line as canonical JSON, cut at USAGE_RAW_LIMIT_BYTES with a marker.
+  raw: z.string(),
+});
+export type UsageSample = z.infer<typeof UsageSample>;
 
 /**
  * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first

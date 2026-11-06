@@ -201,6 +201,7 @@ test("an account moves into its own home by a plan, and the folder it named befo
   });
   // In its own home already: nothing to plan.
   expect(planHome(config, state, "work")).toEqual({ ok: true, value: { plan: null, home } });
+  expect(planHome(join(config, "none"), state, "work")).toMatchObject({ finding: { code: "document.unreadable" } });
   expect(planHome(config, state, "none")).toEqual({
     ok: false,
     finding: { code: "accounts.unknown-account", params: { account: "none" } },

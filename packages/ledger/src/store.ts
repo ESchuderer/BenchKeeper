@@ -49,6 +49,9 @@ const MIGRATIONS = [
 ];
 // The schema this CedarLoom writes: one per migration, so two branches that each add one cannot share a number.
 const SCHEMA = MIGRATIONS.length;
+// The schemas that added the graph runs and their project folder: their places among the migrations.
+export const GRAPH_SCHEMA = MIGRATIONS.indexOf(GRAPH_TABLES) + 1;
+export const PROJECT_SCHEMA = MIGRATIONS.indexOf(PROJECT_TABLES) + 1;
 // The schema that added the switches of the automation level.
 const MODE_SCHEMA = 5;
 

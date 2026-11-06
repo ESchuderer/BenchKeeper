@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   chmodSync,
   mkdirSync,
@@ -11,10 +12,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import type { LoginStatus } from "@cedarloom/agent-contracts";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
 import {
   applyPlan,
+  checkLogins,
   chooseAccount,
   loadRegistry,
   loginAccount,
@@ -241,6 +245,13 @@ const plannedHome = () => {
   return { config, state };
 };
 
+// The same, with the home its login made.
+const movedRegistry = () => {
+  const moved = plannedHome();
+  mkdirSync(ownHome(moved.state, "work"), { recursive: true });
+  return moved;
+};
+
 test("an account moves into its own home by a plan, and the folder it named before stays as an alias", () => {
   const { config, state } = importedRegistry();
   const home = ownHome(state, "work");
@@ -343,8 +354,128 @@ test("the login runs in the account's own home, made for the owner only, with th
   expect(missing).toMatchObject({ ok: false, finding: { params: { error: "spawn claude ENOENT" } } });
 });
 
+// A running worker's lease on `account`, held until released.
+const leaseOf = (state: string, account: string) => {
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const labels = {
+    phase: "implement",
+    model: "m",
+    subagentModel: "m",
+    effort: "high",
+    permissionMode: "dontAsk",
+  } as const;
+  const lease = {
+    runId: randomUUID(),
+    task: "t",
+    agent: "claude",
+    account,
+    version: "2.1.316",
+    pid: process.pid,
+  } as const;
+  const held = store.value.leaseAccount(
+    { ...lease, startedAt: new Date().toISOString(), labels: { ...labels, review: true, level: "auto", tier: null } },
+    2,
+  );
+  store.value.close();
+  return held;
+};
+
+test("the doctor checks each Claude Code login in its own home, one at a time, never beside a worker on it", async () => {
+  const { config, state } = importedRegistry();
+  const home = ownHome(state, "work");
+  const seen: Record<string, string>[] = [];
+  const answering = (login: LoginStatus) => ({
+    parent: { PATH: "/bin", ANTHROPIC_API_KEY: "k", HTTPS_PROXY: "http://proxy:8080" },
+    platform: "linux" as const,
+    status: async (env: Readonly<Record<string, string>>) => {
+      seen.push({ ...env });
+      return login;
+    },
+  });
+  const loggedIn = { kind: "logged-in", authMethod: "claude.ai", configDirectory: home } as const;
+  // Outside its own home an account is reported, never checked; the Codex account is not checked at all.
+  expect(await checkLogins(state, config, answering(loggedIn))).toEqual({
+    ok: true,
+    value: [{ code: "accounts.home-not-own", params: { account: "work", home: "/accounts/work" } }],
+  });
+  expect(seen).toEqual([]);
+  const moved = planHome(config, state, "work");
+  if (!moved.ok || moved.value.plan === null) throw new Error("no plan");
+  applyPlan(state, moved.value.plan, { yes: true });
+  // Before the login made the home, nothing is checked.
+  expect(await checkLogins(state, config, answering(loggedIn))).toEqual({
+    ok: true,
+    value: [{ code: "accounts.home-missing", params: { account: "work", home } }],
+  });
+  mkdirSync(home, { recursive: true });
+  expect(await checkLogins(state, config, answering(loggedIn))).toEqual({ ok: true, value: [] });
+  expect(seen).toEqual([{ PATH: "/bin", HTTPS_PROXY: "http://proxy:8080", CLAUDE_CONFIG_DIR: home }]);
+  const found = async (login: LoginStatus) => {
+    const checked = await checkLogins(state, config, answering(login));
+    return checked.ok ? checked.value : [checked.finding];
+  };
+  expect(await found({ kind: "logged-out" })).toEqual([
+    { code: "doctor.logged-out", params: { account: "work", home } },
+  ]);
+  expect(await found({ kind: "logged-in", authMethod: "api_key", configDirectory: "/elsewhere" })).toEqual([
+    { code: "doctor.login-elsewhere", params: { account: "work", home, configDirectory: "/elsewhere" } },
+    { code: "doctor.login-method", params: { account: "work", method: "api_key" } },
+  ]);
+  // A status without the config folder (Claude Code before 2.1.268) is taken as it is.
+  expect(await found({ kind: "logged-in", authMethod: "claude.ai", configDirectory: null })).toEqual([]);
+  expect(await found({ kind: "unknown", error: "timed out" })).toEqual([
+    { code: "doctor.login-unchecked", params: { account: "work", error: "timed out" } },
+  ]);
+});
+
+test("the doctor's login check never runs beside a worker, no worker starts during it, and it reports what stops it", async () => {
+  const { config, state } = movedRegistry();
+  const seen: Record<string, string>[] = [];
+  const loggedIn = { kind: "logged-in", authMethod: "claude.ai", configDirectory: ownHome(state, "work") } as const;
+  const answering = (login: LoginStatus) => ({
+    parent: {},
+    platform: "linux" as const,
+    status: async () => {
+      seen.push({});
+      return login;
+    },
+  });
+  const found = async (login: LoginStatus) => {
+    const checked = await checkLogins(state, config, answering(login));
+    return checked.ok ? checked.value : [checked.finding];
+  };
+  // Beside a running worker nothing is checked.
+  const running = leaseOf(state, "work");
+  seen.length = 0;
+  expect(await found(loggedIn)).toEqual([{ code: "doctor.login-skipped", params: { account: "work" } }]);
+  expect(seen).toEqual([]);
+  running?.release();
+  // While the check runs, the account takes no lease.
+  let during: ReturnType<typeof leaseOf> = null;
+  const checking = {
+    ...answering(loggedIn),
+    status: async () => {
+      during = leaseOf(state, "work");
+      return loggedIn;
+    },
+  };
+  expect(await checkLogins(state, config, checking)).toEqual({ ok: true, value: [] });
+  expect(during).toBeNull();
+  expect(await checkLogins(state, join(config, "none"), answering(loggedIn))).toEqual({ ok: true, value: [] });
+  // A registry or a store it cannot read stops the check with its finding.
+  const kept = readFileSync(join(config, "accounts.json"), "utf8");
+  writeFileSync(join(config, "accounts.json"), "{");
+  expect(await found(loggedIn)).toMatchObject([{ code: "document.invalid" }]);
+  writeFileSync(join(config, "accounts.json"), kept);
+  const db = new DatabaseSync(join(state, "runs.sqlite"));
+  db.exec("PRAGMA user_version = 99");
+  db.close();
+  expect(await found(loggedIn)).toMatchObject([{ code: "store.newer-schema" }]);
+});
+
 test("a login never runs in an own home that is a link or lies in one, so nothing lands in the folder it points to", () => {
-  const { config, state } = plannedHome();
+  const { config, state } = movedRegistry();
   const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
   const homes = join(state, "homes");
   const started: Record<string, string>[] = [];
@@ -354,7 +485,7 @@ test("a login never runs in an own home that is a link or lies in one, so nothin
     run: (env: Record<string, string>) => (started.push(env), { code: 0 }),
   };
   // Junctions on Windows, which need no privilege; elsewhere the type is ignored.
-  mkdirSync(homes);
+  renameSync(ownHome(state, "work"), join(state, "work-before"));
   symlinkSync(elsewhere, ownHome(state, "work"), "junction");
   expect(loginAccount(config, state, "work", linking)).toEqual({
     ok: false,

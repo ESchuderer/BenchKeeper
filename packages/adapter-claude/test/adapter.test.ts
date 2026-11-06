@@ -72,8 +72,8 @@ test("runs claude -p with stream-json under the account's config folder and maps
   expect(all[3]).toMatchObject({
     agentVersion: "2.1.316",
     windows: [
-      { window: "five_hour", status: "allowed", percent: 10, resetsAt: "2026-11-05T19:20:00.000Z" },
-      { window: "seven_day", status: "allowed", percent: 32, resetsAt: "2026-11-06T18:00:00.000Z" },
+      { window: "five_hour", status: "allowed", percent: 10, resetsAt: "2026-11-05T19:20:00.000Z", quota: "fiveHour" },
+      { window: "seven_day", status: "allowed", percent: 32, resetsAt: "2026-11-06T18:00:00.000Z", quota: "sevenDay" },
     ],
   });
   expect(all[5]).toMatchObject({ type: "result", ok: true, text: "OK" });
@@ -95,11 +95,26 @@ test("reads the older single-window form and leaves lines it cannot read as they
     expect.objectContaining({ type: "init", agentVersion: "2.1.309", model: "claude-sonnet-5-5" }),
     expect.objectContaining({
       type: "usage",
-      windows: [{ window: "five_hour", status: "allowed", percent: 15, resetsAt: "2026-11-05T19:20:00.000Z" }],
+      windows: [
+        {
+          window: "five_hour",
+          status: "allowed",
+          percent: 15,
+          resetsAt: "2026-11-05T19:20:00.000Z",
+          quota: "fiveHour",
+        },
+      ],
     }),
     expect.objectContaining({
       type: "usage",
-      windows: [{ window: "seven_day", status: "allowed_warning", percent: null, resetsAt: null }],
+      windows: [{ window: "seven_day", status: "allowed_warning", percent: null, resetsAt: null, quota: "sevenDay" }],
+    }),
+    // A window the quota model lacks is reported, and not stored as a reading.
+    expect.objectContaining({
+      type: "usage",
+      windows: [
+        { window: "overage", status: "allowed", percent: 50, resetsAt: "2026-11-05T19:20:00.000Z", quota: null },
+      ],
     }),
     { type: "other", raw: expect.objectContaining({ type: "rate_limit_event" }) },
     { type: "other", raw: expect.objectContaining({ type: "rate_limit_event" }) },

@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, sta
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { AccountSwitch, Plan } from "@cedarloom/contracts";
+import type { AccountSwitch, ContractCheckRecord, Plan } from "@cedarloom/contracts";
 import {
   filesystemType,
   isNetworkFilesystem,
@@ -105,11 +105,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 3");
+  db.exec("PRAGMA user_version = 4");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 3, known: 2 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 4, known: 3 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -322,18 +322,18 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-test("a store of schema 1 gains the account tables on open and keeps its runs", () => {
+test("a store of schema 1 gains the account and check tables on open and keeps its runs", () => {
   const dir = fresh();
   const runId = opened(dir).begin("apply", plan, planHash(plan));
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE readings; DROP TABLE switches; PRAGMA user_version = 1");
+  db.exec("DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; PRAGMA user_version = 1");
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 3 });
   after.close();
 });
 
@@ -390,4 +390,23 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
   };
   store.recordSwitch(stayed);
   expect(store.switches()).toEqual([row, stayed]);
+});
+
+test("one contract check per agent CLI version: a check of the same version again replaces it", () => {
+  const store = opened(fresh());
+  const check: ContractCheckRecord = {
+    agent: "claude",
+    version: "2.1.316",
+    missing: [],
+    at: "2026-11-06T08:00:00.000Z",
+  };
+  store.recordContractCheck({ ...check, missing: ["usage"] });
+  store.recordContractCheck({ ...check, version: "2.1.317", missing: ["result"], at: "2026-11-06T09:00:00.000Z" });
+  store.recordContractCheck({ ...check, at: "2026-11-06T10:00:00.000Z" });
+  store.recordContractCheck({ ...check, agent: "codex", version: "0.166.0" });
+  expect(store.contractChecks("claude")).toEqual([
+    { ...check, version: "2.1.317", missing: ["result"], at: "2026-11-06T09:00:00.000Z" },
+    { ...check, at: "2026-11-06T10:00:00.000Z" },
+  ]);
+  expect(() => store.recordContractCheck({ ...check, version: "" })).toThrow(/too small|>=1/i);
 });

@@ -64,6 +64,8 @@ export const Finding = z
     finding("accounts.codex-switching-off", { pool: z.string() }),
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
+    // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
+    finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -120,4 +122,5 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.unknown-pool": { severity: "error", effort: "manual" },
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
+  "launch.agent-unavailable": { severity: "error", effort: "manual" },
 };

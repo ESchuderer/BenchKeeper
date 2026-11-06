@@ -730,6 +730,13 @@ export interface components {
             params: {
                 pool: string;
             };
+        } | {
+            /** @constant */
+            code: "launch.agent-unavailable";
+            params: {
+                agent: string;
+                error: string;
+            };
         };
         RunInput: {
             id: string;
@@ -1139,6 +1146,13 @@ export interface components {
             code: "accounts.pool-terms";
             params: {
                 pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.agent-unavailable";
+            params: {
+                agent: string;
+                error: string;
             };
         };
         Run: {

@@ -1,4 +1,4 @@
-import type { Json } from "@cedarloom/contracts";
+import type { Json, QuotaWindow } from "@cedarloom/contracts";
 
 /** How far an adapter supports a feature; `unknown` means untested and is never read as `unsupported`. */
 export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown";
@@ -39,6 +39,8 @@ export interface UsageWindow {
   readonly percent: number | null;
   /** ISO time of the window's reset; null when the agent sent none. */
   readonly resetsAt: string | null;
+  /** The agent-neutral window it is, which readings are stored under; null for a window the quota model lacks. */
+  readonly quota: QuotaWindow | null;
 }
 
 /** Why a session ended in the adapter: the process failed to start or stop, or it wrote a line past the adapter's cap. */

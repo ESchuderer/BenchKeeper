@@ -1,4 +1,5 @@
 export { isConfirmed } from "@cedarloom/accounts";
+export { type CheckedVersions, checkedVersions, recordUsage } from "./agents.ts";
 export {
   type AccountRequest,
   chooseAccount,

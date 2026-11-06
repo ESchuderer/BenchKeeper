@@ -67,6 +67,12 @@ test("a commit without the workflow plugin gives none, and that is kept; a faile
   expect(existsSync(join(other, "plugins", WORKFLOW_PLUGIN.commit))).toBe(false);
 });
 
+test("a workflow plugin that holds a .claude folder is refused, as --add-dir would load that folder too", async () => {
+  const dir = state();
+  const fetch = fetching([...WITH_WORKFLOW, file("workflow/.claude/settings.json", "{}")]);
+  expect(await workflowPlugin(dir, fetch)).toBeNull();
+});
+
 test("a checkout another launch placed first stays, and the one fetched meanwhile is dropped", async () => {
   const dir = state();
   const checkout = join(dir, "plugins", WORKFLOW_PLUGIN.commit);

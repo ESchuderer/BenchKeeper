@@ -51,7 +51,8 @@ export const workflowPlugin = async (state: string, fetch: FetchTree): Promise<s
     place(parent, checkout, tree.value);
   }
   const plugin = join(checkout, name);
-  return existsSync(plugin) ? plugin : null;
+  // --add-dir would also load a .claude folder of the plugin, settings and skills of its own: refused.
+  return existsSync(plugin) && !existsSync(join(plugin, ".claude")) ? plugin : null;
 };
 
 /**

@@ -303,7 +303,7 @@ test("a layout that ends after New is dropped, not applied to the new workflow",
   await expect(said()).not.toHaveText(/laid out/);
 });
 
-test("auto layout runs ELK in a worker, moves only positions in one undo step, and its license ships with the page", async () => {
+test("auto layout runs ELK in a worker and moves only positions in one undo step; the next change clears its status", async () => {
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
   await expect(card("merge")).toBeVisible();
   const exported = async (): Promise<string> => {

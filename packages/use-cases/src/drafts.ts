@@ -88,15 +88,16 @@ const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NON
 
 /**
  * The draft at `path`, its status and, under the limit, its bytes, all from one open file, so a save meanwhile is
- * never mixed in. Null when there is none: no file, or a link, a FIFO or a folder at the name, which are no drafts.
+ * never mixed in. Undefined when nothing is there; null when what is there is no draft (a link, a FIFO, a folder).
  */
-const load = (path: string): { info: Stats; bytes: Buffer | null } | null => {
+const load = (path: string): { info: Stats; bytes: Buffer | null } | null | undefined => {
   let file: number;
   try {
     file = openSync(path, READ);
   } catch (error) {
+    if (errorCode(error) === "ENOENT") return undefined;
     // ELOOP: a link, which O_NOFOLLOW does not open; EISDIR: a folder, where the platform refuses to open one.
-    if (["ENOENT", "ELOOP", "EISDIR"].includes(errorCode(error))) return null;
+    if (["ELOOP", "EISDIR"].includes(errorCode(error))) return null;
     throw error;
   }
   try {
@@ -118,7 +119,7 @@ export const readDraft = (state: string, id: string): Result<Draft> => {
     const params = { path: join(FOLDER, basename(path)), error: errorCode(error) };
     return { ok: false, finding: { code: "document.unreadable", params } };
   }
-  if (found === null) return { ok: false, finding: { code: "draft.not-found", params: { id } } };
+  if (found === undefined || found === null) return { ok: false, finding: { code: "draft.not-found", params: { id } } };
   const { info, bytes } = found;
   if (bytes === null) return tooLarge(id, info.size);
   const read = parseDocument(bytes.toString("utf8"), (json) => workflowOf(json, id));
@@ -135,6 +136,7 @@ export const readDraft = (state: string, id: string): Result<Draft> => {
  */
 const current = (path: string): string | null => {
   const found = load(path);
+  if (found === undefined) return null;
   if (found !== null && found.bytes !== null) return sha256(found.bytes);
   rmSync(path, { force: true });
   return null;
@@ -148,7 +150,8 @@ const write = (path: string, text: string): string | null => {
       writeAtomic({ path, before, temp: tempPath(path, randomUUID(), attempt) }, text, 0o600);
       return before;
     } catch (error) {
-      if (attempt > 0 || !["ECHANGED", "EEXIST"].includes(errorCode(error))) throw error;
+      // writeAtomic reports a file that appeared at the name as ECHANGED too.
+      if (attempt > 0 || errorCode(error) !== "ECHANGED") throw error;
     }
   }
 };
@@ -196,10 +199,11 @@ export const sweepDrafts = (state: string): void => {
   const folder = join(state, FOLDER);
   try {
     for (const name of readdirSync(folder).filter((entry) => TEMP.test(entry))) {
-      const found = load(join(folder, name));
-      if (found !== null && Date.now() - found.info.mtimeMs > 60_000) rmSync(join(folder, name), { force: true });
+      // lstat reads nothing and follows no link, so a file the user may not read is swept too.
+      const info = lstatSync(join(folder, name), { throwIfNoEntry: false });
+      if (info?.isFile() === true && Date.now() - info.mtimeMs > 60_000) rmSync(join(folder, name), { force: true });
     }
   } catch {
-    // Housekeeping only: no folder yet, or a file it cannot read, which the reads and saves report.
+    // Housekeeping only: no folder yet, or one it cannot read, which the reads and saves report.
   }
 };

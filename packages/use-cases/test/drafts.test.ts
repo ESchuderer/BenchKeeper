@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   lstatSync,
   mkdirSync,
@@ -11,17 +12,26 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { formatWorkflow, type WorkflowDefinition } from "@cedarloom/contracts";
+import { tempPath } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 
-// A draft named "locked" fails to open, as one the user may not read does.
+// The files of a draft named "locked" fail to open, as ones the user may not read do. The next open of "racy" finds
+// nothing, and another process writes the draft right after.
+const opens = vi.hoisted(() => ({ racy: false }));
 vi.mock("node:fs", async (original) => {
   const fs = await original<typeof import("node:fs")>();
   const openSync = (...args: Parameters<typeof fs.openSync>): number => {
-    if (String(args[0]).endsWith("workflow-locked.json")) throw Object.assign(new Error("denied"), { code: "EACCES" });
+    const path = String(args[0]);
+    if (path.includes("workflow-locked.json")) throw Object.assign(new Error("denied"), { code: "EACCES" });
+    if (opens.racy && path.endsWith("workflow-racy.json")) {
+      opens.racy = false;
+      fs.writeFileSync(path, "another process's draft");
+      throw Object.assign(new Error("no such file"), { code: "ENOENT" });
+    }
     return fs.openSync(...args);
   };
   return { ...fs, openSync, default: { ...fs, openSync } };
@@ -184,19 +194,24 @@ test("a save another process got ahead of is written once more and says so; a se
   // A draft that did not exist yet: the other process's file appears where this save would link its own.
   race.times = 1;
   expect(ok(saveDraft(at, "new", sample("new"), null)).overwrote).toBe(true);
+  // Another process writes the draft right after this save found none: the save keeps it until its own replaces it.
+  opens.racy = true;
+  expect(ok(saveDraft(at, "racy", sample("racy"), null)).overwrote).toBe(true);
 });
 
-const temp = (n: number): string => `.workflow-w.json.cedarloom-0a2b9c4e-1f3d-4a5b-8c6d-7e8f9a0b1c2${n}-0`;
-
-test("temporary files a crash left are removed at start; a write in progress keeps its own", () => {
+test("temporary files a crash left are removed at start, past one it cannot read; a write in progress keeps its own", () => {
   const at = state();
   sweepDrafts(at);
   ok(saveDraft(at, "w", sample(), null));
-  writeFileSync(join(drafts(at), temp(1)), "{");
-  writeFileSync(join(drafts(at), temp(2)), "{");
-  utimesSync(join(drafts(at), temp(1)), new Date("2026-01-01"), new Date("2026-01-01"));
+  // Named as the engine names a write's temporary file.
+  const temp = (id: string, attempt: number): string =>
+    tempPath(join(drafts(at), `workflow-${id}.json`), randomUUID(), attempt);
+  const stale = [temp("locked", 0), temp("w", 1)];
+  const fresh = temp("w", 0);
+  for (const path of [...stale, fresh]) writeFileSync(path, "{");
+  for (const path of stale) utimesSync(path, new Date("2026-01-01"), new Date("2026-01-01"));
   sweepDrafts(at);
-  expect(readdirSync(drafts(at)).toSorted()).toEqual([temp(2), "workflow-w.json"]);
+  expect(readdirSync(drafts(at)).toSorted()).toEqual([basename(fresh), "workflow-w.json"]);
 });
 
 test("the list holds the drafts' files only, newest first, and a delete removes one", () => {

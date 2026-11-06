@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@cedarloom/accounts": "workspace:*",
+    "@cedarloom/agent-contracts": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
     "@cedarloom/ledger": "workspace:*"

@@ -8,6 +8,12 @@ export const ACCOUNTS_SCHEMA_VERSION = 1;
 
 /** The agents whose accounts the registry holds. */
 export const Agent = z.enum(["claude", "codex"]);
+
+/**
+ * An agent CLI version as its `--version` output and its session lines report it, such as `2.1.316`. The form is
+ * bounded, so a CLI cannot put a long or escaped string into the ledger or onto a screen that shows it.
+ */
+export const AgentVersion = z.string().regex(/^\d{1,9}\.\d{1,9}\.\d{1,9}[0-9A-Za-z.+-]{0,40}$/);
 export type Agent = z.infer<typeof Agent>;
 
 // BenchKeeper's rule for account and pool names, so its names import unchanged.
@@ -93,6 +99,7 @@ export const formatRegistry = (registry: AccountRegistry): string =>
 
 /** The usage windows of the agent-neutral quota model. */
 export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);
+export type QuotaWindow = z.infer<typeof QuotaWindow>;
 
 /** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
 export const Reading = z.strictObject({
@@ -119,3 +126,15 @@ export const AccountSwitch = z.strictObject({
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });
 export type AccountSwitch = z.infer<typeof AccountSwitch>;
+
+/**
+ * The contract check of one agent CLI version, as the ledger keeps it: the parts of the output the probe lacked, none
+ * when it passed. Undocumented readings such as usage are read only on versions whose check passed.
+ */
+export const ContractCheckRecord = z.strictObject({
+  agent: Agent,
+  version: AgentVersion,
+  missing: z.array(z.enum(["init", "usage", "result"])),
+  at: z.iso.datetime({ precision: 3 }),
+});
+export type ContractCheckRecord = z.infer<typeof ContractCheckRecord>;

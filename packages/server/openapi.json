@@ -1661,6 +1661,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "launch.agent-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.gh-login"
               },
               "params": {
@@ -3781,6 +3811,36 @@
                 },
                 "required": [
                   "pool"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.agent-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent",
+                  "error"
                 ],
                 "additionalProperties": false
               }

@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   AccountSwitch,
   canonicalJson,
+  ContractCheckRecord,
   type Finding,
   PLAN_SCHEMA_VERSION,
   Plan,
@@ -16,11 +17,11 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { ACCOUNT_TABLES, TABLES } from "./rows.ts";
+import { ACCOUNT_TABLES, CHECK_TABLES, TABLES } from "./rows.ts";
 
-const SCHEMA = 2;
+const SCHEMA = 3;
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES];
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES];
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -259,6 +260,25 @@ export class RunStore extends RunView {
         JSON.stringify(choice.readings),
         JSON.stringify(choice.candidates),
       );
+  }
+
+  /** Records the contract check of an agent CLI version, replacing an earlier check of that version. */
+  recordContractCheck(input: ContractCheckRecord): void {
+    const check = ContractCheckRecord.parse(input);
+    this.db
+      .prepare("INSERT OR REPLACE INTO contract_checks VALUES (?, ?, ?, ?)")
+      .run(check.agent, check.version, JSON.stringify(check.missing), check.at);
+  }
+
+  /** The contract checks of an agent's CLI versions, oldest first. */
+  contractChecks(agent: ContractCheckRecord["agent"]): ContractCheckRecord[] {
+    return this.db
+      .prepare(
+        `SELECT json_object('agent', agent, 'version', version, 'missing', json(missing), 'at', at) AS row
+         FROM contract_checks WHERE agent = ? ORDER BY at, version`,
+      )
+      .all(agent)
+      .map((row) => ContractCheckRecord.parse(JSON.parse(String(row["row"]))));
   }
 
   /** The account choices in the order they were made. */

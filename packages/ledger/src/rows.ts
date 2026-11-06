@@ -46,3 +46,14 @@ CREATE TABLE switches (
   candidates TEXT NOT NULL
 ) STRICT;
 `;
+
+/** Schema 3: one contract check per agent CLI version; a check of the same version again replaces it. */
+export const CHECK_TABLES = `
+CREATE TABLE contract_checks (
+  agent TEXT NOT NULL,
+  version TEXT NOT NULL,
+  missing TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (agent, version)
+) STRICT;
+`;

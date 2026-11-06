@@ -26,7 +26,9 @@ const managedFiles = (dir: string): string[] => {
   } catch {
     // No drop-in folder.
   }
-  return [join(dir, "managed-settings.json"), ...names.toSorted().map((name) => join(dropIns, name))];
+  // Code-unit order; the docs say alphabetical (unverified for names that differ in case or beyond ASCII).
+  const ordered = names.toSorted((a, b) => (a < b ? -1 : 1));
+  return [join(dir, "managed-settings.json"), ...ordered.map((name) => join(dropIns, name))];
 };
 
 // The sandbox block of one file; a file that is missing or no JSON object gives none (Claude Code refuses to start on

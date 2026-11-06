@@ -1,15 +1,20 @@
 import type { AgentEvent, UsageWindow } from "@cedarloom/agent-contracts";
 import { AgentVersion, type Json } from "@cedarloom/contracts";
 import { z } from "zod";
+import { SETTINGS_SENTINEL } from "./overlay.ts";
+
+// A core tool every session lists: a list without it, empty for one, proves nothing.
+const CORE_TOOL = "Read";
 
 // Only the fields CedarLoom reads; the CLI adds fields with most releases, and the whole line stays in `raw`.
 const Init = z.looseObject({
   type: z.literal("system"),
   subtype: z.literal("init"),
   session_id: z.string(),
-  // A version of another form makes the line no init line, so the contract check fails on it.
-  claude_code_version: AgentVersion,
+  // Read with AgentVersion in initEvent.
+  claude_code_version: z.unknown(),
   model: z.string(),
+  tools: z.array(z.string()).optional(),
 });
 
 // The usage share arrives as a fraction and the reset in Unix seconds; a share above 1 or a reset past the year 2286
@@ -86,6 +91,16 @@ export async function* lines(input: AsyncIterable<Buffer>, max: number): AsyncGe
   if (size > 0) yield Buffer.concat(parts).toString("utf8");
 }
 
+// The init event; a version of another form leaves the session ID to resume by, but no version.
+const initEvent = (data: z.infer<typeof Init>, raw: Json): Extract<AgentEvent, { type: "init" }> => {
+  const known = AgentVersion.safeParse(data.claude_code_version);
+  const agentVersion = known.success ? known.data : null;
+  const tools = data.tools ?? null;
+  // The settings deny the sentinel by its bare name, which removes it from the tools: its absence proves they applied.
+  const settingsApplied = tools !== null && tools.includes(CORE_TOOL) && !tools.includes(SETTINGS_SENTINEL);
+  return { type: "init", sessionId: data.session_id, agentVersion, model: data.model, tools, settingsApplied, raw };
+};
+
 /**
  * Turns stream-json lines into events, one call per line. A rate-limit line becomes a usage event only after the init
  * line named a version that `verified` accepts; otherwise, like every line it does not know, it stays `other`.
@@ -96,8 +111,9 @@ export const streamParser = (verified: (version: string) => boolean): ((line: st
     const raw = parseJson(line);
     const init = Init.safeParse(raw);
     if (init.success) {
-      version = init.data.claude_code_version;
-      return { type: "init", sessionId: init.data.session_id, agentVersion: version, model: init.data.model, raw };
+      const event = initEvent(init.data, raw);
+      version = event.agentVersion ?? undefined;
+      return event;
     }
     const limit = RateLimit.safeParse(raw);
     if (limit.success && version !== undefined && verified(version)) {

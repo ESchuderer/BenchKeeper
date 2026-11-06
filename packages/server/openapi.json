@@ -1779,6 +1779,68 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "launch.settings-unproven"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent",
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.account-full"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "account",
+                  "max"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.gh-login"
               },
               "params": {
@@ -2177,6 +2239,42 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJsonInput": {
+        "anyOf": [
+          {
+            "not": {
+              "type": "object"
+            },
+            "items": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "const": "__proto__"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            },
+            "not": {
+              "required": [
+                "constructor"
+              ],
+              "properties": {
+                "constructor": {
+                  "type": "object",
+                  "required": [
+                    "prototype"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
       "DraftInfoInput": {
         "type": "object",
         "properties": {
@@ -2217,7 +2315,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256Input"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJsonInput"
+          }
         },
         "required": [
           "id",
@@ -4032,6 +4132,68 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "launch.settings-unproven"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent",
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "launch.account-full"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "account",
+                  "max"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "launch.gh-login"
               },
               "params": {
@@ -4432,6 +4594,7 @@
         ],
         "additionalProperties": false
       },
+      "WorkflowJson": {},
       "DraftInfo": {
         "type": "object",
         "properties": {
@@ -4472,7 +4635,9 @@
           "hash": {
             "$ref": "#/components/schemas/Sha256"
           },
-          "workflow": {}
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJson"
+          }
         },
         "required": [
           "id",
@@ -5047,7 +5212,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "workflow": {},
+                  "workflow": {
+                    "$ref": "#/components/schemas/WorkflowJsonInput"
+                  },
                   "replaces": {
                     "anyOf": [
                       {

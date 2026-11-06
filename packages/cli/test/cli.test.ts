@@ -297,6 +297,7 @@ test("every finding code has an English sentence", () => {
     "workflow.exclusive-sources": { node: "notes", handle: "run", from: "gate" },
     "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
     "workflow.schedule-input": { input: "branch" },
+    "launch.account-full": { account: "work", max: 2 },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });

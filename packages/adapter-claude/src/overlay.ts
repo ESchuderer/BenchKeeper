@@ -3,11 +3,20 @@ import { z } from "zod";
 
 export interface OverlayInput {
   readonly cwd: string;
+  readonly resultFile: string;
   readonly allow: readonly string[];
   readonly denyRead: readonly string[];
   readonly allowedDomains: readonly string[];
   readonly env: Readonly<Record<string, string>>;
 }
+
+/**
+ * A core tool the settings deny by its bare name, which removes it from the session's tools
+ * (https://code.claude.com/docs/en/permissions): its absence from the init line's tool list proves the CLI applied the
+ * settings. Plan mode lists it too (2.1.316). The cost: workers cannot change notebooks with the file tools, since Edit
+ * refuses .ipynb files (2.1.316); shell commands still can (owner decision, kept).
+ */
+export const SETTINGS_SENTINEL = "NotebookEdit";
 
 // Toolchains below the home folder that shell commands read and blockReadsOutsideWorkingDirectories closes for them
 // (pending owner decision): nvm, pnpm's store on Linux and on macOS, cargo, user-installed binaries, npm's global prefix.
@@ -45,15 +54,15 @@ const Checked = z.looseObject({
 /**
  * The per-launch settings passed with --settings, the worker profile of the settings defaults; --settings can set any
  * key the user settings file can (https://code.claude.com/docs/en/cli-reference). Throws when a value is not one the
- * documented syntax takes.
- * shortcut: a key a later CLI version stops taking still drops the settings silently, until the launcher's contract
- * check proves they applied (the next launcher slice).
+ * documented syntax takes. A key a later CLI version stops taking drops the settings silently; the session's init line
+ * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
-export const overlay = ({ cwd, allow, denyRead, allowedDomains, env }: OverlayInput) => {
+export const overlay = ({ cwd, resultFile, allow, denyRead, allowedDomains, env }: OverlayInput) => {
   const workflows = join(cwd, ".github", "workflows");
   const settings = {
     permissions: {
-      allow,
+      // Edit rules cover every tool that writes a file (https://code.claude.com/docs/en/permissions).
+      allow: [...allow, `Edit(${rulePath(resultFile)})`],
       ask: ["Bash(git push *)"],
       // The path itself and everything below it: a credential file inside the working folder is matched too.
       deny: [
@@ -61,6 +70,7 @@ export const overlay = ({ cwd, allow, denyRead, allowedDomains, env }: OverlayIn
           .map(rulePath)
           .flatMap((path) => ["Read", "Edit"].flatMap((tool) => [`${tool}(${path})`, `${tool}(${path}/**)`])),
         "Read(**/.env*)",
+        SETTINGS_SENTINEL,
         `Edit(${rulePath(workflows)}/**)`,
       ],
       disableBypassPermissionsMode: "disable",

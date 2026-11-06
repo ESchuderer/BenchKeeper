@@ -28,6 +28,8 @@ export interface Launch {
   readonly env: Readonly<Record<string, string>>;
   /** The worker's own temporary folder, apart from every other worker's. */
   readonly tmpDir: string;
+  /** The file the worker ends with its result in, outside the working folder: the one file it may write there. */
+  readonly resultFile: string;
   /** Absolute paths the agent's shell commands and file tools must not read: account homes and credential folders. */
   readonly denyRead: readonly string[];
   /** Hosts the agent's shell commands may reach; every other host is refused. */
@@ -59,8 +61,13 @@ export type AgentEvent =
   | {
       readonly type: "init";
       readonly sessionId: string;
-      readonly agentVersion: string;
+      /** The CLI version the session runs; null when the agent reports none of the known form. */
+      readonly agentVersion: string | null;
       readonly model: string;
+      /** The tools the session offers; null when the agent does not list them. */
+      readonly tools: readonly string[] | null;
+      /** Whether this session's own init line proves that the CLI applied the launch's settings, sandbox included. */
+      readonly settingsApplied: boolean;
       readonly raw: Json;
     }
   | {
@@ -91,7 +98,10 @@ export interface AgentSession {
 /** The result of a contract check: the CLI version that ran and the expected parts its output lacked. */
 export interface ContractCheck {
   readonly version: string | null;
-  /** Empty when the check passed. */
+  /**
+   * The expected parts the probe's output lacked; empty when the check passed. `settings`: no proof that the CLI
+   * applied the launch's settings, without which no worker starts.
+   */
   readonly missing: readonly ContractCheckRecord["missing"][number][];
 }
 

@@ -468,7 +468,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        workflow: unknown;
+                        workflow: components["schemas"]["WorkflowJsonInput"];
                         replaces: components["schemas"]["Sha256Input"] | null;
                     };
                 };
@@ -980,6 +980,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
+            };
+        } | {
+            /** @constant */
             code: "launch.gh-login";
             params: {
                 error: string | null;
@@ -1052,6 +1066,9 @@ export interface components {
         RunsEventInput: {
             runs: components["schemas"]["RunInput"][];
         };
+        WorkflowJsonInput: unknown | {
+            [key: string]: components["schemas"]["WorkflowJsonInput"];
+        };
         DraftInfoInput: {
             id: string;
             /** Format: date-time */
@@ -1063,7 +1080,7 @@ export interface components {
             /** Format: date-time */
             savedAt: string;
             hash: components["schemas"]["Sha256Input"];
-            workflow: unknown;
+            workflow: components["schemas"]["WorkflowJsonInput"];
         };
         DraftSavedInput: {
             id: string;
@@ -1464,6 +1481,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.settings-unproven";
+            params: {
+                agent: string;
+                version: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.account-full";
+            params: {
+                account: string;
+                max: number;
+            };
+        } | {
+            /** @constant */
             code: "launch.gh-login";
             params: {
                 error: string | null;
@@ -1536,6 +1567,7 @@ export interface components {
         RunsEvent: {
             runs: components["schemas"]["Run"][];
         };
+        WorkflowJson: unknown;
         DraftInfo: {
             id: string;
             /** Format: date-time */
@@ -1547,7 +1579,7 @@ export interface components {
             /** Format: date-time */
             savedAt: string;
             hash: components["schemas"]["Sha256"];
-            workflow: unknown;
+            workflow: components["schemas"]["WorkflowJson"];
         };
         DraftSaved: {
             id: string;

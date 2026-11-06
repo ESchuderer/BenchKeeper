@@ -398,7 +398,7 @@ test("a busy or newer store is a 409 with its finding; a broken one a 500 whose 
     { error: "internal" },
     expect.stringContaining("stored plan unreadable"),
   ]);
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   for (const path of ["/api/runs", `/api/runs/${runId}`, `/api/runs/${runId}/undo`]) {
     expect(await client.api({ path })).toMatchObject({
@@ -461,7 +461,7 @@ test("the event stream sends the runs at once and again whenever they change, be
   const head = await client.api({ method: "HEAD", path: "/api/events" });
   expect([head.status, head.headers["allow"]]).toEqual([405, "GET"]);
   const db = new DatabaseSync(join(client.state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 99");
   db.close();
   // Unchanged reads send nothing: one refusal in 150 ms of reads every 25 ms.
   const refused: unknown[] = [];
@@ -580,6 +580,19 @@ test("a draft that is missing, broken, no workflow or too large is refused with 
   });
   // The refused saves left the draft as it was.
   expect(await api({ path: DRAFT })).toMatchObject({ status: 200, body: { workflow } });
+});
+
+// The document's WorkflowJsonInput leaves out these keys, so Schemathesis sends them only as invalid requests.
+test("a save whose JSON the parser refuses, a __proto__ key or constructor.prototype at any depth, gets 400 with the parser's code", async () => {
+  const { api } = await drafting();
+  const refused: [string, string][] = [
+    ['{"workflow":{"a":[{"__proto__":1}]},"replaces":null}', "FST_ERR_CTP_INVALID_JSON_BODY"],
+    ['{"workflow":{"a":{"constructor":{"prototype":null}}},"replaces":null}', "FST_ERR_CTP_INVALID_JSON_BODY"],
+    ["", "FST_ERR_CTP_EMPTY_JSON_BODY"],
+  ];
+  for (const [body, error] of refused) {
+    expect(await api({ method: "PUT", path: DRAFT, body })).toMatchObject({ status: 400, body: { error } });
+  }
 });
 
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {

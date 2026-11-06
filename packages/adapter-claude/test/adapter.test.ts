@@ -16,6 +16,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   prompt: "Do the task.",
   env,
   tmpDir: join(fixtures, "tmp"),
+  resultFile: join(fixtures, "out", "result.json"),
   denyRead: ["/accounts/other"],
   allowedDomains: ["github.com"],
   allow: ["Bash(pnpm test *)"],
@@ -66,6 +67,8 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    "--add-dir",
+    join(fixtures, "out"),
   ]);
   expect(fake.args).not.toContain("--bare");
   expect(fake.prompt).toBe("Do the task.");
@@ -105,7 +108,7 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   const settings: unknown = JSON.parse(started(await events(runtime.start(launch({})))).args[12] ?? "");
   expect(settings).toMatchObject({
     permissions: {
-      allow: ["Bash(pnpm test *)"],
+      allow: ["Bash(pnpm test *)", expect.stringMatching(/^Edit\(\/\/.*out\/result\.json\)$/)],
       // The path itself and below it; the working folder's own path depends on the platform.
       deny: [
         "Read(//accounts/other)",
@@ -113,6 +116,7 @@ test("the settings passed with --settings hold the worker profile: denials, the 
         "Edit(//accounts/other)",
         "Edit(//accounts/other/**)",
         "Read(**/.env*)",
+        "NotebookEdit",
         expect.stringMatching(/^Edit\(\/\/.*workflows\/\*\*\)$/),
       ],
       disableBypassPermissionsMode: "disable",
@@ -199,6 +203,7 @@ test("refuses a launch the types alone cannot keep out, such as one built from J
     [{ home: join(fixtures, "no-such-home") }, "no-such-home"],
     [{ home: join(fixtures, "stream.jsonl") }, "stream.jsonl"],
     [{ cwd: "work" }, 'not an absolute working folder: "work"'],
+    [{ resultFile: "result.json" }, 'not an absolute result file: "result.json"'],
   ] as const;
   for (const [change, message] of refusals) expect(() => runtime.start(fromJson(change))).toThrow(message);
 });
@@ -208,7 +213,7 @@ test("a Windows path becomes an absolute rule in POSIX form, and a server's MCP 
   const settings: unknown = JSON.parse(started(await events(runtime.start(launch({}, windows)))).args[12] ?? "");
   expect(settings).toMatchObject({
     permissions: {
-      allow: ["mcp__github__*", "mcp__github"],
+      allow: ["mcp__github__*", "mcp__github", expect.stringMatching(/^Edit\(\/\/.*result\.json\)$/)],
       deny: expect.arrayContaining(["Read(//c/Users/dev/.ssh)"]),
     },
   });
@@ -243,24 +248,59 @@ test("reads the version of the CLI that a launch's environment runs", async () =
   }
 });
 
-test("an init line whose version has another form counts as no init line", async () => {
+test("an init line proves the settings applied only with its core tools listed and the sentinel left out", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-stream-"));
+  const lines = readFileSync(join(fixtures, "stream.jsonl"), "utf8");
+  const checks = [];
+  for (const [name, tools] of [
+    ["empty", "[]"],
+    ["no-read", '["Bash","Edit"]'],
+  ] as const) {
+    writeFileSync(join(dir, `${name}.jsonl`), lines.replace('"tools":["Bash","Read","Edit"]', `"tools":${tools}`));
+    const { prompt: _, verifiedVersions: __, ...probe } = launch({ FAKE_STREAM: join(dir, `${name}.jsonl`) });
+    checks.push(await runtime.checkContract(probe));
+  }
+  expect(checks).toEqual([
+    { version: "2.1.316", missing: ["settings"] },
+    { version: "2.1.316", missing: ["settings"] },
+  ]);
+  // Each session's own init event carries the proof, so a launch can check it.
+  const all = await events(runtime.start(launch({ FAKE_STREAM: join(dir, "empty.jsonl") })));
+  expect(all[1]).toMatchObject({ type: "init", settingsApplied: false });
+  const applied = await events(runtime.start(launch(stream("stream.jsonl"))));
+  expect(applied[1]).toMatchObject({ type: "init", settingsApplied: true });
+});
+
+test("an init line whose version has another form keeps its session ID, but proves no version", async () => {
   const dir = mkdtempSync(join(tmpdir(), "cedarloom-stream-"));
   const line = readFileSync(join(fixtures, "no-reset.jsonl"), "utf8").replace('"2.1.316"', '"2.1.316\\u001b[31m"');
   writeFileSync(join(dir, "escaped.jsonl"), line);
-  const { prompt: _, verifiedVersions: __, ...probe } = launch({ FAKE_STREAM: join(dir, "escaped.jsonl") });
-  await expect(runtime.checkContract(probe)).resolves.toEqual({ version: null, missing: ["init", "usage"] });
+  const escaped = { FAKE_STREAM: join(dir, "escaped.jsonl") };
+  const all = await events(runtime.start(launch(escaped, { verifiedVersions: ["2.1.316"] })));
+  expect(all[1]).toMatchObject({ type: "init", sessionId: "00000000-0000-4000-8000-000000000003", agentVersion: null });
+  // No usage is read without a known version.
+  expect(all.map((event) => event.type)).not.toContain("usage");
+  const { prompt: _, verifiedVersions: __, ...probe } = launch(escaped);
+  await expect(runtime.checkContract(probe)).resolves.toEqual({
+    version: null,
+    missing: ["init", "usage"],
+  });
 });
 
-test("a contract check passes only with the version, a usage share with its reset and a successful result", async () => {
+test("a contract check passes only with the version, the settings applied, a usage share with its reset and a result", async () => {
   const { prompt: _, verifiedVersions: __, ...probe } = launch(stream("stream.jsonl"), { verifiedVersions: [] });
   await expect(runtime.checkContract(probe)).resolves.toEqual({ version: "2.1.316", missing: [] });
   const older = { ...probe, env: stream("older.jsonl") };
-  await expect(runtime.checkContract(older)).resolves.toEqual({ version: "2.1.309", missing: ["result"] });
+  // The older form lists no tools, so nothing proves the settings applied.
+  await expect(runtime.checkContract(older)).resolves.toEqual({ version: "2.1.309", missing: ["settings", "result"] });
+  // The sentinel still among the tools: the CLI dropped the settings.
+  const unapplied = { ...probe, env: stream("unapplied.jsonl") };
+  await expect(runtime.checkContract(unapplied)).resolves.toEqual({ version: "2.1.316", missing: ["settings"] });
   const noReset = { ...probe, env: stream("no-reset.jsonl") };
   await expect(runtime.checkContract(noReset)).resolves.toEqual({ version: "2.1.316", missing: ["usage"] });
   await expect(runtime.checkContract({ ...probe, env: {} })).resolves.toEqual({
     version: null,
-    missing: ["init", "usage", "result"],
+    missing: ["init", "settings", "usage", "result"],
   });
   await expect(runtime.checkContract({ ...probe, model: "sonnet" })).rejects.toThrow("sonnet");
 });

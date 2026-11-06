@@ -53,7 +53,7 @@ const isTimeZone = (name: string): boolean => {
 
 /**
  * A command line for POSIX `sh` on every platform: Git for Windows' `sh.exe` on native Windows, where the node is
- * refused when there is none (pending owner decision). `cmd.exe` would expand `%NAME%` before parsing the line.
+ * refused when there is none. `cmd.exe` would expand `%NAME%` before parsing the line.
  */
 const Command = z.string().min(1).max(10_000);
 

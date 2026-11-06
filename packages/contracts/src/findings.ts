@@ -43,9 +43,9 @@ export const Finding = z
     finding("run.finished", { runId: z.string(), status: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
-    // A node type this CedarLoom does not run yet; nothing of the run starts.
+    // A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts.
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
-    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe; pending owner decision).
+    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),

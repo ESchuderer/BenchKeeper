@@ -1,5 +1,5 @@
 import { type ChildProcess, type ChildProcessByStdio, execFile, spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readSync, realpathSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, resolve as absolute, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
@@ -273,21 +273,26 @@ export const runWorkflow = async (
   });
 };
 
-// A folder's real path; a folder that is not there is refused, since each command there would fail.
+// A folder's real path; a path that is no folder is refused, since each command there would fail.
 const realFolder = (path: string): Result<string> => {
   try {
-    return { ok: true, value: realpathSync.native(path) };
+    const real = realpathSync.native(path);
+    if (statSync(real).isDirectory()) return { ok: true, value: real };
   } catch {
-    return { ok: false, finding: { code: "run.project-missing", params: { project: absolute(path) } } };
+    // Not there.
   }
+  return { ok: false, finding: { code: "run.project-missing", params: { project: absolute(path) } } };
 };
 
 // The folder a stored run's commands run in: the one it recorded, which must still be there, and which a given folder
-// must be. A run recorded before the folder was takes the given one, else the current folder.
+// must be (one that is not there by its path as given). A run recorded before the folder was takes the given one, else
+// the current folder.
 const projectOf = (run: GraphRun, given: string | undefined): Result<string> => {
-  const real = realFolder(given ?? run.project ?? process.cwd());
-  if (!real.ok || run.project === null || real.value === run.project) return real;
-  const params = { runId: run.id, project: run.project, given: real.value };
+  const path = given ?? run.project ?? process.cwd();
+  const real = realFolder(path);
+  const named = real.ok ? real.value : absolute(path);
+  if (run.project === null || named === run.project) return real;
+  const params = { runId: run.id, project: run.project, given: named };
   return { ok: false, finding: { code: "run.project-mismatch", params } };
 };
 
@@ -374,6 +379,14 @@ const refusalOf = (run: GraphRun, verb: "resume" | "cancel", folder: Result<stri
 };
 const ACTIVE = new Set(["running", "waiting", "interrupted"]);
 
+const signaled = (pid: number): boolean => {
+  try {
+    return process.kill(pid, "SIGTERM");
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Cancels a graph run. A run another process runs gets SIGTERM, which its runner turns into a cancel (on Windows the
  * signal ends the runner, and the next cancel ends the run); a run no process holds is taken over and ends cancelled.
@@ -389,10 +402,11 @@ export const cancelRun = (
     // A cancel starts nothing, so a folder that is gone does not stop it; another folder named does.
     const project = projectOf(run, options.project);
     if (!project.ok && project.finding.code === "run.project-mismatch") return project;
-    const lease = store.takeOver(runId);
+    let lease = store.takeOver(runId);
     if (!lease.ok && lease.finding.code === "run.lease-held") {
-      process.kill(lease.finding.params.pid, "SIGTERM");
-      return { ok: true, value: { runId, status: "cancelling" } };
+      if (signaled(lease.finding.params.pid)) return { ok: true, value: { runId, status: "cancelling" } };
+      // The runner has ended since its lease was seen: the run is taken over after all.
+      lease = store.takeOver(runId);
     }
     if (!lease.ok) return lease;
     // A cancelled run starts nothing, so it needs no shell.

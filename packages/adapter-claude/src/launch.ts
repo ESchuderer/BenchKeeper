@@ -100,7 +100,9 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "--permission-prompts",
     "none",
     "--settings",
-    JSON.stringify(overlay({ ...launch, env: { ...WORKER_VARIABLES, ...pinned(launch) } })),
+    JSON.stringify(
+      overlay({ ...launch, env: { ...WORKER_VARIABLES, ...pinned(launch), ...telemetrySettings(launch.telemetry) } }),
+    ),
     // No settings file at all: never the user's (A95), and a project's only once trust records exist (pending owner
     // decision; the live test of A95 is open).
     "--setting-sources",
@@ -129,10 +131,10 @@ const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_T
 // Telemetry is the adapter's alone: no exporter, endpoint or content flag of the launch's environment reaches the CLI.
 const TELEMETRY = /^(?:OTEL_|CLAUDE_CODE_ENABLE_TELEMETRY$)/i;
 
-// OpenTelemetry logs only, to the launcher's loopback receiver with the run's token, metrics off, and no content flag
-// (https://code.claude.com/docs/en/monitoring-usage); the receiver keeps the api_request events. Process environment
-// only: Claude Code reads these at startup.
-const telemetryEnv = (telemetry: ClaudeLaunch["telemetry"]): Record<string, string> =>
+// OpenTelemetry logs only, to the launcher's loopback receiver, metrics off, and no content flag
+// (https://code.claude.com/docs/en/monitoring-usage); the receiver keeps the api_request events. The settings repeat
+// these, never the token.
+const telemetrySettings = (telemetry: ClaudeLaunch["telemetry"]): Record<string, string> =>
   telemetry === null
     ? {}
     : {
@@ -141,9 +143,23 @@ const telemetryEnv = (telemetry: ClaudeLaunch["telemetry"]): Record<string, stri
         OTEL_METRICS_EXPORTER: "none",
         OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
         OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: telemetry.endpoint,
-        OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Bearer ${telemetry.token}`,
         OTEL_METRICS_INCLUDE_VERSION: "true",
       };
+
+// The run's token, for the logs signal only, in the process environment only: the settings travel on the command line,
+// which every local user can read. The loopback stays off the worker's proxy, whose bypass of the loopback Claude Code
+// documents for WebSockets only (https://code.claude.com/docs/en/network-config); both spellings get one list, as
+// Windows keeps one of them.
+const telemetryEnv = ({ telemetry, env }: ClaudeLaunch): Record<string, string> => {
+  if (telemetry === null) return {};
+  const bypass = [env["NO_PROXY"], env["no_proxy"], "127.0.0.1,localhost"].filter(Boolean).join(",");
+  return {
+    ...telemetrySettings(telemetry),
+    OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${telemetry.token}`,
+    NO_PROXY: bypass,
+    no_proxy: bypass,
+  };
+};
 const OWN_NAMES = new Set([
   "CLAUDE_CODE_SIMPLE",
   "CLAUDE_CONFIG_DIR",
@@ -167,7 +183,7 @@ export const launchEnv = (launch: ClaudeLaunch): Record<string, string> => ({
       ([name]) => !OWN_NAMES.has(name.toUpperCase()) && !LOGIN.test(name) && !TELEMETRY.test(name),
     ),
   ),
-  ...telemetryEnv(launch.telemetry),
+  ...telemetryEnv(launch),
   ...WORKER_VARIABLES,
   ...pinned(launch),
   // Read from the process environment only, so it is not repeated in the settings.

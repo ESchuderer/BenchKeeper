@@ -21,6 +21,7 @@ import {
   MAX_CONCURRENT,
   ownHome,
   startTelemetry,
+  type TelemetryRun,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -259,16 +260,23 @@ const workerFolders = (state: string) =>
 test("a worker's API requests reach its run's token rows through the receiver, and its token ends with the run", async () => {
   const { state, config, work } = setup();
   const receiver = await startTelemetry(state);
-  const release = vi.spyOn(receiver, "release");
+  // The receiver as the launcher gets it, keeping the token it hands out.
+  const tokens: string[] = [];
+  const register = (run: TelemetryRun) => {
+    const token = receiver.register(run);
+    tokens.push(token);
+    return token;
+  };
   try {
-    const otlp = join(import.meta.dirname, "fixtures", "otlp-logs.jsonl");
+    const otlp = readFileSync(join(import.meta.dirname, "fixtures", "otlp-logs.jsonl"), "utf8");
     const sent = request(work, { result: passing, runEnv: { FAKE_OTLP: otlp } });
-    const outcome = await launchWorker(state, config, sent, { ...host, telemetry: receiver });
+    const outcome = await launchWorker(state, config, sent, { ...host, telemetry: { ...receiver, register } });
     expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", verdict: "pass" } });
     const runId = outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null;
-    // The rows carry the run and account the token names; the probe before the run exported nothing.
+    // The row carries the run and account the token names.
     expect(withLedger(state, (store) => store.tokenRows())).toMatchObject([{ runId, account: "work", inputTokens: 2 }]);
-    expect(release).toHaveBeenCalledTimes(1);
+    const headers = { "content-type": "application/json", authorization: `Bearer ${tokens.join("")}` };
+    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: "{}" })).status).toBe(401);
   } finally {
     await receiver.close();
   }

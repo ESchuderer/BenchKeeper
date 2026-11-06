@@ -607,10 +607,12 @@ const tokenRow = {
   at: "2026-11-06T21:24:15.848Z",
 } as const;
 
-test("a run's token rows are kept as the receiver passes them, read per run, and refused when they are no token row", () => {
+test("a run's token rows are kept once as the receiver passes them, read per run, and refused when they are no token row", () => {
   const store = opened(fresh());
-  const other = { ...tokenRow, runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62", sessionId: null, effort: null };
+  const other = { ...tokenRow, runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62", requestId: "req_2", effort: null };
   store.recordTokenRows([tokenRow, other]);
+  // A request kept already, sent again, is skipped: OTLP delivers at least once.
+  store.recordTokenRows([{ ...tokenRow, inputTokens: 9 }]);
   expect(store.tokenRows()).toEqual([tokenRow, other]);
   expect(store.tokenRows(tokenRow.runId)).toEqual([tokenRow]);
   expect(() => store.recordTokenRows([{ ...tokenRow, inputTokens: -1 }])).toThrow(/too_small|>=0/);

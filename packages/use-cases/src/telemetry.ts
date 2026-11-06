@@ -1,14 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AgentVersion, TokenRow } from "@cedarloom/contracts";
+import { sha256 } from "@cedarloom/ledger";
 import { z } from "zod";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 /** The run and account a receiver token stands for. */
-export interface TelemetryRun {
-  readonly runId: string;
-  readonly account: string;
-}
+export type TelemetryRun = Pick<TokenRow, "runId" | "account">;
 
 /**
  * The launcher's loopback receiver of its workers' OpenTelemetry logs (OTLP over http/json). Each run posts with a token
@@ -30,24 +28,27 @@ const Value = z.looseObject({
   intValue: z.union([z.number(), z.string()]).optional(),
   doubleValue: z.number().optional(),
 });
-const Attributes = z.array(z.looseObject({ key: z.string(), value: Value.optional() })).optional();
-const Logs = z.looseObject({
-  resourceLogs: z.array(
-    z.looseObject({
-      scopeLogs: z.array(z.looseObject({ logRecords: z.array(z.looseObject({ attributes: Attributes })).optional() })),
-    }),
-  ),
-});
+const Attribute = z.looseObject({ key: z.string(), value: Value });
+const LogRecord = z.looseObject({ attributes: z.array(z.unknown()) });
+const Scope = z.looseObject({ logRecords: z.array(z.unknown()) });
+const Resource = z.looseObject({ scopeLogs: z.array(z.unknown()) });
+const Logs = z.looseObject({ resourceLogs: z.array(z.unknown()) });
 
-// Attributes that carry what a user or tool sent, which no content flag of ours turns on: such a record is dropped.
-const CONTENT = new Set(["prompt", "response", "tool_parameters", "tool_input", "body", "body_ref"]);
+// The entries of `list` that `schema` takes. Each level of a batch is read on its own, so an odd entry (a value of
+// another shape, a resource without scopes) gives no row but never costs its siblings theirs: the exporter does not
+// send a batch again that was answered 200.
+const each = <T>(list: readonly unknown[], schema: z.ZodType<T>): T[] =>
+  list.flatMap((item) => {
+    const parsed = schema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
 
 type Values = ReadonlyMap<string, string | number>;
 
-const valuesOf = (attributes: z.infer<typeof Attributes>): Values =>
+const valuesOf = (attributes: readonly z.infer<typeof Attribute>[]): Values =>
   new Map(
-    (attributes ?? []).flatMap(({ key, value }) => {
-      const raw = value?.stringValue ?? value?.intValue ?? value?.doubleValue;
+    attributes.flatMap(({ key, value }) => {
+      const raw = value.stringValue ?? value.intValue ?? value.doubleValue;
       return raw === undefined ? [] : [[key, raw] as const];
     }),
   );
@@ -64,8 +65,7 @@ const count = (values: Values, key: string): number | null => {
 
 // One api_request record as a token row, or null when it is none; only the fields of the allowlist are read.
 const rowOf = (values: Values, run: TelemetryRun): TokenRow | null => {
-  if (stringOf(values, "event.name") !== "api_request" || [...values.keys()].some((key) => CONTENT.has(key)))
-    return null;
+  if (stringOf(values, "event.name") !== "api_request") return null;
   const at = Date.parse(stringOf(values, "event.timestamp") ?? "");
   const version = AgentVersion.safeParse(stringOf(values, "app.version"));
   const row = TokenRow.safeParse({
@@ -90,17 +90,15 @@ const rowOf = (values: Values, run: TelemetryRun): TokenRow | null => {
 };
 
 /**
- * The token rows of an OTLP logs body for `run`: one per Claude Code `api_request` event (A84). Identity attributes
- * such as the user's e-mail or account id are never read, and a record that carries content is dropped whole.
+ * The token rows of an OTLP logs body for `run`: one per Claude Code `api_request` event (A84). Only the fields of the
+ * allowlist are read: identity attributes such as the user's e-mail or account id never are.
  */
-export const tokenRowsOf = (body: unknown, run: TelemetryRun): TokenRow[] => {
-  const logs = Logs.safeParse(body);
-  if (!logs.success) return [];
-  const records = logs.data.resourceLogs.flatMap((resource) =>
-    resource.scopeLogs.flatMap((scope) => scope.logRecords ?? []),
-  );
-  return records.flatMap((record) => rowOf(valuesOf(record.attributes), run) ?? []);
-};
+export const tokenRowsOf = (body: unknown, run: TelemetryRun): TokenRow[] =>
+  each([body], Logs)
+    .flatMap((logs) => each(logs.resourceLogs, Resource))
+    .flatMap((resource) => each(resource.scopeLogs, Scope))
+    .flatMap((scope) => each(scope.logRecords, LogRecord))
+    .flatMap((record) => rowOf(valuesOf(each(record.attributes, Attribute)), run) ?? []);
 
 const answer = (res: ServerResponse, status: number): void => {
   res.writeHead(status, { "content-type": "application/json" }).end("{}");
@@ -117,7 +115,6 @@ const bodyOf = (req: IncomingMessage, limit: number): Promise<string | null> =>
     });
     req.on("end", () => resolve(size <= limit ? Buffer.concat(parts).toString("utf8") : null));
     req.on("error", reject);
-    req.on("aborted", () => reject(new Error("the sender aborted the request")));
   });
 
 const json = (text: string): unknown => {
@@ -128,10 +125,11 @@ const json = (text: string): unknown => {
   }
 };
 
-// The run a request is from, by its bearer token; null for none or an unknown one.
+// The run a request is from, by its bearer token; null for none or an unknown one. The runs are keyed by their token's
+// hash, so a lookup never compares secret bytes.
 const runOf = (req: IncomingMessage, runs: ReadonlyMap<string, TelemetryRun>): TelemetryRun | null => {
   const header = req.headers.authorization ?? "";
-  return header.startsWith("Bearer ") ? (runs.get(header.slice("Bearer ".length)) ?? null) : null;
+  return header.startsWith("Bearer ") ? (runs.get(sha256(header.slice("Bearer ".length))) ?? null) : null;
 };
 
 /**
@@ -170,11 +168,11 @@ export const startTelemetry = async (state: string, limit = 1024 * 1024): Promis
     endpoint: `http://127.0.0.1:${port}/v1/logs`,
     register: (run) => {
       const token = randomBytes(24).toString("hex");
-      runs.set(token, run);
+      runs.set(sha256(token), run);
       return token;
     },
     release: (token) => {
-      runs.delete(token);
+      runs.delete(sha256(token));
     },
     close: () =>
       new Promise<void>((resolve) => {

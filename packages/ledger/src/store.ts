@@ -375,11 +375,14 @@ export class RunStore extends RunView {
       .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
   }
 
-  /** Keeps the token rows of one telemetry post, in one transaction; a row that is no TokenRow throws, and none is kept. */
+  /**
+   * Keeps the token rows of one telemetry post, in one transaction; a row that is no TokenRow throws, and none is kept.
+   * OTLP delivers at least once, so a row whose account and request id are kept already is skipped.
+   */
   recordTokenRows(input: readonly TokenRow[]): void {
     const rows = input.map((row) => TokenRow.parse(row));
     const insert = this.db.prepare(
-      `INSERT INTO token_rows VALUES (:runId, :account, :sessionId, :model, :querySource, :effort, :inputTokens,
+      `INSERT OR IGNORE INTO token_rows VALUES (:runId, :account, :sessionId, :model, :querySource, :effort, :inputTokens,
        :outputTokens, :cacheReadTokens, :cacheCreationTokens, :cacheCreation5mTokens, :cacheCreation1hTokens,
        :costUsdMicros, :durationMs, :requestId, :agentVersion, :at)`,
     );

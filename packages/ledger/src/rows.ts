@@ -188,4 +188,5 @@ CREATE TABLE token_rows (
   at TEXT NOT NULL
 ) STRICT;
 CREATE INDEX token_rows_run ON token_rows (runId);
+CREATE UNIQUE INDEX token_rows_request ON token_rows (account, requestId);
 `;

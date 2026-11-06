@@ -1,5 +1,4 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -39,20 +38,24 @@ const ROW = {
   at: "2026-11-06T21:24:15.848Z",
 };
 
-test("an api_request event becomes a token row of the run; other events, content and identity stay out", () => {
+test("an api_request event becomes a token row of the run; other events and identity stay out", () => {
   expect(tokenRowsOf(body(), run)).toEqual([ROW]);
   const variant = body();
   const records = variant.resourceLogs[0]?.scopeLogs[0]?.logRecords ?? [];
   const api = records[1];
   if (api === undefined) throw new Error("no api_request in the fixture");
-  // OTLP JSON may send an int64 as a string; a record that carries content is dropped whole.
+  // OTLP JSON may send an int64 as a string.
   const asString = structuredClone(api);
   asString.attributes = asString.attributes.map((a) =>
     a.key === "input_tokens" ? { ...a, value: { intValue: "7" } } : a,
   );
-  const withContent = structuredClone(api);
-  withContent.attributes.push({ key: "tool_input", value: { stringValue: "{}" } });
-  records.push(asString, withContent);
+  // An odd entry costs only itself: a sibling record with a value of another shape (JSON.stringify makes NaN null), an
+  // attribute of another shape in the api_request itself, a resource without scopes.
+  const odd = { attributes: [{ key: "duration_ms", value: { doubleValue: null } }] };
+  asString.attributes.push({ key: "speed", value: { doubleValue: null } });
+  records.push(odd, asString);
+  const resources: unknown[] = variant.resourceLogs;
+  resources.push({ resource: {} });
   expect(tokenRowsOf(variant, run).map((row) => row.inputTokens)).toEqual([2, 7]);
   expect(tokenRowsOf({ resourceLogs: "none" }, run)).toEqual([]);
   expect(tokenRowsOf({ resourceLogs: [{ scopeLogs: [{}, { logRecords: [{}] }] }] }, run)).toEqual([]);
@@ -126,6 +129,9 @@ test("the receiver takes a run's posts with its token only, on /v1/logs, as JSON
     expect(stored(state)).toEqual([]);
     expect(await post()).toBe(200);
     expect(stored(state)).toEqual([ROW]);
+    // OTLP delivers at least once: a batch sent again after it was kept counts once.
+    expect(await post()).toBe(200);
+    expect(stored(state)).toEqual([ROW]);
     receiver.release(token);
     expect(await post()).toBe(401);
   } finally {
@@ -133,25 +139,12 @@ test("the receiver takes a run's posts with its token only, on /v1/logs, as JSON
   }
 });
 
-// The status of the fixture's post to a fresh receiver on `state`, then a post whose sender goes away mid-body.
+// The status of the fixture's post to a fresh receiver on `state`.
 const postOnce = async (state: string): Promise<number> => {
   const receiver = await startTelemetry(state);
   try {
     const headers = { "content-type": "application/json", authorization: `Bearer ${receiver.register(run)}` };
-    const status = (await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status;
-    await new Promise<void>((resolve) => {
-      const { port } = new URL(receiver.endpoint);
-      const sent = request({
-        port,
-        method: "POST",
-        path: "/v1/logs",
-        headers: { ...headers, "content-length": "100" },
-      });
-      sent.on("error", () => resolve());
-      sent.write("{");
-      setTimeout(() => sent.destroy(), 50);
-    });
-    return status;
+    return (await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status;
   } finally {
     await receiver.close();
   }

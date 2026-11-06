@@ -91,6 +91,9 @@ export const Finding = z
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
     finding("accounts.unknown-account", { account: z.string() }),
+    finding("accounts.name-taken", { account: z.string() }),
+    // An account or pool name the registry's rule refuses.
+    finding("accounts.name-invalid", { name: z.string() }),
     // Own homes and their login are Claude Code's only, until a Codex adapter starts workers.
     finding("accounts.login-unsupported", { account: z.string(), agent: z.string() }),
     // The own home of the account is a folder another account names: it is not taken over.
@@ -248,6 +251,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
   "accounts.unknown-account": { severity: "error", effort: "manual" },
+  "accounts.name-taken": { severity: "error", effort: "manual" },
+  "accounts.name-invalid": { severity: "error", effort: "manual" },
   "accounts.login-unsupported": { severity: "error", effort: "manual" },
   "accounts.folder-taken": { severity: "error", effort: "manual" },
   "accounts.home-not-own": { severity: "error", effort: "manual" },

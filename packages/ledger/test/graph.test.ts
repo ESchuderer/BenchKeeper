@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -60,6 +60,7 @@ const rows = (dir: string, sql: string): Record<string, unknown>[] => {
   return found.map((row) => ({ ...row }));
 };
 const attempts = (dir: string) => rows(dir, "SELECT nodeId, attempt, state, outputs, pid, applyRun FROM node_attempts");
+const locks = (dir: string) => readdirSync(join(dir, "leases")).filter((name) => name.endsWith(".lock"));
 const leaseHeld = (runId: string, pid: number | undefined) => ({
   ok: false,
   finding: { code: "run.lease-held", params: { runId, pid } },
@@ -79,12 +80,8 @@ test("a run keeps its definition and inputs as it started, its events in order, 
   expect(events.map((event) => store.append(id, 1, event))).toEqual(
     [1, 2, 3, 4].map((seq) => ({ ok: true, value: seq })),
   );
-  expect(rows(dir, "SELECT nodeId, attempt FROM run_events ORDER BY seq")).toEqual([
-    { nodeId: "lint", attempt: 1 },
-    { nodeId: "lint", attempt: 1 },
-    { nodeId: "lint", attempt: null },
-    { nodeId: null, attempt: null },
-  ]);
+  const columns = rows(dir, "SELECT nodeId, attempt FROM run_events ORDER BY seq").map(Object.values);
+  expect(columns.map(String)).toEqual(["lint,1", "lint,1", "lint,", ","]);
   expect(store.events(id)).toEqual({ ok: true, value: events });
   expect(attempts(dir)).toEqual([
     { nodeId: "lint", attempt: 1, state: "done", outputs: "{}", pid: 4242, applyRun: null },
@@ -99,7 +96,7 @@ test("a run keeps its definition and inputs as it started, its events in order, 
   expect(store.graphRun("nope")).toBeUndefined();
   // A run that cannot be recorded keeps no lease.
   expect(() => store.create({ ...manual, parentRun: randomUUID() })).toThrow(/FOREIGN KEY/);
-  expect(readdirSync(join(dir, "leases")).filter((name) => name.endsWith(".lock"))).toEqual([`${id}.lock`]);
+  expect(locks(dir)).toEqual([`${id}.1.lock`]);
 });
 
 test("a living runner keeps its run; once its process is killed, another takes it over at once, and old epochs are refused", async () => {
@@ -127,17 +124,25 @@ test("a living runner keeps its run; once its process is killed, another takes i
   ]).toEqual(["2\n", "running", living, living]);
   runner.kill("SIGKILL");
   await exited;
-  expect(store.graphRun(id)?.status).toBe("interrupted");
+  // A reader's probe that straddles the takeover: it takes the dead runner's lock and lets go, the takeover comes, and
+  // only then does the probe remove that file. The takeover's lock outlives it.
+  const [dead = ""] = locks(dir);
+  const probe = new DatabaseSync(join(dir, "leases", dead));
+  probe.exec("BEGIN EXCLUSIVE");
+  probe.close();
   expect(store.takeOver(id)).toMatchObject({ ok: true, value: { runId: id, epoch: 3 } });
+  rmSync(join(dir, "leases", dead), { force: true });
   // Of two runners that try, one wins: the other meets the lease this process holds now.
   const mine = leaseHeld(id, process.pid);
-  expect([other.takeOver(id), store.append(id, 2, { type: "cancel" })]).toEqual([mine, mine]);
+  const after = [store.graphRun(id)?.status, other.takeOver(id), store.append(id, 2, { type: "cancel" })];
+  expect(after).toEqual(["running", mine, mine]);
   expect(store.append(id, 3, { type: "cancel" })).toEqual({ ok: true, value: 4 });
   expect(store.events(id)).toEqual({
     ok: true,
     value: [{ type: "cancel" }, { type: "resumed" }, { type: "resumed" }, { type: "cancel" }],
   });
-  expect(store.graphRun(id)).toMatchObject({ status: "running", epoch: 3 });
+  // Each epoch's lock file goes with its epoch.
+  expect([store.graphRun(id)?.epoch, locks(dir)]).toEqual([3, [`${id}.3.lock`]]);
 }, 15_000);
 
 test("a stored event that fails its schema is refused before replay, with its sequence number", () => {
@@ -198,12 +203,8 @@ test("no projection without its event: a commit that fails keeps neither, nor do
   // A start names a node of the workflow and its next attempt, and a node runs one attempt at a time.
   const started = { type: "started", node: "lint", attempt: 1, pid: null } as const;
   store.append(id, 2, started);
-  for (const [node, attempt] of [
-    ["nope", 1],
-    ["lint", 1],
-    ["lint", 2],
-  ] as const) {
-    expect(() => store.append(id, 2, { ...started, node, attempt })).toThrow(/next attempt/);
+  for (const start of [{ node: "nope" }, { attempt: 1 }, { attempt: 2 }]) {
+    expect(() => store.append(id, 2, { ...started, ...start })).toThrow(/next attempt/);
   }
   // A run ends after its attempts: an end while one still runs is refused, and the run goes on.
   expect(() => store.append(id, 2, { type: "finished", status: "failed", outputs: {} })).toThrow(/attempts running/);
@@ -235,9 +236,7 @@ test("one process applies under the store lock while another appends events, and
   const dir = fresh();
   const store = graphs(dir);
   const { runId: id } = store.create(manual);
-  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "apply.ts"), dir, "2000"], {
-    stdio: "pipe",
-  });
+  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "apply.ts"), dir, "2000"]);
   const exited = once(child, "exit");
   await once(child.stdout, "data");
   const failures: string[] = [];

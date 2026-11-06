@@ -57,7 +57,7 @@ export interface LeaseLock {
   release(this: void): void;
 }
 
-const leaseLockPath = (dir: string, runId: string): string => join(dir, "leases", `${runId}.lock`);
+const leaseLockPath = (dir: string, name: string): string => join(dir, "leases", `${name}.lock`);
 
 // The locks of the leases this process holds. A lock the garbage collector takes closes its database and so lets go of
 // the lease: each stays referenced here until its release, whatever the launcher keeps.
@@ -94,12 +94,15 @@ const lockHeld = (path: string): boolean => {
   return false;
 };
 
-/** Takes the lease lock of run `runId` in the store `dir` and holds it until its release; null while another holds it. */
-export const holdLease = (dir: string, runId: string): LeaseLock | null => {
+/**
+ * Takes the lease lock `name` (a launch's run id, or a graph run's id and epoch) until its release. Each name is taken
+ * once: a probe or a release removes the file after letting go, which would strand a second taker on a removed file.
+ */
+export const newLease = (dir: string, name: string): LeaseLock => {
   mkdirSync(join(dir, "leases"), { recursive: true, mode: 0o700 });
-  const path = leaseLockPath(dir, runId);
+  const path = leaseLockPath(dir, name);
   const lock = takeLock(path);
-  if (lock === null) return null;
+  if (lock === null) throw new Error(`the lease ${name} is held already`);
   heldLocks.add(lock);
   return {
     release: () => {
@@ -110,15 +113,8 @@ export const holdLease = (dir: string, runId: string): LeaseLock | null => {
   };
 };
 
-/** Takes the lease lock of a run that starts now; only a run id used before can find it held. */
-export const newLease = (dir: string, runId: string): LeaseLock => {
-  const lock = holdLease(dir, runId);
-  if (lock === null) throw new Error(`the lease of run ${runId} is held already`);
-  return lock;
-};
-
-/** Whether a process holds the lease lock of run `runId` in the store `dir`. */
-export const leaseHeld = (dir: string, runId: string): boolean => lockHeld(leaseLockPath(dir, runId));
+/** Whether a process holds the lease lock `name` in the store `dir`. */
+export const leaseHeld = (dir: string, name: string): boolean => lockHeld(leaseLockPath(dir, name));
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 

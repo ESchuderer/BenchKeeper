@@ -38,7 +38,7 @@ export const Finding = z
     finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
     // A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust.
     finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
-    // Another runner holds the graph run's lease, until the given time unless it renews it.
+    // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
     finding("run.lease-held", { runId: z.string(), pid: z.int() }),
     finding("run.finished", { runId: z.string(), status: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.

@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { canonicalJson, GraphRun, JournalEvent, type Result } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
-import { connect, holdLease, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
+import { connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
 
 /** What a run starts from; the ledger adds its id, status, epoch and times. */
 export type NewGraphRun = Pick<GraphRun, "definition" | "inputs" | "trigger" | "mode" | "parentRun" | "parentNode">;
@@ -36,9 +36,9 @@ const leaseHeldBy = (runId: string, pid: number): Result<never> => ({
 
 /**
  * The graph runs of a state folder. It takes no store lock: each write is one short `BEGIN IMMEDIATE` transaction, so
- * runs append events while another process applies a plan under the lock. A runner holds its run through the run's
- * lease lock (`leases/<id>.lock`, as a launch does), which the OS releases when the runner's process ends, so a crashed
- * run can be taken over at once. A hung runner keeps its run until it is killed. Writes carry the epoch the runner took
+ * runs append events while another process applies a plan under the lock. A runner holds its run through a lease lock
+ * per epoch (`leases/<id>.<epoch>.lock`, as a launch does), which the OS releases when the runner's process ends, so a
+ * crashed run can be taken over at once. A hung runner keeps its run until it is killed. Writes carry the epoch the runner took
  * the run at: once another runner has taken it over, the old one's writes are refused.
  */
 export class GraphStore {
@@ -54,7 +54,7 @@ export class GraphStore {
   create(input: NewGraphRun): RunLease {
     const run = NewGraphRun.parse(input);
     const runId = randomUUID();
-    const lock = newLease(this.#dir, runId);
+    const lock = newLease(this.#dir, `${runId}.1`);
     const definition = canonicalJson(run.definition);
     try {
       this.#db
@@ -86,7 +86,8 @@ export class GraphStore {
   graphRun(id: string): GraphRun | undefined {
     const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
-    const status = ACTIVE.has(String(row["status"])) && !leaseHeld(this.#dir, id) ? "interrupted" : row["status"];
+    const held = leaseHeld(this.#dir, `${id}.${Number(row["epoch"])}`);
+    const status = ACTIVE.has(String(row["status"])) && !held ? "interrupted" : row["status"];
     const [definition, inputs] = [row["definition"], row["inputs"]].map((json) => JSON.parse(String(json)));
     return GraphRun.parse({ ...row, status, definition, inputs });
   }
@@ -99,9 +100,10 @@ export class GraphStore {
   append(runId: string, epoch: number, input: JournalEvent): Result<number> {
     const event = JournalEvent.parse(input);
     return transaction(this.#db, () => {
-      const held = this.#held(runId, epoch);
-      if (!held.ok) return held;
-      if (event.type === "applying" && held.value === "report") {
+      const run = this.#active(runId);
+      if (!run.ok) return run;
+      if (run.value.epoch !== epoch) return leaseHeldBy(runId, run.value.pid);
+      if (event.type === "applying" && run.value.mode === "report") {
         return { ok: false, finding: { code: "run.report-only-apply", params: { runId, applyRun: event.applyRun } } };
       }
       return { ok: true, value: this.#append(runId, event) };
@@ -118,13 +120,13 @@ export class GraphStore {
       return transaction(this.#db, () => {
         const run = this.#active(runId);
         if (!run.ok) return run;
-        lock = holdLease(this.#dir, runId);
-        if (lock === null) return leaseHeldBy(runId, run.value.pid);
-        const epoch = this.#db
-          .prepare("UPDATE graph_runs SET pid = ?, epoch = epoch + 1 WHERE id = ? RETURNING epoch")
-          .get(process.pid, runId)?.["epoch"];
+        const epoch = run.value.epoch + 1;
+        if (leaseHeld(this.#dir, `${runId}.${epoch - 1}`)) return leaseHeldBy(runId, run.value.pid);
+        // A takeover whose COMMIT fails lets go of this lock after its ROLLBACK: one in that moment can meet it held.
+        lock = newLease(this.#dir, `${runId}.${epoch}`);
+        this.#db.prepare("UPDATE graph_runs SET pid = ?, epoch = ? WHERE id = ?").run(process.pid, epoch, runId);
         this.#append(runId, { type: "resumed" });
-        return { ok: true, value: { runId, epoch: Number(epoch), release: lock.release } };
+        return { ok: true, value: { runId, epoch, release: lock.release } };
       });
     } catch (error) {
       lock?.release();
@@ -170,13 +172,6 @@ export class GraphStore {
     if (!ACTIVE.has(status)) return { ok: false, finding: { code: "run.finished", params: { runId, status } } };
     const mode = GraphRun.shape.mode.parse(row["mode"]);
     return { ok: true, value: { epoch: Number(row["epoch"]), pid: Number(row["pid"]), mode } };
-  }
-
-  // The run's mode while nobody took it over after `epoch`, also when its runner let go of the lease.
-  #held(runId: string, epoch: number): Result<GraphRun["mode"]> {
-    const run = this.#active(runId);
-    if (!run.ok) return run;
-    return run.value.epoch === epoch ? { ok: true, value: run.value.mode } : leaseHeldBy(runId, run.value.pid);
   }
 
   #append(runId: string, event: JournalEvent): number {

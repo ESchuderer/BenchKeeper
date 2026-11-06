@@ -6,11 +6,19 @@ import { asidePath, recover, tempPath, writeAtomic } from "@cedarloom/engine";
 import { afterEach, expect, test, vi } from "vitest";
 import { hash, interruptedRun, plan, read, run, storeAt, workspace } from "./helpers.ts";
 
+// While `ids.rounded` is set, every number-valued lstat reports one file id, as Windows can when it rounds a 64-bit id.
+const ids = vi.hoisted(() => ({ rounded: false }));
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
+  const lstatSync = (path: string, options?: { bigint?: boolean; throwIfNoEntry?: boolean }): unknown => {
+    const stats = fs.lstatSync(path, options);
+    if (ids.rounded && stats !== undefined && options?.bigint !== true) Object.assign(stats, { dev: 1, ino: 2 ** 53 });
+    return stats;
+  };
   return {
     ...fs,
     linkSync: vi.fn<typeof fs.linkSync>(fs.linkSync),
+    lstatSync,
     renameSync: vi.fn<typeof fs.renameSync>(fs.renameSync),
   };
 });
@@ -20,6 +28,7 @@ const failure = (code: string): Error => Object.assign(new Error(code), { code }
 
 afterEach(() => {
   vi.mocked(linkSync).mockReset().mockImplementation(real.linkSync);
+  ids.rounded = false;
   vi.mocked(renameSync).mockReset().mockImplementation(real.renameSync);
 });
 
@@ -31,6 +40,19 @@ const setup = (): { root: string; state: string; path: string; leftovers: () => 
 };
 
 const replace = (path: string): Operation => ({ kind: "write", path, before: hash("old\n"), content: "new\n" });
+
+/** A run whose step was killed after it set `path` aside; returns the aside. */
+const killedAfterSetAside = (state: string, path: string): string => {
+  const aside = asidePath(path, interruptedRun(state, plan(replace(path))), 0);
+  real.renameSync(path, aside);
+  return aside;
+};
+
+const recoverAt = (state: string): void => {
+  const store = storeAt(state);
+  recover(store);
+  store.close();
+};
 const target = (path: string, before: string | null): Parameters<typeof writeAtomic>[0] => ({
   path,
   before,
@@ -85,17 +107,23 @@ test.each(["write", "delete"])("a file the %s step cannot set aside stays in pla
 
 test("recovery keeps a set-aside file next to one another process put at the empty path while it ran", () => {
   const { state, path } = setup();
-  const runId = interruptedRun(state, plan(replace(path)));
-  const aside = asidePath(path, runId, 0);
-  real.renameSync(path, aside);
+  const aside = killedAfterSetAside(state, path);
   vi.mocked(linkSync).mockImplementationOnce((_, to) => {
     writeFileSync(to, "theirs\n");
     throw failure("EEXIST");
   });
-  const store = storeAt(state);
-  recover(store);
+  recoverAt(state);
   expect([read(path), read(aside)]).toEqual(["theirs\n", "old\n"]);
-  store.close();
+});
+
+// Windows reports file ids above 2 ** 53 rounded when they are numbers, so two files can look like one.
+test("recovery tells apart two files whose ids look equal as numbers, and keeps both", () => {
+  const { state, path } = setup();
+  const aside = killedAfterSetAside(state, path);
+  writeFileSync(path, "theirs\n");
+  ids.rounded = true;
+  recoverAt(state);
+  expect([read(path), read(aside)]).toEqual(["theirs\n", "old\n"]);
 });
 
 test("writeAtomic links a new file in, renames over one that hashes as expected, and refuses a changed one", () => {

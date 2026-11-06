@@ -129,14 +129,16 @@ export const writeAtomic = ({ path, before, temp }: Target, content: string, mod
 
 /** Puts a file that was set aside back at its path; when another process put a file there meanwhile, both stay. */
 export const putBack = (aside: string, path: string): void => {
+  let linked = true;
   try {
     linkSync(aside, path);
-    unlinkSync(aside);
   } catch (error) {
     if (errorCode(error) === "EEXIST") return;
     // Without hard links (FAT) a rename puts it back, as the path is free; any other error stops there too.
     renameSync(aside, path);
+    linked = false;
   }
+  if (linked) unlinkSync(aside);
   flushFolder(dirname(path));
 };
 

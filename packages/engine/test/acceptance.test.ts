@@ -44,6 +44,11 @@ const twoEdits = (
 afterEach(() => {
   for (const store of stores.splice(0)) store.close();
 });
+/** A step of `kind` on `path`: a new file, a replace of "old\n", or its delete. */
+const stepOf = (kind: string, path: string): Operation =>
+  kind === "delete"
+    ? { kind: "delete", path, before: hash("old\n") }
+    : { kind: "write", path, before: kind === "create" ? null : hash("old\n"), content: "ours\n" };
 
 test("every change is backed up and hash-verified before it is written; undo restores byte for byte", () => {
   const { store, file } = fresh();
@@ -240,10 +245,7 @@ test.each(["create", "replace", "delete"])(
     const race = (_: number, phase: string): void => {
       if (phase === "journaled") writeFileSync(path, "the owner's autosave\n");
     };
-    const op: Operation =
-      kind === "delete"
-        ? { kind: "delete", path, before: hash("old\n") }
-        : { kind: "write", path, before: kind === "create" ? null : hash("old\n"), content: "ours\n" };
+    const op = stepOf(kind, path);
     const applied = run(store, plan(op), { onPhase: race });
     expect(applied).toMatchObject({ status: "failed", findings: [{ code: "plan.file-changed" }] });
     expect(read(path)).toBe("the owner's autosave\n");
@@ -355,16 +357,36 @@ test("a write through a handle opened before the check and made after it is the 
 test("an unexpected error during a step marks the run failed before it reaches the caller", () => {
   const { store, file } = fresh();
   const [a, b] = [file("a.md", "a\n"), file("b.md")];
-  const race = (index: number, phase: string): void => {
-    if (index === 0 && phase === "settled") mkdirSync(b);
-  };
   const value = plan(
     { kind: "write", path: a, before: hash("a\n"), content: "A\n" },
     { kind: "write", path: b, before: null, content: "b\n" },
   );
-  expect(() => run(store, value, { onPhase: race })).toThrow(/EISDIR|EPERM/);
+  const onPhase = (index: number, phase: string): void => {
+    if (index === 0 && phase === "settled") throw Object.assign(new Error(`EIO: i/o error in ${a}`), { code: "EIO" });
+  };
+  expect(() => run(store, value, { onPhase })).toThrow(/EIO/);
   expect(store.runs()[0]?.status).toBe("failed");
 });
+
+// A folder where a step expects a file is a finding, as when the plan is checked, not an error thrown out of apply.
+test.each(["create", "replace", "delete"])(
+  "a folder put at the path while the %s step is journaled is a finding",
+  (kind) => {
+    const { store, root, file } = fresh();
+    const path = kind === "create" ? file("new.md") : file("old.md", "old\n");
+    const race = (_: number, phase: string): void => {
+      if (phase !== "journaled") return;
+      rmSync(path, { force: true });
+      mkdirSync(path);
+    };
+    const op = stepOf(kind, path);
+    expect(run(store, plan(op), { onPhase: race })).toMatchObject({
+      status: "failed",
+      findings: [{ code: "plan.not-a-file", params: { path, error: expect.stringMatching(/^(EISDIR|EPERM)$/) } }],
+    });
+    expect(leftovers(root)).toEqual([]);
+  },
+);
 
 test("a failed prune of old backups marks the new run failed before it reaches the caller, and writes nothing", () => {
   const { store, file } = fresh();

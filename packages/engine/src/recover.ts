@@ -1,20 +1,33 @@
-import { lstatSync, rmSync, unlinkSync } from "node:fs";
+import { type BigIntStats, lstatSync, renameSync, rmSync, unlinkSync } from "node:fs";
 import type { Step } from "@cedarloom/contracts";
 import type { RunStore } from "@cedarloom/ledger";
 import { asidePath, hashFile, putBack, tempPath } from "./files.ts";
 
 /**
- * The file a step had set aside when its process died: back at the path when the path is empty, removed when the path
- * holds the step's new content or is the same file (put back, then killed). When the path holds another file, both stay.
+ * The step's new file is in, and the aside holds exactly the bytes the step found, which the run's backup has too. Only
+ * regular files are read: a folder at the path must not stop every later open of the store.
+ */
+const replaced = (step: Step, aside: string, target: BigIntStats, moved: BigIntStats): boolean =>
+  target.isFile() && moved.isFile() && hashFile(step.path) === step.after && hashFile(aside) === step.before;
+
+/**
+ * The file a step had set aside when its process died: back at the path when the path is empty, removed when it is the
+ * path's own file (put back, then killed) or when the step's new file is in and the aside holds what the step found.
+ * Otherwise both stay: the aside may hold an edit no backup has.
  */
 const settleAside = (step: Step, aside: string): void => {
-  const moved = lstatSync(aside, { throwIfNoEntry: false });
+  // 64-bit ids: as numbers, Windows file ids lose precision, and two files could look like one.
+  const moved = lstatSync(aside, { throwIfNoEntry: false, bigint: true });
   if (moved === undefined) return;
-  const target = lstatSync(step.path, { throwIfNoEntry: false });
-  if (target === undefined) return putBack(aside, step.path);
+  const target = lstatSync(step.path, { throwIfNoEntry: false, bigint: true });
+  if (target === undefined) {
+    // A folder or a link set aside goes back by rename: a hard link would follow a link on macOS.
+    if (moved.isFile()) putBack(aside, step.path);
+    else renameSync(aside, step.path);
+    return;
+  }
   const same = target.dev === moved.dev && target.ino === moved.ino;
-  // Only a regular file is read: a folder at the path must not stop every later open of the store.
-  if (same || (target.isFile() && hashFile(step.path) === step.after)) unlinkSync(aside);
+  if (same || replaced(step, aside, target, moved)) unlinkSync(aside);
 };
 
 /**

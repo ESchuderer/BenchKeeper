@@ -69,20 +69,29 @@ interface Run {
   onPhase: Required<ApplyOptions>["onPhase"];
 }
 
+/** What took the file's place: its hash, or (a folder, say) not a file at all, as the plan check reports it. */
+const changedFinding = (op: Operation): Finding => {
+  try {
+    return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
+  } catch (error) {
+    return { code: "plan.not-a-file", params: { path: op.path, error: errorCode(error) } };
+  }
+};
+
 const change = (run: Run, index: number, op: Operation, mode: number | null): Finding | undefined => {
   const aside = asidePath(op.path, run.runId, index);
-  const setAside = (): void => run.onPhase(index, "set-aside");
+  const onSetAside = (): void => run.onPhase(index, "set-aside");
   try {
-    if (op.kind === "delete") remove(op.path, op.before, aside, setAside);
+    if (op.kind === "delete") remove(op.path, op.before, aside, onSetAside);
     else {
       const temp = tempPath(op.path, run.runId, index);
-      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, setAside);
+      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, onSetAside);
     }
     return undefined;
   } catch (error) {
     const code = errorCode(error);
     if (code !== "ECHANGED") return { code: "apply.write-failed", params: { path: op.path, error: code } };
-    return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
+    return changedFinding(op);
   }
 };
 

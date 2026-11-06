@@ -1,6 +1,16 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, linkSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { asidePath, recover, tempPath } from "@cedarloom/engine";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -72,6 +82,7 @@ test("recovery removes the temporary file a step killed inside its write left ne
 test.each([
   ["the path is empty: the old file goes back", "empty", "kept\n", null],
   ["the path holds the new content: the aside goes", "new", "new\n", null],
+  ["the path holds the new content, the aside an edit no backup has: both stay", "edited", "new\n", "kept, edited\n"],
   ["the path is the aside's own file: its second name goes", "same", "kept\n", null],
   ["another process wrote the path: both stay", "theirs", "theirs\n", "kept\n"],
   ["another process made a folder at the path: both stay", "folder", null, "kept\n"],
@@ -81,7 +92,9 @@ test.each([
   const runId = interruptedRun(dir, plan({ kind: "write", path: target, before: hash("kept\n"), content: "new\n" }));
   const moved = asidePath(target, runId, 0);
   renameSync(target, moved);
-  if (at === "new") writeFileSync(target, "new\n");
+  if (at === "new" || at === "edited") writeFileSync(target, "new\n");
+  // A write through a handle opened before the step's check, made after it, lands in the aside.
+  if (at === "edited") writeFileSync(moved, "kept, edited\n");
   if (at === "same") linkSync(moved, target);
   if (at === "theirs") writeFileSync(target, "theirs\n");
   if (at === "folder") mkdirSync(target);
@@ -90,4 +103,18 @@ test.each([
   const now = statSync(target).isDirectory() ? null : read(target);
   expect([now, state(moved)]).toEqual([path, aside]);
   reopened.close();
+});
+
+test.skipIf(process.platform === "win32")("recovery puts a link a killed step had set aside back as the link", () => {
+  const { root, state: dir, file } = workspace();
+  const [target, other] = [file("a.md", "a\n"), file("other.md", "other\n")];
+  const runId = interruptedRun(dir, plan({ kind: "write", path: target, before: hash("a\n"), content: "A\n" }));
+  // Killed while the step moved a link that had replaced the file back to its path.
+  renameSync(target, join(root, "a.md.gone"));
+  symlinkSync(other, asidePath(target, runId, 0));
+  const store = storeAt(dir);
+  recover(store);
+  expect([lstatSync(target).isSymbolicLink(), read(target)]).toEqual([true, "other\n"]);
+  expect(readdirSync(root).filter((name) => name.includes(".cedarloom-"))).toEqual([]);
+  store.close();
 });

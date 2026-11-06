@@ -947,6 +947,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "launch.agent-unavailable";
+            params: {
+                agent: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
             code: "launch.gh-login";
             params: {
                 error: string | null;
@@ -1395,6 +1402,13 @@ export interface components {
             code: "accounts.pool-terms";
             params: {
                 pool: string;
+            };
+        } | {
+            /** @constant */
+            code: "launch.agent-unavailable";
+            params: {
+                agent: string;
+                error: string;
             };
         } | {
             /** @constant */

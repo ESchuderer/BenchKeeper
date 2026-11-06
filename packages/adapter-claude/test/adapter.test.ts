@@ -73,8 +73,7 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--add-dir",
     join(fixtures, "out"),
   ]);
-  expect(fake.args).not.toContain("--bare");
-  expect(fake.prompt).toBe("Do the task.");
+  expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
     KEEP: "yes",
     CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",

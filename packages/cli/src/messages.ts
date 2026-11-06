@@ -139,6 +139,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
+  "doctor.plugin-none": (p) =>
+    `Workers run without the ${p.plugin} plugin: the pinned marketplace commit ${p.commit} has none yet, or it could not be fetched.`,
+  "doctor.plugin-not-loaded": (p) =>
+    `The ${p.plugin} plugin went with the latest worker but did not load with its skills${p.errors === "" ? "" : ` (${p.errors})`}.`,
   "launch.settings-unproven": (p) =>
     `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
   "launch.account-full": (p) =>

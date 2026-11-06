@@ -320,6 +320,9 @@ importers:
       '@cedarloom/engine':
         specifier: workspace:*
         version: link:../engine
+      '@cedarloom/git':
+        specifier: workspace:*
+        version: link:../git
       '@cedarloom/ledger':
         specifier: workspace:*
         version: link:../ledger

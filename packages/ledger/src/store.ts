@@ -54,6 +54,9 @@ const MODE_SCHEMA = 5;
 // The schema that added the plugins of each launch.
 const PLUGIN_SCHEMA = 9;
 
+// A JSON column's value; null for SQL NULL.
+const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
+
 /** A launch as its lease takes it: the settings it runs with are required, though older rows have none. */
 export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "labels" | "plugins"> & {
   readonly labels: RunLabels;
@@ -532,14 +535,13 @@ export class RunStore extends RunView {
 
   /** The launches, oldest first. */
   launches(): LaunchRecord[] {
-    const json = (value: unknown) => (value == null ? null : JSON.parse(String(value)));
     return this.db
       .prepare(
         `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins
          FROM launches ORDER BY startedAt, rowid`,
       )
       .all()
-      .map((row) => LaunchRecord.parse({ ...row, labels: json(row["labels"]), plugins: json(row["plugins"]) }));
+      .map((row) => LaunchRecord.parse({ ...row, labels: column(row["labels"]), plugins: column(row["plugins"]) }));
   }
 
   /** The account choices in the order they were made. */

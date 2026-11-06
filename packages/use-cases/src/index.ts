@@ -43,3 +43,4 @@ export {
   undoRun,
 } from "./use-cases.ts";
 export { findShell, type GraphOutcome, type RunOptions, resumeRun, runWorkflow } from "./workflows.ts";
+export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";

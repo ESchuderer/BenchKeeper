@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
@@ -347,7 +347,15 @@ export const fetchTreeOver =
     }
   };
 
-const real = (folder: string): string => (existsSync(folder) ? realpathSync.native(folder) : folder);
+// A folder's real path; one that is gone by its parent's, so git's `D:/a/b` and Node's `D:\\a\\b` compare equal.
+const real = (folder: string): string => {
+  try {
+    return realpathSync.native(folder);
+  } catch {
+    // A root is always there, so this ends.
+    return join(real(dirname(folder)), basename(folder));
+  }
+};
 
 // Whether git's porcelain listing of worktrees (`-z`) names the folder `path`, compared as real paths.
 const listed = (listing: Buffer, path: string): boolean =>

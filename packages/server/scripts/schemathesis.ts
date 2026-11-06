@@ -2,12 +2,12 @@
 // provokes must match the committed OpenAPI document. The Schemathesis command comes as the arguments, for example
 // `node scripts/schemathesis.ts .venv/bin/schemathesis` (CI installs it from .github/schemathesis/requirements.txt).
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CSRF_HEADER } from "@cedarloom/contracts";
 import { startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/use-cases";
+import { applyPlan, saveDraft } from "@cedarloom/use-cases";
 import { z } from "zod";
 
 const [command = "schemathesis", ...prefix] = process.argv.slice(2);
@@ -17,8 +17,12 @@ const state = join(root, "state");
 const seed = { kind: "write" as const, path: join(root, "seed.md"), before: null, content: "seed\n" };
 const run = applyPlan(state, { schemaVersion: 1, operations: [seed] }, { yes: true });
 if (!run.ok || run.value.runId === null) throw new Error("the seed run did not apply");
+// One draft, whose id every {id} parameter gets, so the draft operations answer from a draft and not only 404.
+const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+const workflow: unknown = JSON.parse(readFileSync(join(corpus, "valid-minimal.json"), "utf8"));
+if (!saveDraft(state, "minimal", workflow, null).ok) throw new Error("the seed draft was not saved");
 const config = join(root, "schemathesis.toml");
-writeFileSync(config, `[parameters]\n"path.runId" = "${run.value.runId}"\n`);
+writeFileSync(config, `[parameters]\n"path.runId" = "${run.value.runId}"\n"path.id" = "minimal"\n`);
 
 const server = await startServer({ state, log: (text) => process.stderr.write(text) });
 const { origin, hash } = new URL(server.url);

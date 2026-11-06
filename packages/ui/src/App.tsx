@@ -212,7 +212,7 @@ const content = (view: View, session: Session): ReactNode => {
   if (view === "nav.workflows") {
     return (
       <Suspense fallback={null}>
-        <WorkflowEditor />
+        <WorkflowEditor api={session.api} />
       </Suspense>
     );
   }

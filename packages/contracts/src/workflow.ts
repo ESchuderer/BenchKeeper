@@ -7,6 +7,8 @@ export const WORKFLOW_SCHEMA_VERSION = 1;
 
 // Ids of nodes and edges stay the same across edits: the layout, the execution policies and run history key on them.
 const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
+/** The id of a workflow (its `metadata.id`), and of a node. */
+export const WorkflowId = id;
 // Names of handles and of the workflow's inputs and outputs.
 const name = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
 const semver = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);

@@ -44,6 +44,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "store.busy": (p) => `Another CedarLoom process is applying changes in ${p.dir}; try again when it ends.`,
   "store.network-filesystem": (p) =>
     `The state folder ${p.dir} is on a network filesystem (${p.fsType}); use a local folder.`,
+  "draft.not-found": (p) => `No draft of workflow ${p.id} in this state folder.`,
+  "draft.too-large": (p) => `The draft of workflow ${p.id} has ${p.bytes} bytes; a draft holds at most ${p.limit}.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
   "workflow.duplicate-id": (p) => `More than one ${p.kind} has the id ${p.id}; ids are unique within a workflow.`,
   "workflow.trigger-count": (p) => `The workflow has ${p.count} trigger nodes; it needs exactly one.`,

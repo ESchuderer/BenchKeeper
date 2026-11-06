@@ -27,10 +27,10 @@ const run = promisify(execFile);
 // What Node needs to start besides its own binary. Linux: the system's programs and libraries, srt's shell and `env`
 // among them. macOS maps its own libraries from the shared cache; Homebrew's Node also loads its kegs and its OpenSSL
 // configuration. A Node installed elsewhere fails the probe with the path it was refused.
-// shortcut: macOS's /etc is a link srt does not open, so without TZ an extension there tells time in UTC; pass the
-// host's zone once an extension needs local time.
+// shortcut: srt opens no link to the time zone (/etc/localtime, and on macOS /etc itself), so without TZ an extension
+// tells time in UTC; pass the host's zone once an extension needs local time.
 const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
-  linux: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache", "/etc/localtime"],
+  linux: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"],
   darwin: ["/opt/homebrew", "/usr/local"].flatMap((prefix) =>
     ["Cellar", "opt", "etc/openssl@3", "etc/openssl@4"].map((path) => `${prefix}/${path}`),
   ),

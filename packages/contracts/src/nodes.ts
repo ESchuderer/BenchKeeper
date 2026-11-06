@@ -73,7 +73,7 @@ const inside = (path: string): boolean => {
  * character; normalized against the project folder it stays inside. The executor still resolves links (a folder that
  * links outside), which no pattern can see.
  */
-const ProjectPath = z
+export const ProjectPath = z
   .string()
   .min(1)
   .max(1024)

@@ -81,3 +81,20 @@ CREATE TABLE mode_switches (
   level TEXT CHECK (level IN ('supervised', 'checkpoint', 'auto'))
 ) STRICT;
 `;
+
+/** Schema 6: every usage window a session reported, as history (A84); readings keeps the latest per quota. */
+export const USAGE_TABLES = `
+CREATE TABLE usage_samples (
+  account TEXT NOT NULL,
+  agent TEXT NOT NULL,
+  agentVersion TEXT NOT NULL,
+  "window" TEXT NOT NULL,
+  quota TEXT CHECK (quota IN ('fiveHour', 'sevenDay')),
+  usedPercent REAL CHECK (usedPercent BETWEEN 0 AND 100),
+  resetsAt TEXT,
+  readAt TEXT NOT NULL,
+  runId TEXT,
+  raw TEXT NOT NULL
+) STRICT;
+CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
+`;

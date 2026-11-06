@@ -1,5 +1,15 @@
-import type { AgentRuntime, ContractCheck, Launch, UsageWindow } from "@cedarloom/agent-contracts";
-import { type Agent, AgentVersion, type ContractCheckRecord, type Result } from "@cedarloom/contracts";
+import type { AgentEvent, AgentRuntime, ContractCheck, Launch } from "@cedarloom/agent-contracts";
+import {
+  type Agent,
+  AgentVersion,
+  canonicalJson,
+  type ContractCheckRecord,
+  type Json,
+  type Result,
+  USAGE_RAW_CUT_MARKER,
+  USAGE_RAW_LIMIT_BYTES,
+  UsageSample,
+} from "@cedarloom/contracts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 // A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
@@ -97,22 +107,50 @@ export const checkedVersions = async <L extends Launch>(
   return { ok: true, value: { version, verified, settingsApplied } };
 };
 
+/** Where a session's usage came from: its account and agent, and its run; null outside a run. */
+export interface UsageOf {
+  readonly account: string;
+  readonly agent: Agent;
+  readonly runId: string | null;
+}
+
+// The agent's line as canonical JSON, cut on a character boundary at USAGE_RAW_LIMIT_BYTES with the contract's marker.
+const cutRaw = (raw: Json): string => {
+  const text = canonicalJson(raw);
+  const bytes = Buffer.from(text, "utf8");
+  if (bytes.length <= USAGE_RAW_LIMIT_BYTES) return text;
+  let end = USAGE_RAW_LIMIT_BYTES - Buffer.byteLength(USAGE_RAW_CUT_MARKER);
+  // A UTF-8 continuation byte starts no character: step back to the start of the one it belongs to.
+  while (((bytes[end] ?? 0) & 0xc0) === 0x80) end -= 1;
+  return `${bytes.subarray(0, end).toString("utf8")}${USAGE_RAW_CUT_MARKER}`;
+};
+
 /**
- * Stores the usage windows a session reported for its account as the latest readings: only windows with an
- * agent-neutral name, a share and a reset time. The adapter reports usage only on versions whose check passed.
+ * Keeps a session's usage event as history (A84): one sample per window, with the agent's line and CLI version. The
+ * latest readings, which the account choice reads, are updated in the same transaction from the windows with an
+ * agent-neutral name, a share and a reset. The adapter reports usage only on versions whose check passed.
  */
 export const recordUsage = (
   state: string,
-  account: string,
-  windows: readonly UsageWindow[],
+  of: UsageOf,
+  event: Extract<AgentEvent, { type: "usage" }>,
   readAt: string = new Date().toISOString(),
 ): Result<number> =>
   withStore(state, (store) => {
-    const readings = windows.flatMap(({ quota, percent, resetsAt }) =>
-      quota === null || percent === null || resetsAt === null
-        ? []
-        : [{ account, window: quota, usedPercent: percent, resetsAt, readAt }],
-    );
-    for (const reading of readings) store.recordReading(reading);
-    return { ok: true, value: readings.length };
+    const raw = cutRaw(event.raw);
+    const samples = event.windows.map(({ window, quota, percent, resetsAt }) => ({
+      ...of,
+      agentVersion: event.agentVersion,
+      window,
+      quota,
+      usedPercent: percent,
+      resetsAt,
+      readAt,
+      raw,
+    }));
+    // The agent's line is untrusted: a window the contract refuses, such as an over-long name, is left out, and never
+    // fails the run that reported it.
+    const kept = samples.filter((sample) => UsageSample.safeParse(sample).success);
+    store.recordSamples(kept);
+    return { ok: true, value: kept.length };
   });

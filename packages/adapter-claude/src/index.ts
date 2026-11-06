@@ -5,6 +5,7 @@ import type { AgentEvent, AgentRuntime, AgentSession, ContractCheck, SessionErro
 import { AgentVersion } from "@cedarloom/contracts";
 import { z } from "zod";
 import { type ClaudeLaunch, launchArgs, launchEnv } from "./launch.ts";
+import { SETTINGS_SENTINEL } from "./overlay.ts";
 import { lines, streamParser } from "./stream.ts";
 
 export { type ClaudeLaunch, FRESH_INSTALL_PHASES, type PermissionMode } from "./launch.ts";
@@ -88,15 +89,18 @@ const run = (
 };
 
 /**
- * Checks a probe's events: the version ran, at least one usage window with a share and a reset time (without one, nothing
- * ages the reading out), and a successful result.
+ * Checks a probe's events: the version ran, its tool list lacks the settings' sentinel (so the CLI applied the
+ * settings), at least one usage window has a share and a reset time (without one, nothing ages the reading out), and
+ * the result succeeded.
  */
 const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const events: AgentEvent[] = [];
   for await (const event of session.events) events.push(event);
   const init = events.find((event) => event.type === "init");
   const passed = {
-    init: init !== undefined,
+    // An init line without a version of the known form proves no version.
+    init: init?.agentVersion != null,
+    settings: init?.tools != null && !init.tools.includes(SETTINGS_SENTINEL),
     usage: events.some(
       (event) =>
         event.type === "usage" && event.windows.some((window) => window.percent !== null && window.resetsAt !== null),
@@ -105,7 +109,7 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   };
   return {
     version: init?.agentVersion ?? null,
-    missing: (["init", "usage", "result"] as const).filter((part) => !passed[part]),
+    missing: (["init", "settings", "usage", "result"] as const).filter((part) => !passed[part]),
   };
 };
 

@@ -68,6 +68,10 @@ export const Finding = z
     finding("accounts.pool-terms", { pool: z.string() }),
     // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
+    // The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed.
+    finding("launch.settings-unproven", { agent: z.string(), version: z.string() }),
+    // Every lease of the account is taken: the most workers it runs at once.
+    finding("launch.account-full", { account: z.string(), max: z.int() }),
     // gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused.
     finding("launch.gh-login", { error: z.string().nullable() }),
   ])
@@ -129,5 +133,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },
+  "launch.settings-unproven": { severity: "error", effort: "manual" },
+  "launch.account-full": { severity: "warning", effort: "manual" },
   "launch.gh-login": { severity: "error", effort: "manual" },
 };

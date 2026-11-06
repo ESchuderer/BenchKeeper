@@ -1,6 +1,9 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
-import { deniedPaths, GITHUB_DOMAINS, ghProbe, workerEnv } from "@cedarloom/orchestration";
+import { deniedPaths, GITHUB_DOMAINS, ghProbe, readResult, resultPrompt, workerEnv } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 
 // A launcher environment with lower- and mixed-case copies of the names, which only Windows takes for the real ones.
@@ -103,4 +106,45 @@ test.skipIf(process.platform === "win32")("a gh that is killed or cannot start r
   await expect(ghProbe(env, [join(gh[1], "gh")])).resolves.toMatchObject({ finding: { params: { error: "ENOTDIR" } } });
   // The fixture is no executable: spawning it fails with EACCES.
   await expect(ghProbe(env, [gh[1]])).resolves.toMatchObject({ finding: { params: { error: "EACCES" } } });
+});
+
+const runId = "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f";
+const result = { schemaVersion: 1, runId, verdict: "findings", summary: "Two tests fail on Windows." } as const;
+const resultFile = (content: unknown): string => {
+  const path = join(mkdtempSync(join(tmpdir(), "cedarloom-result-")), "result.json");
+  writeFileSync(path, typeof content === "string" ? content : JSON.stringify(content));
+  return path;
+};
+
+test("a worker's result counts only as a valid result of its own run", () => {
+  expect(readResult(resultFile(result), runId)).toEqual(result);
+  expect(readResult(resultFile(result), runId.replace("0b", "1b"))).toBeNull();
+  for (const wrong of [
+    { ...result, verdict: "done" },
+    { ...result, extra: 1 },
+    { ...result, summary: "x".repeat(2001) },
+  ]) {
+    expect(readResult(resultFile(wrong), runId)).toBeNull();
+  }
+  expect(readResult(resultFile("not json"), runId)).toBeNull();
+  expect(readResult(resultFile(" ".repeat(64 * 1024 + 1)), runId)).toBeNull();
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-result-"));
+  expect(readResult(join(dir, "missing.json"), runId)).toBeNull();
+  mkdirSync(join(dir, "folder"));
+  expect(readResult(join(dir, "folder"), runId)).toBeNull();
+});
+
+test.skipIf(process.platform === "win32")("a result file that is a link or a FIFO is refused without blocking", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cedarloom-result-"));
+  symlinkSync(resultFile(result), join(dir, "link.json"));
+  expect(readResult(join(dir, "link.json"), runId)).toBeNull();
+  execFileSync("mkfifo", [join(dir, "fifo.json")]);
+  expect(readResult(join(dir, "fifo.json"), runId)).toBeNull();
+});
+
+test("the prompt names the result file and the run, in the form the result is read in", () => {
+  const prompt = resultPrompt("/state/workers/0b9f4c1e/out/result.json", runId);
+  expect(prompt).toContain("/state/workers/0b9f4c1e/out/result.json");
+  expect(prompt).toContain(`"runId":"${runId}"`);
+  expect(prompt).toContain('"schemaVersion":1');
 });

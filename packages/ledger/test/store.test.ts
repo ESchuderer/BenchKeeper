@@ -105,11 +105,11 @@ const newerStore = (): string => {
   opened(dir).close();
   open.length = 0;
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 4");
+  db.exec("PRAGMA user_version = 5");
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 4, known: 3 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 5, known: 4 } } };
 
 test("a store written by a newer CedarLoom is refused", () => {
   expect(openRunStore(newerStore())).toEqual(NEWER);
@@ -322,22 +322,24 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-test("a store of schema 1 gains the account and check tables on open and keeps its runs", () => {
+test("a store of schema 1 gains the account, check and launch tables on open and keeps its runs", () => {
   const dir = fresh();
   const runId = opened(dir).begin("apply", plan, planHash(plan));
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; PRAGMA user_version = 1");
+  db.exec(
+    "DROP TABLE readings; DROP TABLE switches; DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 1",
+  );
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([]);
   expect(store.current().map((run) => run.id)).toEqual([runId.ok && runId.value]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 3 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 4 });
   after.close();
 });
 
-test("a store of schema 2 gains the check table on open and keeps its readings", () => {
+test("a store of schema 2 gains the check and launch tables on open and keeps its readings", () => {
   const dir = fresh();
   const reading = {
     account: "work",
@@ -349,7 +351,7 @@ test("a store of schema 2 gains the check table on open and keeps its readings",
   opened(dir).recordReading(reading);
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
-  db.exec("DROP TABLE contract_checks; PRAGMA user_version = 2");
+  db.exec("DROP TABLE contract_checks; DROP TABLE launches; PRAGMA user_version = 2");
   db.close();
   const store = opened(dir);
   expect(store.readings()).toEqual([reading]);
@@ -430,4 +432,61 @@ test("one contract check per agent CLI version: a check of the same version agai
   for (const version of ["", "2.1.316\u001b[31m", `2.1.316-${"x".repeat(40)}`]) {
     expect(() => store.recordContractCheck({ ...check, version })).toThrow(/pattern/i);
   }
+});
+
+const launch = {
+  runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f",
+  task: "t1",
+  agent: "claude",
+  account: "work",
+  version: "2.1.316",
+  pid: 101,
+  startedAt: "2026-11-06T08:00:00.000Z",
+} as const;
+const runIdOf = (n: number): string => `${launch.runId.slice(0, -1)}${n}`;
+const alive = (): boolean => true;
+
+test("an account gives at most max leases; an ended lease frees one, another account has its own", () => {
+  const store = opened(fresh());
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2, alive)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 2, alive)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3) }, 2, alive)).toBe(false);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(4), account: "spare" }, 1, alive)).toBe(true);
+  store.finishLaunch(runIdOf(1), "pass", "2026-11-06T08:10:00.000Z");
+  // A second finish keeps the first verdict.
+  store.finishLaunch(runIdOf(1), "failed");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(5) }, 2, alive)).toBe(true);
+  expect(store.launches().map((row) => [row.runId.at(-1), row.account, row.verdict])).toEqual([
+    ["1", "work", "pass"],
+    ["2", "work", null],
+    ["4", "spare", null],
+    ["5", "work", null],
+  ]);
+  expect(store.launches()[0]).toEqual({
+    ...launch,
+    runId: runIdOf(1),
+    finishedAt: "2026-11-06T08:10:00.000Z",
+    verdict: "pass",
+  });
+});
+
+test("a lease whose launcher process is gone ends as interrupted and frees its place", () => {
+  const store = opened(fresh());
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(1), pid: 7 }, 1, () => true)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1, (pid) => pid !== 7)).toBe(true);
+  expect(store.launches().map((row) => [row.runId.at(-1), row.verdict, row.finishedAt === null])).toEqual([
+    ["1", "interrupted", false],
+    ["2", null, true],
+  ]);
+});
+
+test("by default a lease counts while its process runs: this test's own process does, a finished child does not", async () => {
+  const store = opened(fresh());
+  const child = spawn(process.execPath, ["-e", ""]);
+  await once(child, "exit");
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(1), pid: Number(child.pid) }, 1)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(2), pid: process.pid }, 1)).toBe(true);
+  expect(store.leaseAccount({ ...launch, runId: runIdOf(3), pid: process.pid }, 1)).toBe(false);
+  expect(store.launches().map((row) => row.verdict)).toEqual(["interrupted", null]);
+  expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
 });

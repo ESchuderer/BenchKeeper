@@ -1,5 +1,5 @@
 import type { AgentRuntime, ContractCheck, Launch, UsageWindow } from "@cedarloom/agent-contracts";
-import type { Agent, ContractCheckRecord, Result } from "@cedarloom/contracts";
+import { type Agent, AgentVersion, type ContractCheckRecord, type Result } from "@cedarloom/contracts";
 import { withStore } from "./use-cases.ts";
 
 // A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
@@ -19,6 +19,8 @@ export interface CheckedVersions {
   readonly version: string;
   /** The versions whose contract check passed: the launch's verifiedVersions. */
   readonly verified: readonly string[];
+  /** Whether the check of `version` proved that the CLI applies the launch's settings; no worker starts without. */
+  readonly settingsApplied: boolean;
 }
 
 // Whether a recorded check settles its version: a passed one always, a failed one for a day.
@@ -67,7 +69,10 @@ export const checkedVersions = async <L extends Launch>(
 ): Promise<Result<CheckedVersions>> => {
   let version: string;
   try {
-    version = await runtime.version(env);
+    // Checked here for every adapter: a version of another form reaches neither a probe nor the ledger.
+    const read = AgentVersion.safeParse(await runtime.version(env));
+    if (!read.success) return unavailable(agent, new Error("unrecognized CLI version"));
+    version = read.data;
   } catch (error) {
     return unavailable(agent, error);
   }
@@ -85,7 +90,10 @@ export const checkedVersions = async <L extends Launch>(
     if (!checks.ok) return checks;
   }
   const verified = checks.value.filter((each) => each.missing.length === 0).map((each) => each.version);
-  return { ok: true, value: { version, verified } };
+  const settingsApplied = checks.value.some(
+    (each) => each.version === version && !each.missing.includes("init") && !each.missing.includes("settings"),
+  );
+  return { ok: true, value: { version, verified, settingsApplied } };
 };
 
 /**

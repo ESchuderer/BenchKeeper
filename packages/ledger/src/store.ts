@@ -6,6 +6,7 @@ import {
   AccountSwitch,
   canonicalJson,
   ContractCheckRecord,
+  LaunchRecord,
   type Finding,
   PLAN_SCHEMA_VERSION,
   Plan,
@@ -17,11 +18,22 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import { ACCOUNT_TABLES, CHECK_TABLES, TABLES } from "./rows.ts";
+import { ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, TABLES } from "./rows.ts";
 
-const SCHEMA = 3;
+const SCHEMA = 4;
 // The schema changes in order: the one at index i takes a store from schema i to i + 1.
-const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES];
+const MIGRATIONS = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES];
+
+// Whether a process runs; EPERM means it runs under another user.
+// shortcut: a process ID the OS gave to a new process since keeps a stale lease; add the start time when that matters.
+const processAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Reflect.get(Object(error), "code") === "EPERM";
+  }
+};
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -279,6 +291,45 @@ export class RunStore extends RunView {
       )
       .all(agent)
       .map((row) => ContractCheckRecord.parse(JSON.parse(String(row["row"]))));
+  }
+
+  /**
+   * Takes one of the account's `max` leases for a launch, in one transaction; false when all are taken. A lease whose
+   * launcher process is gone is ended first, as interrupted.
+   */
+  leaseAccount(input: Omit<LaunchRecord, "finishedAt" | "verdict">, max: number, alive = processAlive): boolean {
+    const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null });
+    return transaction(this.db, () => {
+      const running = this.db.prepare("SELECT runId, pid FROM launches WHERE account = ? AND finishedAt IS NULL");
+      const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
+      let held = 0;
+      for (const row of running.all(launch.account)) {
+        if (alive(Number(row["pid"]))) held += 1;
+        else end.run(now(), String(row["runId"]));
+      }
+      if (held >= max) return false;
+      this.db
+        .prepare("INSERT INTO launches VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)")
+        .run(launch.runId, launch.task, launch.agent, launch.account, launch.version, launch.pid, launch.startedAt);
+      return true;
+    });
+  }
+
+  /** Ends a launch's lease with its verdict. */
+  finishLaunch(runId: string, verdict: NonNullable<LaunchRecord["verdict"]>, at: string = now()): void {
+    this.db
+      .prepare("UPDATE launches SET finishedAt = ?, verdict = ? WHERE runId = ? AND finishedAt IS NULL")
+      .run(at, verdict, runId);
+  }
+
+  /** The launches, oldest first. */
+  launches(): LaunchRecord[] {
+    return this.db
+      .prepare(
+        "SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict FROM launches ORDER BY startedAt, rowid",
+      )
+      .all()
+      .map((row) => LaunchRecord.parse(row));
   }
 
   /** The account choices in the order they were made. */

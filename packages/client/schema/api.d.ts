@@ -1056,17 +1056,17 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "plugin.refused";
+            code: "extension.refused";
             params: {
-                plugin: string;
+                extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
             };
         } | {
             /** @constant */
-            code: "plugin.failed";
+            code: "extension.failed";
             params: {
-                plugin: string;
+                extension: string;
                 /** @enum {string} */
                 step: "start" | "initialize" | "run";
                 error: string;
@@ -1640,17 +1640,17 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "plugin.refused";
+            code: "extension.refused";
             params: {
-                plugin: string;
+                extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
             };
         } | {
             /** @constant */
-            code: "plugin.failed";
+            code: "extension.failed";
             params: {
-                plugin: string;
+                extension: string;
                 /** @enum {string} */
                 step: "start" | "initialize" | "run";
                 error: string;

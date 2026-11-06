@@ -1,13 +1,13 @@
 export {
+  type ExtensionLaunch,
   HOST_LIMITS,
   type HostLimits,
-  type PluginLaunch,
   type RunLog,
-  type RunningPlugin,
+  type RunningExtension,
   type RunRequest,
-  startPlugin,
-  type Tier,
+  startExtension,
+  type Trust,
 } from "./host.ts";
-// The guard on a plugin's output, for any reader of it.
+// The guard on an extension's output, for any reader of it.
 export { framesUpTo } from "./reader.ts";
 export { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";

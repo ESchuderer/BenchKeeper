@@ -15,10 +15,10 @@
         "client",
         "contracts",
         "engine",
+        "extension-host",
         "git",
         "ledger",
         "orchestration",
-        "plugin-host",
         "server",
         "ui",
         "use-cases"
@@ -33,10 +33,10 @@
     "packages/client": { "component": "client" },
     "packages/contracts": { "component": "contracts" },
     "packages/engine": { "component": "engine" },
+    "packages/extension-host": { "component": "extension-host" },
     "packages/git": { "component": "git" },
     "packages/ledger": { "component": "ledger" },
     "packages/orchestration": { "component": "orchestration" },
-    "packages/plugin-host": { "component": "plugin-host" },
     "packages/plugin-sdk": { "component": "plugin-sdk" },
     "packages/server": {
       "component": "server",

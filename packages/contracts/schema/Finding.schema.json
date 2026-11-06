@@ -2008,12 +2008,12 @@
       "properties": {
         "code": {
           "type": "string",
-          "const": "plugin.refused"
+          "const": "extension.refused"
         },
         "params": {
           "type": "object",
           "properties": {
-            "plugin": {
+            "extension": {
               "type": "string"
             },
             "reason": {
@@ -2022,12 +2022,14 @@
                 "sandbox-unavailable",
                 "windows",
                 "protocol",
-                "actions"
+                "actions",
+                "folder",
+                "runtime"
               ]
             }
           },
           "required": [
-            "plugin",
+            "extension",
             "reason"
           ],
           "additionalProperties": false
@@ -2044,12 +2046,12 @@
       "properties": {
         "code": {
           "type": "string",
-          "const": "plugin.failed"
+          "const": "extension.failed"
         },
         "params": {
           "type": "object",
           "properties": {
-            "plugin": {
+            "extension": {
               "type": "string"
             },
             "step": {
@@ -2065,7 +2067,7 @@
             }
           },
           "required": [
-            "plugin",
+            "extension",
             "step",
             "error"
           ],

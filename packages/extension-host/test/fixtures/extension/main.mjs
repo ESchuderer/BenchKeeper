@@ -1,8 +1,10 @@
-// A plugin as its folder holds it: nothing beside it to import, so it speaks the protocol itself (Content-Length
+// An extension as its folder holds it: nothing beside it to import, so it speaks the protocol itself (Content-Length
 // frames over stdio). Its locale picks a misbehavior: x-old speaks protocol 0.9, x-garbled no version at all,
-// x-fewer names fewer actions, x-noactions no list of them, x-silent never answers the handshake, x-deaf ignores exit.
+// x-fewer names fewer actions, x-noactions no list of them, x-deep a deeply nested one, x-silent never answers the
+// handshake, x-deaf ignores exit.
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { lookup } from "node:dns/promises";
+import { fstatSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
@@ -32,11 +34,28 @@ const reach = () =>
     socket.on("connect", resolve);
   });
 
+// Node's flags do not cover a descriptor a process was given: none past stdio may be a file, folder or socket. Node
+// opens descriptors of its own (its event loop's), which are none of these.
+const inherited = () => {
+  for (let fd = 3; fd < 64; fd += 1) {
+    const kind = attemptSync(() => fstatSync(fd));
+    if (kind !== undefined && (kind.isFile() || kind.isDirectory() || kind.isSocket())) return `descriptor ${fd}`;
+  }
+  return "none";
+};
+const attemptSync = (act) => {
+  try {
+    return act();
+  } catch {
+    return undefined;
+  }
+};
+
 const actions = {
   echo: ({ config, inputs, run }) => ({ config, inputs, run }),
   chatty: ({ run }) => {
     for (const [index, level] of ["loud", "warning", "error", "info"].entries()) {
-      send({ method: "host/log", params: { run, level, message: `line ${index} ${"x".repeat(20)}` } });
+      send({ method: "host/log", params: { run, level, message: `line\u001b ${index} ${"x".repeat(20)}` } });
     }
     send({ method: "host/log", params: { run: "another run", level: "info", message: "not this run's" } });
     return {};
@@ -53,8 +72,10 @@ const actions = {
   crash: () => process.exit(3),
   "bad-outputs": () => 42,
   refuse: () => {
-    throw new Error("the tracker refused");
+    throw new Error("the tracker refused\u001b[2K\u202e");
   },
+  // Ignores the host's cancel and never answers.
+  stubborn: () => new Promise(() => undefined),
   abuse: async () => ({
     write: await attempt(() => writeFileSync(join(import.meta.dirname, "written.txt"), "x")),
     writeOutside: await attempt(() => writeFileSync(join(import.meta.dirname, "..", "written.txt"), "x")),
@@ -66,6 +87,15 @@ const actions = {
     }),
     worker: await attempt(() => new Worker("process.exit(0)", { eval: true })),
     network: await attempt(reach),
+    dns: await attempt(() => lookup("example.org")),
+    fetch: await attempt(() => fetch("http://127.0.0.1:9/")),
+    addon: await attempt(() => process.dlopen({ exports: {} }, join(import.meta.dirname, "addon.node"))),
+    descriptor: inherited(),
+    sqlite: await attempt(async () => {
+      const { DatabaseSync } = await import("node:sqlite");
+      return new DatabaseSync(join(import.meta.dirname, "..", "written.db"));
+    }),
+    signal: await attempt(() => process.kill(process.ppid, 0)),
     environment: Object.keys(process.env).filter((name) => !["LANG", "LC_ALL", "TZ"].includes(name)),
   }),
 };
@@ -80,7 +110,8 @@ const requests = {
     if (mode === "x-silent") return new Promise(() => undefined);
     const names = Object.keys(actions).filter((name) => mode !== "x-fewer" || name !== "abuse");
     const protocol = { "x-old": "0.9", "x-garbled": "one" }[mode] ?? "1.0";
-    return { protocol, actions: mode === "x-noactions" ? "all" : names };
+    const deep = JSON.parse(`${"[".repeat(5000)}${"]".repeat(5000)}`);
+    return { protocol, actions: { "x-noactions": "all", "x-deep": [deep] }[mode] ?? names };
   },
   "action/run": async (params) => ({ outputs: await actions[params.action](params) }),
   shutdown: () => null,

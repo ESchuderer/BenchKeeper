@@ -1,8 +1,8 @@
 {
-  "name": "@cedarloom/plugin-host",
+  "name": "@cedarloom/extension-host",
   "version": "0.0.0",
   "private": true,
-  "description": "The plugin host of CedarLoom: starts a plugin under Node's permission flags, speaks the plugin protocol with it, and refuses what its tier may not run.",
+  "description": "The extension host of CedarLoom: starts an extension under Node's permission flags, speaks the extension protocol with it, and refuses what its trust level may not run.",
   "license": "MIT",
   "type": "module",
   "exports": {

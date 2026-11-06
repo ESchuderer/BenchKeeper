@@ -3,15 +3,19 @@ import { Transform } from "node:stream";
 const EMPTY = Buffer.alloc(0);
 const HEADER_LIMIT = 1024;
 
+// The frame's length, when its header names exactly one: vscode-jsonrpc reads the last Content-Length line, so a
+// header with two could announce one length to this guard and another to the reader.
 const contentLength = (header: Buffer): number | undefined => {
-  const value = /^content-length:[ \t]*(\d{1,10})[ \t]*$/im.exec(header.toString("latin1"))?.[1];
-  return value === undefined ? undefined : Number(value);
+  const lengths = [...header.toString("latin1").matchAll(/^content-length:[ \t]*(\d{1,10})[ \t]*$/gim)];
+  const [only] = lengths;
+  return lengths.length === 1 && only !== undefined ? Number(only[1]) : undefined;
 };
 
 /**
- * The plugin's output as the protocol reader may take it. vscode-jsonrpc 10.0.0's reader buffers whatever a frame
- * announces, so this follows the frames (headers, a blank line, then as many bytes as `Content-Length` says) and ends
- * the stream at a header over 1 KiB, a frame without its length, or one longer than `limit`, before reading its body.
+ * The extension's output as the protocol reader may take it. vscode-jsonrpc 10.0.0's reader buffers whatever a frame
+ * announces, so this follows the frames (headers, a blank line, then as many bytes as `Content-Length` says), ends the
+ * stream at a header over 1 KiB, one without exactly one length, or a frame longer than `limit`, and passes each frame
+ * on under a header of its own, so the reader sees the length this guard checked.
  */
 export const framesUpTo = (limit: number): Transform => {
   let header = EMPTY;
@@ -32,9 +36,9 @@ export const framesUpTo = (limit: number): Transform => {
         return head.length > HEADER_LIMIT ? `a frame header over ${HEADER_LIMIT} bytes` : Buffer.concat(out);
       }
       const length = contentLength(head.subarray(0, end));
-      if (length === undefined) return "a frame without its Content-Length";
+      if (length === undefined) return "a frame without exactly one Content-Length";
       if (length > limit) return `a message over ${limit} bytes`;
-      out.push(head.subarray(0, end + 4));
+      out.push(Buffer.from(`Content-Length: ${length}\r\n\r\n`, "ascii"));
       [header, body, rest] = [EMPTY, length, head.subarray(end + 4)];
     }
     return Buffer.concat(out);

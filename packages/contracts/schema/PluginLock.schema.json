@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PluginLock.schema.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this JSON Schema; readers ignore it",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.lock"
+    },
+    "plugins": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "PluginId.schema.json"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "git": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$",
+                "description": "The commit, never a branch or tag that can move"
+              },
+              "path": {
+                "description": "The plugin's folder inside the repository; its root when absent",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+              }
+            },
+            "required": [
+              "git",
+              "commit"
+            ],
+            "additionalProperties": false
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the plugin folder's listing at the commit: one line `<mode> <SHA-256 of the file> <path>` per file, sorted by path"
+          }
+        },
+        "required": [
+          "version",
+          "source",
+          "digest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "plugins"
+  ],
+  "additionalProperties": false
+}

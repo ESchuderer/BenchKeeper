@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ExportIndex.schema.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this JSON Schema; readers ignore it",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.export"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "license": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+() -]{1,200}$",
+      "description": "SPDX license expression"
+    },
+    "workflows": {
+      "minItems": 1,
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "name",
+    "workflows"
+  ],
+  "additionalProperties": false
+}

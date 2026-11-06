@@ -28,6 +28,15 @@ export { canonicalJson, type Json } from "./json.ts";
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export { DeleteFile, Operation, PLAN_SCHEMA_VERSION, Plan, Sha256, WriteFile } from "./plan.ts";
 export { CSRF_HEADER } from "./http.ts";
+export {
+  EXPORT_SCHEMA_VERSION,
+  ExportIndex,
+  LOCK_SCHEMA_VERSION,
+  PLUGIN_SCHEMA_VERSION,
+  PluginId,
+  PluginLock,
+  PluginManifest,
+} from "./plugin.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {

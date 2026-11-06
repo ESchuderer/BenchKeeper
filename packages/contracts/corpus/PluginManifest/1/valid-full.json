@@ -1,0 +1,43 @@
+{
+  "$schema": "https://example.org/PluginManifest.schema.json",
+  "schemaVersion": 1,
+  "kind": "cedarloom.plugin",
+  "id": "acme.jira",
+  "version": "2.1.0",
+  "name": "Jira",
+  "description": "Searches and creates Jira issues.",
+  "license": "MIT OR Apache-2.0",
+  "api": "1.0",
+  "runtime": { "kind": "node", "entry": "dist/main.js" },
+  "platforms": ["darwin", "linux"],
+  "capabilities": {
+    "net": ["https://acme.atlassian.net", "https://api.acme.example:8443"],
+    "credentials": {
+      "jira-token": { "description": "A Jira API token", "hosts": ["https://acme.atlassian.net"] }
+    },
+    "projectRead": true,
+    "planWrite": true
+  },
+  "contributes": {
+    "actions": {
+      "search-issues": {
+        "title": "Search issues",
+        "description": "Runs a JQL query.",
+        "config": {
+          "type": "object",
+          "properties": { "query": { "$ref": "#/$defs/jql" }, "limit": { "type": "integer", "minimum": 1 } },
+          "required": ["query"],
+          "additionalProperties": false,
+          "$defs": { "jql": { "type": "string", "minLength": 1 } }
+        },
+        "inputs": { "project": { "type": "string", "required": true } },
+        "outputs": { "issues": { "type": "json", "description": "The issues found" }, "count": { "type": "number" } }
+      },
+      "write-report": {
+        "title": "Write a report",
+        "inputs": { "issues": { "type": "json" } }
+      }
+    }
+  },
+  "catalogs": { "de": "locales/de/messages.po", "pt-BR": "locales/pt-BR/messages.po" }
+}

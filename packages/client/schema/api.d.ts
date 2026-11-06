@@ -934,6 +934,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "workflow.report-only-plugin";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.plugin-missing";
+            params: {
+                node: string;
+                type: string;
+            };
+        } | {
+            /** @constant */
             code: "workflow.unreachable";
             params: {
                 node: string;
@@ -1485,6 +1498,19 @@ export interface components {
             code: "workflow.report-only-write";
             params: {
                 node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.report-only-plugin";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.plugin-missing";
+            params: {
+                node: string;
+                type: string;
             };
         } | {
             /** @constant */

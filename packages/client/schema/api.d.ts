@@ -902,6 +902,7 @@ export interface components {
             params: {
                 found: components["schemas"]["SchemaVersionInput"];
                 known: components["schemas"]["SchemaVersionInput"];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -2129,6 +2130,7 @@ export interface components {
             params: {
                 found: components["schemas"]["SchemaVersion"];
                 known: components["schemas"]["SchemaVersion"];
+                path?: string;
             };
         } | {
             /** @constant */

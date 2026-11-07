@@ -201,6 +201,9 @@
                   },
                   "known": {
                     "$ref": "#/components/schemas/SchemaVersionInput"
+                  },
+                  "path": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -5911,6 +5914,9 @@
                   },
                   "known": {
                     "$ref": "#/components/schemas/SchemaVersion"
+                  },
+                  "path": {
+                    "type": "string"
                   }
                 },
                 "required": [

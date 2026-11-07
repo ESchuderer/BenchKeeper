@@ -551,6 +551,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/graph-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            graphRuns: components["schemas"]["GraphRunSummary"][];
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/graph-runs/{graphRunId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    graphRunId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            run: components["schemas"]["GraphRunSummary"];
+                            attempts: {
+                                node: string;
+                                attempt: number;
+                                /** @enum {string} */
+                                state: "running" | "done" | "failed" | "timed-out" | "interrupted" | "cancelled";
+                                pid: number | null;
+                                /** Format: date-time */
+                                startedAt: string;
+                                finishedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/imports": {
         parameters: {
             query?: never;
@@ -692,7 +827,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description text/event-stream: `runs` events with RunsEvent, `refusal` events with Refusal */
+        /** @description text/event-stream: `runs` events with RunsEvent (apply and graph runs), `refusal` events with Refusal */
         get: {
             parameters: {
                 query?: never;
@@ -1824,8 +1959,23 @@ export interface components {
         RefusalInput: {
             findings: components["schemas"]["FindingInput"][];
         };
+        GraphRunSummaryInput: {
+            /** Format: uuid */
+            id: string;
+            workflow: string;
+            /** @enum {string} */
+            trigger: "manual" | "schedule";
+            /** @enum {string} */
+            mode: "act" | "report";
+            /** @enum {string} */
+            status: "running" | "succeeded" | "failed" | "cancelled" | "skipped" | "waiting" | "interrupted";
+            /** Format: date-time */
+            startedAt: string;
+            finishedAt: string | null;
+        };
         RunsEventInput: {
             runs: components["schemas"]["RunInput"][];
+            graphRuns: components["schemas"]["GraphRunSummaryInput"][];
         };
         WorkflowJsonInput: unknown | {
             [key: string]: components["schemas"]["WorkflowJsonInput"];
@@ -2952,8 +3102,23 @@ export interface components {
         Refusal: {
             findings: components["schemas"]["Finding"][];
         };
+        GraphRunSummary: {
+            /** Format: uuid */
+            id: string;
+            workflow: string;
+            /** @enum {string} */
+            trigger: "manual" | "schedule";
+            /** @enum {string} */
+            mode: "act" | "report";
+            /** @enum {string} */
+            status: "running" | "succeeded" | "failed" | "cancelled" | "skipped" | "waiting" | "interrupted";
+            /** Format: date-time */
+            startedAt: string;
+            finishedAt: string | null;
+        };
         RunsEvent: {
             runs: components["schemas"]["Run"][];
+            graphRuns: components["schemas"]["GraphRunSummary"][];
         };
         WorkflowJson: unknown;
         DraftInfo: {

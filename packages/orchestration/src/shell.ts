@@ -14,19 +14,23 @@ export interface Command {
 }
 
 /**
- * The simple commands a text runs, those inside command and process substitutions too, and whether it holds syntax the
- * reader does not model (loops, `case`, functions, an unclosed quote), whose commands the guard cannot tell apart.
+ * The simple commands a text runs, those inside command and process substitutions too. `skipped`: the reader passed
+ * over text it could not split (an unclosed quote, substitution or heredoc, a `)` without its `(`), which may hide any
+ * command. `unmodeled`: a loop, `case`, `select`, `coproc` or function, whose commands are read but not in their order.
  */
 export interface Script {
   readonly commands: Command[];
-  readonly unread: boolean;
+  readonly skipped: boolean;
+  readonly unmodeled: boolean;
 }
 
-// Words that start a compound command whose words the reader does not follow.
+// Words that start a compound command the reader does not follow as a whole.
 const UNMODELED = new Set(["for", "case", "select", "function", "coproc"]);
 const NAME = /^[A-Za-z_]\w*/;
 const OPENERS = new Set(["(", "{", "'", '"']);
 const REDIRECT = /^(?:&>>?|<<<|<<-|<<|<>|<&|>&|>>|>\||[<>])/;
+// What ends a word outside quotes; a carriage return is no blank to the shell.
+const BREAKS = " \t\n;&|()<>";
 
 class Builder {
   text = "";
@@ -53,7 +57,8 @@ interface Heredoc {
 
 class Reader {
   readonly commands: Command[] = [];
-  unread = false;
+  skipped = false;
+  unmodeled = false;
   #i = 0;
   readonly #text: string;
   readonly #heredocs: Heredoc[] = [];
@@ -82,7 +87,12 @@ class Reader {
       } else if (!this.#space(c, command)) this.#push(command);
     }
     this.#end(command);
-    if (closer !== null) this.unread = true;
+    if (closer !== null) this.skipped = true;
+  }
+
+  /** Ends the reading: a heredoc whose body never came was skipped. */
+  finish(): void {
+    if (this.#heredocs.length > 0) this.skipped = true;
   }
 
   // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word.
@@ -91,18 +101,13 @@ class Reader {
     if (!(/^\d+$/.test(word.text ?? "") && /^[<>]$/.test(this.#peek()))) command.words.push(word);
   }
 
-  /** Ends the reading: a heredoc whose body never came leaves the text unread. */
-  finish(): void {
-    if (this.#heredocs.length > 0) this.unread = true;
-  }
-
   #peek(offset = 0): string {
     return this.#text.charAt(this.#i + offset);
   }
 
   #end(command: Command): void {
     if (command.words.length === 0) return;
-    if (UNMODELED.has(command.words[0]?.text ?? "")) this.unread = true;
+    if (UNMODELED.has(command.words[0]?.text ?? "")) this.unmodeled = true;
     this.commands.push(command);
   }
 
@@ -114,16 +119,17 @@ class Reader {
       return true;
     }
     if (c === "&" && this.#peek(1) === ">") return false;
-    if (c === ")") this.unread = true;
+    if (c === ")") this.skipped = true;
     if (!";&|)".includes(c)) return false;
     this.#i += this.#peek(1) === c || (c === "|" && this.#peek(1) === "&") ? 2 : 1;
     return true;
   }
 
-  // Blanks, comments, subshells and redirections: whatever is no word of the command. True when it took the character.
+  // Blanks, line continuations, comments, subshells and redirections: whatever is no word of the command. True when it
+  // took the character.
   #space(c: string, command: Command): boolean {
-    if (/^[ \t\r]$/.test(c)) {
-      this.#i += 1;
+    if (c === " " || c === "\t" || (c === "\\" && this.#peek(1) === "\n")) {
+      this.#i += c === "\\" ? 2 : 1;
       return true;
     }
     if (c !== "#") return this.#opens(c, command);
@@ -131,11 +137,11 @@ class Reader {
     return true;
   }
 
-  // A subshell or a redirection. `name()` defines a function, whose body the reader does not follow.
+  // A subshell or a redirection. `name()` defines a function, whose body runs when it is called.
   #opens(c: string, command: Command): boolean {
     if (c === "(") {
       this.#i += 1;
-      if (command.words.length > 0) this.unread = true;
+      if (command.words.length > 0) this.unmodeled = true;
       this.script(")");
       return true;
     }
@@ -145,7 +151,7 @@ class Reader {
   }
 
   // A redirection: its target word is no argument; a heredoc's body is read after the line ends; `<(` and `>(` run a
-  // process substitution.
+  // process substitution, whose path is the word.
   #redirect(command: Command): void {
     const op = REDIRECT.exec(this.#text.slice(this.#i, this.#i + 3))?.[0] ?? "<";
     if (/^[<>]$/.test(op) && this.#peek(1) === "(") {
@@ -155,7 +161,7 @@ class Reader {
       return;
     }
     this.#i += op.length;
-    while (/^[ \t]$/.test(this.#peek())) this.#i += 1;
+    while (this.#peek() === " " || this.#peek() === "\t") this.#i += 1;
     const target = this.#word();
     if (op === "<<<") command.stdin.push(target.word());
     else if (op.startsWith("<<")) this.#heredoc(target, op === "<<-", command);
@@ -163,7 +169,7 @@ class Reader {
 
   #heredoc(target: Builder, strip: boolean, into: Command): void {
     const delimiter = target.word().text;
-    if (delimiter === null || delimiter === "") this.unread = true;
+    if (delimiter === null || delimiter === "") this.skipped = true;
     else this.#heredocs.push({ delimiter, quoted: target.quoted, strip, into });
   }
 
@@ -178,7 +184,7 @@ class Reader {
         closed = (doc.strip ? line.replace(/^\t+/, "") : line) === doc.delimiter;
         if (!closed) lines.push(line);
       }
-      if (!closed) this.unread = true;
+      if (!closed) this.skipped = true;
       doc.into.stdin.push(this.#body(lines.join("\n"), doc.quoted));
     }
   }
@@ -193,22 +199,23 @@ class Reader {
     return word.word();
   }
 
-  #adopt(reader: Script): void {
-    this.commands.push(...reader.commands);
-    if (reader.unread) this.unread = true;
+  #adopt(script: Script): void {
+    this.commands.push(...script.commands);
+    this.skipped ||= script.skipped;
+    this.unmodeled ||= script.unmodeled;
   }
 
   // One word, up to a blank or an operator; at least one character, so a reader always moves on.
   #word(): Builder {
     const word = new Builder();
-    if (" \t\r\n;&|()<>".includes(this.#peek())) word.add(this.#text.charAt(this.#i++));
-    while (!this.done && !" \t\r\n;&|()<>".includes(this.#peek())) {
+    if (BREAKS.includes(this.#peek())) word.add(this.#text.charAt(this.#i++));
+    while (!this.done && !BREAKS.includes(this.#peek())) {
       const c = this.#peek();
       this.#i += 1;
       if (c === "'") this.#singleQuoted(word);
       else if (c === '"') this.#doubleQuoted(word, '"');
       else if (c === "\\") this.#escaped(word, null);
-      else if (c === "$") this.#dollar(word);
+      else if (c === "$") this.#dollar(word, false);
       else if (c === "`") this.#backquoted(word);
       else word.add(c);
     }
@@ -218,9 +225,16 @@ class Reader {
   #singleQuoted(word: Builder): void {
     word.quoted = true;
     const end = this.#text.indexOf("'", this.#i);
-    if (end < 0) this.unread = true;
+    if (end < 0) this.skipped = true;
     word.add(this.#text.slice(this.#i, end < 0 ? undefined : end));
     this.#i = end < 0 ? this.#text.length : end + 1;
+  }
+
+  // `$'...'`: a backslash escapes the next character, a quote among them.
+  #ansiQuoted(): void {
+    while (!this.done && this.#peek() !== "'") this.#i += this.#peek() === "\\" ? 2 : 1;
+    if (this.done) this.skipped = true;
+    this.#i += 1;
   }
 
   // Inside double quotes (closer `"`) or a heredoc body (closer null): `$` and backquotes still expand.
@@ -231,11 +245,11 @@ class Reader {
       this.#i += 1;
       if (c === closer) return;
       if (c === "\\") this.#escaped(word, '$`"\\\n');
-      else if (c === "$") this.#dollar(word);
+      else if (c === "$") this.#dollar(word, true);
       else if (c === "`") this.#backquoted(word);
       else word.add(c);
     }
-    if (closer !== null) this.unread = true;
+    if (closer !== null) this.skipped = true;
   }
 
   // A backslash: a line continuation, or the next character as it is; in double quotes only before `special`.
@@ -247,28 +261,44 @@ class Reader {
     word.add(special === null || special.includes(c) ? c : `\\${c}`);
   }
 
-  // `$`: a parameter, a command or arithmetic substitution, or `$'...'`; each makes the word unknown.
-  #dollar(word: Builder): void {
+  // `$`: a parameter, a command or arithmetic substitution, or (outside double quotes) `$'...'` and `$"..."`; each
+  // makes the word unknown.
+  #dollar(word: Builder, inQuotes: boolean): void {
     const c = this.#peek();
     const name = NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]$/.test(c) ? c : "");
-    if (!OPENERS.has(c) && name === "") {
+    const opens = OPENERS.has(c) && !(inQuotes && (c === "'" || c === '"'));
+    if (!opens && name === "") {
       word.add("$");
       return;
     }
     word.expand();
-    this.#i += OPENERS.has(c) ? 1 : name.length;
-    this.#expansion(c);
+    this.#i += opens ? 1 : name.length;
+    if (opens) this.#expansion(c);
   }
 
   // What follows a `$`: a substitution runs, the rest only makes the word unknown.
   #expansion(c: string): void {
-    if (c === "(") this.script(")");
+    if (c === "(" && this.#peek() === "(") this.#arithmetic();
+    else if (c === "(") this.script(")");
     else if (c === "{") this.#braced();
-    else if (c === "'") this.#singleQuoted(new Builder());
+    else if (c === "'") this.#ansiQuoted();
     else if (c === '"') this.#doubleQuoted(new Builder(), '"');
   }
 
-  // `${...}`: unknown, but a substitution inside it still runs.
+  // `$((...))`: arithmetic, where `<<` shifts; a substitution inside it still runs.
+  #arithmetic(): void {
+    let depth = 1;
+    while (!this.done && depth > 0) {
+      const c = this.#peek();
+      this.#i += 1;
+      if (c === "(") depth += 1;
+      else if (c === ")") depth -= 1;
+      else if (c === "$" || c === "`") this.#inner(c);
+    }
+    if (depth > 0) this.skipped = true;
+  }
+
+  // `${...}`: unknown, but a substitution inside it still runs, and its quotes hold `}` and `{`.
   #braced(): void {
     let depth = 1;
     while (!this.done && depth > 0) {
@@ -276,11 +306,18 @@ class Reader {
       this.#i += 1;
       if (c === "{") depth += 1;
       else if (c === "}") depth -= 1;
-      else if (c === "$" && this.#peek() === "(") this.#dollar(new Builder());
-      else if (c === "`") this.#backquoted(new Builder());
       else if (c === "\\") this.#i += 1;
+      else this.#inner(c);
     }
-    if (depth > 0) this.unread = true;
+    if (depth > 0) this.skipped = true;
+  }
+
+  // A quote, substitution or parameter inside `${...}` or `$((...))`.
+  #inner(c: string): void {
+    if (c === "'") this.#singleQuoted(new Builder());
+    else if (c === '"') this.#doubleQuoted(new Builder(), '"');
+    else if (c === "$") this.#dollar(new Builder(), false);
+    else if (c === "`") this.#backquoted(new Builder());
   }
 
   // A backquoted substitution: its text, with `\``, `\\` and `\$` unescaped, runs as a script of its own.
@@ -292,7 +329,7 @@ class Reader {
       this.#i += 1;
       inner += c === "\\" && "`\\$".includes(this.#peek()) ? this.#text.charAt(this.#i++) : c;
     }
-    if (this.done) this.unread = true;
+    if (this.done) this.skipped = true;
     this.#i += 1;
     this.#adopt(readShell(inner));
   }
@@ -303,5 +340,5 @@ export const readShell = (text: string): Script => {
   const reader = new Reader(text);
   reader.script(null);
   reader.finish();
-  return { commands: reader.commands, unread: reader.unread };
+  return { commands: reader.commands, skipped: reader.skipped, unmodeled: reader.unmodeled };
 };

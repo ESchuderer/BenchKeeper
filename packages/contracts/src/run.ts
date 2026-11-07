@@ -66,7 +66,8 @@ export type RunEvent = z.infer<typeof RunEvent>;
 
 /**
  * An entry of a run's event log: the reducer's events, and the executor's records around them, which a replay skips.
- * `started` is committed before its attempt is spawned, `applying` before its apply run writes anything.
+ * `started` is committed before its attempt is spawned, `applying` before its apply run writes anything, `session` as
+ * soon as an agent's session names its id, so a later runner can resume it.
  */
 export const JournalEvent = z.discriminatedUnion("type", [
   ...RunEvent.options,
@@ -77,6 +78,7 @@ export const JournalEvent = z.discriminatedUnion("type", [
     pid: z.int().positive().nullable(),
   }),
   z.strictObject({ type: z.literal("applying"), node: WorkflowId, attempt: Attempt, applyRun: z.uuid() }),
+  z.strictObject({ type: z.literal("session"), node: WorkflowId, attempt: Attempt, sessionId: z.string().min(1) }),
   z.strictObject({ type: z.literal("finished"), status: RunStatus.exclude(["running"]), outputs: Values }),
   z.strictObject({ type: z.literal("resumed") }),
 ]);

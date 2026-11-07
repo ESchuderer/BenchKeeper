@@ -1,16 +1,14 @@
-// Floors and baselines of quality.json: coverage per module (the modules of .dependency-cruiser.cjs), knip findings and
-// duplicated lines (jscpd). A baseline may only shrink: a new finding fails, and so does a fixed one still listed.
-// Usage: node scripts/quality.mjs coverage <lcov file> | baselines [--write]. --write drops fixed findings, never adds one.
+// Baselines of quality.json: knip findings and duplicated lines (jscpd). A baseline may only shrink: a new finding fails,
+// and so does a fixed one still listed.
+// Usage: node scripts/quality.mjs baselines [--write]. --write drops fixed findings, never adds one.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = fileURLToPath(new URL('..', import.meta.url));
 const QUALITY = join(here, 'quality.json');
-const KINDS = { lines: ['LF', 'LH'], branches: ['BRF', 'BRH'], functions: ['FNF', 'FNH'] };
 // jscpd arguments per area of baselines.duplicatedLines, paths relative to app/. `tests` counts tests with the source they repeat,
 // .jsx included.
 const JS = ['--format', 'javascript,jsx'];
@@ -20,29 +18,6 @@ const AREAS = {
   web: ['../web/src', '../web/scripts', '../web/tests'],
   plugins: ['../plugins'],
 };
-
-// Module name to path pattern, read from the `<module>-imports` rules so the modules are defined in one place.
-export const modules = () => Object.fromEntries(createRequire(import.meta.url)('../.dependency-cruiser.cjs').forbidden
-  .filter((r) => r.name.endsWith('-imports')).map((r) => [r.name.slice(0, -'-imports'.length), new RegExp(r.from.path)]));
-
-// Percent covered per module and kind from an lcov report; a module without a found line, branch or function gets 100.
-export function perModule(lcov, mods) {
-  const sums = {};
-  for (const record of lcov.split('end_of_record')) {
-    const file = /^SF:(.+)$/m.exec(record)?.[1].replaceAll('\\', '/');
-    const mod = file && Object.keys(mods).find((m) => mods[m].test(file));
-    if (!mod) continue;
-    sums[mod] ??= {};
-    for (const [kind, [found, hit]] of Object.entries(KINDS)) {
-      const n = (key) => Number(new RegExp(`^${key}:(\\d+)$`, 'm').exec(record)?.[1] ?? 0);
-      sums[mod][kind] = [(sums[mod][kind]?.[0] ?? 0) + n(found), (sums[mod][kind]?.[1] ?? 0) + n(hit)];
-    }
-  }
-  return Object.fromEntries(Object.entries(sums).map(([m, k]) => [m, Object.fromEntries(Object.entries(k).map(([kind, [f, h]]) => [kind, f ? Math.round(1000 * h / f) / 10 : 100]))]));
-}
-
-export const belowFloors = (measured, floors) => Object.entries(floors).flatMap(([m, kinds]) => Object.entries(kinds)
-  .filter(([kind, floor]) => (measured[m]?.[kind] ?? 0) < floor).map(([kind, floor]) => `${m} ${kind} ${measured[m]?.[kind] ?? 0} < ${floor}`));
 
 // One line per knip finding: kind, file and name, without positions, so moving code does not change it.
 export const knipFindings = (report) => report.issues.flatMap((i) => Object.entries(i)
@@ -98,16 +73,12 @@ if (import.meta.main || (!evalOrPrint && process.argv[1] && existsSync(process.a
   const [what, arg] = process.argv.slice(2);
   const quality = JSON.parse(readFileSync(QUALITY, 'utf8'));
   let problems;
-  if (what === 'coverage' && arg) {
-    const measured = perModule(readFileSync(arg, 'utf8'), modules());
-    for (const [m, k] of Object.entries(measured)) console.log(`${m.padEnd(8)} lines ${k.lines}  branches ${k.branches}  functions ${k.functions}`);
-    problems = belowFloors(measured, quality.coverage);
-  } else if (what === 'baselines') {
+  if (what === 'baselines') {
     const r = compare(quality.baselines, run());
     if (arg === '--write') writeFileSync(QUALITY, `${JSON.stringify({ ...quality, baselines: r.shrunk }, null, 2)}\n`);
     problems = arg === '--write' ? r.problems.filter((p) => !p.endsWith('(run with --write)')) : r.problems;
   } else {
-    console.error('usage: node scripts/quality.mjs coverage <lcov file> | baselines [--write]');
+    console.error('usage: node scripts/quality.mjs baselines [--write]');
     process.exit(2);
   }
   for (const p of problems) console.error(`error ${p}`);

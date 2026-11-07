@@ -32,18 +32,26 @@ export const CONFORMANT = {
   // No file or socket descriptor past stdio: Node's flags do not cover a descriptor a process was given.
   descriptor: "none",
   sqlite: "ERR_UNKNOWN_BUILTIN_MODULE",
-  // Node's flags let a process signal any process of the user (and open another Node process's inspector): only an
-  // OS sandbox refuses it, which it must (SANDBOX_ONLY).
+  // Node's flags let a process signal any process of the user, the host among them (and open another Node process's
+  // inspector): only an OS sandbox refuses it, which it must (SANDBOX_ONLY).
   signal: "allowed",
   environment: INJECTED[process.platform] ?? [],
 };
 
-/** What the kit expects beyond CONFORMANT of an OS sandbox, which PR 12's sandbox must pass. */
-export const SANDBOX_ONLY = { signal: "EPERM" };
+/**
+ * What the kit expects beyond CONFORMANT of an OS sandbox: no signal reaches the host. It is refused (EPERM), or, in a
+ * PID namespace (bubblewrap), the host's pid names no process there (ESRCH).
+ */
+export const SANDBOX_ONLY = { signal: ["EPERM", "ESRCH"] };
 
 /** Runs the fixture extension's `abuse` action, which tries each of them and answers what happened. */
 export const conformance = async (extension: RunningExtension): Promise<Result<Record<string, unknown>>> => {
-  const result = await extension.run({ action: "abuse", config: {}, inputs: {}, run: "conformance" });
+  const result = await extension.run({
+    action: "abuse",
+    config: { host: process.pid },
+    inputs: {},
+    run: "conformance",
+  });
   if (!result.ok) return result;
   // The environment's names in a fixed order: the OS adds them in its own.
   const environment: unknown = result.value["environment"];

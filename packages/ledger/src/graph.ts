@@ -272,10 +272,11 @@ export class GraphStore {
         .prepare(`UPDATE node_attempts SET state = ?, outputs = ?, finishedAt = ? ${ofRunning}`)
         .run(event.outcome, canonicalJson(event.values ?? {}), at, runId, event.node, event.attempt);
       must(changes, `attempt ${event.attempt} of node ${event.node} is not running`);
-    } else if (event.type === "applying") {
+    } else if (event.type === "applying" || event.type === "session") {
+      const [column, value] = event.type === "applying" ? ["applyRun", event.applyRun] : ["sessionId", event.sessionId];
       const { changes } = this.#db
-        .prepare(`UPDATE node_attempts SET applyRun = ? ${ofRunning}`)
-        .run(event.applyRun, runId, event.node, event.attempt);
+        .prepare(`UPDATE node_attempts SET ${column} = ? ${ofRunning}`)
+        .run(value, runId, event.node, event.attempt);
       must(changes, `attempt ${event.attempt} of node ${event.node} is not running`);
     } else if (event.type === "finished") {
       // A run ends after its attempts: one left running could never be ended once the run refuses events.

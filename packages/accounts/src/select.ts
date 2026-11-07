@@ -3,6 +3,9 @@ import { type Account, type AccountRegistry, type Agent, QuotaWindow, type Readi
 /** What the choice reads of a reading: the time it was read is not needed. */
 type Current = Omit<Reading, "readAt">;
 
+/** The minimums a new registry starts with, in percent of each window. */
+export const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
+
 /** A pool account as the choice saw it: its smallest margin above its minimums, null when a window is unknown. */
 export interface Candidate {
   readonly account: string;

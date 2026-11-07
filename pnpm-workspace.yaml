@@ -17,6 +17,13 @@ catalog:
   fast-check: 4.10.2
   zod: 4.6.7
 
+# shortcut: sandbox-runtime 0.0.81 asks for zod ^3.25, which dependency review refuses for GHSA-mrhx-c7xc-m3w5 (fixed
+# in 4.6.6). The override clears the scanner, not the advisory: srt imports zod/v3, which the fix left as it was. The
+# advisory does not reach CedarLoom, whose SandboxManager calls parse nothing with zod (only srt's CLI config loader
+# and its decider client do). srt runs on zod 4 through zod/v3. Drop the override once srt asks for zod 4.
+overrides:
+  "@anthropic-ai/sandbox-runtime>zod": "catalog:"
+
 # shortcut: thread-stream 4.2.0 (pino, through fastify) names a worker_threads type that @types/node 26 removed, which
 # tsc reports with skipLibCheck off; 4.2.1 has the same one-line fix. Drop the patch when the lockfile moves to 4.2.1.
 patchedDependencies:

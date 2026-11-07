@@ -1,3 +1,4 @@
+import { claudeRuntime } from "@cedarloom/adapter-claude";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -48,6 +49,8 @@ const setup = (
           authMethod: "claude.ai",
           configDirectory: env["CLAUDE_CONFIG_DIR"] ?? null,
         },
+      // No test starts an agent.
+      agent: claudeRuntime(["false"]),
       ...(fetch === undefined ? {} : { fetch }),
     };
     return { code: await main(argv, io), out, err };
@@ -293,6 +296,24 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
   expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
+});
+
+test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
+  const { state, logins, cli } = setup();
+  // The preview changes nothing: still no registry.
+  expect((await cli("accounts", "add", "work", "--pool", "main")).code).toBe(EXIT.ok);
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null });
+  expect(json((await cli("accounts", "add", "work", "--pool", "main", "--yes", "--json")).out)).toMatchObject({
+    format: "cedarloom.run",
+    status: "applied",
+  });
+  const home = join(state, "homes", "work");
+  expect((await cli("accounts", "list")).out).toBe(`work  claude  main (not confirmed)  ${home}\n`);
+  expect((await cli("accounts", "login", "work")).code).toBe(EXIT.ok);
+  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
+  const again = await cli("accounts", "add", "work", "--json");
+  expect(again.code).toBe(EXIT.refused);
+  expect(json(again.out)).toMatchObject({ findings: [{ code: "accounts.name-taken", params: { account: "work" } }] });
 });
 
 test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
@@ -589,6 +610,7 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     untilStopped: () => stopped.promise,
     login: () => ({ code: null }),
     authStatus: async () => ({ kind: "logged-out" }) as const,
+    agent: claudeRuntime(["false"]),
   };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a

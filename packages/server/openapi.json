@@ -2096,6 +2096,58 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "accounts.name-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.name-invalid"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "accounts.login-unsupported"
               },
               "params": {
@@ -2764,7 +2816,8 @@
                       "start",
                       "fetch",
                       "list",
-                      "read"
+                      "read",
+                      "worktree"
                     ]
                   },
                   "error": {
@@ -5791,6 +5844,58 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "accounts.name-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.name-invalid"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "accounts.login-unsupported"
               },
               "params": {
@@ -6459,7 +6564,8 @@
                       "start",
                       "fetch",
                       "list",
-                      "read"
+                      "read",
+                      "worktree"
                     ]
                   },
                   "error": {

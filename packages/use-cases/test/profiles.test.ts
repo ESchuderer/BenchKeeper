@@ -874,10 +874,17 @@ test("another clone takes a committed file as CedarLoom's by the project's recor
   ]);
 });
 
-test("a committed skill another machine's profile wrote and recorded stays, and so does its record entry", async () => {
+const deletes = (plan: Plan | null) => (plan?.operations ?? []).filter((op) => op.kind === "delete");
+
+test("committed files another machine's profile wrote and recorded stay where a profile lacks them", async () => {
   const project = projectWith();
   const first = custom(packsPart(["acme.skills"]), SKILLS);
   applied(first.state, ok(await planned(first, project, packs)).plan);
-  // A machine whose profile has no such pack, as the selection is each machine's own.
-  expect(ok(await planned(custom(packsPart([]), SKILLS), project, packs)).plan).toBe(null);
+  // Machines whose profile has no such pack, or the agent docs switched off, as each machine selects its own.
+  const off = machine();
+  applied(off.state, ok(planChoice(off.config, { part: "project.agent-docs", on: false })));
+  expect([
+    ok(await planned(custom(packsPart([]), SKILLS), project, packs)).plan,
+    deletes((await projectPlan(off, project)).plan),
+  ]).toEqual([null, []]);
 });

@@ -18,22 +18,22 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 
 ### Everyday forms it refuses
 
-| Form | Instead |
-| --- | --- |
-| a subshell `(cd x && make)`, a group `{ a; b; } > f` | `cd x && make`, `git -C x`, `make -C x`; one redirection per command |
-| a function, `case`, `select`, `coproc` | `if` and `elif` |
-| `[[ $x =~ (a\|b) ]]`, any `(` right after a word | `grep -E` |
-| a process substitution, `diff <(sort a) <(sort b)` | temporary files |
-| backquotes, also inside double quotes and unquoted heredocs | `$(...)`; a quoted heredoc (`<<'EOF'`) for text with backquotes |
-| `$(( $(cmd) + 1 ))` | `n=$(cmd)` first |
-| `bash -c`, `sh -c`, a shell reading a pipe, heredoc or here-string, `source /dev/stdin`, `eval`, `trap`, `alias`, `watch` | the command itself, or a script file |
-| `find -exec`, `-execdir`, `-ok`, `-okdir` | `find ... -print0 \| xargs -0 <program>` |
-| `xargs` in front of gh, git, curl, a shell or a wrapper | a `for` or `while read` loop |
-| a wrapper option it does not know (`env -S`, `env -P`, `nice -10`, an abbreviated long option) | the options it lists, spelled out |
-| a command named by a variable or a glob (`$PYTHON x.py`) | the program's name |
-| `export`, `read`, `printf -v` or `env -u` of a name it cannot read (`export $(cat .env \| xargs)`) | names written out |
-| zsh's `=cmd`, `noglob`, `nocorrect`, `-`, glob qualifiers, `=(...)`, `${(...)...}` | the bash forms |
-| the PowerShell tool | the Bash tool; on Windows the launch requires Git Bash |
+| Form                                                                                                                      | Instead                                                              |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| a subshell `(cd x && make)`, a group `{ a; b; } > f`                                                                      | `cd x && make`, `git -C x`, `make -C x`; one redirection per command |
+| a function, `case`, `select`, `coproc`                                                                                    | `if` and `elif`                                                      |
+| `[[ $x =~ (a\|b) ]]`, any `(` right after a word                                                                          | `grep -E`                                                            |
+| a process substitution, `diff <(sort a) <(sort b)`                                                                        | temporary files                                                      |
+| backquotes, also inside double quotes and unquoted heredocs                                                               | `$(...)`; a quoted heredoc (`<<'EOF'`) for text with backquotes      |
+| `$(( $(cmd) + 1 ))`                                                                                                       | `n=$(cmd)` first                                                     |
+| `bash -c`, `sh -c`, a shell reading a pipe, heredoc or here-string, `source /dev/stdin`, `eval`, `trap`, `alias`, `watch` | the command itself, or a script file                                 |
+| `find -exec`, `-execdir`, `-ok`, `-okdir`                                                                                 | `find ... -print0 \| xargs -0 <program>`                             |
+| `xargs` in front of gh, git, curl, a shell or a wrapper                                                                   | a `for` or `while read` loop                                         |
+| a wrapper option it does not know (`env -S`, `env -P`, `nice -10`, an abbreviated long option)                            | the options it lists, spelled out                                    |
+| a command named by a variable or a glob (`$PYTHON x.py`)                                                                  | the program's name                                                   |
+| `export`, `read`, `printf -v` or `env -u` of a name it cannot read (`export $(cat .env \| xargs)`)                        | names written out                                                    |
+| zsh's `=cmd`, `noglob`, `nocorrect`, `-`, glob qualifiers, `=(...)`, `${(...)...}`                                        | the bash forms                                                       |
+| the PowerShell tool                                                                                                       | the Bash tool; on Windows the launch requires Git Bash               |
 
 ### Known limits
 

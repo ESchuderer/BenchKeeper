@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  composeProfile,
+  type LoadParent,
+  MAX_PROFILE_FILES,
   Profile,
   PROFILE_SCHEMA_VERSION,
+  ProfileFile,
   ProfileSelection,
   readDocument,
   readProfile,
@@ -15,7 +19,8 @@ import { set } from "./published.ts";
 
 const read = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(join(import.meta.dirname, "..", "corpus", path), "utf8"));
-const defaults = await read("CedarLoomProfile/1/valid-default.json");
+const defaults = await read("CedarLoomProfile/1/valid-full.json");
+const child = ProfileFile.parse(await read("CedarLoomProfile/1/valid-child.json"));
 
 const outcome = (result: Result<unknown>) => {
   if (result.ok) return "ok";
@@ -200,6 +205,226 @@ test.for<[string, (string | number)[], unknown, string]>([
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
   expect(outcome(readDocument(Profile, PROFILE_SCHEMA_VERSION, set(defaults, path, value)))).toEqual([issue]);
+});
+
+const base = { schemaVersion: 1, kind: "cedarloom.profile", version: "1.0.0", name: "x", minApp: "0.1.0" };
+const file = (fields: object): ProfileFile => ProfileFile.parse({ ...base, ...fields });
+const own = { packs: { "acme.x": { git: "https://x.example/x.git", ref: "main" } }, agents: ["claude-code"] };
+const loader =
+  (files: Record<string, ProfileFile>): LoadParent =>
+  (parent) => {
+    const found = files[`${parent.pack}/${parent.path}`];
+    return found === undefined ? undefined : { ok: true, value: found };
+  };
+const alone = (part: object) =>
+  outcome(composeProfile(file({ ...own, id: "acme.root", machine: { x: part } }), loader({})));
+const library = loader({ "acme.shared/profiles/full.json": ProfileFile.parse(defaults) });
+const tier = (id: string, value: string | null, parents: string[] = []) =>
+  file({
+    ...own,
+    id,
+    ...(parents.length > 0 ? { extends: parents.map((path) => ({ pack: "acme.x", path })) } : {}),
+    project: { tier: { type: "tier", title: id, default: "on", tier: value } },
+  });
+
+test("a child states only what it changes: the later value wins, lists grow, and each value names who set it", () => {
+  const composed = composeProfile(child, library);
+  if (!composed.ok) throw new Error(composed.finding.code);
+  const { profile, setBy } = composed.value;
+  const ponytail = profile.machine["plugin.ponytail"];
+  const guards = profile.project["guards"];
+  expect([
+    profile.id,
+    ponytail?.default,
+    ponytail?.title,
+    profile.machine["settings.claude-code"]?.type === "settings" && profile.machine["settings.claude-code"].set["env"],
+    guards?.type === "settings" && guards.set["permissions"],
+    Object.keys(profile.packs),
+    setBy["/machine/plugin.ponytail"],
+    setBy["/machine/plugin.ponytail/default"],
+    setBy["/project/guards/set/permissions/deny/2"],
+    setBy["/project/notes"],
+  ]).toEqual([
+    "acme.team",
+    "off",
+    "Ponytail at level ultra",
+    { DISABLE_ERROR_REPORTING: "1", DISABLE_FEEDBACK_COMMAND: "0" },
+    { deny: ["Bash(sudo *)", "Bash(git push *--force*)", "Bash(npm publish *)"] },
+    ["acme.shared", "acme.frontend"],
+    "acme.full",
+    "acme.team",
+    "acme.team",
+    "acme.team",
+  ]);
+});
+
+test("a part of another type, and a text from another source, replace the parent's whole", () => {
+  const text = { inline: "# Mine\n" };
+  const mine = ProfileFile.parse({
+    ...child,
+    machine: {
+      "settings.claude-code": { type: "rules", title: "Mine", default: "on", file: "mine.md", text },
+      "rules.global": { type: "rules", text },
+    },
+    project: { "agent-docs": { type: "files", files: { "docs/agents/domain.md": text } } },
+  });
+  const composed = composeProfile(mine, library);
+  const docs = composed.ok && composed.value.profile.project["agent-docs"];
+  expect(
+    composed.ok && [
+      composed.value.profile.machine["settings.claude-code"],
+      composed.value.profile.machine["rules.global"],
+      docs && docs.type === "files" && docs.files,
+    ],
+  ).toEqual([
+    { type: "rules", title: "Mine", default: "on", file: "mine.md", text },
+    { type: "rules", title: "Acme rules", default: "on", file: "10-acme.md", text },
+    {
+      "docs/agents/one.md": { pack: "acme.shared", path: "templates/one.md" },
+      "docs/agents/two.md": { pack: "acme.shared", path: "templates/two.md" },
+      "docs/agents/domain.md": text,
+    },
+  ]);
+});
+
+test("parents apply in list order after their own parents, a shared one once at its first place", () => {
+  // b changes nothing itself, so c applied again after a would take back a's change.
+  const b = file({ ...own, id: "acme.b", extends: [{ pack: "acme.x", path: "c" }] });
+  const files = { a: tier("acme.a", "full", ["c"]), b, c: tier("acme.c", "quick") };
+  const root = file({
+    ...own,
+    id: "acme.root",
+    extends: [
+      { pack: "acme.x", path: "a" },
+      { pack: "acme.x", path: "b" },
+    ],
+  });
+  const composed = composeProfile(
+    root,
+    loader(Object.fromEntries(Object.entries(files).map(([key, value]) => [`acme.x/${key}`, value]))),
+  );
+  expect(composed.ok && [composed.value.profile.project["tier"], composed.value.setBy["/project/tier/tier"]]).toEqual([
+    { type: "tier", title: "acme.a", default: "on", tier: "full" },
+    "acme.a",
+  ]);
+});
+
+test("a parent that leads back to a profile on the way is refused, with the circle", () => {
+  const files = loader({ "acme.x/a": tier("acme.a", "full", ["b"]), "acme.x/b": tier("acme.b", "full", ["a"]) });
+  expect(outcome(composeProfile(tier("acme.root", "full", ["a"]), files))).toEqual({
+    code: "profile.parent-cycle",
+    params: { chain: ["acme.x/a", "acme.x/b", "acme.x/a"] },
+  });
+});
+
+test("a parent its pack does not hold is refused", () => {
+  expect(outcome(composeProfile(child, loader({})))).toEqual({
+    code: "profile.parent-unknown",
+    params: { pack: "acme.shared", path: "profiles/full.json" },
+  });
+});
+
+test("a part left incomplete by every file, or an auto part without its probe, is refused", () => {
+  expect([
+    alone({ type: "settings", default: "on" }),
+    alone({ type: "settings", title: "x", default: "auto", set: {} }),
+  ]).toEqual([["machine.x.title", "machine.x.set"], ["machine.x.when"]]);
+});
+
+const foreign = (kind: string) => ({ code: "profile.foreign-kind", params: { kind } });
+test("the root and each parent are read as profiles, so a file the reader refuses stops the composition", () => {
+  expect([
+    outcome(composeProfile(child, () => ({ ok: true, value: { kind: "benchkeeper-profile" } }))),
+    outcome(composeProfile({ kind: "benchkeeper-preset" }, library)),
+  ]).toEqual([foreign("benchkeeper-profile"), foreign("benchkeeper-preset")]);
+});
+
+const manual = (text: string) => ({
+  manual: { type: "manual", title: "m", default: "on", claudeImport: true, rules: [{ inline: text }] },
+});
+const withOptions = (options: object) => set(defaults, ["machine", "plugin.ponytail", "options", "set"], options);
+test("a plugin's options hold at most 1,000 values, since a file of them would merge value by value", () => {
+  const full = Object.fromEntries(Array.from({ length: 1000 }, (_, at) => [`k${at}`, at]));
+  expect([outcome(readProfile(withOptions(full))), outcome(readProfile(withOptions({ ...full, more: 1 })))]).toEqual([
+    "ok",
+    ["machine.plugin.ponytail.options.set"],
+  ]);
+});
+
+test("a list of texts grows like any list", () => {
+  const parent = file({ ...own, id: "acme.p", project: manual("a\n") });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }], project: manual("b\n") });
+  const composed = composeProfile(root, loader({ "acme.x/p": parent }));
+  const part = composed.ok && composed.value.profile.project["manual"];
+  expect(part && part.type === "manual" && part.rules).toEqual([{ inline: "a\n" }, { inline: "b\n" }]);
+});
+
+test(`more than ${MAX_PROFILE_FILES} profile files through parents are refused, however deep they go`, () => {
+  const files = Object.fromEntries(
+    Array.from({ length: 60 }, (_, at) => [
+      `acme.x/${at}`,
+      file({ ...own, id: `acme.f${at}`, extends: [{ pack: "acme.x", path: String(at + 1) }] }),
+    ]),
+  );
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "0" }] });
+  const composed = composeProfile(root, loader(files));
+  expect(!composed.ok && composed.finding.code === "profile.parent-limit" && composed.finding.params).toEqual({
+    chain: Array.from({ length: 50 }, (_, at) => `acme.x/${at}`),
+    limit: 50,
+  });
+});
+
+const deny = (rule: string) => ({
+  guards: { type: "settings", title: "g", default: "on", commit: true, set: { permissions: { deny: [rule] } } },
+});
+test("a part replaced whole forgets who set its values, however deep they sit", () => {
+  const files = loader({
+    "acme.x/c": file({ ...own, id: "acme.c", project: deny("Bash(sudo *)") }),
+    "acme.x/a": file({ ...own, id: "acme.a", extends: [{ pack: "acme.x", path: "c" }], project: deny("Bash(curl *)") }),
+  });
+  const project = { guards: { type: "packs", title: "p", default: "on", packs: [] } };
+  const composed = composeProfile(
+    file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "a" }], project }),
+    files,
+  );
+  const setters = composed.ok && Object.entries(composed.value.setBy).filter(([at]) => at.startsWith("/project/"));
+  expect(setters).toEqual([["/project/guards", "acme.root"]]);
+});
+
+const hub = (id: string, label: string) => ({
+  type: "hub",
+  title: id,
+  default: "on",
+  labels: { [label]: { color: "ffffff" } },
+});
+
+test("a label named like a source field merges as a label", () => {
+  const parent = file({ ...own, id: "acme.p", workspace: { hub: hub("acme.p", "github") } });
+  const root = file({
+    ...own,
+    id: "acme.root",
+    extends: [{ pack: "acme.x", path: "p" }],
+    workspace: { hub: hub("acme.root", "extra") },
+  });
+  const composed = composeProfile(root, loader({ "acme.x/p": parent }));
+  const labels =
+    composed.ok &&
+    composed.value.profile.workspace["hub"]?.type === "hub" &&
+    composed.value.profile.workspace["hub"].labels;
+  expect(Object.keys(labels || {})).toEqual(["github", "extra"]);
+});
+
+test("a pack id two files give different sources is refused, naming both files", () => {
+  const parent = file({
+    ...own,
+    id: "acme.p",
+    packs: { "acme.x": { git: "https://x.example/other.git", ref: "main" } },
+  });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }] });
+  expect(outcome(composeProfile(root, loader({ "acme.x/p": parent })))).toEqual({
+    code: "profile.pack-sources",
+    params: { pack: "acme.x", files: ["acme.p", "acme.root"] },
+  });
 });
 
 test("a selection names its profile file by an absolute path, also a UNC path", async () => {

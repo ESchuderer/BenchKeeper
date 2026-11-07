@@ -18,6 +18,11 @@ const PartId = z.string().regex(new RegExp(`^${PART}$`));
 /** A part with its level, as `requires` and the selection name it: `machine.rules.global`, `workspace.hub`. */
 const QualifiedPartId = z.string().regex(new RegExp(`^(?:machine|workspace|project)\\.${PART}$`));
 const JsonObject = z.record(z.string(), JsonValue);
+// How many values a JSON value holds inside it, at every depth.
+const values = (value: unknown): number =>
+  typeof value === "object" && value !== null
+    ? Object.values(value).reduce((count: number, item: unknown) => count + 1 + values(item), 0)
+    : 0;
 const Color = z.string().regex(/^[0-9a-f]{6}$/);
 
 /** A pack's entry by its path inside the pack; the pack is one this profile names in `packs`. */
@@ -64,7 +69,10 @@ const plugin = part("plugin", {
     .describe("`<plugin>@<marketplace>`"),
   marketplace: Marketplace.optional().describe("Declared when Claude Code does not know it; named as in the plugin id"),
   options: z
-    .strictObject({ file: PortablePath.describe("Relative to the user's home"), set: JsonObject })
+    .strictObject({
+      file: PortablePath.describe("Relative to the user's home"),
+      set: JsonObject.refine((set) => values(set) <= 1000, "at most 1,000 values").describe("At most 1,000 values"),
+    })
     .optional()
     .describe("The plugin's own config file, merged as a settings `set` is"),
 });

@@ -18,6 +18,8 @@
     { "path": "packages/orchestration/test" },
     { "path": "packages/git" },
     { "path": "packages/git/test" },
+    { "path": "packages/packs" },
+    { "path": "packages/packs/test" },
     { "path": "packages/extension-host" },
     { "path": "packages/extension-host/test" },
     { "path": "packages/extension-sdk" },

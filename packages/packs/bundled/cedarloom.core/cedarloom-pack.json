@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.pack",
+  "id": "cedarloom.core",
+  "version": "0.1.0",
+  "name": "CedarLoom core",
+  "description": "The rules, templates and default profile that ship with CedarLoom.",
+  "license": "MIT",
+  "minApp": "0.1.0",
+  "entries": {
+    "rules/global.md": {
+      "kind": "rules",
+      "description": "Global rules: secrets, confirmation, questions, best practice, writing"
+    },
+    "rules/questions.md": {
+      "kind": "rules",
+      "description": "Owner questions as issues in the hub repository"
+    },
+    "rules/project.md": {
+      "kind": "rules",
+      "description": "Project rules: the workflow skill, open questions, failed checks"
+    },
+    "rules/family.md": {
+      "kind": "rules",
+      "description": "Rules for every project's AGENTS.md: checks before a push, CI, dependencies, comments, names, UI"
+    },
+    "rules/tests.md": {
+      "kind": "rules",
+      "description": "When to add a test, what never to test, coverage and mutation testing"
+    },
+    "rules/local.md": {
+      "kind": "rules",
+      "description": "Where issues and owner questions go: the hub repository"
+    },
+    "rules/dc.md": {
+      "kind": "rules",
+      "description": "The dev container command"
+    },
+    "templates/issue-tracker.md": {
+      "kind": "template",
+      "description": "docs/agents/issue-tracker.md: no issues in a product repository"
+    },
+    "templates/triage-labels.md": {
+      "kind": "template",
+      "description": "docs/agents/triage-labels.md: the labels live in the hub"
+    },
+    "templates/domain.md": {
+      "kind": "template",
+      "description": "docs/agents/domain.md: GLOSSARY.md and docs/adr"
+    },
+    "templates/dc.sh": {
+      "kind": "template",
+      "description": "scripts/dc, the dev container command"
+    },
+    "templates/orca.yaml": {
+      "kind": "template",
+      "description": "Orca's per-worktree setup and archive scripts"
+    },
+    "templates/worktreeinclude": {
+      "kind": "template",
+      "description": ".worktreeinclude: the local files a new worktree copies"
+    },
+    "templates/memory": {
+      "kind": "template",
+      "description": "The memory repository's first files: README.md, INDEX.md, the pull request template"
+    },
+    "profiles/default.json": {
+      "kind": "profile",
+      "description": "The CedarLoom way: every part on three levels"
+    }
+  }
+}

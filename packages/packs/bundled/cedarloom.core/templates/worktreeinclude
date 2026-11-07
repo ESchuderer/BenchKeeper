@@ -1,0 +1,6 @@
+# Local files a new worktree copies when they exist and Git ignores them: the machine-local files of the CedarLoom profile.
+CLAUDE.local.md
+.claude/settings.local.json
+scripts/dc
+orca.yaml
+.worktreeinclude

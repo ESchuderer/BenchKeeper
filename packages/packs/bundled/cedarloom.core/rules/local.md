@@ -1,0 +1,1 @@
+- Issues, work items and owner questions live in the hub repository `{{hub}}` (GitHub Issues, through `gh`); this repository takes none.

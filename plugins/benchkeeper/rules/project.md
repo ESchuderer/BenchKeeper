@@ -1,3 +1,15 @@
 - Before changing a repository, working on issues or pull requests, or researching two or more items: load the `benchkeeper:workflow` skill. It picks the workflow and the tier.
 - When goal, scope or expected result is open, ask the open questions with the question tool (Claude Code: `AskUserQuestion`), including risks and options the user has not named. One decision per question; related questions go in one call. Settle from the code, the docs or a sensible default what they answer. Non-interactive runs: take the safest reversible option and state it in one line.
-- When a check fails, fix the cause. Skip, delete or loosen a check, or use `--no-verify`, only when the user asks.
+- When a check fails, fix the cause. Skip, delete or loosen a check only when the user asks.
+- Before every push, after your last edit: run the changed-files check that Commands in `AGENTS.md` names. Never use `--no-verify`.
+- Don't poll CI: wait with `gh run watch <run-id> --compact --exit-status` or `gh pr checks --watch`.
+- main stays releasable. A red main is fixed before anything else merges.
+- Reuse before reimplementing: before you write new logic, look for code that already does it, and extend or generalize that instead of building a parallel version.
+- Don't reinvent the wheel: when a well-maintained open-source package solves the problem (recent releases, a license the project allows, a size that fits), use it instead of writing your own, and name it and the reason in the pull request. A few lines of your own still beat a new dependency.
+- Comments only where the code cannot say it: one line, the why, not the how.
+- Never call a file, folder or module `utils`, `helpers`, `common`, `misc` or `shared`. Name it after what it contains. A file that wants such a name has more than one job: split it.
+- UI code follows the styleguide and tokens that Pointers in `AGENTS.md` links. No new colors, font sizes, spacing or shadows when a token already covers the role.
+- Do not add tests by default. Add one only when it fails if your change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks), and runs at the single layer that owns the behavior.
+- Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts. When you touch such a test, delete it instead of updating it (no need to ask).
+- No coverage thresholds. Scheduled mutation testing (Stryker), where the project has it, stays: it measures test strength, not amount.
+- Every change considers the first-class targets that `AGENTS.md` lists. Before changing an area with a footgun doc, read that doc.

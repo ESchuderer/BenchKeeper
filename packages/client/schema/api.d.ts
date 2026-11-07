@@ -1621,6 +1621,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.target-linked";
             params: {
                 part: string;
@@ -2748,6 +2755,13 @@ export interface components {
             params: {
                 folder: string;
                 skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */

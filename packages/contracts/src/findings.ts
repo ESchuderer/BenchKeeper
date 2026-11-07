@@ -241,6 +241,8 @@ export const Finding = z
     }),
     // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
     finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
+    // A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file.
+    finding("profile.skill-plugin", { skill: z.string(), path: z.string() }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
@@ -394,6 +396,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },
+  "profile.skill-plugin": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

@@ -3895,6 +3895,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.skill-plugin"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "skill": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "skill",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.target-linked"
         },
         "params": {

@@ -141,7 +141,7 @@ export const runsDecide = async (
 export const graphRunShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showGraphRun(ctx.state, runId);
   if (!shown.ok) return fail(ctx, "run", [shown.finding], EXIT.refused);
-  const { run, attempts } = shown.value;
+  const { run, attempts, passed } = shown.value;
   const lines = attempts.map((each) => {
     const pid = each.pid === null ? "" : `  pid ${each.pid}`;
     return `  ${`${each.node}#${each.attempt}`.padEnd(16)} ${each.state.padEnd(11)}${pid}`;
@@ -149,6 +149,7 @@ export const graphRunShow = (ctx: Context, runId: string): number => {
   const head = `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}, ${run.startedAt}`;
   const waiting = useCases.waitsOf(ctx.state, runId);
   const waits = waiting.ok ? waiting.value.waits.map((wait) => `  ${waitText(run, wait)}`) : [];
-  emit(ctx, "run", { run, attempts }, [head, ...lines, ...waits].join("\n"));
+  const passes = passed.map(({ node, point, level, at }) => `  ${node} passed ${point} at ${level}, ${at}`);
+  emit(ctx, "run", { run, attempts, passed }, [head, ...lines, ...waits, ...passes].join("\n"));
   return EXIT.ok;
 };

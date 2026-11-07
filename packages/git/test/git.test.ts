@@ -126,6 +126,8 @@ test("a tree with a link, a submodule, a name that is not portable or two names 
     [{ submodule: extension.commit }, "dir/x", "submodule", "dir/x"],
     ["text", "dir/a file.txt", "name", "dir/a file.txt"],
     ["text", "ok\u001b[2K\rall-verified.txt", "name", "ok\\u001b[2K all-verified.txt"],
+    // Letters of any language stay; a bidirectional control is escaped.
+    ["text", "日\u202Eb.txt", "name", "日\\u202eb.txt"],
     ["text", "Main.js", "case", "main.js"],
     ["text", "MAIN.js/x", "case", "main.js"],
   ];
@@ -284,16 +286,13 @@ test.skipIf(process.platform === "win32")(
   "a stopped git returns at once, though a child of it keeps its pipes open",
   async () => {
     const program = join(mkdtempSync(join(root, "hang-")), "hang.sh");
-    writeFileSync(program, "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
-    const started = Date.now();
+    // Longer than the test's time limit, so a git that waited for it would fail the test.
+    writeFileSync(program, "#!/bin/sh\nsleep 60\n", { mode: 0o755 });
     const tree = await fetchTreeOver(["ext"])(
       { url: `ext::${program}`, ref: "v1" },
       { parent: parent(), timeoutMs: 500 },
     );
-    expect([codeOf(tree), Date.now() - started < 3000]).toEqual([
-      { code: "git.failed", params: { step: "fetch", error: "stopped at the time limit" } },
-      true,
-    ]);
+    expect(codeOf(tree)).toEqual({ code: "git.failed", params: { step: "fetch", error: "stopped at the time limit" } });
   },
   30_000,
 );

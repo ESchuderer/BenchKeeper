@@ -10,10 +10,11 @@ import {
   type Operation,
   type Result,
 } from "@cedarloom/contracts";
+import { readOptionalJson } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { folderOffers, type Named, type Offer, offerLine, removalsOf, settingsOffers } from "./drift.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
-import { type Folder, jsonFile, readEntry, type Resolved } from "./resolve.ts";
+import { type Folder, readEntry, type Resolved } from "./resolve.ts";
 import { type Fetched, packFolder, skillFiles } from "./skills.ts";
 
 /** The hub's question rule, a file of the rules folder while a hub part is on. */
@@ -97,7 +98,7 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
 // The settings as an object with the hash of the text read; none yet is an empty one. A file that is no JSON object
 // is never rewritten.
 const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
-  const file = jsonFile(path);
+  const file = readOptionalJson(path);
   if (!file.ok) {
     if (file.finding.code !== "document.invalid") return file;
     return refuse({ code: "document.unreadable", params: { path, error: "not JSON" } });

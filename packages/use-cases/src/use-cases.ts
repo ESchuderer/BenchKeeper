@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
@@ -14,10 +13,12 @@ import {
   type Step,
   type UndoPreview,
 } from "@cedarloom/contracts";
-import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
+import { apply, type Outcome, planUndo, readJson, recover } from "@cedarloom/engine";
 import { openStore } from "@cedarloom/git";
 import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
 import { pluginProblems } from "./plugins.ts";
+
+export { parseDocument, readJson, readOptionalJson } from "@cedarloom/engine";
 
 /** `yes` approves the plan as computed now, `approve` only the plan with that hash (it wins when both are given). */
 export interface Approval {
@@ -74,39 +75,6 @@ const settled = (outcome: Outcome, skipped: Finding[], undoes: string | null): R
   const stopped: Finding[] =
     status === "failed" && runId !== null ? [{ code: "run.failed", params: { runId, undoes } }] : [];
   return { runId, status, findings: [...skipped, ...outcome.findings, ...stopped] };
-};
-
-/** The document a file's text holds: `document.invalid` for text that is no JSON, else as `read` decides. */
-export const parseDocument = <T>(text: string, read: (json: unknown) => Result<T>): Result<T> => {
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    return {
-      ok: false,
-      finding: { code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } },
-    };
-  }
-  return read(json);
-};
-
-/** Reads a JSON file with its text: `document.unreadable` when it cannot be read, `document.invalid` when it is no JSON. */
-export const readJson = (path: string): Result<{ text: string; json: unknown }> => {
-  let text: string;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
-  }
-  return parseDocument(text, (json) => ({ ok: true, value: { text, json } }));
-};
-
-/** `readJson` with a missing file as null: only a missing file is none, and one the process cannot read is reported. */
-export const readOptionalJson = (path: string): Result<{ text: string; json: unknown } | null> => {
-  const file = readJson(path);
-  if (file.ok) return file;
-  const missing = file.finding.code === "document.unreadable" && file.finding.params.error === "ENOENT";
-  return missing ? { ok: true, value: null } : file;
 };
 
 /** Reads a plan file: `document.unreadable`, or `document.invalid` and `document.newer-schema` for no plan this CedarLoom reads. */

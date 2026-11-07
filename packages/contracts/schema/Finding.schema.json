@@ -3270,7 +3270,8 @@
                 "run",
                 "doctor",
                 "target",
-                "worker"
+                "worker",
+                "session"
               ]
             },
             "error": {
@@ -4684,10 +4685,24 @@
           "properties": {
             "error": {
               "type": "string"
+            },
+            "retryAfter": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rateLimitReset": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
-            "error"
+            "error",
+            "retryAfter",
+            "rateLimitReset"
           ],
           "additionalProperties": false
         }
@@ -4719,6 +4734,32 @@
           },
           "required": [
             "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "tracker.invalid-answer"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
             "error"
           ],
           "additionalProperties": false

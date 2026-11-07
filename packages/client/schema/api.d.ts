@@ -1736,7 +1736,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
                 error: string;
             };
         } | {
@@ -2057,12 +2057,20 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */
             code: "tracker.refused";
             params: {
                 status: number;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
                 error: string;
             };
         };
@@ -3047,7 +3055,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
                 error: string;
             };
         } | {
@@ -3368,12 +3376,20 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */
             code: "tracker.refused";
             params: {
                 status: number;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
                 error: string;
             };
         };

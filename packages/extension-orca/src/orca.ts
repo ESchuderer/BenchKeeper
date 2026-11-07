@@ -1,8 +1,10 @@
 import { resolve } from "node:path";
 import {
   type ActionContext,
+  allowed,
   type DoctorFinding,
   jsonAnswer,
+  olderRelease,
   programVersion,
   shellWord,
   valueAt as at,
@@ -89,9 +91,77 @@ const skillFindings = async (context: Exec): Promise<DoctorFinding[]> => {
   return [finding("info", "orca.skills-missing", `Claude Code lacks Orca's ${missing.join(", ")}: run ${command}.`)];
 };
 
+// The first Orca whose CLI selects a saved Claude account (stablyai/orca#38944).
+const SELECTS = "1.4.252";
+// Orca's account calls; a cold `orca account list` refreshes usage that is out of date (about 2 s here).
+const ACCOUNT_MS = 5000;
+
+/**
+ * Orca's Claude accounts: the saved one new panes launch with (none: the System default, the default home's own login,
+ * which follows claude-swap's switches) and the saved one signed in as the default home, matched by email and
+ * organization inside this process, so no email leaves it (switching plan 3).
+ */
+type ClaudeAccounts = { selected: string | null; home: string | null };
+
+const claudeAccountsOf = async (context: Exec): Promise<ClaudeAccounts> => {
+  const claude = at(await orca(context, ["account", "list"], ACCOUNT_MS), "claude");
+  const accounts: unknown = at(claude, "accounts");
+  if (!Array.isArray(accounts)) throw new Error("orca account list named no Claude accounts");
+  const [email, organization] = [at(claude, "systemDefaultEmail"), at(claude, "systemDefaultOrganizationUuid")];
+  const homes = accounts.filter(
+    (each) =>
+      typeof email === "string" &&
+      String(at(each, "email")).toLowerCase() === email.toLowerCase() &&
+      at(each, "organizationUuid") === organization,
+  );
+  const [selected, home] = [selectedOf(claude), homes.length === 1 ? at(homes[0], "id") : null];
+  return { selected, home: typeof home === "string" ? home : null };
+};
+// The saved Claude account new panes on this host launch with, as Orca's account state names it.
+const selectedOf = (claude: unknown): string | null => {
+  const selected = at(claude, "activeAccountIdsByRuntime", "host") ?? at(claude, "activeAccountId");
+  return typeof selected === "string" ? selected : null;
+};
+
+const SYSTEM = "system default";
+const modeOf = ({ selected, home }: ClaudeAccounts): string => {
+  if (selected === null) return SYSTEM;
+  return selected === home ? "managed, the default home's account" : "managed, another account";
+};
+const FOLLOWS =
+  "System default in Orca's Settings, AI Provider Accounts, follows claude-swap's auto mode without CedarLoom";
+
+// While Orca runs: how its Claude panes pick their account; a warning when claude-swap's switches cannot reach them.
+const accountFindings = async (context: Exec): Promise<DoctorFinding[]> => {
+  let accounts: ClaudeAccounts;
+  try {
+    accounts = await claudeAccountsOf(context);
+  } catch (error) {
+    return [
+      finding("warning", "orca.accounts-unreadable", `Orca's accounts did not list as expected: ${messageOf(error)}`),
+    ];
+  }
+  if (accounts.selected === null) {
+    return [
+      finding(
+        "info",
+        "orca.accounts-system",
+        "Orca's Claude panes use the System default, the default home's account, so they follow claude-swap's switches.",
+      ),
+    ];
+  }
+  if (accounts.selected === accounts.home) {
+    const later = `Orca's Claude panes use the saved account signed in as the default home; claude-swap's own later switches reach them only through cedarloom orca follow. ${FOLLOWS}.`;
+    return [finding("info", "orca.accounts-managed", later)];
+  }
+  const other = `Orca's Claude panes use a saved account other than the default home's, so claude-swap's switches do not reach them: run cedarloom orca follow. ${FOLLOWS}.`;
+  return [finding("warning", "orca.accounts-elsewhere", other)];
+};
+
 /**
  * The doctor's check: whether Orca is installed and running, a warning for a major version not checked with or a
- * version it cannot read, and while it runs, the command for the Orca skills Claude Code lacks.
+ * version it cannot read, and while it runs, the command for the Orca skills Claude Code lacks and how its Claude panes
+ * pick their account.
  */
 export const doctor = async (context: Exec, platform: string = process.platform): Promise<DoctorFinding[]> => {
   if (!CHECKED.has(platform)) return [finding("info", "orca.unchecked", "Orca is not checked on this platform yet.")];
@@ -105,14 +175,51 @@ export const doctor = async (context: Exec, platform: string = process.platform)
   const state = found.running
     ? finding("info", "orca.running", `Orca ${found.version} is running.`)
     : finding("info", "orca.not-running", `Orca ${found.version} is installed and not running.`);
-  const skills = found.running ? await skillFindings(context) : [];
-  return [state, ...versionWarnings(found.version), ...skills];
+  const running = found.running ? [...(await skillFindings(context)), ...(await accountFindings(context))] : [];
+  return [state, ...versionWarnings(found.version), ...running];
 };
 
-/** The status action: whether Orca is installed, its version, and whether it is running. */
+/**
+ * The status action: whether Orca is installed, its version, whether it is running, and while it runs, how its Claude
+ * panes pick their account.
+ */
 export const status = async (context: Exec): Promise<Record<string, unknown>> => {
   const found = await probe(context);
-  return found.installed ? { ...found } : { installed: false, running: false };
+  if (!found.installed) return { installed: false, running: false };
+  return found.running ? { ...found, claudeAccounts: modeOf(await claudeAccountsOf(context)) } : { ...found };
+};
+
+/**
+ * Orca's managed Claude account follows the default home's, which claude-swap switches (owner, Q4): the saved account
+ * signed in as the default home is selected for new panes, once the user names orca with --allow. On the System
+ * default, panes follow already.
+ */
+export const follow = async ({
+  exec,
+  config,
+}: Pick<ActionContext, "exec" | "config">): Promise<Record<string, unknown>> => {
+  const found = await probe({ exec });
+  if (!found.installed || !found.running) return { followed: false, hint: "Orca is not running" };
+  const accounts = await claudeAccountsOf({ exec });
+  const mode = modeOf(accounts);
+  if (accounts.selected === null || accounts.selected === accounts.home) return { mode, followed: true };
+  if (accounts.home === null) {
+    const hint = `no saved Orca account signs in as the default home's account: add it in Orca, or ${FOLLOWS}`;
+    return { mode, followed: false, hint };
+  }
+  if (olderRelease(found.version, SELECTS) !== false) {
+    return {
+      mode,
+      followed: false,
+      hint: `managed mode cannot follow before Orca ${SELECTS}: update Orca, or ${FOLLOWS}`,
+    };
+  }
+  const args = ["account", "select", "--agent", "claude", "--account", accounts.home];
+  if (!allowed(config, "orca"))
+    return { mode, followed: false, runs: `orca ${args.join(" ")}`, approve: "cedarloom orca follow --allow orca" };
+  if (selectedOf(await orca({ exec }, args, ACCOUNT_MS)) !== accounts.home)
+    throw new Error(`orca ${args.join(" ")} left another account selected`);
+  return { mode: modeOf({ ...accounts, selected: accounts.home }), followed: true };
 };
 
 // A start's eight Orca calls, two waits and, after a failure, two closes stay below the host's 130 s (worst case 120 s).

@@ -4,7 +4,7 @@
   "id": "cedarloom.orca",
   "version": "0.0.0",
   "name": "Orca",
-  "description": "Whether Orca, the multi-agent IDE, is installed and running, and supervised Orca workers on a given launch line.",
+  "description": "Whether Orca, the multi-agent IDE, is installed and running, supervised Orca workers on a given launch line, and Orca's managed Claude account following the default home's.",
   "license": "MIT",
   "api": "1.0",
   "runtime": { "kind": "node", "entry": "main.mjs" },
@@ -23,12 +23,26 @@
         "outputs": {
           "installed": { "type": "boolean" },
           "version": { "type": "string", "description": "Absent when Orca is not installed" },
-          "running": { "type": "boolean", "description": "Its app runs and its runtime answers" }
+          "running": { "type": "boolean", "description": "Its app runs and its runtime answers" },
+          "claudeAccounts": {
+            "type": "string",
+            "description": "How its Claude panes pick their account: system default, or managed; absent while it is not running"
+          }
+        }
+      },
+      "follow": {
+        "title": "Orca's Claude account follows the default home's",
+        "outputs": {
+          "mode": { "type": "string", "description": "How Orca's Claude panes pick their account" },
+          "followed": { "type": "boolean", "description": "New Claude panes use the default home's account" },
+          "runs": { "type": "string", "description": "The command it runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" },
+          "hint": { "type": "string", "description": "Why it cannot follow, and what does" }
         }
       }
     },
     "doctor": { "orca": { "title": "Orca" } },
     "workerRunners": { "claude": { "agent": "claude" } },
-    "commands": ["status"]
+    "commands": ["status", "follow"]
   }
 }

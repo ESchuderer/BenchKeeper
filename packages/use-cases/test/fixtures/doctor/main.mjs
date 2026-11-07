@@ -1,17 +1,22 @@
 // The smallest extension with a doctor check, an action and a switch target, speaking the protocol itself (Content-Length
-// frames over stdio), since its folder holds nothing to import.
+// frames over stdio), since its folder holds nothing to import. In a folder named cedarloom.orca, its action is Orca's
+// follow, which follows once orca is allowed.
+const orca = import.meta.url.includes("cedarloom.orca");
 let input = Buffer.alloc(0);
 const send = (message) => {
   const text = JSON.stringify({ ...message, jsonrpc: "2.0" });
   process.stdout.write(`Content-Length: ${Buffer.byteLength(text)}\r\n\r\n${text}`);
 };
 const answers = {
-  initialize: () => ({ protocol: "1.0", actions: ["status"] }),
+  initialize: () => ({ protocol: "1.0", actions: [orca ? "follow" : "status"] }),
   // Its process id in the text, so a test can tell the process ended.
   "doctor/run": () => ({
     findings: [{ check: "setup", severity: "info", code: "example.ready", message: `ready ${process.pid}` }],
   }),
-  "action/run": () => ({ outputs: { ready: true } }),
+  "action/run": ({ config }) =>
+    orca
+      ? { outputs: { mode: "managed, another account", followed: config.allow.includes("orca") } }
+      : { outputs: { ready: true } },
   // claude-swap's three accounts, read just now: one by the alias work, one by another alias, one without.
   "target/probe": () => ({ status: "supported", detail: "fixture" }),
   "target/accounts": () => {

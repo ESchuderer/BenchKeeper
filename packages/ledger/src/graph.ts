@@ -230,6 +230,18 @@ export class GraphStore {
     return rows.map((row) => NodeAttempt.parse(row));
   }
 
+  /** Whether the owner approved `node` in a run of the workflow version `definitionHash` in `project`, by its journal. */
+  ownerApproved(project: string, definitionHash: string, node: string): boolean {
+    const row = this.#db
+      .prepare(
+        `SELECT 1 FROM run_events JOIN graph_runs ON graph_runs.id = run_events.runId
+         WHERE project = ? AND definitionHash = ? AND type = 'decided' AND nodeId = ? AND payload ->> '$.approved'
+         LIMIT 1`,
+      )
+      .get(project, definitionHash, node);
+    return row !== undefined;
+  }
+
   /**
    * Blanks the outputs of ended runs started more than `days` days ago, in their attempts and their events, since a
    * command's output can hold a secret; the events stay valid. As `prune` of the run store does for plan contents.
@@ -341,7 +353,7 @@ export const openGraphStore = (dir: string, detect = filesystemType): Result<Gra
 };
 
 /** Graph runs as `runs list` and `runs show` read them: no lock, no write. */
-export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "events" | "close">;
+export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "events" | "ownerApproved" | "close">;
 
 /** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */
 export const openGraphView = (dir: string): Result<GraphView | null> => {

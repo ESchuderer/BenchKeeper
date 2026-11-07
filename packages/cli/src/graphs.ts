@@ -92,12 +92,13 @@ const escaped = (content: string): string =>
     .join("\n");
 
 // What a node waits for: an approval's question, or a gate with the plan it would apply.
-const waitText = (run: GraphRun, { node, point, planHash }: useCases.Waiting): string => {
+const waitText = (run: GraphRun, { node, point, planHash, firstRun }: useCases.Waiting): string => {
   const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
   if (point === "human.approval") return `${node} asks: ${said(config["message"])}`;
-  return planHash === null
-    ? `${node} waits to start`
-    : `${node} waits to write ${said(config["path"])} (plan ${planHash})`;
+  if (planHash !== null) return `${node} waits to write ${said(config["path"])} (plan ${planHash})`;
+  return firstRun
+    ? `${node} waits to start: you have not approved this command in this version of the workflow here yet`
+    : `${node} waits to start`;
 };
 
 /** Approves or rejects what a graph run's node waits for; without --yes, shows what that is and changes nothing. */

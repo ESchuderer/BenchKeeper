@@ -298,16 +298,26 @@ const refusing = (code: string) => (): Prepared => ({
 });
 
 type Passed = (node: string, point: GatePoint, level: AutomationLevel) => void;
+type GatedRun = GateRun & { readonly report: boolean; readonly firstRun: (node: string) => boolean };
+
+/**
+ * Whether `node` of a run is a command the owner has not approved in the run's workflow version and project yet, as on
+ * the version's first run there: it waits at every level, so a pack's or teammate's workflow runs no command unseen.
+ */
+const firstRun = (view: Pick<GraphView, "ownerApproved">, run: GraphRun, node: string): boolean =>
+  run.definition.nodes.some((each) => each.id === node && each.type === "command.run") &&
+  !view.ownerApproved(run.project, run.definitionHash, node);
 
 // The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
-// reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records.
+// reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records. A
+// first run's command waits at every level.
 const levelGates =
-  (config: string, state: string, run: GateRun & { readonly report: boolean }, passed: Passed): Gates =>
+  (config: string, state: string, run: GatedRun, passed: Passed): Gates =>
   (point, node) => {
     if (run.report) return "pass";
     const read = levelAtGate(state, config, run);
     const level = read.ok ? read.value : "supervised";
-    if (waitsAtGraphGate(level, point)) return "wait";
+    if (waitsAtGraphGate(level, point, run.firstRun(node) ? ["first-run"] : [])) return "wait";
     if (level === "auto") passed(node, point, level);
     return "pass";
   };
@@ -349,12 +359,14 @@ const runHeld = async (
     "file.write": writeRecover(state),
     ...(agents === undefined ? {} : { "agent.run": agentRecover(run, agents) }),
   };
-  const startedAt = store.graphRun(lease.runId)?.startedAt ?? new Date().toISOString();
+  const stored = store.graphRun(lease.runId);
+  const startedAt = stored?.startedAt ?? new Date().toISOString();
   const { config } = options;
   // A record that fails comes from a lost lease, which the run's next event reports.
   const passed: Passed = (node, point, level) => void store.passGate(lease.runId, lease.epoch, { node, point, level });
-  const gates =
-    config === undefined ? undefined : levelGates(config, state, { project, startedAt, report: run.report }, passed);
+  const unseen = (node: string): boolean => stored === undefined || firstRun(store, stored, node);
+  const gated = { project, startedAt, report: run.report, firstRun: unseen };
+  const gates = config === undefined ? undefined : levelGates(config, state, gated, passed);
   try {
     const { signal, onEvent, sleep } = options;
     const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover, gates });
@@ -595,6 +607,8 @@ export interface Waiting {
   readonly planHash: string | null;
   /** What a write at its gate writes, when the plan built now is the one the gate recorded; null for anything else. */
   readonly content: string | null;
+  /** A command the owner has not approved in this workflow version and project yet, which waits at every level. */
+  readonly firstRun: boolean;
 }
 
 // The value a node's data input `handle` gets, as the journal left the node before it, or from a workflow input.
@@ -606,7 +620,11 @@ const valueInto = (run: GraphRun, state: RunState | null, node: string, handle: 
 };
 
 // The content of a write waiting at its gate, when the plan its data input gives now is the one the gate recorded.
-const contentOf = (run: GraphRun, state: RunState | null, { node, planHash: hash }: Omit<Waiting, "content">) => {
+const contentOf = (
+  run: GraphRun,
+  state: RunState | null,
+  { node, planHash: hash }: Pick<Waiting, "node" | "planHash">,
+) => {
   const value = valueInto(run, state, node, "content");
   const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
   const plan = planOf(run.project, { config, data: value === undefined ? {} : { content: value } });
@@ -615,7 +633,7 @@ const contentOf = (run: GraphRun, state: RunState | null, { node, planHash: hash
 };
 
 // What waits in a run: approvals its replay leaves waiting, and attempts whose last record is a gate.
-const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Waiting[] => {
+const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Omit<Waiting, "firstRun">[] => {
   const events = journal.flatMap((event) => {
     const parsed = RunEvent.safeParse(event);
     return parsed.success ? [parsed.data] : [];
@@ -625,7 +643,7 @@ const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Waiting[] => 
   const approvals = Object.entries(state?.nodes ?? {}).flatMap(([node, { state: at }]) =>
     at === "waiting" ? [{ node, point: "human.approval" as const, planHash: null, content: null }] : [],
   );
-  const gates = new Map<string, Omit<Waiting, "content">>();
+  const gates = new Map<string, Omit<Waiting, "content" | "firstRun">>();
   for (const event of journal) {
     if (event.type === "gate")
       gates.set(event.node, { node: event.node, point: event.point, planHash: event.planHash });
@@ -640,7 +658,9 @@ export const waitsOf = (state: string, runId: string): Result<{ run: GraphRun; w
     const run = view?.graphRun(runId);
     if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
     const journal = view.events(runId);
-    return journal.ok ? { ok: true, value: { run, waits: waitsIn(run, journal.value) } } : journal;
+    if (!journal.ok) return journal;
+    const waits = waitsIn(run, journal.value).map((wait) => ({ ...wait, firstRun: firstRun(view, run, wait.node) }));
+    return { ok: true, value: { run, waits } };
   });
 
 /**

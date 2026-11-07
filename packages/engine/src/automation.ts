@@ -5,9 +5,18 @@ export type ApprovalGate = "before-implementation" | "after-verdict" | "before-m
 
 /**
  * What stays with the owner at every level (owner, 2026-11-05): a release, a publish, a deploy, a repository's creation
- * or settings, a secret, and anything public. Merging a release pull request is the release.
+ * or settings, a secret, and anything public. Merging a release pull request is the release. `first-run`: a command of
+ * a workflow version the owner has not approved in the project yet (owner, 2026-11-07).
  */
-export type OwnerOnly = "release" | "publish" | "deploy" | "repository" | "settings" | "secret" | "public";
+export type OwnerOnly =
+  | "release"
+  | "publish"
+  | "deploy"
+  | "repository"
+  | "settings"
+  | "secret"
+  | "public"
+  | "first-run";
 
 // Supervised waits at every gate; Checkpoint only before a merge, which the owner approves with one click, batchable;
 // Auto merges on agreement of the implementer and the fresh reviewer.
@@ -33,11 +42,10 @@ const GRAPH_GATES: Readonly<Record<GatePoint, ApprovalGate>> = {
 
 /**
  * Whether a graph run at `level` waits for the owner at `point`: Supervised at both, Checkpoint before a plan applies,
- * Auto at neither. A human.approval node waits at every level on its own.
+ * Auto at neither, and every level for a step in `ownerOnly`. A human.approval node waits at every level on its own.
  */
-export const waitsAtGraphGate = (level: AutomationLevel, point: GatePoint): boolean =>
-  // shortcut: no owner-only step yet; a graph's first run of a workflow version asks before its commands next.
-  waitsForOwner(level, GRAPH_GATES[point], []);
+export const waitsAtGraphGate = (level: AutomationLevel, point: GatePoint, ownerOnly: readonly OwnerOnly[]): boolean =>
+  waitsForOwner(level, GRAPH_GATES[point], ownerOnly);
 
 // How often each level waits for the owner, the most first.
 const WAIT_RANK: Readonly<Record<AutomationLevel, number>> = { supervised: 2, checkpoint: 1, auto: 0 };

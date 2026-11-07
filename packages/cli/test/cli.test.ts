@@ -737,9 +737,16 @@ test("on a fresh install, Supervised, workflows run waits before its command for
 test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
   const { root, cli } = atCheckpoint();
   const file = planFile(root, workflow, "greet.json");
-  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  expect(ran).toMatchObject({ format: "cedarloom.run", status: "succeeded" });
-  const runId = String(ran["runId"]);
+  const first = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  const runId = String(first["runId"]);
+  // The first run of this workflow version waits before its command, at every level.
+  const asked = json((await cli("--json", "runs", "approve", runId, "a")).out);
+  const ran = json((await cli("--json", "runs", "approve", runId, "a", "--yes", "--project", root)).out);
+  expect([first["status"], asked["wait"], ran]).toMatchObject([
+    "waiting",
+    { node: "a", point: "before-node", firstRun: true },
+    { format: "cedarloom.run", status: "succeeded" },
+  ]);
   expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
   expect((await cli("runs", "show", runId)).out).toMatch(
     /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
@@ -767,10 +774,13 @@ test("runs approve shows what a waiting node waits for, and with --yes approves 
   const shown = json((await cli("--json", "runs", "approve", runId, "go")).out);
   const other = await cli("--json", "runs", "reject", runId, "a");
   const approved = json((await cli("--json", "runs", "approve", runId, "go", "--yes", "--project", root)).out);
-  expect([ran["status"], shown["wait"], other.code, approved["status"]]).toEqual([
+  // The run went on to its command, which waits as the first run of this version.
+  const done = json((await cli("--json", "runs", "approve", runId, "a", "--yes", "--project", root)).out);
+  expect([ran["status"], shown["wait"], other.code, approved["status"], done["status"]]).toEqual([
     "waiting",
-    { node: "go", point: "human.approval", planHash: null, content: null },
+    { node: "go", point: "human.approval", planHash: null, content: null, firstRun: false },
     EXIT.refused,
+    "waiting",
     "succeeded",
   ]);
 });
@@ -792,6 +802,7 @@ test("runs approve shows a write's content with its control characters escaped, 
   });
   const file = planFile(root, writing, "write.json");
   const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  await cli("runs", "approve", String(ran["runId"]), "say", "--yes", "--project", root);
   const { out } = await cli("runs", "approve", String(ran["runId"]), "out");
   expect([out.includes("\u001b"), out]).toEqual([false, expect.stringContaining("\\u001b[2Jkept\tline\nnext")]);
 });
@@ -838,8 +849,13 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
     { ...workflow, nodes: [workflow.nodes[0], { id: "a", type: "command.run", with: { command: "sleep 30" } }] },
     "slow.json",
   );
-  const stopping = atCheckpoint({ stopped: new Promise((resolve) => setTimeout(resolve, 500)) });
-  expect((await stopping.cli("workflows", "run", slow, "--project", root)).out).toMatch(/: cancelled\.\n$/);
+  const { promise: stopped, resolve: stop } = Promise.withResolvers<void>();
+  const stopping = atCheckpoint({ stopped });
+  // Its first run waits before the command; the approval runs it.
+  const waiting = json((await stopping.cli("--json", "workflows", "run", slow, "--project", root)).out);
+  setTimeout(stop, 500);
+  const approving = ["runs", "approve", String(waiting["runId"]), "a", "--yes", "--project", root];
+  expect((await stopping.cli(...approving)).out).toMatch(/: cancelled\.\n$/);
   expect((await cli("runs", "resume", "nope")).code).toBe(EXIT.refused);
   expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);
   expect((await cli("workflows", "run", file, "--input", "Ada")).code).toBe(EXIT.usage);

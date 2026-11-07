@@ -94,7 +94,7 @@ const leased = (state: string, account: string) => {
 const code = (result: { ok: boolean }) =>
   result.ok ? Reflect.get(result, "value") : Reflect.get(result, "finding").code;
 
-test("interactive sessions switch to an account by its claude-swap alias, never onto one CedarLoom workers run on; the policy is claude-swap's", async () => {
+test("interactive sessions switch to an account by its claude-swap alias, never onto one CedarLoom workers run on; the policy is claude-swap's auto mode's", async () => {
   const paths = machine();
   const before = [
     code(await switchInteractive(paths, "nobody", false)),
@@ -102,6 +102,7 @@ test("interactive sessions switch to an account by its claude-swap alias, never 
     code(await switchInteractive(paths, "elsewhere", false)),
     code(await switchInteractive(paths, "elsewhere", true)),
     code(await swapPolicy(paths, { "autoswitch.threshold": "85" })),
+    code(await swapPolicy(paths, { "autoswitch.threshold": "85", "run.shareHistory": "false" })),
   ];
   const held = [leased(paths.state, "elsewhere"), leased(paths.state, "work")];
   const busy = [
@@ -116,6 +117,7 @@ test("interactive sessions switch to an account by its claude-swap alias, never 
     { number: 2, switched: null },
     { number: 2, switched: true },
     { "autoswitch.threshold": "85" },
+    "accounts.swap-setting",
     "accounts.swap-busy",
     // Interactive sessions already use it: nothing moves, so its workers do not refuse.
     { number: 1, switched: false },

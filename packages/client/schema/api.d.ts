@@ -1485,6 +1485,12 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "accounts.swap-setting";
+            params: {
+                key: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.name-taken";
             params: {
                 account: string;
@@ -2810,6 +2816,12 @@ export interface components {
             /** @constant */
             code: "accounts.swap-unavailable";
             params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "accounts.swap-setting";
+            params: {
+                key: string;
+            };
         } | {
             /** @constant */
             code: "accounts.name-taken";

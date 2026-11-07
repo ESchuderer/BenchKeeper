@@ -319,8 +319,10 @@ export const accountsPolicy = async (
   setting: { key: string; value: string } | null,
   { yes }: { yes?: true } = {},
 ): Promise<number> => {
+  const checked = setting === null ? null : useCases.checkSwapSetting(setting.key);
+  if (checked?.ok === false) return refused(ctx, "accounts", checked.finding);
   if (setting !== null && yes !== true) {
-    const human = `Sets claude-swap's ${setting.key} to ${setting.value}: cswap config set ${setting.key} ${setting.value}\nNothing changed. Run the command again with --yes.`;
+    const human = `Sets claude-swap's ${setting.key} to ${setting.value}: cswap config set -- ${setting.key} ${setting.value}\nNothing changed. Run the command again with --yes.`;
     emit(ctx, "accounts-policy", { set: { [setting.key]: setting.value }, values: null }, human);
     return EXIT.ok;
   }

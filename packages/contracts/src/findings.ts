@@ -105,6 +105,8 @@ export const Finding = z
     finding("accounts.swap-busy", { account: z.string() }),
     // claude-swap is missing, its extension is off, or its version is not one the extension reads.
     finding("accounts.swap-unavailable", {}),
+    // A claude-swap setting outside its auto mode's (autoswitch.*), which CedarLoom does not set (switching plan 14.3).
+    finding("accounts.swap-setting", { key: z.string() }),
     finding("accounts.name-taken", { account: z.string() }),
     // An account or pool name the registry's rule refuses.
     finding("accounts.name-invalid", { name: z.string() }),
@@ -400,6 +402,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.swap-unlinked": { severity: "error", effort: "command" },
   "accounts.swap-busy": { severity: "error", effort: "manual" },
   "accounts.swap-unavailable": { severity: "error", effort: "manual" },
+  "accounts.swap-setting": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },

@@ -118,11 +118,22 @@ export const switchInteractive = async (
   });
 };
 
-/** claude-swap's own settings (`cswap config`), after it set `set`, which it checks key by key. */
+/**
+ * A claude-swap setting CedarLoom may set: only its auto mode's (autoswitch.*), as others, such as run.shareHistory,
+ * change the sharing session mode relies on (switching plan 14.3).
+ */
+export const checkSwapSetting = (key: string): Result<string> =>
+  key.startsWith("autoswitch.") ? { ok: true, value: key } : refuse({ code: "accounts.swap-setting", params: { key } });
+
+/** claude-swap's auto mode settings (`cswap config`), after it set `set`, which it checks key by key. */
 export const swapPolicy = async (
   paths: Paths,
   set: Record<string, string> = {},
 ): Promise<Result<Record<string, string | number | boolean>>> => {
+  const refused = Object.keys(set)
+    .map((key) => checkSwapSetting(key))
+    .find((checked) => !checked.ok);
+  if (refused?.ok === false) return refused;
   const changes = Object.keys(set).length > 0 ? { set } : {};
   return askSwap(paths, async (running): Promise<Result<Record<string, string | number | boolean>>> => {
     const policy = await running.target("target/policy", { ...INTERACTIVE, ...changes });

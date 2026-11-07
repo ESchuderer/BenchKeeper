@@ -22,8 +22,14 @@ const MENUBAR: Record<string, string> = {
     "Menu bar service installed (com.cswap.menubar).\n  plist: /home/me/Library/LaunchAgents/x.plist\n",
   "--uninstall-service": "Menu bar service removed.\n",
 };
+// uv 0.13.7's tool list (uv tool list --show-extras) with claude-swap and its menu bar, and without.
+const WITH_MENU_BAR = "claude-swap v0.30.0 [extras: menubar]\n- claude-swap\n- cswap\n";
+const BARE = "claude-swap v0.30.0\n- claude-swap\n- cswap\n";
 const cswap =
-  (answers: { list?: string; status?: string; switch?: string } = {}, version = recorded("version.txt")) =>
+  (
+    answers: { list?: string; status?: string; switch?: string; tools?: string } = {},
+    version = recorded("version.txt"),
+  ) =>
   async ({ args = [] }: ExecParams): Promise<ExecResult> => {
     const [command = "", flag = ""] = args;
     const outputs: Record<string, () => string> = {
@@ -32,6 +38,7 @@ const cswap =
       switch: () => (flag === "1" ? (answers.switch ?? "") : ""),
       config: () => (flag === "set" ? "" : recorded("config.json")),
       menubar: () => MENUBAR[flag] ?? "",
+      tool: () => answers.tools ?? WITH_MENU_BAR,
     };
     const stdout = outputs[command]?.() ?? answers.status ?? recorded("status.json");
     return { code: 0, stdout, stderr: "" };
@@ -281,13 +288,17 @@ test("the session line runs claude-swap's session mode on a listed account; one 
 
 const keys = (outputs: Record<string, unknown>) => Object.keys(outputs).toSorted();
 
-test("auto mode is claude-swap's menu bar service on macOS, installed or removed only with cswap allowed; elsewhere hints only", async () => {
+test("auto mode is claude-swap's menu bar service on macOS, installed only with its menu bar confirmed, and installed or removed only with cswap allowed; elsewhere hints only", async () => {
   const allowed = { allow: ["cswap"] };
+  const bare = cswap({ tools: BARE });
+  const { runs, approve } = await autoOn({ exec: cswap(), config: {} }, "darwin");
   expect([
     (await auto({ exec: cswap() }, "darwin"))["service"],
-    await autoOn({ exec: cswap(), config: {} }, "darwin"),
+    { runs, approve },
     (await autoOn({ exec: cswap(), config: allowed }, "darwin"))["service"],
     (await autoOff({ exec: cswap(), config: allowed }, "darwin"))["service"],
+    keys(await autoOn({ exec: bare, config: allowed }, "darwin")),
+    (await autoOff({ exec: bare, config: allowed }, "darwin"))["service"],
     keys(await auto({ exec: cswap() }, "linux")),
     keys(await autoOn({ exec: cswap(), config: allowed }, "linux")),
     keys(await autoOff({ exec: cswap(), config: allowed }, "win32")),
@@ -298,23 +309,28 @@ test("auto mode is claude-swap's menu bar service on macOS, installed or removed
     "Menu bar service installed (com.cswap.menubar).",
     "Menu bar service removed.",
     ["hint"],
+    "Menu bar service removed.",
+    ["hint"],
     ["hint"],
     ["hint"],
     ["hint"],
   ]);
 });
 
-test("the policy is claude-swap's own settings, set through cswap config set; a setting without a value is left out", async () => {
+test("the policy is claude-swap's auto mode settings, set through cswap config set; a setting without a value or outside auto mode is left out, and one outside auto mode is never set", async () => {
   const ran: string[][] = [];
   const exec = async (request: ExecParams) => {
     ran.push(request.args ?? []);
     return cswap()(request);
   };
   const policy = await targets["target/policy"]?.({ ...INTERACTIVE, set: { "autoswitch.threshold": "85" } }, on(exec));
+  const other = targets["target/policy"]?.({ ...INTERACTIVE, set: { "run.shareHistory": "false" } }, on(exec));
+  await expect(other).rejects.toThrow("run.shareHistory");
   expect([
     policy?.values["autoswitch.threshold"],
     policy?.values["autoswitch.strategy"],
     "autoswitch.weeklyThreshold" in (policy?.values ?? {}),
-    ran[0],
-  ]).toEqual([90, "best", false, ["config", "set", "--", "autoswitch.threshold", "85"]]);
+    "run.shareHistory" in (policy?.values ?? {}),
+    ran.filter(([command, flag]) => command === "config" && flag === "set"),
+  ]).toEqual([90, "best", false, false, [["config", "set", "--", "autoswitch.threshold", "85"]]]);
 });

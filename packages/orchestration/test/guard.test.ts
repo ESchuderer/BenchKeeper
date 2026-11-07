@@ -40,7 +40,7 @@ const bash = (command: unknown, cwd: unknown = "/work/app") =>
 
 test("the hook lets a call run with exit 0 and refuses one with exit 2 and its reason", () => {
   expect(hook(bash("ls -la"))).toEqual({ status: 0, refused: false });
-  expect(hook(bash("git commit --no-verify -m wip"))).toEqual({ status: 2, refused: true });
+  expect(hook(bash("sudo rm -rf /tmp/x"))).toEqual({ status: 2, refused: true });
 }, 30_000);
 
 test("the hook refuses what it cannot read: input that is no JSON, a call without its command, a missing policy", () => {
@@ -54,7 +54,7 @@ test("the hook refuses what it cannot read: input that is no JSON, a call withou
 const monitor = (input: object) => JSON.stringify({ tool_name: "Monitor", tool_input: input, cwd: "/work/app" });
 
 test("the hook reads a Monitor command as a Bash one, and lets other tools and a WebSocket monitor through", () => {
-  expect(hook(monitor({ command: "git push -f origin x" }))).toEqual({ status: 2, refused: true });
+  expect(hook(monitor({ command: "sudo rm -rf /tmp/x" }))).toEqual({ status: 2, refused: true });
   expect(hook(monitor({ ws: { url: "wss://example.com" } }))).toEqual({ status: 0, refused: false });
   expect(hook(JSON.stringify({ tool_name: "Read", tool_input: { file_path: "/x" }, cwd: "/" }))).toEqual({
     status: 0,

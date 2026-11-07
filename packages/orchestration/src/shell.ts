@@ -27,6 +27,7 @@ export interface Script {
 // Words that start a compound command the reader does not follow as a whole.
 const UNMODELED = new Set(["for", "case", "select", "function", "coproc"]);
 const NAME = /^[A-Za-z_]\w*/;
+const ASSIGNED = /^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=/;
 const OPENERS = new Set(["(", "{", "'", '"']);
 const REDIRECT = /^(?:&>>?|<<<|<<-|<<|<>|<&|>&|>>|>\||[<>])/;
 // What ends a word outside quotes; a carriage return is no blank to the shell.
@@ -36,17 +37,32 @@ class Builder {
   text = "";
   start: string | null = null;
   quoted = false;
-  add(text: string): void {
+  // The characters outside quotes, where the shell expands globs and braces.
+  bare = "";
+  // An expansion outside quotes, whose result the shell splits into words of its own.
+  split = false;
+  add(text: string, bare = false): void {
     this.text += text;
+    if (bare) this.bare += text;
   }
   // An expansion: the word's text is unknown from here on.
-  expand(): void {
+  expand(bare = false): void {
     this.start ??= this.text;
+    this.split ||= bare;
   }
   word(): Word {
-    return this.start === null ? { text: this.text, start: this.text } : { text: null, start: this.start };
+    if (this.start === null && expands(this.bare)) this.expand();
+    if (this.start === null) return { text: this.text, start: this.text };
+    // An assignment is not split, so its name stays known.
+    return { text: null, start: this.split && !ASSIGNED.test(this.start) ? "" : this.start };
   }
 }
+
+// Pathname and brace expansion turn a word with *, ?, [...] or {a,b} or {a..b} outside quotes into other words.
+const expands = (bare: string): boolean => {
+  const brace = /\{([^}]*)\}/.exec(bare)?.[1];
+  return /[*?]|\[[^\]]*\]/.test(bare) || (brace !== undefined && /,|\.\./.test(brace));
+};
 
 interface Heredoc {
   readonly delimiter: string;
@@ -220,8 +236,8 @@ class Reader {
       else if (c === '"') this.#doubleQuoted(word, '"');
       else if (c === "\\") this.#escaped(word, null);
       else if (c === "$") this.#dollar(word, false);
-      else if (c === "`") this.#backquoted(word);
-      else word.add(c);
+      else if (c === "`") this.#backquoted(word, false);
+      else word.add(c, true);
     }
     return word;
   }
@@ -250,7 +266,7 @@ class Reader {
       if (c === closer) return;
       if (c === "\\") this.#escaped(word, '$`"\\\n');
       else if (c === "$") this.#dollar(word, true);
-      else if (c === "`") this.#backquoted(word);
+      else if (c === "`") this.#backquoted(word, true);
       else word.add(c);
     }
     if (closer !== null) this.skipped = true;
@@ -275,7 +291,7 @@ class Reader {
       word.add("$");
       return;
     }
-    word.expand();
+    word.expand(!inQuotes);
     this.#i += opens ? 1 : name.length;
     if (opens) this.#expansion(c);
   }
@@ -326,12 +342,12 @@ class Reader {
     if (c === "'") this.#singleQuoted(new Builder());
     else if (c === '"') this.#doubleQuoted(new Builder(), '"');
     else if (c === "$") this.#dollar(new Builder(), false);
-    else if (c === "`") this.#backquoted(new Builder());
+    else if (c === "`") this.#backquoted(new Builder(), true);
   }
 
   // A backquoted substitution: its text, with `\``, `\\` and `\$` unescaped, runs as a script of its own.
-  #backquoted(word: Builder): void {
-    word.expand();
+  #backquoted(word: Builder, inQuotes: boolean): void {
+    word.expand(!inQuotes);
     let inner = "";
     while (!this.done && this.#peek() !== "`") {
       const c = this.#peek();

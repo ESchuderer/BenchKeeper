@@ -1321,8 +1321,19 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.finding";
+            params: {
+                extension: string;
+                check: string;
+                /** @enum {string} */
+                severity: "error" | "warning" | "info";
+                code: string;
+                message: string;
             };
         } | {
             /** @constant */
@@ -2296,8 +2307,19 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.finding";
+            params: {
+                extension: string;
+                check: string;
+                /** @enum {string} */
+                severity: "error" | "warning" | "info";
+                code: string;
+                message: string;
             };
         } | {
             /** @constant */

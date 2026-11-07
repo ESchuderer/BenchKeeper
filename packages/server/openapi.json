@@ -3301,7 +3301,8 @@
                       "stage",
                       "start",
                       "initialize",
-                      "run"
+                      "run",
+                      "doctor"
                     ]
                   },
                   "error": {
@@ -3312,6 +3313,53 @@
                   "extension",
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.finding"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "error",
+                      "warning",
+                      "info"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension",
+                  "check",
+                  "severity",
+                  "code",
+                  "message"
                 ],
                 "additionalProperties": false
               }
@@ -7841,7 +7889,8 @@
                       "stage",
                       "start",
                       "initialize",
-                      "run"
+                      "run",
+                      "doctor"
                     ]
                   },
                   "error": {
@@ -7852,6 +7901,53 @@
                   "extension",
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.finding"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "error",
+                      "warning",
+                      "info"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension",
+                  "check",
+                  "severity",
+                  "code",
+                  "message"
                 ],
                 "additionalProperties": false
               }

@@ -473,7 +473,7 @@ const pointsOf = (state: string, runId: string) => {
   return waits.ok ? waits.value.waits.map((wait) => [wait.node, wait.point]) : waits.finding.code;
 };
 
-test("a first run waits before its command at every level; then each level waits where Q10 has it: Supervised before a node and a plan, Checkpoint before a plan, Auto at neither", async () => {
+test("a first run waits before its command at every level; then each level waits where Q10 has it: Supervised before a node and a plan, Checkpoint before a plan, Auto at neither, and runs show lists Auto's passes", async () => {
   const waited = await Promise.all(
     ["supervised", "checkpoint", "auto"].map(async (level) => {
       const at = writing();
@@ -481,13 +481,19 @@ test("a first run waits before its command at every level; then each level waits
       const runId = idOf(await runWorkflow(at.state, at.file, {}, options));
       const first = pointsOf(at.state, runId);
       await decideRun(at.state, runId, { node: "say", approved: true }, options);
-      return [level, first, pointsOf(at.state, runId), at.text()];
+      const shown = showGraphRun(at.state, runId);
+      const passed = shown.ok ? shown.value.passed.map((gate) => [gate.node, gate.point, gate.level]) : shown;
+      return [level, first, pointsOf(at.state, runId), at.text(), passed];
     }),
   );
+  const atAuto = [
+    ["out", "before-node", "auto"],
+    ["out", "before-apply", "auto"],
+  ];
   expect(waited).toEqual([
-    ["supervised", [["say", "before-node"]], [["out", "before-node"]], "old"],
-    ["checkpoint", [["say", "before-node"]], [["out", "before-apply"]], "old"],
-    ["auto", [["say", "before-node"]], [], "new"],
+    ["supervised", [["say", "before-node"]], [["out", "before-node"]], "old", []],
+    ["checkpoint", [["say", "before-node"]], [["out", "before-apply"]], "old", []],
+    ["auto", [["say", "before-node"]], [], "new", atAuto],
   ]);
 });
 

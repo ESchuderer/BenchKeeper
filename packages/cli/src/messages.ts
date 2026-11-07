@@ -333,9 +333,15 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     p.reason === "unchanged"
       ? `Outbox entry ${p.id} changed nothing on its issue, so there is nothing to undo.`
       : `Outbox entry ${p.id} deleted a comment, which cannot be brought back.`,
-  "tracker.unavailable": (p) =>
-    `The tracker could not be reached (${shown(p.error, 300)}); the entry stays queued for the next send.`,
+  "tracker.unavailable": (p) => {
+    const after = p.retryAfter === null ? "" : ` GitHub asks to wait ${shown(p.retryAfter, 20)} s.`;
+    const reset =
+      p.rateLimitReset === null ? "" : ` The rate limit resets at ${shown(p.rateLimitReset, 20)} (epoch seconds).`;
+    return `The tracker did not take the write now (${shown(p.error, 300)}); the entry stays queued for the next send.${after}${reset}`;
+  },
   "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
+  "tracker.invalid-answer": (p) =>
+    `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

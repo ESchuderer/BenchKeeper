@@ -1405,14 +1405,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.map-refused";
-            params: {
-                /** @enum {string} */
-                reason: "unknown-target" | "no-folder" | "not-mapped";
-                name: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -1911,6 +1903,13 @@ export interface components {
             /** @constant */
             code: "outbox.not-found";
             params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
                 id: string;
             };
         } | {
@@ -2696,14 +2695,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.map-refused";
-            params: {
-                /** @enum {string} */
-                reason: "unknown-target" | "no-folder" | "not-mapped";
-                name: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -3202,6 +3193,13 @@ export interface components {
             /** @constant */
             code: "outbox.not-found";
             params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
                 id: string;
             };
         } | {

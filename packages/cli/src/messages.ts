@@ -173,12 +173,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
-  "accounts.map-refused": (p) =>
-    ({
-      "unknown-target": `The registry has no account or Claude Code pool named ${p.name}.`,
-      "no-folder": `There is no folder ${p.name} to bind.`,
-      "not-mapped": `The folder ${p.name} is bound to no account or pool.`,
-    })[p.reason],
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "doctor.logged-out": (p) =>
@@ -327,6 +321,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "outbox.not-approved": (p) =>
     `The approval names intent ${short(p.approvedHash)}, not ${short(p.hash)}; nothing was queued under ${p.key}.`,
   "outbox.not-found": (p) => `No outbox entry ${p.id} in this state folder.`,
+  "outbox.key-taken": (p) => `Outbox entry ${p.id} holds another intent under ${p.key}; nothing was queued.`,
   "outbox.not-hub": (p) =>
     `Outbox entry ${p.id} writes to ${p.repo}, which is not the hub; CedarLoom writes to hub issues only, so it failed.`,
   "outbox.status": (p) =>

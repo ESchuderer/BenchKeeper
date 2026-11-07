@@ -114,11 +114,6 @@ export const Finding = z
     finding("accounts.home-missing", { account: z.string(), home: z.string() }),
     // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
     finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
-    // `accounts map` or `unmap` refused: no account or pool of that name, no such folder, or a folder bound to nothing.
-    finding("accounts.map-refused", {
-      reason: z.enum(["unknown-target", "no-folder", "not-mapped"]),
-      name: z.string(),
-    }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
@@ -299,6 +294,8 @@ export const Finding = z
     // An outbox intent whose approval names another intent: nothing is queued.
     finding("outbox.not-approved", { key: z.string(), hash: Sha256, approvedHash: z.string() }),
     finding("outbox.not-found", { id: z.string() }),
+    // A key that holds another intent already, entry `id`: nothing is queued.
+    finding("outbox.key-taken", { key: z.string(), id: z.string() }),
     // An entry for another repository than the hub, the only tracker (A3 b): it fails, and nothing is written.
     finding("outbox.not-hub", { id: z.string(), repo: z.string() }),
     // The entry's status does not allow the step, such as a send of one that ended, or `sending`: another process sends it.
@@ -397,7 +394,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
-  "accounts.map-refused": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },
@@ -467,6 +463,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.source-unavailable": { severity: "error", effort: "manual" },
   "outbox.not-approved": { severity: "error", effort: "command" },
   "outbox.not-found": { severity: "error", effort: "manual" },
+  "outbox.key-taken": { severity: "error", effort: "manual" },
   "outbox.not-hub": { severity: "error", effort: "manual" },
   "outbox.status": { severity: "error", effort: "manual" },
   "outbox.not-undoable": { severity: "warning", effort: "manual" },

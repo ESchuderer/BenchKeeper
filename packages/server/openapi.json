@@ -2467,41 +2467,6 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "accounts.map-refused"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "enum": [
-                      "unknown-target",
-                      "no-folder",
-                      "not-mapped"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "reason",
-                  "name"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
                 "const": "accounts.login-failed"
               },
               "params": {
@@ -4725,6 +4690,36 @@
                   }
                 },
                 "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.key-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
                   "id"
                 ],
                 "additionalProperties": false
@@ -8451,41 +8446,6 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "accounts.map-refused"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "enum": [
-                      "unknown-target",
-                      "no-folder",
-                      "not-mapped"
-                    ]
-                  },
-                  "name": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "reason",
-                  "name"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
                 "const": "accounts.login-failed"
               },
               "params": {
@@ -10709,6 +10669,36 @@
                   }
                 },
                 "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.key-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
                   "id"
                 ],
                 "additionalProperties": false

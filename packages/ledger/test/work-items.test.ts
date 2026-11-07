@@ -33,9 +33,10 @@ test("an intent is queued only under an approval of its own hash, and once per k
   expect(first).toMatchObject({ ok: true, value: { key: "mirror:1", status: "pending", approvedBy: "mirroring" } });
   expect(store.enqueue("mirror:1", add, { by: "mirroring", hash: ADD_HASH })).toEqual(first);
   const other: Intent = { ...add, label: "ready-for-human" };
-  expect(() => store.enqueue("mirror:1", other, { by: "owner", hash: OTHER_HASH })).toThrow(
-    "the outbox key mirror:1 holds another intent",
-  );
+  expect(store.enqueue("mirror:1", other, { by: "owner", hash: OTHER_HASH })).toEqual({
+    ok: false,
+    finding: { code: "outbox.key-taken", params: { key: "mirror:1", id: first.ok ? first.value.id : "" } },
+  });
 });
 
 test("a run is linked to a hub issue once, and only a run the ledger recorded", () => {

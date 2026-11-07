@@ -1734,6 +1734,7 @@ export interface components {
                 source: string | null;
                 ref: string | null;
                 autoUpdate: boolean;
+                project: string | null;
             };
         } | {
             /** @constant */
@@ -1751,6 +1752,20 @@ export interface components {
                 project: string;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-twice";
+            params: {
+                folder: string;
+                skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */
@@ -2877,6 +2892,7 @@ export interface components {
                 source: string | null;
                 ref: string | null;
                 autoUpdate: boolean;
+                project: string | null;
             };
         } | {
             /** @constant */
@@ -2894,6 +2910,20 @@ export interface components {
                 project: string;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-twice";
+            params: {
+                folder: string;
+                skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */

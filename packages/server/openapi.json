@@ -3935,6 +3935,12 @@
                   },
                   "autoUpdate": {
                     "type": "boolean"
+                  },
+                  "project": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -3942,7 +3948,8 @@
                   "plugin",
                   "source",
                   "ref",
-                  "autoUpdate"
+                  "autoUpdate",
+                  "project"
                 ],
                 "additionalProperties": false
               }
@@ -4021,6 +4028,69 @@
                   "project",
                   "programs",
                   "configs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-twice"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "folder": {
+                    "type": "string"
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "folder",
+                  "skills"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-plugin"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "skill": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "skill",
+                  "path"
                 ],
                 "additionalProperties": false
               }
@@ -9273,6 +9343,12 @@
                   },
                   "autoUpdate": {
                     "type": "boolean"
+                  },
+                  "project": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -9280,7 +9356,8 @@
                   "plugin",
                   "source",
                   "ref",
-                  "autoUpdate"
+                  "autoUpdate",
+                  "project"
                 ],
                 "additionalProperties": false
               }
@@ -9359,6 +9436,69 @@
                   "project",
                   "programs",
                   "configs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-twice"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "folder": {
+                    "type": "string"
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "folder",
+                  "skills"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-plugin"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "skill": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "skill",
+                  "path"
                 ],
                 "additionalProperties": false
               }

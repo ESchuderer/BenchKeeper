@@ -228,6 +228,17 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The profile reaches more than ${p.limit} profile files through its parents, last ${p.chain.join(" -> ")}; nothing is read further.`,
   "profile.pack-sources": (p) =>
     `Pack ${p.pack} comes from different sources in ${p.files.join(" and ")}; give it one source in every profile file.`,
+  "profile.entry-unknown": (p) => `Pack ${p.pack} has no ${p.kind} entry ${p.path} on this machine.`,
+  "profile.app-too-old": (p) => `The profile needs CedarLoom ${p.minApp} or newer; this is ${p.app}. Update CedarLoom.`,
+  "profile.part-unknown": (p) => `${p.by} names the part ${p.part}, which the profile does not have.`,
+  "profile.part-requires": (p) =>
+    `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
+  "profile.binding-missing": (p) =>
+    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.placeholder-unknown": (p) =>
+    `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
+  "profile.owner-changed": (p) =>
+    `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

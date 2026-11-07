@@ -1,19 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatInstalled, type Result } from "@cedarloom/contracts";
+import { formatInstalled } from "@cedarloom/contracts";
 import { applyPlan, bundledExtensions, extensionToStart, planSwitch, undoRun } from "@cedarloom/use-cases";
-import { afterAll, expect, test } from "vitest";
+import { expect, test } from "vitest";
+import { ok, testRoot } from "./harness.ts";
 
-const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-bundled-"));
-afterAll(() => {
-  rmSync(root, { recursive: true, force: true });
-});
-
-const ok = <T>(result: Result<T>): T => {
-  if (!result.ok) throw new Error(`refused: ${result.finding.code}`);
-  return result.value;
-};
+const root = testRoot("bundled");
 const ID = "cedarloom.example";
 const manifest = (id: string): string =>
   JSON.stringify({

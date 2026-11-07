@@ -220,14 +220,19 @@ test("an interactive home posts as its account once accounts telemetry is applie
   expect(applyPlan(state, planned.value.plan, { yes: true })).toMatchObject({ ok: true, value: { status: "applied" } });
   const written = Settings.parse(JSON.parse(readFileSync(settings, "utf8")));
   expect(written).toMatchObject({ model: "opus", env: { KEEP: "1", OTEL_LOGS_EXPORTER: "otlp" } });
-  const authorization = (written.env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] ?? "").replace(/^Authorization=/, "");
+  // The token as the plan carries it, which the apply wrote into the settings.
+  const op = planned.value.plan.operations[0];
+  const block = Settings.parse(JSON.parse(op?.kind === "write" ? op.content : "{}")).env;
+  expect(written.env).toEqual(block);
+  const authorization = (block["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] ?? "").replace(/^Authorization=/, "");
   expect(readFileSync(join(state, "telemetry.json"), "utf8")).not.toContain(authorization.slice("Bearer ".length));
   // The receiver of cedarloom ui, on the registry's port, keeps the home's rows as the account's, with no run.
   const receiver = await receiverAt(state, { port });
   try {
     expect(written.env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"]).toBe(receiver.endpoint);
     const headers = { "content-type": "application/json", authorization };
-    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status).toBe(200);
+    const bytes = new TextEncoder().encode(text);
+    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: bytes })).status).toBe(200);
     expect(stored(state)).toEqual([{ ...ROW, runId: null }]);
     // A second receiver on the port is refused, and the doctor sees the receiver as no problem.
     const taken = { ok: false, finding: { code: "telemetry.port-taken", params: { port } } };
@@ -236,7 +241,7 @@ test("an interactive home posts as its account once accounts telemetry is applie
     const again = planTelemetry(config, state, claudeTelemetry, {});
     if (!again.ok) throw new Error(again.finding.code);
     applyPlan(state, again.value.plan, { yes: true });
-    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status).toBe(401);
+    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: bytes })).status).toBe(401);
   } finally {
     await receiver.close();
   }
@@ -287,7 +292,7 @@ test("accounts telemetry is refused without an interactive home, and for setting
   const receiver = await receiverAt(state);
   try {
     const headers = { "content-type": "application/json", authorization: "Bearer unknown" };
-    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: text })).status).toBe(401);
+    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: "{}" })).status).toBe(401);
   } finally {
     await receiver.close();
   }

@@ -890,7 +890,7 @@ test("committed files another machine's profile wrote and recorded stay where a 
   ]).toEqual([null, []]);
 });
 
-test("a clone on an older pack leaves a file a newer one wrote and recorded, and says so", async () => {
+test("a clone on an older pack leaves files a newer one recorded, and says so where their text differs", async () => {
   const project = projectWith();
   const first = machine();
   applied(first.state, (await projectPlan(first, project)).plan);
@@ -898,6 +898,8 @@ test("a clone on an older pack leaves a file a newer one wrote and recorded, and
   const path = join(project, ".cedarloom", "profile-files.json");
   const record = JSON.parse(readFileSync(path, "utf8"));
   record.files["docs/agents/domain.md"] = { sha256: sha("- newer\n"), pack: "cedarloom.core@99.0.0" };
+  // A file the newer pack left as this machine's pack has it: held, but nothing to report.
+  record.files["docs/agents/issue-tracker.md"].pack = "cedarloom.core@99.0.0";
   writeFileSync(path, JSON.stringify(record));
   writeFileSync(domain, "- newer\n");
   const local = expect.stringMatching(/^cedarloom\.core@0\./);

@@ -421,7 +421,11 @@ export const ProfileFiles = z
         PortablePath,
         z.strictObject({
           sha256: Sha256,
-          pack: z.string().max(200).optional().describe("The pack its text came from, as `id@version`"),
+          pack: z
+            .string()
+            .regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}@\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/)
+            .optional()
+            .describe("The pack its text came from, as `id@version`: a pack id and its SemVer version"),
         }),
       ),
       2000,

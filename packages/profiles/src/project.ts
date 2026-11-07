@@ -447,7 +447,10 @@ const ownedOf = (given: Given, files: Files, { written, record }: { written: Wri
   const known = withRecord(written, new Map([...record].filter(([path]) => writing.has(path))));
   const plan = ownedFiles(writing, stale, known);
   if (!plan.ok) return plan;
-  const held = newer.map((params): Finding => ({ code: "profile.newer-pack", params }));
+  // Held all the same, so this clone never tags them back; reported only where the file differs from the text here.
+  const held = newer
+    .filter(({ path }) => hashOrNull(path) !== sha256(wanted.get(path)?.content ?? ""))
+    .map((params): Finding => ({ code: "profile.newer-pack", params }));
   return { ok: true as const, value: { ...plan.value, findings: [...plan.value.findings, ...held], wanted: writing } };
 };
 

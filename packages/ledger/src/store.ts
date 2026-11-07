@@ -52,6 +52,10 @@ const SCHEMA = 12;
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
+// A stored plan with every file content blanked; kinds, paths and hashes remain. The store's SQL calls it as blanked().
+const blanked = (plan: unknown): string =>
+  JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
+
 /** A launch as its lease takes it, with the settings it runs with. */
 export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins">;
 
@@ -286,17 +290,20 @@ export class RunStore extends RunView {
   readonly #lock: DatabaseSync;
   /** Raised each time a process opens the store; every run records the epoch it ran under. */
   readonly epoch: number;
-  /** Runs a process that died left running, marked `interrupted` when this store opened. */
+  /** Runs a process that died left running, marked `interrupted` when this store opened; their contents are blanked. */
   readonly interrupted: string[];
 
   constructor(dir: string, db: DatabaseSync, lock: DatabaseSync) {
     super(dir, db);
     this.#lock = lock;
+    db.function("blanked", { deterministic: true, directOnly: true }, blanked);
     [this.epoch, this.interrupted] = transaction(db, () => {
       const epoch = Number(
         db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'epoch' RETURNING value").get()?.["value"],
       );
-      const ids = db.prepare("UPDATE runs SET status = 'interrupted' WHERE status = 'running' RETURNING id").all();
+      const ids = db
+        .prepare("UPDATE runs SET status = 'interrupted', plan = blanked(plan) WHERE status = 'running' RETURNING id")
+        .all();
       return [epoch, ids.map((row) => String(row["id"]))] as const;
     });
   }
@@ -336,8 +343,14 @@ export class RunStore extends RunView {
     this.db.prepare(`UPDATE steps SET state = ? WHERE runId = ? AND "index" = ?`).run(state, runId, index);
   }
 
+  /**
+   * Ends a run and blanks the file contents in its stored plan, so a secret a plan writes stays only in its target file
+   * and the run's backup; undo and recovery need only the backups and hashes.
+   */
   finish(runId: string, status: "applied" | "failed"): void {
-    this.db.prepare("UPDATE runs SET status = ?, finishedAt = ? WHERE id = ?").run(status, now(), runId);
+    this.db
+      .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
+      .run(status, now(), runId);
   }
 
   /**
@@ -348,15 +361,12 @@ export class RunStore extends RunView {
   prune(days: number): string[] {
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
     return transaction(this.db, () => {
-      const rows = this.db.prepare("SELECT id, plan FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
-      const blank = this.db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
+      const rows = this.db.prepare("SELECT id FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
+      const blank = this.db.prepare("UPDATE runs SET plan = blanked(plan), pruned = 1 WHERE id = ?");
       for (const row of rows) {
         const id = String(row["id"]);
         rmSync(backupsOf(this.dir, id), { recursive: true, force: true });
-        const plan: unknown = JSON.parse(String(row["plan"]), (key, value: unknown) =>
-          key === "content" ? "" : value,
-        );
-        blank.run(JSON.stringify(plan), id);
+        blank.run(id);
       }
       return rows.map((row) => String(row["id"]));
     });

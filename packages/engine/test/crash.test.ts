@@ -76,6 +76,17 @@ test("recovery removes the temporary file a step killed inside its write left ne
   reopened.close();
 });
 
+test("a run a crash interrupted keeps no file content in its stored plan once the store opens again", () => {
+  const { state: dir, file } = workspace();
+  const path = file("secret.env", "TOKEN=1\n");
+  const runId = interruptedRun(dir, plan({ kind: "write", path, before: hash("TOKEN=1\n"), content: "TOKEN=2\n" }));
+  const reopened = storeAt(dir);
+  expect(reopened.run(runId)?.plan.operations).toEqual([
+    { kind: "write", path, before: hash("TOKEN=1\n"), content: "" },
+  ]);
+  reopened.close();
+});
+
 // A step killed after it set its file aside: the kill matrix above reaches only the empty path. The other states come
 // from a step killed between linking the new file in and removing the aside, or between putting a file back and
 // removing its second name, or from another process that wrote the path after the kill.

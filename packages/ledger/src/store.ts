@@ -45,10 +45,10 @@ const column = (value: unknown): unknown => (typeof value === "string" ? JSON.pa
 const blanked = (plan: unknown): string =>
   JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
 
-// Moves the log into the database and empties it, so the pages from before a blanking leave the log too. It waits for
-// nothing: a waiting checkpoint holds the write lock and keeps another process's writes out past their own wait. While
-// another process uses the store, it stops short and says so in its result row, without an error; that log then keeps
-// the pages until the store's last connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+// Moves the log into the database and empties it as the store closes, so the pages from before a blanking leave the
+// log too; a checkpoint at each finish kept another process's appends out. It waits for nothing, and while another
+// connection reads the store, such as a graph run's, it stops short without an error and the log keeps those pages
+// until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
 const emptyLog = (db: DatabaseSync): void => {
   db.exec("PRAGMA busy_timeout = 0");
   try {
@@ -308,7 +308,6 @@ export class RunStore extends RunView {
         .all();
       return [epoch, ids.map((row) => String(row["id"]))] as const;
     });
-    if (this.interrupted.length > 0) emptyLog(db);
   }
 
   /** Records the plan, its approval and its pending steps in one transaction; refuses an approval of another plan. */
@@ -354,7 +353,6 @@ export class RunStore extends RunView {
     this.db
       .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
       .run(status, now(), runId);
-    emptyLog(this.db);
   }
 
   /**
@@ -600,6 +598,7 @@ export class RunStore extends RunView {
   }
 
   override close(): void {
+    emptyLog(this.db);
     super.close();
     this.#lock.close();
   }

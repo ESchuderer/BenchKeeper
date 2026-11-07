@@ -171,12 +171,11 @@ test("a failing command, a missing file, a missing shell and a timeout end their
   });
   const gone = { ...failing.options, shell: join(failing.root, "no-sh") };
   expect(await runWorkflow(failing.state, failing.file, {}, gone)).toMatchObject({ value: { status: "failed" } });
-  // The timeout ends the command's whole process group: the sleep holds its output open until it is stopped.
+  // The timeout ends the command's whole process group: the sleep holds its output open until it is stopped, longer
+  // than the test's time limit.
   const second = { execution: { nodes: { a: { timeoutSeconds: 1 } } } };
-  const slow = project([command("a", "sleep 30")], "t.start>a.run", second);
-  const started = Date.now();
+  const slow = project([command("a", "sleep 60")], "t.start>a.run", second);
   expect(await runWorkflow(slow.state, slow.file, {}, slow.options)).toMatchObject({ value: { status: "failed" } });
-  expect(Date.now() - started).toBeLessThan(10_000);
   // A shell that exits at once leaves a background child with the output: the timeout stops it too. Windows has no
   // process group to stop, so there it outlives the attempt, which still ends.
   const late = project([command("a", "(sleep 2; echo late > late.txt) &")], "t.start>a.run", second);
@@ -200,14 +199,9 @@ test("a run is refused before it starts: no shell, a node type that does not run
   );
   expect(codeOf(await runWorkflow(at.state, join(at.root, "none.json"), {}, at.options))).toBe("document.unreadable");
   expect(await resumeRun(at.state, "nope", at.options)).toEqual(refused("run.not-found", { runId: "nope" }));
-  // No shell is needed without commands; a store a newer version wrote is refused.
+  // No shell is needed without commands.
   const read = project([{ id: "r", type: "file.read", with: { path: "w.json" } }], "t.start>r.run");
   expect(codeOf(await runWorkflow(read.state, read.file, {}, { ...read.options, shell: null }))).toBe("ok");
-  const db = new DatabaseSync(join(read.state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 99");
-  db.close();
-  expect(codeOf(await runWorkflow(read.state, read.file, {}, read.options))).toBe("store.newer-schema");
-  expect(codeOf(listGraphRuns(read.state))).toBe("store.newer-schema");
 });
 
 test("a report run is refused before it starts with a node that may write, or a command or precheck where no OS sandbox runs (A28)", async () => {

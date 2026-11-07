@@ -216,6 +216,21 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/profiles:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@cedarloom/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@cedarloom/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@cedarloom/packs':
+        specifier: workspace:*
+        version: link:../packs
+
   packages/server:
     dependencies:
       '@cedarloom/contracts':
@@ -348,6 +363,9 @@ importers:
       '@cedarloom/orchestration':
         specifier: workspace:*
         version: link:../orchestration
+      '@cedarloom/profiles':
+        specifier: workspace:*
+        version: link:../profiles
     devDependencies:
       '@cedarloom/adapter-claude':
         specifier: workspace:*

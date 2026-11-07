@@ -27,7 +27,7 @@ import {
 import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
 import { stopOrphans, stopTree } from "./orphans.ts";
-import { type AgentOptions, agentRun } from "./agent-node.ts";
+import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
 import { readJson } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
@@ -193,14 +193,17 @@ const runHeld = async (
 ): Promise<Result<GraphOutcome>> => {
   const { lease } = held;
   const { project, state, agents } = options;
+  const run = { state, runId: lease.runId, project };
   const executors: Executors = {
     "command.run": command(shell, project),
     "file.read": fileRead(project),
-    ...(agents === undefined ? {} : { "agent.run": agentRun({ state, runId: lease.runId, project }, agents) }),
+    ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
   };
+  // An agent attempt a dead runner left ends with its result or resumes its session; every other one ends interrupted.
+  const recover = agents === undefined ? {} : { "agent.run": agentRecover(run, agents) };
   try {
     const { signal, onEvent, sleep } = options;
-    const status = await execute(store, lease, held, { executors, signal, onEvent, sleep });
+    const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover });
     return status.ok ? { ok: true, value: { runId: lease.runId, status: status.value } } : status;
   } finally {
     lease.release();
@@ -401,10 +404,11 @@ export const cancelRun = (
       lease = store.takeOver(runId);
     }
     if (!lease.ok) return lease;
-    // A cancelled run starts nothing, so it needs no shell.
+    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted.
     store.append(runId, lease.value.epoch, { type: "cancel" });
     return runOn(store, { run, lease: lease.value }, "", {
       ...options,
+      agents: undefined,
       project: project.ok ? project.value : "",
       state,
     });

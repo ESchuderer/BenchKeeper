@@ -12,6 +12,7 @@
   "packages/ledger": "0.0.0",
   "packages/orchestration": "0.0.0",
   "packages/packs": "0.0.0",
+  "packages/profiles": "0.0.0",
   "packages/server": "0.0.0",
   "packages/ui": "0.0.0",
   "packages/use-cases": "0.0.0"

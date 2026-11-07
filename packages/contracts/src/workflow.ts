@@ -12,6 +12,32 @@ export const WorkflowId = id;
 // Names of handles and of the workflow's inputs and outputs.
 export const HandleName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
 export const semver = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
+const identifier = (a: string, b: string): number => {
+  const [x, y] = [/^\d+$/.test(a), /^\d+$/.test(b)];
+  if (x && y) return Number(a) - Number(b);
+  if (x !== y) return x ? -1 : 1;
+  return a < b ? -1 : Number(a > b);
+};
+
+// The core and the pre-release identifiers; the contracts' semver has no build metadata.
+const identifiers = (version: string): [string[], string[]] => {
+  const dash = version.indexOf("-");
+  if (dash < 0) return [version.split("."), []];
+  return [version.slice(0, dash).split("."), version.slice(dash + 1).split(".")];
+};
+
+/** Whether `a` is above `b` in SemVer 2.0.0 precedence (https://semver.org/#spec-item-11). */
+export const semverAbove = (a: string, b: string): boolean => {
+  const [coreA, preA] = identifiers(a);
+  const [coreB, preB] = identifiers(b);
+  const core = coreA.map((part, index) => identifier(part, coreB[index] ?? "0")).find((order) => order !== 0);
+  if (core !== undefined) return core > 0;
+  // A release is above its pre-releases; of two pre-releases, the first differing identifier decides, else the longer.
+  if (preA.length === 0 || preB.length === 0) return preA.length === 0 && preB.length > 0;
+  const pre = preA.map((part, index) => (index < preB.length ? identifier(part, preB[index] ?? "") : 1));
+  return (pre.find((order) => order !== 0) ?? preA.length - preB.length) > 0;
+};
+
 const description = z.string().max(2000).optional();
 // SPDX license expression (`MIT`, `MIT OR Apache-2.0`, `DocumentRef-x:LicenseRef-y`): its characters, words one space
 // apart; readers show it, never parse it.

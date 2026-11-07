@@ -123,6 +123,18 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     { type: "plugin", commit: true },
     ["project.plugin.type"],
   ],
+  [
+    "an unknown key shaped like a token, reported at its object",
+    ["machine", "rules.global", "ghp_0123456789abcdefghij0123456789abcdef"],
+    1,
+    ["machine.rules.global"],
+  ],
+  [
+    "a broken label named like a token, reported at its object",
+    ["workspace", "hub", "labels", "ghp_0123456789abcdefghij0123456789abcdef"],
+    { color: "white" },
+    ["workspace.hub.labels"],
+  ],
 ])("a profile file with %s is refused", ([, path, value, expected]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toEqual(expected);
 });
@@ -172,6 +184,18 @@ test.for<[string, (string | number)[], unknown, string]>([
     "a plugin's options in gh's credential folder, its own by name",
     ["machine", "plugin.ponytail"],
     { type: "plugin", title: "x", default: "on", plugin: "gh@x", options: { file: ".config/gh/hosts.yml", set: {} } },
+    "machine.plugin.ponytail.options.file",
+  ],
+  [
+    "a plugin's options in Claude Code's folder by its XDG name",
+    ["machine", "plugin.ponytail"],
+    {
+      type: "plugin",
+      title: "x",
+      default: "on",
+      plugin: "claude@x",
+      options: { file: ".config/claude/settings.json", set: {} },
+    },
     "machine.plugin.ponytail.options.file",
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {

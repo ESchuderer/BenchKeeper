@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
-import { delimiter, isAbsolute, join, relative, sep } from "node:path";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import type { Finding } from "@cedarloom/contracts";
-import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
+import { cleanEnv, missing, NETWORK_SETTINGS, programPath } from "@cedarloom/orchestration";
 import { type Folder, hasContainer, type Resolved } from "@cedarloom/profiles";
 
 /** A dev container part's Template with its options and Features. */
@@ -13,24 +13,6 @@ type TemplateRequest = {
 };
 /** Applies a Template into an empty folder; why it failed, or null. */
 export type ApplyTemplate = (folder: string, request: TemplateRequest) => Promise<string | null>;
-
-// A file this user may run, as host/exec's `located` requires.
-const runnable = (file: string): boolean => {
-  try {
-    accessSync(file, constants.X_OK);
-    return statSync(file).isFile();
-  } catch {
-    return false;
-  }
-};
-
-// The CLI's file in an absolute folder of PATH, as a relative one would follow the current folder.
-const cliFile = (env: Record<string, string>): string | undefined =>
-  (env["PATH"] ?? "")
-    .split(delimiter)
-    .filter((folder) => isAbsolute(folder))
-    .map((folder) => join(folder, "devcontainer"))
-    .find((file) => runnable(file));
 
 /**
  * `devcontainer templates apply` of the Dev Containers CLI, run by its file without a shell, with the network settings
@@ -43,8 +25,8 @@ export const devcontainerCli: ApplyTemplate = (folder, { template, args, feature
     // A .cmd, as npm installs the CLI there, runs only through a shell, and an install hint would mislead.
     if (process.platform === "win32") return done("on Windows CedarLoom cannot run the Dev Containers CLI yet");
     const env = cleanEnv(process.env, process.platform, [...NETWORK_SETTINGS, "DOCKER_CONFIG"]);
-    const file = cliFile(env);
-    if (file === undefined) return done("ENOENT: no devcontainer program in the absolute folders of PATH");
+    const file = programPath("devcontainer", env);
+    if (file === undefined) return done(missing("devcontainer"));
     const list = Object.entries(features).map(([id, options]) => ({ id, options }));
     const argv = ["templates", "apply", "--workspace-folder", folder, "--template-id", template];
     argv.push("--template-args", JSON.stringify(args), "--features", JSON.stringify(list));

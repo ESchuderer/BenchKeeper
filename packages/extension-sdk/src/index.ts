@@ -32,9 +32,13 @@ import {
   type TargetAnswers,
   type TargetCall,
   type TargetCallParams,
+  WORKER_CALLS,
+  type WorkerAnswers,
+  type WorkerCall,
+  type WorkerCallParams,
 } from "./protocol.ts";
 
-export { type ProgramVersion, programVersion, valueAt } from "./answers.ts";
+export { jsonAnswer, type ProgramVersion, programVersion, shellWord, valueAt } from "./answers.ts";
 export * from "./protocol.ts";
 
 /**
@@ -73,14 +77,21 @@ export type ExtensionOptions = {
    * has it; a call it leaves out answers MethodNotFound.
    */
   targets?: TargetHandlers;
+  /** The calls of its worker runners (`contributes.workerRunners`, bundled extensions only), as `targets` has them. */
+  workers?: WorkerHandlers;
 };
 
 /** What a switch target's call gets: the language `initialize` named, and `exec` through the host. */
 export type TargetContext = Pick<ActionContext, "locale" | "exec">;
-/** An async handler per `target/*` call; each rejects to fail. */
-export type TargetHandlers = {
-  [C in TargetCall]?: (params: TargetCallParams[C], context: TargetContext) => Promise<TargetAnswers[C]>;
+type CallParams = TargetCallParams & WorkerCallParams;
+type CallAnswers = TargetAnswers & WorkerAnswers;
+type Handlers<K extends keyof CallParams> = {
+  [C in K]?: (params: CallParams[C], context: TargetContext) => Promise<CallAnswers[C]>;
 };
+/** An async handler per `target/*` call; each rejects to fail. */
+export type TargetHandlers = Handlers<TargetCall>;
+/** An async handler per `worker/*` call; each rejects to fail. */
+export type WorkerHandlers = Handlers<WorkerCall>;
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
 const abortOn = (token: CancellationToken): AbortSignal => {
@@ -113,16 +124,16 @@ const outputsOf = (value: unknown): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(json));
 };
 
-// Answers the host's call of a switch target with its handler, which runs programs through the host.
-const serveTarget = <C extends TargetCall>(
+// Answers the host's call of a switch target or worker runner with its handler, which runs programs through the host.
+const serveCall = <C extends keyof CallParams>(
   connection: MessageConnection,
   call: C,
-  handle: TargetHandlers[C],
+  handle: Handlers<keyof CallParams>[C],
   locale: () => string,
 ): void => {
   if (handle === undefined) return;
   // The answer is typed by the handler: the host checks it against its contract.
-  connection.onRequest(new RequestType<TargetCallParams[C], unknown, void>(call), (params, token) => {
+  connection.onRequest(new RequestType<CallParams[C], unknown, void>(call), (params, token) => {
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     // Also a handler that throws before it returns a promise answers ACTION_FAILED with its reason.
     return Promise.resolve()
@@ -162,7 +173,9 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     return { findings: (await options.doctor?.({ locale: hello.locale, exec })) ?? [] };
   });
-  for (const call of TARGET_CALLS) serveTarget(connection, call, options.targets?.[call], () => hello.locale);
+  const handlers: Handlers<keyof CallParams> = { ...options.targets, ...options.workers };
+  for (const call of [...TARGET_CALLS, ...WORKER_CALLS])
+    serveCall(connection, call, handlers[call], () => hello.locale);
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);

@@ -584,7 +584,7 @@ const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodBoolean) return true;
   if (schema instanceof z.ZodString) return sha256(key);
   if (schema instanceof z.ZodArray) return [sha256(key)];
-  return /found|known/.test(key) ? 2 : sha256(key);
+  return /found|known|status/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {
   const shape = Finding.options.find((option) => option.shape.code.value === code)?.shape.params.shape ?? {};

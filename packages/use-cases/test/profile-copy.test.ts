@@ -39,7 +39,8 @@ test("diff names a part removed from the copy, one added and a changed field, no
   delete json.machine["skill.find-skills"];
   json.project.mine = json.project.manual;
   json.name = "Mine";
-  json.machine["rules.global"] = Object.fromEntries(Object.entries(json.machine["rules.global"]).toReversed());
+  const docs = json.project["agent-docs"];
+  docs.files = Object.fromEntries(Object.entries(docs.files).toReversed());
   writeFileSync(file, JSON.stringify(json));
   expect(ok(diffProfile(config, DEFAULT))).toEqual([
     { change: "changed", key: "name" },

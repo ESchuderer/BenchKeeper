@@ -257,6 +257,21 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.drift": (p) => {
+    const what = {
+      missing: "lacks what the profile writes there; an apply writes it",
+      outdated: "holds an older version of what the profile writes there; an apply updates it",
+      "deselected-present": "is no longer part of the profile",
+      "not-run": "was not checked, as a Git source of the profile could not be fetched",
+    }[p.status];
+    const removal = p.remove === null ? "" : `. Remove it: cedarloom profiles apply --remove ${p.remove}`;
+    const next = p.remove === null && p.status === "deselected-present" ? "; an apply removes it" : "";
+    return `${p.subject} ${what}${next}${removal}.`;
+  },
+  "profile.extra": (p) =>
+    `${p.item} is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ${p.item}`,
+  "profile.remove-unknown": (p) =>
+    `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
   "profile.binding-waiting": (p) =>
     `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.placeholder-unknown": (p) =>

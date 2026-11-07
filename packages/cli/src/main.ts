@@ -21,6 +21,7 @@ import {
   plansApply,
   plansShow,
   profilesApply,
+  profilesCheck,
   profilesChoose,
   runsList,
   runsShow,
@@ -331,8 +332,14 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
       "--allow <part...>",
       "include a plugin or files part, which --yes alone never does, such as machine.plugin.ponytail",
     )
+    .option("--remove <item...>", "remove an item the plan offers, such as plugin:x@y; none is removed unnamed")
     .option("--yes", "apply the plan as computed now")
     .action(async (options) => done(await profilesApply(ctx(), options)));
+  profiles
+    .command("check")
+    .description("report how this machine's Claude Code home, or a project, differs from the profile; reads only")
+    .option("--project <folder>", "check this project's level instead of the machine's")
+    .action(async (options) => done(await profilesCheck(ctx(), options)));
   profiles
     .command("select")
     .description("switch a part on or off, or back to its default; with --yes, save it as one run")

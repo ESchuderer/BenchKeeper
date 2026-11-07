@@ -35,13 +35,13 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // A CLI still running `killAfterMs` after SIGTERM gets SIGKILL with its process group; its exit clears the timer, since a
 // signal sent after it would reach any process that reuses its ID
 // (https://nodejs.org/api/child_process.html#subprocesskillsignal).
+const TASKKILL = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
 const stop = (child: ChildProcess, killAfterMs: number): void => {
   // Once the CLI has exited, Windows may give its process ID to another process, whose tree taskkill would end.
   if (child.exitCode !== null || child.signalCode !== null) return;
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
   if (process.platform === "win32" && child.pid !== undefined) {
-    const taskkill = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
-    execFile(taskkill, ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, (failed) => {
+    execFile(TASKKILL, ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, (failed) => {
       if (failed !== null) child.kill();
     });
     return;
@@ -59,15 +59,21 @@ const stop = (child: ChildProcess, killAfterMs: number): void => {
 // Bash tool commands lead groups of their own (Claude Code 2.1.316), then SIGKILL to the CLI's group while it is
 // still there after the grace. A group with members keeps its ID from reuse
 // (https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html, 4.17).
+// On Windows the CLI runs outside the host's job object, which would end the CLI with the host but leave the commands
+// that broke away from it running (hub issue 142); the watcher ends the CLI's whole tree with taskkill instead.
 // shortcut: a CLI that ignores SIGTERM leaves the commands in groups of their own running, on a cancel too (hub issue
-// 143). On Windows a dead host's job object ends the CLI, but not the commands it started (hub issue 142).
-const DETACHED = process.platform !== "win32";
+// 143).
 const WATCHER = `let exited = false;
 const [pid, grace] = process.argv.slice(1).map(Number);
+const taskkill = process.argv[3];
 const host = new (require("node:net").Socket)({ fd: 3, readable: true });
 host.on("data", () => { exited = true; });
 host.on("close", () => {
   if (exited) return;
+  if (process.platform === "win32") {
+    require("node:child_process").execFile(taskkill, ["/pid", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
+    return;
+  }
   try { process.kill(pid, "SIGTERM"); } catch { return; }
   const end = Date.now() + grace;
   const poll = setInterval(() => {
@@ -75,12 +81,13 @@ host.on("close", () => {
   }, 250);
 });`;
 
-// The CLI's process; on POSIX in a process group of its own, which a watcher stops should the host die first. A CLI the
-// host cannot watch (no watcher started: EAGAIN, EMFILE, ENFILE) is stopped at once.
+// The CLI's process, detached: on POSIX in a process group of its own, on Windows outside the host's job object; a
+// watcher stops it should the host die first. A CLI the host cannot watch (no watcher started: EAGAIN, EMFILE, ENFILE)
+// is stopped at once.
 const spawned = (file: string, args: readonly string[], launch: ClaudeLaunch, killAfterMs: number) => {
-  const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), detached: DETACHED, windowsHide: true });
-  if (!DETACHED || child.pid === undefined) return child;
-  const watcher = spawn(process.execPath, ["-e", WATCHER, String(child.pid), String(killAfterMs)], {
+  const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), detached: true, windowsHide: true });
+  if (child.pid === undefined) return child;
+  const watcher = spawn(process.execPath, ["-e", WATCHER, String(child.pid), String(killAfterMs), TASKKILL], {
     stdio: ["ignore", "ignore", "ignore", "pipe"],
     detached: true,
     env: {},

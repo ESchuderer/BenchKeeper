@@ -118,13 +118,13 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project
     Object.assign(entries, got.value.entries);
     findings.push(...got.value.findings);
   }
-  const other = sourcesOf(resolved, fetched, level === "machine" ? "project" : "machine").map(({ source }) =>
-    sourceKey(source),
-  );
-  const next = {
-    ...Object.fromEntries(Object.entries(record.value).filter(([key]) => other.includes(key))),
-    ...entries,
-  };
+  // A project's skills are kept on or off, as another project's probes may switch them on.
+  const other = [
+    ...sourcesOf(resolved, fetched, "project", true),
+    ...(project ? sourcesOf(resolved, fetched, "machine") : []),
+  ];
+  const keys = new Set(other.map(({ source }) => sourceKey(source)));
+  const next = { ...Object.fromEntries(Object.entries(record.value).filter(([key]) => keys.has(key))), ...entries };
   if (canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);
   return { ok: true as const, value: { fetched, findings } };
 };

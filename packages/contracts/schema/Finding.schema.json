@@ -3867,16 +3867,19 @@
         "params": {
           "type": "object",
           "properties": {
-            "part": {
-              "type": "string"
-            },
             "folder": {
               "type": "string"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
-            "part",
-            "folder"
+            "folder",
+            "skills"
           ],
           "additionalProperties": false
         }

@@ -239,8 +239,8 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
-    // Two skills of one name, which would install into one folder: the later one's part, and the folder.
-    finding("profile.skill-twice", { part: z.string(), folder: z.string() }),
+    // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
+    finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.

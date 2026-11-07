@@ -279,7 +279,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
   "profile.skill-twice": (p) =>
-    `${p.part} installs a skill into ${p.folder}, which another skill of the same name takes; switch one of their parts off.`,
+    `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>

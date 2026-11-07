@@ -106,17 +106,33 @@ const hashOf = (path: string): string | null => {
   }
 };
 
+// Whether a path, through its links, leaves the project or lies in its Git folder.
+const outside = (project: string, path: string): boolean => {
+  const real = onDisk(path);
+  const git = relative(project, real)
+    .split(sep)
+    .some((segment) => segment.toLowerCase() === ".git");
+  return git || !within(real, project);
+};
+
 // A target's path on disk; refused when a link leads it outside the project, into its Git folder or onto a file only
 // its own parts write, which the profile's portable paths cannot name but a link can reach.
 const realTarget = (project: string, part: string, target: string): Result<string> => {
   const path = onDisk(join(project, ...target.split("/")));
-  const inside = relative(project, path).split(sep).join("/");
-  const git = inside.split("/").some((segment) => segment.toLowerCase() === ".git");
-  if (within(path, project) && !git && !sealedTarget(inside)) return { ok: true, value: path };
+  if (!outside(project, path) && !sealedTarget(relative(project, path).split(sep).join("/")))
+    return { ok: true, value: path };
   return refuse({ code: "profile.target-linked", params: { part, target, path } });
 };
 
-type Given = { resolved: Resolved; project: string; fetched: Fetched; approved: ReadonlySet<string> };
+// A project's plan: the composed profile, the project and its `.claude` folder as the disk names them, the fetched
+// folders, and the parts approved by name.
+type Given = {
+  resolved: Resolved;
+  project: string;
+  claude: string;
+  fetched: Fetched;
+  approved: ReadonlySet<string>;
+};
 
 // A files part's targets with their texts and their paths on disk.
 const filesPart = ({ resolved, project, fetched }: Given, id: string, part: Of<"files">) => {
@@ -273,9 +289,9 @@ const manualWrites = (context: Context, project: string) => {
 
 // The settings parts merged into the committed `.claude/settings.json` or the local `.claude/settings.local.json` by
 // `commit`, and the plugin parts `approved` names into the local one, the only one Claude Code downloads a plugin from;
-// each other plugin part that would change it waits for its approval by name. Git ignores the local file while a part
-// that writes it is on, also once its plugins are in place and need no new approval.
-const settingsWrites = ({ resolved, project, approved }: Given) => {
+// each other plugin part that would change it waits for its approval by name, and is held back with the parts that
+// require it. Git ignores the local file while a part that writes it is on, also once its plugins are in place.
+const settingsWrites = ({ resolved, project, claude, approved }: Given) => {
   const sets = (commit: boolean) =>
     partsOn(resolved, "settings").flatMap(([, part]) => (part.commit === commit ? [part.set] : []));
   const plugins = partsOn(resolved, "plugin");
@@ -283,30 +299,29 @@ const settingsWrites = ({ resolved, project, approved }: Given) => {
   const [shared, local] = [sets(true), sets(false)];
   const operations: Operation[] = [];
   if (shared.length > 0) {
-    const write = fileWrite(join(project, ".claude", "settings.json"), (json) => mergeSets(json, shared));
+    const write = fileWrite(join(claude, "settings.json"), (json) => mergeSets(json, shared));
     if (!write.ok) return write;
     operations.push(...write.value.operations);
   }
-  const none = { operations, findings: [], local: false };
+  const none = { operations, findings: [], held: [], local: false };
   if (local.length + plugins.length === 0) return { ok: true as const, value: none };
-  const path = join(project, ".claude", "settings.local.json");
-  const write = fileWrite(path, (json) => withPlugins(mergeSets(json, local), allowed));
+  const write = fileWrite(join(claude, "settings.local.json"), (json) => withPlugins(mergeSets(json, local), allowed));
   if (!write.ok) return write;
   const others = plugins.filter(([id]) => !approved.has(`project.${id}`));
   const findings = waiting({ level: "project", project }, others, write.value.merged);
-  return {
-    ok: true as const,
-    value: { operations: [...operations, ...write.value.operations], findings, local: true },
-  };
+  const held = findings.flatMap((finding) => (finding.code === "profile.approval-needed" ? [finding.params.part] : []));
+  const value = { operations: [...operations, ...write.value.operations], findings, held, local: true };
+  return { ok: true as const, value };
 };
 
-// The owned files of a project's plan: the files parts' targets, and the packs' skills in `.claude/skills/`.
-const ownedOf = (given: Given, files: Files, written: Written) => {
-  const { resolved, project, fetched } = given;
-  const skills = skillFiles(resolved, join(project, ".claude"), { fetched, written, level: "project" });
+// The owned files of a project's plan: the files parts' targets, and the packs' skills in `.claude/skills/`. A files
+// part's target wins over a pack's file at its path, and nothing either wants is stale.
+const ownedOf = ({ resolved, claude, fetched }: Given, files: Files, written: Written) => {
+  const skills = skillFiles(resolved, claude, { fetched, written, level: "project" });
   if (!skills.ok) return skills;
-  const wanted = new Map([...files.wanted, ...skills.value.wanted]);
-  return ownedFiles(wanted, [...files.stale, ...skills.value.stale], written);
+  const wanted = new Map([...skills.value.wanted, ...files.wanted]);
+  const stale = [...files.stale, ...skills.value.stale].filter((path) => !wanted.has(path));
+  return ownedFiles(wanted, stale, written);
 };
 
 // The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local
@@ -322,16 +337,15 @@ const localPaths = (project: string, files: Files, owned: LevelPlan, local: { ma
   ];
 };
 
-// The plan, unless a link leads the `.claude` folder it writes into outside the project, where its settings or skills
-// would land elsewhere, such as in a user's own Claude Code home.
-const unlinked = (project: string, plan: LevelPlan): Result<LevelPlan> => {
-  const folder = join(project, ".claude");
-  const into = plan.operations.some((operation) => "path" in operation && operation.path.startsWith(folder + sep));
-  if (!into || within(folder, project)) return { ok: true, value: plan };
-  return refuse({
-    code: "profile.target-linked",
-    params: { part: "project", target: ".claude", path: onDisk(folder) },
-  });
+// The plan, unless a link leads one of its paths in `.claude` outside the project or into its Git folder, where its
+// settings or skills would land elsewhere, such as in a user's Claude Code home or Git's hooks.
+const unlinked = ({ project, claude }: Given, plan: LevelPlan): Result<LevelPlan> => {
+  const linked = plan.operations
+    .flatMap((operation) => ("path" in operation && operation.path.startsWith(claude + sep) ? [operation.path] : []))
+    .find((path) => outside(project, path));
+  if (linked === undefined) return { ok: true, value: plan };
+  const target = `.claude/${relative(claude, linked).split(sep).join("/")}`;
+  return refuse({ code: "profile.target-linked", params: { part: "project", target, path: onDisk(linked) } });
 };
 
 /**
@@ -348,13 +362,14 @@ export const planProject = (
 ): Result<LevelPlan> => {
   const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const given = { resolved, project, fetched, approved };
+  const given = { resolved, project, claude: onDisk(join(project, ".claude")), fetched, approved };
   const files = filesOf(given, written);
   if (!files.ok) return files;
-  const manual = manualWrites({ resolved, fetched, held: files.value.held }, project);
-  if (!manual.ok) return manual;
   const settings = settingsWrites(given);
   if (!settings.ok) return settings;
+  const held = new Set([...files.value.held, ...settings.value.held]);
+  const manual = manualWrites({ resolved, fetched, held }, project);
+  if (!manual.ok) return manual;
   const owned = ownedOf(given, files.value, written);
   if (!owned.ok) return owned;
   const local = { manual: manual.value.local, settings: settings.value.local };
@@ -371,5 +386,5 @@ export const planProject = (
     ...owned.value.operations,
   ];
   const findings = [files.value, manual.value, settings.value, owned.value].flatMap((each) => each.findings);
-  return unlinked(project, { operations, findings });
+  return unlinked(given, { operations, findings });
 };

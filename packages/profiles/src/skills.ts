@@ -58,18 +58,19 @@ const gitOf = (resolved: Resolved, source: Source, fetched: Fetched): GitSource 
 
 /**
  * The Git sources a plan of a level needs, each marked as a pack's folder or a skill's: the profile's Git packs, and
- * the source of each of the level's skills that is on, a pack entry's once its pack is fetched.
+ * the source of each of the level's skills that is on (`every`: on or off), a pack entry's once its pack is fetched.
  */
 export const sourcesOf = (
   resolved: Resolved,
   fetched: Fetched,
   level: Level,
+  every = false,
 ): { source: GitSource; pack: boolean }[] => {
   const skills = listed(resolved, fetched, level);
   return [
     ...Object.values(resolved.profile.packs).flatMap((source) => ("bundled" in source ? [] : [{ source, pack: true }])),
     ...(skills.ok ? skills.value : [])
-      .filter(({ part }) => resolved.on.has(part))
+      .filter(({ part }) => every || resolved.on.has(part))
       .flatMap(({ source }) => {
         const git = gitOf(resolved, source, fetched);
         return git === undefined ? [] : [{ source: git, pack: false }];
@@ -90,11 +91,14 @@ const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<F
   return entry.ok ? { ok: true, value: entryFiles(source, folder) } : entry;
 };
 
+// How a finding names a skill: its pack entry, or its repository.
+const labelOf = (source: Source): string => ("git" in source ? source.git : `${source.pack}/${source.path}`);
+
 /**
  * Each skill of a level that is on, its files in `<home>/skills/<name>/` (a project's `.claude` folder for a project),
- * made executable when Git has them so; and the files CedarLoom wrote in a skill's folder that no skill that is on
- * wants now: a part switched off, or a file its source dropped. Two skills of one name refuse the plan, as their files
- * would mix in one folder.
+ * made executable when Git has them so; and the files CedarLoom wrote in the skills folder that no skill that is on
+ * wants now: a part switched off, a pack taken out of a list, or a file its source dropped. Two skills of one name
+ * refuse the plan, as their files would mix in one folder.
  */
 export const skillFiles = (
   resolved: Resolved,
@@ -104,14 +108,14 @@ export const skillFiles = (
   const skills = listed(resolved, fetched, level);
   if (!skills.ok) return skills;
   const wanted = new Map<string, Wanted>();
-  const folders = skills.value.map((skill) => ({ ...skill, folder: join(home, "skills", nameOf(skill.source)) }));
-  // The source each folder takes its files from: one skill listed by two parts installs once.
+  // The skill each folder takes its files from: one skill listed by two parts installs once.
   const taken = new Map<string, string>();
-  for (const { part, source, folder } of folders.filter((skill) => resolved.on.has(skill.part))) {
-    const key = JSON.stringify(source);
-    if ((taken.get(folder) ?? key) !== key)
-      return { ok: false, finding: { code: "profile.skill-twice", params: { part, folder } } };
-    taken.set(folder, key);
+  for (const { source } of skills.value.filter(({ part }) => resolved.on.has(part))) {
+    const [folder, label] = [join(home, "skills", nameOf(source)), labelOf(source)];
+    const other = taken.get(folder) ?? label;
+    if (other !== label)
+      return { ok: false, finding: { code: "profile.skill-twice", params: { folder, skills: [other, label] } } };
+    taken.set(folder, label);
     const files = filesOf(resolved, source, fetched);
     if (!files.ok) return files;
     for (const { path, mode, content } of files.value) {
@@ -120,7 +124,7 @@ export const skillFiles = (
       wanted.set(target, { content: content.toString("utf8"), ...(mode === "100755" ? { mode: 0o755 } : {}) });
     }
   }
-  const roots = folders.map(({ folder }) => folder + sep);
-  const stale = [...written.keys()].filter((path) => !wanted.has(path) && roots.some((root) => path.startsWith(root)));
+  const root = join(home, "skills") + sep;
+  const stale = [...written.keys()].filter((path) => !wanted.has(path) && path.startsWith(root));
   return { ok: true, value: { wanted, stale } };
 };

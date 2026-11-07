@@ -25,6 +25,7 @@ const Account = z.strictObject({
   alias: PlainText.min(1).max(64).optional(),
   active: z.boolean(),
   disabled: z.boolean(),
+  held: z.boolean(),
   threshold: Percent.nullable(),
   windows: z.array(Window).max(16),
 });

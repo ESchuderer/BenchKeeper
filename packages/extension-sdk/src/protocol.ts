@@ -91,12 +91,16 @@ export type TargetProbe = { status: "supported" | "partial" | "unsupported"; det
  * not recently enough to decide on).
  */
 export type TargetWindow = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
-/** An account as the target knows it, by its number and maybe an alias, with its switch line in percent if any. */
+/**
+ * An account as the target knows it, by its number and maybe an alias, with its switch line in percent if any. `held`:
+ * nothing should start on it until the user acts, such as a login to renew.
+ */
 export type TargetAccount = {
   number: number;
   alias?: string | undefined;
   active: boolean;
   disabled: boolean;
+  held: boolean;
   threshold: number | null;
   windows: TargetWindow[];
 };

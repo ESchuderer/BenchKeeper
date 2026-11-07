@@ -8,8 +8,8 @@ import {
   type Reading,
 } from "@cedarloom/contracts";
 
-/** What the choice reads of a reading: the time it was read is not needed. */
-type Current = Omit<Reading, "readAt">;
+/** What the choice reads of a reading: the time it was read and its source are not needed. */
+type Current = Omit<Reading, "readAt" | "source">;
 
 /**
  * The headroom a new worker needs in each window, in percent, the same for every account: claude-swap's lines replace
@@ -43,22 +43,12 @@ export type Selection =
     };
 
 /**
- * The readings as a choice at `now` counts them. A window whose reset time has passed since its last reading counts as
- * 0 percent used, with the source `assumed-after-reset`, until the next reading replaces it; the restart-on-limit rule
- * bounds a wrong guess (owner decision "Idle window after reset", 2026-11-06). A reading whose reset time does not
- * parse is left out, so its window is unknown, as is a window never read.
+ * The readings a choice at `now` counts: a window whose reset time has passed since its last reading is unknown until
+ * the next reading replaces it, as is a window whose reset time does not parse, or one never read. A reading without a
+ * reset counts until the next one replaces it.
  */
-export const counted = <T extends Current>(readings: readonly T[], now: number): Counted<T>[] =>
-  readings.flatMap((reading): Counted<T>[] => {
-    const resetsAt = Date.parse(reading.resetsAt);
-    if (Number.isNaN(resetsAt)) return [];
-    return resetsAt > now
-      ? [{ ...reading, source: "reported" }]
-      : [{ ...reading, usedPercent: 0, source: "assumed-after-reset" }];
-  });
-
-/** A reading with the source of its share: reported by the agent, or assumed after its window's reset. */
-export type Counted<T extends Current> = T & { readonly source: "reported" | "assumed-after-reset" };
+export const counted = <T extends Current>(readings: readonly T[], now: number): T[] =>
+  readings.filter((reading) => reading.resetsAt === null || Date.parse(reading.resetsAt) > now);
 
 // A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
 // disqualifies the account even when the other window is unknown. The worker model's own weekly window counts when it
@@ -77,6 +67,10 @@ const margin = (account: Account, readings: readonly Current[], model: string | 
   if (reading !== undefined) smallest = Math.min(smallest, 100 - reading.usedPercent - DEFAULT_MINIMUM.sevenDay);
   return unknown && smallest >= 0 ? null : smallest;
 };
+
+/** An account's smallest margin above the minimums, by the readings counted at `now`; null when a window is unknown. */
+export const headroom = (account: Account, readings: readonly Current[], model: string | undefined, now: number) =>
+  margin(account, counted(readings, now), model);
 
 /**
  * What claude-swap says of the pool's accounts, which a worker's choice honors (owner decision, 2026-11-07): its
@@ -100,11 +94,11 @@ const REASONS = {
   "priority-consume-first": "highest-tier",
 } as const;
 
-// When the account's 7-day window resets next, in milliseconds; never for one unknown or already reset.
-const weeklyReset = (account: Account, readings: readonly Current[], now: number): number => {
+// When the account's 7-day window resets next, by the counted readings, in milliseconds; never for one unknown or
+// without a reset.
+const weeklyReset = (account: Account, readings: readonly Current[]): number => {
   const reading = readings.find((each) => each.account === account.name && each.window === "sevenDay");
-  const at = reading === undefined ? Number.NaN : Date.parse(reading.resetsAt);
-  return at > now ? at : Number.POSITIVE_INFINITY;
+  return reading === undefined || reading.resetsAt === null ? Number.POSITIVE_INFINITY : Date.parse(reading.resetsAt);
 };
 
 // The candidate with a margin of at least `floor` the strategy ranks first, the first one listed on a tie: `best` by
@@ -202,18 +196,18 @@ export const selectAccount = (
   if (free === null) return { ok: false, reason: "all-leased", candidates: [] };
   const disabled = swap.disabled ?? new Set();
   const members = free.filter((account) => !disabled.has(account.name));
-  const { scored, candidates } = scoredOf(members, counted(readings, now), model, now);
+  const { scored, candidates } = scoredOf(members, counted(readings, now), model);
   const best = ranked(scored, swap);
   if (best !== undefined) return { ok: true, account: best.account, reason: best.reason, candidates };
   return unread(members, candidates, previous);
 };
 
 // Each account's margin and next weekly reset by the counted readings, and the candidates as a choice reports them.
-const scoredOf = (members: readonly Account[], current: readonly Current[], model: string | undefined, now: number) => {
+const scoredOf = (members: readonly Account[], current: readonly Current[], model: string | undefined) => {
   const scored = members.map((account) => ({
     account,
     margin: margin(account, current, model),
-    reset: weeklyReset(account, current, now),
+    reset: weeklyReset(account, current),
   }));
   return { scored, candidates: scored.map(({ account, margin: value }) => ({ account: account.name, margin: value })) };
 };
@@ -262,14 +256,13 @@ const floorOf = (trigger: MoveRequest["trigger"], left: number | null, hysteresi
 const target = (
   members: readonly Account[],
   { from, held = new Set(), busy = new Set(), model, swap = {} }: MoveRequest,
-  { current, floor, now }: { current: readonly Current[]; floor: number; now: number },
+  { current, floor }: { current: readonly Current[]; floor: number },
 ): Move => {
   const out = new Set([from, ...held, ...busy, ...(swap.disabled ?? [])]);
   const { scored, candidates } = scoredOf(
     members.filter((each) => !out.has(each.name)),
     current,
     model,
-    now,
   );
   const best = ranked(scored, swap, floor);
   if (best === undefined) return stay("no-target", candidates);
@@ -298,5 +291,5 @@ export const selectMove = (
   const left = own === undefined ? null : margin(own, current, model);
   const why = trigger === "line" ? lineStay(left, request.since, now, swap.cooldownSeconds) : null;
   if (why !== null) return stay(why);
-  return target(members, request, { current, floor: floorOf(trigger, left, swap.hysteresisPct), now });
+  return target(members, request, { current, floor: floorOf(trigger, left, swap.hysteresisPct) });
 };

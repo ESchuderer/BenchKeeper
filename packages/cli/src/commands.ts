@@ -9,6 +9,8 @@ import {
   severityOf,
   type Plan,
   type PlanPreview,
+  QuotaWindow,
+  type Reading,
   type Result,
   type RunResult,
   shown as printable,
@@ -156,11 +158,22 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
   return undone.ok ? result(ctx, undone.value) : fail(ctx, "run", [undone.finding], EXIT.refused);
 };
 
+// This machine's Claude Code home and the user's home.
+const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
+
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
-  const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
-  const own = await useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config });
-  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding]), ...own];
+  const [logins, own, profile] = await Promise.all([
+    useCases.checkLogins(ctx.state, ctx.config, host),
+    useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
+    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch),
+  ]);
+  const findings = [
+    ...useCases.doctor(ctx.state),
+    ...(logins.ok ? logins.value : [logins.finding]),
+    ...own,
+    ...profile,
+  ];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;
@@ -200,26 +213,69 @@ interface Change {
 const aliases = ({ aliases: folders = [] }: Account): string =>
   folders.length > 0 ? `  (alias ${folders.join(", ")})` : "";
 
+// An account's windows a choice counts now, below its line: the 5-hour and 7-day ones always, once any is known.
+const windowLines = (name: string, readings: readonly Reading[], now: number): string[] => {
+  const own = readings.filter((reading) => reading.account === name);
+  const age = (readAt: string): number => Math.floor((now - Date.parse(readAt)) / 60_000);
+  const unknown = QuotaWindow.options.filter((window) => !own.some((reading) => reading.window === window));
+  return own.length === 0
+    ? []
+    : [
+        ...own.map(
+          (r) =>
+            `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt ?? "unknown"}`,
+        ),
+        ...unknown.map((window) => `  ${window}  unknown`),
+      ];
+};
+
 export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
-  const confirmed = (agent: Agent, pool: string): boolean =>
-    registry !== null && useCases.isConfirmed(registry, { agent, pool });
-  const pool = ({ agent, pool: name }: Account): string =>
-    name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
-  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
-  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, registry, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const confirmed = pools.map(({ agent, pool }) => ({ agent, pool }));
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
-  const pools = Agent.options.flatMap((agent) =>
-    Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
+  const pool = ({ agent, pool: name }: Account): string =>
+    name === null
+      ? "-"
+      : `${name} (${confirmed.some((p) => p.agent === agent && p.pool === name) ? "confirmed" : "not confirmed"})`;
+  const lines = (registry?.accounts ?? []).flatMap((a) => [
+    `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`,
+    ...windowLines(a.name, readings, now),
+  ]);
+  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  emit(ctx, "accounts", { registry, confirmed, readings }, lines.length > 0 ? lines.join("\n") : none);
+  return EXIT.ok;
+};
+
+/** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
+export const accountsStatus = (ctx: Context): number => {
+  const loaded = useCases.loadRegistry(ctx.config);
+  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, loaded.value, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const lines = pools.flatMap(({ agent, pool, selection: s }) =>
+    s.ok
+      ? [
+          `${agent} ${pool}: new workers start on ${s.account.name} (${s.reason})`,
+          ...windowLines(s.account.name, readings, now),
+        ]
+      : [`${agent} ${pool}: no account for new workers (${s.reason})`],
   );
-  emit(
-    ctx,
-    "accounts",
-    { registry, confirmed: pools.filter((p) => confirmed(p.agent, p.pool)) },
-    lines.length > 0 ? lines.join("\n") : none,
-  );
+  const shown = pools.map(({ agent, pool, selection: s }) => ({
+    agent,
+    pool,
+    account: s.ok ? s.account.name : null,
+    reason: s.reason,
+  }));
+  const none = "No confirmed pool. Confirm one with: cedarloom accounts pool confirm <pool>";
+  emit(ctx, "accounts-status", { pools: shown, readings }, lines.length > 0 ? lines.join("\n") : none);
   return EXIT.ok;
 };
 
@@ -248,6 +304,24 @@ export const accountsAdd = (
   const { plan, home } = planned.value;
   const note = `\nThen log in there with: cedarloom accounts login ${name}`;
   return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
+};
+
+/** Binds a folder to an account or pool for the workers launched in it or below it, as a plan with undo. */
+export const accountsMap = (ctx: Context, name: string, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planMap(ctx.config, name, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real, target } = planned.value;
+  const on = "account" in target ? `account ${target.account}` : `pool ${target.pool}`;
+  const note = `\nWorkers launched in ${real} or below it run on ${on}.`;
+  return change(ctx, plan, { note, data: { folder: real }, findings: [] }, yes);
+};
+
+/** Removes a folder's binding, as a plan with undo. */
+export const accountsUnmap = (ctx: Context, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planUnmap(ctx.config, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real } = planned.value;
+  return change(ctx, plan, { note: "", data: { folder: real }, findings: [] }, yes);
 };
 
 /** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */
@@ -553,10 +627,10 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
 /** Shows the profile's plan for this machine, or with --yes applies it as one run. */
 export const profilesApply = async (
   ctx: Context,
-  { yes, allow = [], project }: { yes?: true; allow?: string[]; project?: string },
+  { yes, allow = [], project, remove = [] }: { yes?: true; allow?: string[]; project?: string; remove?: string[] },
 ): Promise<number> => {
-  const machine = { home: useCases.claudeHome(ctx.io.env), user: homedir() };
-  const profile = await useCases.planProfile(ctx.config, ctx.state, machine, { allow, fetch: ctx.io.fetch, project });
+  const options = { allow, fetch: ctx.io.fetch, project, remove };
+  const profile = await useCases.planProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
   if (findings.some((finding) => severityOf(finding) === "error")) {
@@ -575,6 +649,17 @@ export const profilesApply = async (
     return EXIT.ok;
   }
   return change(ctx, plan, { note: "", data: {}, findings }, yes);
+};
+
+/** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */
+export const profilesCheck = async (ctx: Context, { project }: { project?: string }): Promise<number> => {
+  const checked = await useCases.checkProfile(ctx.config, ctx.state, machineOf(ctx), { fetch: ctx.io.fetch, project });
+  if (!checked.ok) return refused(ctx, "plan", checked.finding);
+  const drift = checked.value;
+  const level = project === undefined ? "This machine" : "This project";
+  emit(ctx, "profile-check", { findings: drift }, drift.length === 0 ? `${level} is as the profile wants it.` : "");
+  report(ctx, drift, "out");
+  return drift.some((finding) => severityOf(finding) !== "info") ? EXIT.refused : EXIT.ok;
 };
 
 /** Shows a change of this machine's profile selection, or with --yes makes it as one run. */

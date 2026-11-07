@@ -118,6 +118,44 @@
           "additionalProperties": false
         }
       }
+    },
+    "folders": {
+      "description": "Project folders by real path, each bound to an account or a pool for workers launched in it or below it",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              }
+            },
+            "required": [
+              "account"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "pool": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              }
+            },
+            "required": [
+              "pool"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
     }
   },
   "required": [

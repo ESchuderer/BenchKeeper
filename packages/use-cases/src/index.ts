@@ -53,9 +53,11 @@ export {
 export type { LoginStatus } from "@cedarloom/agent-contracts";
 export {
   type AccountRequest,
+  accountsStatus,
   checkLogins,
   chooseAccount,
   chooseMove,
+  keepSwapReadings,
   type LoginHost,
   type LoginRun,
   loadRegistry,
@@ -65,9 +67,12 @@ export {
   ownHome,
   type NewAccount,
   planAdd,
+  planMap,
+  planUnmap,
   planConfirm,
   planHome,
   type StatusHost,
+  type SwapWindow,
 } from "./accounts.ts";
 export {
   type Approval,
@@ -96,4 +101,14 @@ export {
   waitsOf,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export { type Choice, claudeHome, type Machine, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";
+export {
+  type Choice,
+  checkProfile,
+  claudeHome,
+  type Machine,
+  type PlanOptions,
+  planChoice,
+  planProfile,
+  type ProfilePlan,
+  profileDoctor,
+} from "./profiles.ts";

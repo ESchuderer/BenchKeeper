@@ -241,8 +241,13 @@ test("an attempt records its agent's session while it runs, and one that went qu
   expect(events.slice(1, 3)).toMatchObject([{ sessionId: "s-a" }, { outcome: "timed-out" }]);
 });
 
-test("a precheck that fails skips the run; one that passes starts it; a cancel while it runs ends the run", async () => {
+test("a precheck that fails skips the run, recording what it said; one that passes starts it; a cancel while it runs ends the run", async () => {
   expect(trail((await start(workflow({}, "check"), { t: ["fail"] })).events)).toBe("precheck, finished");
+  // The skip keeps what the precheck said.
+  const said = { stdout: "nothing changed", exitCode: 1 };
+  const answer = { "command.run": () => ({ pid: null, run: () => Promise.resolve({ ok: false, values: said }) }) };
+  const skipped = await start(workflow({}, "check"), {}, { executors: answer });
+  expect(skipped.events[0]).toEqual({ type: "precheck", passed: false, values: said });
   expect((await start(workflow({}, "check"), { t: [{}] })).result).toEqual({ ok: true, value: "succeeded" });
   const stop = new AbortController();
   setImmediate(() => stop.abort());
@@ -366,6 +371,31 @@ const planning = (planHash: string): Executors => ({
 const decision = (approved: boolean, planHash: string) => ({ type: "decided", node: "a", approved, planHash }) as const;
 // A policy that holds nodes with effects before they start: the hook the levels plug into.
 const beforeNode: Gates = (point) => (point === "before-node" ? "wait" : "pass");
+const passing: Gates = () => "pass";
+
+test("a gate the journal holds waits for the owner whatever the policy says now, and the owner's decision outranks it", async () => {
+  const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };
+  const executors = planning(HASH);
+  // The policy now passes, as after a switch to Auto while the plan waited: it still waits, and a rejection holds.
+  expect(await resume(workflow(), [gate], { executors, gates: passing })).toEqual([
+    { ok: true, value: "waiting" },
+    "gate a#1, waiting",
+  ]);
+  expect(await resume(workflow(), [gate, decision(false, HASH)], { executors, gates: passing })).toEqual([
+    { ok: true, value: "failed" },
+    "started a#1, ended a#1, finished",
+  ]);
+  // An approval answers the held gate: a retry after the approved attempt failed goes as the policy now lets it.
+  const answered: JournalEvent[] = [
+    { type: "gate", node: "a", attempt: 1, point: "before-node", planHash: null },
+    { type: "decided", node: "a", approved: true },
+  ];
+  const retried = { executors: scripted({ a: ["fail"] }), gates: passing };
+  expect(await resume(workflow({ nodes: { a: { retries: 1 } } }), answered, retried)).toEqual([
+    { ok: true, value: "succeeded" },
+    "started a#1, ended a#1, started a#2, ended a#2, started b#1, ended b#1, finished",
+  ]);
+});
 
 test("a plan waits at its gate until the owner approves that very plan; a rejection fails the node", async () => {
   const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };

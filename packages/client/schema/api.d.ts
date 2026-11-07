@@ -1078,6 +1078,7 @@ export interface components {
             code: "run.sandbox-unavailable";
             params: {
                 node: string;
+                reason: string;
             };
         } | {
             /** @constant */
@@ -1402,6 +1403,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -1723,7 +1732,36 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.drift";
+            params: {
+                /** @enum {string} */
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
+                subject: string;
+                remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.remove-unknown";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-waiting";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "gates";
             };
         } | {
             /** @constant */
@@ -1734,6 +1772,7 @@ export interface components {
                 source: string | null;
                 ref: string | null;
                 autoUpdate: boolean;
+                project: string | null;
             };
         } | {
             /** @constant */
@@ -1749,8 +1788,38 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-twice";
+            params: {
+                folder: string;
+                skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */
@@ -2221,6 +2290,7 @@ export interface components {
             code: "run.sandbox-unavailable";
             params: {
                 node: string;
+                reason: string;
             };
         } | {
             /** @constant */
@@ -2545,6 +2615,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -2866,7 +2944,36 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.drift";
+            params: {
+                /** @enum {string} */
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
+                subject: string;
+                remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.remove-unknown";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-waiting";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "gates";
             };
         } | {
             /** @constant */
@@ -2877,6 +2984,7 @@ export interface components {
                 source: string | null;
                 ref: string | null;
                 autoUpdate: boolean;
+                project: string | null;
             };
         } | {
             /** @constant */
@@ -2892,8 +3000,38 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-twice";
+            params: {
+                folder: string;
+                skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */

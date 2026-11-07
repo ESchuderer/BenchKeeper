@@ -55,7 +55,8 @@ export type AttemptOutcome = z.infer<typeof AttemptOutcome>;
 
 /** What the engine's reducer reads: each event moves a run's state on. */
 export const RunEvent = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("precheck"), passed: z.boolean() }),
+  // `values`: what the precheck's command gave, as an attempt's: its exit code and output, or why it did not run.
+  z.strictObject({ type: z.literal("precheck"), passed: z.boolean(), values: Values.optional() }),
   z.strictObject({
     type: z.literal("ended"),
     node: WorkflowId,

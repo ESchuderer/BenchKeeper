@@ -108,6 +108,14 @@ export const readEntry = (ref: Ref, kind: EntryKind, folder?: Folder): Result<st
   return { ok: true, value: bytes.value.toString("utf8") };
 };
 
+/** The paths of a pack's skill entries; none for a pack without a manifest here. */
+export const skillEntries = (pack: string, folder: Folder | undefined): Result<string[]> => {
+  const manifest = manifestOf(pack, folder);
+  if (!manifest.ok) return manifest;
+  const entries = Object.entries(manifest.value?.entries ?? {});
+  return { ok: true, value: entries.filter(([, entry]) => entry.kind === "skill").map(([path]) => path) };
+};
+
 /** The files under a fetched pack's folder entry, paths relative to it. */
 export const entryFiles = (ref: Ref, folder: Folder): Folder["files"] => {
   const prefix = `${ref.path}/`;
@@ -140,10 +148,15 @@ const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; b
   return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 
-/** A composed profile with the parts switched on (`level.id`), this machine's hub, and what keeps it from applying. */
+/**
+ * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, the `auto`
+ * parts that wait for that source, and what keeps it from applying.
+ */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
   readonly hub: string | undefined;
+  readonly gates: string | undefined;
+  readonly unbound: readonly string[];
   readonly problems: Finding[];
 }
 
@@ -174,7 +187,7 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer";
+export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
@@ -207,7 +220,13 @@ export const resolveProfile = (
   const composed = composedOf(selection, app);
   if (!composed.ok) return composed;
   const parts = new Map(partsOf(composed.value.profile));
-  const on = switchedOn(parts, selection?.select ?? {}, probe);
-  const hub = selection?.bindings?.hub;
-  return { ok: true, value: { ...composed.value, on, hub, problems: problemsOf(parts, on, selection) } };
+  const { hub, gates } = selection?.bindings ?? {};
+  const select = selection?.select ?? {};
+  const on = switchedOn(parts, select, (when) => (when === "gates" ? gates !== undefined : probe(when)));
+  // An auto part the selection leaves to its probe, off until this machine names a gate workflow source.
+  const unbound = [...parts]
+    .filter(([key, part]) => part.when === "gates" && select[key] === undefined && !on.has(key))
+    .map(([key]) => key);
+  const problems = problemsOf(parts, on, selection);
+  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, problems } };
 };

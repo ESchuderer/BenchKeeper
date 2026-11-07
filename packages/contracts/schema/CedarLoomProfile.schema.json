@@ -218,12 +218,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -358,12 +359,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -504,12 +506,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -598,12 +601,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -671,12 +675,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -809,12 +814,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -895,12 +901,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -992,12 +999,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1086,12 +1094,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1192,12 +1201,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1220,6 +1230,125 @@
               },
               "commit": {
                 "type": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "plugin"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer",
+                  "gates"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "plugin": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,63}@[a-z0-9][a-z0-9-]{0,63}$",
+                "description": "`<plugin>@<marketplace>`"
+              },
+              "marketplace": {
+                "description": "Declared when Claude Code does not know it; named as in the plugin id",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                      },
+                      "autoUpdate": {
+                        "type": "boolean"
+                      },
+                      "github": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}$"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "github"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+                      },
+                      "autoUpdate": {
+                        "type": "boolean"
+                      },
+                      "git": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+                        "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "git"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "commit": {
+                "type": "boolean",
+                "const": false,
+                "description": "Written to `.claude/settings.local.json`, never committed"
               }
             },
             "required": [
@@ -1255,12 +1384,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1315,12 +1445,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1382,12 +1513,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1411,8 +1543,108 @@
               },
               "dependabotCooldownDays": {
                 "type": "integer",
-                "minimum": 0,
-                "maximum": 90
+                "minimum": 1,
+                "maximum": 90,
+                "description": "Dependabot's cooldown, 1 to 90 days (https://json.schemastore.org/dependabot-2.0.json)"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "devcontainer"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer",
+                  "gates"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "template": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9.-]{0,252}(?::\\d{1,5})?(?:\\/[a-z0-9][a-z0-9._-]{0,127}){1,10}@sha256:[0-9a-f]{64}$",
+                "description": "A Dev Container Template by digest, such as ghcr.io/devcontainers/templates/alpine@sha256:…"
+              },
+              "args": {
+                "description": "The Template's options",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^\\w{1,64}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                },
+                "maxProperties": 50
+              },
+              "features": {
+                "description": "Features to add, each with its options",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9.-]{0,252}(?::\\d{1,5})?(?:\\/[a-z0-9][a-z0-9._-]{0,127}){1,10}(?::\\w[\\w.-]{0,127}|@sha256:[0-9a-f]{64})?$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^\\w{1,64}$"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                },
+                "maxProperties": 20
               }
             },
             "required": [

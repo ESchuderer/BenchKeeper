@@ -140,16 +140,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 17 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 18 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 16 is the last schema before 0.1.0, whose switches had no trigger.
-  const dir = storeAt(16);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 16, known: 17 } } };
+  // 17 is the last schema before 0.1.0, whose switches had no trigger.
+  const dir = storeAt(17);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 17, known: 18 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 16 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 17 });
   after.close();
 });
 
@@ -347,17 +347,19 @@ test("a commit SQLite already rolled back (disk full, I/O error) reports that er
   expect(store.runs()).toEqual([]);
 });
 
-test("the latest reading per account and window stays; an older one arriving late, or no reading, never gets in", () => {
+test("the latest reading per account and window stays, whichever source read it; an older one, or no reading, never gets in", () => {
   const store = opened(fresh());
   const reading = {
     account: "work",
     window: "fiveHour",
     usedPercent: 40,
     resetsAt: "2026-11-05T17:00:00.000Z",
+    source: "worker",
   } as const;
   store.recordReading({ ...reading, readAt: "2026-11-05T12:00:00.000Z" });
   store.recordReading({ ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" });
-  store.recordReading({ ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" });
+  // claude-swap's newer reading replaces the worker's; a worker's older one arriving late does not.
+  store.recordReading({ ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z", source: "cswap" });
   store.recordReading({ ...reading, usedPercent: 45, readAt: "2026-11-05T12:01:00.000Z" });
   // A reset time that is no time, or a time without milliseconds (whose text would sort wrong), throws on write.
   expect(() => store.recordReading({ ...reading, resetsAt: "not a date", readAt: "2026-11-05T12:06:00.000Z" })).toThrow(
@@ -365,9 +367,13 @@ test("the latest reading per account and window stays; an older one arriving lat
   );
   expect(() => store.recordReading({ ...reading, readAt: "2026-11-05T12:06:00Z" })).toThrow(/datetime/i);
   expect(store.readings()).toEqual([
-    { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z" },
+    { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z", source: "cswap" },
     { ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" },
   ]);
+  // A source drops only its own reading.
+  store.dropReading({ account: "work", window: "fiveHour", source: "cswap" });
+  store.dropReading({ account: "work", window: "sevenDay", source: "cswap" });
+  expect(store.readings().map((each) => each.window)).toEqual(["sevenDay"]);
 });
 
 test("a switch row keeps its time, task, from, to, reason, trigger, readings and candidates", () => {
@@ -378,6 +384,7 @@ test("a switch row keeps its time, task, from, to, reason, trigger, readings and
     usedPercent: 5,
     resetsAt: "2026-11-05T17:00:00.000Z",
     readAt: "2026-11-05T12:00:00.000Z",
+    source: "cswap",
   } as const;
   const row: AccountSwitch = {
     at: "2026-11-05T12:00:00.000Z",
@@ -386,7 +393,7 @@ test("a switch row keeps its time, task, from, to, reason, trigger, readings and
     to: "spare",
     reason: "most-headroom",
     trigger: "launch",
-    readings: [{ ...reading, source: "reported" }],
+    readings: [reading],
     candidates: [{ account: "spare", margin: 87 }],
   };
   store.recordSwitch(row);
@@ -666,10 +673,10 @@ test("usage samples are kept as history and update the latest reading in one tra
   expect(store.usageSamples()).toEqual([sample, opus, later]);
   expect(store.usageSamples({ account: "work" })).toEqual([sample, opus]);
   expect(store.usageSamples({ since: "2026-11-06T08:30:00.000Z" })).toEqual([later]);
-  // Only a sample with a quota, a share and a reset is a reading.
-  expect(store.readings().map((reading) => [reading.account, reading.usedPercent])).toEqual([
-    ["spare", 20],
-    ["work", 10],
+  // Only a sample with a quota, a share and a reset is a reading, read by a worker.
+  expect(store.readings().map((reading) => [reading.account, reading.usedPercent, reading.source])).toEqual([
+    ["spare", 20, "worker"],
+    ["work", 10, "worker"],
   ]);
   // A share outside 0 to 100 is refused, and nothing of the batch is kept.
   const over = { ...sample, usedPercent: 140, readAt: "2026-11-06T10:00:00.000Z" };
@@ -686,7 +693,7 @@ test("a stored reading the contract refuses is left out of the readings, so it c
   // A row written before the 0 to 100 bound, or by hand.
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec(
-    `INSERT INTO readings VALUES ('spare', 'fiveHour', 140, '2026-11-06T12:00:00.000Z', '2026-11-06T08:00:00.000Z')`,
+    `INSERT INTO readings VALUES ('spare', 'fiveHour', 140, '2026-11-06T12:00:00.000Z', '2026-11-06T08:00:00.000Z', 'worker')`,
   );
   db.close();
   expect(store.readings().map((reading) => reading.account)).toEqual(["work"]);

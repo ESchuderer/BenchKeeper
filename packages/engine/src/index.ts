@@ -6,6 +6,7 @@ export {
   type Question,
   routeQuestion,
   stricterLevel,
+  waitsAtGraphGate,
   waitsForOwner,
 } from "./automation.ts";
 export {

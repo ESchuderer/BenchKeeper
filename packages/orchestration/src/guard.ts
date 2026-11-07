@@ -92,27 +92,22 @@ export const guardCommand = (text: string): Denial | null => {
   return null;
 };
 
-interface Unwrapped {
-  words: Word[];
-  prefix: Word[];
+// What a command's wrappers do to it.
+interface Found {
   appended: boolean;
   lookup: boolean;
   cleared: boolean;
   unset: (Word | undefined)[];
   unknown: string | null;
 }
+interface Unwrapped extends Found {
+  words: Word[];
+  prefix: Word[];
+}
 
 // The command's own words: assignments, reserved words and wrappers skipped, with the words before them (`prefix`).
 const unwrap = (words: readonly Word[]): Unwrapped => {
-  const found: Unwrapped = {
-    words: [],
-    prefix: [],
-    appended: false,
-    lookup: false,
-    cleared: false,
-    unset: [],
-    unknown: null,
-  };
+  const found: Found = { appended: false, lookup: false, cleared: false, unset: [], unknown: null };
   let i = 0;
   while (i < words.length && found.unknown === null && !found.lookup) {
     const { text, start } = words[i] ?? EMPTY;
@@ -162,12 +157,7 @@ const cluster = (option: string, next: Word | undefined, spec: Options): Option[
 };
 
 // A wrapper's options from `from` on, noted in `found`; the index of the word after them.
-const wrapper = (
-  name: string,
-  words: readonly Word[],
-  from: number,
-  read: { spec: Options; found: Unwrapped },
-): number => {
+const wrapper = (name: string, words: readonly Word[], from: number, read: { spec: Options; found: Found }): number => {
   const i = wrapperOptions(name, words, from, read);
   read.found.appended ||= name === "xargs";
   // timeout's duration comes before its command; `--` ends the options.
@@ -179,7 +169,7 @@ const wrapperOptions = (
   name: string,
   words: readonly Word[],
   from: number,
-  { spec, found }: { spec: Options; found: Unwrapped },
+  { spec, found }: { spec: Options; found: Found },
 ): number => {
   let i = from;
   for (let word = words[i] ?? EMPTY; word.start.startsWith("-") && word.text !== "--"; word = words[++i] ?? EMPTY) {
@@ -195,7 +185,7 @@ const wrapperOptions = (
 };
 
 // env -i and exec -c clear the environment, env -u unsets a variable, command -v only looks a name up.
-const noteOption = (wrapperName: string, { name, value }: Option, found: Unwrapped): void => {
+const noteOption = (wrapperName: string, { name, value }: Option, found: Found): void => {
   if (wrapperName === "exec" && name === "-c") found.cleared = true;
   if (wrapperName === "command" && (name === "-v" || name === "-V")) found.lookup = true;
   if (wrapperName !== "env") return;

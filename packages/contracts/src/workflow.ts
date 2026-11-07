@@ -116,15 +116,15 @@ const nodePolicy = z.strictObject({
   retries: z.int().min(0).max(10).optional(),
 });
 
+/** A workflow's most nodes and edges, which the editor keeps to as well. */
+export const [MAX_WORKFLOW_NODES, MAX_WORKFLOW_EDGES] = [1000, 5000];
+
 /**
  * A workflow: metadata, typed inputs and outputs, the graph (nodes and edges), then the execution policy and the
  * editor's layout, each in a section of its own, so moving a node or changing a policy leaves the graph untouched.
  * The graph and the execution policy are strict; metadata and layout keep keys this version does not know (tools
  * may add their own), and readers ignore them.
  */
-/** A workflow's most nodes and edges, which the editor keeps to as well. */
-export const [MAX_WORKFLOW_NODES, MAX_WORKFLOW_EDGES] = [1000, 5000];
-
 export const WorkflowDefinition = z
   .strictObject({
     $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),

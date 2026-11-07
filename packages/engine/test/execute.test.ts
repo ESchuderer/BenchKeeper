@@ -170,6 +170,14 @@ const waiting = (ms: number, stopped: unknown[] = [], begun = (): void => undefi
   },
 });
 
+test("a run whose signal was aborted before it began ends cancelled", async () => {
+  const early = await start(workflow(), {}, { signal: AbortSignal.abort() });
+  expect([early.result, trail(early.events)]).toEqual([
+    { ok: true, value: "cancelled" },
+    "cancel, started a#1, ended a#1, finished",
+  ]);
+});
+
 test("a wait before an attempt starts is no part of its timeout, and a cancel reaches the attempt while it waits", async () => {
   const slow = await start(workflow({ nodes: { a: { timeoutSeconds: 1 } } }), {}, { executors: waiting(1500) });
   expect([slow.result, trail(slow.events)]).toEqual([

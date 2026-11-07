@@ -28,6 +28,7 @@ const stored = (state: string): string => {
   return ok(at.read(String(at.blob(String(at.head()), "workflows/workflow-w.json")))).toString("utf8");
 };
 
+// Each store commit and import runs git several times, which is slow on Windows: as git's own tests, 30 s.
 test("an export imports as new byte for byte with every command and task in its review, then as the same", async () => {
   const [from, to] = [machine(), machine()];
   store(from, "1.0.0");
@@ -61,29 +62,22 @@ test("an export imports as new byte for byte with every command and task in its 
     ["same"],
     null,
   ]);
-});
+}, 30_000);
 
-test("an import updates a workflow stored as its last import left it, and keeps one edited here since", async () => {
+// A machine that holds w as imported from another machine's export of version 1.0.0, and that other machine.
+const imported = async (): Promise<{ from: string; to: string }> => {
   const [from, to] = [machine(), machine()];
   store(from, "1.0.0");
-  ok(
-    applyPlan(
-      to,
-      ok(await planImport(to, { folder: exported(from, join(from, "v1")) })).plan ?? {
-        schemaVersion: 1,
-        operations: [],
-      },
-      { yes: true },
-    ),
-  );
+  const first = ok(await planImport(to, { folder: exported(from, join(from, "v1")) }));
+  ok(applyPlan(to, first.plan ?? { schemaVersion: 1, operations: [] }, { yes: true }));
+  return { from, to };
+};
+
+test("an import updates a workflow stored as its last import left it", async () => {
+  const { from, to } = await imported();
   store(from, "1.1.0", [{ id: "notify", type: "command.run", with: { command: "echo done" } }]);
   const update = ok(await planImport(to, { folder: exported(from, join(from, "v2")) }));
-  ok(applyPlan(to, update.plan ?? { schemaVersion: 1, operations: [] }, { yes: true }));
-  // Edited here: a version of this machine's own on top.
-  store(to, "1.2.0", [], true);
-  store(from, "1.3.0");
-  const conflict = ok(await planImport(to, { folder: exported(from, join(from, "v3")) }));
-  expect([update.review.units[0], conflict.review.units.map(({ status }) => status), conflict.plan]).toEqual([
+  expect(update.review.units).toEqual([
     {
       id: "w",
       status: "update",
@@ -92,10 +86,17 @@ test("an import updates a workflow stored as its last import left it, and keeps 
       license: null,
       changes: { added: ["notify"], removed: [], changed: [] },
     },
-    ["conflict"],
-    null,
   ]);
-});
+}, 30_000);
+
+test("an import keeps a workflow edited here since its last import", async () => {
+  const { from, to } = await imported();
+  // Edited here: a version of this machine's own on top.
+  store(to, "1.2.0", [], true);
+  store(from, "1.3.0");
+  const conflict = ok(await planImport(to, { folder: exported(from, join(from, "v3")) }));
+  expect([conflict.review.units.map(({ status }) => status), conflict.plan]).toEqual([["conflict"], null]);
+}, 30_000);
 
 test("a workflow saved here and never imported is kept as a conflict: the import cannot tell which is newer", async () => {
   const [from, own] = [machine(), machine()];
@@ -201,4 +202,4 @@ test("an import from Git fetches each extension it uses at its pinned commit, in
     { code: "extension.digest-mismatch", params: { extension: "acme.jira" } },
     { workflow: "w", node: "search", kind: "extension", text: "acme.jira/search" },
   ]);
-});
+}, 30_000);

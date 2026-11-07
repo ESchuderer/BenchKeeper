@@ -3,6 +3,11 @@ import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
+// A folder as a shell argument, as Python's shlex.quote makes one: as it is when it holds only safe characters, else in
+// single quotes with each embedded quote closed, escaped and reopened, so pasting the command runs nothing of the path.
+// shortcut: PowerShell reads an embedded quote as doubled (''), not \'; due once a Windows folder name holds one.
+const folderArgument = (path: string): string =>
+  /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
 // An undo run that stopped is not undone itself: planning the undo of its target again starts from the files as they are.
 const undoHint = (p: { runId: string; undoes: string | null }): string =>
   p.undoes === null
@@ -265,8 +270,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
       ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
     ];
-    const folder = /\s/.test(p.project) ? `"${p.project}"` : p.project;
-    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folder} --allow ${p.part}`;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,

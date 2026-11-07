@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import {
   type Account,
   Agent,
@@ -480,6 +481,22 @@ export const workflowsOpen = (ctx: Context, id: string, { at }: { at?: string })
   if (!opened.ok) return refused(ctx, "draft", opened.finding);
   emit(ctx, "draft", { ...opened.value }, `Opened the stored ${id} as its draft.`);
   return EXIT.ok;
+};
+
+type ExportOptions = { name?: string; license?: string; yes?: true };
+
+/**
+ * Shows writing stored workflows into an export folder, with the lock of the extensions they use, or with --yes writes
+ * them as one run; the user commits and pushes the folder with their own Git (P4 a).
+ */
+export const workflowsExport = (ctx: Context, ids: string[], folder: string, options: ExportOptions): number => {
+  const { name = basename(folder), license, yes } = options;
+  const about = license === undefined ? { name } : { name, license };
+  const planned = useCases.planExport(ctx.state, ids, folder, about);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, extensions } = planned.value;
+  const note = `\n  ${ids.join(", ")} with the lock of ${extensions.length} extensions; commit and push ${folder} yourself.`;
+  return change(ctx, plan, { note, data: { folder, workflows: ids, extensions }, findings: [] }, yes);
 };
 
 // One line per change under the plan: the file, the settings value, and the profile file that set it.

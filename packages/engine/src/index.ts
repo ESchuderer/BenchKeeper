@@ -22,7 +22,16 @@ export {
   type Prepared,
   type Recovery,
 } from "./execute.ts";
-export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";
+export {
+  asidePath,
+  errorCode,
+  hashFile,
+  parseDocument,
+  readJson,
+  readOptionalJson,
+  tempPath,
+  writeAtomic,
+} from "./files.ts";
 export { recover } from "./recover.ts";
 export {
   type Action,

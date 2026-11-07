@@ -395,10 +395,10 @@ class Runner {
   // The attempt set up past its gates; null when it waits at one or the owner rejected it.
   async #gated(id: string, attempt: number, data: Readonly<Values>): Promise<Going | null> {
     const { type, config } = this.#of(id);
-    if (EFFECTS.has(type) && !this.#cleared(id, attempt, "before-node", null)) return null;
+    if (EFFECTS.has(type) && !this.#cleared(id, attempt, { point: "before-node", planHash: null })) return null;
     const going = await this.#prepare(id, attempt, { config, data }, this.#executor(type));
     const { planHash } = going.prepared;
-    if (planHash === undefined || this.#cleared(id, attempt, "before-apply", planHash)) return going;
+    if (planHash === undefined || this.#cleared(id, attempt, { point: "before-apply", planHash })) return going;
     this.#live.delete(id);
     return null;
   }
@@ -412,8 +412,7 @@ class Runner {
   #cleared(
     node: string,
     attempt: number,
-    point: GatePoint,
-    planHash: string | null,
+    { point, planHash }: { readonly point: GatePoint; readonly planHash: string | null },
     rejected = (): void => this.#rejected(node, attempt),
   ): boolean {
     const decisions = this.#held.decisions.get(node);
@@ -461,7 +460,7 @@ class Runner {
   async #precheck(node: string): Promise<void> {
     // The trigger's gate holds its precheck, which a first run asks for as it does a command; a rejection skips the run.
     const skip = (): void => this.#post({ type: "precheck", passed: false, values: { error: "rejected" } });
-    if (!this.#cleared(node, 1, "before-node", null, skip)) return;
+    if (!this.#cleared(node, 1, { point: "before-node", planHash: null }, skip)) return;
     const command = this.#of(node).config["precheck"] ?? "";
     const going = await this.#prepare(node, 0, { config: { command }, data: {} }, this.#executor("command.run"));
     await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, values, why) => {

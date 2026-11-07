@@ -402,6 +402,10 @@ const firstRun = (view: Pick<GraphView, "ownerApproved">, run: GraphRun, node: s
     (each) => each.id === node && (each.type === "command.run" || typeof each.with?.["precheck"] === "string"),
   ) && !view.ownerApproved(run.project, run.definitionHash, node);
 
+// The id of a workflow's trigger, whose gate holds its precheck.
+const triggerOf = (workflow: WorkflowDefinition): string | undefined =>
+  workflow.nodes.find((each) => each.type.startsWith("trigger."))?.id;
+
 // The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
 // reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records. A
 // first run's command waits at every level, and so does its precheck, which no level holds otherwise.
@@ -462,8 +466,7 @@ const runHeld = async (
   // A record that fails comes from a lost lease, which the run's next event reports.
   const passed: Passed = (node, point, level) => void store.passGate(lease.runId, lease.epoch, { node, point, level });
   const unseen = (node: string): boolean => stored === undefined || firstRun(store, stored, node);
-  const trigger = held.workflow.nodes.find((each) => each.type.startsWith("trigger."))?.id;
-  const gated = { project, startedAt, report: run.report, trigger, firstRun: unseen };
+  const gated = { project, startedAt, report: run.report, trigger: triggerOf(held.workflow), firstRun: unseen };
   const gates = config === undefined ? undefined : levelGates(config, state, gated, passed);
   try {
     const { signal, onEvent, sleep } = options;

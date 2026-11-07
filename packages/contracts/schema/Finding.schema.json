@@ -3882,6 +3882,40 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.newer-pack"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "recorded": {
+              "type": "string"
+            },
+            "local": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "recorded",
+            "local"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.binding-waiting"
         },
         "params": {

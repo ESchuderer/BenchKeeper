@@ -13,7 +13,15 @@ import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
-import { type FilesRecord, hashOrNull, ownerChanged, recordOf, recordWrite, withRecord } from "./record.ts";
+import {
+  type FilesRecord,
+  hashOrNull,
+  newerRecorded,
+  ownerChanged,
+  recordOf,
+  recordWrite,
+  withRecord,
+} from "./record.ts";
 import { type Folder, packVersion, type Resolved, textFile } from "./resolve.ts";
 import { type Fetched, packFolder, skillFiles } from "./skills.ts";
 
@@ -433,10 +441,14 @@ const ownedOf = (given: Given, files: Files, { written, record }: { written: Wri
   const wanted = new Map([...skills.value.wanted, ...files.wanted]);
   // A files target in the skills folder is the files part's stale path and the skills' too: it goes once.
   const stale = [...new Set([...files.stale, ...skills.value.stale])].filter((path) => !wanted.has(path));
+  const newer = newerRecorded(record, wanted);
+  const writing = new Map([...wanted].filter(([path]) => !newer.some((each) => each.path === path)));
   // The record vouches only for files this plan writes: one another clone's profile wants is never removed by it.
-  const known = withRecord(written, new Map([...record].filter(([path]) => wanted.has(path))));
-  const plan = ownedFiles(wanted, stale, known);
-  return plan.ok ? { ok: true as const, value: { ...plan.value, wanted } } : plan;
+  const known = withRecord(written, new Map([...record].filter(([path]) => writing.has(path))));
+  const plan = ownedFiles(writing, stale, known);
+  if (!plan.ok) return plan;
+  const held = newer.map((params): Finding => ({ code: "profile.newer-pack", params }));
+  return { ok: true as const, value: { ...plan.value, findings: [...plan.value.findings, ...held], wanted: writing } };
 };
 
 // The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local

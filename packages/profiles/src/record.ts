@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { FILES_SCHEMA_VERSION, type Operation, ProfileFiles, type Result, readDocument } from "@cedarloom/contracts";
+import {
+  FILES_SCHEMA_VERSION,
+  type Operation,
+  ProfileFiles,
+  type Result,
+  readDocument,
+  semverAbove,
+} from "@cedarloom/contracts";
 import { hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { onDisk } from "./machine.ts";
@@ -51,6 +58,24 @@ export const withRecord = (written: Written, record: FilesRecord): Written => {
   for (const [path, entry] of record) if (textHash(path) === entry.sha256) known.set(path, hashOrNull(path));
   return known;
 };
+
+// A pack's id and version in `id@version`.
+const versionOf = (pack: string): [string, string] => [
+  pack.slice(0, pack.lastIndexOf("@")),
+  pack.slice(pack.lastIndexOf("@") + 1),
+];
+
+/**
+ * The wanted files whose recorded text came from a newer version of their pack than this machine's: a clone on an older
+ * CedarLoom leaves them as they are instead of writing its older text back (hub issue 160).
+ */
+export const newerRecorded = (record: FilesRecord, wanted: ReadonlyMap<string, Wanted>) =>
+  [...wanted].flatMap(([path, { pack: local }]) => {
+    const recorded = record.get(path)?.pack;
+    if (local === undefined || recorded === undefined) return [];
+    const [[id, version], [was, newer]] = [versionOf(local), versionOf(recorded)];
+    return id === was && semverAbove(newer, version) ? [{ path, recorded, local }] : [];
+  });
 
 /** The paths of a plan's files the owner changed, which stay as they are. */
 export const ownerChanged = (plan: LevelPlan): Set<string> =>

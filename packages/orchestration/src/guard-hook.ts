@@ -77,10 +77,7 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
     : located(command, cwd);
 };
 
-/**
- * The guard's answer to one PreToolUse input: why it refuses the call, or null to let it through. What it cannot read
- * refuses (A79): a missing or invalid policy, input that is no JSON, a Bash call without its command or folder.
- */
+// Why the guard refuses one PreToolUse input, or null; what it cannot read refuses (A79).
 const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
   const policy = policyJson === null ? null : readPolicy(policyJson);
   if (policy === null) return "its policy is missing or invalid";
@@ -90,8 +87,7 @@ const guardHook = (input: string, policyJson: string | null, remotes: Remotes): 
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 
-// Run by Claude Code as a PreToolUse command hook, the policy's JSON its argument, so it reads no file: exit code 2 with
-// the reason on stderr refuses the call. A crash refuses it too, through the hook's onFailure "block".
+// Exit code 2 with the reason on stderr refuses; the launch's onFailure "block" makes a crash refuse too.
 try {
   const reason = guardHook(await text(process.stdin), process.argv[2] ?? null, once(gitRemotes));
   if (reason !== null) {

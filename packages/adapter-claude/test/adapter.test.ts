@@ -543,6 +543,18 @@ test("cancel after the CLI has exited stops nothing, as its process ID may belon
   await expect(session.cancel()).resolves.toBeUndefined();
 });
 
+// Windows has no SIGTERM to ignore: taskkill /F ends the CLI at once.
+test.skipIf(process.platform === "win32")(
+  "cancel kills a CLI that ignores SIGTERM after the grace period",
+  async () => {
+    const stuck = claudeRuntime([process.execPath, join(fixtures, "fake-claude.ts")], 50);
+    const session = stuck.start(launch({ FAKE_STUCK: "1", FAKE_HANG: "1" }));
+    // Its first line comes after it set SIGTERM aside.
+    for await (const event of session.events) if (event.type === "other") break;
+    await expect(session.cancel()).resolves.toBeUndefined();
+  },
+);
+
 test("stops a CLI that writes a line past the cap, before the host runs out of string length", async () => {
   const all = await events(runtime.start(launch({ FAKE_LONG: String(65 * 1024 * 1024), FAKE_HANG: "1" })));
   expect(all.map((event) => event.type)).toEqual(["other", "exit"]);

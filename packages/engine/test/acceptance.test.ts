@@ -81,6 +81,18 @@ test.skipIf(!posix)("a failed backup stops the step before any write", () => {
   expect(read(path)).toBe("mine\n");
 });
 
+const refused = () => {
+  throw new Error("another runner took the run over");
+};
+
+test("a run whose begin hook throws ends failed before any write", () => {
+  const { store, file } = fresh();
+  const path = file("a.md", "mine\n");
+  const op = { kind: "write", path, before: hash("mine\n"), content: "ours\n" } as const;
+  expect(() => run(store, plan(op), { onBegun: refused })).toThrow("another runner took the run over");
+  expect([store.runs().map((each) => each.status), read(path)]).toEqual([["failed"], "mine\n"]);
+});
+
 test("the file written must hash as planned", () => {
   const { store, file } = fresh();
   const path = file("a.md", "mine\n");

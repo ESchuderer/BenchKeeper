@@ -785,13 +785,13 @@ test("runs approve shows what a waiting node waits for, and with --yes approves 
   ]);
 });
 
-test("runs approve shows a write's content with its control characters escaped, so none of it rewrites the prompt", async () => {
+test("runs approve shows a first run's command and a write's content with their control characters escaped, so none of it rewrites the prompt", async () => {
   const { root, cli } = atCheckpoint();
   const writing = WorkflowDefinition.parse({
     ...workflow,
     nodes: [
       { id: "t", type: "trigger.manual" },
-      { id: "say", type: "command.run", with: { command: "printf '\\033[2Jkept\\tline\\nnext'" } },
+      { id: "say", type: "command.run", with: { command: "printf '\\033[2Jkept\\tline\\nnext' # \u001b[2J" } },
       { id: "out", type: "file.write", with: { path: "out.txt" } },
     ],
     edges: [
@@ -802,8 +802,11 @@ test("runs approve shows a write's content with its control characters escaped, 
   });
   const file = planFile(root, writing, "write.json");
   const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  await cli("runs", "approve", String(ran["runId"]), "say", "--yes", "--project", root);
-  const { out } = await cli("runs", "approve", String(ran["runId"]), "out");
+  const runId = String(ran["runId"]);
+  const command = (await cli("runs", "approve", runId, "say")).out;
+  await cli("runs", "approve", runId, "say", "--yes", "--project", root);
+  const { out } = await cli("runs", "approve", runId, "out");
+  expect([command.includes("\u001b"), command]).toEqual([false, expect.stringContaining("nnext' # \\u001b[2J")]);
   expect([out.includes("\u001b"), out]).toEqual([false, expect.stringContaining("\\u001b[2Jkept\tline\nnext")]);
 });
 

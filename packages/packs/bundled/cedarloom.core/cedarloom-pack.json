@@ -14,7 +14,7 @@
     },
     "rules/questions.md": {
       "kind": "rules",
-      "description": "Owner questions as hub issues (D34); {{hub}} is the hub repository binding"
+      "description": "Owner questions as issues in the hub repository"
     },
     "rules/project.md": {
       "kind": "rules",
@@ -22,15 +22,15 @@
     },
     "rules/family.md": {
       "kind": "rules",
-      "description": "Family rules of every project's AGENTS.md (D31)"
+      "description": "Rules for every project's AGENTS.md: checks before a push, CI, dependencies, comments, names, UI"
     },
     "rules/tests.md": {
       "kind": "rules",
-      "description": "Test policy (D32)"
+      "description": "When to add a test, what never to test, coverage and mutation testing"
     },
     "rules/local.md": {
       "kind": "rules",
-      "description": "Where issues and owner questions go; {{hub}} is the hub repository binding"
+      "description": "Where issues and owner questions go: the hub repository"
     },
     "rules/dc.md": {
       "kind": "rules",

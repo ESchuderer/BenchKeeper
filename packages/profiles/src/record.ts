@@ -9,11 +9,10 @@ import {
   readDocument,
   semverAbove,
 } from "@cedarloom/contracts";
-import { hashFile } from "@cedarloom/engine";
+import { hashFile, readOptionalJson } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { onDisk } from "./machine.ts";
 import type { LevelPlan, Wanted } from "./owned.ts";
-import { jsonFile } from "./resolve.ts";
 
 type Written = ReadonlyMap<string, string | null>;
 type Entry = ProfileFiles["files"][string];
@@ -29,7 +28,7 @@ const named = (finding: Finding, path: string): Finding => {
 
 /** The record at `path` (`.cedarloom/profile-files.json` on disk) by the files' paths on disk; empty without one. */
 export const recordOf = (project: string, path: string): Result<FilesRecord> => {
-  const file = jsonFile(path);
+  const file = readOptionalJson(path);
   if (!file.ok) return { ok: false, finding: named(file.finding, path) };
   if (file.value === null) return { ok: true, value: new Map() };
   const read = readDocument(ProfileFiles, FILES_SCHEMA_VERSION, file.value.json);

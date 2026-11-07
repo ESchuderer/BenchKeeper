@@ -83,6 +83,22 @@
       }
     },
     {
+      "files": ["packages/adapter-github/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/work-items"],
+                "message": "the GitHub adapter depends on the contracts and the tracker port of work-items only"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/orchestration/src/**"],
       "rules": {
         "no-restricted-imports": [

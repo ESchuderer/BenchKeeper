@@ -30,6 +30,7 @@ const parent = {
   CLAUDE_CODE_SIMPLE: "1",
   ANTHROPIC_MODEL: "claude-other",
   TZ: undefined,
+  SystemRoot: "C:\\Windows",
 };
 
 test("a worker's environment comes from an allowlist, with the profile's token and an empty gh folder", () => {
@@ -49,10 +50,9 @@ test("a worker's environment comes from an allowlist, with the profile's token a
     USER: "dev",
     GH_CONFIG_DIR: "/w/gh",
   });
-  // Windows names ignore case: its Path is PATH.
-  expect(workerEnv({ ...input, parent: { Path: "C:\\Windows" }, platform: "win32" })).toMatchObject({
-    Path: "C:\\Windows",
-  });
+  // Windows names ignore case: its Path is PATH. Its system and temp folders stay there, and only there.
+  const windows = { Path: "C:\\Windows", SystemRoot: "C:\\Windows", TEMP: "C:\\Temp" };
+  expect(workerEnv({ ...input, parent: windows, platform: "win32" })).toMatchObject(windows);
 });
 
 const home = (...path: string[]) => join("/home/dev", ...path);

@@ -7,7 +7,8 @@
     "**/test/fixtures/**/*.json",
     "**/openapi.json",
     "**/package.json",
-    "**/tsconfig.json"
+    "**/tsconfig.json",
+    "**/test/fixtures/**/*.json"
   ],
   "threshold": 0,
   "exitCode": 1,

@@ -3,7 +3,7 @@ import type { Account, AccountRegistry, Reading as Stored } from "@cedarloom/con
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
-type Reading = Omit<Stored, "readAt">;
+type Reading = Omit<Stored, "readAt" | "source">;
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const ADDED_AT = "2026-11-05T12:00:00.000Z";
@@ -84,10 +84,11 @@ test("claude-swap's weekly-first and consume-first take the qualifying account w
       reason: "soonest-weekly-reset",
     });
   }
-  // Without claude-swap's strategy, the most headroom: three's reset window counts as unused.
+  // Without claude-swap's strategy, the most headroom: three's reset window is unknown.
   expect(selectAccount(registry, main, readings, NOW)).toMatchObject({
-    account: { name: "three" },
+    account: { name: "one" },
     reason: "most-headroom",
+    candidates: [{ margin: 82 }, { margin: 42 }, { margin: null }],
   });
 });
 
@@ -169,22 +170,28 @@ test("an account below a minimum, or with a window never read, never qualifies",
   });
 });
 
-test("a window that has reset since its last reading counts as 0 percent used, so an idle account qualifies again", () => {
+test("a window that has reset since its last reading is unknown until it is read again", () => {
   // One was read near both limits before the windows reset; three's 7-day window was never read.
   const readings = [...used("one", 95, 99, EARLIER), ...used("three", 0, 0).slice(0, 1)];
-  expect(selectAccount(registry, main, readings, NOW)).toEqual({
+  expect(selectAccount(registry, { ...main, previous: "two" }, readings, NOW)).toEqual({
     ok: true,
-    account: registry.accounts[0],
+    account: registry.accounts[1],
+    reason: "no-readings",
+    candidates: POOL.map((name) => ({ account: name, margin: null })),
+  });
+  // A reading without a reset counts until the next one replaces it.
+  const unreset = used("two", 50, 0).map((reading) => ({ ...reading, resetsAt: null }));
+  expect(selectAccount(registry, main, unreset, NOW)).toMatchObject({
+    account: { name: "two" },
     reason: "most-headroom",
-    candidates: [
-      { account: "one", margin: 92 },
-      { account: "two", margin: null },
-      { account: "three", margin: null },
-    ],
   });
   // A reset at the very moment of the choice has passed too.
-  const now = selectAccount(registry, main, used("two", 95, 99, ADDED_AT), NOW);
-  expect(now).toMatchObject({ ok: true, account: { name: "two" }, candidates: [{}, { margin: 92 }, {}] });
+  const now = selectAccount(registry, main, [...used("one", 50, 0), ...used("two", 0, 0, ADDED_AT)], NOW);
+  expect(now.candidates).toEqual([
+    { account: "one", margin: 42 },
+    { account: "two", margin: null },
+    { account: "three", margin: null },
+  ]);
 });
 
 test("a reset 5-hour window does not lift an account whose 7-day window is still known and below its minimum", () => {

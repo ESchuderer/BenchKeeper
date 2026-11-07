@@ -9,6 +9,7 @@ import {
   accountsConfirm,
   accountsHome,
   accountsList,
+  accountsStatus,
   accountsLogin,
   componentsSwitch,
   doctor,
@@ -225,6 +226,12 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .command("list")
     .description("list the accounts and their pools")
     .action(() => done(accountsList(ctx())));
+  accounts
+    .command("status")
+    .description(
+      "show the account a new worker of each confirmed pool would start on now (leases and the worker's model aside), and its windows",
+    )
+    .action(() => done(accountsStatus(ctx())));
   accounts
     .command("pool")
     .description("account pools")

@@ -240,7 +240,14 @@ test("a session's usage is kept as one sample per window with its line; readings
   const store = openRunStore(dir);
   if (!store.ok) throw new Error(store.finding.code);
   expect(store.value.readings()).toEqual([
-    { account: "work", window: "fiveHour", usedPercent: 10, resetsAt: "2026-11-06T12:00:00.000Z", readAt: at },
+    {
+      account: "work",
+      window: "fiveHour",
+      usedPercent: 10,
+      resetsAt: "2026-11-06T12:00:00.000Z",
+      readAt: at,
+      source: "worker",
+    },
   ]);
   const samples = store.value.usageSamples();
   expect(samples.map((each) => [each.window, each.quota, each.usedPercent])).toEqual([

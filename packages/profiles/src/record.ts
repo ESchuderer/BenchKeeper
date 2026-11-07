@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   FILES_SCHEMA_VERSION,
+  type Finding,
   type Operation,
   ProfileFiles,
   type Result,
@@ -19,13 +20,17 @@ type Entry = ProfileFiles["files"][string];
 /** A project's committed record of the files CedarLoom wrote there, by path on disk. */
 export type FilesRecord = ReadonlyMap<string, Entry>;
 
+// A record that does not parse (a Git conflict in it) or fit its schema, named, so the owner knows which file to mend.
+const named = (finding: Finding, path: string): Finding =>
+  finding.code === "document.invalid" ? { ...finding, params: { ...finding.params, path } } : finding;
+
 /** The record at `path` (`.cedarloom/profile-files.json` on disk) by the files' paths on disk; empty without one. */
 export const recordOf = (project: string, path: string): Result<FilesRecord> => {
   const file = jsonFile(path);
-  if (!file.ok) return file;
+  if (!file.ok) return { ok: false, finding: named(file.finding, path) };
   if (file.value === null) return { ok: true, value: new Map() };
   const read = readDocument(ProfileFiles, FILES_SCHEMA_VERSION, file.value.json);
-  if (!read.ok) return read;
+  if (!read.ok) return { ok: false, finding: named(read.finding, path) };
   const files = Object.entries(read.value.files);
   return { ok: true, value: new Map(files.map(([at, entry]) => [onDisk(join(project, ...at.split("/"))), entry])) };
 };
@@ -39,11 +44,13 @@ export const hashOrNull = (path: string): string | null => {
   }
 };
 
-// A text file's hash with the line endings CedarLoom writes, so a checkout that turned them into CRLF (Git's
-// `core.autocrlf` on Windows) still matches the record.
+// A text's hash with its line endings as LF, on both sides of the record, so a checkout that turned them into CRLF
+// (Git's `core.autocrlf` on Windows) or a CedarLoom text that has CRLF itself still matches.
+const textDigest = (text: string): string => sha256(text.replaceAll("\r\n", "\n"));
+
 const textHash = (path: string): string | null => {
   try {
-    return sha256(readFileSync(path, "utf8").replaceAll("\r\n", "\n"));
+    return textDigest(readFileSync(path, "utf8"));
   } catch {
     return null;
   }
@@ -100,7 +107,7 @@ export const recordWrite = (
   const theirs = ownerChanged(plan);
   const files = new Map(record);
   for (const [at, { content, pack }] of committed)
-    if (!theirs.has(at)) files.set(at, { sha256: sha256(content), ...(pack === undefined ? {} : { pack }) });
+    if (!theirs.has(at)) files.set(at, { sha256: textDigest(content), ...(pack === undefined ? {} : { pack }) });
   for (const operation of plan.operations) if (operation.kind === "delete") files.delete(operation.path);
   const entries = entriesOf(project, files);
   if (JSON.stringify(entries) === JSON.stringify(entriesOf(project, record))) return [];

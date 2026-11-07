@@ -348,6 +348,29 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
+test("accounts: map binds a folder to an account for its workers by a plan, and unmap removes it", async () => {
+  const { root, cli } = withRegistry();
+  const folder = realpathSync(root);
+  const shown = await cli("accounts", "map", "work", root);
+  expect([shown.code, json((await cli("accounts", "list", "--json")).out)]).toEqual([
+    EXIT.ok,
+    expect.objectContaining({ registry: expect.not.objectContaining({ folders: expect.anything() }) }),
+  ]);
+  expect(json((await cli("accounts", "map", "work", root, "--yes", "--json")).out)).toMatchObject({
+    status: "applied",
+  });
+  const listed = json((await cli("accounts", "list", "--json")).out);
+  expect(listed).toMatchObject({ registry: { folders: { [folder]: { account: "work" } } } });
+  expect(json((await cli("accounts", "unmap", root, "--yes", "--json")).out)).toMatchObject({ status: "applied" });
+  const again = await cli("accounts", "unmap", root, "--json");
+  expect([again.code, json(again.out)]).toEqual([
+    EXIT.refused,
+    expect.objectContaining({
+      findings: [{ code: "accounts.map-refused", params: { reason: "not-mapped", name: folder } }],
+    }),
+  ]);
+});
+
 test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
   const { state, logins, cli } = setup();
   // The preview changes nothing: still no registry.
@@ -407,6 +430,38 @@ test("accounts: a pool's confirmation carries the terms warning in every output 
   expect((await cli("accounts", "list")).out).toContain("main (confirmed)");
   expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({
     confirmed: [{ agent: "claude", pool: "main" }],
+  });
+});
+
+test("accounts: list shows the windows a choice counts now, status the account a confirmed pool's new worker gets", async () => {
+  const { state, cli } = withRegistry();
+  expect(json((await cli("accounts", "status", "--json")).out)).toMatchObject({ pools: [], readings: [] });
+  await cli("accounts", "pool", "confirm", "main", "--yes");
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const fiveHour = {
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 42,
+    resetsAt: "2099-01-01T00:00:00.000Z",
+    readAt: new Date().toISOString(),
+    source: "cswap",
+  } as const;
+  store.value.recordReading(fiveHour);
+  // Past its reset, so unknown.
+  store.value.recordReading({
+    ...fiveHour,
+    window: "sevenDay",
+    resetsAt: "2026-01-01T00:00:00.000Z",
+    source: "worker",
+  });
+  store.value.close();
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ readings: [fiveHour] });
+  expect(json((await cli("accounts", "status", "--json")).out)).toEqual({
+    format: "cedarloom.accounts-status",
+    schemaVersion: 1,
+    pools: [{ agent: "claude", pool: "main", account: "work", reason: "no-readings" }],
+    readings: [fiveHour],
   });
 });
 

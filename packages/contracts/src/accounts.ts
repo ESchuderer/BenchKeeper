@@ -71,6 +71,10 @@ const folders = (account: z.infer<typeof Account>, index: number): [string, (str
   ]),
 ];
 
+/** What a project folder is bound to: an account, or a pool of the launching agent. */
+const FolderTarget = z.union([z.strictObject({ account: Name }), z.strictObject({ pool: Name })]);
+export type FolderTarget = z.infer<typeof FolderTarget>;
+
 /**
  * The accounts by config folder and their pools per agent: never a credential, as every object is strict.
  * Names and folders, homes and aliases alike, are unique, and an account's pool is one of its agent's pools.
@@ -80,6 +84,12 @@ export const AccountRegistry = z
     schemaVersion: z.literal(ACCOUNTS_SCHEMA_VERSION),
     accounts: z.array(Account),
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
+    folders: z
+      .record(AbsolutePath, FolderTarget)
+      .optional()
+      .describe(
+        "Project folders by real path, each bound to an account or a pool for workers launched in it or below it",
+      ),
   })
   .superRefine((registry, ctx) => {
     // shortcut: folders compare without trailing separators but otherwise as written, so another case of a folder passes;
@@ -140,14 +150,19 @@ export const modelWindow = (model: string): Quota | null => {
   return family === undefined ? null : `sevenDay:${family}`;
 };
 
-/** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
+/**
+ * The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read,
+ * and who read it: a worker's own session (`worker`) or claude-swap's usage report (`cswap`).
+ */
 export const Reading = z.strictObject({
   account: Name,
   window: Quota,
   usedPercent: Percent,
-  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
-  resetsAt: z.iso.datetime({ precision: 3 }),
+  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order. Null: the
+  // source gave a share without a reset, which counts until the next reading replaces it, as claude-swap judges it.
+  resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
+  source: z.enum(["worker", "cswap"]),
 });
 export type Reading = z.infer<typeof Reading>;
 
@@ -178,15 +193,9 @@ export const UsageSample = z.strictObject({
 export type UsageSample = z.infer<typeof UsageSample>;
 
 /**
- * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it
- * counted as 0 percent used.
- */
-const CountedReading = Reading.extend({ source: z.enum(["reported", "assumed-after-reset"]) });
-
-/**
  * One launch-time account choice, as the ledger keeps it: the task, the account it last ran on (null on its first
- * launch), the account chosen and why, the pool's readings as the choice counted them and each candidate's margin
- * above its minimums.
+ * launch), the account chosen and why, the pool's readings the choice counted and each candidate's margin above its
+ * minimums.
  */
 export const AccountSwitch = z.strictObject({
   at: z.iso.datetime({ precision: 3 }),
@@ -194,7 +203,7 @@ export const AccountSwitch = z.strictObject({
   from: Name.nullable(),
   to: Name,
   reason: z.enum(["most-headroom", "soonest-weekly-reset", "highest-tier", "no-readings"]),
-  readings: z.array(CountedReading),
+  readings: z.array(Reading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });
 export type AccountSwitch = z.infer<typeof AccountSwitch>;

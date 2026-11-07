@@ -911,6 +911,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -1400,6 +1401,14 @@ export interface components {
                 account: string;
                 path: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
             };
         } | {
             /** @constant */
@@ -2129,6 +2138,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -2618,6 +2628,14 @@ export interface components {
                 account: string;
                 path: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
             };
         } | {
             /** @constant */

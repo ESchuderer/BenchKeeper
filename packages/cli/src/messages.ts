@@ -60,7 +60,7 @@ const ENTRY_KINDS = {
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
   "document.newer-schema": (p) => `The document has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
-  "document.invalid": (p) => `The document does not match its schema: ${issueList(p.issues)}.`,
+  "document.invalid": (p) => `${p.path ?? "The document"} does not match its schema: ${issueList(p.issues)}.`,
   "plan.not-approved": (p) => `The approval names plan ${short(p.approvedHash)}, not ${short(p.planHash)}.`,
   "plan.path-not-absolute": (p) =>
     `${p.path} is not an absolute, normalized path; plans name every file by its full path.`,
@@ -172,6 +172,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.map-refused": (p) =>
+    ({
+      "unknown-target": `The registry has no account or Claude Code pool named ${p.name}.`,
+      "no-folder": `There is no folder ${p.name} to bind.`,
+      "not-mapped": `The folder ${p.name} is bound to no account or pool.`,
+    })[p.reason],
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "doctor.logged-out": (p) =>

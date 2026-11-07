@@ -10,6 +10,8 @@ import {
   severityOf,
   type Plan,
   type PlanPreview,
+  QuotaWindow,
+  type Reading,
   type Result,
   type RunResult,
   shown as printable,
@@ -212,26 +214,69 @@ interface Change {
 const aliases = ({ aliases: folders = [] }: Account): string =>
   folders.length > 0 ? `  (alias ${folders.join(", ")})` : "";
 
+// An account's windows a choice counts now, below its line: the 5-hour and 7-day ones always, once any is known.
+const windowLines = (name: string, readings: readonly Reading[], now: number): string[] => {
+  const own = readings.filter((reading) => reading.account === name);
+  const age = (readAt: string): number => Math.floor((now - Date.parse(readAt)) / 60_000);
+  const unknown = QuotaWindow.options.filter((window) => !own.some((reading) => reading.window === window));
+  return own.length === 0
+    ? []
+    : [
+        ...own.map(
+          (r) =>
+            `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt ?? "unknown"}`,
+        ),
+        ...unknown.map((window) => `  ${window}  unknown`),
+      ];
+};
+
 export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
-  const confirmed = (agent: Agent, pool: string): boolean =>
-    registry !== null && useCases.isConfirmed(registry, { agent, pool });
-  const pool = ({ agent, pool: name }: Account): string =>
-    name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
-  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
-  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, registry, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const confirmed = pools.map(({ agent, pool }) => ({ agent, pool }));
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
-  const pools = Agent.options.flatMap((agent) =>
-    Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
+  const pool = ({ agent, pool: name }: Account): string =>
+    name === null
+      ? "-"
+      : `${name} (${confirmed.some((p) => p.agent === agent && p.pool === name) ? "confirmed" : "not confirmed"})`;
+  const lines = (registry?.accounts ?? []).flatMap((a) => [
+    `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`,
+    ...windowLines(a.name, readings, now),
+  ]);
+  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  emit(ctx, "accounts", { registry, confirmed, readings }, lines.length > 0 ? lines.join("\n") : none);
+  return EXIT.ok;
+};
+
+/** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
+export const accountsStatus = (ctx: Context): number => {
+  const loaded = useCases.loadRegistry(ctx.config);
+  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, loaded.value, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const lines = pools.flatMap(({ agent, pool, selection: s }) =>
+    s.ok
+      ? [
+          `${agent} ${pool}: new workers start on ${s.account.name} (${s.reason})`,
+          ...windowLines(s.account.name, readings, now),
+        ]
+      : [`${agent} ${pool}: no account for new workers (${s.reason})`],
   );
-  emit(
-    ctx,
-    "accounts",
-    { registry, confirmed: pools.filter((p) => confirmed(p.agent, p.pool)) },
-    lines.length > 0 ? lines.join("\n") : none,
-  );
+  const shown = pools.map(({ agent, pool, selection: s }) => ({
+    agent,
+    pool,
+    account: s.ok ? s.account.name : null,
+    reason: s.reason,
+  }));
+  const none = "No confirmed pool. Confirm one with: cedarloom accounts pool confirm <pool>";
+  emit(ctx, "accounts-status", { pools: shown, readings }, lines.length > 0 ? lines.join("\n") : none);
   return EXIT.ok;
 };
 
@@ -252,6 +297,24 @@ export const accountsAdd = (
   const { plan, home } = planned.value;
   const note = `\nThen log in there with: cedarloom accounts login ${name}`;
   return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
+};
+
+/** Binds a folder to an account or pool for the workers launched in it or below it, as a plan with undo. */
+export const accountsMap = (ctx: Context, name: string, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planMap(ctx.config, name, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real, target } = planned.value;
+  const on = "account" in target ? `account ${target.account}` : `pool ${target.pool}`;
+  const note = `\nWorkers launched in ${real} or below it run on ${on}.`;
+  return change(ctx, plan, { note, data: { folder: real }, findings: [] }, yes);
+};
+
+/** Removes a folder's binding, as a plan with undo. */
+export const accountsUnmap = (ctx: Context, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planUnmap(ctx.config, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real } = planned.value;
+  return change(ctx, plan, { note: "", data: { folder: real }, findings: [] }, yes);
 };
 
 /** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */

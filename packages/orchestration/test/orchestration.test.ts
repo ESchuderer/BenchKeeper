@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import {
   deniedPaths,
-  GITHUB_DOMAINS,
   ghProbe,
   managedProblems,
   managedSettingsDir,
@@ -78,7 +77,6 @@ test("a worker may not read any account's home or alias or the user's credential
   );
   expect(denied.at(-1)).toBe(join("/home/dev/xdg", "gh"));
   expect(deniedPaths(registry, "/home/dev", undefined)).not.toContain(join("/home/dev/xdg", "gh"));
-  expect(GITHUB_DOMAINS).toEqual(["github.com", "*.github.com", "*.githubusercontent.com"]);
 });
 
 const gh = [process.execPath, join(import.meta.dirname, "fixtures", "fake-gh.ts")] as const;

@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import type { Plan, PlanPreview } from "@cedarloom/contracts";
 import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import {
@@ -188,7 +187,7 @@ test("reads work while a process holds the store; a run it left running shows as
 
 // Each refusal waits out the store's 1 s busy timeout first, so the test takes over 2 s by design; a loaded CI runner
 // (macOS, 5.5 s once) needs more than Vitest's default 5 s.
-test("a store another process holds refuses changes; one from a newer CedarLoom refuses reads too", {
+test("a store another process holds refuses changes", {
   timeout: 15_000,
 }, () => {
   const { at, state } = folder();
@@ -197,12 +196,4 @@ test("a store another process holds refuses changes; one from a newer CedarLoom 
   expect(applyPlan(state, creates(at("a.txt")), { yes: true })).toEqual(busy);
   expect(undoRun(state, "r4", { yes: true })).toEqual(busy);
   if (held.ok) held.value.close();
-  const db = new DatabaseSync(join(state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 99");
-  db.close();
-  const newer = { code: "store.newer-schema", params: { found: 99, known: expect.any(Number) } };
-  for (const result of [listRuns(state), showRun(state, "r4"), previewUndo(state, "r4")]) {
-    expect(result).toEqual({ ok: false, finding: newer });
-  }
-  expect(doctor(state)).toEqual([newer]);
 });

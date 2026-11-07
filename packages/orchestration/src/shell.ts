@@ -7,25 +7,26 @@ export interface Word {
   readonly start: string;
 }
 
-/** A simple command: its words, assignments first, and what a heredoc or here-string feeds it. */
+/** A simple command: its words, assignments first. */
 export interface Command {
   readonly words: Word[];
-  readonly stdin: Word[];
 }
 
 /**
- * The simple commands a text runs, those inside command and process substitutions too. `skipped`: the reader passed
- * over text it could not split (an unclosed quote, substitution or heredoc, a `)` without its `(`), which may hide any
- * command. `unmodeled`: a loop, `case`, `select`, `coproc` or function, whose commands are read but not in their order.
+ * The simple commands a text runs, those inside command substitutions too. `skipped`: the text holds a form outside the
+ * guard's grammar, which may hide a command (A79): a subshell, a `{ ...; }` group, a function, `case`, `select` or
+ * `coproc`, a process substitution, backquotes, arithmetic holding a command, zsh's `(` after a word or `${(` flags, or
+ * text it cannot split (an unclosed quote, substitution or heredoc).
  */
 export interface Script {
   readonly commands: Command[];
   readonly skipped: boolean;
-  readonly unmodeled: boolean;
 }
 
-// Words that start a compound command the reader does not follow as a whole.
-const UNMODELED = new Set(["for", "case", "select", "function", "coproc"]);
+/** Reserved words before a command's own words: those of lists, if, while and until, whose commands the guard reads. */
+export const RESERVED = new Set(["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "!"]);
+// Commands outside the grammar, by their first word after the reserved ones; zsh runs `repeat`'s body as a loop.
+const OUTSIDE = new Set(["function", "case", "select", "coproc", "repeat"]);
 const NAME = /^[A-Za-z_]\w*/;
 const ASSIGNED = /^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=/;
 const OPENERS = new Set(["(", "{", "'", '"']);
@@ -69,16 +70,12 @@ interface Heredoc {
   readonly delimiter: string;
   readonly quoted: boolean;
   readonly strip: boolean;
-  readonly into: Command;
 }
 
 class Reader {
   readonly commands: Command[] = [];
   skipped = false;
-  unmodeled = false;
   #i = 0;
-  // Open `case` commands, whose patterns end in a `)` without its `(`.
-  #cases = 0;
   readonly #text: string;
   readonly #heredocs: Heredoc[] = [];
 
@@ -90,9 +87,9 @@ class Reader {
     return this.#i >= this.#text.length;
   }
 
-  /** Reads commands up to `closer` (the `)` of a substitution or subshell) or the end. */
+  /** Reads commands up to `closer` (the `)` of a command substitution) or the end. */
   script(closer: ")" | null): void {
-    let command: Command = { words: [], stdin: [] };
+    let command: Command = { words: [] };
     while (!this.done) {
       const c = this.#peek();
       if (c === closer) {
@@ -102,8 +99,8 @@ class Reader {
       }
       if (this.#separate(c)) {
         this.#end(command);
-        command = { words: [], stdin: [] };
-      } else if (!this.#space(c, command)) this.#push(command);
+        command = { words: [] };
+      } else if (!this.#space(c)) this.#push(command);
     }
     this.#end(command);
     if (closer !== null) this.skipped = true;
@@ -114,11 +111,18 @@ class Reader {
     if (this.#heredocs.length > 0) this.skipped = true;
   }
 
-  // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word.
+  // Text outside the grammar: the whole text refuses, so the reader stops.
+  #outside(): void {
+    this.skipped = true;
+    this.#i = this.#text.length;
+  }
+
+  // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word. A bare `{` or `}` opens
+  // or closes a group, in zsh after a condition too.
   #push(command: Command): void {
-    const word = this.#word().word();
-    if (command.words.length === 0 && word.text === "case") this.#cases += 1;
-    if (command.words.length === 0 && word.text === "esac") this.#cases -= 1;
+    const built = this.#word();
+    const word = built.word();
+    if (!built.quoted && (word.text === "{" || word.text === "}")) this.#outside();
     if (!(/^\d+$/.test(word.text ?? "") && /^[<>]$/.test(this.#peek()))) command.words.push(word);
   }
 
@@ -128,72 +132,72 @@ class Reader {
 
   #end(command: Command): void {
     if (command.words.length === 0) return;
-    if (UNMODELED.has(command.words[0]?.text ?? "")) this.unmodeled = true;
+    const first = command.words.find(({ text }) => !RESERVED.has(text ?? ""))?.text ?? "";
+    if (OUTSIDE.has(first)) this.#outside();
     this.commands.push(command);
   }
 
-  // A character that ends the command: a newline (then its heredocs follow), `;`, `&`, `|` or a `)` with no opener.
+  // A character that ends the command: a newline (then its heredocs follow), `;`, `&` or `|`. A `)` with no `(` is a
+  // case pattern's or a stray one.
   #separate(c: string): boolean {
     if (c === "\n") {
       this.#i += 1;
       this.#readHeredocs();
       return true;
     }
+    if (c === ")") {
+      this.#outside();
+      return true;
+    }
     if (c === "&" && this.#peek(1) === ">") return false;
-    if (c === ")" && this.#cases === 0) this.skipped = true;
-    if (!";&|)".includes(c)) return false;
+    if (!";&|".includes(c)) return false;
     this.#i += this.#peek(1) === c || (c === "|" && this.#peek(1) === "&") ? 2 : 1;
     return true;
   }
 
-  // Blanks, line continuations, comments, subshells and redirections: whatever is no word of the command. True when it
-  // took the character.
-  #space(c: string, command: Command): boolean {
-    if (c === " " || c === "\t" || (c === "\\" && this.#peek(1) === "\n")) {
-      this.#i += c === "\\" ? 2 : 1;
+  // Blanks, line continuations, comments and redirections: whatever is no word of the command. A `(` opens a subshell,
+  // a function's parameters, a case pattern or a zsh glob qualifier, all outside the grammar. True when it took the
+  // character.
+  #space(c: string): boolean {
+    if (this.#blank(c)) return true;
+    if (c === "#") {
+      while (!this.done && this.#peek() !== "\n") this.#i += 1;
       return true;
     }
-    if (c !== "#") return this.#opens(c, command);
-    while (!this.done && this.#peek() !== "\n") this.#i += 1;
+    if (c === "(") this.#outside();
+    else if (/^[<>]$/.test(c) || (c === "&" && this.#peek(1) === ">")) this.#redirect();
+    else return false;
     return true;
   }
 
-  // A subshell or a redirection. `name()` defines a function, whose body runs when it is called.
-  #opens(c: string, command: Command): boolean {
-    if (c === "(") {
-      this.#i += 1;
-      if (command.words.length > 0) this.unmodeled = true;
-      this.script(")");
-      return true;
-    }
-    if (!/^[<>]$/.test(c) && !(c === "&" && this.#peek(1) === ">")) return false;
-    this.#redirect(command);
-    return true;
+  // A blank or a line continuation, taken.
+  #blank(c: string): boolean {
+    const blank = c === " " || c === "\t" || (c === "\\" && this.#peek(1) === "\n");
+    if (blank) this.#i += c === "\\" ? 2 : 1;
+    return blank;
   }
 
-  // A redirection: its target word is no argument; a heredoc's body is read after the line ends; `<(` and `>(` run a
-  // process substitution, whose path is the word.
-  #redirect(command: Command): void {
+  // A redirection: its target word is no argument, and a heredoc's body is read after the line ends. `<(` and `>(`
+  // start a process substitution, outside the grammar.
+  #redirect(): void {
     const op = REDIRECT.exec(this.#text.slice(this.#i, this.#i + 3))?.[0] ?? "<";
     if (/^[<>]$/.test(op) && this.#peek(1) === "(") {
-      this.#i += 2;
-      this.script(")");
-      command.words.push({ text: null, start: "" });
+      this.#outside();
       return;
     }
     this.#i += op.length;
     while (this.#peek() === " " || this.#peek() === "\t") this.#i += 1;
     const target = this.#word();
-    if (op === "<<<") command.stdin.push(target.word());
-    else if (op.startsWith("<<")) this.#heredoc(target, op === "<<-", command);
+    if (op === "<<" || op === "<<-") this.#heredoc(target, op === "<<-");
   }
 
-  #heredoc(target: Builder, strip: boolean, into: Command): void {
+  #heredoc(target: Builder, strip: boolean): void {
     const delimiter = target.word().text;
     if (delimiter === null || delimiter === "") this.skipped = true;
-    else this.#heredocs.push({ delimiter, quoted: target.quoted, strip, into });
+    else this.#heredocs.push({ delimiter, quoted: target.quoted, strip });
   }
 
+  // Heredoc bodies after a newline: one under an unquoted delimiter is read as in double quotes, its substitutions run.
   #readHeredocs(): void {
     for (const doc of this.#heredocs.splice(0)) {
       const lines: string[] = [];
@@ -206,24 +210,19 @@ class Reader {
         if (!closed) lines.push(line);
       }
       if (!closed) this.skipped = true;
-      doc.into.stdin.push(this.#body(lines.join("\n"), doc.quoted));
+      if (!doc.quoted) this.#body(lines.join("\n"));
     }
   }
 
-  // A heredoc body: as it is under a quoted delimiter, else read as in double quotes, its substitutions run.
-  #body(body: string, quoted: boolean): Word {
-    if (quoted) return { text: body, start: body };
+  #body(body: string): void {
     const reader = new Reader(body);
-    const word = new Builder();
-    reader.#doubleQuoted(word, null);
+    reader.#doubleQuoted(new Builder(), null);
     this.#adopt(reader);
-    return word.word();
   }
 
   #adopt(script: Script): void {
     this.commands.push(...script.commands);
     this.skipped ||= script.skipped;
-    this.unmodeled ||= script.unmodeled;
   }
 
   // One word, up to a blank or an operator; at least one character, so a reader always moves on.
@@ -237,7 +236,7 @@ class Reader {
       else if (c === '"') this.#doubleQuoted(word, '"');
       else if (c === "\\") this.#escaped(word, null);
       else if (c === "$") this.#dollar(word, false);
-      else if (c === "`") this.#backquoted(word, false);
+      else if (c === "`") this.#outside();
       else word.add(c, true);
     }
     return word;
@@ -258,7 +257,7 @@ class Reader {
     this.#i += 1;
   }
 
-  // Inside double quotes (closer `"`) or a heredoc body (closer null): `$` and backquotes still expand.
+  // Inside double quotes (closer `"`) or a heredoc body (closer null): `$` still expands, and backquotes run.
   #doubleQuoted(word: Builder, closer: '"' | null): void {
     word.quoted = true;
     while (!this.done) {
@@ -267,7 +266,7 @@ class Reader {
       if (c === closer) return;
       if (c === "\\") this.#escaped(word, '$`"\\\n');
       else if (c === "$") this.#dollar(word, true);
-      else if (c === "`") this.#backquoted(word, true);
+      else if (c === "`") this.#outside();
       else word.add(c);
     }
     if (closer !== null) this.skipped = true;
@@ -297,9 +296,10 @@ class Reader {
     if (opens) this.#expansion(c);
   }
 
-  // The name of a parameter right after a `$`: a word, a digit or a special one such as `$?`.
+  // The name of a parameter right after a `$`: a word, a digit or a special one such as `$?`; zsh's `$=`, `$~`, `$^`
+  // and `$+` expand the name after them.
   #parameter(c: string): string {
-    return NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]$/.test(c) ? c : "");
+    return NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!=~^+-]$/.test(c) ? c : "");
   }
 
   // What follows a `$`: a substitution runs, the rest only makes the word unknown.
@@ -311,21 +311,25 @@ class Reader {
     else if (c === '"') this.#doubleQuoted(new Builder(), '"');
   }
 
-  // `$((...))`: arithmetic, where `<<` shifts; a substitution inside it still runs.
+  // `$((...))`: arithmetic, read when it holds no command. bash and zsh run `$((cmd) )`, whose inner `)` is not followed
+  // by the outer one, as a command substitution.
   #arithmetic(): void {
-    let depth = 1;
-    while (!this.done && depth > 0) {
+    const from = this.#i;
+    let depth = 0;
+    do {
       const c = this.#peek();
       this.#i += 1;
       if (c === "(") depth += 1;
       else if (c === ")") depth -= 1;
-      else if (c === "$" || c === "`") this.#inner(c);
-    }
-    if (depth > 0) this.skipped = true;
+    } while (!this.done && depth > 0);
+    if (this.#peek() !== ")" || /\$\(|`/.test(this.#text.slice(from, this.#i))) this.#outside();
+    this.#i += 1;
   }
 
-  // `${...}`: unknown, but a substitution inside it still runs, and its quotes hold `}` and `{`.
+  // `${...}`: unknown, but a substitution inside it still runs, and its quotes hold `}` and `{`. zsh's parameter flags,
+  // `${(e)...}` among them, can run what they expand.
   #braced(): void {
+    if (this.#peek() === "(") this.#outside();
     let depth = 1;
     while (!this.done && depth > 0) {
       const c = this.#peek();
@@ -338,26 +342,12 @@ class Reader {
     if (depth > 0) this.skipped = true;
   }
 
-  // A quote, substitution or parameter inside `${...}` or `$((...))`.
+  // A quote, substitution or parameter inside `${...}`.
   #inner(c: string): void {
     if (c === "'") this.#singleQuoted(new Builder());
     else if (c === '"') this.#doubleQuoted(new Builder(), '"');
     else if (c === "$") this.#dollar(new Builder(), false);
-    else if (c === "`") this.#backquoted(new Builder(), true);
-  }
-
-  // A backquoted substitution: its text, with `\``, `\\` and `\$` unescaped, runs as a script of its own.
-  #backquoted(word: Builder, inQuotes: boolean): void {
-    word.expand(!inQuotes);
-    let inner = "";
-    while (!this.done && this.#peek() !== "`") {
-      const c = this.#peek();
-      this.#i += 1;
-      inner += c === "\\" && "`\\$".includes(this.#peek()) ? this.#text.charAt(this.#i++) : c;
-    }
-    if (this.done) this.skipped = true;
-    this.#i += 1;
-    this.#adopt(readShell(inner));
+    else if (c === "`") this.#outside();
   }
 }
 
@@ -366,5 +356,5 @@ export const readShell = (text: string): Script => {
   const reader = new Reader(text);
   reader.script(null);
   reader.finish();
-  return { commands: reader.commands, skipped: reader.skipped, unmodeled: reader.unmodeled };
+  return { commands: reader.commands, skipped: reader.skipped };
 };

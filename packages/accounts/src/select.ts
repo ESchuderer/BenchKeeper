@@ -78,6 +78,10 @@ const margin = (account: Account, readings: readonly Current[], model: string | 
   return unknown && smallest >= 0 ? null : smallest;
 };
 
+/** An account's smallest margin above the minimums, by the readings counted at `now`; null when a window is unknown. */
+export const headroom = (account: Account, readings: readonly Current[], model: string | undefined, now: number) =>
+  margin(account, counted(readings, now), model);
+
 /**
  * What claude-swap says of the pool's accounts, which a new worker's choice honors (owner decision, 2026-11-07): its
  * `autoswitch.strategy`, each account's priority tier (0 when it has none), the accounts it has disabled, and the one

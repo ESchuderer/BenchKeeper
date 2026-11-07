@@ -253,6 +253,24 @@ export const accountsAdd = (
   return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
 };
 
+/** Binds a folder to an account or pool for the workers launched in it or below it, as a plan with undo. */
+export const accountsMap = (ctx: Context, name: string, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planMap(ctx.config, name, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real, target } = planned.value;
+  const on = "account" in target ? `account ${target.account}` : `pool ${target.pool}`;
+  const note = `\nWorkers launched in ${real} or below it run on ${on}.`;
+  return change(ctx, plan, { note, data: { folder: real }, findings: [] }, yes);
+};
+
+/** Removes a folder's binding, as a plan with undo. */
+export const accountsUnmap = (ctx: Context, folder: string, { yes }: { yes?: true }): number => {
+  const planned = useCases.planUnmap(ctx.config, folder);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, folder: real } = planned.value;
+  return change(ctx, plan, { note: "", data: { folder: real }, findings: [] }, yes);
+};
+
 /** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */
 export const accountsHome = (ctx: Context, name: string, { yes }: { yes?: true }): number => {
   const planned = useCases.planHome(ctx.config, ctx.state, name);

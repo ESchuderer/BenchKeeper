@@ -19,7 +19,7 @@ import {
   sha256,
 } from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
-import { failCommits } from "./helpers.ts";
+import { failCommits } from "./fail-commits.ts";
 
 const plan: Plan = {
   schemaVersion: 1,
@@ -140,16 +140,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 18 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 19 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 17 is the last schema before 0.1.0, whose switches had no trigger.
-  const dir = storeAt(17);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 17, known: 18 } } };
+  // 18 is the last schema before 0.1.0, which had no outbox.
+  const dir = storeAt(18);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 18, known: 19 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 17 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 18 });
   after.close();
 });
 

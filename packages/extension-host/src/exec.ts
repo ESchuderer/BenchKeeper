@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import type { ExtensionManifest } from "@cedarloom/contracts";
 import { type ExecResult, HOST_FAILED, HOST_MISSING, HOST_REFUSED } from "@cedarloom/extension-sdk";
+import { cleanEnv, programPath, runnable } from "@cedarloom/orchestration";
 import { type CancellationToken, ResponseError } from "vscode-jsonrpc/node";
 import { z } from "zod";
 import { stopTree } from "./tree.ts";
@@ -32,48 +32,19 @@ const Request = z.strictObject({
   timeoutMs: z.int().min(1).optional(),
 });
 
-// What a program needs to find the user's configuration, runtime and temp folders and to reach the network through
-// the user's proxy, and nothing more: no token, no CLAUDE_CONFIG_DIR or CLAUDE_SECURESTORAGE_CONFIG_DIR (which take a
-// tool away from the default home; claude-swap refuses to run with them), no GIT_*. Names compare in upper case, so
-// Windows' Path and a lower-case http_proxy count.
-const KEPT = new Set(
-  ["HOME", "PATH", "USER", "LOGNAME", "LANG", "LC_ALL", "TZ", "TMPDIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME"].concat(
-    ["XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR", "SYSTEMROOT", "WINDIR", "USERPROFILE", "APPDATA"],
-    ["LOCALAPPDATA", "TEMP", "TMP", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"],
-  ),
-);
-const cleanEnv = (): NodeJS.ProcessEnv =>
-  Object.fromEntries(Object.entries(process.env).filter(([name]) => KEPT.has(name.toUpperCase())));
-// The program search path: on Windows its name has any case, and a desktop's is spelled Path.
-const searchPath = (env: NodeJS.ProcessEnv): string =>
-  process.platform === "win32"
-    ? (Object.entries(env).find(([name]) => name.toUpperCase() === "PATH")?.[1] ?? "")
-    : (env["PATH"] ?? "");
+// Beyond a worker's base set, what a program needs to find the user's configuration, runtime and temp folders and to
+// reach the network through the user's proxy: no token, no CLAUDE_CONFIG_DIR or CLAUDE_SECURESTORAGE_CONFIG_DIR (which
+// take a tool away from the default home; claude-swap refuses to run with them), no GIT_*.
+const XDG = ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"];
+const PROXIES = ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy"];
+const KEPT = ["USER", "LOGNAME", "TMPDIR", ...XDG, ...PROXIES];
 const PLATFORMS = new Set(["darwin", "linux", "win32"] as const);
 
-// A file this user may run; on Windows an .exe or .com, since a .cmd or .bat would run through a shell.
-const runnable = (path: string): boolean => {
-  try {
-    if (!statSync(path).isFile()) return false;
-    if (process.platform === "win32") return /\.(?:exe|com)$/i.test(path);
-    accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-// Where a candidate is: `~/` and a path in the user's home folder, or a file name in an absolute PATH folder (a
-// relative one would follow the current folder).
-const located = (candidate: string, path: string): string | undefined => {
-  if (candidate.startsWith("~/")) {
-    const file = join(homedir(), ...candidate.slice(2).split("/"));
-    return runnable(file) ? file : undefined;
-  }
-  const named = process.platform !== "win32" || /\.(?:exe|com)$/i.test(candidate);
-  const names = named ? [candidate] : [`${candidate}.exe`, `${candidate}.com`];
-  const folders = path.split(delimiter).filter((folder) => isAbsolute(folder));
-  return folders.flatMap((folder) => names.map((name) => join(folder, name))).find(runnable);
+// Where a candidate is: `~/` and a path in the user's home folder, or a file name in an absolute PATH folder.
+const located = (candidate: string, env: NodeJS.ProcessEnv): string | undefined => {
+  if (!candidate.startsWith("~/")) return programPath(candidate, env);
+  const file = join(homedir(), ...candidate.slice(2).split("/"));
+  return runnable(file) ? file : undefined;
 };
 
 const refused = (message: string): ResponseError => new ResponseError(HOST_REFUSED, message);
@@ -85,13 +56,13 @@ const resolve = (manifest: ExtensionManifest, program: string, env: NodeJS.Proce
   // A platform the manifest cannot name has no candidates.
   const platform = [...PLATFORMS].find((each) => each === process.platform);
   const candidates = platform === undefined ? [] : (programs[program]?.[platform] ?? []);
-  const file = candidates.map((candidate) => located(candidate, searchPath(env))).find(Boolean);
+  const file = candidates.map((candidate) => located(candidate, env)).find(Boolean);
   return file ?? new ResponseError(HOST_MISSING, `${program} is not installed: none of ${candidates.join(", ")} found`);
 };
 
 /** Whether host/exec would find the program from the manifest's candidates for this platform. */
 export const programFound = (manifest: ExtensionManifest, program: string): boolean =>
-  !(resolve(manifest, program, cleanEnv()) instanceof ResponseError);
+  !(resolve(manifest, program, cleanEnv(process.env, process.platform, KEPT)) instanceof ResponseError);
 
 type Run = { file: string; args: string[]; env: NodeJS.ProcessEnv; ms: number; bytes: number; stop: AbortSignal };
 
@@ -156,7 +127,7 @@ export const executor = (broker: Broker) => {
   return async (params: unknown, token: CancellationToken): Promise<Answer> => {
     const parsed = Request.safeParse(params);
     if (!parsed.success) return refused("invalid request");
-    const env = cleanEnv();
+    const env = cleanEnv(process.env, process.platform, KEPT);
     const file = resolve(broker.manifest, parsed.data.program, env);
     if (file instanceof ResponseError) return file;
     if (running >= broker.limits.execs) return refused(`more than ${broker.limits.execs} programs at once`);

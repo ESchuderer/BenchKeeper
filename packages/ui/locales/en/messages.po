@@ -450,3 +450,71 @@ msgstr "Not saved as a draft: {reason}"
 #. js-lingui-explicit-id
 msgid "draft.overwrote"
 msgstr "The draft of {id} had changed in another tab or an earlier session; this tab's version replaced it."
+
+#. js-lingui-explicit-id
+msgid "nav.profile"
+msgstr "Profile"
+
+#. js-lingui-explicit-id
+msgid "profile.plan"
+msgstr "{count, plural, =0 {The plan changes no file on this machine.} one {The plan changes # file on this machine; apply it with cedarloom profiles apply.} other {The plan changes # files on this machine; apply it with cedarloom profiles apply.}}"
+
+#. js-lingui-explicit-id
+msgid "profile.level"
+msgstr "{level, select, machine {Machine} workspace {Workspace} other {Project}}"
+
+#. js-lingui-explicit-id
+msgid "profile.when"
+msgstr "{when, select, orca {Automatic: on while Orca is installed and its extension is on.} devcontainer {Automatic: on in a project with a dev container.} gates {Automatic: on once this machine names its gate workflow source.} other {Automatic: on in a project without a dev container.}}"
+
+#. js-lingui-explicit-id
+msgid "problem.partUnknown"
+msgstr "{by} names the part {part}, which the profile does not have."
+
+#. js-lingui-explicit-id
+msgid "problem.partRequires"
+msgstr "{part} needs {requires}, which is off. Switch one of them."
+
+#. js-lingui-explicit-id
+msgid "problem.bindingMissing"
+msgstr "{part} needs this machine's {binding} repository. Name it with cedarloom profiles bind {binding}, or switch the part off."
+
+#. js-lingui-explicit-id
+msgid "problem.bindingWaiting"
+msgstr "{part} stays off until this machine names its {binding} source with cedarloom profiles bind {binding}."
+
+#. js-lingui-explicit-id
+msgid "problem.drift"
+msgstr "{subject} {status, select, missing {lacks what the profile writes there; an apply writes it.} outdated {holds an older version of what the profile writes there; an apply updates it.} deselected {is no longer part of the profile; an apply removes it.} other {was not checked, as a Git source of the profile could not be fetched.}}"
+
+#. js-lingui-explicit-id
+msgid "problem.driftRemovable"
+msgstr "{subject} is no longer part of the profile. Remove it if you want: cedarloom profiles apply --remove {remove}"
+
+#. js-lingui-explicit-id
+msgid "problem.extra"
+msgstr "{item} is not named by the profile. Remove it if you want: cedarloom profiles apply --remove {item}"
+
+#. js-lingui-explicit-id
+msgid "problem.ownerChanged"
+msgstr "{path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is."
+
+#. js-lingui-explicit-id
+msgid "problem.approvalNeeded"
+msgstr "{part} adds or changes the plugin {plugin}, whose hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow {part}"
+
+#. js-lingui-explicit-id
+msgid "problem.whenUnmet"
+msgstr "{part} is switched on but stays off while Orca is not here: install Orca, or switch its extension back on with cedarloom components switch cedarloom.orca auto."
+
+#. js-lingui-explicit-id
+msgid "profile.held"
+msgstr "The plan waits for the lines below."
+
+#. js-lingui-explicit-id
+msgid "problem.gitFailed"
+msgstr "Git failed to {step} ({error})."
+
+#. js-lingui-explicit-id
+msgid "problem.sourceWaiting"
+msgstr "{source} has a new commit {commit}; it is taken from {offered}, 3 days after this machine first saw it."

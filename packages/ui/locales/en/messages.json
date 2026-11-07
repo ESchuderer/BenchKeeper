@@ -78,12 +78,36 @@
     "nav.accounts": ["Accounts"],
     "nav.label": ["Views"],
     "nav.memory": ["Memory"],
+    "nav.profile": ["Profile"],
     "nav.runs": ["Runs"],
     "nav.sessions": ["Sessions"],
     "nav.toggle": ["Show the views"],
     "nav.usage": ["Usage"],
     "nav.workItems": ["Work items"],
     "nav.workflows": ["Workflows"],
+    "problem.approvalNeeded": [
+      ["part"],
+      " adds or changes the plugin ",
+      ["plugin"],
+      ", whose hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ",
+      ["part"]
+    ],
+    "problem.bindingMissing": [
+      ["part"],
+      " needs this machine's ",
+      ["binding"],
+      " repository. Name it with cedarloom profiles bind ",
+      ["binding"],
+      ", or switch the part off."
+    ],
+    "problem.bindingWaiting": [
+      ["part"],
+      " stays off until this machine names its ",
+      ["binding"],
+      " source with cedarloom profiles bind ",
+      ["binding"],
+      "."
+    ],
     "problem.cycle": ["The nodes ", ["nodes"], " form a cycle; repeats need an explicit loop node."],
     "problem.danglingEdge": ["Edge ", ["edge"], " starts or ends at ", ["ref"], ", which does not exist."],
     "problem.documentInvalid": ["It does not match the workflow schema: ", ["issues"], "."],
@@ -98,6 +122,25 @@
       " bytes; a draft holds at most ",
       ["limit"],
       "."
+    ],
+    "problem.drift": [
+      ["subject"],
+      " ",
+      [
+        "status",
+        "select",
+        {
+          "missing": ["lacks what the profile writes there; an apply writes it."],
+          "outdated": ["holds an older version of what the profile writes there; an apply updates it."],
+          "deselected": ["is no longer part of the profile; an apply removes it."],
+          "other": ["was not checked, as a Git source of the profile could not be fetched."]
+        }
+      ]
+    ],
+    "problem.driftRemovable": [
+      ["subject"],
+      " is no longer part of the profile. Remove it if you want: cedarloom profiles apply --remove ",
+      ["remove"]
     ],
     "problem.duplicateEdge": [
       "Edge ",
@@ -125,6 +168,12 @@
       ["type"],
       ", an extension action that is not installed, so the workflow cannot run until its extension is."
     ],
+    "problem.extra": [
+      ["item"],
+      " is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ",
+      ["item"]
+    ],
+    "problem.gitFailed": ["Git failed to ", ["step"], " (", ["error"], ")."],
     "problem.incompatibleHandles": [
       "Edge ",
       ["edge"],
@@ -150,6 +199,12 @@
       ["input"],
       " is optional and has no default."
     ],
+    "problem.ownerChanged": [
+      ["path"],
+      " was changed or made outside CedarLoom since its last write, so the plan leaves it as it is."
+    ],
+    "problem.partRequires": [["part"], " needs ", ["requires"], ", which is off. Switch one of them."],
+    "problem.partUnknown": [["by"], " names the part ", ["part"], ", which the profile does not have."],
     "problem.reportOnlyExtension": [
       "Node ",
       ["node"],
@@ -166,6 +221,14 @@
       " needs a default."
     ],
     "problem.severity": [["severity", "select", { "error": ["Error"], "warning": ["Warning"], "other": ["Note"] }]],
+    "problem.sourceWaiting": [
+      ["source"],
+      " has a new commit ",
+      ["commit"],
+      "; it is taken from ",
+      ["offered"],
+      ", 3 days after this machine first saw it."
+    ],
     "problem.strayEntry": [
       "The ",
       ["section"],
@@ -186,7 +249,38 @@
     "problem.unknownHandle": ["Edge ", ["edge"], " uses the handle ", ["handle"], ", which that node type lacks."],
     "problem.unknownNodeType": ["Node ", ["node"], " has the type ", ["type"], ", which this CedarLoom does not know."],
     "problem.unreachable": ["Nothing leads to node ", ["node"], " from the trigger, so it never runs."],
+    "problem.whenUnmet": [
+      ["part"],
+      " is switched on but stays off while Orca is not here: install Orca, or switch its extension back on with cedarloom components switch cedarloom.orca auto."
+    ],
     "problem.workflowOutput": ["The workflow output ", ["handle"]],
+    "profile.held": ["The plan waits for the lines below."],
+    "profile.level": [
+      ["level", "select", { "machine": ["Machine"], "workspace": ["Workspace"], "other": ["Project"] }]
+    ],
+    "profile.plan": [
+      [
+        "count",
+        "plural",
+        {
+          "0": ["The plan changes no file on this machine."],
+          "one": ["The plan changes ", "#", " file on this machine; apply it with cedarloom profiles apply."],
+          "other": ["The plan changes ", "#", " files on this machine; apply it with cedarloom profiles apply."]
+        }
+      ]
+    ],
+    "profile.when": [
+      [
+        "when",
+        "select",
+        {
+          "orca": ["Automatic: on while Orca is installed and its extension is on."],
+          "devcontainer": ["Automatic: on in a project with a dev container."],
+          "gates": ["Automatic: on once this machine names its gate workflow source."],
+          "other": ["Automatic: on in a project without a dev container."]
+        }
+      ]
+    ],
     "run.kind": [["kind", "select", { "apply": ["Apply"], "undo": ["Undo"], "other": [["kind"]] }]],
     "run.nothingToUndo": ["Nothing to undo."],
     "run.skipped": [

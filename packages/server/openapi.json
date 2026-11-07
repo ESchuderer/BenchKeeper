@@ -3423,7 +3423,8 @@
                       "initialize",
                       "run",
                       "doctor",
-                      "target"
+                      "target",
+                      "worker"
                     ]
                   },
                   "error": {
@@ -4640,6 +4641,248 @@
               "params"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-approved"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "hash": {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  },
+                  "approvedHash": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "hash",
+                  "approvedHash"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.key-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-hub"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "repo"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.status"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-undoable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "unchanged",
+                      "no-inverse"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "tracker.unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "tracker.refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -5458,6 +5701,164 @@
           "review",
           "planHash",
           "plan"
+        ],
+        "additionalProperties": false
+      },
+      "ProfilePartInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "machine",
+              "workspace",
+              "project"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer",
+                  "gates"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "title",
+          "description",
+          "on",
+          "when"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileViewInput": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfilePartInput"
+            }
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFileInput"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256Input"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256Input"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdateInput"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingInput"
+            }
+          },
+          "held": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "parts",
+          "plan",
+          "findings",
+          "held"
         ],
         "additionalProperties": false
       },
@@ -9134,7 +9535,8 @@
                       "initialize",
                       "run",
                       "doctor",
-                      "target"
+                      "target",
+                      "worker"
                     ]
                   },
                   "error": {
@@ -10351,6 +10753,248 @@
               "params"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-approved"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "hash": {
+                    "$ref": "#/components/schemas/Sha256"
+                  },
+                  "approvedHash": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "hash",
+                  "approvedHash"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.key-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-hub"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "repo"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.status"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "outbox.not-undoable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "unchanged",
+                      "no-inverse"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "tracker.unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "tracker.refused"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -11171,6 +11815,164 @@
           "review",
           "planHash",
           "plan"
+        ],
+        "additionalProperties": false
+      },
+      "ProfilePart": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "machine",
+              "workspace",
+              "project"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer",
+                  "gates"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "title",
+          "description",
+          "on",
+          "when"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileView": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfilePart"
+            }
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFile"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdate"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          },
+          "held": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "parts",
+          "plan",
+          "findings",
+          "held"
         ],
         "additionalProperties": false
       },
@@ -12372,6 +13174,132 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RunResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Refusal"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/parts/{part}": {
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "on"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "part",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResult"
                 }
               }
             }

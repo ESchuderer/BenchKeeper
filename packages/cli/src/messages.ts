@@ -172,6 +172,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.map-refused": (p) =>
+    ({
+      "unknown-target": `The registry has no account or Claude Code pool named ${p.name}.`,
+      "no-folder": `There is no folder ${p.name} to bind.`,
+      "not-mapped": `The folder ${p.name} is bound to no account or pool.`,
+    })[p.reason],
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "doctor.logged-out": (p) =>

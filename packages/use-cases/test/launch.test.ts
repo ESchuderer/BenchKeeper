@@ -25,6 +25,7 @@ import {
 } from "@cedarloom/contracts";
 import { openGraphStore, openRunStore, type RunStore } from "@cedarloom/ledger";
 import {
+  applyPlan,
   cancelRun,
   type Decided,
   doctor,
@@ -33,6 +34,7 @@ import {
   listGraphRuns,
   MAX_CONCURRENT,
   ownHome,
+  planMap,
   resumeRun,
   runWorkflow,
   showLaunch,
@@ -72,8 +74,10 @@ const host = {
   fetchTree: marketplace(["workflow", "benchkeeper"]),
 } as const;
 
-// A config folder with one confirmed Claude Code pool of `names`, each in its own home, which exists.
-const setup = (names: readonly string[] = ["work"]) => {
+// A config folder with confirmed Claude Code pools of `names`, each in its own home, which exists: main, unless
+// `pools` names another.
+const setup = (names: readonly string[] = ["work"], pools: Readonly<Record<string, string>> = {}) => {
+  const poolOf = (name: string): string => pools[name] ?? "main";
   const root = mkdtempSync(join(tmpdir(), "cedarloom-launch-"));
   const state = join(root, "state");
   const config = join(root, "config");
@@ -85,10 +89,17 @@ const setup = (names: readonly string[] = ["work"]) => {
       name,
       agent: "claude",
       home: ownHome(state, name),
-      pool: "main",
+      pool: poolOf(name),
       added: AT,
     })),
-    pools: { claude: { main: { confirmedAt: AT, confirmedFor: [...names] } } },
+    pools: {
+      claude: Object.fromEntries(
+        [...new Set(["main", ...names.map(poolOf)])].map((pool) => [
+          pool,
+          { confirmedAt: AT, confirmedFor: names.filter((name) => poolOf(name) === pool) },
+        ]),
+      ),
+    },
   };
   writeFileSync(join(config, "accounts.json"), formatRegistry(registry));
   return { state, config, work };
@@ -282,6 +293,42 @@ test("a worker's run keeps the totals its result reported, which its view shows"
   expect(showLaunch(state, runIdOf(9))).toEqual({
     ok: false,
     finding: { code: "run.not-found", params: { runId: runIdOf(9) } },
+  });
+});
+
+// Applies `accounts map` of each folder to its account or pool.
+const map = (state: string, config: string, bindings: readonly (readonly [string, string])[]) => {
+  for (const [name, folder] of bindings) {
+    const planned = planMap(config, name, folder);
+    if (!planned.ok) throw new Error(planned.finding.code);
+    applyPlan(state, planned.value.plan, { yes: true });
+  }
+};
+
+test("a worker launched below folders bound by accounts map runs on the deepest one's account, if within its line", async () => {
+  const { state, config, work } = setup(["work", "spare"]);
+  const project = realpathSync(work);
+  const inner = join(project, "packages");
+  mkdirSync(inner);
+  map(state, config, [
+    ["work", project],
+    ["spare", inner],
+  ]);
+  // Without readings the choice would stay on the pool's first account, work, as would the outer binding.
+  const below = { ...request(work, { result: passing }), project: join(inner, "app") };
+  const outcome = await launchWorker(state, config, below, host);
+  expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", account: "spare" } });
+  // A bound account below its line starts no worker, and no other account is taken.
+  const reading = {
+    account: "spare",
+    window: "fiveHour",
+    usedPercent: 95,
+    resetsAt: "2099-01-01T00:00:00.000Z",
+  } as const;
+  withLedger(state, (store) => store.recordReading({ ...reading, readAt: new Date().toISOString() }));
+  expect(await launchWorker(state, config, below, host)).toEqual({
+    ok: true,
+    value: { kind: "no-account", reason: "no-headroom" },
   });
 });
 
@@ -791,6 +838,22 @@ test("an agent fails, saying why, before it makes a worktree or a branch; one st
   ]);
   // Only the run whose session started has a worktree and a branch.
   expect([runFolders(state).length, branches(work).length]).toEqual([1, 1]);
+}, 30_000);
+
+test("an agent in a folder bound to a pool chooses from that pool, where two unbound pools refuse it", async () => {
+  const { state, config, work } = setup(["work", "spare"], { spare: "second" });
+  const file = agentWorkflow(work, REVIEW);
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  await runWorkflow(state, file, {}, { project: work, agents });
+  map(state, config, [["second", work]]);
+  expect(await runWorkflow(state, file, {}, { project: work, agents })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(attemptsOf(state).map((row) => row.outputs)).toEqual([
+    { error: "no-single-pool" },
+    { result: "Reviewed.", verdict: "pass" },
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((each) => each.account))).toEqual(["spare"]);
 }, 30_000);
 
 test("an add of the worktree that failed is tried again by the next attempt, and lets its lease go", async () => {

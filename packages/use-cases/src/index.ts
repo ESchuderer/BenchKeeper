@@ -88,3 +88,4 @@ export {
   showGraphRun,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
+export { type Choice, claudeHome, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";

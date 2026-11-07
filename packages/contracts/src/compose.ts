@@ -34,7 +34,8 @@ const inside = (value: Json | undefined, at: string): string[] => {
 };
 // Records the file that set the value at a pointer. A value replaced whole forgets who set what was inside it, by the
 // pointers of that value alone, so the cost follows the replaced value, never the whole record.
-type Mark = (at: string, replaced?: Json) => void;
+/** Called with the JSON Pointer of each value a merge sets, and the value it replaces there. */
+export type Mark = (at: string, replaced?: Json) => void;
 type Level = "machine" | "workspace" | "project";
 const recorder =
   (setBy: Record<string, string>, layer: string): Mark =>
@@ -57,15 +58,15 @@ const union = (before: Json[], after: Json[], at: string, mark: Mark): Json[] =>
   return merged;
 };
 
-// Lists grow, objects merge key by key, and anything else takes the later value.
-const merge = (before: Json | undefined, after: Json, at: string, mark: Mark): Json => {
+/** The merge of every `set` and part field: lists grow, objects merge key by key, anything else takes the later value. */
+export const mergeJson = (before: Json | undefined, after: Json, at: string, mark: Mark): Json => {
   if (Array.isArray(before) && Array.isArray(after)) return union(before, after, at, mark);
   if (!isTree(before) || !isTree(after)) {
     mark(at, before);
     return after;
   }
   const merged = { ...before };
-  for (const [key, item] of present(after)) merged[key] = merge(before[key], item, pointer(at, key), mark);
+  for (const [key, item] of present(after)) merged[key] = mergeJson(before[key], item, pointer(at, key), mark);
   return merged;
 };
 
@@ -87,7 +88,7 @@ const mergePart = (before: Tree, after: Tree, at: string, mark: Mark): Tree => {
   for (const [key, item] of present(after)) {
     const field = pointer(at, key);
     if (key === "files" && isTree(item)) merged[key] = wholes(before[key], item, field, mark);
-    else if (!SOURCES.has(key) || Array.isArray(item)) merged[key] = merge(before[key], item, field, mark);
+    else if (!SOURCES.has(key) || Array.isArray(item)) merged[key] = mergeJson(before[key], item, field, mark);
     else {
       mark(field, before[key]);
       merged[key] = item;
@@ -140,7 +141,7 @@ const packConflict = (layer: ProfileFile, head: Tree, setBy: Record<string, stri
 };
 
 const mergeLayer = (layer: ProfileFile, head: Tree, parts: Record<Level, Tree>, mark: Mark): void => {
-  if (layer.agents !== undefined) head["agents"] = merge(head["agents"], layer.agents, "/agents", mark);
+  if (layer.agents !== undefined) head["agents"] = mergeJson(head["agents"], layer.agents, "/agents", mark);
   if (layer.packs !== undefined) head["packs"] = wholes(head["packs"], layer.packs, "/packs", mark);
   for (const level of ["machine", "workspace", "project"] as const) {
     for (const [id, each] of Object.entries(layer[level] ?? {})) {

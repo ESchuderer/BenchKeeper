@@ -16,10 +16,11 @@ let input = Buffer.alloc(0);
 const pending = new Map();
 let asked = 0;
 
-const send = (message) => {
+const frame = (message) => {
   const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", ...message }));
-  process.stdout.write(Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]));
+  return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
 };
+const send = (message) => process.stdout.write(frame(message));
 
 // Asks the host and answers its result or its error.
 const ask = (method, params) =>
@@ -100,6 +101,15 @@ const actions = {
       await answered;
     }
     return {};
+  },
+  // Sends a request and its cancel in one write, so the cancel arrives before the host has started on the request.
+  "fetch-cancelled": async () => {
+    const answered = new Promise((resolve) => pending.set("early", resolve));
+    const request = { id: "early", method: "host/fetch", params: { url: "https://api.acme.example/slow" } };
+    process.stdout.write(
+      Buffer.concat([frame(request), frame({ method: "$/cancelRequest", params: { id: "early" } })]),
+    );
+    return { error: (await answered).error };
   },
   oversize: () => {
     process.stdout.write(`Content-Length: ${64 * 1024 * 1024}\r\n\r\n`);

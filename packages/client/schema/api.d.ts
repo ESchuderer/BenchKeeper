@@ -1078,6 +1078,7 @@ export interface components {
             code: "run.sandbox-unavailable";
             params: {
                 node: string;
+                reason: string;
             };
         } | {
             /** @constant */
@@ -2268,6 +2269,7 @@ export interface components {
             code: "run.sandbox-unavailable";
             params: {
                 node: string;
+                reason: string;
             };
         } | {
             /** @constant */

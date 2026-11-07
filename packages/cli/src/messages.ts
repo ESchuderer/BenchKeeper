@@ -97,7 +97,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The project folder ${p.project} is not there, so no command of the run could run there.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "run.sandbox-unavailable": (p) =>
-    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here; run the workflow without --report.`,
+    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here (${p.reason}); run the workflow without --report.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,

@@ -477,6 +477,8 @@ test("a machine's plan keeps the record of a project's skill sources, even of a 
   expect([entry(), before?.commit]).toEqual([before, "1".repeat(40)]);
 });
 
+const plugin = (path: string) => ({ skill: "acme.skills/skills/review", path });
+
 test("a skill's file a link leads onto a sealed name, or a skill that is a plugin, stops the plan", async () => {
   const pinned = { "acme.skills": { git: "https://x.example/a.git", commit: "1".repeat(40), digest: "2".repeat(64) } };
   const box = custom(packsPart(["acme.skills"]), pinned);
@@ -486,13 +488,14 @@ test("a skill's file a link leads onto a sealed name, or a skill that is a plugi
   symlinkSync(join(linked, ".claude"), join(linked, ".claude", "skills", "review"), "junction");
   const target = ".claude/skills/review/settings.json";
   const params = { part: "project", target, path: join(linked, ".claude", "settings.json") };
-  const plugin = { skill: "acme.skills/skills/review", path: ".claude-plugin/plugin.json" };
   expect([
     await planned(box, linked, packWith(REVIEW, ["skills/review/settings.json"])),
     await planned(box, projectWith(), packWith(REVIEW, ["skills/review/.claude-plugin/plugin.json"])),
+    await planned(box, projectWith(), packWith(REVIEW, ["skills/review/.Claude-Plugin/plugin.json"])),
   ]).toEqual([
     { ok: false, finding: { code: "profile.target-linked", params } },
-    { ok: false, finding: { code: "profile.skill-plugin", params: plugin } },
+    { ok: false, finding: { code: "profile.skill-plugin", params: plugin(".claude-plugin/plugin.json") } },
+    { ok: false, finding: { code: "profile.skill-plugin", params: plugin(".Claude-Plugin/plugin.json") } },
   ]);
 });
 

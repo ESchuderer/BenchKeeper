@@ -31,7 +31,8 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
 // at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
 // ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
-// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL; once it has exited, kill() sends nothing.
+// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL; its exit clears the timer, since a signal sent after it
+// would reach any process that reuses its ID (https://nodejs.org/api/child_process.html#subprocesskillsignal).
 // shortcut: SIGKILL ends the CLI, not commands a wedged CLI left; upgrade to a process group of its own once the host
 // stops the CLI on SIGHUP and on a crash too.
 const stop = (child: ChildProcess, killAfterMs: number): void => {
@@ -47,7 +48,8 @@ const stop = (child: ChildProcess, killAfterMs: number): void => {
   }
   /* v8 ignore stop */
   child.kill();
-  setTimeout(() => child.kill("SIGKILL"), killAfterMs).unref();
+  const timer = setTimeout(() => child.kill("SIGKILL"), killAfterMs).unref();
+  child.once("exit", () => clearTimeout(timer));
 };
 
 // The CLI's own bound on its exit after SIGTERM (30 s, above), with a margin.

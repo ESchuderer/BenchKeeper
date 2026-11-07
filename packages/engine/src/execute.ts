@@ -11,12 +11,13 @@ import type {
 } from "@cedarloom/contracts";
 import type { GraphStore, RunLease } from "@cedarloom/ledger";
 import { own } from "./graph.ts";
-import { type Action, startRun, step } from "./schedule.ts";
+import { type Action, startRun, step, timeoutOf } from "./schedule.ts";
 
 type Values = Record<string, Json>;
 type Start = Extract<Action, { type: "start" }>;
 type Ended = (ok: boolean, values: Values, why: unknown) => void;
-type Going = { readonly prepared: Prepared; readonly controller: AbortController };
+type Going<P = Prepared> = { readonly prepared: P; readonly controller: AbortController };
+type Open = { readonly node: string; readonly attempt: number; readonly sessionId: string | null };
 type Typed = { readonly type: string; readonly config: Readonly<Record<string, Json>> };
 
 /** The most of an output value a run keeps: 1 MiB. A longer string is cut there, any other value is dropped. */
@@ -25,6 +26,8 @@ export const OUTPUT_CAP = 1024 * 1024;
 /** An attempt as its executor gets it: the node's configuration, the run's inputs, and the signal to stop. */
 export interface Attempt {
   readonly node: string;
+  /** The attempt's number, from 1; 0 for a precheck. */
+  readonly attempt: number;
   readonly config: Readonly<Record<string, Json>>;
   readonly inputs: Readonly<Values>;
   /** Aborted with the reason `timed-out`, `cancelled` or `lost` (another runner took the run over). */
@@ -49,6 +52,17 @@ export interface Prepared {
  */
 export type Executors = Readonly<Record<string, (attempt: Attempt) => Prepared | Promise<Prepared>>>;
 
+/** An attempt a dead runner left started, as the runner that took the run over finds it, with its last session. */
+export interface Left extends Attempt {
+  readonly sessionId: string | null;
+}
+
+/**
+ * How a runner that took a run over goes on with an attempt a dead runner left started: an attempt to let go, such as
+ * one that found its result or resumed its session, or null when nothing is left to go on with: it ends interrupted.
+ */
+export type Recovery = (left: Left) => Prepared | null | Promise<Prepared | null>;
+
 export interface ExecuteOptions {
   readonly executors: Executors;
   /** Cancels the run. */
@@ -57,6 +71,8 @@ export interface ExecuteOptions {
   readonly sleep?: ((ms: number, signal: AbortSignal) => Promise<unknown>) | undefined;
   /** Called after each event is committed. */
   readonly onEvent?: ((event: JournalEvent) => void) | undefined;
+  /** By node type, how a run taken over goes on with an attempt left started; without one it ends interrupted (Q4). */
+  readonly recover?: Readonly<Record<string, Recovery>> | undefined;
 }
 
 const RUN_EVENTS = new Set(["precheck", "ended", "decided", "cancel"]);
@@ -95,13 +111,16 @@ export const capped = (values: Values): Values => {
   return { ...values, ...kept, truncated: over.map(([name]) => name) };
 };
 
-// The attempts a crashed runner left started: each ends interrupted before anything new starts (Q4).
-const interrupted = (journal: readonly JournalEvent[]): JournalEvent[] => {
-  const open = new Map<string, JournalEvent>();
+// The attempts a crashed runner left started, each with the session it recorded last.
+const opened = (journal: readonly JournalEvent[]): Open[] => {
+  const open = new Map<string, Open>();
   for (const event of journal) {
     if (event.type === "started") {
       const { node, attempt } = event;
-      open.set(key(node, attempt), { type: "ended", node, attempt, outcome: "interrupted" });
+      open.set(key(node, attempt), { node, attempt, sessionId: null });
+    } else if (event.type === "session") {
+      const left = open.get(key(event.node, event.attempt));
+      if (left !== undefined) open.set(key(event.node, event.attempt), { ...left, sessionId: event.sessionId });
     } else if (event.type === "ended") open.delete(key(event.node, event.attempt));
   }
   return [...open.values()];
@@ -168,9 +187,13 @@ class Runner {
     this.#options = options;
   }
 
-  /** Carries out the actions left from the journal, then each event's actions, until the run has finished. */
-  async run(actions: readonly Action[]): Promise<Result<RunStatus>> {
+  /**
+   * Goes on with the attempts `left` started, carries out the actions left from the journal, then each event's actions,
+   * until the run has finished.
+   */
+  async run(actions: readonly Action[], left: readonly Open[]): Promise<Result<RunStatus>> {
     this.#options.signal?.addEventListener("abort", () => this.#post({ type: "cancel" }), { once: true });
+    for (const open of left) void this.#recover(open);
     actions.forEach((action) => this.#handle(action));
     while (this.#status === "running" && this.#lost === null) {
       const event = this.#inbox.shift();
@@ -217,19 +240,44 @@ class Runner {
     }
   }
 
-  // Sets an attempt up; a cancel or a lost run reaches it already while its executor waits. `attempt` 0: a precheck.
-  async #prepare(node: string, attempt: number, { type, config }: Typed): Promise<Going> {
+  // Sets an attempt up with `make`; a cancel or a lost run reaches it already while `make` waits. `attempt` 0: a precheck.
+  async #prepare<P extends Prepared | null>(
+    node: string,
+    attempt: number,
+    config: Typed["config"],
+    make: (given: Attempt) => P | Promise<P>,
+  ): Promise<Going<P | Prepared>> {
     const controller = new AbortController();
     this.#live.set(node, controller);
     const session = (sessionId: string): void => {
       this.#commit({ type: "session", node, attempt, sessionId });
     };
-    const given = { node, config, inputs: this.#state.inputs, signal: controller.signal, session };
+    const given = { node, attempt, config, inputs: this.#state.inputs, signal: controller.signal, session };
     try {
-      return { prepared: await (own(this.#options.executors, type) ?? missing)(given), controller };
+      return { prepared: await make(given), controller };
     } catch (error) {
       return { prepared: thrown(error), controller };
     }
+  }
+
+  #executor(type: string): (given: Attempt) => Prepared | Promise<Prepared> {
+    return (given) => (own(this.#options.executors, type) ?? missing)(given);
+  }
+
+  // Goes on with an attempt a dead runner left started, through its type's recovery; it ends interrupted when that finds
+  // nothing to go on with.
+  async #recover({ node, attempt, sessionId }: Open): Promise<void> {
+    const { type, config } = this.#of(node);
+    const recovery = own(this.#options.recover, type);
+    const going = await this.#prepare(node, attempt, config, (given) => recovery?.({ ...given, sessionId }) ?? null);
+    if (going.prepared === null) {
+      this.#post({ type: "ended", node, attempt, outcome: "interrupted" });
+      return;
+    }
+    const { prepared, controller } = going;
+    await this.#go({ prepared, controller }, timeoutOf(this.#held.workflow, node, type) * 1000, (ok, values, why) => {
+      this.#post({ type: "ended", node, attempt, outcome: outcomeOf(ok, why), values });
+    });
   }
 
   // Lets a prepared attempt go until its timeout; `end` gets its result and why it was aborted, if it was.
@@ -247,7 +295,8 @@ class Runner {
     const node = own(this.#state.nodes, id);
     // A backoff that a stop or a cancel overtook starts nothing.
     if (node?.state !== "running" || node.attempts !== attempt) return;
-    const going = await this.#prepare(id, attempt, this.#of(id));
+    const { type, config } = this.#of(id);
+    const going = await this.#prepare(id, attempt, config, this.#executor(type));
     if (!this.#commit({ type: "started", node: id, attempt, pid: going.prepared.pid })) going.controller.abort("lost");
     await this.#go(going, action.timeoutSeconds * 1000, (ok, values, why) => {
       this.#post({ type: "ended", node: id, attempt, outcome: outcomeOf(ok, why), values });
@@ -271,7 +320,7 @@ class Runner {
 
   async #precheck(node: string): Promise<void> {
     const command = this.#of(node).config["precheck"] ?? "";
-    const going = await this.#prepare(node, 0, { type: "command.run", config: { command } });
+    const going = await this.#prepare(node, 0, { command }, this.#executor("command.run"));
     await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, _, why) => {
       this.#live.delete(node);
       // A cancel ended the trigger already; a precheck that timed out found nothing to do.
@@ -293,9 +342,10 @@ class Runner {
 
 /**
  * Runs a graph run to its end as the runner that holds `lease`, from what its journal holds: nothing for a new run, the
- * events before a crash for one taken over, whose attempts left started end `interrupted` first. Each event is committed
- * before what it records takes effect, one at a time as the run moves, never in a loop of their own. Ends with the
- * run's status, or with the finding of a write the ledger refused, as when another runner took the run over.
+ * events before a crash for one taken over. Its attempts left started go on through their type's recovery, or end
+ * `interrupted` first. Each event is committed before what it records takes effect, one at a time as the run moves,
+ * never in a loop of their own. Ends with the run's status, or with the finding of a write the ledger refused, as when
+ * another runner took the run over.
  */
 export const execute = async (
   store: GraphStore,
@@ -307,7 +357,13 @@ export const execute = async (
   },
   options: ExecuteOptions,
 ): Promise<Result<RunStatus>> => {
-  const ends = interrupted(run.journal);
+  const typeOf = (node: string): string => run.workflow.nodes.find((each) => each.id === node)?.type ?? "";
+  const left = opened(run.journal);
+  const kept = left.filter(({ node }) => own(options.recover, typeOf(node)) !== undefined);
+  // An attempt of a type without a recovery ends interrupted before anything new starts (Q4).
+  const ends = left
+    .filter((open) => !kept.includes(open))
+    .map(({ node, attempt }): JournalEvent => ({ type: "ended", node, attempt, outcome: "interrupted" }));
   for (const event of ends) {
     const written = store.append(lease.runId, lease.epoch, event);
     if (!written.ok) return written;
@@ -316,5 +372,5 @@ export const execute = async (
   const from = resumed(run.workflow, run.inputs, [...run.journal, ...ends]);
   if (!from.ok) return from;
   const runner = new Runner({ store, lease, workflow: run.workflow, state: from.value.state }, options);
-  return runner.run(from.value.actions);
+  return runner.run(from.value.actions, kept);
 };

@@ -2,7 +2,15 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { JournalEvent, Json, WorkflowDefinition } from "@cedarloom/contracts";
-import { type Attempt, capped, type ExecuteOptions, type Executors, execute, OUTPUT_CAP } from "@cedarloom/engine";
+import {
+  type Attempt,
+  capped,
+  type ExecuteOptions,
+  type Executors,
+  execute,
+  OUTPUT_CAP,
+  type Recovery,
+} from "@cedarloom/engine";
 import { type GraphStore, openGraphStore, type RunLease } from "@cedarloom/ledger";
 import { expect, test } from "vitest";
 
@@ -253,6 +261,41 @@ test("once another runner has taken the run over, the run stops writing and ends
   };
   const executors = scripted({ a: [takeOver] });
   expect(await execute(store, next, source, { executors })).toEqual(held(next.runId));
+});
+
+test("an attempt a dead runner left goes on through its type's recovery, with its last session; one it cannot recover ends interrupted", async () => {
+  const left: JournalEvent[] = [
+    { type: "started", node: "a", attempt: 1, pid: null },
+    { type: "session", node: "a", attempt: 1, sessionId: "first" },
+    { type: "session", node: "a", attempt: 1, sessionId: "second" },
+  ];
+  const recovered = async (recover: Recovery) => {
+    const store = graphs();
+    const lease = created(store, workflow());
+    for (const event of left) store.append(lease.runId, 1, event);
+    const source = { workflow: workflow(), inputs: {}, journal: left };
+    const result = await execute(store, lease, source, {
+      executors: scripted({}),
+      recover: { "command.run": recover },
+    });
+    const events = store.events(lease.runId);
+    return { result, events: events.ok ? events.value.slice(left.length) : [] };
+  };
+  const goesOn = await recovered((attempt) => ({
+    pid: null,
+    run: () => Promise.resolve({ ok: true, values: { session: attempt.sessionId, attempt: attempt.attempt } }),
+  }));
+  expect([goesOn.result, trail(goesOn.events), goesOn.events[0]]).toEqual([
+    { ok: true, value: "succeeded" },
+    "ended a#1, started b#1, ended b#1, finished",
+    { type: "ended", node: "a", attempt: 1, outcome: "done", values: { session: "second", attempt: 1 } },
+  ]);
+  const lost = await recovered(() => Promise.resolve(null));
+  expect([lost.result, trail(lost.events), lost.events[0]]).toEqual([
+    { ok: true, value: "failed" },
+    "ended a#1, finished",
+    { type: "ended", node: "a", attempt: 1, outcome: "interrupted" },
+  ]);
 });
 
 test("a run taken over goes on from its journal: started attempts end interrupted, and what was left is done", async () => {

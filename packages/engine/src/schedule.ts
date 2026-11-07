@@ -193,13 +193,14 @@ const settleJoin = (ctx: Ctx, id: string, node: Mutable<NodeRun>, policy: unknow
   return true;
 };
 
-const timeoutOf = (ctx: Ctx, id: string, type: string): number =>
-  own(ctx.workflow.execution?.nodes, id)?.timeoutSeconds ?? (type === "agent.run" ? 7200 : 600);
+/** How long an attempt of the node `id` of `type` may run, in seconds. */
+export const timeoutOf = (workflow: Workflow, id: string, type: string): number =>
+  own(workflow.execution?.nodes, id)?.timeoutSeconds ?? (type === "agent.run" ? 7200 : 600);
 
 const start = (ctx: Ctx, id: string, type: string, attempt: number): void => {
   // Backoff before a retry: 5 s, doubled per failed attempt, at most 5 min.
   const delayMs = attempt === 1 ? 0 : Math.min(5000 * 2 ** (attempt - 2), 300_000);
-  const timeoutSeconds = timeoutOf(ctx, id, type);
+  const timeoutSeconds = timeoutOf(ctx.workflow, id, type);
   ctx.actions.push({ type: "start", node: id, attempt, delayMs, timeoutSeconds, inputs: inputsOf(ctx, id) });
 };
 

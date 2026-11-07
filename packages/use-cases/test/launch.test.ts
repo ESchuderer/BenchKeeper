@@ -25,6 +25,7 @@ import {
 } from "@cedarloom/contracts";
 import { openGraphStore, openRunStore, type RunStore } from "@cedarloom/ledger";
 import {
+  cancelRun,
   type Decided,
   doctor,
   launchWorker,
@@ -575,21 +576,24 @@ const faked = <T extends ClaudeLaunch>(launch: T, more: Record<string, string>):
   env: { ...launch.env, FAKE_STREAM: join(fixtures, "stream.jsonl"), ...more },
 });
 // The fake CLI as the runtime of agent nodes: a run also gets `env`, and writes a result of `verdict` with its own run
-// id, as the result prompt names it (none when null).
+// id, as the result prompt names it (none when null). A resumed session's summary names the session it went on with.
 const agentRuntime = (
   env: Record<string, string> = {},
   verdict: string | null = "pass",
 ): AgentRuntime<ClaudeLaunch> => {
-  const start = (launch: ClaudeLaunch) => {
+  const writing = (launch: ClaudeLaunch, summary: string) => {
     const runId = /"runId":"([^"]+)"/.exec(launch.prompt)?.[1] ?? "";
-    const result = { schemaVersion: 1, runId, verdict, summary: "Reviewed." };
+    const result = { schemaVersion: 1, runId, verdict, summary };
     const written =
       verdict === null ? {} : { FAKE_RESULT: launch.resultFile, FAKE_RESULT_TEXT: JSON.stringify(result) };
-    return runtime.start(faked(launch, { ...env, ...written }));
+    return faked(launch, { ...env, ...written });
   };
+  const start = (launch: ClaudeLaunch) => runtime.start(writing(launch, "Reviewed."));
+  const resume = (sessionId: string, launch: ClaudeLaunch) =>
+    runtime.resume(sessionId, writing(launch, `Resumed ${sessionId}.`));
   const checkContract = (probe: Parameters<typeof runtime.checkContract>[0]) =>
     runtime.checkContract(faked({ ...probe, prompt: "", verifiedVersions: [] }, {}));
-  return { ...runtime, checkContract, start };
+  return { ...runtime, checkContract, start, resume };
 };
 
 // The project as a git repository with one commit, and a workflow file beside it: t -> a, an agent.run of `config`
@@ -648,7 +652,7 @@ test("an agent node runs a worker in the run's worktree on its phase's settings,
   );
   expect(withLedger(state, (store) => store.launches())).toMatchObject([
     {
-      task: `${runId}:a`,
+      task: `${runId}:a#1`,
       verdict: "pass",
       labels: { phase: "review", model: "claude-opus-5-5", review: true, level: "supervised", tier: null },
     },
@@ -755,13 +759,14 @@ test("an agent fails, saying why, before it makes a worktree or a branch; one st
   // The level's settings file cannot be read.
   writeFileSync(join(config, "automation.json"), "{");
   await runWorkflow(state, file, {}, { project: work, agents });
-  expect(attemptsOf(state).map((row) => [row.state, row.outputs])).toEqual([
-    ["failed", { error: "no-single-pool" }],
-    ["failed", { error: "git.failed" }],
-    ["cancelled", {}],
-    ["failed", { error: "launch.gh-login" }],
-    ["failed", { error: "launch.settings-unproven" }],
-    ["failed", { error: "document.invalid" }],
+  // A session whose init line proves no settings is no session to resume.
+  expect(attemptsOf(state).map((row) => [row.state, row.outputs, row.sessionId])).toEqual([
+    ["failed", { error: "no-single-pool" }, null],
+    ["failed", { error: "git.failed" }, null],
+    ["cancelled", {}, null],
+    ["failed", { error: "launch.gh-login" }, null],
+    ["failed", { error: "launch.settings-unproven" }, null],
+    ["failed", { error: "document.invalid" }, null],
   ]);
   expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual([
     "not-run",
@@ -798,16 +803,22 @@ test("an add of the worktree that failed is tried again by the next attempt, and
   expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual(["not-run", "pass"]);
 }, 30_000);
 
-test("a later runner of a run works in the worktree the run has", async () => {
-  const { state, config, work } = setup();
-  const file = agentWorkflow(work, REVIEW);
+// A run of the agent workflow `file` in `work` that no runner holds; `journal` is what its runner wrote before it died.
+const leftRun = (state: string, work: string, file: string, journal: readonly JournalEvent[] = []): string => {
   const graphs = openGraphStore(state);
   if (!graphs.ok) throw new Error(graphs.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(file, "utf8")));
   const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
   const created = graphs.value.create({ ...base, definition, project: realpathSync(work) });
+  for (const event of journal) graphs.value.append(created.runId, created.epoch, event);
   created.release();
   graphs.value.close();
+  return created.runId;
+};
+
+test("a later runner of a run works in the worktree the run has", async () => {
+  const { state, config, work } = setup();
+  const created = { runId: leftRun(state, work, agentWorkflow(work, REVIEW)) };
   const folder = join(state, "worktrees", created.runId);
   execFileSync("git", ["worktree", "add", "--quiet", "-b", `cedarloom/${created.runId}`, folder, "HEAD"], {
     cwd: work,
@@ -818,4 +829,65 @@ test("a later runner of a run works in the worktree the run has", async () => {
     value: { status: "succeeded" },
   });
   expect([existsSync(join(folder, "kept.txt")), branches(work)]).toEqual([true, [`cedarloom/${created.runId}`]]);
+}, 30_000);
+
+const SESSION = "00000000-0000-4000-8000-000000000002";
+const LAUNCH = runIdOf(0);
+// A run whose runner died while attempt 1 of a ran on `account`: the journal keeps its start and its session, and the
+// ledger its launch, whose lease was let go without an end.
+const died = (state: string, work: string, account: string): string => {
+  const runId = leftRun(state, work, agentWorkflow(work, REVIEW), [
+    { type: "started", node: "a", attempt: 1, pid: null },
+    { type: "session", node: "a", attempt: 1, sessionId: SESSION },
+  ]);
+  withLedger(state, (store) =>
+    store.leaseAccount({ ...lease(LAUNCH, account), task: `${runId}:a#1` }, MAX_CONCURRENT.claude)?.release(),
+  );
+  return runId;
+};
+
+test("an agent attempt a dead runner left ends with the result its worker wrote, without a relaunch", async () => {
+  const { state, config, work } = setup();
+  const runId = died(state, work, "work");
+  const out = join(state, "workers", LAUNCH.slice(0, 8), "out");
+  mkdirSync(out, { recursive: true });
+  const result = { schemaVersion: 1, runId: LAUNCH, verdict: "pass", summary: "Done before the crash." };
+  writeFileSync(join(out, "result.json"), JSON.stringify(result));
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await resumeRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "succeeded" } });
+  expect([attemptsOf(state), withLedger(state, (store) => store.launches().length)]).toEqual([
+    [{ state: "done", outputs: { result: "Done before the crash.", verdict: "pass" }, sessionId: SESSION }],
+    1,
+  ]);
+}, 30_000);
+
+test("an agent attempt a dead runner left without a result resumes its session on the account it ran on", async () => {
+  const { state, config, work } = setup(["first", "second"]);
+  const runId = died(state, work, "second");
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await resumeRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "succeeded" } });
+  expect(attemptsOf(state)).toEqual([
+    {
+      state: "done",
+      outputs: { result: `Resumed ${SESSION}.`, verdict: "pass" },
+      sessionId: "00000000-0000-4000-8000-000000000001",
+    },
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((each) => [each.task, each.account, each.verdict]))).toEqual(
+    [
+      [`${runId}:a#1`, "second", "interrupted"],
+      [`${runId}:a#1`, "second", "pass"],
+    ],
+  );
+}, 30_000);
+
+test("a cancel of a run a dead runner left resumes no agent: its attempt ends interrupted", async () => {
+  const { state, config, work } = setup();
+  const runId = died(state, work, "work");
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await cancelRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "cancelled" } });
+  expect([attemptsOf(state).map((row) => row.state), withLedger(state, (store) => store.launches().length)]).toEqual([
+    ["interrupted"],
+    1,
+  ]);
 }, 30_000);

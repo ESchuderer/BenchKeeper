@@ -30,6 +30,8 @@ const cliFile = (env: Record<string, string>): string | undefined =>
  */
 export const devcontainerCli: ApplyTemplate = (folder, { template, args, features }) =>
   new Promise((done) => {
+    // A .cmd, as npm installs the CLI there, runs only through a shell, and an install hint would mislead.
+    if (process.platform === "win32") return done("on Windows CedarLoom cannot run the Dev Containers CLI yet");
     const env = cleanEnv(process.env, process.platform, [...NETWORK_SETTINGS, "DOCKER_CONFIG"]);
     const file = cliFile(env);
     if (file === undefined) return done("ENOENT: no devcontainer program in the absolute folders of PATH");

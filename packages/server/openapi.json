@@ -4010,6 +4010,12 @@
                   "project": {
                     "type": "string"
                   },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "programs": {
                     "type": "array",
                     "items": {
@@ -4027,6 +4033,7 @@
                   "part",
                   "title",
                   "project",
+                  "source",
                   "programs",
                   "configs"
                 ],
@@ -9409,6 +9416,12 @@
                   "project": {
                     "type": "string"
                   },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "programs": {
                     "type": "array",
                     "items": {
@@ -9426,6 +9439,7 @@
                   "part",
                   "title",
                   "project",
+                  "source",
                   "programs",
                   "configs"
                 ],

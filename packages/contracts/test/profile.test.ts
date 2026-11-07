@@ -185,6 +185,7 @@ test.for<[string, (string | number)[], unknown]>([
 test.for<[string, (string | number)[], unknown]>([
   ["a part without its level", ["select", "memory"], false],
   ["a profile file by a relative path", ["profile"], { file: "profiles/mine.json" }],
+  ["a gates source at a branch, which can move", ["bindings", "gates"], "acme/workflows@main"],
 ])("a selection with %s is refused", async ([, path, value]) => {
   const selection = set(await read("ProfileSelection/1/valid-selection.json"), path, value);
   expect(readDocument(ProfileSelection, SELECTION_SCHEMA_VERSION, selection).ok).toBe(false);

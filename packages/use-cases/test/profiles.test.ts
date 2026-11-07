@@ -207,6 +207,7 @@ test("with a dev container, scripts/dc waits for approval with its local line; a
           part: "project.dc-wrapper",
           title: "scripts/dc, the dev container command",
           project,
+          source: null,
           programs: ["scripts/dc"],
           configs: [],
         },
@@ -497,11 +498,23 @@ test("gates wait for their approval by name, so --yes alone never writes a CI fi
     configs.map((target) => contentOf(approved, join(project, target))),
   ]).toEqual([
     { ok: false, finding: { code: "profile.binding-missing", params: { part: "project.ci", binding: "gates" } } },
-    [{ code: "profile.target-approval", params: { part: "project.ci", title: "CI", project, programs: [], configs } }],
+    [
+      {
+        code: "profile.target-approval",
+        params: {
+          part: "project.ci",
+          title: "CI",
+          project,
+          source: `acme/workflows@${"a".repeat(40)}`,
+          programs: [],
+          configs,
+        },
+      },
+    ],
     [null, null],
     [
       `name: lint\non:\n  pull_request:\n  merge_group:\npermissions: {}\njobs:\n  lint:\n    uses: acme/workflows/.github/workflows/lint.yml@${"a".repeat(40)}\n    permissions:\n      contents: read\n`,
-      "version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 5\n",
+      'version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 5\n    ignore:\n      - dependency-name: "acme/workflows"\n      - dependency-name: "acme/workflows/*"\n',
     ],
   ]);
 });
@@ -559,6 +572,7 @@ test("a dev container part is approved before its Template runs, and writes only
   const approved = ok(await run(fresh, ["project.dc"])).plan;
   const params = { part: "project.dc", template: REQUEST.template, error: "unauthorized" };
   const configs = [".devcontainer/"];
+  const source = `${REQUEST.template} with the Features ghcr.io/devcontainers/features/node:1`;
   expect([
     waiting.findings,
     [unasked, asked],
@@ -574,7 +588,7 @@ test("a dev container part is approved before its Template runs, and writes only
     [
       {
         code: "profile.target-approval",
-        params: { part: "project.dc", title: "Alpine", project: fresh, programs: [], configs },
+        params: { part: "project.dc", title: "Alpine", project: fresh, source, programs: [], configs },
       },
     ],
     [undefined, REQUEST],

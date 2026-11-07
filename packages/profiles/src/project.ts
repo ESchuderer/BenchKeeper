@@ -163,7 +163,8 @@ jobs:
 `;
 // Dependabot's version updates of the workflows' pins, each once the release is the cooldown's days old
 // (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-).
-const dependabotText = (days: number): string => `version: 2
+// The bound gates repository is ignored, so the binding stays the gates' one source and they move only by a new one.
+const dependabotText = (days: number, repository: string): string => `version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -171,6 +172,9 @@ updates:
       interval: weekly
     cooldown:
       default-days: ${days}
+    ignore:
+      - dependency-name: "${repository}"
+      - dependency-name: "${repository}/*"
 `;
 
 // A files part's targets with their texts.
@@ -220,7 +224,7 @@ const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: [string
     return refuse({ code: "profile.binding-missing", params: { part: `project.${id}`, binding: "gates" } });
   const [repository = "", commit = ""] = gates.split("@");
   const callers = part.callers.map((name): [string, string] => [gatePath(name), callerText(name, repository, commit)]);
-  const texts: [string, string][] = [...callers, [DEPENDABOT, dependabotText(part.dependabotCooldownDays)]];
+  const texts: [string, string][] = [...callers, [DEPENDABOT, dependabotText(part.dependabotCooldownDays, repository)]];
   return { ok: true, value: { texts, keeping: { commit: true, onlyIfAbsent: false } } };
 };
 
@@ -251,12 +255,22 @@ const addTargets = (files: Files, keeping: Keeping, found: Found[], written: Wri
 };
 
 // The approval line of a part whose targets run as programs or configure tools, by class (owner, hub issue 130).
-const approval = (part: string, title: string, project: string, found: Found[]): Finding | undefined => {
+type Approval = { part: string; title: string; project: string; source: string | null };
+const approval = (line: Approval, found: Found[]): Finding | undefined => {
   const of = (kind: string) =>
     found.filter(({ target, content }) => targetClass(target, content) === kind).map(({ target }) => target);
   const [programs, configs] = [of("executable"), of("configuration")];
   if (programs.length + configs.length === 0) return undefined;
-  return { code: "profile.target-approval", params: { part, title, project, programs, configs } };
+  return { code: "profile.target-approval", params: { ...line, programs, configs } };
+};
+
+// Where a part's code comes from, for its approval line: the gates' bound workflows, or the dev container's Template
+// and Features; none for a files part, whose texts come from the profile's packs.
+const sourceOf = ({ resolved }: Given, part: Whole): string | null => {
+  if (part.type === "gates") return resolved.gates ?? null;
+  if (part.type === "files") return null;
+  const features = Object.keys(part.features ?? {});
+  return features.length === 0 ? part.template : `${part.template} with the Features ${features.join(", ")}`;
 };
 
 const filesOf = (given: Given, written: Written) => {
@@ -274,7 +288,8 @@ const filesOf = (given: Given, written: Written) => {
     const twice = found.find(({ path }) => files.wanted.has(path));
     if (twice !== undefined)
       return refuse({ code: "profile.target-twice", params: { part: `project.${id}`, target: twice.target } });
-    const waits = approval(`project.${id}`, part.title, project, found);
+    const line = { part: `project.${id}`, title: part.title, project, source: sourceOf(given, part) };
+    const waits = approval(line, found);
     // An approved part's files in place need no new approval.
     const inPlace = found.every(({ path, content }) => hashOf(path) === sha256(content));
     if (waits === undefined || approved.has(`project.${id}`) || inPlace) {

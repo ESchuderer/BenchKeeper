@@ -277,7 +277,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
       ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
     ];
-    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
+    const from = p.source === null ? "" : `, from ${p.source}`;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}${from}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,

@@ -1615,6 +1615,7 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
             };
@@ -2773,6 +2774,7 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
             };

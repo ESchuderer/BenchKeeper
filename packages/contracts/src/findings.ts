@@ -239,6 +239,8 @@ export const Finding = z
       part: z.string(),
       title: z.string(),
       project: z.string(),
+      // Where the part's code comes from: the gates' `owner/repo@commit`, a dev container's Template and Features.
+      source: z.string().nullable(),
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),

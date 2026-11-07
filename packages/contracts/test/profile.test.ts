@@ -203,6 +203,12 @@ test.for<[string, (string | number)[], unknown, string]>([
     },
     "machine.plugin.ponytail.options.file",
   ],
+  [
+    "a plugin's marketplace named apart from its plugin id",
+    ["machine", "plugin.ponytail", "marketplace", "name"],
+    "pony",
+    "machine.plugin.ponytail.marketplace.name",
+  ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
   expect(outcome(readDocument(Profile, PROFILE_SCHEMA_VERSION, set(defaults, path, value)))).toEqual([issue]);
 });

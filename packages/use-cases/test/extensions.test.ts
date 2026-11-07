@@ -175,13 +175,17 @@ test("a second extension joins the installed set; the plan replaces the file it 
   ]).toEqual([false, ["acme.jira", "acme.two"], true]);
 });
 
-test("no install without a manifest, of the cedarloom publisher (the app ships those), without its entry, for another protocol, or from a refused source", async () => {
+test("no install without a manifest, of the cedarloom publisher (the app ships those), without its entry, for another protocol, asking for programs, or from a refused source", async () => {
   const at = state();
   const sources = [
     publish("bare", { "main.mjs": ENTRY }),
     publish("first-party", { "cedarloom-extension.json": manifest({ id: "cedarloom.jira" }), "main.mjs": ENTRY }),
     publish("no-entry", { "cedarloom-extension.json": manifest() }),
     publish("future", { "cedarloom-extension.json": manifest({ api: "2.0" }), "main.mjs": ENTRY }),
+    publish("runs", {
+      "cedarloom-extension.json": manifest({ capabilities: { programs: { tool: { linux: ["tool"] } } } }),
+      "main.mjs": ENTRY,
+    }),
   ];
   const results = await Promise.all([
     ...sources.map((url) => planInstall(at, { url, ref: "main" }, fetchLocal)),
@@ -192,6 +196,7 @@ test("no install without a manifest, of the cedarloom publisher (the app ships t
     { code: "extension.install-refused", params: { extension: "cedarloom.jira", reason: "reserved" } },
     { code: "extension.install-refused", params: { extension: "acme.jira", reason: "entry" } },
     { code: "extension.install-refused", params: { extension: "acme.jira", reason: "protocol" } },
+    { code: "extension.install-refused", params: { extension: "acme.jira", reason: "programs" } },
     { code: "git.refused-source", params: { field: "ref" } },
     false,
   ]);

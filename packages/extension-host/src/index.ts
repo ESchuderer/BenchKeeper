@@ -14,3 +14,5 @@ export {
 export { framesUpTo } from "./reader.ts";
 export { type Launch, type Sandbox, type SandboxPolicy, sandboxRuntime, unavailable } from "./sandbox.ts";
 export { type Hop, type HopAnswer, isPublic, type Transport, transport } from "./transport.ts";
+// Ends a process with its whole tree: a program host/exec runs, or a workflow's command.
+export { stopTree } from "./tree.ts";

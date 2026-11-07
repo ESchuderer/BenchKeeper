@@ -11,9 +11,11 @@ export {
 export {
   type Attempt,
   capped,
+  DEFAULT_GATES,
   type ExecuteOptions,
   type Executors,
   execute,
+  type Gates,
   type Left,
   OUTPUT_CAP,
   type Prepared,

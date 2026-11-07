@@ -174,6 +174,19 @@ const manifestChanges: Change[] = [
   ["an id in a built-in namespace", ["id"], "trigger.acme", true],
   ["an id in the join namespace", ["id"], "join.x", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
+  // A program is found on PATH or in the user's home folder, never outside it or by a path that leads out.
+  ...["/usr/bin/tool", "~/../tool"].map((found): Change => {
+    const label = found.startsWith("~")
+      ? "a program by a path out of the home folder"
+      : "a program by an absolute path";
+    return [
+      label,
+      ["capabilities", "programs", "tool"],
+      { linux: [found] },
+      true,
+      "capabilities.programs.tool.linux.0",
+    ];
+  }),
   ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", true],
 ];
 

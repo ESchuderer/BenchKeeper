@@ -34,10 +34,10 @@
     "@cedarloom/extension-host": "workspace:*",
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
-    "@cedarloom/orchestration": "workspace:*",
-    "zod": "catalog:"
+    "@cedarloom/orchestration": "workspace:*"
   },
   "devDependencies": {
-    "@cedarloom/adapter-claude": "workspace:*"
+    "@cedarloom/adapter-claude": "workspace:*",
+    "zod": "catalog:"
   }
 }

@@ -12,7 +12,6 @@ import {
   type Finding,
   PLAN_SCHEMA_VERSION,
   ModeSwitch,
-  TokenRow,
   UsageSample,
   Plan,
   Reading,
@@ -30,24 +29,14 @@ import {
   LAUNCH_TABLES,
   MODE_TABLES,
   TABLES,
-  TOKEN_TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
-const BASELINE = [
-  TABLES,
-  ACCOUNT_TABLES,
-  CHECK_TABLES,
-  LAUNCH_TABLES,
-  MODE_TABLES,
-  USAGE_TABLES,
-  GRAPH_TABLES,
-  TOKEN_TABLES,
-];
-// Its number follows every schema before 0.1.0, so a store from before it is never read as this one.
-const SCHEMA = 12;
+const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
+// Its number follows every schema before 0.1.0 (1 to 12), so a store from before it is never read as this one.
+const SCHEMA = 13;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
@@ -373,28 +362,6 @@ export class RunStore extends RunView {
          WHERE excluded.readAt >= readings.readAt`,
       )
       .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
-  }
-
-  /**
-   * Keeps the token rows of one telemetry post, in one transaction; a row that is no TokenRow throws, and none is kept.
-   * OTLP delivers at least once, so a row whose account and request id are kept already is skipped.
-   */
-  recordTokenRows(input: readonly TokenRow[]): void {
-    const rows = input.map((row) => TokenRow.parse(row));
-    const insert = this.db.prepare(
-      `INSERT OR IGNORE INTO token_rows VALUES (:runId, :account, :sessionId, :model, :querySource, :effort, :inputTokens,
-       :outputTokens, :cacheReadTokens, :cacheCreationTokens, :cacheCreation5mTokens, :cacheCreation1hTokens,
-       :costUsdMicros, :durationMs, :requestId, :agentVersion, :at)`,
-    );
-    transaction(this.db, () => {
-      for (const row of rows) insert.run(row);
-    });
-  }
-
-  /** The token rows, of one run when `runId` is given, in the order they were kept. */
-  tokenRows(runId?: string): TokenRow[] {
-    const select = this.db.prepare("SELECT * FROM token_rows WHERE ?1 IS NULL OR runId = ?1 ORDER BY rowid");
-    return select.all(runId ?? null).map((row) => TokenRow.parse(row));
   }
 
   /**

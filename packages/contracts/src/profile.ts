@@ -200,7 +200,8 @@ const LEVELS = ["machine", "workspace", "project"] as const;
 const SEALED =
   "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
 const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
-const sealed = (target: string): boolean => {
+/** Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files. */
+export const sealedTarget = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
   if (folder === undefined && MANUAL.includes(file)) return true;
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
@@ -256,7 +257,7 @@ const referenceIssues = (file: FileShape): Issue[] =>
 const targetIssues = (file: FileShape): Issue[] =>
   Object.entries(file.project ?? {}).flatMap(([id, each]) =>
     Object.keys(each.type === "files" ? (each.files ?? {}) : {})
-      .filter(sealed)
+      .filter(sealedTarget)
       .map((target): Issue => [["project", id, "files", target], SEALED]),
   );
 

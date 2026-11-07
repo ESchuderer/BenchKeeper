@@ -260,8 +260,18 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.source} has a new commit ${p.commit.slice(0, 12)}; it is taken from ${p.offered}, 3 days after this machine first saw it.`,
   "profile.source-unavailable": (p) =>
     `${p.source} no longer has the commit in use, ${p.commit.slice(0, 12)}, while its new commit waits its 3 days; pin the source by commit and digest.`,
-  "profile.target-approval": (p) =>
-    `${p.part} writes ${p.targets.join(", ")}, which may run or set how tools run; it waits for your approval by name: cedarloom profiles apply --project <folder> --allow ${p.part}`,
+  "profile.target-approval": (p) => {
+    const what = [
+      ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
+      ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
+    ];
+    const folder = /\s/.test(p.project) ? `"${p.project}"` : p.project;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folder} --allow ${p.part}`;
+  },
+  "profile.target-linked": (p) =>
+    `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.agents-unread": (p) =>
+    `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };

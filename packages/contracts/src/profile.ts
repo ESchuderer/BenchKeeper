@@ -26,7 +26,8 @@ const values = (value: unknown): number =>
 const Color = z.string().regex(/^[0-9a-f]{6}$/);
 
 /** A pack's entry by its path inside the pack; the pack is one this profile names in `packs`. */
-const PackRef = z.strictObject({ pack: PackId, path: PortablePath });
+export const PackRef = z.strictObject({ pack: PackId, path: PortablePath });
+export type PackRef = z.infer<typeof PackRef>;
 // A rules text or template: a pack's entry, or inline text for a one-file profile, which holds tabs and line breaks
 // but no other control character and no bidirectional control.
 const Text = z.union([

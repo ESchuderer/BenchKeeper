@@ -6,9 +6,12 @@ import {
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
+  type PackRef,
   severityOf,
   type Plan,
   type PlanPreview,
+  QuotaWindow,
+  type Reading,
   type Result,
   type RunResult,
   shown as printable,
@@ -181,7 +184,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // expected document 65, a rule 1.
 export const refused = (
   ctx: Context,
-  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
+  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "profile-diff" | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
@@ -211,26 +214,69 @@ interface Change {
 const aliases = ({ aliases: folders = [] }: Account): string =>
   folders.length > 0 ? `  (alias ${folders.join(", ")})` : "";
 
+// An account's windows a choice counts now, below its line: the 5-hour and 7-day ones always, once any is known.
+const windowLines = (name: string, readings: readonly Reading[], now: number): string[] => {
+  const own = readings.filter((reading) => reading.account === name);
+  const age = (readAt: string): number => Math.floor((now - Date.parse(readAt)) / 60_000);
+  const unknown = QuotaWindow.options.filter((window) => !own.some((reading) => reading.window === window));
+  return own.length === 0
+    ? []
+    : [
+        ...own.map(
+          (r) =>
+            `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt ?? "unknown"}`,
+        ),
+        ...unknown.map((window) => `  ${window}  unknown`),
+      ];
+};
+
 export const accountsList = (ctx: Context): number => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
-  const confirmed = (agent: Agent, pool: string): boolean =>
-    registry !== null && useCases.isConfirmed(registry, { agent, pool });
-  const pool = ({ agent, pool: name }: Account): string =>
-    name === null ? "-" : `${name} (${confirmed(agent, name) ? "confirmed" : "not confirmed"})`;
-  const lines = (registry?.accounts ?? []).map((a) => `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`);
-  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, registry, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const confirmed = pools.map(({ agent, pool }) => ({ agent, pool }));
   // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
-  const pools = Agent.options.flatMap((agent) =>
-    Object.keys(registry?.pools[agent] ?? {}).map((name) => ({ agent, pool: name })),
+  const pool = ({ agent, pool: name }: Account): string =>
+    name === null
+      ? "-"
+      : `${name} (${confirmed.some((p) => p.agent === agent && p.pool === name) ? "confirmed" : "not confirmed"})`;
+  const lines = (registry?.accounts ?? []).flatMap((a) => [
+    `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`,
+    ...windowLines(a.name, readings, now),
+  ]);
+  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
+  emit(ctx, "accounts", { registry, confirmed, readings }, lines.length > 0 ? lines.join("\n") : none);
+  return EXIT.ok;
+};
+
+/** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
+export const accountsStatus = (ctx: Context): number => {
+  const loaded = useCases.loadRegistry(ctx.config);
+  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  const now = Date.now();
+  const status = useCases.accountsStatus(ctx.state, loaded.value, now);
+  if (!status.ok) return refused(ctx, "accounts", status.finding);
+  const { readings, pools } = status.value;
+  const lines = pools.flatMap(({ agent, pool, selection: s }) =>
+    s.ok
+      ? [
+          `${agent} ${pool}: new workers start on ${s.account.name} (${s.reason})`,
+          ...windowLines(s.account.name, readings, now),
+        ]
+      : [`${agent} ${pool}: no account for new workers (${s.reason})`],
   );
-  emit(
-    ctx,
-    "accounts",
-    { registry, confirmed: pools.filter((p) => confirmed(p.agent, p.pool)) },
-    lines.length > 0 ? lines.join("\n") : none,
-  );
+  const shown = pools.map(({ agent, pool, selection: s }) => ({
+    agent,
+    pool,
+    account: s.ok ? s.account.name : null,
+    reason: s.reason,
+  }));
+  const none = "No confirmed pool. Confirm one with: cedarloom accounts pool confirm <pool>";
+  emit(ctx, "accounts-status", { pools: shown, readings }, lines.length > 0 ? lines.join("\n") : none);
   return EXIT.ok;
 };
 
@@ -612,3 +658,23 @@ export const profilesCheck = async (ctx: Context, { project }: { project?: strin
 /** Shows a change of this machine's profile selection, or with --yes makes it as one run. */
 export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: { yes?: true }): number =>
   configChange(ctx, useCases.planChoice(ctx.config, choice), yes);
+
+/** Shows copying a pack's profile into a file that this machine's selection then names; with --yes, does it. */
+export const profilesInit = (ctx: Context, file: string, { from, yes }: { from: PackRef; yes?: true }): number =>
+  configChange(ctx, useCases.planProfileCopy(ctx.config, from, file), yes);
+
+const SIGNS = { added: "+", removed: "-", changed: "~" } as const;
+
+/** Lists how this machine's profile differs from a pack's, by field and by part. */
+export const profilesDiff = (ctx: Context, { against }: { against: PackRef }): number => {
+  const diff = useCases.diffProfile(ctx.config, against);
+  if (!diff.ok) return refused(ctx, "profile-diff", diff.finding);
+  const lines = diff.value.map((entry) => `${SIGNS[entry.change]} ${entry.key}`);
+  emit(
+    ctx,
+    "profile-diff",
+    { changes: diff.value },
+    lines.join("\n") || `The profile is the same as ${against.pack}/${against.path}.`,
+  );
+  return EXIT.ok;
+};

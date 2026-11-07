@@ -272,6 +272,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.item} is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ${p.item}`,
   "profile.remove-unknown": (p) =>
     `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
+  "profile.copy-exists": (p) =>
+    `${p.path} is there already or is the selection file; profiles init copies into a new file, so name another one.`,
   "profile.binding-waiting": (p) =>
     `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.placeholder-unknown": (p) =>

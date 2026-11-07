@@ -322,6 +322,15 @@ export function suggest(dir) {
 
 // True when git tracks the state file: a setup committed in the repository.
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
+// True when git tracks AGENTS.md: the repository commits an agent manual of its own (a third-party one, for example).
+const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md';
+// What a local setup beside a committed AGENTS.md means for the chosen agents; the setup goes on.
+const besideCommitted = (agents) => [
+  'this repository commits AGENTS.md and the setup stays local',
+  agents.includes('claude') && `Claude Code reads AGENTS.md next to the BenchKeeper block of ${LOCAL_CLAUDE}`,
+  agents.includes('codex') && `Codex reads ${OVERRIDE} instead, with a copy of AGENTS.md that is stale after AGENTS.md changes (a pull) until the next apply here`,
+  '--share would commit the block into the repository\'s AGENTS.md',
+].filter(Boolean).join('; ');
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
@@ -445,7 +454,15 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
+  // Shared, Codex chosen, and an AGENTS.override.md with other lines: Codex reads it instead of AGENTS.md, so it keeps a
+  // copy of AGENTS.md with the block above them, as a local setup's does; a hand-written one is offered that, not preselected.
+  const override = readText(at(OVERRIDE));
+  const codexOverride = a.share && a.agents.includes('codex') && override != null && overrideOwn(override).trim() !== '';
+  if (codexOverride) {
+    const ours = overrideOurs(override);
+    add('local-codex', `${OVERRIDE}: AGENTS.md with the block above your own lines (Codex reads this file instead of AGENTS.md)`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
+      edit: (t, run) => overrideWith(t, setBlock(handWritten(dir), 'project', blockText(run))) });
+  } else if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });
@@ -726,7 +743,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev }), ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

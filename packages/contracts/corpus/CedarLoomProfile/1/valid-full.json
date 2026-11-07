@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.profile",
+  "id": "acme.full",
+  "version": "2.0.0",
+  "name": "Acme, every part type",
+  "license": "MIT",
+  "minApp": "0.1.0",
+  "agents": ["claude-code"],
+  "packs": { "acme.shared": { "git": "https://git.example.org/acme/shared.git", "ref": "main" } },
+  "machine": {
+    "plugin.ponytail": {
+      "type": "plugin",
+      "title": "Ponytail at level ultra",
+      "default": "on",
+      "plugin": "ponytail@ponytail",
+      "marketplace": { "name": "ponytail", "github": "acme/ponytail-fork", "ref": "v1" },
+      "options": { "file": ".config/ponytail/config.json", "set": { "defaultMode": "ultra" } }
+    },
+    "skill.review": {
+      "type": "skill",
+      "title": "Review",
+      "default": "on",
+      "source": { "pack": "acme.shared", "path": "skills/review" }
+    },
+    "rules.global": {
+      "type": "rules",
+      "title": "Acme rules",
+      "default": "on",
+      "file": "10-acme.md",
+      "text": { "pack": "acme.shared", "path": "rules/acme.md" }
+    },
+    "settings.claude-code": {
+      "type": "settings",
+      "title": "Acme settings",
+      "default": "on",
+      "set": { "env": { "DISABLE_ERROR_REPORTING": "1", "DISABLE_FEEDBACK_COMMAND": "1" } }
+    }
+  },
+  "workspace": {
+    "hub": {
+      "type": "hub",
+      "title": "Acme hub",
+      "default": "on",
+      "labels": { "triage": { "color": "ededed", "description": "Not looked at yet" } },
+      "projectLabel": { "prefix": "area:", "color": "0e8a16" },
+      "rules": { "pack": "acme.shared", "path": "rules/asking.md" }
+    },
+    "memory": {
+      "type": "memory",
+      "title": "Acme memory",
+      "default": "off",
+      "scaffold": { "pack": "acme.shared", "path": "templates/memory" },
+      "loader": false
+    }
+  },
+  "project": {
+    "manual": {
+      "type": "manual",
+      "title": "Acme manual",
+      "default": "on",
+      "claudeImport": false,
+      "rules": [{ "pack": "acme.shared", "path": "rules/project.md" }]
+    },
+    "local-manual": {
+      "type": "local-manual",
+      "title": "Acme local lines",
+      "default": "on",
+      "rules": [{ "inline": "- Releases wait for the team channel.\n" }]
+    },
+    "agent-docs": {
+      "type": "files",
+      "title": "Acme agent docs",
+      "default": "on",
+      "commit": true,
+      "requires": ["workspace.hub"],
+      "files": {
+        "docs/agents/one.md": { "pack": "acme.shared", "path": "templates/one.md" },
+        "docs/agents/two.md": { "pack": "acme.shared", "path": "templates/two.md" }
+      }
+    },
+    "guards": {
+      "type": "settings",
+      "title": "Acme deny rules",
+      "default": "on",
+      "commit": true,
+      "set": { "permissions": { "deny": ["Bash(sudo *)", "Bash(git push *--force*)"] } }
+    },
+    "tier": { "type": "tier", "title": "Standard by default", "default": "on", "tier": "standard" },
+    "gates": {
+      "type": "gates",
+      "title": "Acme gates",
+      "default": "on",
+      "callers": ["lint", "test"],
+      "dependabotCooldownDays": 7
+    },
+    "orca": {
+      "type": "files",
+      "title": "Acme worktree setup",
+      "default": "auto",
+      "when": "orca",
+      "commit": false,
+      "onlyIfAbsent": true,
+      "files": { "orca.yaml": { "pack": "acme.shared", "path": "templates/orca.yaml" } }
+    },
+    "packs": { "type": "packs", "title": "Acme packs", "default": "on", "packs": ["acme.shared"] }
+  }
+}

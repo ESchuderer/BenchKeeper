@@ -96,10 +96,12 @@ export {
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
 export {
   type Choice,
+  checkProfile,
   claudeHome,
   type Machine,
   type PlanOptions,
   planChoice,
   planProfile,
   type ProfilePlan,
+  profileDoctor,
 } from "./profiles.ts";

@@ -9,8 +9,17 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { Plan } from "@cedarloom/contracts";
-import { applyPlan, claudeHome, type Fetch, type PlanOptions, planChoice, planProfile } from "@cedarloom/use-cases";
+import type { Finding, Plan } from "@cedarloom/contracts";
+import { createHash } from "node:crypto";
+import {
+  applyPlan,
+  checkProfile,
+  claudeHome,
+  type Fetch,
+  type PlanOptions,
+  planChoice,
+  planProfile,
+} from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
@@ -644,4 +653,87 @@ test("a files target in the skills folder goes when its part is switched off", a
   applied(box.state, ok(planChoice(box.config, { part: "project.notes", on: false })));
   applied(box.state, (await projectPlan(box, project)).plan);
   expect(existsSync(join(project, ".claude", "skills", "foo", "SKILL.md"))).toBe(false);
+});
+
+// The drift lines as [status, subject], other findings by their code.
+const driftLines = (findings: Finding[]) =>
+  findings.map((finding) =>
+    finding.code === "profile.drift" ? [finding.params.status, finding.params.subject] : [finding.code],
+  );
+
+test("a check reports each drift of an applied home and reads only, and an applied home has none", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const check = async () => driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock })));
+  const clean = await check();
+  const [global, hub, skill] = [
+    join(box.home, "rules", "00-global.md"),
+    join(box.home, "rules", "cedarloom-hub.md"),
+    join(box.home, "skills", "find-skills", "SKILL.md"),
+  ];
+  // CedarLoom's own older text, a file deleted, an owner's change, the owner's own rules and plugin, a part switched off.
+  const before = createHash("sha256").update(readFileSync(global)).digest("hex");
+  applied(box.state, { schemaVersion: 1, operations: [{ kind: "write", path: global, before, content: "- old\n" }] });
+  rmSync(hub);
+  writeFileSync(skill, "# Mine\n");
+  writeFileSync(join(box.home, "rules", "mine.md"), "- mine\n");
+  const settings = JSON.parse(readFileSync(join(box.home, "settings.json"), "utf8"));
+  writeFileSync(
+    join(box.home, "settings.json"),
+    JSON.stringify({ ...settings, enabledPlugins: { ...settings.enabledPlugins, "x@y": true } }),
+  );
+  applied(box.state, ok(planChoice(box.config, { part: "machine.plugin.ponytail", on: false })));
+  const settingsText = readFileSync(join(box.home, "settings.json"), "utf8");
+  expect([clean, await check(), readFileSync(join(box.home, "settings.json"), "utf8")]).toEqual([
+    [],
+    [
+      ["outdated", global],
+      ["missing", hub],
+      ["profile.owner-changed"],
+      ["deselected-present", "plugin:ponytail@ponytail"],
+      ["extra", "plugin:x@y"],
+      ["deselected-present", "marketplace:ponytail"],
+      ["extra", "rules:mine.md"],
+    ],
+    settingsText,
+  ]);
+});
+
+// Every Git source as unreachable.
+const failing: Fetch = async () => ({
+  ok: false,
+  finding: { code: "git.failed", params: { step: "fetch", error: "offline" } },
+});
+
+test("a part switched off is reported as present, and a check without its Git sources did not run", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  applied(box.state, ok(planChoice(box.config, { part: "machine.rules.global", on: false })));
+  expect([
+    driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock }))),
+    driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: failing }))),
+  ]).toEqual([
+    [["deselected-present", join(box.home, "rules", "00-global.md")]],
+    [["not-run", "the profile's Git sources"], ["git.failed"]],
+  ]);
+});
+
+test("an offered removal is taken only when named, and an item not offered stops the plan", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const mine = join(box.home, "rules", "mine.md");
+  writeFileSync(mine, "- mine\n");
+  const plan = (remove: string[]) =>
+    planProfile(box.config, box.state, where, { allow: PLUGINS, fetch: stock, remove });
+  applied(box.state, ok(await plan(["rules:mine.md"])).plan);
+  expect([existsSync(mine), await plan(["rules:other.md"])]).toEqual([
+    false,
+    { ok: false, finding: { code: "profile.remove-unknown", params: { item: "rules:other.md" } } },
+  ]);
+});
+
+test("a check writes nothing, not even the record of the followed sources", async () => {
+  const box = machine();
+  ok(await checkProfile(box.config, box.state, { home: box.home, user: box.user }, { fetch: stock }));
+  expect(existsSync(join(box.state, "pack-sources.json"))).toBe(false);
 });

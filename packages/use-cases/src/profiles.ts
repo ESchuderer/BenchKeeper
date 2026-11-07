@@ -179,8 +179,8 @@ const levelOf = async (
   const { resolved, project, options } = given;
   // A project's level offers no removal.
   const [stray] = project === undefined ? [] : options.remove;
-  if (stray !== undefined)
-    return { ok: false as const, finding: { code: "profile.remove-unknown", params: { item: stray } } };
+  const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray ?? "" } };
+  if (stray !== undefined) return { ok: false as const, finding: unknown };
   if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
@@ -195,6 +195,15 @@ const folderOf = (project: string | undefined): Result<string | undefined> => {
   return { ok: false, finding: { code: "document.unreadable", params: { path: folder, error: "not a folder" } } };
 };
 
+// A run's options with their defaults: nothing approved or removed, Git fetched by the git package, files written.
+const withDefaults = ({ allow = [], fetch = fetchTree, remove = [], readOnly = false, ...rest }: PlanOptions) => ({
+  ...rest,
+  allow,
+  fetch,
+  remove,
+  readOnly,
+});
+
 /**
  * Plans the selected profile's machine level, or with `project` that project's level; a profile with problems gets no
  * plan, only its findings. A plugin or files part that may run code is planned only when `allow` names it. Git sources
@@ -206,7 +215,7 @@ export const planProfile = async (
   machine: Machine,
   options: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
-  const { allow, fetch, project, template, remove, readOnly } = { allow: [], fetch: fetchTree, remove: [], ...options };
+  const { allow, fetch, project, template, remove, readOnly } = withDefaults(options);
   const where = folderOf(project);
   if (!where.ok) return where;
   const folder = where.value;
@@ -217,7 +226,7 @@ export const planProfile = async (
   }
   const sources = await fetchAll(state, resolved.value, fetch, {
     project: folder !== undefined,
-    readOnly: readOnly === true,
+    readOnly,
   });
   if (!sources.ok) return sources;
   const level = await levelOf(config, state, machine, {

@@ -78,8 +78,8 @@ const rulesOf = ({ profile, on }: Resolved): Rules[] => [
   ),
 ];
 
-// Each rules part that is on as its file's text. Of two parts on that name one file, the later one's text is written,
-// as a later value wins.
+// Each rules part that is on as its file's text, and the files of the parts that are off. Of two parts on that name
+// one file, the later one's text is written, as a later value wins.
 const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   const folder = rulesFolder(home);
   const files = rulesOf(resolved).map((each): [string, Rules] => [join(folder, each.file), each]);
@@ -89,7 +89,8 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
     if (!content.ok) return content;
     wanted.set(path, { content: content.value });
   }
-  return { ok: true as const, value: wanted };
+  const off = files.map(([path]) => path).filter((path) => !wanted.has(path));
+  return { ok: true as const, value: { wanted, off } };
 };
 
 // The settings as an object with the hash of the text read; none yet is an empty one. A file that is no JSON object
@@ -277,16 +278,15 @@ const settingsPlan = (
   return { ok: true, value: { operations, findings } };
 };
 
-// The home's own files: each rules part's and skill's that is on, and the files CedarLoom wrote in its rules and
-// skills folders that nothing wants now (a part switched off or taken out of the profile, a file a source dropped).
+// The home's own files: each rules part's and skill's that is on, and the files of a part switched off or of a file a
+// skill's source dropped.
 const ownedOf = (resolved: Resolved, home: string, fetched: Fetched, written: ReadonlyMap<string, string | null>) => {
   const rules = rulesFiles(resolved, home, fetched);
   if (!rules.ok) return rules;
   const skills = skillFiles(resolved, home, { fetched, written, level: "machine" });
   if (!skills.ok) return skills;
-  const wanted = new Map([...rules.value, ...skills.value.wanted]);
-  const stale = [...written.keys()].filter((path) => path.startsWith(rulesFolder(home)) && !wanted.has(path));
-  const files = ownedFiles(wanted, [...stale, ...skills.value.stale], written);
+  const wanted = new Map([...rules.value.wanted, ...skills.value.wanted]);
+  const files = ownedFiles(wanted, [...rules.value.off, ...skills.value.stale], written);
   if (!files.ok) return files;
   return { ok: true as const, value: { ...files.value, mine: new Set([...wanted.keys(), ...written.keys()]) } };
 };

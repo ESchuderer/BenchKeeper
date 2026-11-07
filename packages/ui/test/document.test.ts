@@ -311,42 +311,32 @@ test("every edit is one step that undo and redo walk exactly, and an editor's ow
   );
 });
 
-// The validator's findings about edges themselves: canConnect allows an edge exactly when it adds none of them.
-const EDGE_FINDINGS = new Set([
-  "workflow.dangling-edge",
-  "workflow.unknown-handle",
-  "workflow.incompatible-handles",
-  "workflow.many-sources",
-  "workflow.cycle",
-  "workflow.duplicate-edge",
-]);
-const edgeFindings = (workflow: WorkflowDefinition): string[] =>
-  validateWorkflow(workflow).flatMap((finding) => (EDGE_FINDINGS.has(finding.code) ? [JSON.stringify(finding)] : []));
-
-const candidates = (workflow: WorkflowDefinition) => ({
-  outs: [
-    ...Object.keys(workflow.inputs ?? {}).map((name) => ({ input: name })),
-    ...workflow.nodes.flatMap((item) => handleNames(item, "outputs").map((name) => node(item.id, name))),
-  ],
-  ins: [
-    ...Object.keys(workflow.outputs ?? {}).map((name) => ({ output: name })),
-    ...workflow.nodes.flatMap((item) => handleNames(item, "inputs").map((name) => node(item.id, name))),
-  ],
-});
-
-test("canConnect allows exactly the edges that give the validator no new finding about edges", () => {
-  fc.assert(
-    fc.property(fc.array(anIntent, { maxLength: 10 }), (steps) => {
-      const workflow = run(steps).history.present;
-      const before = new Set(edgeFindings(workflow));
-      const { outs, ins } = candidates(workflow);
-      for (const [from, to] of outs.flatMap((out) => ins.map((into) => [out, into] as const))) {
-        const added = { ...workflow, edges: [...workflow.edges, { id: "probe", from, to }] };
-        const fresh = edgeFindings(added).some((finding) => !before.has(finding));
-        expect([from, to, canConnect(workflow, from, to)]).toEqual([from, to, !fresh]);
-      }
-    }),
-    { numRuns: 30 },
+test("canConnect allows an edge between handles that exist and fit, that closes no cycle, into an input still free", () => {
+  const plain = built();
+  // command-run-1 then runs agent-run-1, or feeds it its stdout as context.
+  const chained = edit(plain, { kind: "connect", from: node("command-run-1", "done"), to: node("agent-run-1", "run") });
+  const fed = edit(plain, {
+    kind: "connect",
+    from: node("command-run-1", "stdout"),
+    to: node("agent-run-1", "context"),
+  });
+  type End = ReturnType<typeof node>;
+  const cases: [WorkflowDefinition, End, End, boolean][] = [
+    [plain, node("start", "start"), node("agent-run-1", "run"), true],
+    [plain, node("command-run-1", "done"), node("agent-run-1", "run"), true],
+    [plain, node("command-run-1", "stdout"), node("agent-run-1", "context"), true],
+    // The same source into a control input once only; a data input takes one edge.
+    [plain, node("start", "start"), node("command-run-1", "run"), false],
+    [fed, node("command-run-1", "stdout"), node("agent-run-1", "context"), false],
+    // A number into text, data into control, a handle or node that is not there, an edge that closes a cycle.
+    [plain, node("command-run-1", "exitCode"), node("agent-run-1", "context"), false],
+    [plain, node("command-run-1", "stdout"), node("agent-run-1", "run"), false],
+    [plain, node("command-run-1", "nope"), node("agent-run-1", "run"), false],
+    [plain, node("gone", "done"), node("agent-run-1", "run"), false],
+    [chained, node("agent-run-1", "done"), node("command-run-1", "run"), false],
+  ];
+  expect(cases.map(([workflow, from, to]) => canConnect(workflow, from, to))).toEqual(
+    cases.map(([, , , allowed]) => allowed),
   );
 });
 

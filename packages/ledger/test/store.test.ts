@@ -140,16 +140,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 18 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 19 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 17 is the last schema before 0.1.0, which had no outbox.
-  const dir = storeAt(17);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 17, known: 18 } } };
+  // 18 is the last schema before 0.1.0, which had no outbox.
+  const dir = storeAt(18);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 18, known: 19 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 17 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 18 });
   after.close();
 });
 
@@ -376,7 +376,7 @@ test("the latest reading per account and window stays, whichever source read it;
   expect(store.readings().map((each) => each.window)).toEqual(["sevenDay"]);
 });
 
-test("a switch row keeps its time, task, from, to, reason, readings and candidates", () => {
+test("a switch row keeps its time, task, from, to, reason, trigger, readings and candidates", () => {
   const store = opened(fresh());
   const reading = {
     account: "spare",
@@ -392,6 +392,7 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     from: null,
     to: "spare",
     reason: "most-headroom",
+    trigger: "launch",
     readings: [reading],
     candidates: [{ account: "spare", margin: 87 }],
   };
@@ -402,6 +403,7 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     from: "spare",
     to: "work",
     reason: "no-readings",
+    trigger: "at-limit",
     readings: [],
     candidates: [],
   };

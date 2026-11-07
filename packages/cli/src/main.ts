@@ -252,6 +252,8 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     )
     .argument("<pool>")
     .addOption(new Option("--agent <agent>", "the pool's agent").choices(Agent.options).default("claude" as const))
+    .option("--move-running", "running workers move to another account of the pool at their line or limit")
+    .option("--no-move-running", "running workers stay on their account (off when never set)")
     .option("--yes", "confirm as planned now")
     .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
   accounts

@@ -13,8 +13,9 @@ const issues = z.array(z.strictObject({ path: z.string(), code: z.string() }));
 export const Finding = z
   .discriminatedUnion("code", [
     finding("document.unreadable", { path: z.string(), error: z.string() }),
-    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
-    finding("document.invalid", { issues }),
+    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion, path: z.string().optional() }),
+    // `path`, here and above, names the file when the reader knows it.
+    finding("document.invalid", { issues, path: z.string().optional() }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
     finding("plan.path-not-absolute", { path: z.string() }),
     finding("plan.not-a-file", { path: z.string(), error: z.string() }),
@@ -238,8 +239,13 @@ export const Finding = z
     finding("profile.remove-unknown", { item: z.string() }),
     // A `profiles init` target that holds a file, which may be a profile the owner edited, or is the selection file.
     finding("profile.copy-exists", { path: z.string() }),
+    // A project file another clone wrote from a newer version of its pack than this machine has, left as it is.
+    finding("profile.newer-pack", { path: z.string(), recorded: z.string(), local: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
+    // A part the selection switches on that stays off while its condition fails: for `orca`, the Orca extension is
+    // switched off or no orca program is found.
+    finding("profile.when-unmet", { part: z.string(), when: z.enum(["orca"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -293,6 +299,8 @@ export const Finding = z
     // An outbox intent whose approval names another intent: nothing is queued.
     finding("outbox.not-approved", { key: z.string(), hash: Sha256, approvedHash: z.string() }),
     finding("outbox.not-found", { id: z.string() }),
+    // An entry for another repository than the hub, the only tracker (A3 b): it fails, and nothing is written.
+    finding("outbox.not-hub", { id: z.string(), repo: z.string() }),
     // The entry's status does not allow the step, such as a send of one that ended, or `sending`: another process sends it.
     finding("outbox.status", { id: z.string(), status: z.string() }),
     // A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted.
@@ -435,9 +443,11 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.binding-waiting": { severity: "info", effort: "command" },
+  "profile.when-unmet": { severity: "warning", effort: "command" },
   "profile.drift": { severity: "warning", effort: "command" },
   "profile.remove-unknown": { severity: "error", effort: "manual" },
   "profile.copy-exists": { severity: "error", effort: "manual" },
+  "profile.newer-pack": { severity: "warning", effort: "manual" },
   "profile.extra": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
@@ -454,6 +464,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.source-unavailable": { severity: "error", effort: "manual" },
   "outbox.not-approved": { severity: "error", effort: "command" },
   "outbox.not-found": { severity: "error", effort: "manual" },
+  "outbox.not-hub": { severity: "error", effort: "manual" },
   "outbox.status": { severity: "error", effort: "manual" },
   "outbox.not-undoable": { severity: "warning", effort: "manual" },
   "tracker.unavailable": { severity: "warning", effort: "command" },

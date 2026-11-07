@@ -1,12 +1,21 @@
 import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { counted, headroom, isConfirmed, type Selection, selectAccount } from "@cedarloom/accounts";
+import {
+  counted,
+  headroom,
+  isConfirmed,
+  type Move,
+  type Selection,
+  selectAccount,
+  selectMove,
+} from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
   AccountName,
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
+  type AccountSwitch,
   Agent,
   type Finding,
   type FolderTarget,
@@ -18,7 +27,7 @@ import {
   readDocument,
   sameFolder,
 } from "@cedarloom/contracts";
-import { openRunStore, sha256 } from "@cedarloom/ledger";
+import { openRunStore, type RunStore, sha256 } from "@cedarloom/ledger";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
 import { projectFolder } from "./automation.ts";
 import { readJson, readOptionalJson, withStore, withView } from "./use-cases.ts";
@@ -43,11 +52,12 @@ export const loadRegistry = (config: string): Result<AccountRegistry | null> => 
 
 /**
  * Plans the user's confirmation that one person holds and pays for every account of the pool, which lets new workers
- * switch between them, with the terms it answers to as a finding. A Codex pool is refused before anything is read.
+ * switch between them, with the terms it answers to as a finding; `moveRunning` sets whether running workers move too.
+ * A Codex pool is refused before anything is read.
  */
 export const planConfirm = (
   config: string,
-  { agent, pool }: { readonly agent: Agent; readonly pool: string },
+  { agent, pool, moveRunning }: { readonly agent: Agent; readonly pool: string; readonly moveRunning?: boolean },
   now: string = new Date().toISOString(),
 ): Result<{ plan: Plan; findings: Finding[] }> => {
   if (agent === "codex") return { ok: false, finding: { code: "accounts.codex-switching-off", params: { pool } } };
@@ -61,7 +71,13 @@ export const planConfirm = (
   }
   // The confirmation names the accounts it covers; a later change to them makes the pool unconfirmed again.
   const confirmedFor = registry.accounts.filter((a) => a.agent === agent && a.pool === pool).map((a) => a.name);
-  const confirmation = { confirmedAt: now, confirmedFor };
+  // Whether running workers move stays as it was unless the confirmation sets it.
+  const confirmation = {
+    ...pools[pool],
+    confirmedAt: now,
+    confirmedFor,
+    ...(moveRunning === undefined ? {} : { moveRunning }),
+  };
   const next = { ...registry, pools: { ...registry.pools, [agent]: { ...pools, [pool]: confirmation } } };
   const plan: Plan = {
     schemaVersion: 1,
@@ -400,6 +416,21 @@ export interface AccountRequest {
   readonly project?: string | undefined;
 }
 
+// Accounts whose leases are all taken: they start or take over no worker now.
+const fullAccounts = (store: RunStore, agent: Agent): Set<string> =>
+  new Set([...store.liveLeases()].filter(([, count]) => count >= MAX_CONCURRENT[agent]).map(([name]) => name));
+
+// Records a choice dated when its readings were judged, with the counted readings of its accounts and candidates.
+const recordChoice = (
+  store: RunStore,
+  { readings, judged }: { readings: readonly Reading[]; judged: number },
+  row: Omit<AccountSwitch, "at" | "readings">,
+): void => {
+  const shown = new Set([...row.candidates.map((candidate) => candidate.account), row.from]);
+  const counts = counted(readings, judged).filter((reading) => shown.has(reading.account));
+  store.recordSwitch({ ...row, at: new Date(judged).toISOString(), readings: counts });
+};
+
 /** A window of an account as claude-swap's switch target answers it: times with any offset, null when not known. */
 export interface SwapWindow {
   readonly window: Quota;
@@ -446,24 +477,65 @@ export const chooseAccount = (
     const readings = store.readings();
     // Judged once the store is held, so a reading that expired during the wait for the lock counts as expired.
     const judged = now ?? Date.now();
-    // An account whose leases are all taken starts no worker now.
-    const leases = [...store.liveLeases()];
-    const busy = new Set(leases.filter(([, count]) => count >= MAX_CONCURRENT[request.agent]).map(([name]) => name));
+    const busy = fullAccounts(store, request.agent);
     const selection = selectAccount(registry, { ...request, busy }, readings, judged);
     if (selection.ok) {
-      const pool = new Set(selection.candidates.map((candidate) => candidate.account));
-      store.recordSwitch({
-        at: new Date(judged).toISOString(),
-        task: request.task,
-        from: request.previous,
-        to: selection.account.name,
-        reason: selection.reason,
-        readings: counted(readings, judged).filter((reading) => pool.has(reading.account)),
-        candidates: [...selection.candidates],
-      });
+      const { task, previous: from } = request;
+      const { account, reason, candidates } = selection;
+      const row = { task, from, to: account.name, reason, trigger: "launch" as const, candidates: [...candidates] };
+      recordChoice(store, { readings, judged }, row);
     }
     return { ok: true, value: selection };
   });
+
+/** A running worker that may move: its task, its pool, the account it runs on, and why it would move. */
+export interface MoveRequest {
+  readonly task: string;
+  readonly agent: Agent;
+  readonly pool: string;
+  readonly from: string;
+  readonly trigger: "line" | "at-limit";
+  /** Accounts whose login check failed: held, so no worker moves onto them. */
+  readonly held?: ReadonlySet<string>;
+  readonly model?: string | undefined;
+  /** The project folder the worker works in, by its real path: a folder `accounts map` bound to its account keeps it. */
+  readonly project?: string | undefined;
+}
+
+/**
+ * Decides under the store's lock whether a running worker of the task moves to another account of its pool now
+ * (`selectMove`), and records a move in the ledger with its trigger. claude-swap's cooldown counts from the task's latest
+ * row or worker start: a resumed worker starts without a row. A worker in a folder bound to an account stays on it, as a
+ * new worker there takes no other account.
+ */
+export const chooseMove = (
+  state: string,
+  registry: AccountRegistry,
+  request: MoveRequest,
+  now?: number,
+): Result<Move> => {
+  const bound = request.project === undefined ? null : boundTarget(registry, request.project);
+  if (bound !== null && "account" in bound)
+    return { ok: true, value: { move: false, reason: "bound", candidates: [] } };
+  return withStore(state, (store) => {
+    const readings = store.readings();
+    const judged = now ?? Date.now();
+    const last = store.lastSwitchOrLaunch(request.task);
+    const since = last === null ? null : Date.parse(last);
+    const move = selectMove(
+      registry,
+      { ...request, since, busy: fullAccounts(store, request.agent) },
+      readings,
+      judged,
+    );
+    if (move.move) {
+      const { task, from, trigger } = request;
+      const row = { task, from, to: move.account.name, reason: move.reason, trigger, candidates: [...move.candidates] };
+      recordChoice(store, { readings, judged }, row);
+    }
+    return { ok: true, value: move };
+  });
+};
 
 /**
  * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases and the

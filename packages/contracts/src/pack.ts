@@ -9,8 +9,10 @@ export const PACK_SCHEMA_VERSION = 1;
 /** The format of this machine's record of the Git sources a profile follows, `pack-sources.json` in its state. */
 export const SOURCES_SCHEMA_VERSION = 1;
 
+// A pack id's pattern without anchors, for formats that embed one.
+export const PACK_ID = String.raw`[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}`;
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
-export const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
+export const PackId = z.string().regex(new RegExp(`^${PACK_ID}$`));
 
 // Where Git fetches a folder (A29 b): a text-only one follows a branch or tag, taking a new commit once CedarLoom has
 // seen it there for 3 days (A94); one with a file that runs is pinned by commit and digest, as an extension is.

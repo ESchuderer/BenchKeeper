@@ -59,18 +59,32 @@ test("a refused write fails for good, while an outage keeps its entry and the on
   expect(bodies(tracker).map((body) => body.split("\n")[0])).toEqual(["Two.", "Three.", "Four."]);
 });
 
-test("an entry a live sender holds is left to it, and due again once that sender ends without settling it", async () => {
+test("an entry a live sender holds is left to it with the ones after it, and due again once that sender ends", async () => {
   const [store, tracker] = [fresh(), new FakeTracker([issue])];
-  const id = queue(store, "mirror", { kind: "comment", issue, body: "Run ended." });
-  const claim = store.claim(id);
+  const one = queue(store, "one", { kind: "comment", issue, body: "One." });
+  const two = queue(store, "two", { kind: "comment", issue, body: "Two." });
+  const claim = store.claim(one);
   if (!claim.ok) throw new Error(claim.finding.code);
   expect(await drain(store, tracker)).toEqual([]);
-  expect(await send(store, tracker, id)).toEqual({
+  expect(await send(store, tracker, one)).toEqual({
     ok: false,
-    finding: { code: "outbox.status", params: { id, status: "sending" } },
+    finding: { code: "outbox.status", params: { id: one, status: "sending" } },
   });
   claim.value.release();
-  expect(await drain(store, tracker)).toMatchObject([{ id, status: "sent" }]);
+  expect(await drain(store, tracker)).toMatchObject([
+    { id: one, status: "sent" },
+    { id: two, status: "sent" },
+  ]);
+});
+
+test("an entry for another repository than the hub fails and writes nothing", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const elsewhere: IssueRef = { repo: "acme/public-app", number: 7 };
+  const id = queue(store, "mirror", { kind: "comment", issue: elsewhere, body: "Run ended." });
+  expect(await drain(store, tracker)).toMatchObject([
+    { id, status: "failed", finding: { code: "outbox.not-hub", params: { id, repo: "acme/public-app" } } },
+  ]);
+  expect(bodies(tracker)).toEqual([]);
 });
 
 test("a label's undo removes it only when the send added it, also when the send's answer was lost", async () => {

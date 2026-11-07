@@ -44,6 +44,7 @@ CREATE TABLE switches (
   fromAccount TEXT,
   toAccount TEXT NOT NULL,
   reason TEXT NOT NULL CHECK (reason IN ('most-headroom', 'soonest-weekly-reset', 'highest-tier', 'no-readings')),
+  trigger TEXT NOT NULL CHECK (trigger IN ('launch', 'line', 'at-limit')),
   readings TEXT NOT NULL,
   candidates TEXT NOT NULL
 ) STRICT;
@@ -180,7 +181,7 @@ CREATE TABLE outbox (
   intentHash TEXT NOT NULL,
   approvedHash TEXT NOT NULL CHECK (approvedHash = intentHash),
   approvedBy TEXT NOT NULL CHECK (approvedBy IN ('owner', 'mirroring')),
-  status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'cancelled')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
   attempts INTEGER NOT NULL DEFAULT 0,
   unchanged INTEGER CHECK (unchanged IN (0, 1)),
   remote TEXT,

@@ -15,6 +15,7 @@ import {
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 import { fetchTree, type Tree } from "@cedarloom/git";
+import { programFound } from "@cedarloom/extension-host";
 import {
   APP_VERSION,
   DEFAULT_PROFILE,
@@ -24,6 +25,7 @@ import {
   onDisk,
   planMachine,
   planProject,
+  projectWritten,
   type Probe,
   type Resolved,
   resolveProfile,
@@ -31,6 +33,7 @@ import {
   sourcesOf,
 } from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
+import { bundledExtensions } from "./bundled.ts";
 import type { Fetch } from "./extensions.ts";
 import { type ApplyTemplate, devcontainerCli, templatesOf } from "./devcontainer.ts";
 import { fetchSources, readRecord, writeRecord } from "./sources.ts";
@@ -86,17 +89,29 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
   return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
 };
 
-// The profile this machine's selection names, resolved.
-// A project's probes: whether it has a dev container. No Orca probe runs (see resolveProfile).
-const projectProbe = (project: string) => {
-  const container = hasContainer(project);
-  return (when: Probe): boolean => (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
+// Whether Orca is here: its bundled extension not switched off, and its program found as host/exec finds it. An app
+// folder or components map that does not read finds none, as it adds no CLI verbs; the extensions commands name it.
+const orcaHere = (app: string | undefined, config: string): boolean => {
+  const bundled = app === undefined ? undefined : bundledExtensions(app, config);
+  const orca = bundled?.ok === true ? bundled.value.find(({ id }) => id === "cedarloom.orca") : undefined;
+  return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-const selectedProfile = (config: string, project: string | undefined): Result<Resolved> => {
+// The probes: whether Orca is here, asked once and only by a part that needs it, and whether the project has a dev
+// container.
+const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
+  const container = project !== undefined && hasContainer(project);
+  let orca: boolean | undefined;
+  return (when: Probe): boolean => {
+    if (when === "orca") return (orca ??= orcaHere(app, config));
+    return project !== undefined && (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
+  };
+};
+
+// The profile this machine's selection names, resolved.
+const selectedProfile = (config: string, app: string | undefined, project: string | undefined): Result<Resolved> => {
   const read = readSelection(config);
-  const probe = project === undefined ? undefined : projectProbe(project);
-  return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probe) : read;
+  return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(app, config, project)) : read;
 };
 
 // What CedarLoom last left at each path of a folder, the Claude Code home or a project, from the run store.
@@ -140,11 +155,12 @@ const fetchAll = async (
 };
 
 /**
- * How a profile plan runs: the parts approved by name, how Git sources are fetched, the project, if any, and how a dev
- * container part's Template is applied.
+ * How a profile plan runs: the parts approved by name, the app's folder of its own extensions (without it no Orca is
+ * found), how Git sources are fetched, the project, if any, and how a dev container part's Template is applied.
  */
 export type PlanOptions = {
   allow?: readonly string[];
+  app?: string | undefined;
   fetch?: Fetch | undefined;
   project?: string | undefined;
   template?: ApplyTemplate | undefined;
@@ -219,11 +235,11 @@ export const planProfile = async (
   machine: Machine,
   options: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
-  const { allow, fetch, project, template, remove, readOnly } = withDefaults(options);
+  const { allow, app, fetch, project, template, remove, readOnly } = withDefaults(options);
   const where = folderOf(project);
   if (!where.ok) return where;
   const folder = where.value;
-  const resolved = selectedProfile(config, folder);
+  const resolved = selectedProfile(config, app, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
     return { ok: true, value: { plan: null, findings: resolved.value.problems } };
@@ -241,8 +257,18 @@ export const planProfile = async (
   });
   if (!level.ok) return level;
   const { operations, findings } = level.value;
+  // A part of this level selected on that stays off without Orca.
+  const unmet = resolved.value.unmet
+    .filter((part) => part.startsWith("project.") === (folder !== undefined))
+    .map((part): Finding => ({ code: "profile.when-unmet", params: { part, when: "orca" } }));
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };
-  return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings] } };
+  return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings, ...unmet] } };
+};
+
+// What CedarLoom last left in a level's folder: the run store's record, with a project's committed one.
+const writtenAt = (state: string, level: string, project: boolean): Result<ReadonlyMap<string, string | null>> => {
+  const stored = writtenIn(state, level);
+  return stored.ok && project ? projectWritten(level, stored.value) : stored;
 };
 
 // A drift line about an operation the next apply would run: a write where the file lacks the profile's text, or over
@@ -265,16 +291,16 @@ export const checkProfile = async (
   config: string,
   state: string,
   machine: Machine,
-  { fetch, project }: Pick<PlanOptions, "fetch" | "project"> = {},
+  { app, fetch, project }: Pick<PlanOptions, "app" | "fetch" | "project"> = {},
 ): Promise<Result<Finding[]>> => {
-  const planned = await planProfile(config, state, machine, { fetch, project, readOnly: true });
+  const planned = await planProfile(config, state, machine, { app, fetch, project, readOnly: true });
   const level = project === undefined ? machine.home : onDisk(resolve(project));
   if (!planned.ok && planned.finding.code.startsWith("git.")) {
     const params = { status: "not-run" as const, subject: level, remove: null };
     return { ok: true, value: [{ code: "profile.drift", params }, planned.finding] };
   }
   if (!planned.ok) return planned;
-  const written = writtenIn(state, level);
+  const written = writtenAt(state, level, project !== undefined);
   if (!written.ok) return written;
   const lines = (planned.value.plan?.operations ?? []).flatMap((operation) => driftOf(operation, written.value));
   return { ok: true, value: [...lines, ...planned.value.findings] };
@@ -284,9 +310,14 @@ export const checkProfile = async (
  * The machine's drift for the doctor, once this machine has chosen a profile, none before; a Git source it could not
  * fetch is its `not-run` line alone, as being offline is no problem of the machine.
  */
-export const profileDoctor = async (config: string, state: string, machine: Machine, fetch?: Fetch) => {
+export const profileDoctor = async (
+  config: string,
+  state: string,
+  machine: Machine,
+  { app, fetch }: Pick<PlanOptions, "app" | "fetch"> = {},
+) => {
   if (!existsSync(selectionPath(config))) return [];
-  const checked = await checkProfile(config, state, machine, { fetch });
+  const checked = await checkProfile(config, state, machine, { app, fetch });
   return checked.ok ? checked.value.filter(({ code }) => !code.startsWith("git.")) : [checked.finding];
 };
 

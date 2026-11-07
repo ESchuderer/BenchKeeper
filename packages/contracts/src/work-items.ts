@@ -13,7 +13,10 @@ export const IssueRef = z.strictObject({
 });
 export type IssueRef = z.infer<typeof IssueRef>;
 
-const Label = PlainText.min(1).max(100);
+// A label is a path segment of GitHub's API, where `.` and `..` would climb even when encoded.
+const Label = PlainText.min(1)
+  .max(100)
+  .regex(/^(?!\.{1,2}$)/);
 
 /**
  * A write to a hub issue that the file ledger cannot undo; it waits in the outbox until it is sent. A comment's body
@@ -28,7 +31,7 @@ export const Intent = z.discriminatedUnion("kind", [
 export type Intent = z.infer<typeof Intent>;
 
 /** A comment as the tracker keeps it. */
-export const RemoteComment = z.strictObject({ id: z.int().positive(), url: z.url() });
+export const RemoteComment = z.strictObject({ id: z.int().positive(), url: z.url({ protocol: /^https$/ }) });
 export type RemoteComment = z.infer<typeof RemoteComment>;
 
 /**
@@ -43,7 +46,7 @@ export const OutboxEntry = z.strictObject({
   intent: Intent,
   intentHash: Sha256,
   approvedBy: z.enum(["owner", "mirroring"]),
-  status: z.enum(["pending", "sending", "sent", "failed", "cancelled"]),
+  status: z.enum(["pending", "sending", "sent", "failed"]),
   attempts: z.int().min(0),
   unchanged: z.boolean().nullable(),
   remote: RemoteComment.nullable(),

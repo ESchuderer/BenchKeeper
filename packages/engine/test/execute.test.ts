@@ -373,6 +373,19 @@ const decision = (approved: boolean, planHash: string) => ({ type: "decided", no
 const beforeNode: Gates = (point) => (point === "before-node" ? "wait" : "pass");
 const passing: Gates = () => "pass";
 
+test("a trigger's gate holds its precheck: it waits for the owner, an approval runs it, a rejection skips the run", async () => {
+  const checked = workflow({}, "check");
+  const gate: JournalEvent = { type: "gate", node: "t", attempt: 1, point: "before-node", planHash: null };
+  const answer = (approved: boolean): JournalEvent[] => [gate, { type: "decided", node: "t", approved }];
+  const holding = { gates: beforeNode };
+  expect(trail((await start(checked, {}, holding)).events)).toBe("gate t#1, waiting");
+  expect(await resume(checked, answer(true), holding)).toEqual([
+    { ok: true, value: "waiting" },
+    "precheck, gate a#1, waiting",
+  ]);
+  expect(await resume(checked, answer(false), holding)).toEqual([{ ok: true, value: "skipped" }, "precheck, finished"]);
+});
+
 test("a gate the journal holds waits for the owner whatever the policy says now, and the owner's decision outranks it", async () => {
   const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };
   const executors = planning(HASH);

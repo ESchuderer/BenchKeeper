@@ -12,13 +12,18 @@ import {
 import { BUNDLED } from "@cedarloom/packs";
 import { expect, test } from "vitest";
 
-const root = join(BUNDLED, "cedarloom.core");
-const json = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(root, path), "utf8"));
-const manifest = PackManifest.parse(await json("cedarloom-pack.json"));
-const entries = Object.keys(manifest.entries);
-const files = (await readdir(root, { recursive: true, withFileTypes: true }))
-  .filter((entry) => entry.isFile())
-  .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join("/"));
+const json = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(BUNDLED, path), "utf8"));
+// Each bundled pack: its folder name, manifest, entries and files.
+const packs = await Promise.all(
+  (await readdir(BUNDLED)).toSorted().map(async (folder) => {
+    const root = join(BUNDLED, folder);
+    const manifest = PackManifest.parse(await json(join(folder, "cedarloom-pack.json")));
+    const files = (await readdir(root, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join("/"));
+    return { folder, manifest, entries: Object.keys(manifest.entries), files };
+  }),
+);
 const covers = (entry: string, file: string): boolean => file === entry || file.startsWith(`${entry}/`);
 
 // Each `{ pack, path }` a profile names, at any depth.
@@ -30,28 +35,45 @@ const references = (value: unknown): { pack: string; path: string }[] => {
   return [...here, ...Object.values(value).flatMap(references)];
 };
 
-test("cedarloom.core's manifest lists exactly the files the pack holds", async () => {
-  expect([
-    readDocument(PackManifest, PACK_SCHEMA_VERSION, await json("cedarloom-pack.json")).ok,
-    manifest.id,
-    files.filter((file) => file !== "cedarloom-pack.json" && !entries.some((entry) => covers(entry, file))),
-    entries.filter((entry) => !files.some((file) => covers(entry, file))),
-  ]).toEqual([true, "cedarloom.core", [], []]);
+test("each bundled pack's manifest, in the folder of its id, lists exactly the files the pack holds", async () => {
+  const checked = await Promise.all(
+    packs.map(async ({ folder, manifest, entries, files }) => [
+      readDocument(PackManifest, PACK_SCHEMA_VERSION, await json(join(folder, "cedarloom-pack.json"))).ok,
+      folder,
+      manifest.id,
+      files.filter((file) => file !== "cedarloom-pack.json" && !entries.some((entry) => covers(entry, file))),
+      entries.filter((entry) => !files.some((file) => covers(entry, file))),
+    ]),
+  );
+  expect(checked).toEqual([
+    [true, "cedarloom.core", "cedarloom.core", [], []],
+    [true, "cedarloom.orca", "cedarloom.orca", [], []],
+  ]);
 });
 
-test("every text cedarloom.core ships is plain: tabs and line breaks, no other control or bidirectional character", async () => {
-  const texts = await Promise.all(files.map(async (file) => [file, await readFile(join(root, file), "utf8")] as const));
-  expect(texts.filter(([, text]) => !isPlainText(text.replaceAll(/[\t\n]/g, ""))).map(([file]) => file)).toEqual([]);
+test("every text a bundled pack ships is plain: tabs and line breaks, no other control or bidirectional character", async () => {
+  const paths = packs.flatMap(({ folder, files }) => files.map((file) => join(folder, file)));
+  const texts = await Promise.all(paths.map(async (path) => [path, await readFile(join(BUNDLED, path), "utf8")]));
+  expect(texts.filter(([, text = ""]) => !isPlainText(text.replaceAll(/[\t\n]/g, ""))).map(([path]) => path)).toEqual(
+    [],
+  );
 });
 
-test("each profile of cedarloom.core reads whole, and every text it names is an entry of the pack", async () => {
-  const profiles = entries.filter((entry) => manifest.entries[entry]?.kind === "profile");
+test("each bundled profile reads whole, and every text it names is an entry of a bundled pack", async () => {
+  const entryOf = ({ pack, path }: { pack: string; path: string }): boolean =>
+    packs.some(({ manifest, entries }) => manifest.id === pack && entries.includes(path));
+  const profiles = packs.flatMap(({ folder, manifest, entries }) =>
+    entries.filter((entry) => manifest.entries[entry]?.kind === "profile").map((entry) => join(folder, entry)),
+  );
   const results = await Promise.all(
     profiles.map(async (path) => {
       const value = await json(path);
-      const named = references(value).filter((ref) => ref.pack !== "cedarloom.core" || !entries.includes(ref.path));
+      const named = references(value).filter((ref) => !entryOf(ref));
       return [readProfile(value).ok, readDocument(Profile, PROFILE_SCHEMA_VERSION, value).ok, named];
     }),
   );
-  expect([profiles, results]).toEqual([["profiles/default.json"], [[true, true, []]]]);
+  expect([profiles.map((path) => path.split(sep).join("/")), results]).toEqual([
+    ["cedarloom.core/profiles/default.json"],
+    [[true, true, []]],
+  ]);
 });

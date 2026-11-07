@@ -47,6 +47,9 @@
             },
             "known": {
               "$ref": "SchemaVersion.schema.json"
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
@@ -90,6 +93,9 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
@@ -3917,6 +3923,40 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.newer-pack"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "recorded": {
+              "type": "string"
+            },
+            "local": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "recorded",
+            "local"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.binding-waiting"
         },
         "params": {
@@ -3935,6 +3975,39 @@
           "required": [
             "part",
             "binding"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.when-unmet"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "when": {
+              "type": "string",
+              "enum": [
+                "orca"
+              ]
+            }
+          },
+          "required": [
+            "part",
+            "when"
           ],
           "additionalProperties": false
         }
@@ -4499,6 +4572,36 @@
           },
           "required": [
             "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "outbox.not-hub"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "repo": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "repo"
           ],
           "additionalProperties": false
         }

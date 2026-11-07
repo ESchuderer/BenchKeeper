@@ -889,28 +889,39 @@ test("committed files another machine's profile wrote and recorded stay where a 
   ]).toEqual([null, []]);
 });
 
-// The test's packs with CRLF line endings in their Markdown, as a pack written on Windows may have.
-const crlf: Fetch = async (source, options) => {
-  const fetched = await packs(source, options);
-  if (!fetched.ok) return fetched;
-  const files = fetched.value.files.map((file) =>
-    file.path.endsWith(".md") ? treeFile(file.path, file.content.toString().replaceAll("\n", "\r\n")) : file,
-  );
-  return { ok: true, value: { ...fetched.value, files } };
-};
+// The test's packs with the review skill's text as given, in CRLF line endings, as a pack written on Windows may have.
+const crlf =
+  (text: string): Fetch =>
+  async (source, options) => {
+    const fetched = await packs(source, options);
+    if (!fetched.ok) return fetched;
+    const files = fetched.value.files.map((file) =>
+      file.path === "skills/review/SKILL.md" ? treeFile(file.path, text.replaceAll("\n", "\r\n")) : file,
+    );
+    return { ok: true, value: { ...fetched.value, files } };
+  };
 
-test("a CedarLoom text with CRLF line endings is CedarLoom's on another machine by the record", async () => {
+test("a CedarLoom text with CRLF line endings is CedarLoom's on another machine by the record, so it is updated", async () => {
   const project = projectWith();
   const first = custom(packsPart(["acme.skills"]), SKILLS);
-  applied(first.state, ok(await planned(first, project, crlf)).plan);
+  applied(first.state, ok(await planned(first, project, crlf("# Review\n"))).plan);
   const other = custom(packsPart(["acme.skills"]), SKILLS);
-  expect(ok(await planned(other, project, crlf))).toEqual({ plan: null, findings: [] });
+  const { plan, findings } = ok(await planned(other, project, crlf("# Review, newer\n")));
+  const [skill, record] = [
+    join(realpathSync.native(project), ".claude", "skills", "review", "SKILL.md"),
+    join(realpathSync.native(project), ".cedarloom", "profile-files.json"),
+  ];
+  expect([plan?.operations.map((op) => "path" in op && op.path), findings]).toEqual([[skill, record], []]);
 });
 
-test("a record a Git conflict left unreadable stops the plan, named", async () => {
+test("a record a Git conflict left unreadable, or one that does not fit its schema, stops the plan, named", async () => {
   const box = machine();
-  const project = projectWith({ ".cedarloom/profile-files.json": "<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n" });
-  const path = join(realpathSync.native(project), ".cedarloom", "profile-files.json");
-  const params = { issues: expect.any(Array), path };
-  expect(await planned(box, project)).toEqual({ ok: false, finding: { code: "document.invalid", params } });
+  const refusal = async (text: string) => {
+    const project = projectWith({ ".cedarloom/profile-files.json": text });
+    const path = join(realpathSync.native(project), ".cedarloom", "profile-files.json");
+    const params = { issues: expect.any(Array), path };
+    return [await planned(box, project), { ok: false, finding: { code: "document.invalid", params } }];
+  };
+  const [conflict, unfit] = [await refusal("<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n"), await refusal("{}\n")];
+  expect([conflict[0], unfit[0]]).toEqual([conflict[1], unfit[1]]);
 });

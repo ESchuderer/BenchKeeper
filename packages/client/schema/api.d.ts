@@ -1460,7 +1460,24 @@ export interface components {
             code: "profile.target-approval";
             params: {
                 part: string;
-                targets: string[];
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
+                path: string;
             };
         } | {
             /** @constant */
@@ -2465,7 +2482,24 @@ export interface components {
             code: "profile.target-approval";
             params: {
                 part: string;
-                targets: string[];
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
+                path: string;
             };
         } | {
             /** @constant */

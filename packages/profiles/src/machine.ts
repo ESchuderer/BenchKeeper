@@ -158,7 +158,8 @@ export interface Target {
   readonly guarded: readonly string[];
 }
 
-const within = (path: string, root: string): boolean => {
+/** Whether a path lies in a folder or is it, through links and as the disk names both. */
+export const within = (path: string, root: string): boolean => {
   const way = relative(onDisk(root), onDisk(path));
   return way === "" || !(way === ".." || way.startsWith(`..${sep}`) || isAbsolute(way));
 };

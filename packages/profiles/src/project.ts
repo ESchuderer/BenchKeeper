@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { type Finding, type Operation, type Result, targetClass } from "@cedarloom/contracts";
+import { type Finding, type Operation, type Result, sealedTarget, targetClass } from "@cedarloom/contracts";
 import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { onDisk, textOf, unknownApprovals } from "./machine.ts";
+import { onDisk, textOf, unknownApprovals, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
 import { type Resolved, textFile } from "./resolve.ts";
 import type { Fetched } from "./skills.ts";
@@ -15,15 +15,28 @@ type Markers = readonly [string, string];
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 const MARKDOWN: Markers = ["<!-- cedarloom start -->", "<!-- cedarloom end -->"];
-const EXCLUDE: Markers = ["# cedarloom start", "# cedarloom end"];
+// One block per project in its repository's exclude file, named by the project's path from the repository's root.
+const excludeMarkers = (anchor: string): Markers => [`# cedarloom start ${anchor}`, `# cedarloom end ${anchor}`];
+
+// Where each line that is the marker alone starts, a carriage return before its break allowed: a marker the owner
+// quotes inside a line is text.
+const markerLines = (text: string, marker: string): number[] => {
+  const found: number[] = [];
+  let at = 0;
+  for (const line of text.split("\n")) {
+    if (line === marker || line === `${marker}\r`) found.push(at);
+    at += line.length + 1;
+  }
+  return found;
+};
 
 // Where CedarLoom's block lies: none when the text has none, or null when its markers are broken (one alone, one twice,
 // or out of order), where a write must not guess what is the owner's.
 const blockAt = (text: string, [start, end]: Markers): { from: number; to: number } | undefined | null => {
-  const [from, to] = [text.indexOf(start), text.indexOf(end)];
-  if (from < 0 && to < 0) return undefined;
-  const once = text.indexOf(start, from + 1) < 0 && text.indexOf(end, to + 1) < 0;
-  return from >= 0 && to > from && once ? { from, to: to + end.length } : null;
+  const [starts, ends] = [markerLines(text, start), markerLines(text, end)];
+  if (starts.length === 0 && ends.length === 0) return undefined;
+  const [from = -1, to = -1] = [starts[0], ends[0]];
+  return starts.length === 1 && ends.length === 1 && to > from ? { from, to: to + end.length } : null;
 };
 
 // The text with CedarLoom's block set to `body`, or taken out when it is null; the lines outside it stay.
@@ -59,9 +72,10 @@ const partsOn = <T extends Part["type"]>({ profile, on }: Resolved, type: T): [s
     (entry): entry is [string, Of<T>] => entry[1].type === type && on.has(`project.${entry[0]}`),
   );
 
-// The rules of the parts of one type that are on, in profile order, each ending in a line break; a part that requires
+// The rules of the parts of one type that are on, in profile order, each ending in one line break; a part that requires
 // one `held` back for its approval is left out with it.
 type Context = { resolved: Resolved; fetched: Fetched; held: ReadonlySet<string> };
+type Written = ReadonlyMap<string, string | null>;
 const rulesOf = ({ resolved, fetched, held }: Context, type: "manual" | "local-manual"): Result<string[]> => {
   const texts: string[] = [];
   const parts = partsOn(resolved, type).filter(([, part]) => !(part.requires ?? []).some((each) => held.has(each)));
@@ -69,7 +83,7 @@ const rulesOf = ({ resolved, fetched, held }: Context, type: "manual" | "local-m
     for (const [at, text] of part.rules.entries()) {
       const read = textOf(text, { kind: "rules", pointer: `/project/${id}/rules/${at}` }, resolved, fetched);
       if (!read.ok) return read;
-      texts.push(read.value.endsWith("\n") ? read.value : `${read.value}\n`);
+      texts.push(`${read.value.trimEnd()}\n`);
     }
   }
   return { ok: true, value: texts };
@@ -82,60 +96,83 @@ type Files = {
   held: Set<string>;
   findings: Finding[];
 };
+type Found = { target: string; path: string; content: string };
 
-// A files part that is on: its targets, made executable when they are, or none and an approval line while it writes an
-// executable or configuration target `approved` does not name (owner, hub issue 130).
-const filesPart = (id: string, part: Of<"files">, resolved: Resolved, fetched: Fetched) => {
-  const found: [string, string][] = [];
+const hashOf = (path: string): string | null => {
+  try {
+    return hashFile(path);
+  } catch {
+    return null;
+  }
+};
+
+// A target's path on disk; refused when a link leads it outside the project, into its Git folder or onto a file only
+// its own parts write, which the profile's portable paths cannot name but a link can reach.
+const realTarget = (project: string, part: string, target: string): Result<string> => {
+  const path = onDisk(join(project, ...target.split("/")));
+  const inside = relative(project, path).split(sep).join("/");
+  const git = inside.split("/").some((segment) => segment.toLowerCase() === ".git");
+  if (within(path, project) && !git && !sealedTarget(inside)) return { ok: true, value: path };
+  return refuse({ code: "profile.target-linked", params: { part, target, path } });
+};
+
+type Given = { resolved: Resolved; project: string; fetched: Fetched; approved: ReadonlySet<string> };
+
+// A files part's targets with their texts and their paths on disk.
+const filesPart = ({ resolved, project, fetched }: Given, id: string, part: Of<"files">) => {
+  const found: Found[] = [];
   for (const [target, text] of Object.entries(part.files)) {
     const pointer = `/project/${id}/files/${target.replaceAll("~", "~0").replaceAll("/", "~1")}`;
     const read = textOf(text, { kind: "template", pointer }, resolved, fetched);
     if (!read.ok) return read;
-    found.push([target, read.value]);
+    const path = realTarget(project, `project.${id}`, target);
+    if (!path.ok) return path;
+    found.push({ target, path: path.value, content: read.value });
   }
-  const targets = found.filter(([target, text]) => targetClass(target, text) !== "text").map(([target]) => target);
-  return { ok: true as const, value: { found, targets } };
+  return { ok: true as const, value: found };
 };
 
-const targetPath = (project: string, target: string): string => join(project, ...target.split("/"));
-
-// A files part that is on and approved: each target it writes now, and the targets Git is to ignore.
-const addTargets = (files: Files, project: string, part: Of<"files">, found: [string, string][]): void => {
-  for (const [target, content] of found) {
-    const path = targetPath(project, target);
-    if (part.onlyIfAbsent === true && existsSync(path)) continue;
-    const mode = targetClass(target, content) === "executable" ? { mode: 0o755 } : {};
-    files.wanted.set(path, { content, ...mode });
-  }
-  if (!part.commit) files.excluded.push(...Object.keys(part.files));
-};
-
-// Whether every target already holds its text: an approved part's files in place need no new approval.
-const inPlace = (project: string, found: [string, string][]): boolean =>
-  found.every(([target, content]) => {
-    try {
-      return hashFile(targetPath(project, target)) === sha256(content);
-    } catch {
-      return false;
+// A files part that is on and approved: each target it writes now, and those Git is to ignore. An `onlyIfAbsent`
+// target that is there stays as it is, ignored only while it holds what CedarLoom left there.
+const addTargets = (files: Files, part: Of<"files">, found: Found[], written: Written): void => {
+  for (const { target, path, content } of found) {
+    const kept = part.onlyIfAbsent === true && existsSync(path);
+    if (!kept) {
+      const mode = targetClass(target, content) === "executable" ? { mode: 0o755 } : {};
+      files.wanted.set(path, { content, ...mode });
     }
-  });
+    if (!part.commit && (!kept || hashOf(path) === written.get(path))) files.excluded.push(path);
+  }
+};
 
-const filesOf = (resolved: Resolved, project: string, fetched: Fetched, approved: ReadonlySet<string>) => {
+// The approval line of a part whose targets run as programs or configure tools, by class (owner, hub issue 130).
+const approval = (part: string, title: string, project: string, found: Found[]): Finding | undefined => {
+  const of = (kind: string) =>
+    found.filter(({ target, content }) => targetClass(target, content) === kind).map(({ target }) => target);
+  const [programs, configs] = [of("executable"), of("configuration")];
+  if (programs.length + configs.length === 0) return undefined;
+  return { code: "profile.target-approval", params: { part, title, project, programs, configs } };
+};
+
+const filesOf = (given: Given, written: Written) => {
+  const { resolved, project, approved } = given;
   const files: Files = { wanted: new Map(), stale: [], excluded: [], held: new Set(), findings: [] };
   for (const [id, part] of Object.entries(resolved.profile.project)) {
     if (part.type !== "files") continue;
     if (!resolved.on.has(`project.${id}`)) {
-      files.stale.push(...Object.keys(part.files).map((target) => targetPath(project, target)));
+      files.stale.push(...Object.keys(part.files).map((target) => onDisk(join(project, ...target.split("/")))));
       continue;
     }
-    const read = filesPart(id, part, resolved, fetched);
-    if (!read.ok) return read;
-    const { found, targets } = read.value;
-    if (targets.length === 0 || approved.has(`project.${id}`) || inPlace(project, found)) {
-      addTargets(files, project, part, found);
+    const found = filesPart(given, id, part);
+    if (!found.ok) return found;
+    const waits = approval(`project.${id}`, part.title, project, found.value);
+    // An approved part's files in place need no new approval.
+    const inPlace = found.value.every(({ path, content }) => hashOf(path) === sha256(content));
+    if (waits === undefined || approved.has(`project.${id}`) || inPlace) {
+      addTargets(files, part, found.value, written);
       continue;
     }
-    files.findings.push({ code: "profile.target-approval", params: { part: `project.${id}`, targets } });
+    files.findings.push(waits);
     files.held.add(`project.${id}`);
   }
   return { ok: true as const, value: files };
@@ -170,14 +207,15 @@ const repositoryOf = (project: string): { root: string; exclude: string } | null
   }
 };
 
-// The Git exclude block with the project's machine-local files, each anchored at its path from the repository's root.
-const excludeWrites = (project: string, targets: string[]): Result<Operation[]>[] => {
+// The project's Git exclude block with its machine-local files, each anchored at its path from the repository's root,
+// its glob characters escaped.
+const excludeWrites = (project: string, paths: string[]): Result<Operation[]>[] => {
   const repository = repositoryOf(project);
   if (repository === null) return [];
-  const lines = targets.map(
-    (target) => `/${relative(repository.root, targetPath(project, target)).split(sep).join("/")}`,
-  );
-  return [blockWrite(repository.exclude, EXCLUDE, lines.length === 0 ? null : `${lines.join("\n")}\n`)];
+  const anchor = (path: string) => `/${relative(repository.root, path).split(sep).join("/")}`;
+  const lines = paths.map((path) => anchor(path).replaceAll(/[*?[\\]/g, "\\$&"));
+  const body = lines.length === 0 ? null : `${lines.join("\n")}\n`;
+  return [blockWrite(repository.exclude, excludeMarkers(anchor(project)), body)];
 };
 
 // AGENTS.md's block: the manual's rules, then the default tier when one is set.
@@ -186,32 +224,51 @@ const agentsBody = (context: Context): Result<string | null> => {
   if (!rules.ok) return rules;
   const tier = partsOn(context.resolved, "tier").at(-1)?.[1].tier ?? null;
   const lines = [...rules.value, ...(tier === null ? [] : [`Default tier: ${tier}\n`])];
-  return { ok: true, value: lines.length === 0 ? null : lines.join("") };
+  return { ok: true, value: lines.length === 0 ? null : lines.join("\n") };
 };
 
 // CLAUDE.local.md's block: the machine-local rules, then `@AGENTS.md` when CLAUDE.md does not import it.
 const localBody = (context: Context, imported: boolean): Result<string | null> => {
   const rules = rulesOf(context, "local-manual");
   if (!rules.ok || rules.value.length === 0) return rules.ok ? { ok: true, value: null } : rules;
-  return { ok: true, value: [...rules.value, ...(imported ? [] : ["@AGENTS.md\n"])].join("") };
+  return { ok: true, value: [...rules.value, ...(imported ? [] : ["@AGENTS.md\n"])].join("\n") };
 };
 
-// The manual's writes: its two blocks, and a CLAUDE.md that holds only `@AGENTS.md` when there is none (D31).
+// Whether a CLAUDE.md brings in AGENTS.md: it imports it, or it is AGENTS.md through a link either way.
+const imports = (project: string, text: string): boolean =>
+  /^@(?:\.\/)?AGENTS\.md[ \t]*$/m.test(text) ||
+  onDisk(join(project, "CLAUDE.md")) === onDisk(join(project, "AGENTS.md"));
+
+// The project's CLAUDE.md: the owner's, or one to make with only `@AGENTS.md` when there is none (D31); and whether it
+// brings in AGENTS.md.
+const claudeOf = ({ resolved }: Context, project: string) => {
+  const path = join(project, "CLAUDE.md");
+  const text = textFile(path);
+  if (!text.ok) return text;
+  const create = text.value === null && partsOn(resolved, "manual").some(([, part]) => part.claudeImport);
+  const imported = create || (text.value !== null && imports(project, text.value));
+  return { ok: true as const, value: { path, owners: text.value !== null, create, imported } };
+};
+
+// The manual's writes: its two blocks, and the CLAUDE.md to make. An owner's CLAUDE.md that does not import AGENTS.md
+// is reported when no local block does, as Claude Code reads AGENTS.md by itself only without one
+// (https://code.claude.com/docs/en/memory#agents-md).
 const manualWrites = (context: Context, project: string) => {
-  const claude = textFile(join(project, "CLAUDE.md"));
+  const claude = claudeOf(context, project);
   if (!claude.ok) return claude;
-  const create = claude.value === null && partsOn(context.resolved, "manual").some(([, part]) => part.claudeImport);
+  const { path, owners, create, imported } = claude.value;
   const agents = agentsBody(context);
   if (!agents.ok) return agents;
-  const local = localBody(context, create || /^@AGENTS\.md[ \t]*$/m.test(claude.value ?? ""));
+  const local = localBody(context, imported);
   if (!local.ok) return local;
   const writes = [
     blockWrite(join(project, "AGENTS.md"), MARKDOWN, agents.value),
     blockWrite(join(project, "CLAUDE.local.md"), MARKDOWN, local.value),
   ];
-  const path = join(project, "CLAUDE.md");
   const created: Operation[] = create ? [{ kind: "write", path, before: null, content: "@AGENTS.md\n" }] : [];
-  return { ok: true as const, value: { writes, created, local: local.value !== null } };
+  const unread = owners && !imported && agents.value !== null && local.value === null;
+  const findings: Finding[] = unread ? [{ code: "profile.agents-unread", params: { path } }] : [];
+  return { ok: true as const, value: { writes, created, findings, local: local.value !== null } };
 };
 
 /**
@@ -227,13 +284,18 @@ export const planProject = (
 ): Result<LevelPlan> => {
   const unknown = unknownApprovals(resolved, approved, "project", "files");
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const files = filesOf(resolved, project, fetched, approved);
+  const files = filesOf({ resolved, project, fetched, approved }, written);
   if (!files.ok) return files;
   const manual = manualWrites({ resolved, fetched, held: files.value.held }, project);
   if (!manual.ok) return manual;
   const owned = ownedFiles(files.value.wanted, files.value.stale, written);
   if (!owned.ok) return owned;
-  const lines = [...(manual.value.local ? ["CLAUDE.local.md"] : []), ...files.value.excluded];
+  // A target the owner changed is theirs, so Git keeps showing it.
+  const theirs = new Set(
+    owned.value.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])),
+  );
+  const local = manual.value.local ? [onDisk(join(project, "CLAUDE.local.md"))] : [];
+  const lines = [...local, ...files.value.excluded.filter((path) => !theirs.has(path))];
   const writes = [...manual.value.writes, ...excludeWrites(project, lines)];
   const failed = writes.find((write) => !write.ok);
   if (failed !== undefined) return failed;
@@ -242,5 +304,6 @@ export const planProject = (
     ...manual.value.created,
     ...owned.value.operations,
   ];
-  return { ok: true, value: { operations, findings: [...files.value.findings, ...owned.value.findings] } };
+  const findings = [...files.value.findings, ...manual.value.findings, ...owned.value.findings];
+  return { ok: true, value: { operations, findings } };
 };

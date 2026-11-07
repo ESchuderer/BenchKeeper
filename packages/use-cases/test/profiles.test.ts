@@ -152,17 +152,18 @@ test("a project gets the manual's block, a CLAUDE.md that only imports AGENTS.md
     read("CLAUDE.local.md").includes("@AGENTS.md"),
     readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
     (await projectPlan(box, project)).plan,
-  ]).toEqual(["@AGENTS.md\n", true, false, "# cedarloom start\n/CLAUDE.local.md\n# cedarloom end\n", null]);
+  ]).toEqual(["@AGENTS.md\n", true, false, "# cedarloom start /\n/CLAUDE.local.md\n# cedarloom end /\n", null]);
 });
 
 test("the block goes into the owner's AGENTS.md, which keeps its own lines, and imports it where CLAUDE.md does not", async () => {
   const box = machine();
-  const project = projectWith({ "AGENTS.md": "# Mine\n\n- My rule.\n", "CLAUDE.md": "# Notes\n" });
+  // A marker the owner quotes inside a line is text.
+  const mine = "# Mine\n\n- Keep <!-- cedarloom start --> lines.\n";
+  const project = projectWith({ "AGENTS.md": mine, "CLAUDE.md": "# Notes\n" });
   applied(box.state, (await projectPlan(box, project)).plan);
   const agents = readFileSync(join(project, "AGENTS.md"), "utf8");
   expect([
-    agents.startsWith("# Mine\n\n- My rule.\n\n<!-- cedarloom start -->\n") &&
-      agents.endsWith("<!-- cedarloom end -->\n"),
+    agents.startsWith(`${mine}\n<!-- cedarloom start -->\n`) && agents.endsWith("<!-- cedarloom end -->\n"),
     readFileSync(join(project, "CLAUDE.md"), "utf8"),
     readFileSync(join(project, "CLAUDE.local.md"), "utf8").includes("@AGENTS.md\n<!-- cedarloom end -->"),
   ]).toEqual([true, "# Notes\n", true]);
@@ -188,22 +189,81 @@ test("with a dev container, scripts/dc waits for approval with its local line; a
     readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
     await projectPlan(box, project),
   ]).toEqual([
-    [{ code: "profile.target-approval", params: { part: "project.dc-wrapper", targets: ["scripts/dc"] } }],
+    [
+      {
+        code: "profile.target-approval",
+        params: {
+          part: "project.dc-wrapper",
+          title: "scripts/dc, the dev container command",
+          project,
+          programs: ["scripts/dc"],
+          configs: [],
+        },
+      },
+    ],
     false,
     true,
     0o755,
-    "# cedarloom start\n/CLAUDE.local.md\n/scripts/dc\n# cedarloom end\n",
+    "# cedarloom start /\n/CLAUDE.local.md\n/scripts/dc\n# cedarloom end /\n",
     { plan: null, findings: [] },
   ]);
 });
 
-test("a project in a subfolder of its repository is ignored by its path from the repository's root", async () => {
+test("projects in subfolders of one repository each keep a block of their own, by their paths from its root", async () => {
   const box = machine();
-  const project = join(projectWith({ "packages/x/README.md": "x\n" }), "packages", "x");
-  const plan = (await projectPlan(box, project)).plan;
-  expect(contentOf(plan, join(project, "..", "..", ".git", "info", "exclude"))).toBe(
-    "# cedarloom start\n/packages/x/CLAUDE.local.md\n# cedarloom end\n",
+  const repository = projectWith({ "packages/a/README.md": "a\n", "packages/b/README.md": "b\n" });
+  for (const name of ["a", "b"]) applied(box.state, (await projectPlan(box, join(repository, "packages", name))).plan);
+  expect(readFileSync(join(repository, ".git", "info", "exclude"), "utf8")).toBe(
+    "# cedarloom start /packages/a\n/packages/a/CLAUDE.local.md\n# cedarloom end /packages/a\n\n" +
+      "# cedarloom start /packages/b\n/packages/b/CLAUDE.local.md\n# cedarloom end /packages/b\n",
   );
+});
+
+test("a linked worktree's local file is ignored through its repository's common Git folder", async () => {
+  const box = machine();
+  const main = projectWith();
+  const worktree = mkdtempSync(join(root, "worktree-"));
+  const gitdir = join(main, ".git", "worktrees", "wt");
+  mkdirSync(gitdir, { recursive: true });
+  writeFileSync(join(gitdir, "commondir"), "../..\n");
+  writeFileSync(join(worktree, ".git"), `gitdir: ${gitdir}\n`);
+  expect(contentOf((await projectPlan(box, worktree)).plan, join(main, ".git", "info", "exclude"))).toBe(
+    "# cedarloom start /\n/CLAUDE.local.md\n# cedarloom end /\n",
+  );
+});
+
+test("a target a linked folder leads outside the project stops the plan", async () => {
+  const box = machine();
+  const project = projectWith();
+  const elsewhere = mkdtempSync(join(root, "elsewhere-"));
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(elsewhere, join(project, "docs"), "junction");
+  const path = join(realpathSync.native(elsewhere), "agents", "issue-tracker.md");
+  const params = { part: "project.agent-docs", target: "docs/agents/issue-tracker.md", path };
+  expect(
+    await planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: stock, project }),
+  ).toEqual({ ok: false, finding: { code: "profile.target-linked", params } });
+});
+
+test("an owner's own scripts/dc stays as it is and Git keeps showing it", async () => {
+  const box = machine();
+  const project = projectWith({ ".devcontainer.json": "{}", "scripts/dc": "#!/bin/sh\necho mine\n" });
+  const { plan, findings } = await projectPlan(box, project, ["project.dc-wrapper"]);
+  expect([findings, contentOf(plan, join(project, ".git", "info", "exclude"))]).toEqual([
+    [{ code: "profile.owner-changed", params: { path: join(project, "scripts", "dc") } }],
+    "# cedarloom start /\n/CLAUDE.local.md\n# cedarloom end /\n",
+  ]);
+});
+
+test("an owner's CLAUDE.md that leaves AGENTS.md unread is reported, not changed", async () => {
+  const box = machine();
+  applied(box.state, ok(planChoice(box.config, { part: "project.local-manual", on: false })));
+  const project = projectWith({ "CLAUDE.md": "# Notes\n" });
+  const { plan, findings } = await projectPlan(box, project);
+  expect([findings, contentOf(plan, join(project, "CLAUDE.md"))]).toEqual([
+    [{ code: "profile.agents-unread", params: { path: join(project, "CLAUDE.md") } }],
+    null,
+  ]);
 });
 
 test("the manual switched off takes its block out, leaving the owner's file as it was", async () => {

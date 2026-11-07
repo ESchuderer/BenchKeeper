@@ -527,6 +527,27 @@ test("a command waits at Auto until the owner approved it once in this workflow 
   ]);
 });
 
+test("a first run's precheck waits for the owner as its commands do; once approved it runs without asking, even at Supervised", async () => {
+  const at = writing();
+  const checked = JSON.parse(readFileSync(at.file, "utf8"));
+  checked.nodes[0].with = { precheck: "true" };
+  writeFileSync(at.file, JSON.stringify(checked));
+  const options = { ...at.options, config: configAt(at.root, "supervised") };
+  const first = idOf(await runWorkflow(at.state, at.file, {}, options));
+  const asked = waitsOf(at.state, first);
+  // A run cancelled while its precheck waits waits for nothing more.
+  const cancelled = idOf(await runWorkflow(at.state, at.file, {}, options));
+  await cancelRun(at.state, cancelled, options);
+  await decideRun(at.state, first, { node: "t", approved: true }, options);
+  const second = idOf(await runWorkflow(at.state, at.file, {}, options));
+  expect([asked, pointsOf(at.state, cancelled), pointsOf(at.state, first), pointsOf(at.state, second)]).toMatchObject([
+    { value: { waits: [{ node: "t", point: "before-node", firstRun: true }] } },
+    [],
+    [["say", "before-node"]],
+    [["say", "before-node"]],
+  ]);
+});
+
 test("a level switched while a node runs takes effect at the next gate, not in that node", async () => {
   const at = writing();
   // The switch from Auto to Supervised comes once the command has started: it runs on, and the write waits at its own

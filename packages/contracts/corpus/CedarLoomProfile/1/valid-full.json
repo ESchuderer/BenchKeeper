@@ -115,9 +115,8 @@
     "container": {
       "type": "devcontainer",
       "title": "Node on Debian",
-      "default": "auto",
-      "when": "no-devcontainer",
-      "template": "ghcr.io/devcontainers/templates/typescript-node:1",
+      "default": "on",
+      "template": "ghcr.io/devcontainers/templates/typescript-node@sha256:0577dbc39d43e6daf0e93477b62e224cca764d3b0d8e37d420c23a07cafe3021",
       "args": { "imageVariant": "22-bookworm" },
       "features": { "ghcr.io/devcontainers/features/github-cli:1": { "version": "latest" } }
     }

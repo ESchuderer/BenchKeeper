@@ -279,7 +279,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
   "profile.template-failed": (p) =>
-    `${p.part} could not apply the Dev Container Template ${p.template}: ${shown(p.error, 300)}. It needs the Dev Containers CLI: npm install -g @devcontainers/cli`,
+    `${p.part} could not apply the Dev Container Template ${p.template}, so it writes nothing: ${shown(p.error, 300)}${/ENOENT/.test(p.error) ? ". Install the Dev Containers CLI: npm install -g @devcontainers/cli" : ""}`,
+  "profile.target-twice": (p) =>
+    `${p.part} writes ${p.target}, which another part of the profile writes too; switch one of them off.`,
   "profile.skill-twice": (p) =>
     `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>

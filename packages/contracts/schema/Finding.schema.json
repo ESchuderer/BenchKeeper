@@ -3897,6 +3897,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.target-twice"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "target"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.skill-twice"
         },
         "params": {

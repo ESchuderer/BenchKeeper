@@ -489,10 +489,28 @@ test("gates wait for their approval by name, so --yes alone never writes a CI fi
     [{ code: "profile.target-approval", params: { part: "project.ci", title: "CI", project, programs: [], configs } }],
     [null, null],
     [
-      `name: lint\non:\n  pull_request:\n  push:\n    branches: [main]\npermissions: {}\njobs:\n  lint:\n    uses: acme/workflows/.github/workflows/lint.yml@${"a".repeat(40)}\n    permissions:\n      contents: read\n`,
+      `name: lint\non:\n  pull_request:\n  merge_group:\npermissions: {}\njobs:\n  lint:\n    uses: acme/workflows/.github/workflows/lint.yml@${"a".repeat(40)}\n    permissions:\n      contents: read\n`,
       "version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 5\n",
     ],
   ]);
+});
+test("two parts that write one file stop the plan", async () => {
+  const gate = { type: "gates", title: "CI", default: "on", dependabotCooldownDays: 5 };
+  const box = custom({ ci: { ...gate, callers: ["lint"] }, more: { ...gate, callers: ["test"] } });
+  applied(box.state, ok(planChoice(box.config, { gates: `acme/workflows@${"a".repeat(40)}` })));
+  const params = { part: "project.more", target: ".github/dependabot.yml" };
+  expect(
+    await planProfile(
+      box.config,
+      box.state,
+      { home: box.home, user: box.home },
+      {
+        fetch: stock,
+        project: projectWith(),
+        allow: ["project.ci", "project.more"],
+      },
+    ),
+  ).toEqual({ ok: false, finding: { code: "profile.target-twice", params } });
 });
 
 // A Template as one image in `.devcontainer/` and a Dependabot file; the request it was last asked for.
@@ -506,12 +524,13 @@ const template: PlanOptions["template"] = async (folder, request) => {
   return null;
 };
 const REQUEST = {
-  template: "ghcr.io/devcontainers/templates/alpine:3",
+  template: `ghcr.io/devcontainers/templates/alpine@sha256:${"0".repeat(64)}`,
   args: { imageVariant: "3.20" },
   features: { "ghcr.io/devcontainers/features/node:1": { version: "lts" } },
 };
 
-test("a dev container part writes only the .devcontainer files its Template made, with approval, where there is none", async () => {
+test("a dev container part is approved before its Template runs, and writes only the dev container it made", async () => {
+  asked = undefined;
   const box = custom({ dc: { type: "devcontainer", title: "Alpine", default: "on", ...REQUEST } });
   const [fresh, existing] = [projectWith(), projectWith({ ".devcontainer.json": "{}" })];
   const run = (project: string, allow: string[], apply = template) =>
@@ -522,33 +541,30 @@ test("a dev container part writes only the .devcontainer files its Template made
       { fetch: stock, project, allow, template: apply },
     );
   const waiting = ok(await run(fresh, []));
+  const unasked = asked;
   const approved = ok(await run(fresh, ["project.dc"])).plan;
-  const config = join(fresh, ".devcontainer", "devcontainer.json");
   const params = { part: "project.dc", template: REQUEST.template, error: "unauthorized" };
+  const configs = [".devcontainer/"];
   expect([
     waiting.findings,
-    asked,
-    [contentOf(approved, config), contentOf(approved, join(fresh, ".github", "dependabot.yml"))],
+    [unasked, asked],
+    [".devcontainer/devcontainer.json", ".github/dependabot.yml"].map((target) =>
+      contentOf(approved, join(fresh, target)),
+    ),
     ok(await run(existing, ["project.dc"])).plan?.operations.some(
       (op) => "path" in op && op.path.includes(".devcontainer"),
     ),
-    await run(fresh, [], async () => "unauthorized"),
+    ok(await run(fresh, ["project.dc"], async () => "unauthorized")).findings,
   ]).toEqual([
     [
       {
         code: "profile.target-approval",
-        params: {
-          part: "project.dc",
-          title: "Alpine",
-          project: fresh,
-          programs: [],
-          configs: [".devcontainer/devcontainer.json"],
-        },
+        params: { part: "project.dc", title: "Alpine", project: fresh, programs: [], configs },
       },
     ],
-    REQUEST,
+    [undefined, REQUEST],
     ['{ "image": "alpine" }\n', null],
     false,
-    { ok: false, finding: { code: "profile.template-failed", params } },
+    [{ code: "profile.template-failed", params }],
   ]);
 });

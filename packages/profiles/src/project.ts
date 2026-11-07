@@ -149,13 +149,13 @@ const targetNames = (part: Whole): string[] => {
   return part.type === "gates" ? [...part.callers.map(gatePath), DEPENDABOT] : [];
 };
 
-// A caller of the reusable workflow of its name at the bound commit, with read access only
+// A caller of the reusable workflow of its name at the bound commit, with read access only, on each pull request and
+// merge queue entry, which every change to the default branch passes, whatever its name
 // (https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
 const callerText = (name: string, repository: string, commit: string): string => `name: ${name}
 on:
   pull_request:
-  push:
-    branches: [main]
+  merge_group:
 permissions: {}
 jobs:
   ${name}:
@@ -187,6 +187,22 @@ const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">)
   return { ok: true, value: texts };
 };
 
+/** Whether a project has a dev container: a folder, or a file at its root (https://containers.dev/implementors/spec/). */
+export const hasContainer = (project: string): boolean =>
+  existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
+
+// A dev container part's files where the project has none: what its Template wrote as the dev container, and nothing
+// else it ships. Before the part's approval its Template is not applied, so the approval line names the folder.
+const containerTexts = ({ project, templates, approved }: Given, id: string): Result<[string, string][]> => {
+  const folder = templates.get(id);
+  if (hasContainer(project) || (folder === undefined && approved.has(`project.${id}`))) return { ok: true, value: [] };
+  if (folder === undefined) return { ok: true, value: [[".devcontainer/", ""]] };
+  const files = folder.files.filter(({ path }) => path === ".devcontainer.json" || path.startsWith(".devcontainer/"));
+  const binary = files.find(({ content }) => !isUtf8(content));
+  if (binary !== undefined) return refuse({ code: "apply.not-text", params: { path: binary.path } });
+  return { ok: true, value: files.map(({ path, content }): [string, string] => [path, content.toString("utf8")]) };
+};
+
 // A part's targets and texts, and how it keeps them: a files part's from its texts, a gates part's from this machine's
 // gate source, a dev container's from what its Template wrote into `.devcontainer/`, an existing file left as it is.
 const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: [string, string][]; keeping: Keeping }> => {
@@ -196,11 +212,10 @@ const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: [string
     return texts.ok ? { ok: true, value: { texts: texts.value, keeping } } : texts;
   }
   if (part.type === "devcontainer") {
-    const files = (given.templates.get(id)?.files ?? []).filter(({ path }) => path.startsWith(".devcontainer/"));
-    const binary = files.find(({ content }) => !isUtf8(content));
-    if (binary !== undefined) return refuse({ code: "apply.not-text", params: { path: binary.path } });
-    const texts = files.map(({ path, content }): [string, string] => [path, content.toString("utf8")]);
-    return { ok: true, value: { texts, keeping: { commit: true, onlyIfAbsent: true } } };
+    const texts = containerTexts(given, id);
+    return texts.ok
+      ? { ok: true, value: { texts: texts.value, keeping: { commit: true, onlyIfAbsent: true } } }
+      : texts;
   }
   const { gates } = given.resolved;
   if (gates === undefined)
@@ -258,6 +273,9 @@ const filesOf = (given: Given, written: Written) => {
     const read = foundOf(given, id, part);
     if (!read.ok) return read;
     const { found, keeping } = read.value;
+    const twice = found.find(({ path }) => files.wanted.has(path));
+    if (twice !== undefined)
+      return refuse({ code: "profile.target-twice", params: { part: `project.${id}`, target: twice.target } });
     const waits = approval(`project.${id}`, part.title, project, found);
     // An approved part's files in place need no new approval.
     const inPlace = found.every(({ path, content }) => hashOf(path) === sha256(content));

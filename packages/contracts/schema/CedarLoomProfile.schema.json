@@ -1529,8 +1529,9 @@
               },
               "dependabotCooldownDays": {
                 "type": "integer",
-                "minimum": 0,
-                "maximum": 90
+                "minimum": 1,
+                "maximum": 90,
+                "description": "Dependabot's cooldown, 1 to 90 days (https://json.schemastore.org/dependabot-2.0.json)"
               }
             },
             "required": [
@@ -1585,8 +1586,8 @@
               },
               "template": {
                 "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9.-]{0,252}(?::\\d{1,5})?(?:\\/[a-z0-9][a-z0-9._-]{0,127}){1,10}(?::\\w[\\w.-]{0,127}|@sha256:[0-9a-f]{64})?$",
-                "description": "A Dev Container Template, such as ghcr.io/devcontainers/templates/alpine:3"
+                "pattern": "^[a-z0-9][a-z0-9.-]{0,252}(?::\\d{1,5})?(?:\\/[a-z0-9][a-z0-9._-]{0,127}){1,10}@sha256:[0-9a-f]{64}$",
+                "description": "A Dev Container Template by digest, such as ghcr.io/devcontainers/templates/alpine@sha256:…"
               },
               "args": {
                 "description": "The Template's options",

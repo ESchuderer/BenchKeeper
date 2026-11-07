@@ -239,8 +239,11 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
-    // The Dev Containers CLI did not apply a devcontainer part's Template: the part, the Template and why.
+    // The Dev Containers CLI did not apply a devcontainer part's Template, which then writes nothing: the part, the
+    // Template and why.
     finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
+    // A target two parts write, such as the Dependabot file of two gates parts: the later part and the target.
+    finding("profile.target-twice", { part: z.string(), target: z.string() }),
     // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
     finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
@@ -396,7 +399,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },
-  "profile.template-failed": { severity: "error", effort: "manual" },
+  "profile.template-failed": { severity: "warning", effort: "manual" },
+  "profile.target-twice": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

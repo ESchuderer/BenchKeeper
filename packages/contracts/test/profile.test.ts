@@ -129,6 +129,18 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project.plugin.commit"],
   ],
   [
+    "a dev container Template by tag, whose files could change between the preview and the apply",
+    ["project", "container", "template"],
+    "ghcr.io/devcontainers/templates/alpine:3",
+    ["project.container.template"],
+  ],
+  [
+    "a cooldown of 0 days, which Dependabot refuses",
+    ["project", "gates", "dependabotCooldownDays"],
+    0,
+    ["project.gates.dependabotCooldownDays"],
+  ],
+  [
     "an unknown key shaped like a token, reported at its object",
     ["machine", "rules.global", "ghp_0123456789abcdefghij0123456789abcdef"],
     1,

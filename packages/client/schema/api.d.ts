@@ -1293,7 +1293,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -1301,7 +1301,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */
@@ -2279,7 +2279,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -2287,7 +2287,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */

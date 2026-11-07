@@ -752,7 +752,9 @@ const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Omit<Waiting,
       gates.set(event.node, { node: event.node, point: event.point, planHash: event.planHash });
     else if ("node" in event) gates.delete(event.node);
   }
-  return [...approvals, ...[...gates.values()].map((gate) => ({ ...gate, content: contentOf(run, state, gate) }))];
+  // A gate waits while its node runs: a cancel ends a trigger waiting at its gate without an event of that node.
+  const open = [...gates.values()].filter(({ node }) => state === null || state.nodes[node]?.state === "running");
+  return [...approvals, ...open.map((gate) => ({ ...gate, content: contentOf(run, state, gate) }))];
 };
 
 /** What a graph run waits for, read without a write. */

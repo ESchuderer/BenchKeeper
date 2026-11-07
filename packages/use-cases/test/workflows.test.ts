@@ -535,10 +535,14 @@ test("a first run's precheck waits for the owner as its commands do; once approv
   const options = { ...at.options, config: configAt(at.root, "supervised") };
   const first = idOf(await runWorkflow(at.state, at.file, {}, options));
   const asked = waitsOf(at.state, first);
+  // A run cancelled while its precheck waits waits for nothing more.
+  const cancelled = idOf(await runWorkflow(at.state, at.file, {}, options));
+  await cancelRun(at.state, cancelled, options);
   await decideRun(at.state, first, { node: "t", approved: true }, options);
   const second = idOf(await runWorkflow(at.state, at.file, {}, options));
-  expect([asked, pointsOf(at.state, first), pointsOf(at.state, second)]).toMatchObject([
+  expect([asked, pointsOf(at.state, cancelled), pointsOf(at.state, first), pointsOf(at.state, second)]).toMatchObject([
     { value: { waits: [{ node: "t", point: "before-node", firstRun: true }] } },
+    [],
     [["say", "before-node"]],
     [["say", "before-node"]],
   ]);

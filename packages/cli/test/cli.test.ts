@@ -459,6 +459,9 @@ test("every finding code has an English sentence", () => {
     "git.refused-source": { field: "url" },
     "git.unsafe-entry": { path: "dist/link", kind: "link" },
     "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
+    "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
+    "profile.parent-limit": { chain: ["acme.x/a.json", "acme.x/b.json"], limit: 50 },
+    "profile.pack-sources": { pack: "acme.x", files: ["acme.a", "acme.b"] },
     "store.version-not-higher": { id: "w", stored: "1.9.0", found: "1.9.0" },
     "store.identity-missing": { key: "user.email" },
   };

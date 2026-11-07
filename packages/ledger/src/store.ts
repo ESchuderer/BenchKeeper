@@ -42,6 +42,35 @@ const SCHEMA = 16;
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
+// A stored plan with every file content blanked; kinds, paths and hashes remain. The store's SQL calls it as blanked().
+const blanked = (plan: unknown): string =>
+  JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
+
+// Runs `work` with secure_delete on, which zeroes what its updates leave behind, such as a blanked plan's content, which
+// SQLite otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete). Only there: on every
+// write it kept another process's appends out longer.
+const zeroed = <T>(db: DatabaseSync, work: () => T): T => {
+  db.exec("PRAGMA secure_delete = ON");
+  try {
+    return work();
+  } finally {
+    db.exec("PRAGMA secure_delete = OFF");
+  }
+};
+
+// Moves the log into the database and empties it as the store closes, so the pages from before a blanking leave the
+// log too; a checkpoint at each finish kept another process's appends out. It waits for nothing, and while another
+// connection reads the store, such as a graph run's, it stops short without an error and the log keeps those pages
+// until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+const emptyLog = (db: DatabaseSync): void => {
+  db.exec("PRAGMA busy_timeout = 0");
+  try {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } finally {
+    db.exec(`PRAGMA busy_timeout = ${SETTLE_MS}`);
+  }
+};
+
 const LAUNCH_COLUMNS =
   "runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, totals";
 
@@ -305,19 +334,24 @@ export class RunStore extends RunView {
   readonly #lock: DatabaseSync;
   /** Raised each time a process opens the store; every run records the epoch it ran under. */
   readonly epoch: number;
-  /** Runs a process that died left running, marked `interrupted` when this store opened. */
+  /** Runs a process that died left running, marked `interrupted` when this store opened; their contents are blanked. */
   readonly interrupted: string[];
 
   constructor(dir: string, db: DatabaseSync, lock: DatabaseSync) {
     super(dir, db);
     this.#lock = lock;
-    [this.epoch, this.interrupted] = transaction(db, () => {
-      const epoch = Number(
-        db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'epoch' RETURNING value").get()?.["value"],
-      );
-      const ids = db.prepare("UPDATE runs SET status = 'interrupted' WHERE status = 'running' RETURNING id").all();
-      return [epoch, ids.map((row) => String(row["id"]))] as const;
-    });
+    db.function("blanked", { deterministic: true, directOnly: true }, blanked);
+    [this.epoch, this.interrupted] = zeroed(db, () =>
+      transaction(db, () => {
+        const epoch = Number(
+          db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'epoch' RETURNING value").get()?.["value"],
+        );
+        const ids = db
+          .prepare("UPDATE runs SET status = 'interrupted', plan = blanked(plan) WHERE status = 'running' RETURNING id")
+          .all();
+        return [epoch, ids.map((row) => String(row["id"]))] as const;
+      }),
+    );
   }
 
   /** Records the plan, its approval and its pending steps in one transaction; refuses an approval of another plan. */
@@ -355,8 +389,16 @@ export class RunStore extends RunView {
     this.db.prepare(`UPDATE steps SET state = ? WHERE runId = ? AND "index" = ?`).run(state, runId, index);
   }
 
+  /**
+   * Ends a run and blanks the file contents in its stored plan, so a secret a plan writes stays only in its target file
+   * and the run's backup; undo and recovery need only the backups and hashes.
+   */
   finish(runId: string, status: "applied" | "failed"): void {
-    this.db.prepare("UPDATE runs SET status = ?, finishedAt = ? WHERE id = ?").run(status, now(), runId);
+    zeroed(this.db, () =>
+      this.db
+        .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
+        .run(status, now(), runId),
+    );
   }
 
   /**
@@ -367,15 +409,12 @@ export class RunStore extends RunView {
   prune(days: number): string[] {
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
     return transaction(this.db, () => {
-      const rows = this.db.prepare("SELECT id, plan FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
-      const blank = this.db.prepare("UPDATE runs SET plan = ?, pruned = 1 WHERE id = ?");
+      const rows = this.db.prepare("SELECT id FROM runs WHERE startedAt < ? AND pruned = 0").all(cutoff);
+      const blank = this.db.prepare("UPDATE runs SET plan = blanked(plan), pruned = 1 WHERE id = ?");
       for (const row of rows) {
         const id = String(row["id"]);
         rmSync(backupsOf(this.dir, id), { recursive: true, force: true });
-        const plan: unknown = JSON.parse(String(row["plan"]), (key, value: unknown) =>
-          key === "content" ? "" : value,
-        );
-        blank.run(JSON.stringify(plan), id);
+        blank.run(id);
       }
       return rows.map((row) => String(row["id"]));
     });
@@ -611,8 +650,12 @@ export class RunStore extends RunView {
   }
 
   override close(): void {
-    super.close();
-    this.#lock.close();
+    try {
+      emptyLog(this.db);
+    } finally {
+      super.close();
+      this.#lock.close();
+    }
   }
 }
 

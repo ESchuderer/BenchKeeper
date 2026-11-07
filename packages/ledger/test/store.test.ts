@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -79,6 +79,34 @@ test("a killed process releases the store, and its running run is marked interru
   const store = opened(dir);
   expect(store.interrupted).toHaveLength(1);
   expect(store.runs()).toMatchObject([{ id: store.interrupted[0], status: "interrupted" }]);
+  // Its plan keeps no file content.
+  expect(store.run(store.interrupted[0] ?? "")?.plan.operations).toEqual([
+    { kind: "write", path: "/x", before: null, content: "" },
+  ]);
+});
+
+test("a finished run's file content is in no file of the store once it closes, while another connection stays", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  // A connection that keeps the log from leaving with the store, as a graph run's does.
+  const other = new DatabaseSync(join(dir, "runs.sqlite"));
+  other.prepare("SELECT count(*) FROM runs").get();
+  // About 3 KB, a size that stayed on a freed page without secure_delete.
+  const marker = "secret-0b9f4c1e8d2a4c6b";
+  const written: Plan = {
+    schemaVersion: 1,
+    operations: [{ kind: "write", path: "/a", before: null, content: `${marker}${"-".repeat(3000)}` }],
+  };
+  const id = store.begin("apply", written, planHash(written));
+  store.finish(id.ok ? id.value : "", "applied");
+  store.close();
+  open.length = 0;
+  const files = readdirSync(dir, { recursive: true, encoding: "utf8" }).filter((name) =>
+    statSync(join(dir, name)).isFile(),
+  );
+  expect(files).toContain("runs.sqlite-wal");
+  expect(files.filter((name) => readFileSync(join(dir, name)).includes(marker))).toEqual([]);
+  other.close();
 });
 
 test("reads and another process's runs, side by side, wait out each other's brief locks instead of failing", async () => {

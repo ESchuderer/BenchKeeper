@@ -539,3 +539,40 @@ test("sandbox-runtime wraps nothing on Windows, whose sandbox needs an install o
   const launch = { command: process.execPath, args: [], cwd: folder, env: {} };
   expect(await sandboxRuntime("win32").wrap(launch, { read: [folder], write: [], network: "none" })).toBeUndefined();
 });
+
+// A doctor run that ended without findings of the extension's own.
+const unanswered = (error: string) => ({
+  code: "extension.failed",
+  params: { extension: "acme.fixture", step: "doctor", error },
+});
+
+test("the doctor asks an extension's own checks once and shows their texts safely; no answer in time is a finding", async () => {
+  const plain = manifestOf(ACTIONS);
+  const checked = ExtensionManifest.parse({
+    ...plain,
+    contributes: { ...plain.contributes, doctor: { fixture: { title: "Fixture" } } },
+  });
+  const ask = async (more: Partial<ExtensionLaunch>) => (await extension({ manifest: checked, ...more })).doctor();
+  expect([
+    await ask({}),
+    await ask({ locale: "x-slow-doctor", limits: { doctorMs: 200 } }),
+    await ask({ locale: "x-other-check" }),
+    await (await extension()).doctor(),
+  ]).toEqual([
+    [
+      {
+        code: "extension.finding",
+        params: {
+          extension: "acme.fixture",
+          check: "fixture",
+          severity: "warning",
+          code: "fixture.checked",
+          message: "checked\\u001b[2K",
+        },
+      },
+    ],
+    [unanswered("no answer within 200 ms")],
+    [unanswered("an answer the host refuses")],
+    [],
+  ]);
+});

@@ -14,6 +14,8 @@ export interface ClaudeLaunch extends Launch {
   readonly permissionMode: PermissionMode;
   /** The permission rules the worker's profile allows, such as `Bash(pnpm test *)`; in dontAsk the only approvals. */
   readonly allow: readonly string[];
+  /** A report run's worker, read-only in its working folder (the overlay's `readOnly`). */
+  readonly readOnly?: boolean;
 }
 
 type Phase = Pick<ClaudeLaunch, "model" | "subagentModel" | "effort" | "permissionMode">;

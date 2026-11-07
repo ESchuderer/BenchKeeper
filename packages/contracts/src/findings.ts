@@ -156,17 +156,18 @@ export const Finding = z
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
     // An extension its trust level may not run here (P1 a, A31) or this Node (before 25), whose folder could widen its
-    // grant, or that speaks another protocol or serves other actions than its manifest names; it is stopped at once.
+    // grant, that speaks another protocol or serves other actions than its manifest names (it is stopped at once), or a
+    // bundled one switched off.
     finding("extension.refused", {
       extension: z.string(),
-      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "programs"]),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "off", "programs"]),
     }),
     // An extension that is not installed or updated: no manifest at its folder's root, no entry file, another protocol
-    // than this CedarLoom speaks, one installed already, or an update whose folder now holds another extension. Its id
-    // when the manifest names it.
+    // than this CedarLoom speaks, one installed already, an update whose folder now holds another extension, or one of
+    // the `cedarloom` publisher, which only the app ships. Its id when the manifest names it.
     finding("extension.install-refused", {
       extension: z.string().nullable(),
-      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "programs"]),
+      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "reserved", "programs"]),
     }),
     // An extension to update or remove that is not installed.
     finding("extension.unknown", { extension: z.string() }),

@@ -173,8 +173,6 @@ const manifestChanges: Change[] = [
   // The engine reserves the built-in namespaces for its own node types.
   ["an id in a built-in namespace", ["id"], "trigger.acme", true],
   ["an id in the join namespace", ["id"], "join.x", true],
-  // Nor does an extension pass for first-party.
-  ["an id of the cedarloom publisher", ["id"], "cedarloom.jira", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
   // A program is found on PATH or in the user's home folder, never outside it or by a path that leads out.
   ...["/usr/bin/tool", "~/../tool"].map((found): Change => {

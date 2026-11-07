@@ -3172,6 +3172,7 @@
                       "actions",
                       "folder",
                       "runtime",
+                      "off",
                       "programs"
                     ]
                   }
@@ -3213,6 +3214,7 @@
                       "protocol",
                       "installed",
                       "id",
+                      "reserved",
                       "programs"
                     ]
                   }
@@ -7256,6 +7258,7 @@
                       "actions",
                       "folder",
                       "runtime",
+                      "off",
                       "programs"
                     ]
                   }
@@ -7297,6 +7300,7 @@
                       "protocol",
                       "installed",
                       "id",
+                      "reserved",
                       "programs"
                     ]
                   }

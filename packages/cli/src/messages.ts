@@ -23,6 +23,7 @@ const EXTENSION_REFUSALS = {
   actions: "it serves other actions than its manifest names",
   folder: "its folder has a * or ? in its path or a link inside, which would widen what it may read",
   runtime: "Node denies an extension the network only from version 25 on",
+  off: "it is switched off (cedarloom components switch)",
   programs: "only an extension that ships with CedarLoom may have programs run for it",
 } as const;
 const EXTENSION_STEPS = {
@@ -36,6 +37,7 @@ const INSTALL_REFUSALS = {
   entry: "the entry file its manifest names is not in its folder",
   protocol: "it needs a version of the extension protocol this CedarLoom does not speak",
   installed: "it is installed already",
+  reserved: "its publisher, cedarloom, is CedarLoom's own, whose extensions come only with the app",
   programs: "it asks for programs to run, which only an extension that ships with CedarLoom may",
   id: "its folder now holds another extension",
 } as const;

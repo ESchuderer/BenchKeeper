@@ -186,7 +186,7 @@ const requests = {
 };
 
 // Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. Accounts go by number;
-// the second has no alias.
+// the second has no alias and is held.
 const AT = "2026-11-07T10:00:00.000Z";
 const target = (answer) => (params) => {
   if (mode === "x-slow-target") return new Promise(() => undefined);
@@ -201,10 +201,11 @@ Object.assign(requests, {
         alias: "work",
         active: true,
         disabled: false,
+        held: false,
         threshold: 90,
         windows: [{ window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT }],
       },
-      { number: 2, active: false, disabled: false, threshold: null, windows: [] },
+      { number: 2, active: false, disabled: false, held: true, threshold: null, windows: [] },
     ],
   })),
   "target/current": target(() => ({ number: 1 })),

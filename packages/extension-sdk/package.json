@@ -28,5 +28,8 @@
   },
   "dependencies": {
     "vscode-jsonrpc": "10.0.0"
+  },
+  "devDependencies": {
+    "rolldown": "1.2.16"
   }
 }

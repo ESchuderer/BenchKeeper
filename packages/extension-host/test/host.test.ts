@@ -752,8 +752,8 @@ test("a switch target answers each call within its contract, its accounts by num
     { status: "supported", detail: "cswap 1.2.3" },
     {
       accounts: [
-        { number: 1, alias: "work", active: true, disabled: false, threshold: 90, windows: [window] },
-        { number: 2, active: false, disabled: false, threshold: null, windows: [] },
+        { number: 1, alias: "work", active: true, disabled: false, held: false, threshold: 90, windows: [window] },
+        { number: 2, active: false, disabled: false, held: true, threshold: null, windows: [] },
       ],
     },
     { number: 1 },

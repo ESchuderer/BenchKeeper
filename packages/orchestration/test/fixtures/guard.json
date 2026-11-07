@@ -6,24 +6,6 @@
       "repositories": ["acme/app", "acme/tracker"],
       "hub": "acme/tracker",
       "memory": "acme/notes"
-    },
-    "interactive": {
-      "schemaVersion": 1,
-      "repositories": null,
-      "hub": "acme/tracker",
-      "memory": "acme/notes"
-    }
-  },
-  "remotes": {
-    "/work/app": {
-      "origin": ["https://github.com/acme/app.git"]
-    },
-    "/work/fork": {
-      "origin": ["git@github.com:acme/app.git"],
-      "upstream": ["https://github.com/other/fork.git"]
-    },
-    "/work/notes": {
-      "origin": ["git@github.com:acme/notes.git"]
     }
   },
   "cases": {
@@ -41,10 +23,6 @@
       ["push --force-with-lease", "git push --force-with-lease origin feature", "forbidden"],
       ["push +refspec", "git push origin +feature", "forbidden"],
       ["push -uf", "git push -uf origin feature", "forbidden"],
-      ["push to a URL outside the profiles", "git push https://github.com/other/repo.git main", "outside-profiles"],
-      ["-C into a repository outside the profiles", "git -C ../notes push origin main", "outside-profiles"],
-      ["cd into a repository outside the profiles", "cd /work/notes && git pull", "outside-profiles"],
-      ["clone outside the profiles", "git clone --depth 1 https://github.com/other/thing", "outside-profiles"],
       ["clone inside the profiles over ssh", "git clone git@github.com:acme/app.git copy", null],
       ["push of a branch named by a substitution", "git push origin \"$(git branch --show-current)\"", null],
       ["git -c credential.helper", "git -c credential.helper= push origin feature", "git-config"],
@@ -76,23 +54,7 @@
       ["a forced push in a process substitution", "diff <(git push -f origin x) notes.txt", "forbidden"],
       ["a subcommand in ANSI-C quotes", "git $'push' -f origin x", "unreadable"],
       ["an unclosed substitution", "echo $(git status", "unreadable"],
-      ["-C into a folder in a variable", "git -C \"$DIR\" push origin main", "unreadable"],
-      ["--git-dir naming another repository", "git --git-dir=/elsewhere/.git push origin feature", "unreadable"],
       ["escaped quotes in a commit message", "git commit -m \"say \\\"hi\\\" -n\"", null]
-    ],
-    "worker /work/fork": [["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"]],
-    "interactive /work/notes": [
-      ["a push of main to the memory repository", "git push origin main", "memory-main"],
-      ["a push of HEAD:main", "git push origin HEAD:main", "memory-main"],
-      ["a push without a refspec", "git push", "memory-main"],
-      ["a push of every branch", "git push --all origin", "memory-main"],
-      ["a push of a branch in a variable", "git push origin \"$BRANCH\"", "memory-main"],
-      ["a proposal branch", "git push -u origin memory/worker-20261107", null],
-      ["a proposal branch by its full ref", "git push origin HEAD:refs/heads/memory/notes-fix", null]
-    ],
-    "interactive /work/app": [
-      ["main of another repository", "git push origin main", null],
-      ["main of the memory repository from another folder", "cd ../notes && git push origin main", "memory-main"]
     ]
   }
 }

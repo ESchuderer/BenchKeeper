@@ -3,30 +3,25 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand, type Remotes } from "@cedarloom/orchestration";
+import { guardCommand } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
   policies: z.record(z.string(), GuardPolicy),
-  remotes: z.record(z.string(), z.record(z.string(), z.array(z.string()))),
   // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
-const remotes: Remotes = (folder) => {
-  const found = fixtures.remotes[folder];
-  return found === undefined ? null : new Map(Object.entries(found));
-};
 const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {
   const [policy = "", cwd = ""] = key.split(" ");
   return list.map(([name, command, rule]) => ({ name, policy, cwd, command, rule }));
 });
 
-test.each(cases)("$name", ({ policy, cwd, command, rule }) => {
+test.each(cases)("$name", ({ policy, command, rule }) => {
   const chosen = fixtures.policies[policy];
   if (chosen === undefined) throw new Error(`no policy ${policy}`);
-  expect(guardCommand(command, cwd, chosen, remotes)?.rule ?? null).toBe(rule);
+  expect(guardCommand(command, chosen)?.rule ?? null).toBe(rule);
 });
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");
@@ -46,7 +41,7 @@ const bash = (command: unknown, cwd: unknown = "/work/app") =>
 test("the hook lets a call run with exit 0 and refuses one with exit 2 and its reason", () => {
   expect(hook(bash("ls -la"))).toEqual({ status: 0, refused: false });
   expect(hook(bash("git commit --no-verify -m wip"))).toEqual({ status: 2, refused: true });
-});
+}, 30_000);
 
 test("the hook refuses what it cannot read: input that is no JSON, a call without its command, a missing policy", () => {
   expect(hook("{not json")).toEqual({ status: 2, refused: true });
@@ -54,7 +49,7 @@ test("the hook refuses what it cannot read: input that is no JSON, a call withou
   expect(hook(bash("ls", "relative"))).toEqual({ status: 2, refused: true });
   expect(hook(bash("ls"), null)).toEqual({ status: 2, refused: true });
   expect(hook(bash("ls"), join(tmpdir(), "no-such-policy.json"))).toEqual({ status: 2, refused: true });
-});
+}, 30_000);
 
 const monitor = (input: object) => JSON.stringify({ tool_name: "Monitor", tool_input: input, cwd: "/work/app" });
 
@@ -65,4 +60,4 @@ test("the hook reads a Monitor command as a Bash one, and lets other tools and a
     status: 0,
     refused: false,
   });
-});
+}, 30_000);

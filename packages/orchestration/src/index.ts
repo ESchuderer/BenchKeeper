@@ -2,4 +2,4 @@ export { cleanEnv, deniedPaths, GITHUB_DOMAINS, NETWORK_SETTINGS, type WorkerEnv
 export { ghProbe } from "./gh.ts";
 export { type ManagedProblem, managedProblems, managedSettingsDir } from "./managed.ts";
 export { readResult, resultPrompt } from "./result.ts";
-export { type Denial, githubRepo, guardCommand, type Remotes, type Rule } from "./guard.ts";
+export { type Denial, guardCommand, type Rule } from "./guard.ts";

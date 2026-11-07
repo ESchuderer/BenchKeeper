@@ -246,7 +246,7 @@ test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit
   expect([report.code, report.out.includes("store.newer-schema")]).toEqual([EXIT.refused, true]);
 });
 
-test("usage errors exit 64, help exits 0, and both command names point at one program", async () => {
+test("usage errors exit 64, and help exits 0", async () => {
   const { cli } = setup();
   expect((await cli("frobnicate")).code).toBe(EXIT.usage);
   expect((await cli("runs", "show")).code).toBe(EXIT.usage);

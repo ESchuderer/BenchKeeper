@@ -1293,7 +1293,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -1301,7 +1301,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */
@@ -1430,6 +1430,23 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */
@@ -2237,7 +2254,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -2245,7 +2262,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */
@@ -2374,6 +2391,23 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */

@@ -1728,6 +1728,27 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.drift";
+            params: {
+                /** @enum {string} */
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
+                subject: string;
+                remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.remove-unknown";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.binding-waiting";
             params: {
                 part: string;
@@ -2908,6 +2929,27 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub" | "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.drift";
+            params: {
+                /** @enum {string} */
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
+                subject: string;
+                remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.remove-unknown";
+            params: {
+                item: string;
             };
         } | {
             /** @constant */

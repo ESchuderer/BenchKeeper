@@ -4,7 +4,7 @@ import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./ex
 import { ProjectPath } from "./nodes.ts";
 import { GitSource, PackId } from "./pack.ts";
 import { fileFormats } from "./registry.ts";
-import { isPlainText, PlainText, shown } from "./text.ts";
+import { PlainText, shown, UNSAFE } from "./text.ts";
 import type { Json } from "./json.ts";
 import { JsonValue, License, semver } from "./workflow.ts";
 
@@ -31,7 +31,7 @@ const Text = z.union([
     inline: z
       .string()
       .max(16_384)
-      .refine((text) => isPlainText(text.replaceAll(/[\t\n]/g, "")), "no control character but tab and line break"),
+      .regex(new RegExp(`^(?:[\\t\\n]|[^${UNSAFE}])*$`, "u"), "no control character but tab and line break"),
   }),
 ]);
 
@@ -152,7 +152,50 @@ const head = {
 };
 const Agents = distinct(z.enum(["claude-code"])).min(1);
 
+const FileShape = z.strictObject({
+  ...head,
+  extends: z
+    .array(PackRef)
+    .min(1)
+    .max(10)
+    .refine((refs) => new Set(refs.map((ref) => `${ref.pack}/${ref.path}`)).size === refs.length, "no parent twice")
+    .meta({ uniqueItems: true })
+    .optional()
+    .describe("Parent profiles, each a profile entry of a pack named in `packs`"),
+  agents: Agents.optional().describe("Claude Code only in schema 1"),
+  packs: sized(z.record(PackId, PackSource), 50).optional().describe("Packs of the cedarloom publisher are bundled"),
+  machine: layer.machine.optional(),
+  workspace: layer.workspace.optional(),
+  project: layer.project.optional(),
+});
+// The file before its refinements, which the checks below read.
+type FileShape = z.infer<typeof FileShape>;
+
 const LEVELS = ["machine", "workspace", "project"] as const;
+
+// Project files only their own parts write: a settings part, where the allowed settings apply, never a `files` part,
+// whose text would bring hooks or MCP servers past them; and Git's own folder, whose hooks run on commit.
+const SEALED = "not .claude/settings.json, .claude/settings.local.json, .mcp.json or a file of .git";
+const sealed = (target: string): boolean => {
+  const path = target.toLowerCase();
+  return (
+    [".claude/settings.json", ".claude/settings.local.json", ".mcp.json", ".git"].includes(path) ||
+    path.startsWith(".git/")
+  );
+};
+
+/**
+ * What a project file a profile writes is, for the plan preview (pending owner decision, hub issue 130): `executable`
+ * starts with `#!` or has a script's extension, `configuration` lies in a dot folder, is a dotfile or is JSON, YAML or
+ * TOML, which tools read to decide what to run; `text` is anything else.
+ */
+const SCRIPT = /\.(?:sh|bash|zsh|fish|ps1|bat|cmd|py|js|mjs|cjs|ts|rb|pl)$/i;
+const CONFIG = /\.(?:json|ya?ml|toml)$/i;
+const dotted = (target: string): boolean => target.split("/").some((segment) => segment.startsWith("."));
+export const targetClass = (target: string, text: string): "text" | "executable" | "configuration" => {
+  if (text.startsWith("#!") || SCRIPT.test(target)) return "executable";
+  return dotted(target) || CONFIG.test(target) ? "configuration" : "text";
+};
 // Each `pack` a value names, at any depth.
 const refsIn = (value: unknown, path: (string | number)[]): [(string | number)[], string][] => {
   if (typeof value !== "object" || value === null) return [];
@@ -163,58 +206,68 @@ const refsIn = (value: unknown, path: (string | number)[]): [(string | number)[]
 };
 // Each pack a file names, by where: its parents and its parts' fields, never inside a settings `set` or a plugin's
 // `options`, which are the agent's and the plugin's own JSON.
-const packRefs = (file: ProfileFile): [(string | number)[], string][] => [
+const packRefs = (file: FileShape): [(string | number)[], string][] => [
   ...refsIn(file.extends ?? [], ["extends"]),
   ...LEVELS.flatMap((name) =>
     Object.entries(file[name] ?? {}).flatMap(([id, each]) =>
       Object.entries(each).flatMap(([key, item]): [(string | number)[], string][] => {
         if (key === "set" || key === "options") return [];
-        if (each.type !== "packs" || !Array.isArray(item)) return refsIn(item, [name, id, key]);
+        if (each.type !== "packs" || key !== "packs" || !Array.isArray(item)) return refsIn(item, [name, id, key]);
         return item.flatMap((pack, index) => (typeof pack === "string" ? [[[name, id, key, index], pack]] : []));
       }),
     ),
   ),
 ];
 
+type Issue = [path: (string | number)[], message: string];
+const report = (ctx: z.RefinementCtx, issues: Issue[]): void => {
+  for (const [path, message] of issues) ctx.addIssue({ code: "custom", path, message });
+};
+const sourceIssues = (file: FileShape): Issue[] =>
+  Object.entries(file.packs ?? {})
+    .filter(([id, source]) => id.startsWith("cedarloom.") !== "bundled" in source)
+    .map(([id]) => [["packs", id], "bundled exactly when the publisher is cedarloom"]);
+const referenceIssues = (file: FileShape): Issue[] =>
+  packRefs(file)
+    .filter(([, pack]) => file.packs?.[pack] === undefined)
+    .map(([path]): Issue => [path, "a pack named in `packs`"]);
+const targetIssues = (file: FileShape): Issue[] =>
+  Object.entries(file.project ?? {}).flatMap(([id, each]) =>
+    Object.keys(each.type === "files" ? (each.files ?? {}) : {})
+      .filter(sealed)
+      .map((target): Issue => [["project", id, "files", target], SEALED]),
+  );
+
 /**
  * A profile file: a versioned, public-safe setup in parts on three levels. It may extend other profiles, Renovate-style:
  * parents in list order, each after its own parents, then this file, the later one winning (see `composeProfile`), so
  * a part here may state only what it changes. Every pack it points to is one it names in `packs`.
  */
-export const ProfileFile = z
-  .strictObject({
-    ...head,
-    extends: z
-      .array(PackRef)
-      .min(1)
-      .max(10)
-      .refine((refs) => new Set(refs.map((ref) => `${ref.pack}/${ref.path}`)).size === refs.length, "no parent twice")
-      .meta({ uniqueItems: true })
-      .optional()
-      .describe("Parent profiles, each a profile entry of a pack named in `packs`"),
-    agents: Agents.optional().describe("Claude Code only in schema 1"),
-    packs: sized(z.record(PackId, PackSource), 50).optional().describe("Packs of the cedarloom publisher are bundled"),
-    machine: layer.machine.optional(),
-    workspace: layer.workspace.optional(),
-    project: layer.project.optional(),
-  })
-  .superRefine((file, ctx) => {
-    for (const [id, source] of Object.entries(file.packs ?? {})) {
-      if (id.startsWith("cedarloom.") !== "bundled" in source) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["packs", id],
-          message: "bundled exactly when the publisher is cedarloom",
-        });
-      }
-    }
-    for (const [path, pack] of packRefs(file)) {
-      if (file.packs?.[pack] === undefined) ctx.addIssue({ code: "custom", path, message: "a pack named in `packs`" });
-    }
-  })
+export const ProfileFile = FileShape.superRefine((file, ctx) =>
+  report(ctx, [...sourceIssues(file), ...referenceIssues(file), ...targetIssues(file)]),
+)
   .describe("A CedarLoom profile; readers also refuse values nested over 32 levels deep")
   .register(fileFormats, { id: "CedarLoomProfile" });
 export type ProfileFile = z.infer<typeof ProfileFile>;
+
+// Config folders under `.config/` a plugin's options never write: CedarLoom's own and the credential stores the worker
+// launcher denies (packages/orchestration/src/env.ts). A plugin's options file lives in its own folder.
+const RESERVED = ["cedarloom", "gh", "gcloud", "git"];
+const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
+  Object.entries(machine).flatMap(([id, each]): Issue[] => {
+    if (each.type !== "plugin" || each.options === undefined) return [];
+    const name = each.plugin.slice(0, each.plugin.indexOf("@"));
+    if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
+    return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
+  });
+const probeIssues = (
+  profile: Record<(typeof LEVELS)[number], Record<string, { default: string; when?: string | undefined }>>,
+) =>
+  LEVELS.flatMap((name) =>
+    Object.entries(profile[name])
+      .filter(([, each]) => each.default === "auto" && each.when === undefined)
+      .map(([id]): Issue => [[name, id, "when"], "the probe of an auto part"]),
+  );
 
 /** A profile with its parents merged in: every part whole, every auto part with its probe. */
 export const Profile = z
@@ -224,22 +277,7 @@ export const Profile = z
     packs: z.record(PackId, PackSource),
     ...whole,
   })
-  .superRefine((profile, ctx) => {
-    // A plugin's options file lives in its own config folder, never in an agent's settings or another tool's files.
-    for (const [id, each] of Object.entries(profile.machine)) {
-      const folder = each.type === "plugin" ? `.config/${each.plugin.slice(0, each.plugin.indexOf("@"))}/` : "";
-      if (each.type === "plugin" && each.options !== undefined && !each.options.file.startsWith(folder)) {
-        ctx.addIssue({ code: "custom", path: ["machine", id, "options", "file"], message: `inside ${folder}` });
-      }
-    }
-    for (const name of LEVELS) {
-      for (const [id, each] of Object.entries(profile[name])) {
-        if (each.default === "auto" && each.when === undefined) {
-          ctx.addIssue({ code: "custom", path: [name, id, "when"], message: "the probe of an auto part" });
-        }
-      }
-    }
-  });
+  .superRefine((profile, ctx) => report(ctx, [...optionsIssues(profile.machine), ...probeIssues(profile)]));
 export type Profile = z.infer<typeof Profile>;
 
 /** This machine's choice: the profile it applies and the parts switched away from their default. */
@@ -254,7 +292,7 @@ export const ProfileSelection = z
         file: z
           .string()
           .max(4096)
-          .regex(/^(?:\/|[A-Za-z]:[\\/])/, "an absolute path"),
+          .regex(/^(?:\/|[A-Za-z]:[\\/]|\\\\)/, "an absolute path, a drive path or a UNC path"),
       }),
     ]),
     select: sized(z.record(QualifiedPartId, z.boolean()), 500).describe("On or off against the part's default"),
@@ -263,45 +301,81 @@ export const ProfileSelection = z
 export type ProfileSelection = z.infer<typeof ProfileSelection>;
 
 // Token shapes by their documented prefixes and lengths (GitHub, npm, Anthropic and OpenAI, GitLab, Slack, AWS,
-// Google), and environment names with a credential word; a profile is shared, so neither may sit in it.
+// Google), private keys in PEM form and URLs with a password; and environment names with a credential word. A profile
+// is shared, so none of them may sit in it.
 const TOKEN =
-  /\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|npm_[A-Za-z0-9]{36}|sk-[\w-]{20,}|glpat-[\w-]{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{35})/;
+  /\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|npm_[A-Za-z0-9]{36}|sk-[\w-]{20,}|glpat-[\w-]{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{35})|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/;
 const CREDENTIAL_NAME = /(?:^|_)(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIALS?)(?:_|$)/i;
+// A key shaped like a token is reported at the object that holds it, so the finding never repeats it.
+const secretKey = (key: string, path: string[]): string | undefined => {
+  if (TOKEN.test(key)) return path.join(".");
+  return path.at(-1) === "env" && CREDENTIAL_NAME.test(key) ? [...path, key].join(".") : undefined;
+};
 const secretAt = (value: unknown, path: string[] = []): string | undefined => {
   if (typeof value === "string") return TOKEN.test(value) ? path.join(".") : undefined;
   if (typeof value !== "object" || value === null) return undefined;
   for (const [key, item] of Object.entries(value)) {
-    if (path.at(-1) === "env" && CREDENTIAL_NAME.test(key)) return [...path, key].join(".");
-    const found = secretAt(item, [...path, key]);
+    const found = secretKey(key, path) ?? secretAt(item, [...path, key]);
     if (found !== undefined) return found;
   }
   return undefined;
 };
 
-// Settings CedarLoom never writes (hub SETTINGS-DEFAULTS; https://code.claude.com/docs/en/settings-reference): each
-// removes a guard, stops updates or keeps the owner's choice; and keys that run a command, which a shared profile may
-// not bring, as plugins bring no hooks (A30).
-const NEVER = ["disableAllHooks", "skipDangerousModePermissionPrompt", "enableAllProjectMcpServers", "apiKeyHelper"];
-const COMMANDS = ["hooks", "statusLine", "awsAuthRefresh", "awsCredentialExport", "otelHeadersHelper"];
-const UPDATES = ["DISABLE_UPDATES", "DISABLE_AUTOUPDATER"];
-type Fields = { [key: string]: Json | undefined };
-const fields = (value: Json | undefined): Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
-const forbiddenIn = (set: Fields): string | undefined => {
-  const updates = Object.keys(fields(set["env"])).find((name) => UPDATES.includes(name));
-  const permissions = fields(set["permissions"]);
-  return (
-    Object.keys(set).find((name) => NEVER.includes(name) || COMMANDS.includes(name)) ??
-    (updates === undefined ? undefined : `env.${updates}`) ??
-    ("disableBypassPermissionsMode" in permissions ? "permissions.disableBypassPermissionsMode" : undefined) ??
-    (permissions["defaultMode"] === "bypassPermissions" ? "permissions.defaultMode" : undefined)
-  );
+/**
+ * The settings a profile may set (pending owner decision, hub issue 126): the default profile's keys, the model, deny
+ * and ask rules, sandbox keys that only tighten it, and named environment variables of the kinds Claude Code applies
+ * at startup (feature toggles, limits and timeouts; https://code.claude.com/docs/en/settings-reference). Anything else,
+ * a hook, a status line, a plugin, a login or a base URL among it, is refused. `true` allows any value there.
+ */
+type Rule = true | ((value: Json | undefined) => boolean) | { [key: string]: Rule };
+const only =
+  (allowed: Json): Rule =>
+  (value) =>
+    value === allowed;
+const ENV = [
+  "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
+  "DISABLE_ERROR_REPORTING",
+  "DISABLE_FEEDBACK_COMMAND",
+  "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY",
+  "MAX_THINKING_TOKENS",
+  "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+  "BASH_DEFAULT_TIMEOUT_MS",
+  "BASH_MAX_TIMEOUT_MS",
+];
+const ALLOWED: { [key: string]: Rule } = {
+  autoUpdatesChannel: true,
+  showClearContextOnPlanAccept: true,
+  attribution: true,
+  autoMemoryEnabled: true,
+  feedbackDrafts: true,
+  model: true,
+  permissions: { deny: true, ask: true },
+  sandbox: {
+    enabled: only(true),
+    failIfUnavailable: only(true),
+    autoAllowBashIfSandboxed: only(false),
+    allowUnsandboxedCommands: only(false),
+    filesystem: { denyRead: true, denyWrite: true },
+    network: { deniedDomains: true },
+  },
+  env: Object.fromEntries(ENV.map((name) => [name, true])),
+};
+// The first path of a value the rule does not allow; an object's keys each need a rule of their own.
+const disallowed = (value: Json | undefined, rule: Rule, path: string[]): string | undefined => {
+  if (rule === true) return undefined;
+  if (typeof rule === "function") return rule(value) ? undefined : path.join(".");
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return path.join(".");
+  return Object.entries(value)
+    .map(([key, item]) =>
+      Object.hasOwn(rule, key) ? disallowed(item, rule[key] ?? true, [...path, key]) : [...path, key].join("."),
+    )
+    .find((found) => found !== undefined);
 };
 
 const forbiddenSetting = (file: ProfileFile): string | undefined => {
   for (const name of ["machine", "project"] as const) {
     for (const [id, each] of Object.entries(file[name] ?? {})) {
-      const key = each.type === "settings" && each.set !== undefined ? forbiddenIn(each.set) : undefined;
+      const key = each.type === "settings" && each.set !== undefined ? disallowed(each.set, ALLOWED, []) : undefined;
       if (key !== undefined) return `${name}.${id}.set.${key}`;
     }
   }

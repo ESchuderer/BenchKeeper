@@ -8,6 +8,7 @@ import {
   readProfile,
   type Result,
   SELECTION_SCHEMA_VERSION,
+  targetClass,
 } from "@cedarloom/contracts";
 import { expect, test } from "vitest";
 import { set } from "./published.ts";
@@ -39,10 +40,18 @@ test.for<[string, string, unknown]>([
   ["the owner's bypass switch", "permissions.disableBypassPermissionsMode", "disable"],
   ["updates switched off", "env.DISABLE_UPDATES", "1"],
   ["the auto-updater switched off", "env.DISABLE_AUTOUPDATER", "1"],
+  ["a base URL, which sends the login elsewhere", "env.ANTHROPIC_BASE_URL", "https://x.example"],
+  ["a plugin outside a plugin part", "enabledPlugins", { "x@x": true }],
+  ["the sandbox switched off", "sandbox.enabled", false],
 ])("a profile with %s is refused", ([, key, value]) => {
   const path = `machine.settings.claude-code.set.${key}`;
   const finding = { code: "profile.forbidden-setting", params: { path } };
   expect(outcome(readProfile(set(defaults, [...claude, ...key.split(".")], value)))).toEqual(finding);
+});
+
+test("a project's settings, which a commit shares with everyone, are held to the same list", () => {
+  const finding = { code: "profile.forbidden-setting", params: { path: "project.guards.set.hooks" } };
+  expect(outcome(readProfile(set(defaults, ["project", "guards", "set", "hooks"], {})))).toEqual(finding);
 });
 
 test.for<[string, (string | number)[], unknown, unknown]>([
@@ -51,6 +60,24 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project", "agent-docs", "files", "docs/agents/domain.md"],
     { inline: "use ghp_0123456789abcdefghij0123456789abcdef" },
     secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a private key in inline text",
+    ["project", "agent-docs", "files", "docs/agents/domain.md"],
+    { inline: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk=\n" },
+    secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a URL with a password",
+    ["project", "agent-docs", "files", "docs/agents/domain.md"],
+    { inline: "Proxy: http://bot:hunter22@proxy.example:3128" },
+    secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a token as a key, reported where it sits",
+    ["workspace", "hub", "labels", "ghp_0123456789abcdefghij0123456789abcdef"],
+    { color: "ffffff" },
+    secret("workspace.hub.labels"),
   ],
   [
     "a credential in the environment",
@@ -85,6 +112,24 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project.agent-docs.requires.0"],
   ],
   [
+    "a pack in a packs part the file does not name",
+    ["project", "packs", "packs"],
+    ["acme.x"],
+    ["project.packs.packs.0"],
+  ],
+  [
+    "Claude Code's project settings as a file",
+    ["project", "agent-docs", "files", ".claude/settings.json"],
+    { inline: "{}" },
+    ["project.agent-docs.files..claude/settings.json"],
+  ],
+  [
+    "a Git hook as a file",
+    ["project", "agent-docs", "files", ".git/hooks/pre-commit"],
+    { inline: "#!/bin/sh" },
+    ["project.agent-docs.files..git/hooks/pre-commit"],
+  ],
+  [
     "a project plugin that would be committed",
     ["project", "plugin"],
     { type: "plugin", commit: true },
@@ -97,6 +142,8 @@ test.for<[string, (string | number)[], unknown, unknown]>([
 test.for<[string, (string | number)[], unknown]>([
   ["a token budget, no credential", [...claude, "env", "MAX_THINKING_TOKENS"], "32000"],
   ["npm settings named in text", ["project", "agent-docs", "files", "x.md"], { inline: "Set npm_config_registry." }],
+  ["a sandbox that only tightens", [...claude, "sandbox"], { enabled: true, filesystem: { denyRead: ["~/.ssh"] } }],
+  ["a packs part that requires a part", ["project", "packs", "requires"], ["workspace.hub"]],
 ])("a profile file with %s is read", ([, path, value]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toBe("ok");
 });
@@ -118,6 +165,29 @@ test.for<[string, (string | number)[], unknown, string]>([
     ".claude/settings.json",
     "machine.plugin.ponytail.options.file",
   ],
+  [
+    "a plugin's options in gh's credential folder",
+    ["machine", "plugin.ponytail", "plugin"],
+    "gh@x",
+    "machine.plugin.ponytail.options.file",
+  ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
   expect(outcome(readDocument(Profile, PROFILE_SCHEMA_VERSION, set(defaults, path, value)))).toEqual([issue]);
+});
+
+test("a selection names its profile file by an absolute path, also a UNC path", async () => {
+  const selection = set(await read("ProfileSelection/1/valid-selection.json"), ["profile"], {
+    file: "\\\\host\\share\\p.json",
+  });
+  expect(readDocument(ProfileSelection, SELECTION_SCHEMA_VERSION, selection).ok).toBe(true);
+});
+
+test.for<[string, string, string]>([
+  ["docs/agents/domain.md", "# Domain", "text"],
+  ["scripts/dc", "#!/bin/sh\n", "executable"],
+  ["tools/check.py", "print(1)", "executable"],
+  ["orca.yaml", "scripts: {}", "configuration"],
+  [".claude/agents/reviewer.md", "---", "configuration"],
+])("a target %s is %s", ([target, text, expected]) => {
+  expect(targetClass(target, text)).toBe(expected);
 });

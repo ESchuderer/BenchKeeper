@@ -88,6 +88,7 @@ export {
   ProfileSelection,
   readProfile,
   SELECTION_SCHEMA_VERSION,
+  targetClass,
 } from "./profile.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";

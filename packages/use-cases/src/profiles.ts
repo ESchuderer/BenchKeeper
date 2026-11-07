@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
@@ -83,7 +83,8 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
 // The profile this machine's selection names, resolved.
 // A project's probes: whether it has a dev container. No Orca probe runs (see resolveProfile).
 const projectProbe = (project: string) => {
-  const container = existsSync(join(project, ".devcontainer"));
+  // A dev container in a folder or in a file at the root (https://containers.dev/implementors/spec/#devcontainerjson).
+  const container = existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
   return (when: Probe): boolean => (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
 };
 
@@ -97,9 +98,10 @@ const selectedProfile = (config: string, project: string | undefined): Result<Re
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
-// Fetches the Git sources the profile needs: its packs and the skills' own sources, then each pack's skill entry's
-// source once that pack's folder is here; then keeps the record of the followed ones.
-const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch) => {
+// Fetches the Git sources the profile needs: its packs and, for the machine, the skills' own sources, then each pack's
+// skill entry's source once that pack's folder is here; then keeps the record of the followed ones. A project's plan
+// fetches no skill, so it keeps their record as it is.
+const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project: boolean) => {
   const record = readRecord(state);
   if (!record.ok) return record;
   const fetched = new Map<string, Tree>();
@@ -107,21 +109,18 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch) => {
   const findings: Finding[] = [];
   // Two passes reach every source: a pack's skill entry names its own source, never another pack.
   for (let pass = 0; pass < 2; pass += 1) {
-    const missing = sourcesOf(resolved, fetched).filter(({ source }) => !fetched.has(sourceKey(source)));
+    const missing = sourcesOf(resolved, fetched, !project).filter(({ source }) => !fetched.has(sourceKey(source)));
     const got = await fetchSources(state, missing, fetch, record.value);
     if (!got.ok) return got;
     for (const [key, tree] of got.value.trees) fetched.set(key, tree);
     Object.assign(entries, got.value.entries);
     findings.push(...got.value.findings);
   }
-  if (canonicalJson(entries) !== canonicalJson(record.value)) writeRecord(state, entries);
+  const next = project ? { ...record.value, ...entries } : entries;
+  if (canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);
   return { ok: true as const, value: { fetched, findings } };
 };
 
-/**
- * Plans the selected profile's machine level; a profile with problems gets no plan, only its findings. A plugin part
- * is planned only when `allow` names it. Git sources are fetched first, through `fetch`.
- */
 /** How a profile plan runs: the parts approved by name, how Git sources are fetched, and the project, if any. */
 export type PlanOptions = { allow?: readonly string[]; fetch?: Fetch | undefined; project?: string | undefined };
 
@@ -145,19 +144,35 @@ const levelOf = (
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
 };
 
+// The project's folder as the disk names it; one that is no folder is refused, rather than made by the plan.
+const folderOf = (project: string | undefined): Result<string | undefined> => {
+  const folder = project === undefined ? undefined : onDisk(resolve(project));
+  if (folder === undefined || statSync(folder, { throwIfNoEntry: false })?.isDirectory() === true) {
+    return { ok: true, value: folder };
+  }
+  return { ok: false, finding: { code: "document.unreadable", params: { path: folder, error: "not a folder" } } };
+};
+
+/**
+ * Plans the selected profile's machine level, or with `project` that project's level; a profile with problems gets no
+ * plan, only its findings. A plugin or files part that may run code is planned only when `allow` names it. Git sources
+ * are fetched first, through `fetch`.
+ */
 export const planProfile = async (
   config: string,
   state: string,
   machine: Machine,
   { allow = [], fetch = fetchTree, project }: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
-  const folder = project === undefined ? undefined : onDisk(resolve(project));
+  const where = folderOf(project);
+  if (!where.ok) return where;
+  const folder = where.value;
   const resolved = selectedProfile(config, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
     return { ok: true, value: { plan: null, findings: resolved.value.problems } };
   }
-  const sources = await fetchAll(state, resolved.value, fetch);
+  const sources = await fetchAll(state, resolved.value, fetch, folder !== undefined);
   if (!sources.ok) return sources;
   const options = { approved: new Set(allow), fetched: sources.value.fetched };
   const level = levelOf(config, state, machine, { resolved: resolved.value, project: folder, options });

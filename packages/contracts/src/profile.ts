@@ -185,9 +185,13 @@ const LEVELS = ["machine", "workspace", "project"] as const;
 // Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings
 // apply, and MCP server lists; a `files` part's text would bring hooks or servers past them. Targets are portable
 // paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part.
-const SEALED = "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth";
+// The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
+const SEALED =
+  "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
+const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
 const sealed = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
+  if (folder === undefined && MANUAL.includes(file)) return true;
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 

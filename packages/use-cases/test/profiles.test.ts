@@ -152,7 +152,7 @@ test("a project gets the manual's block, a CLAUDE.md that only imports AGENTS.md
     read("CLAUDE.local.md").includes("@AGENTS.md"),
     readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
     (await projectPlan(box, project)).plan,
-  ]).toEqual(["@AGENTS.md\n", true, false, "# cedarloom start\nCLAUDE.local.md\n# cedarloom end\n", null]);
+  ]).toEqual(["@AGENTS.md\n", true, false, "# cedarloom start\n/CLAUDE.local.md\n# cedarloom end\n", null]);
 });
 
 test("the block goes into the owner's AGENTS.md, which keeps its own lines, and imports it where CLAUDE.md does not", async () => {
@@ -168,20 +168,79 @@ test("the block goes into the owner's AGENTS.md, which keeps its own lines, and 
   ]).toEqual([true, "# Notes\n", true]);
 });
 
-test("with a dev container, scripts/dc waits for approval by name; approved, it is made executable and ignored by Git", async () => {
+const contentOf = (plan: Plan | null, path: string) => {
+  const op = plan?.operations.find((each) => "path" in each && each.path === path);
+  return op?.kind === "write" ? op.content : null;
+};
+
+test("with a dev container, scripts/dc waits for approval with its local line; approved and in place, it stays without", async () => {
   const box = machine();
-  const project = projectWith({ ".devcontainer/devcontainer.json": "{}" });
-  const waiting = (await projectPlan(box, project)).findings;
+  const project = projectWith({ ".devcontainer.json": "{}" });
+  const waiting = await projectPlan(box, project);
   const approved = (await projectPlan(box, project, ["project.dc-wrapper"])).plan;
+  applied(box.state, approved);
   const script = approved?.operations.find((op) => "path" in op && op.path === join(project, "scripts", "dc"));
-  const exclude = approved?.operations.find((op) => "path" in op && op.path.endsWith("exclude"));
   expect([
-    waiting,
+    waiting.findings,
+    contentOf(waiting.plan, join(project, "CLAUDE.local.md"))?.includes("scripts/dc"),
+    contentOf(approved, join(project, "CLAUDE.local.md"))?.includes("scripts/dc"),
     script?.kind === "write" ? script.mode : null,
-    exclude?.kind === "write" ? exclude.content : null,
+    readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
+    await projectPlan(box, project),
   ]).toEqual([
     [{ code: "profile.target-approval", params: { part: "project.dc-wrapper", targets: ["scripts/dc"] } }],
+    false,
+    true,
     0o755,
-    "# cedarloom start\nCLAUDE.local.md\nscripts/dc\n# cedarloom end\n",
+    "# cedarloom start\n/CLAUDE.local.md\n/scripts/dc\n# cedarloom end\n",
+    { plan: null, findings: [] },
   ]);
+});
+
+test("a project in a subfolder of its repository is ignored by its path from the repository's root", async () => {
+  const box = machine();
+  const project = join(projectWith({ "packages/x/README.md": "x\n" }), "packages", "x");
+  const plan = (await projectPlan(box, project)).plan;
+  expect(contentOf(plan, join(project, "..", "..", ".git", "info", "exclude"))).toBe(
+    "# cedarloom start\n/packages/x/CLAUDE.local.md\n# cedarloom end\n",
+  );
+});
+
+test("the manual switched off takes its block out, leaving the owner's file as it was", async () => {
+  const box = machine();
+  const project = projectWith({ "AGENTS.md": "# Mine\n" });
+  applied(box.state, (await projectPlan(box, project)).plan);
+  applied(box.state, ok(planChoice(box.config, { part: "project.manual", on: false })));
+  applied(box.state, (await projectPlan(box, project)).plan);
+  expect(readFileSync(join(project, "AGENTS.md"), "utf8")).toBe("# Mine\n");
+});
+
+test("a broken block, or a project that is no folder, stops the plan", async () => {
+  const box = machine();
+  const project = projectWith({ "AGENTS.md": "<!-- cedarloom start -->\n- Mine.\n" });
+  const missing = join(root, "no-such-project");
+  const plans = [
+    await planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: stock, project }),
+  ];
+  plans.push(
+    await planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: stock, project: missing }),
+  );
+  expect(plans).toEqual([
+    {
+      ok: false,
+      finding: {
+        code: "document.unreadable",
+        params: { path: join(project, "AGENTS.md"), error: "a broken cedarloom block" },
+      },
+    },
+    { ok: false, finding: { code: "document.unreadable", params: { path: missing, error: "not a folder" } } },
+  ]);
+});
+
+test("a project's plan keeps the record of the machine's skills", async () => {
+  const box = await setUp();
+  const record = () => readFileSync(join(box.state, "pack-sources.json"), "utf8");
+  const before = record();
+  await projectPlan(box, projectWith());
+  expect(record()).toBe(before);
 });

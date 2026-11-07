@@ -230,10 +230,15 @@ const settingsPlan = ({ profile, on }: Resolved, target: Target, approved: Reado
   return { ok: true, value: { operations, findings: waiting(others, settings.value.merged, target) } };
 };
 
-// An --allow that names no plugin part of the profile, so a typo never passes as an approval.
-const unknownApprovals = ({ profile }: Resolved, approved: ReadonlySet<string>): Finding[] =>
+/** Each --allow that names no part of `type` at `level` in the profile, so a typo never passes as an approval. */
+export const unknownApprovals = (
+  { profile }: Resolved,
+  approved: ReadonlySet<string>,
+  level: "machine" | "project",
+  type: "plugin" | "files",
+): Finding[] =>
   [...approved]
-    .filter((part) => profile.machine[part.slice("machine.".length)]?.type !== "plugin" || !part.startsWith("machine."))
+    .filter((part) => !part.startsWith(`${level}.`) || profile[level][part.slice(level.length + 1)]?.type !== type)
     .map((part) => ({ code: "profile.part-unknown", params: { part, by: "--allow" } }));
 
 /**
@@ -251,7 +256,7 @@ export const planMachine = (
     fetched = new Map<string, Folder>(),
   }: { approved?: ReadonlySet<string>; fetched?: Fetched } = {},
 ): Result<LevelPlan> => {
-  const unknown = unknownApprovals(resolved, approved);
+  const unknown = unknownApprovals(resolved, approved, "machine", "plugin");
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
   const rules = rulesFiles(resolved, target.home, fetched);
   if (!rules.ok) return rules;

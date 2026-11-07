@@ -1,6 +1,6 @@
 import { type Dirent, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
-import type { Finding, Json, Operation } from "@cedarloom/contracts";
+import { type Finding, isTree, type Json, type Operation } from "@cedarloom/contracts";
 import { errorCode, hashFile } from "@cedarloom/engine";
 
 /** What a home holds that no part that is on names, as `apply --remove` takes it: `plugin:<id>`, `rules:<file>`… */
@@ -8,9 +8,6 @@ export type Offer = { item: string; status: "extra" | "deselected-present" };
 /** The names the profile's parts give, of the parts that are on and of those that are off. */
 export type Named = { on: ReadonlySet<string>; off: ReadonlySet<string> };
 
-type Tree = { [key: string]: Json | undefined };
-const isTree = (value: Json | undefined): value is Tree =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 const keysOf = (json: Json, key: string): [string, Json | undefined][] => {
   const value = isTree(json) ? json[key] : undefined;
   return isTree(value) ? Object.entries(value) : [];
@@ -79,6 +76,6 @@ export const removalsOf = (home: string, items: readonly string[]) => {
       .filter((entry) => entry.isFile())
       .map((entry) => join(entry.parentPath, entry.name)),
   );
-  const files = [...named("rules").map((name) => join(home, "rules", name)), ...skillFiles].flatMap(deleteOf);
+  const files = [...named("rules").map((name) => join(home, "rules", name)), ...skillFiles].flatMap((path) => deleteOf(path));
   return { files, plugins: named("plugin"), marketplaces: named("marketplace") };
 };

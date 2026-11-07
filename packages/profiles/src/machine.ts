@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import {
   canonicalJson,
   type Finding,
+  isTree,
   type Json,
   JsonValue,
   mergeJson,
@@ -133,9 +134,6 @@ export const mergeSets = (json: Json, sets: readonly Json[]): Json =>
 type Plugin = Extract<Resolved["profile"]["machine"][string], { type: "plugin" }>;
 /** What a plugin part of either level declares in a settings file. */
 export type Declared = Pick<Plugin, "plugin" | "marketplace">;
-type Tree = { [key: string]: Json | undefined };
-const isTree = (value: Json | undefined): value is Tree =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 // What a plugin part writes into the user settings: its marketplace when it names one, and the plugin switched on.
 // https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces

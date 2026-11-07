@@ -19,7 +19,8 @@ export const MAX_PROFILE_FILES = 50;
 export type Composed = { profile: Profile; setBy: Record<string, string> };
 
 type Tree = { [key: string]: Json | undefined };
-const isTree = (value: Json | undefined): value is Tree =>
+/** Whether a JSON value is an object, not a list or null. */
+export const isTree = (value: Json | undefined): value is Tree =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 // An object's entries, without the absent ones a `Json` object type allows.
 const present = (tree: Tree): [string, Json][] =>

@@ -55,7 +55,10 @@ const common = {
   title,
   description,
   default: z.enum(["on", "auto", "off"]).describe("auto: on when its `when` probe holds"),
-  when: z.enum(["orca", "devcontainer", "no-devcontainer"]).optional().describe("The probe an auto part needs"),
+  when: z
+    .enum(["orca", "devcontainer", "no-devcontainer", "gates"])
+    .optional()
+    .describe("The probe an auto part needs; gates: this machine names a gate workflow source"),
   requires: distinct(QualifiedPartId).max(20).optional(),
 };
 // Each part type twice: whole, as the composed profile needs it, and as a file states it, where every field but

@@ -280,7 +280,8 @@
     "gates": {
       "type": "gates",
       "title": "CI gates from your reusable workflows, Dependabot with a 3-day cooldown",
-      "default": "on",
+      "default": "auto",
+      "when": "gates",
       "callers": ["check"],
       "dependabotCooldownDays": 3
     },

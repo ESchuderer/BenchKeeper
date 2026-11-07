@@ -543,6 +543,9 @@ export const planProject = (
   const blocks = blockWrites(project, manual, localPaths(project, files.value, owned.value, local));
   if (!blocks.ok) return blocks;
   const operations = [...blocks.value, ...settings.operations, ...owned.value.operations];
-  const findings = [files.value, manual, settings, owned.value].flatMap((each) => each.findings);
+  const unbound = resolved.unbound
+    .filter((part) => part.startsWith("project."))
+    .map((part): Finding => ({ code: "profile.binding-waiting", params: { part, binding: "gates" } }));
+  const findings = [...unbound, ...[files.value, manual, settings, owned.value].flatMap((each) => each.findings)];
   return unlinked(given, { operations, findings });
 };

@@ -14,6 +14,9 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
+  type TargetAnswers,
+  type TargetCall,
+  type TargetCallParams,
   type WorkerAnswers,
   type WorkerCall,
   type WorkerCallParams,
@@ -30,7 +33,7 @@ import { z } from "zod";
 import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import { ANSWERS, PolicySet, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
+import { ANSWERS, PolicySet } from "./targets.ts";
 import { WORKER_ANSWERS } from "./workers.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
@@ -124,7 +127,7 @@ export type RunningExtension = {
    * that is not bundled, a target its manifest does not name, no answer within `targetMs`, or an answer outside the
    * call's contract.
    */
-  target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswer<C>>>;
+  target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswers[C]>>;
   /**
    * Asks one of its worker runners (`contributes.workerRunners`), as `target` asks a switch target: `extension.failed`
    * (step worker) on the same grounds.
@@ -408,7 +411,7 @@ const askOf =
 
 const targetOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
   const ask = askOf(manifest, trust, session, limits);
-  return async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswer<C>>> => {
+  return async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswers[C]>> => {
     // Checked before the call, as the answer echoes the settings.
     if (trust === "bundled" && !PolicySet.safeParse(Reflect.get(params, "set") ?? {}).success) {
       return failed(manifest.id, "target", "settings its answer could not hold");

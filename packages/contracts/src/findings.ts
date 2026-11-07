@@ -211,6 +211,11 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    // A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644).
+    finding("profile.pack-unpinned", { source: z.string(), path: z.string() }),
+    finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
+    // A new commit at a followed ref, taken once this machine has seen it there for 3 days.
+    finding("profile.source-waiting", { source: z.string(), commit: z.string(), offered: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -345,6 +350,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.owner-changed": { severity: "warning", effort: "manual" },
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.pack-unpinned": { severity: "error", effort: "manual" },
+  "profile.source-digest": { severity: "error", effort: "manual" },
+  "profile.source-waiting": { severity: "info", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

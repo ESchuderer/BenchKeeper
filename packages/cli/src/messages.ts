@@ -239,6 +239,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
+  "profile.pack-unpinned": (p) =>
+    `${p.source} follows a branch or tag, but ${p.path} may run; pin the source by commit and digest.`,
+  "profile.source-digest": (p) =>
+    `${p.source} has the digest ${p.found} at its commit, not the pinned ${p.expected}; nothing of it is used.`,
+  "profile.source-waiting": (p) =>
+    `${p.source} has a new commit ${p.commit.slice(0, 12)}; it is taken from ${p.offered}, 3 days after this machine first saw it.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };

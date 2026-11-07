@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type Composed,
   composeProfile,
@@ -29,8 +29,19 @@ export const APP_VERSION: string = JSON.parse(
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
-/** What a reference names in a pack's manifest: a rules text, a template or a profile. */
-export type EntryKind = "rules" | "template" | "profile";
+/** What a reference names in a pack's manifest. */
+export type EntryKind = "rules" | "template" | "profile" | "skill";
+
+/** A fetched folder: each file with its path inside the folder, its Git mode and its bytes. */
+export type Folder = { readonly files: readonly { path: string; mode: string; content: Buffer }[] };
+
+const parseJson = (text: string): Result<unknown> => {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return refuse({ code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } });
+  }
+};
 
 /** A JSON file's text and value, null when it is missing: `document.unreadable` or `document.invalid` otherwise. */
 export const jsonFile = (path: string): Result<{ text: string; json: unknown } | null> => {
@@ -41,36 +52,68 @@ export const jsonFile = (path: string): Result<{ text: string; json: unknown } |
     if (errorCode(error) === "ENOENT") return { ok: true, value: null };
     return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
   }
+  const json = parseJson(text);
+  return json.ok ? { ok: true, value: { text, json: json.value } } : json;
+};
+
+// A pack's file from its fetched folder, or from this release's bundled packs without one; null when it is absent.
+const packFile = (pack: string, path: string, folder: Folder | undefined): Result<Buffer | null> => {
+  if (folder !== undefined) return { ok: true, value: folder.files.find((file) => file.path === path)?.content ?? null };
+  const file = join(BUNDLED, pack, path);
   try {
-    return { ok: true, value: { text, json: JSON.parse(text) } };
-  } catch {
-    return refuse({ code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } });
+    return { ok: true, value: readFileSync(file) };
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { ok: true, value: null };
+    return refuse({ code: "document.unreadable", params: { path: file, error: errorCode(error) } });
   }
 };
 
-/**
- * Where a pack's entry is, only as an entry of the kind its manifest lists. shortcut: only bundled packs, which ship
- * in this release, are read; a Git pack's entries are unknown until pack fetching lands.
- */
-const entryPath = (ref: Ref, kind: EntryKind): Result<string> => {
-  const file = jsonFile(join(BUNDLED, ref.pack, "cedarloom-pack.json"));
-  if (!file.ok) return file;
-  const manifest = file.value === null ? null : readDocument(PackManifest, PACK_SCHEMA_VERSION, file.value.json);
+type Entry = PackManifest["entries"][string];
+
+/** The manifest's entry for a reference, only as an entry of that kind; a pack without a folder lists none. */
+export const entryOf = (ref: Ref, kind: EntryKind, folder?: Folder): Result<Entry> => {
+  const bytes = packFile(ref.pack, "cedarloom-pack.json", folder);
+  if (!bytes.ok) return bytes;
+  const json = bytes.value === null ? null : parseJson(bytes.value.toString("utf8"));
+  if (json?.ok === false) return json;
+  const manifest = json === null ? null : readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value);
   if (manifest?.ok === false) return manifest;
   const entry = Object.entries(manifest?.value.entries ?? {}).find(([path]) => path === ref.path)?.[1];
-  if (entry?.kind !== kind)
-    return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
-  return { ok: true, value: join(BUNDLED, ref.pack, ref.path) };
+  if (entry?.kind === kind) return { ok: true, value: entry };
+  return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
 };
 
-/** A pack's entry of that kind as text. */
-export const readEntry = (ref: Ref, kind: EntryKind): Result<string> => {
-  const path = entryPath(ref, kind);
-  if (!path.ok) return path;
+/**
+ * A pack's entry of that kind as text: from the pack's fetched folder for a Git pack, else from this release's bundled
+ * packs. shortcut: a parent profile is read from bundled packs only; a Git pack's parent needs that pack fetched
+ * before the composition, due when a shared profile extends one.
+ */
+export const readEntry = (ref: Ref, kind: EntryKind, folder?: Folder): Result<string> => {
+  const entry = entryOf(ref, kind, folder);
+  if (!entry.ok) return entry;
+  const bytes = packFile(ref.pack, ref.path, folder);
+  if (!bytes.ok) return bytes;
+  if (bytes.value === null) return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
+  return { ok: true, value: bytes.value.toString("utf8") };
+};
+
+/** The files under a pack's folder entry, paths relative to it. */
+export const entryFiles = (ref: Ref, folder?: Folder): Result<Folder["files"]> => {
+  const prefix = `${ref.path}/`;
+  if (folder !== undefined) {
+    const files = folder.files.filter((file) => file.path.startsWith(prefix));
+    return { ok: true, value: files.map((file) => ({ ...file, path: file.path.slice(prefix.length) })) };
+  }
+  const root = join(BUNDLED, ref.pack, ref.path);
   try {
-    return { ok: true, value: readFileSync(path.value, "utf8") };
+    const found = readdirSync(root, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile());
+    const files = found.map((entry) => {
+      const path = join(entry.parentPath, entry.name);
+      return { path: relative(root, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+    });
+    return { ok: true, value: files };
   } catch (error) {
-    return refuse({ code: "document.unreadable", params: { path: path.value, error: errorCode(error) } });
+    return refuse({ code: "document.unreadable", params: { path: root, error: errorCode(error) } });
   }
 };
 
@@ -82,16 +125,19 @@ const jsonAt = (path: string): Result<unknown> => {
   return { ok: true, value: file.value.json };
 };
 
+const profileEntry = (ref: Ref): Result<unknown> => {
+  const text = readEntry(ref, "profile");
+  return text.ok ? parseJson(text.value) : text;
+};
+
 const loadParent: LoadParent = (parent) => {
-  const path = entryPath(parent, "profile");
-  if (path.ok) return jsonAt(path.value);
-  return path.finding.code === "profile.entry-unknown" ? undefined : path;
+  const json = profileEntry(parent);
+  return !json.ok && json.finding.code === "profile.entry-unknown" ? undefined : json;
 };
 
 // The selected profile file as JSON, and whether it ships in this release; the default without a selection.
 const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; bundled: boolean }> => {
-  const path = "pack" in profile ? entryPath(profile, "profile") : { ok: true as const, value: profile.file };
-  const json = path.ok ? jsonAt(path.value) : path;
+  const json = "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
   return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 

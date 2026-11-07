@@ -175,6 +175,35 @@ const requests = {
   shutdown: () => null,
 };
 
+// Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. A tick also sends a
+// reading and a switch record, each once as the contract has them and once not.
+const AT = "2026-11-07T10:00:00.000Z";
+const EVENT = { at: AT, from: "work", to: "home", reason: "threshold", trigger: "auto" };
+const target = (answer) => (params) => {
+  if (mode === "x-slow-target") return new Promise(() => undefined);
+  return mode === "x-bad-target" ? { status: "maybe" } : answer(params);
+};
+Object.assign(requests, {
+  "target/probe": target(() => ({ status: "supported", detail: "cswap 1.2.3" })),
+  "target/accounts": target(() => ({
+    accounts: [
+      { alias: "work", number: 1, active: true, disabled: false, threshold: 90, windows: [] },
+      { alias: "home", number: 2, active: false, disabled: false, threshold: null, windows: [] },
+    ],
+  })),
+  "target/current": target(() => ({ alias: "work" })),
+  "target/select": target(({ alias }) => ({ switched: true, from: "work", to: alias, reason: "asked" })),
+  "target/tick": target(({ target: name }) => {
+    const reading = { target: name, alias: "work", window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT };
+    send({ method: "accounts/reading", params: reading });
+    send({ method: "accounts/reading", params: { ...reading, usedPercent: 101 } });
+    send({ method: "switch/record", params: { target: name, event: EVENT } });
+    send({ method: "switch/record", params: { target: "elsewhere", event: EVENT } });
+    return { code: 0, events: [EVENT] };
+  }),
+  "target/policy": target(({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } })),
+});
+
 // An error whose message is an array nested 200,000 deep: the reader cannot build its answer.
 const DEEP = Symbol("deep");
 const answerDeep = (id) => {

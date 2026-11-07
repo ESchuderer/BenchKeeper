@@ -389,6 +389,35 @@
             "pattern": "^[a-z][a-z0-9-]{0,63}$"
           },
           "uniqueItems": true
+        },
+        "switchTargets": {
+          "description": "Where it switches an agent's account (the target/* calls), with the program it switches with, one of its programs",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "agent": {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "codex"
+                ]
+              },
+              "program": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+              }
+            },
+            "required": [
+              "agent"
+            ],
+            "additionalProperties": false
+          },
+          "maxProperties": 8
         }
       },
       "required": [

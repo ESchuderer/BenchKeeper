@@ -77,6 +77,51 @@ export type DoctorResult = { findings: DoctorFinding[] };
 /** The host asks once per doctor run, and gives up after its limit: no answer is a finding of its own. */
 export const doctorRun = new RequestType0<DoctorResult, void>("doctor/run");
 
+/**
+ * The calls of a switch target (its manifest's `contributes.switchTargets`): where it switches an agent's account, such
+ * as claude-swap's for Claude Code. Each names the target; the host bounds the time and checks each answer.
+ */
+export type TargetParams = { target: string };
+/** Whether the target's program is there and speaks a version this extension reads: `detail` says why not. */
+export type TargetProbe = { status: "supported" | "partial" | "unsupported"; detail: string };
+/** A window of an account as the target reads it: a share in percent and when it resets. */
+export type TargetWindow = { window: string; usedPercent: number; resetsAt: string | null };
+/** An account as the target knows it, by its alias (never an email), with its switch line in percent if it has one. */
+export type TargetAccount = {
+  alias: string;
+  number: number;
+  active: boolean;
+  disabled: boolean;
+  threshold: number | null;
+  windows: TargetWindow[];
+};
+/** A switch the target made or would record: when, from which account to which, why, and what started it. */
+export type SwitchEvent = { at: string; from: string | null; to: string; reason: string; trigger: string };
+export type TargetSelectParams = TargetParams & { alias: string };
+export type TargetSelect = { switched: boolean; from: string | null; to: string; reason: string };
+/** One round of the target's own switching: its exit code and the switches it made. */
+export type TargetTick = { code: number | null; events: SwitchEvent[] };
+/** The target's settings; `set` changes the named ones first. */
+export type TargetPolicyParams = TargetParams & { set?: Record<string, string> };
+export type TargetPolicy = { values: Record<string, string | number | boolean> };
+export const targetProbe = new RequestType<TargetParams, TargetProbe, void>("target/probe");
+export const targetAccounts = new RequestType<TargetParams, { accounts: TargetAccount[] }, void>("target/accounts");
+export const targetCurrent = new RequestType<TargetParams, { alias: string | null }, void>("target/current");
+export const targetSelect = new RequestType<TargetSelectParams, TargetSelect, void>("target/select");
+export const targetTick = new RequestType<TargetParams, TargetTick, void>("target/tick");
+export const targetPolicy = new RequestType<TargetPolicyParams, TargetPolicy, void>("target/policy");
+/** A reading of an account's window, from the target, for the core's readings: `readAt` is when the target read it. */
+export type AccountsReading = TargetParams & {
+  alias: string;
+  window: string;
+  usedPercent: number;
+  resetsAt: string;
+  readAt: string;
+};
+export const accountsReading = new NotificationType<AccountsReading>("accounts/reading");
+/** A switch the target made, for the ledger. */
+export const switchRecord = new NotificationType<TargetParams & { event: SwitchEvent }>("switch/record");
+
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");

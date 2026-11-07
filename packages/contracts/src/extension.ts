@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Agent } from "./accounts.ts";
 import { sortKeys } from "./json.ts";
 import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
@@ -258,6 +259,11 @@ export const ExtensionManifest = z
         .describe(
           "Its actions the CLI offers as verbs under its noun (the id after `cedarloom.`); bundled extensions only",
         ),
+      switchTargets: sized(z.record(ActionId, z.strictObject({ agent: Agent, program: ProgramId.optional() })), 8)
+        .optional()
+        .describe(
+          "Where it switches an agent's account (the target/* calls), with the program it switches with, one of its programs",
+        ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
@@ -265,10 +271,20 @@ export const ExtensionManifest = z
   })
   .superRefine((manifest, ctx) => {
     credentialHosts(manifest.capabilities, ctx);
-    // A CLI verb runs one of the extension's own actions.
-    const { actions, commands = [] } = manifest.contributes;
+    // A CLI verb runs one of the extension's own actions, and a switch target runs one of its programs.
+    const { actions, commands = [], switchTargets = {} } = manifest.contributes;
     if (commands.some((command) => !Object.hasOwn(actions, command))) {
       ctx.addIssue({ code: "custom", path: ["contributes", "commands"], message: "each one of its actions" });
+    }
+    const programs = manifest.capabilities?.programs ?? {};
+    for (const [id, { program }] of Object.entries(switchTargets)) {
+      if (program !== undefined && !Object.hasOwn(programs, program)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["contributes", "switchTargets", id, "program"],
+          message: "one of its programs",
+        });
+      }
     }
   })
   .describe("A CedarLoom extension manifest; readers also refuse values nested over 32 levels deep")

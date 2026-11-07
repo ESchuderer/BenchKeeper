@@ -714,3 +714,62 @@ test("the doctor asks an extension's own checks once and shows their texts safel
     [],
   ]);
 });
+
+// The fixture as a switch target for Claude Code's interactive account.
+const switching = (): ExtensionManifest => {
+  const plain = manifestOf(ACTIONS);
+  const switchTargets = { interactive: { agent: "claude" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, switchTargets } });
+};
+const INTERACTIVE = { target: "interactive" };
+
+test("a switch target answers each call within its contract, and only its own valid readings and switch records reach the host", async () => {
+  const notes: unknown[] = [];
+  const onTarget = {
+    reading: (reading: unknown) => notes.push(["reading", reading]),
+    record: (record: unknown) => notes.push(["record", record]),
+  };
+  const fixture = await extension({ manifest: switching(), onTarget });
+  const answers = [
+    await fixture.target("target/probe", INTERACTIVE),
+    await fixture.target("target/current", INTERACTIVE),
+    await fixture.target("target/select", { ...INTERACTIVE, alias: "home" }),
+    await fixture.target("target/tick", INTERACTIVE),
+    await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.cooldown": "600" } }),
+  ];
+  const accounts = await fixture.target("target/accounts", INTERACTIVE);
+  const when = "2026-11-07T10:00:00.000Z";
+  const event = { at: when, from: "work", to: "home", reason: "threshold", trigger: "auto" };
+  expect([answers.map(codeOf), accounts.ok && accounts.value.accounts.map(({ alias }) => alias), notes]).toEqual([
+    [
+      { status: "supported", detail: "cswap 1.2.3" },
+      { alias: "work" },
+      { switched: true, from: "work", to: "home", reason: "asked" },
+      { code: 0, events: [event] },
+      { values: { "autoswitch.threshold": 90, "autoswitch.cooldown": "600" } },
+    ],
+    ["work", "home"],
+    [
+      [
+        "reading",
+        { target: "interactive", alias: "work", window: "fiveHour", usedPercent: 91, resetsAt: when, readAt: when },
+      ],
+      ["record", { target: "interactive", event }],
+    ],
+  ]);
+});
+
+test("a call to a target the manifest does not name, an answer outside the contract, or none in time fails the call", async () => {
+  const fixture = await extension({ manifest: switching() });
+  const bad = await extension({ manifest: switching(), locale: "x-bad-target" });
+  const slow = await extension({ manifest: switching(), locale: "x-slow-target", limits: { targetMs: 200 } });
+  expect([
+    codeOf(await fixture.target("target/probe", { target: "elsewhere" })),
+    codeOf(await bad.target("target/probe", INTERACTIVE)),
+    codeOf(await slow.target("target/current", INTERACTIVE)),
+  ]).toEqual([
+    failure("target", "no switch target elsewhere"),
+    failure("target", "an answer the host refuses"),
+    failure("target", "no answer within 200 ms"),
+  ]);
+});

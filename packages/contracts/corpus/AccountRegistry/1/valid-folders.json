@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "accounts": [
+    {
+      "name": "work",
+      "agent": "claude",
+      "home": "/state/homes/work",
+      "pool": "main",
+      "added": "2026-11-07T09:00:00.000Z"
+    }
+  ],
+  "pools": {
+    "claude": {
+      "main": {
+        "confirmedAt": null,
+        "confirmedFor": []
+      }
+    }
+  },
+  "folders": {
+    "/projects/site": {
+      "account": "work"
+    },
+    "/projects/tools": {
+      "pool": "main"
+    }
+  }
+}

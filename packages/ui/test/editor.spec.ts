@@ -125,7 +125,7 @@ test("the Workflows view opens a new workflow with the attribution link, minimap
   await expect(page.getByRole("region", { name: "Workflow graph" })).toBeVisible();
   await expect(card("start")).toContainText("trigger.manual");
   await expect(page.getByRole("link", { name: "React Flow" })).toBeVisible();
-  // The attribution link in the text color, not React Flow's light grey.
+  // The link's only contrast guard: axe cannot judge text on the panel's translucent background and passes it.
   await expect(page.getByRole("link", { name: "React Flow" })).toHaveCSS("color", "rgb(0, 0, 0)");
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
   await expect(page.locator(".react-flow__controls")).toBeVisible();

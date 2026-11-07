@@ -140,9 +140,6 @@ importers:
         specifier: 0.17.0
         version: 0.17.0
     devDependencies:
-      '@cedarloom/ledger':
-        specifier: workspace:*
-        version: link:../ledger
       '@cedarloom/server':
         specifier: workspace:*
         version: link:../server

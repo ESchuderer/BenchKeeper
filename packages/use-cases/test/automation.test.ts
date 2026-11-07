@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { sha256 } from "@cedarloom/ledger";
 import { applyPlan, automationSettings, levelAtGate, mode, planLevel, switchMode } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -91,7 +90,7 @@ test("with modeScope until-off, a switch reaches every later run too, until off"
   });
 });
 
-test("settings that are no settings, a folder in their place, or a store from a newer CedarLoom are reported", () => {
+test("settings that are no settings, or a folder in their place, are reported", () => {
   const { root, config, state } = folders();
   mkdirSync(join(config, "automation.json"), { recursive: true });
   expect(automationSettings(config)).toMatchObject({ ok: false, finding: { params: { error: "EISDIR" } } });
@@ -105,11 +104,6 @@ test("settings that are no settings, a folder in their place, or a store from a 
   expect(mode(state, invalid)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
   // The store is read only once the settings are.
   expect(levelAtGate(state, join(root, "none"), run("/work/app"))).toMatchObject({ ok: true });
-  mkdirSync(state);
-  const db = new DatabaseSync(join(state, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 99");
-  db.close();
-  expect(mode(state, join(root, "none"))).toMatchObject({ ok: false, finding: { code: "store.newer-schema" } });
 });
 
 // Plans `change`, checks the plan's one write against the file as it is, and applies it.

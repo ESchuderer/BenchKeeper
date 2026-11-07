@@ -1,4 +1,5 @@
-import { join, sep } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, join, sep } from "node:path";
 import {
   canonicalJson,
   type Finding,
@@ -20,6 +21,21 @@ export interface LevelPlan {
 
 /** The hub's question rule, a file of the rules folder while a hub part is on. */
 export const HUB_RULES = "cedarloom-hub.md";
+/**
+ * A path as the disk names it: through links and in the case the disk stores, from its nearest existing folder when
+ * it is not made yet, so CedarLoom's records of a file always match it.
+ */
+export const onDisk = (path: string): string => {
+  if (existsSync(path)) {
+    try {
+      return realpathSync.native(path);
+    } catch {
+      return path;
+    }
+  }
+  return dirname(path) === path ? path : join(onDisk(dirname(path)), basename(path));
+};
+
 /** The rules folder of a Claude Code home, as the run store's `written` takes it. */
 export const rulesFolder = (home: string): string => join(home, "rules") + sep;
 

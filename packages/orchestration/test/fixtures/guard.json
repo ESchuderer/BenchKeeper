@@ -172,7 +172,73 @@
       ["GIT_COMMON_DIR before a push", "GIT_COMMON_DIR=/work/notes/.git git push origin main", "environment"],
       ["an attached commit message", "git commit --message=\"$MSG\"", null],
       ["a push to the session's remote by --repo", "git push --repo=origin", null],
-      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"]
+      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"],
+      ["gh pr create in the session's repository", "gh pr create --title t --body b", null],
+      ["gh pr list of another repository", "gh pr list -R other/x", "outside-profiles"],
+      ["gh pr merge", "gh pr merge 12 --squash --delete-branch", "merge"],
+      ["gh pr review --approve", "gh pr review 12 --approve", "approval"],
+      ["gh pr review -a", "gh pr review 12 -a", "approval"],
+      ["gh pr review with a comment", "gh pr review 12 --comment -b ok", null],
+      ["gh issue list in a product repository", "gh issue list", "issue-outside-hub"],
+      ["gh issue create in the hub", "gh issue create -R acme/tracker --title t --body b", null],
+      ["gh issue comment on a product repository", "gh issue comment 7 --repo acme/app --body x", "issue-outside-hub"],
+      ["gh issue view by its hub URL", "gh issue view https://github.com/acme/tracker/issues/7", null],
+      ["gh auth token", "gh auth token", "gh-config"],
+      ["gh auth status", "gh auth status", null],
+      ["gh auth setup-git", "gh auth setup-git", "gh-config"],
+      ["gh alias set with a shell", "gh alias set --shell co 'git checkout'", "gh-config"],
+      ["gh config set", "gh config set git_protocol ssh", "gh-config"],
+      ["gh secret set", "gh secret set TOKEN --body x", "forbidden"],
+      ["gh repo create", "gh repo create acme/new --private", "forbidden"],
+      ["gh release create", "gh release create v1.0.0", "forbidden"],
+      ["gh gist create", "gh gist create notes.md", "forbidden"],
+      ["a gh alias", "gh co 12", "unreadable"],
+      ["gh run list", "gh run list --limit 5", null],
+      ["gh search", "gh search issues 'is:open'", null],
+      ["GH_REPO before gh", "GH_REPO=acme/tracker gh issue list", "environment"],
+      ["gh api merge", "gh api -X PUT repos/acme/app/pulls/1/merge", "merge"],
+      ["gh api approving review", "gh api repos/{owner}/{repo}/pulls/1/reviews -f event=APPROVE", "approval"],
+      [
+        "gh api review with an event from a file",
+        "gh api repos/acme/app/pulls/1/reviews -F event=@event.txt",
+        "approval"
+      ],
+      ["gh api commenting review", "gh api repos/acme/app/pulls/1/reviews -f event=COMMENT -f body=ok", null],
+      [
+        "gh api issue comment on a product repository",
+        "gh api repos/acme/app/issues/1/comments -f body=x",
+        "issue-outside-hub"
+      ],
+      ["gh api issue comment in the hub", "gh api repos/acme/tracker/issues/7/comments -f body=x", null],
+      ["gh api of another repository", "gh api repos/other/x/pulls", "outside-profiles"],
+      ["gh api user", "gh api user", null],
+      ["gh api write outside a repository", "gh api -X POST user/repos -f name=x", "unreadable"],
+      [
+        "gh api graphql merge",
+        "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      [
+        "gh api graphql read in a limited session",
+        "gh api graphql -f query='query { viewer { login } }'",
+        "unreadable"
+      ],
+      ["curl merge", "curl -X PUT https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      [
+        "curl review with a body",
+        "curl -d '{\"event\":\"APPROVE\"}' https://api.github.com/repos/acme/app/pulls/1/reviews",
+        "approval"
+      ],
+      ["curl another repository", "curl https://api.github.com/repos/other/x", "outside-profiles"],
+      ["curl a raw file", "curl -fsSL https://raw.githubusercontent.com/acme/app/main/README.md", null],
+      ["curl another host", "curl -s https://example.com/data.json", null],
+      ["curl a URL in a variable", "curl \"$URL\"", "unreadable"],
+      ["curl with a config file", "curl -K curl.cfg", "unreadable"],
+      [
+        "curl an issue in the hub",
+        "curl -H \"Authorization: token $GH_TOKEN\" https://api.github.com/repos/acme/tracker/issues -d '{\"title\":\"x\"}'",
+        null
+      ]
     ],
     "worker /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
@@ -197,7 +263,14 @@
       ],
       ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "unreadable"],
       ["cd inside sh -c to the memory repository", "sh -c 'cd ../notes && git push origin main'", "memory-main"],
-      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"]
+      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"],
+      ["gh api graphql read in an open session", "gh api graphql -f query='query { viewer { login } }'", null],
+      [
+        "gh api contents on the memory repository",
+        "gh api -X PUT repos/acme/notes/contents/x.md -f message=m -f content=Y",
+        "memory-main"
+      ],
+      ["gh issue list outside the hub in an open session", "gh issue list", "issue-outside-hub"]
     ]
   }
 }

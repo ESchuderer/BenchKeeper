@@ -4,7 +4,7 @@ import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
-import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
+import { type Finding, GitRef, GitUrl, PortablePath, type Result, shown } from "@cedarloom/contracts";
 import { missing, programPath } from "@cedarloom/orchestration";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
@@ -19,13 +19,6 @@ export type Tree = { commit: string; files: TreeFile[]; digest: string };
 export type FetchOptions = { parent: string; limits?: Limits; timeoutMs?: number };
 
 type Ran = { code: number | null; stdout: Buffer; stderr: string; failure: string | undefined };
-
-// Text from git, a server or a tree, shown in a terminal: line breaks as spaces, other control characters and
-// non-ASCII text as \u escapes, so none of it can move the cursor or rewrite a line.
-export const shown = (text: string): string =>
-  text
-    .replace(/[\t\n\r]+/g, " ")
-    .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
 const failed = (step: "start" | "fetch" | "list" | "read" | "worktree", error: string): Result<never> => ({
   ok: false,

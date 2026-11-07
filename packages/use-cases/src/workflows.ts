@@ -21,6 +21,7 @@ import {
   type GraphRun,
   type JournalEvent,
   type NodeAttempt,
+  type PassedGate,
   type Json,
   JsonValue,
   PLAN_SCHEMA_VERSION,
@@ -58,7 +59,7 @@ import {
   planHash,
   type RunLease,
 } from "@cedarloom/ledger";
-import { cleanEnv } from "@cedarloom/orchestration";
+import { cleanEnv, programPath } from "@cedarloom/orchestration";
 import { type Launch, type Sandbox, type SandboxPolicy, sandboxRuntime, stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
@@ -112,13 +113,11 @@ const RUNNABLE = new Set([
 ]);
 
 /** The POSIX `sh` that runs commands: /bin/sh, or on Windows Git for Windows' sh.exe on PATH or in its usual folder. */
-const findShell = (platform: NodeJS.Platform = process.platform, env = process.env): string | null => {
-  if (platform !== "win32") return "/bin/sh";
+const findShell = (): string | null => {
+  if (process.platform !== "win32") return "/bin/sh";
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
-  const git = win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin");
-  // Only absolute folders: an empty or relative PATH entry would find a sh.exe in the project.
-  const dirs = [...(env["PATH"] ?? "").split(";").filter((dir) => win32.isAbsolute(dir)), git];
-  return dirs.map((dir) => win32.join(dir, "sh.exe")).find((file) => existsSync(file)) ?? null;
+  const git = win32.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin", "sh.exe");
+  return programPath("sh", process.env) ?? (existsSync(git) ? git : null);
   /* v8 ignore stop */
 };
 
@@ -625,11 +624,14 @@ export const listGraphRuns = (state: string): Result<GraphRun[]> =>
   withGraphView(state, (view) => ({ ok: true, value: view?.graphRuns() ?? [] }));
 
 /** A graph run with its attempts; the pid of an attempt that ended interrupted is what a user checks by hand. */
-export const showGraphRun = (state: string, runId: string): Result<{ run: GraphRun; attempts: NodeAttempt[] }> =>
+export const showGraphRun = (
+  state: string,
+  runId: string,
+): Result<{ run: GraphRun; attempts: NodeAttempt[]; passed: PassedGate[] }> =>
   withGraphView(state, (view) => {
     const run = view?.graphRun(runId);
     if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
-    return { ok: true, value: { run, attempts: view.attempts(runId) } };
+    return { ok: true, value: { run, attempts: view.attempts(runId), passed: view.passedGates(runId) } };
   });
 
 /**

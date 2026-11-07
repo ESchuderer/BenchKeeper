@@ -186,7 +186,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target", "worker", "session"]),
       error: z.string(),
     }),
     // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
@@ -291,6 +291,29 @@ export const Finding = z
       limit: z.int(),
       unit: z.enum(["files", "bytes"]),
     }),
+    // An outbox intent whose approval names another intent: nothing is queued.
+    finding("outbox.not-approved", { key: z.string(), hash: Sha256, approvedHash: z.string() }),
+    finding("outbox.not-found", { id: z.string() }),
+    // A key that holds another intent already, entry `id`: nothing is queued.
+    finding("outbox.key-taken", { key: z.string(), id: z.string() }),
+    // An entry for another repository than the hub, the only tracker (A3 b): it fails, and nothing is written.
+    finding("outbox.not-hub", { id: z.string(), repo: z.string() }),
+    // The entry's status does not allow the step, such as a send of one that ended, or `sending`: another process sends it.
+    finding("outbox.status", { id: z.string(), status: z.string() }),
+    // A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted.
+    finding("outbox.not-undoable", { id: z.string(), reason: z.enum(["unchanged", "no-inverse"]) }),
+    // The tracker was not reached, or answered with a server error or a rate limit: the entry stays queued.
+    // A rate limit keeps GitHub's retry-after (seconds) and x-ratelimit-reset (epoch seconds) as sent, null without them.
+    finding("tracker.unavailable", {
+      error: z.string(),
+      retryAfter: z.string().nullable(),
+      rateLimitReset: z.string().nullable(),
+    }),
+    // The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission.
+    finding("tracker.refused", { status: z.int(), error: z.string() }),
+    // The tracker's answer is not what CedarLoom reads, such as a comment without a link: the entry fails, as a retry
+    // would read the same answer; the write itself may have happened.
+    finding("tracker.invalid-answer", { error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -443,6 +466,15 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.source-digest": { severity: "error", effort: "manual" },
   "profile.source-waiting": { severity: "info", effort: "manual" },
   "profile.source-unavailable": { severity: "error", effort: "manual" },
+  "outbox.not-approved": { severity: "error", effort: "command" },
+  "outbox.not-found": { severity: "error", effort: "manual" },
+  "outbox.key-taken": { severity: "error", effort: "manual" },
+  "outbox.not-hub": { severity: "error", effort: "manual" },
+  "outbox.status": { severity: "error", effort: "manual" },
+  "outbox.not-undoable": { severity: "warning", effort: "manual" },
+  "tracker.unavailable": { severity: "warning", effort: "command" },
+  "tracker.refused": { severity: "error", effort: "manual" },
+  "tracker.invalid-answer": { severity: "error", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

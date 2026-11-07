@@ -374,7 +374,7 @@ const content = (view: View, session: Session): ReactNode => {
 
 /** The title, and below the sm breakpoint the button that shows the views. */
 const Header = ({ opened, toggle }: { opened: boolean; toggle: () => void }): ReactNode => (
-  <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+  <AppShell.Header px="md" style={{ display: "flex", alignItems: "center", gap: "var(--mantine-spacing-sm)" }}>
     <Burger
       opened={opened}
       onClick={toggle}

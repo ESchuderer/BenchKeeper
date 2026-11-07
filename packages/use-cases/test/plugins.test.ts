@@ -67,6 +67,14 @@ test("a commit without the workflow plugin gives none, and that is kept; a faile
   expect(existsSync(join(other, "plugins", WORKFLOW_PLUGIN.commit))).toBe(false);
 });
 
+test("a checkout whose write fails gives no plugin and leaves no staging folder behind", async () => {
+  const dir = state();
+  // A file and a folder of the same name: the second file cannot be written.
+  const clash = fetching([file("workflow", "x"), file("workflow/skills/tier/SKILL.md", "# Tier")]);
+  expect(await workflowPlugin(dir, clash)).toBeNull();
+  expect(readdirSync(join(dir, "plugins"))).toEqual([]);
+});
+
 test("a workflow plugin that holds a .claude folder is refused, as --add-dir would load that folder too", async () => {
   const dir = state();
   const fetch = fetching([...WITH_WORKFLOW, file("workflow/.claude/settings.json", "{}")]);

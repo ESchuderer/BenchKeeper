@@ -62,7 +62,6 @@ const account = (name: string) =>
 test("a worker may not read any account's home or alias or the user's credential folders, and reaches GitHub only", () => {
   const registry: AccountRegistry = {
     schemaVersion: 1,
-    minimum: { fiveHour: 8, sevenDay: 3 },
     accounts: [{ ...account("work"), aliases: ["/ade/work"] }, account("spare")],
     pools: {},
   };

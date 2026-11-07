@@ -81,7 +81,6 @@ const setup = (names: readonly string[] = ["work"]) => {
   for (const dir of [config, work, ...names.map((name) => ownHome(state, name))]) mkdirSync(dir, { recursive: true });
   const registry: AccountRegistry = {
     schemaVersion: 1,
-    minimum: { fiveHour: 8, sevenDay: 3 },
     accounts: names.map((name) => ({
       name,
       agent: "claude",

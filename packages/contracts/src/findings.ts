@@ -41,6 +41,8 @@ export const Finding = z
     // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
     finding("run.lease-held", { runId: z.string(), pid: z.int() }),
     finding("run.finished", { runId: z.string(), status: z.string() }),
+    // A decision for a node of a graph run that waits for none: no approval, no gate.
+    finding("run.not-waiting", { runId: z.string(), node: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
     // A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts.
@@ -269,6 +271,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.event-invalid": { severity: "error", effort: "manual" },
   "run.lease-held": { severity: "error", effort: "manual" },
   "run.finished": { severity: "error", effort: "manual" },
+  "run.not-waiting": { severity: "error", effort: "manual" },
   "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },

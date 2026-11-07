@@ -56,6 +56,13 @@ const column = (value: unknown): unknown => (typeof value === "string" ? JSON.pa
 const blanked = (plan: unknown): string =>
   JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
 
+// Moves the log into the database and empties it, so the pages from before a blanking leave the log too. While another
+// process reads the store, the checkpoint stops short and says so in its result row, without an error; that log then
+// keeps them until the store's last connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+const emptyLog = (db: DatabaseSync): void => {
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+};
+
 /** A launch as its lease takes it, with the settings it runs with. */
 export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins">;
 
@@ -306,6 +313,7 @@ export class RunStore extends RunView {
         .all();
       return [epoch, ids.map((row) => String(row["id"]))] as const;
     });
+    if (this.interrupted.length > 0) emptyLog(db);
   }
 
   /** Records the plan, its approval and its pending steps in one transaction; refuses an approval of another plan. */
@@ -351,6 +359,7 @@ export class RunStore extends RunView {
     this.db
       .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
       .run(status, now(), runId);
+    emptyLog(this.db);
   }
 
   /**
@@ -658,7 +667,11 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
   try {
     chmodSync(join(dir, "runs.sqlite"), 0o600);
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
+    // secure_delete zeroes what an update or a delete leaves behind, such as a blanked plan's content, which SQLite
+    // otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete).
+    db.exec(
+      "PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON",
+    );
     // Read again in the transaction: a graph store opens without the store lock, so another process may create it first.
     const created = (): number => {
       if (versionOf(db) === 0) db.exec(`${BASELINE.join("")} PRAGMA user_version = ${SCHEMA}`);

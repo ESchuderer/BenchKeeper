@@ -18,7 +18,7 @@ type Values = Record<string, Json>;
 type Start = Extract<Action, { type: "start" }>;
 type Ended = (ok: boolean, values: Values, why: unknown) => void;
 type Going<P = Prepared> = { readonly prepared: P; readonly controller: AbortController };
-type Open = { readonly node: string; readonly attempt: number; readonly sessionId: string | null };
+type Open = Pick<Left, "node" | "attempt" | "sessionId" | "applyRun">;
 type Typed = { readonly type: string; readonly config: Readonly<Record<string, Json>> };
 
 /** The most of an output value a run keeps: 1 MiB. A longer string is cut there, any other value is dropped. */
@@ -61,9 +61,11 @@ export interface Prepared {
  */
 export type Executors = Readonly<Record<string, (attempt: Attempt) => Prepared | Promise<Prepared>>>;
 
-/** An attempt a dead runner left started, as the runner that took the run over finds it, with its last session. */
+/** An attempt a dead runner left started, as the runner that took the run over finds it in the journal. */
 export interface Left extends Attempt {
   readonly sessionId: string | null;
+  /** The apply run the attempt began to write through, if it began one. */
+  readonly applyRun: string | null;
 }
 
 /**
@@ -134,16 +136,17 @@ export const capped = (values: Values): Values => {
   return { ...values, ...kept, truncated: over.map(([name]) => name) };
 };
 
-// The attempts a crashed runner left started, each with the session it recorded last.
+// The attempts a crashed runner left started, each with the session it recorded last and the apply run it began.
 const opened = (journal: readonly JournalEvent[]): Open[] => {
   const open = new Map<string, Open>();
   for (const event of journal) {
     if (event.type === "started") {
       const { node, attempt } = event;
-      open.set(key(node, attempt), { node, attempt, sessionId: null });
-    } else if (event.type === "session") {
+      open.set(key(node, attempt), { node, attempt, sessionId: null, applyRun: null });
+    } else if (event.type === "session" || event.type === "applying") {
       const left = open.get(key(event.node, event.attempt));
-      if (left !== undefined) open.set(key(event.node, event.attempt), { ...left, sessionId: event.sessionId });
+      const recorded = event.type === "session" ? { sessionId: event.sessionId } : { applyRun: event.applyRun };
+      if (left !== undefined) open.set(key(event.node, event.attempt), { ...left, ...recorded });
     } else if (event.type === "ended") open.delete(key(event.node, event.attempt));
   }
   return [...open.values()];
@@ -334,12 +337,17 @@ class Runner {
 
   // Goes on with an attempt a dead runner left started, through its type's recovery; it ends interrupted when that finds
   // nothing to go on with.
-  async #recover({ node, attempt, sessionId }: Open): Promise<void> {
+  async #recover({ node, attempt, sessionId, applyRun }: Open): Promise<void> {
     const { type, config } = this.#of(node);
     const recovery = own(this.#options.recover, type);
     // An agent's recovery reads no data inputs.
     const setup = { config, data: {} };
-    const going = await this.#prepare(node, attempt, setup, (given) => recovery?.({ ...given, sessionId }) ?? null);
+    const going = await this.#prepare(
+      node,
+      attempt,
+      setup,
+      (given) => recovery?.({ ...given, sessionId, applyRun }) ?? null,
+    );
     if (going.prepared === null) {
       this.#post({ type: "ended", node, attempt, outcome: "interrupted" });
       return;

@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -12,21 +11,20 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join } from "node:path";
 import { type Finding, InstalledExtensions } from "@cedarloom/contracts";
-import { fetchTreeOver } from "@cedarloom/git";
 import {
   applyPlan,
-  type Fetch,
   installedExtensions,
   planInstall,
   planRemove,
   planUpdate,
   approvalOf,
+  type Fetch,
   undoRun,
 } from "@cedarloom/use-cases";
 import { afterAll, expect, test } from "vitest";
+import { gitFixtures } from "./harness.ts";
 
 // GitHub's Windows runners keep os.tmpdir() on the slow system drive.
 const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-install-"));
@@ -34,40 +32,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const git = (cwd: string, args: string[]): string =>
-  execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args], {
-    cwd,
-    encoding: "utf8",
-  }).trim();
-
-// Each published URL is a local repository: the tests let git fetch over file://, which the CLI never does.
-const repositories = new Map<string, string>();
-const fetchLocal: Fetch = (source, options) => {
-  const folder = repositories.get(source.url);
-  return fetchTreeOver(["file"])(
-    { ...source, url: folder === undefined ? source.url : pathToFileURL(folder).href },
-    options,
-  );
-};
-// Publishes the files as the newest commit of the repository `name`, a new one or the next commit of one published before.
-const publish = (name: string, files: Record<string, string>): string => {
-  const url = `https://git.example.org/acme/${name}.git`;
-  const known = repositories.get(url);
-  const dir = known ?? mkdtempSync(join(root, "repository-"));
-  if (known === undefined) git(dir, ["init", "--quiet", "--initial-branch=main"]);
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, path)), { recursive: true });
-    writeFileSync(join(dir, path), content);
-  }
-  git(dir, ["add", "--all"]);
-  // Shell scripts are executable in the commit, also where the file system has no such bit.
-  for (const path of Object.keys(files).filter((file) => file.endsWith(".sh"))) {
-    git(dir, ["update-index", "--chmod=+x", path]);
-  }
-  git(dir, ["commit", "--quiet", "--message=publish"]);
-  repositories.set(url, dir);
-  return url;
-};
+const { fetchLocal, publish, repositories } = gitFixtures(root);
 
 const manifest = (more: object = {}): string =>
   JSON.stringify({

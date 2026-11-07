@@ -91,7 +91,15 @@ const totalsOf = (raw: Json): RunTotals | null => {
 type RateLimitInfo = z.infer<typeof RateLimit>["rate_limit_info"];
 
 // Claude Code's window names in the agent-neutral quota model; a window not listed is reported but not stored.
-const QUOTA: Readonly<Record<string, UsageWindow["quota"]>> = { five_hour: "fiveHour", seven_day: "sevenDay" };
+// 2.1.316's unifiedWindows schema names five_hour, seven_day and seven_day_overage_included, the Fable limit (as
+// claude-swap v0.30.0 maps it); seven_day_opus and seven_day_sonnet are the usage report's names for those models.
+const QUOTA: Readonly<Record<string, UsageWindow["quota"]>> = {
+  five_hour: "fiveHour",
+  seven_day: "sevenDay",
+  seven_day_overage_included: "sevenDay:fable",
+  seven_day_opus: "sevenDay:opus",
+  seven_day_sonnet: "sevenDay:sonnet",
+};
 
 const windows = (info: RateLimitInfo): UsageWindow[] =>
   Object.entries(info.unifiedWindows ?? { [info.rateLimitType]: info }).map(([window, reading]) => ({

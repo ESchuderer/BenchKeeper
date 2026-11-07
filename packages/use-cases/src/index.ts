@@ -8,6 +8,7 @@ export {
   type Startable,
 } from "./bundled.ts";
 export { type From, type ImportPlan, planImport } from "./imports.ts";
+export { readSwapAccounts, swapReader } from "./swap.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export {
   type ExportPlan,
@@ -103,11 +104,13 @@ export {
   type Choice,
   checkProfile,
   claudeHome,
+  heldBack,
   type Machine,
   type PlanOptions,
   planChoice,
   planProfile,
   type ProfilePlan,
   profileDoctor,
+  showProfile,
 } from "./profiles.ts";
 export { diffProfile, planProfileCopy } from "./profile-copy.ts";

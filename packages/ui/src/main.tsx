@@ -1,4 +1,6 @@
 import "@mantine/core/styles.css";
+// After Mantine's styles, so its rules of equal weight give way.
+import "./theme.css";
 import { client, exchange, subscribe } from "@cedarloom/client";
 import { Alert, Container, createTheme, MantineProvider, type MantineColorsTuple, Title } from "@mantine/core";
 import { StrictMode } from "react";

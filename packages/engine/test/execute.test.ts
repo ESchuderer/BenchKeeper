@@ -381,12 +381,12 @@ test("a gate the journal holds waits for the owner whatever the policy says now,
     "started a#1, ended a#1, finished",
   ]);
   // An approval answers the held gate: a retry after the approved attempt failed goes as the policy now lets it.
-  const held: JournalEvent[] = [
+  const answered: JournalEvent[] = [
     { type: "gate", node: "a", attempt: 1, point: "before-node", planHash: null },
     { type: "decided", node: "a", approved: true },
   ];
   const retried = { executors: scripted({ a: ["fail"] }), gates: passing };
-  expect(await resume(workflow({ nodes: { a: { retries: 1 } } }), held, retried)).toEqual([
+  expect(await resume(workflow({ nodes: { a: { retries: 1 } } }), answered, retried)).toEqual([
     { ok: true, value: "succeeded" },
     "started a#1, ended a#1, started a#2, ended a#2, started b#1, ended b#1, finished",
   ]);

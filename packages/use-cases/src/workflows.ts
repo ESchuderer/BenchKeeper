@@ -27,6 +27,7 @@ import {
 import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
 import { stopOrphans, stopTree } from "./orphans.ts";
+import { type AgentOptions, agentRun } from "./agent-node.ts";
 import { readJson } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
@@ -51,12 +52,14 @@ export interface RunOptions {
   readonly shell?: string | null | undefined;
   /** Waits out a retry's backoff; tests pass one that does not wait. */
   readonly sleep?: ExecuteOptions["sleep"];
+  /** What `agent.run` nodes start their workers with; a workflow with one is refused without it. */
+  readonly agents?: AgentOptions | undefined;
 }
 
 // Stored outputs are blanked after the same 90 days as plan contents, since a command's output can hold a secret.
 const OUTPUT_DAYS = 90;
 
-// The node types that run in this version; the others come with agents, writes and approvals, and schedules.
+// The node types that run in this version, `agent.run` where agents are set up; writes and approvals come later.
 const RUNNABLE = new Set(["trigger.manual", "command.run", "file.read", "condition", "join"]);
 
 /** The POSIX `sh` that runs commands: /bin/sh, or on Windows Git for Windows' sh.exe on PATH or in its usual folder. */
@@ -159,8 +162,8 @@ const fileRead =
   });
 
 // What a run needs before it starts: node types this version runs, and sh for commands and a precheck.
-const unready = (workflow: WorkflowDefinition, shell: string | null): Finding | null => {
-  const node = workflow.nodes.find((each) => !RUNNABLE.has(each.type));
+const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boolean): Finding | null => {
+  const node = workflow.nodes.find((each) => !RUNNABLE.has(each.type) && !(agents && each.type === "agent.run"));
   if (node !== undefined) return { code: "run.node-unsupported", params: { node: node.id, type: node.type } };
   const commands = workflow.nodes.some((each) => each.type === "command.run" || each.with?.["precheck"] !== undefined);
   return commands && shell === null ? { code: "run.shell-missing", params: {} } : null;
@@ -179,7 +182,7 @@ const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise
 
 type Held = Parameters<typeof execute>[2] & { readonly lease: RunLease };
 
-type InProject = RunOptions & { readonly project: string };
+type InProject = RunOptions & { readonly project: string; readonly state: string };
 
 // Runs a run this process holds to its end, then lets go of it.
 const runHeld = async (
@@ -189,9 +192,11 @@ const runHeld = async (
   options: InProject,
 ): Promise<Result<GraphOutcome>> => {
   const { lease } = held;
+  const { project, state, agents } = options;
   const executors: Executors = {
-    "command.run": command(shell, options.project),
-    "file.read": fileRead(options.project),
+    "command.run": command(shell, project),
+    "file.read": fileRead(project),
+    ...(agents === undefined ? {} : { "agent.run": agentRun({ state, runId: lease.runId, project }, agents) }),
   };
   try {
     const { signal, onEvent, sleep } = options;
@@ -205,7 +210,7 @@ const runHeld = async (
 // Whether a run of the workflow with the inputs can start here: its finding if not, else the shell (or "" for none).
 const check = (workflow: WorkflowDefinition, inputs: Values, options: RunOptions): Result<string> => {
   const shell = options.shell === undefined ? findShell() : options.shell;
-  const refused = unready(workflow, shell);
+  const refused = unready(workflow, shell, options.agents !== undefined);
   if (refused !== null) return { ok: false, finding: refused };
   const started = startRun(workflow, inputs);
   return started.ok ? { ok: true, value: shell ?? "" } : started;
@@ -255,7 +260,7 @@ export const runWorkflow = async (
       project: project.value,
     } as const;
     const held = { lease: store.create(run), workflow: definition, inputs: typed, journal: [] };
-    return runHeld(store, held, shell.value, { ...options, project: project.value });
+    return runHeld(store, held, shell.value, { ...options, project: project.value, state });
   });
 };
 
@@ -309,7 +314,7 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
     if (!project.ok) return project;
     const lease = store.takeOver(runId);
     return lease.ok
-      ? runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value })
+      ? runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value, state })
       : lease;
   });
 
@@ -398,5 +403,9 @@ export const cancelRun = (
     if (!lease.ok) return lease;
     // A cancelled run starts nothing, so it needs no shell.
     store.append(runId, lease.value.epoch, { type: "cancel" });
-    return runOn(store, { run, lease: lease.value }, "", { ...options, project: project.ok ? project.value : "" });
+    return runOn(store, { run, lease: lease.value }, "", {
+      ...options,
+      project: project.ok ? project.value : "",
+      state,
+    });
   });

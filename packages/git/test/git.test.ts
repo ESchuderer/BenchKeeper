@@ -6,7 +6,15 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Result } from "@cedarloom/contracts";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { type FetchOptions, fetchTree, fetchTreeOver, type Limits, type Source, type Tree } from "@cedarloom/git";
+import {
+  type FetchOptions,
+  fetchTree,
+  fetchTreeOver,
+  type Limits,
+  type Source,
+  type Tree,
+  worktreeOf,
+} from "@cedarloom/git";
 
 // GitHub's Windows runners keep os.tmpdir() on the slow system drive.
 const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-git-"));
@@ -289,3 +297,46 @@ test.skipIf(process.platform === "win32")(
   },
   30_000,
 );
+
+test("a worktree is added on a new branch from HEAD with no hook run, and found again; no repository is named", async () => {
+  const repo = source({ "a.txt": "a" });
+  git(repo.dir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  const marker = join(repo.dir, "ran").replaceAll("\\", "/");
+  mkdirSync(join(repo.dir, ".git", "hooks"), { recursive: true });
+  writeFileSync(join(repo.dir, ".git", "hooks", "post-checkout"), `#!/bin/sh\necho ran > '${marker}'\n`, {
+    mode: 0o755,
+  });
+  const path = join(parent(), "work");
+  expect(await worktreeOf(repo.dir, path, "cedarloom/run-1")).toEqual({ ok: true, value: path });
+  expect([
+    readFileSync(join(path, "a.txt"), "utf8"),
+    git(path, ["branch", "--show-current"]),
+    existsSync(marker),
+  ]).toEqual(["a", "cedarloom/run-1", false]);
+  // The same worktree again: git lists it, so nothing is added.
+  writeFileSync(join(path, "b.txt"), "b");
+  expect(await worktreeOf(repo.dir, path, "cedarloom/run-1")).toEqual({ ok: true, value: path });
+  expect(existsSync(join(path, "b.txt"))).toBe(true);
+  // A folder in the way that is no worktree, and a folder that is no repository.
+  const busy = join(parent(), "busy");
+  mkdirSync(busy);
+  writeFileSync(join(busy, "x.txt"), "x");
+  const refused = { code: "git.failed", params: { step: "worktree" } };
+  expect([
+    codeOf(await worktreeOf(repo.dir, busy, "cedarloom/run-3")),
+    codeOf(await worktreeOf(parent(), join(parent(), "work"), "cedarloom/run-2")),
+  ]).toMatchObject([refused, refused]);
+}, 30_000);
+
+test("an add that left its branch behind, or a listed worktree whose folder is gone, is added again", async () => {
+  const repo = source({ "a.txt": "a" });
+  git(repo.dir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  // `worktree add -b` makes the branch before its checkout, so a checkout that failed leaves the branch.
+  git(repo.dir, ["branch", "cedarloom/run-2"]);
+  const left = join(parent(), "left");
+  expect(await worktreeOf(repo.dir, left, "cedarloom/run-2")).toEqual({ ok: true, value: left });
+  expect(git(left, ["branch", "--show-current"])).toBe("cedarloom/run-2");
+  rmSync(left, { recursive: true, force: true });
+  expect(await worktreeOf(repo.dir, left, "cedarloom/run-2")).toEqual({ ok: true, value: left });
+  expect(readFileSync(join(left, "a.txt"), "utf8")).toBe("a");
+}, 30_000);

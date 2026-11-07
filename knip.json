@@ -8,6 +8,10 @@
       "project": ["*.ts", "scripts/*.ts"],
       "node": false
     },
-    "packages/*": { "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"] }
+    "packages/*": { "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"] },
+    "packages/extension-host": {
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["@types/node-forge"]
+    }
   }
 }

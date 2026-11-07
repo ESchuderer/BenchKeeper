@@ -366,6 +366,31 @@ const planning = (planHash: string): Executors => ({
 const decision = (approved: boolean, planHash: string) => ({ type: "decided", node: "a", approved, planHash }) as const;
 // A policy that holds nodes with effects before they start: the hook the levels plug into.
 const beforeNode: Gates = (point) => (point === "before-node" ? "wait" : "pass");
+const passing: Gates = () => "pass";
+
+test("a gate the journal holds waits for the owner whatever the policy says now, and the owner's decision outranks it", async () => {
+  const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };
+  const executors = planning(HASH);
+  // The policy now passes, as after a switch to Auto while the plan waited: it still waits, and a rejection holds.
+  expect(await resume(workflow(), [gate], { executors, gates: passing })).toEqual([
+    { ok: true, value: "waiting" },
+    "gate a#1, waiting",
+  ]);
+  expect(await resume(workflow(), [gate, decision(false, HASH)], { executors, gates: passing })).toEqual([
+    { ok: true, value: "failed" },
+    "started a#1, ended a#1, finished",
+  ]);
+  // An approval answers the held gate: a retry after the approved attempt failed goes as the policy now lets it.
+  const answered: JournalEvent[] = [
+    { type: "gate", node: "a", attempt: 1, point: "before-node", planHash: null },
+    { type: "decided", node: "a", approved: true },
+  ];
+  const retried = { executors: scripted({ a: ["fail"] }), gates: passing };
+  expect(await resume(workflow({ nodes: { a: { retries: 1 } } }), answered, retried)).toEqual([
+    { ok: true, value: "succeeded" },
+    "started a#1, ended a#1, started a#2, ended a#2, started b#1, ended b#1, finished",
+  ]);
+});
 
 test("a plan waits at its gate until the owner approves that very plan; a rejection fails the node", async () => {
   const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };

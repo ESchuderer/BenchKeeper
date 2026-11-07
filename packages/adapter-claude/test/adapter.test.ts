@@ -198,8 +198,44 @@ test("maps the stream-json lines to events", async () => {
       { window: "seven_day", status: "allowed", percent: 32, resetsAt: "2026-11-06T18:00:00.000Z", quota: "sevenDay" },
     ],
   });
-  expect(all[5]).toMatchObject({ type: "result", ok: true, text: "OK" });
+  // The totals of the captured result: modelUsage over its one model, and total_cost_usd as given.
+  const totals = { inputTokens: 2, outputTokens: 70, cacheReadTokens: 11687, cacheCreationTokens: 12674 };
+  expect(all[5]).toMatchObject({
+    type: "result",
+    ok: true,
+    text: "OK",
+    totals: { ...totals, costUsd: 0.10513739999999999 },
+  });
   expect(all[6]).toEqual({ type: "exit", code: 0, signal: null, error: null, stderr: "fake stderr\n" });
+});
+
+// A result line with `spend`, and one model's usage of n, 2n, 3n and 4n tokens.
+const result = (spend: object) =>
+  JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "OK", ...spend });
+const model = (n: number) => ({
+  inputTokens: n,
+  outputTokens: 2 * n,
+  cacheReadInputTokens: 3 * n,
+  cacheCreationInputTokens: 4 * n,
+  costUSD: 0,
+});
+
+test("a result's totals sum every model's tokens with the cost; only zeros or another shape give none", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "cedarloom-spend-")), "spend.jsonl");
+  const spends = [
+    // A subagent on another model counts too.
+    { total_cost_usd: 0.25, modelUsage: { "claude-opus-5-5": model(10), "claude-haiku-5-5": model(1) } },
+    // A crashed session's result may carry zeros.
+    { total_cost_usd: 0, modelUsage: { "claude-opus-5-5": model(0) } },
+    { total_cost_usd: 0.25, modelUsage: { "claude-opus-5-5": { inputTokens: "10" } } },
+  ];
+  writeFileSync(file, `${spends.map(result).join("\n")}\n`);
+  const all = await events(runtime.start(launch({ FAKE_STREAM: file })));
+  expect(all.flatMap((event) => (event.type === "result" ? [[event.ok, event.totals]] : []))).toEqual([
+    [true, { inputTokens: 11, outputTokens: 22, cacheReadTokens: 33, cacheCreationTokens: 44, costUsd: 0.25 }],
+    [true, null],
+    [true, null],
+  ]);
 });
 
 test("the settings passed with --settings hold the worker profile: denials, the strict sandbox, the caps", async () => {

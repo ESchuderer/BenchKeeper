@@ -281,6 +281,16 @@ test("one process applies under the store lock while another appends events, and
   expect(runs.ok && new Set(runs.value.runs().map((run) => run.status))).toEqual(new Set(["applied"]));
 }, 15_000);
 
+test("a run whose runner let go of it to wait reads waiting, and its next runner runs it again", () => {
+  const store = graphs(fresh());
+  const lease = store.create(manual);
+  expect(store.append(lease.runId, lease.epoch, { type: "waiting" })).toMatchObject({ ok: true });
+  lease.release();
+  expect(store.graphRun(lease.runId)).toMatchObject({ status: "waiting" });
+  expect(store.takeOver(lease.runId)).toMatchObject({ ok: true });
+  expect(store.graphRun(lease.runId)).toMatchObject({ status: "running" });
+});
+
 test("a view reads without a write: a dead runner's run reads interrupted, and its lock file stays", () => {
   const dir = fresh();
   applyRunIn(dir);
@@ -364,7 +374,7 @@ test("a view of graph runs is none without a store, and refuses a store from bef
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec("PRAGMA user_version = 10");
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 13 } } };
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 14 } } };
   expect([openGraphView(dir), openGraphStore(dir)]).toEqual([older, older]);
   db.exec("PRAGMA user_version = 99");
   db.close();

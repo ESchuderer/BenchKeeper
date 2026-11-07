@@ -98,9 +98,27 @@ export const runsList = (ctx: Context): number => {
   return EXIT.ok;
 };
 
+// A worker run with the totals its session reported, else a graph run.
+const launchShow = (ctx: Context, runId: string): number => {
+  const shown = useCases.showLaunch(ctx.state, runId);
+  if (!shown.ok) return graphRunShow(ctx, runId);
+  const { account, verdict, startedAt, totals: t } = shown.value;
+  const spent =
+    t === null
+      ? "  no token or cost totals reported"
+      : `  ${t.inputTokens} input, ${t.outputTokens} output, ${t.cacheReadTokens} cache read and ${t.cacheCreationTokens} cache written tokens, about $${t.costUsd.toFixed(2)}`;
+  emit(
+    ctx,
+    "run",
+    { launch: shown.value },
+    `Run ${runId}: worker on ${account}, ${verdict ?? "running"}, ${startedAt}\n${spent}`,
+  );
+  return EXIT.ok;
+};
+
 export const runsShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showRun(ctx.state, runId);
-  if (!shown.ok && shown.finding.code === "run.not-found") return graphRunShow(ctx, runId);
+  if (!shown.ok && shown.finding.code === "run.not-found") return launchShow(ctx, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);
   const { run, steps } = shown.value;
   const lines = steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);

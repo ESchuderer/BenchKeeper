@@ -1,4 +1,4 @@
-import type { ContractCheckRecord, Json, QuotaWindow, RunLabels } from "@cedarloom/contracts";
+import type { ContractCheckRecord, Json, QuotaWindow, RunLabels, RunTotals } from "@cedarloom/contracts";
 
 /** How far an adapter supports a feature; `unknown` means untested and is never read as `unsupported`. */
 export type CapabilityState = "supported" | "partial" | "unsupported" | "unknown";
@@ -90,7 +90,14 @@ export type AgentEvent =
       readonly windows: readonly UsageWindow[];
       readonly raw: Json;
     }
-  | { readonly type: "result"; readonly ok: boolean; readonly text: string | null; readonly raw: Json }
+  | {
+      readonly type: "result";
+      readonly ok: boolean;
+      readonly text: string | null;
+      /** The session's totals; null when the result reports none, or only zeros, as a crashed session does. */
+      readonly totals: RunTotals | null;
+      readonly raw: Json;
+    }
   | { readonly type: "other"; readonly raw: Json }
   | {
       readonly type: "exit";

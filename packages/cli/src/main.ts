@@ -29,7 +29,7 @@ import {
   workflowsSave,
 } from "./commands.ts";
 import { contributedGroups } from "./contributed.ts";
-import { runsCancel, runsResume, workflowsRun } from "./graphs.ts";
+import { runsCancel, runsDecide, runsResume, workflowsRun } from "./graphs.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
@@ -143,6 +143,19 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--project <folder>", STORED)
     .option("--yes", "cancel as planned now")
     .action(async (run, options) => done(await runsCancel(ctx(), run, options)));
+  for (const [verb, approved] of [
+    ["approve", true],
+    ["reject", false],
+  ] as const) {
+    runs
+      .command(verb)
+      .description(`show what a graph run's node waits for; with --yes, ${verb} it and run the run on`)
+      .argument("<run>")
+      .argument("<node>")
+      .option("--project <folder>", STORED)
+      .option("--yes", `${verb} now`)
+      .action(async (runId, node, options) => done(await runsDecide(ctx(), { runId, node, approved }, options)));
+  }
   runs
     .command("undo")
     .description("show the undo plan of a run; with --yes, apply it as a run of its own")

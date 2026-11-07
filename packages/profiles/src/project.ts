@@ -73,14 +73,12 @@ const partsOn = <T extends Part["type"]>({ profile, on }: Resolved, type: T): [s
     (entry): entry is [string, Of<T>] => entry[1].type === type && on.has(`project.${entry[0]}`),
   );
 
-// The rules of the parts of one type that are on, in profile order, each ending in one line break; a part that requires
-// one `held` back for its approval is left out with it.
-type Context = { resolved: Resolved; fetched: Fetched; held: ReadonlySet<string> };
+// The rules of the parts of one type that are on, in profile order, each ending in one line break.
+type Context = { resolved: Resolved; fetched: Fetched };
 type Written = ReadonlyMap<string, string | null>;
-const rulesOf = ({ resolved, fetched, held }: Context, type: "manual" | "local-manual"): Result<string[]> => {
+const rulesOf = ({ resolved, fetched }: Context, type: "manual" | "local-manual"): Result<string[]> => {
   const texts: string[] = [];
-  const parts = partsOn(resolved, type).filter(([, part]) => !(part.requires ?? []).some((each) => held.has(each)));
-  for (const [id, part] of parts) {
+  for (const [id, part] of partsOn(resolved, type)) {
     for (const [at, text] of part.rules.entries()) {
       const read = textOf(text, { kind: "rules", pointer: `/project/${id}/rules/${at}` }, resolved, fetched);
       if (!read.ok) return read;
@@ -415,7 +413,8 @@ const ownedOf = ({ resolved, claude, fetched }: Given, files: Files, written: Wr
   const skills = skillFiles(resolved, claude, { fetched, written, level: "project" });
   if (!skills.ok) return skills;
   const wanted = new Map([...skills.value.wanted, ...files.wanted]);
-  const stale = [...files.stale, ...skills.value.stale].filter((path) => !wanted.has(path));
+  // A files target in the skills folder is the files part's stale path and the skills' too: it goes once.
+  const stale = [...new Set([...files.stale, ...skills.value.stale])].filter((path) => !wanted.has(path));
   return ownedFiles(wanted, stale, written);
 };
 
@@ -432,23 +431,26 @@ const localPaths = (project: string, files: Files, owned: LevelPlan, local: { ma
   ];
 };
 
-// The plan, unless a link leads one of its paths in `.claude` outside the project or into its Git folder, where its
-// settings or skills would land elsewhere, such as in a user's Claude Code home or Git's hooks.
+// The plan, unless a link leads one of its paths in `.claude` outside the project, into its Git folder or onto a sealed
+// name (Claude Code's settings, an MCP list, the manual's files), where a skill's file would land elsewhere, such as in
+// a user's Claude Code home, Git's hooks or the committed settings.
 const unlinked = ({ project, claude }: Given, plan: LevelPlan): Result<LevelPlan> => {
+  // The settings part's own files; any other path that a link leads onto a sealed name would bring hooks or servers.
+  const own = new Set(["settings.json", "settings.local.json"].map((name) => join(claude, name)));
+  const sealed = (path: string) => !own.has(path) && sealedTarget(relative(project, onDisk(path)).split(sep).join("/"));
   const linked = plan.operations
     .flatMap((operation) => ("path" in operation && operation.path.startsWith(claude + sep) ? [operation.path] : []))
-    .find((path) => outside(project, path));
+    .find((path) => outside(project, path) || sealed(path));
   if (linked === undefined) return { ok: true, value: plan };
   const target = `.claude/${relative(claude, linked).split(sep).join("/")}`;
   return refuse({ code: "profile.target-linked", params: { part: "project", target, path: onDisk(linked) } });
 };
 
-// The settings writes, then the manual's without the rules of the parts held back for their approval.
-const settingsAndManual = (given: Given, held: ReadonlySet<string>) => {
+// The settings writes, then the manual's.
+const settingsAndManual = (given: Given) => {
   const settings = settingsWrites(given);
   if (!settings.ok) return settings;
-  const all = new Set([...held, ...settings.value.held]);
-  const manual = manualWrites({ resolved: given.resolved, fetched: given.fetched, held: all }, given.project);
+  const manual = manualWrites({ resolved: given.resolved, fetched: given.fetched }, given.project);
   return manual.ok ? { ok: true as const, value: { settings: settings.value, manual: manual.value } } : manual;
 };
 
@@ -464,6 +466,30 @@ const blockWrites = (
   return { ok: true, value: [...writes.flatMap((write) => (write.ok ? write.value : [])), ...manual.created] };
 };
 
+// The parts that are on, less every part that requires one held back, at any depth, as such a part would rely on what
+// is not there; the held parts stay on, so they keep their approval lines.
+const unheld = (resolved: Resolved, held: ReadonlySet<string>): Resolved => {
+  const on = new Set([...resolved.on].filter((key) => !held.has(key)));
+  const parts = Object.entries(resolved.profile.project).map(([id, part]) => ({ key: `project.${id}`, part }));
+  for (let size = -1; size !== on.size; ) {
+    size = on.size;
+    for (const { key, part } of parts)
+      if ((part.requires ?? []).some((each) => resolved.on.has(each) && !on.has(each))) on.delete(key);
+  }
+  return { ...resolved, on: new Set([...on, ...held]) };
+};
+
+// The plan's input with the parts held back for their approval (files parts with a target that may run or configure
+// a tool, plugin parts) holding back every part that requires them.
+const heldOf = (given: Given, written: Written): Result<Given> => {
+  const files = filesOf(given, written);
+  if (!files.ok) return files;
+  const settings = settingsWrites(given);
+  if (!settings.ok) return settings;
+  const held = new Set([...files.value.held, ...settings.value.held]);
+  return { ok: true, value: { ...given, resolved: unheld(given.resolved, held) } };
+};
+
 /**
  * The project level for one folder: the manual's marked blocks; each files, gates and dev container part's targets (an
  * executable or configuration one only when `approved` names its part, so CI files never come with `--yes` alone); the
@@ -475,18 +501,25 @@ export const planProject = (
   resolved: Resolved,
   project: string,
   written: Written,
-  {
-    approved = new Set<string>(),
-    fetched = new Map(),
-    templates = new Map(),
-  }: { approved?: ReadonlySet<string>; fetched?: Fetched; templates?: ReadonlyMap<string, Folder> } = {},
+  options: { approved?: ReadonlySet<string>; fetched?: Fetched; templates?: ReadonlyMap<string, Folder> } = {},
 ): Result<LevelPlan> => {
+  const { approved, fetched, templates } = {
+    approved: new Set<string>(),
+    fetched: new Map(),
+    templates: new Map(),
+    ...options,
+  };
   const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin", "gates", "devcontainer"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const given = { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved };
+  const held = heldOf(
+    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
+    written,
+  );
+  if (!held.ok) return held;
+  const given = held.value;
   const files = filesOf(given, written);
   if (!files.ok) return files;
-  const writes = settingsAndManual(given, files.value.held);
+  const writes = settingsAndManual(given);
   if (!writes.ok) return writes;
   const { settings, manual } = writes.value;
   const owned = ownedOf(given, files.value, written);

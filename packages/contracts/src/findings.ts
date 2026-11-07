@@ -182,7 +182,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run", "doctor"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target"]),
       error: z.string(),
     }),
     // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
@@ -246,6 +246,8 @@ export const Finding = z
     finding("profile.target-twice", { part: z.string(), target: z.string() }),
     // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
     finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
+    // A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file.
+    finding("profile.skill-plugin", { skill: z.string(), path: z.string() }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
@@ -401,6 +403,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.skill-twice": { severity: "error", effort: "manual" },
   "profile.template-failed": { severity: "warning", effort: "manual" },
   "profile.target-twice": { severity: "error", effort: "manual" },
+  "profile.skill-plugin": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

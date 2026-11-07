@@ -37,6 +37,7 @@ const EXTENSION_STEPS = {
   initialize: "answer its handshake",
   run: "run an action",
   doctor: "answer the doctor's checks",
+  target: "answer as a switch target",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
@@ -282,6 +283,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} could not apply the Dev Container Template ${p.template}, so it writes nothing: ${shown(p.error, 300)}${/ENOENT/.test(p.error) ? ". Install the Dev Containers CLI: npm install -g @devcontainers/cli" : ""}`,
   "profile.target-twice": (p) =>
     `${p.part} writes ${p.target}, which another part of the profile writes too; switch one of them off.`,
+  "profile.skill-plugin": (p) =>
+    `The skill ${p.skill} holds ${p.path}, so Claude Code would load it as a plugin with its hooks and servers. Add it as a plugin part instead, which waits for your approval by name.`,
   "profile.skill-twice": (p) =>
     `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>

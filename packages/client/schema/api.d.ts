@@ -1474,7 +1474,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {
@@ -1622,10 +1622,24 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.skill-twice";
             params: {
                 folder: string;
                 skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */
@@ -2612,7 +2626,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {
@@ -2760,10 +2774,24 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.skill-twice";
             params: {
                 folder: string;
                 skills: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.skill-plugin";
+            params: {
+                skill: string;
+                path: string;
             };
         } | {
             /** @constant */

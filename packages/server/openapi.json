@@ -3386,7 +3386,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {
@@ -4051,6 +4052,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.target-twice"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.skill-twice"
               },
               "params": {
@@ -4069,6 +4100,36 @@
                 "required": [
                   "folder",
                   "skills"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-plugin"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "skill": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "skill",
+                  "path"
                 ],
                 "additionalProperties": false
               }
@@ -8698,7 +8759,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {
@@ -9363,6 +9425,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.target-twice"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.skill-twice"
               },
               "params": {
@@ -9381,6 +9473,36 @@
                 "required": [
                   "folder",
                   "skills"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.skill-plugin"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "skill": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "skill",
+                  "path"
                 ],
                 "additionalProperties": false
               }

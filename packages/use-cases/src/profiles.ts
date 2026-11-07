@@ -85,32 +85,27 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
   return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
 };
 
-// Whether Orca is here: its bundled extension not switched off, and its program found as host/exec finds it.
-const orcaHere = (app: string | undefined, config: string): Result<boolean> => {
-  const bundled = app === undefined ? { ok: true as const, value: [] } : bundledExtensions(app, config);
-  if (!bundled.ok) return bundled;
-  const orca = bundled.value.find(({ id }) => id === "cedarloom.orca");
-  return { ok: true, value: orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca") };
+// Whether Orca is here: its bundled extension not switched off, and its program found as host/exec finds it. An app
+// folder or components map that does not read finds none, as it adds no CLI verbs; the extensions commands name it.
+const orcaHere = (app: string | undefined, config: string): boolean => {
+  const bundled = app === undefined ? undefined : bundledExtensions(app, config);
+  const orca = bundled?.ok === true ? bundled.value.find(({ id }) => id === "cedarloom.orca") : undefined;
+  return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-// The probes: whether Orca is here and whether the project has a dev container; the gates' is resolveProfile's own.
-const probeOf = (orca: boolean, project: string | undefined) => {
+// The probes: whether Orca is here, asked only by a part that needs it, and whether the project has a dev container.
+const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
   const container = project !== undefined && hasContainer(project);
-  const holds: Record<Probe, boolean> = {
-    orca,
-    devcontainer: container,
-    "no-devcontainer": project !== undefined && !container,
-    gates: false,
+  return (when: Probe): boolean => {
+    if (when === "orca") return orcaHere(app, config);
+    return project !== undefined && (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
   };
-  return (when: Probe): boolean => holds[when];
 };
 
 // The profile this machine's selection names, resolved.
 const selectedProfile = (config: string, app: string | undefined, project: string | undefined): Result<Resolved> => {
   const read = readSelection(config);
-  if (!read.ok) return read;
-  const orca = orcaHere(app, config);
-  return orca.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(orca.value, project)) : orca;
+  return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(app, config, project)) : read;
 };
 
 // What CedarLoom last left at each path of a folder, the Claude Code home or a project, from the run store.

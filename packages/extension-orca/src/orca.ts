@@ -2,8 +2,8 @@ import { type ActionContext, type DoctorFinding, HOST_MISSING } from "@cedarloom
 
 /** The Orca version this extension and its recorded test outputs were checked with; another major is a warning. */
 export const OBSERVED = "1.4.251";
-// Below the doctor's 10 s for all three calls: Orca's own status call gives up after 1 s.
-const MS = 3000;
+// Well below the doctor's 10 s for all three calls: Orca's own status call gives up after 1 s.
+const MS = 2500;
 // Where the manifest names Orca's CLI. On Windows it is an orca.cmd, which only cmd.exe runs, and the host starts no
 // shell (CVE-2024-27980).
 const CHECKED = new Set(["darwin", "linux"]);
@@ -73,7 +73,8 @@ const skillFindings = async (context: Exec): Promise<DoctorFinding[]> => {
   try {
     missing = await missingSkills(context);
   } catch (error) {
-    return [finding("warning", "orca.unreadable", `Orca's skills did not list as expected: ${messageOf(error)}`)];
+    const unread = `Orca's skills did not list as expected: ${messageOf(error)}`;
+    return [finding("warning", "orca.skills-unreadable", unread)];
   }
   if (missing.length === 0) return [];
   const command = ["orca skills install", ...missing.map((name) => `--skill ${name}`)].join(" ");

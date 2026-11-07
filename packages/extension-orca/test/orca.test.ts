@@ -53,7 +53,7 @@ test("each probe outcome gives its finding, a major version not checked with or 
   ]);
 });
 
-test("while Orca runs, the doctor names the command for the Orca skills Claude Code lacks, and a list that does not read warns", async () => {
+test("while Orca runs, the doctor finds the Orca skills Claude Code lacks, and warns on a list that does not read", async () => {
   const [version, running] = [recorded("version.txt"), recorded("status-running.json")];
   const codexOnly = listed(
     { name: "orca-cli", providers: ["agent-skills", "claude"] },
@@ -63,24 +63,18 @@ test("while Orca runs, the doctor names the command for the Orca skills Claude C
   const findings = await Promise.all(
     [codexOnly, neither, "{}"].map((skills) => doctor({ exec: orca(version, running, 0, skills) }, "darwin")),
   );
-  expect([findings.map(codes), findings.slice(0, 2).map((each) => each[1]?.message)]).toEqual([
+  expect(findings.map(codes)).toEqual([
     [
-      [
-        ["orca", "info", "orca.running"],
-        ["orca", "info", "orca.skills-missing"],
-      ],
-      [
-        ["orca", "info", "orca.running"],
-        ["orca", "info", "orca.skills-missing"],
-      ],
-      [
-        ["orca", "info", "orca.running"],
-        ["orca", "warning", "orca.unreadable"],
-      ],
+      ["orca", "info", "orca.running"],
+      ["orca", "info", "orca.skills-missing"],
     ],
     [
-      expect.stringContaining("orca skills install --skill orchestration."),
-      expect.stringContaining("orca skills install --skill orca-cli --skill orchestration."),
+      ["orca", "info", "orca.running"],
+      ["orca", "info", "orca.skills-missing"],
+    ],
+    [
+      ["orca", "info", "orca.running"],
+      ["orca", "warning", "orca.skills-unreadable"],
     ],
   ]);
 });

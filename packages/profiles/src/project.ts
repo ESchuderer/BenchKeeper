@@ -1,13 +1,21 @@
 import { isUtf8 } from "node:buffer";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { type Finding, type Operation, type Result, sealedTarget, targetClass } from "@cedarloom/contracts";
+import {
+  FILES_RECORD,
+  type Finding,
+  type Operation,
+  type Result,
+  sealedTarget,
+  targetClass,
+} from "@cedarloom/contracts";
 import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
-import { type Folder, type Resolved, textFile } from "./resolve.ts";
-import { type Fetched, skillFiles } from "./skills.ts";
+import { type FilesRecord, recordOf, recordWrite, withRecord } from "./record.ts";
+import { type Folder, packVersion, type Resolved, textFile } from "./resolve.ts";
+import { type Fetched, packFolder, skillFiles } from "./skills.ts";
 
 type Part = Resolved["profile"]["project"][string];
 type Of<T extends Part["type"]> = Extract<Part, { type: T }>;
@@ -95,7 +103,9 @@ type Files = {
   held: Set<string>;
   findings: Finding[];
 };
-type Found = { target: string; path: string; content: string };
+type Found = { target: string; path: string; content: string; pack?: string };
+// Each target with its text, and the pack the text came from as `id@version`.
+type Texts = [target: string, content: string, pack?: string][];
 
 const hashOf = (path: string): string | null => {
   try {
@@ -178,13 +188,14 @@ updates:
 `;
 
 // A files part's targets with their texts.
-const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">): Result<[string, string][]> => {
-  const texts: [string, string][] = [];
+const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">): Result<Texts> => {
+  const texts: Texts = [];
   for (const [target, text] of Object.entries(part.files)) {
     const pointer = `/project/${id}/files/${target.replaceAll("~", "~0").replaceAll("/", "~1")}`;
     const read = textOf(text, { kind: "template", pointer }, resolved, fetched);
     if (!read.ok) return read;
-    texts.push([target, read.value]);
+    const from = "pack" in text ? packVersion(text.pack, packFolder(resolved, text.pack, fetched)) : undefined;
+    texts.push(from === undefined ? [target, read.value] : [target, read.value, from]);
   }
   return { ok: true, value: texts };
 };
@@ -207,7 +218,7 @@ const containerTexts = ({ project, templates, approved }: Given, id: string): Re
 
 // A part's targets and texts, and how it keeps them: a files part's from its texts, a gates part's from this machine's
 // gate source, a dev container's from what its Template wrote into `.devcontainer/`, an existing file left as it is.
-const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: [string, string][]; keeping: Keeping }> => {
+const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: Texts; keeping: Keeping }> => {
   if (part.type === "files") {
     const texts = filesTexts(given, id, part);
     const keeping = { commit: part.commit, onlyIfAbsent: part.onlyIfAbsent === true };
@@ -233,10 +244,10 @@ const foundOf = (given: Given, id: string, part: Whole): Result<{ found: Found[]
   const read = textsOf(given, id, part);
   if (!read.ok) return read;
   const found: Found[] = [];
-  for (const [target, content] of read.value.texts) {
+  for (const [target, content, pack] of read.value.texts) {
     const path = realTarget(given.project, `project.${id}`, target);
     if (!path.ok) return path;
-    found.push({ target, path: path.value, content });
+    found.push({ target, path: path.value, content, ...(pack === undefined ? {} : { pack }) });
   }
   return { ok: true, value: { found, keeping: read.value.keeping } };
 };
@@ -244,11 +255,11 @@ const foundOf = (given: Given, id: string, part: Whole): Result<{ found: Found[]
 // A part that is on and approved: each target it writes now, and those Git is to ignore. An `onlyIfAbsent` target
 // that is there stays as it is, ignored only while it holds what CedarLoom left there.
 const addTargets = (files: Files, keeping: Keeping, found: Found[], written: Written): void => {
-  for (const { target, path, content } of found) {
+  for (const { target, path, content, pack } of found) {
     const kept = keeping.onlyIfAbsent && existsSync(path);
     if (!kept) {
       const mode = targetClass(target, content) === "executable" ? { mode: 0o755 } : {};
-      files.wanted.set(path, { content, ...mode });
+      files.wanted.set(path, { content, ...mode, ...(pack === undefined ? {} : { pack }) });
     }
     if (!keeping.commit && (!kept || hashOf(path) === written.get(path))) files.excluded.push(path);
   }
@@ -430,7 +441,8 @@ const ownedOf = ({ resolved, claude, fetched }: Given, files: Files, written: Wr
   const wanted = new Map([...skills.value.wanted, ...files.wanted]);
   // A files target in the skills folder is the files part's stale path and the skills' too: it goes once.
   const stale = [...new Set([...files.stale, ...skills.value.stale])].filter((path) => !wanted.has(path));
-  return ownedFiles(wanted, stale, written);
+  const plan = ownedFiles(wanted, stale, written);
+  return plan.ok ? { ok: true as const, value: { ...plan.value, wanted } } : plan;
 };
 
 // The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local
@@ -512,6 +524,22 @@ const heldOf = (given: Given, written: Written): Result<Given> => {
  * block for the machine-local files. `templates` holds what each dev container part's Template wrote, and `written`
  * what CedarLoom last left at each path of the project (the run store's `written`).
  */
+// The project's committed record of the files CedarLoom wrote there; a link that leads it outside the project or into
+// its Git folder stops the plan, as the record would be read and written there.
+const recordAt = (project: string): Result<{ path: string; record: FilesRecord }> => {
+  const path = onDisk(join(project, ...FILES_RECORD.split("/")));
+  if (outside(project, path))
+    return refuse({ code: "profile.target-linked", params: { part: "project", target: FILES_RECORD, path } });
+  const record = recordOf(project, path);
+  return record.ok ? { ok: true, value: { path, record: record.value } } : record;
+};
+
+/** What CedarLoom last left at each path of a project: the run store's `written` with the project's committed record. */
+export const projectWritten = (project: string, written: Written): Result<Written> => {
+  const at = recordAt(project);
+  return at.ok ? { ok: true, value: withRecord(written, at.value.record) } : at;
+};
+
 export const planProject = (
   resolved: Resolved,
   project: string,
@@ -526,23 +554,28 @@ export const planProject = (
   };
   const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin", "gates", "devcontainer"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
+  const at = recordAt(project);
+  if (!at.ok) return at;
+  const known = withRecord(written, at.value.record);
   const held = heldOf(
     { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
-    written,
+    known,
   );
   if (!held.ok) return held;
   const given = held.value;
-  const files = filesOf(given, written);
+  const files = filesOf(given, known);
   if (!files.ok) return files;
   const writes = settingsAndManual(given);
   if (!writes.ok) return writes;
   const { settings, manual } = writes.value;
-  const owned = ownedOf(given, files.value, written);
+  const owned = ownedOf(given, files.value, known);
   if (!owned.ok) return owned;
   const local = { manual: manual.local, settings: settings.local };
   const blocks = blockWrites(project, manual, localPaths(project, files.value, owned.value, local));
   if (!blocks.ok) return blocks;
-  const operations = [...blocks.value, ...settings.operations, ...owned.value.operations];
+  const committed = new Map([...owned.value.wanted].filter(([path]) => !files.value.excluded.includes(path)));
+  const record = recordWrite({ project, path: at.value.path }, at.value.record, { committed, plan: owned.value });
+  const operations = [...blocks.value, ...settings.operations, ...owned.value.operations, ...record];
   const unbound = resolved.unbound
     .filter((part) => part.startsWith("project."))
     .map((part): Finding => ({ code: "profile.binding-waiting", params: { part, binding: "gates" } }));

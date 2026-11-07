@@ -366,6 +366,14 @@ test("a project's deny list grows by the profile's rules, the owner's own kept f
   });
 });
 
+test("a .cedarloom folder a link leads outside the project stops the plan, as the record of its files would land there", async () => {
+  const box = machine();
+  const project = projectWith();
+  const path = join(linkedAt(project, ".cedarloom"), "profile-files.json");
+  const params = { part: "project", target: ".cedarloom/profile-files.json", path };
+  expect(await planned(box, project)).toEqual({ ok: false, finding: { code: "profile.target-linked", params } });
+});
+
 test("a .claude folder a link leads outside the project stops the plan, as its settings would land there", async () => {
   const box = machine();
   const project = projectWith();
@@ -450,7 +458,16 @@ test("a project's packs install their skills in the project, and a pack taken ou
   profileFile(box.file, packsPart([]), SKILLS);
   const path = join(project, ".claude", "skills", "review", "SKILL.md");
   const after = ok(await planned(box, project, packs)).plan?.operations.map((op) => [op.kind, "path" in op && op.path]);
-  expect([contentOf(plan, path), after]).toEqual(["# Review\n", [["delete", path]]]);
+  const record = join(project, ".cedarloom", "profile-files.json");
+  const pack = JSON.parse(contentOf(plan, record) ?? "{}").files[".claude/skills/review/SKILL.md"].pack;
+  expect([contentOf(plan, path), pack, after]).toEqual([
+    "# Review\n",
+    "acme.skills@1.0.0",
+    [
+      ["delete", path],
+      ["write", record],
+    ],
+  ]);
 });
 
 test("two skills of one name, or a skills folder a link leads elsewhere, stop the plan", async () => {
@@ -804,4 +821,42 @@ test("a project's check tells CedarLoom's older text there from a deleted file b
     ["missing", labels],
     ["outdated", domain],
   ]);
+});
+
+const sha = (text: string | Buffer): string => createHash("sha256").update(text).digest("hex");
+
+test("a project's record names each committed file CedarLoom wrote, and stays as it is when the owner changes one", async () => {
+  const box = machine();
+  // The dev container's wrapper, a file Git ignores, is no file of the record.
+  const project = projectWith({ ".devcontainer.json": "{}" });
+  applied(box.state, (await projectPlan(box, project, ["project.dc-wrapper"])).plan);
+  const domain = join(realpathSync.native(project), "docs", "agents", "domain.md");
+  const record = () => JSON.parse(readFileSync(join(project, ".cedarloom", "profile-files.json"), "utf8")).files;
+  const [written, hash] = [record(), sha(readFileSync(domain))];
+  writeFileSync(domain, "- mine\n");
+  const after = await projectPlan(box, project, ["project.dc-wrapper"]);
+  const scripts = readdirSync(join(project, "scripts"));
+  expect([scripts, Object.keys(written), written["docs/agents/domain.md"], after.plan, record()]).toEqual([
+    ["dc"],
+    ["docs/agents/domain.md", "docs/agents/issue-tracker.md", "docs/agents/triage-labels.md"],
+    { sha256: hash, pack: expect.stringMatching(/^cedarloom\.core@\d/) },
+    null,
+    written,
+  ]);
+});
+
+test("another clone takes a committed file as CedarLoom's by the project's record, so its older text is updated", async () => {
+  const project = projectWith();
+  applied(machine().state, (await projectPlan(machine(), project)).plan);
+  const [domain, path] = [
+    join(realpathSync.native(project), "docs", "agents", "domain.md"),
+    join(realpathSync.native(project), ".cedarloom", "profile-files.json"),
+  ];
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  record.files["docs/agents/domain.md"].sha256 = sha("- old\n");
+  writeFileSync(path, JSON.stringify(record));
+  writeFileSync(domain, "- old\n");
+  // A machine with a run store of its own, as a teammate's clone has.
+  const { plan, findings } = await projectPlan(machine(), project);
+  expect([plan?.operations.map((op) => "path" in op && op.path), findings]).toEqual([[domain, path], []]);
 });

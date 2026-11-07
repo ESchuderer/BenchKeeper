@@ -8,8 +8,8 @@ export interface LevelPlan {
   readonly findings: Finding[];
 }
 
-/** A file a part wants: its text, and the mode a new one gets. */
-export type Wanted = { content: string; mode?: number };
+/** A file a part wants: its text, the mode a new one gets, and the pack the text came from as `id@version`. */
+export type Wanted = { content: string; mode?: number; pack?: string };
 
 const ownerChanged = (path: string): Finding => ({ code: "profile.owner-changed", params: { path } });
 

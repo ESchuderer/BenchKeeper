@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
 import { GitSource, PackId, skillFolder, skillName } from "./pack.ts";
+import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText, shown, UNSAFE } from "./text.ts";
 import type { Json } from "./json.ts";
@@ -11,6 +12,10 @@ import { JsonValue, License, semver } from "./workflow.ts";
 export const PROFILE_SCHEMA_VERSION = 1;
 /** The format of this machine's profile selection, `profile.json` in CedarLoom's config folder. */
 export const SELECTION_SCHEMA_VERSION = 1;
+/** The format of a project's record of the files CedarLoom wrote there, committed as `.cedarloom/profile-files.json`. */
+export const FILES_SCHEMA_VERSION = 1;
+/** Where a project keeps that record, which no part writes (`sealedTarget`). */
+export const FILES_RECORD = ".cedarloom/profile-files.json";
 
 const title = PlainText.min(1).max(200);
 const PART = "[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?";
@@ -235,6 +240,7 @@ const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
 export const sealedTarget = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
   if (folder === undefined && MANUAL.includes(file)) return true;
+  if (folder === ".cedarloom" && file === "profile-files.json") return true;
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 
@@ -397,6 +403,29 @@ export const ProfileSelection = z
   })
   .register(fileFormats, { id: "ProfileSelection" });
 export type ProfileSelection = z.infer<typeof ProfileSelection>;
+
+/**
+ * The files CedarLoom wrote into a project that Git keeps, by their paths from the project: the hash of what CedarLoom
+ * left there and the pack version the text came from, so another clone tells them from the owner's (hub issue 151).
+ */
+export const ProfileFiles = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(FILES_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.profile-files"),
+    files: sized(
+      z.record(
+        PortablePath,
+        z.strictObject({
+          sha256: Sha256,
+          pack: z.string().max(200).optional().describe("The pack its text came from, as `id@version`"),
+        }),
+      ),
+      2000,
+    ),
+  })
+  .register(fileFormats, { id: "ProfileFiles" });
+export type ProfileFiles = z.infer<typeof ProfileFiles>;
 
 // Token shapes by their documented prefixes and lengths (GitHub, npm, Anthropic and OpenAI, GitLab, Slack, AWS,
 // Google), private keys in PEM form and URLs with a password; and environment names with a credential word. A profile

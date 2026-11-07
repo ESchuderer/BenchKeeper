@@ -2,7 +2,7 @@ import { isUtf8 } from "node:buffer";
 import { join, sep } from "node:path";
 import { type GitSource, type Result, skillFolder } from "@cedarloom/contracts";
 import type { Wanted } from "./owned.ts";
-import { entryFiles, entryOf, type Folder, type Resolved, skillEntries } from "./resolve.ts";
+import { entryFiles, entryOf, type Folder, packVersion, type Resolved, skillEntries } from "./resolve.ts";
 
 /** The folders fetched for a plan, by `sourceKey`: the profile's Git packs, and skills that come from Git. */
 export type Fetched = ReadonlyMap<string, Folder>;
@@ -91,6 +91,10 @@ const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<F
   return entry.ok ? { ok: true, value: entryFiles(source, folder) } : entry;
 };
 
+// The pack a skill's files come from as `id@version`, for the project's record; none for a skill from Git.
+const packOf = (resolved: Resolved, source: Source, fetched: Fetched): { pack?: string } =>
+  "git" in source ? {} : { pack: packVersion(source.pack, packFolder(resolved, source.pack, fetched)) };
+
 // How a finding names a skill: its pack entry, or its repository.
 const labelOf = (source: Source): string => ("git" in source ? source.git : `${source.pack}/${source.path}`);
 
@@ -126,10 +130,11 @@ export const skillFiles = (
     );
     if (plugin !== undefined)
       return { ok: false, finding: { code: "profile.skill-plugin", params: { skill: label, path: plugin.path } } };
+    const pack = packOf(resolved, source, fetched);
     for (const { path, mode, content } of files.value) {
       const target = join(folder, ...path.split("/"));
       if (!isUtf8(content)) return { ok: false, finding: { code: "apply.not-text", params: { path: target } } };
-      wanted.set(target, { content: content.toString("utf8"), ...(mode === "100755" ? { mode: 0o755 } : {}) });
+      wanted.set(target, { content: content.toString("utf8"), ...(mode === "100755" ? { mode: 0o755 } : {}), ...pack });
     }
   }
   const root = join(home, "skills") + sep;

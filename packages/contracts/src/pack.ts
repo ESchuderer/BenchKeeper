@@ -6,6 +6,8 @@ import { License, semver } from "./workflow.ts";
 
 /** The pack manifest format (`cedarloom-pack.json`) this CedarLoom reads; readers refuse a newer one. */
 export const PACK_SCHEMA_VERSION = 1;
+/** The format of this machine's record of the Git sources a profile follows, `pack-sources.json` in its state. */
+export const SOURCES_SCHEMA_VERSION = 1;
 
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
 export const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
@@ -26,6 +28,7 @@ export const GitSource = z.union([
   }),
   z.strictObject({ ...located, commit: Commit, digest: FolderDigest }),
 ]);
+export type GitSource = z.infer<typeof GitSource>;
 
 const Entry = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.enum(["rules", "template", "profile"]), description }),
@@ -40,7 +43,11 @@ const Entry = z.discriminatedUnion("kind", [
 
 // A skill's folder is its name: 1 to 64 of a-z, 0-9 and "-", no "-" at either end or twice in a row
 // (https://agentskills.io/specification). Claude Code reads rules from Markdown files only.
-const skillName = (name: string): boolean => /^[a-z0-9-]{1,64}$/.test(name) && !/^-|-$|--/.test(name);
+export const skillName = (name: string): boolean => /^[a-z0-9-]{1,64}$/.test(name) && !/^-|-$|--/.test(name);
+
+/** The folder a skill from Git installs into: the last part of its path, else of its repository's name. */
+export const skillFolder = (source: GitSource): string =>
+  (source.path ?? source.git.replace(/\.git$/, "")).split(/[/:]/).at(-1) ?? "";
 const fits = (path: string, kind: z.infer<typeof Entry>["kind"]): boolean => {
   if (kind === "skill") return skillName(path.slice(path.lastIndexOf("/") + 1));
   if (kind === "template") return true;
@@ -97,3 +104,29 @@ export const PackManifest = z
   .describe("A CedarLoom pack manifest; readers also refuse values nested over 32 levels deep")
   .register(fileFormats, { id: "PackManifest" });
 export type PackManifest = z.infer<typeof PackManifest>;
+
+/**
+ * Each Git source a profile follows by branch or tag, keyed as the planner names it: the commit in use with its
+ * digest, and the newest commit fetched at the ref with when this machine first fetched it. That commit is taken 3 days
+ * later (A94), since a commit's own date is whatever its author wrote. CedarLoom's own record of the sources the last
+ * plan followed; one it cannot read stops the plan, and deleting it takes each source's newest commit at once.
+ */
+export const PackSources = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(SOURCES_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.pack-sources"),
+    sources: sized(
+      z.record(
+        z.string().max(8192),
+        z.strictObject({
+          commit: Commit,
+          digest: FolderDigest,
+          seen: z.strictObject({ commit: Commit, at: z.iso.datetime() }),
+        }),
+      ),
+      500,
+    ),
+  })
+  .register(fileFormats, { id: "PackSources" });
+export type PackSources = z.infer<typeof PackSources>;

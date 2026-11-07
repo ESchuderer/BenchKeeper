@@ -32,12 +32,13 @@ export const workflowsRun = async (
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
 // What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,
-// except an agent's that a resume recovers.
+// except an agent's that a resume recovers and a write whose apply run applied.
 const ATTEMPTS = {
   live: "Running now; its runner ends them cancelled:",
   resume:
-    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, the others end interrupted, count as failed, and retries rerun them:",
-  cancel: "Left running when its runner died; they end interrupted:",
+    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, a write whose apply run applied ends done, the others end interrupted, count as failed, and retries rerun them:",
+  cancel:
+    "Left running when its runner died; a write whose apply run applied ends cancelled with its file written, the others end interrupted:",
 } as const;
 
 const preview = (ctx: Context, runId: string, project: string | undefined, verb: "resume" | "cancel"): number => {

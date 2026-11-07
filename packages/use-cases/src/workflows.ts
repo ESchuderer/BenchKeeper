@@ -30,6 +30,7 @@ import {
   hashFile,
   OUTPUT_CAP,
   type Prepared,
+  type Recovery,
   replay,
   startRun,
 } from "@cedarloom/engine";
@@ -45,7 +46,7 @@ import { cleanEnv } from "@cedarloom/orchestration";
 import { stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
-import { readJson, retryBusy, withStore } from "./use-cases.ts";
+import { readJson, retryBusy, withStore, withView } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
 
@@ -243,6 +244,20 @@ const fileWrite =
     };
   };
 
+/**
+ * The recovery of `file.write` attempts a dead runner left (plan section 3): done when the apply run it began has
+ * applied, which opening the run store settles, else interrupted (Q4), so a retry plans again and nothing applies twice.
+ */
+const writeRecover =
+  (state: string): Recovery =>
+  ({ applyRun }) => {
+    if (applyRun === null) return null;
+    // `applied` is final once committed, so a view reads it without the store lock an apply holds for its length.
+    const runs = withView(state, (view) => ({ ok: true, value: view?.runs() ?? [] }));
+    const applied = runs.ok && runs.value.some((each) => each.id === applyRun && each.status === "applied");
+    return applied ? { pid: null, run: () => Promise.resolve({ ok: true }) } : null;
+  };
+
 // What a run needs before it starts: node types this version runs, and sh for commands and a precheck.
 const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boolean): Finding | null => {
   const node = workflow.nodes.find((each) => !RUNNABLE.has(each.type) && !(agents && each.type === "agent.run"));
@@ -282,8 +297,12 @@ const runHeld = async (
     "file.write": fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
   };
-  // An agent attempt a dead runner left ends with its result or resumes its session; every other one ends interrupted.
-  const recover = agents === undefined ? {} : { "agent.run": agentRecover(run, agents) };
+  // An agent attempt a dead runner left ends with its result or resumes its session, and a write ends with its apply
+  // run; every other one ends interrupted.
+  const recover = {
+    "file.write": writeRecover(state),
+    ...(agents === undefined ? {} : { "agent.run": agentRecover(run, agents) }),
+  };
   try {
     const { signal, onEvent, sleep } = options;
     const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover });
@@ -497,7 +516,8 @@ export const cancelRun = (
       lease = store.takeOver(runId);
     }
     if (!lease.ok) return lease;
-    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted.
+    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted, but a
+    // write whose apply run applied ends cancelled, its file written.
     store.append(runId, lease.value.epoch, { type: "cancel" });
     return runOn(store, { run, lease: lease.value }, "", {
       ...options,

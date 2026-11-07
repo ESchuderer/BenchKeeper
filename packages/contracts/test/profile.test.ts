@@ -209,6 +209,18 @@ test.for<[string, (string | number)[], unknown, string]>([
     "pony",
     "machine.plugin.ponytail.marketplace.name",
   ],
+  [
+    "a skill from Git whose folder would be no skill's name",
+    ["machine", "skill.review", "source"],
+    { git: "https://github.com/acme/skills.git", ref: "main", path: "skills/find--skills" },
+    "machine.skill.review.source",
+  ],
+  [
+    "two skills that install into one folder",
+    ["machine", "skill.twin"],
+    { type: "skill", title: "twin", default: "on", source: { git: "https://github.com/acme/review.git", ref: "main" } },
+    "machine.skill.twin.source",
+  ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
   expect(outcome(readDocument(Profile, PROFILE_SCHEMA_VERSION, set(defaults, path, value)))).toEqual([issue]);
 });

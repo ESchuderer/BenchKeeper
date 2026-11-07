@@ -9,15 +9,10 @@ import {
   type Operation,
   type Result,
 } from "@cedarloom/contracts";
-import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { jsonFile, readEntry, type Resolved } from "./resolve.ts";
-
-/** The operations of one level, and the files it leaves alone. */
-export interface LevelPlan {
-  readonly operations: Operation[];
-  readonly findings: Finding[];
-}
+import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
+import { type Folder, jsonFile, readEntry, type Resolved } from "./resolve.ts";
+import { type Fetched, packFolder, skillFiles } from "./skills.ts";
 
 /** The hub's question rule, a file of the rules folder while a hub part is on. */
 export const HUB_RULES = "cedarloom-hub.md";
@@ -36,17 +31,21 @@ export const onDisk = (path: string): string => {
   return dirname(path) === path ? path : join(onDisk(dirname(path)), basename(path));
 };
 
-/** The rules folder of a Claude Code home, as the run store's `written` takes it. */
-export const rulesFolder = (home: string): string => join(home, "rules") + sep;
+// The rules folder of a Claude Code home.
+const rulesFolder = (home: string): string => join(home, "rules") + sep;
 
 type Text = { pack: string; path: string } | { inline: string };
-type Wanted = { file: string; text: Text; pointer: string; on: boolean };
+type Rules = { file: string; text: Text; pointer: string; on: boolean };
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 // The text with this machine's values filled in; a placeholder left without one stops the plan.
-const textOf = ({ text, pointer }: Wanted, hub: string | undefined): Result<string> => {
-  const read: Result<string> = "inline" in text ? { ok: true, value: text.inline } : readEntry(text, "rules");
+const textOf = ({ text, pointer }: Rules, resolved: Resolved, fetched: Fetched): Result<string> => {
+  const { hub } = resolved;
+  const read: Result<string> =
+    "inline" in text
+      ? { ok: true, value: text.inline }
+      : readEntry(text, "rules", packFolder(resolved, text.pack, fetched));
   if (!read.ok) return read;
   const filled = hub === undefined ? read.value : read.value.replaceAll("{{hub}}", hub);
   // A placeholder's name form only, so a quoted GitHub Actions expression such as `${{ github.sha }}` stays text.
@@ -56,7 +55,7 @@ const textOf = ({ text, pointer }: Wanted, hub: string | undefined): Result<stri
 };
 
 // Every rules file the profile names, on or off: each rules part's, and the hub's question rule.
-const rulesOf = ({ profile, on }: Resolved): Wanted[] => [
+const rulesOf = ({ profile, on }: Resolved): Rules[] => [
   ...Object.entries(profile.machine).flatMap(([id, part]) =>
     part.type === "rules"
       ? [{ file: part.file, text: part.text, pointer: `/machine/${id}/text`, on: on.has(`machine.${id}`) }]
@@ -69,44 +68,19 @@ const rulesOf = ({ profile, on }: Resolved): Wanted[] => [
   ),
 ];
 
-const ownerChanged = (path: string): Finding => ({ code: "profile.owner-changed", params: { path } });
-
-// A file's hash, null when it is absent; one that cannot be read, a folder among them, stops the plan by name.
-const hashOf = (path: string): Result<string | null> => {
-  try {
-    return { ok: true, value: hashFile(path) };
-  } catch (error) {
-    return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
-  }
-};
-
-// A rules file is written while it is absent or as CedarLoom last left it; a file the owner changed or made stays.
-const rulesWrites = (resolved: Resolved, wanted: Map<string, Wanted>, written: ReadonlyMap<string, string | null>) => {
-  const plan: LevelPlan = { operations: [], findings: [] };
-  for (const [path, each] of wanted) {
-    const content = textOf(each, resolved.hub);
+// Each rules part that is on as its file's text, and the files of the parts that are off. Of two parts on that name
+// one file, the later one's text is written, as a later value wins.
+const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
+  const folder = rulesFolder(home);
+  const files = rulesOf(resolved).map((each): [string, Rules] => [join(folder, each.file), each]);
+  const wanted = new Map<string, Wanted>();
+  for (const [path, each] of files.filter(([, rule]) => rule.on)) {
+    const content = textOf(each, resolved, fetched);
     if (!content.ok) return content;
-    const hashed = hashOf(path);
-    if (!hashed.ok) return hashed;
-    const now = hashed.value;
-    if (now === sha256(content.value)) continue;
-    if (now !== null && now !== written.get(path)) plan.findings.push(ownerChanged(path));
-    else plan.operations.push({ kind: "write", path, before: now, content: content.value });
+    wanted.set(path, { content: content.value });
   }
-  return { ok: true as const, value: plan };
-};
-
-// The file of a rules part that is off goes while it is as CedarLoom last left it; other files are never touched.
-const rulesRemovals = (plan: LevelPlan, off: Set<string>, written: ReadonlyMap<string, string | null>) => {
-  for (const path of off) {
-    const last = written.get(path);
-    const now = last === undefined || last === null ? null : hashOf(path);
-    if (now?.ok === false) return now;
-    if (now === null || now.value === null) continue;
-    if (now.value !== last) plan.findings.push(ownerChanged(path));
-    else plan.operations.push({ kind: "delete", path, before: now.value });
-  }
-  return { ok: true as const, value: plan };
+  const off = files.map(([path]) => path).filter((path) => !wanted.has(path));
+  return { ok: true as const, value: { wanted, off } };
 };
 
 // The settings as an object with the hash of the text read; none yet is an empty one. A file that is no JSON object
@@ -263,21 +237,22 @@ export const planMachine = (
   resolved: Resolved,
   target: Target,
   written: ReadonlyMap<string, string | null>,
-  approved: ReadonlySet<string> = new Set(),
+  {
+    approved = new Set<string>(),
+    fetched = new Map<string, Folder>(),
+  }: { approved?: ReadonlySet<string>; fetched?: Fetched } = {},
 ): Result<LevelPlan> => {
   const unknown = unknownApprovals(resolved, approved);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const folder = rulesFolder(target.home);
-  const files = rulesOf(resolved).map((each): [string, Wanted] => [join(folder, each.file), each]);
-  // One file per name: of two parts on that name it, the later one's text is written, as a later value wins.
-  const wanted = new Map(files.filter(([, each]) => each.on));
-  const writes = rulesWrites(resolved, wanted, written);
-  if (!writes.ok) return writes;
-  const off = new Set(files.map(([path]) => path).filter((path) => !wanted.has(path)));
-  const rules = rulesRemovals(writes.value, off, written);
+  const rules = rulesFiles(resolved, target.home, fetched);
   if (!rules.ok) return rules;
+  const skills = skillFiles(resolved, target.home, fetched, written);
+  if (!skills.ok) return skills;
+  const wanted = new Map([...rules.value.wanted, ...skills.value.wanted]);
+  const files = ownedFiles(wanted, [...rules.value.off, ...skills.value.stale], written);
+  if (!files.ok) return files;
   const settings = settingsPlan(resolved, target, approved);
   if (!settings.ok) return settings;
-  const operations = [...rules.value.operations, ...settings.value.operations];
-  return { ok: true, value: { operations, findings: [...rules.value.findings, ...settings.value.findings] } };
+  const operations = [...files.value.operations, ...settings.value.operations];
+  return { ok: true, value: { operations, findings: [...files.value.findings, ...settings.value.findings] } };
 };

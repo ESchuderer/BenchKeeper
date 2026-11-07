@@ -532,6 +532,7 @@ test("every finding code has an English sentence", () => {
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
   if (schema instanceof z.ZodBoolean) return true;
+  if (schema instanceof z.ZodString) return sha256(key);
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {

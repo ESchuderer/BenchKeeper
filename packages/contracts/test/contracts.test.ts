@@ -241,7 +241,8 @@ const versioned = (version: string) =>
 test("a version is SemVer 2.0.0: no leading zero in a number and no empty or zero-led numeric pre-release part", () => {
   const valid = ["0.1.0", "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-0.3.7", "1.0.0-x-y.0a", "10.20.30"];
   const invalid = ["01.2.3", "1.02.3", "1.0.0-a..b", "1.0.0-01", "1.0.0-", "1.0.0+build", "1.0"];
-  expect([valid.map(versioned), invalid.map(versioned)]).toEqual([valid.map(() => true), invalid.map(() => false)]);
+  // The versions that break the rule, by name.
+  expect([valid.filter((version) => !versioned(version)), invalid.filter(versioned)]).toEqual([[], []]);
 });
 
 test("canonical JSON sorts keys at every depth, keeps array order and has no whitespace", () => {

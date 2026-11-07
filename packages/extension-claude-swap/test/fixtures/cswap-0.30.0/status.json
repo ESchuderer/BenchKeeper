@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "active": {
+    "number": 3,
+    "email": "user3@example.com",
+    "organizationName": "Example",
+    "organizationUuid": "00000000-0000-4000-8000-000000000003",
+    "isOrganization": true,
+    "managed": true,
+    "usageStatus": "ok",
+    "usage": {
+      "fiveHour": {
+        "pct": 45.0,
+        "resetsAt": "2026-11-07T14:20:00.166900+00:00"
+      },
+      "sevenDay": {
+        "pct": 58.0,
+        "resetsAt": "2026-11-12T12:00:00.166922+00:00"
+      },
+      "scoped": [
+        {
+          "pct": 0.0,
+          "resetsAt": "2026-11-12T12:00:00+00:00",
+          "name": "Fable"
+        }
+      ]
+    },
+    "alias": "spare",
+    "usageFetchedAt": "2026-11-07T11:08:21Z",
+    "usageAgeSeconds": 433.2
+  },
+  "totalManagedAccounts": 3
+}

@@ -12,7 +12,7 @@ import {
 
 /** The Orca version this extension and its recorded test outputs were checked with; another major is a warning. */
 export const OBSERVED = "1.4.251";
-// Well below the doctor's 10 s for all three calls: Orca's own status call gives up after 1 s.
+// Well below the doctor's limit for all three calls: Orca's own status call gives up after 1 s.
 const MS = 2500;
 // Where the manifest names Orca's CLI. On Windows it is an orca.cmd, which only cmd.exe runs, and the host starts no
 // shell (CVE-2024-27980).

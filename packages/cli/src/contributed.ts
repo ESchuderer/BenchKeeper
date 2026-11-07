@@ -7,8 +7,8 @@ const BUNDLED = "cedarloom.";
 // An output as people read it: text as it is, anything else as JSON.
 const text = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value));
 
-const runVerb = async (ctx: Context, id: string, action: string): Promise<number> => {
-  const ran = await useCases.runBundled(ctx, id, action);
+const runVerb = async (ctx: Context, id: string, action: string, allow: string[] = []): Promise<number> => {
+  const ran = await useCases.runBundled(ctx, id, action, allow);
   if (!ran.ok) return fail(ctx, "extension", [ran.finding], EXIT.refused);
   const lines = Object.entries(ran.value).map(([name, value]) => `${shown(name)}: ${shown(text(value))}`);
   emit(ctx, "extension", { extension: id, action, outputs: ran.value }, lines.join("\n"));
@@ -32,7 +32,8 @@ export const contributedGroups = (program: Command, ctx: () => Context, done: (c
       noun
         .command(verb)
         .description(title)
-        .action(async () => done(await runVerb(ctx(), id, verb)));
+        .option("--allow <program...>", "let the action run a program it names, which it never runs unnamed")
+        .action(async ({ allow }) => done(await runVerb(ctx(), id, verb, allow)));
     }
   }
 };

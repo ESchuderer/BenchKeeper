@@ -57,14 +57,16 @@ const Marketplace = z.union([
   z.strictObject({ ...followed, git: GitUrl }),
 ]);
 
+/** A profile's levels, in their order. */
+export const ProfileLevel = z.enum(["machine", "workspace", "project"]);
+/** What an auto part is on by; gates: this machine names a gate workflow source. */
+export const PartProbe = z.enum(["orca", "devcontainer", "no-devcontainer", "gates"]);
+
 const common = {
   title,
   description,
   default: z.enum(["on", "auto", "off"]).describe("auto: on when its `when` probe holds"),
-  when: z
-    .enum(["orca", "devcontainer", "no-devcontainer", "gates"])
-    .optional()
-    .describe("The probe an auto part needs; gates: this machine names a gate workflow source"),
+  when: PartProbe.optional().describe("The probe an auto part needs; gates: this machine names a gate workflow source"),
   requires: distinct(QualifiedPartId).max(20).optional(),
 };
 // Each part type twice: whole, as the composed profile needs it, and as a file states it, where every field but
@@ -227,7 +229,7 @@ const FileShape = z.strictObject({
 // The file before its refinements, which the checks below read.
 type FileShape = z.infer<typeof FileShape>;
 
-const LEVELS = ["machine", "workspace", "project"] as const;
+const LEVELS = ProfileLevel.options;
 
 // Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings
 // apply, and MCP server lists; a `files` part's text would bring hooks or servers past them. Targets are portable

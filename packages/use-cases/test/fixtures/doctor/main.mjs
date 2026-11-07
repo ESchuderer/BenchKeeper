@@ -1,5 +1,5 @@
-// The smallest extension with a doctor check and an action, speaking the protocol itself (Content-Length frames over stdio), since
-// its folder holds nothing to import.
+// The smallest extension with a doctor check, an action and a switch target, speaking the protocol itself (Content-Length
+// frames over stdio), since its folder holds nothing to import.
 let input = Buffer.alloc(0);
 const send = (message) => {
   const text = JSON.stringify({ ...message, jsonrpc: "2.0" });
@@ -12,6 +12,20 @@ const answers = {
     findings: [{ check: "setup", severity: "info", code: "example.ready", message: `ready ${process.pid}` }],
   }),
   "action/run": () => ({ outputs: { ready: true } }),
+  // claude-swap's three accounts, read just now: one by the alias work, one by another alias, one without.
+  "target/probe": () => ({ status: "supported", detail: "fixture" }),
+  "target/accounts": () => {
+    const [readAt, resetsAt] = [new Date().toISOString(), new Date(Date.now() + 3_600_000).toISOString()];
+    const account = (number, usedPercent, alias) => ({
+      number,
+      ...(alias === undefined ? {} : { alias }),
+      active: number === 1,
+      disabled: false,
+      threshold: null,
+      windows: [{ window: "fiveHour", usedPercent, resetsAt, readAt }],
+    });
+    return { accounts: [account(1, 40, "work"), account(2, 10, "elsewhere"), account(3, 20)] };
+  },
   shutdown: () => null,
 };
 process.stdin.on("data", (chunk) => {

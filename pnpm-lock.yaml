@@ -164,6 +164,16 @@ importers:
         specifier: 'catalog:'
         version: 4.10.2
 
+  packages/extension-claude-swap:
+    dependencies:
+      '@cedarloom/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
+    devDependencies:
+      rolldown:
+        specifier: 1.2.16
+        version: 1.2.16
+
   packages/extension-host:
     dependencies:
       '@anthropic-ai/sandbox-runtime':

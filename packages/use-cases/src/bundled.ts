@@ -87,7 +87,7 @@ export const planSwitch = (app: string, config: string, id: string, state: Switc
 };
 
 /** The state folder, the app's folder of its own extensions, and the config folder. */
-type Paths = { state: string; app: string; config: string };
+export type Paths = { state: string; app: string; config: string };
 
 /** Where an extension starts from, and the trust that follows from there. */
 export type Startable = { manifest: ExtensionManifest; folder: string; trust: Trust };
@@ -119,7 +119,7 @@ export const extensionToStart = (paths: Paths, id: string): Result<Startable> =>
  * Their texts are in English, the CLI's language for now.
  */
 // The app's own extension `id` started in English, the CLI's language for now.
-const startBundled = async (paths: Paths, id: string) => {
+export const startBundled = async (paths: Paths, id: string) => {
   const startable = extensionToStart(paths, id);
   return startable.ok ? startExtension({ ...startable.value, locale: "en" }) : startable;
 };

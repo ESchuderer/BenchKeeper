@@ -8,6 +8,7 @@ export {
   type Startable,
 } from "./bundled.ts";
 export { type From, type ImportPlan, planImport } from "./imports.ts";
+export { readSwapAccounts } from "./swap.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export {
   type ExportPlan,

@@ -3,6 +3,8 @@ import {
   type CancellationToken,
   createMessageConnection,
   ErrorCodes,
+  type MessageConnection,
+  RequestType,
   ResponseError,
   StreamMessageReader,
   StreamMessageWriter,
@@ -26,6 +28,10 @@ import {
   type RunParams,
   runAction,
   shutdown,
+  TARGET_CALLS,
+  type TargetAnswers,
+  type TargetCall,
+  type TargetCallParams,
 } from "./protocol.ts";
 
 export * from "./protocol.ts";
@@ -61,6 +67,18 @@ export type ExtensionOptions = {
    * `initialize` named, with `exec` as an action has it.
    */
   doctor?: (context: Pick<ActionContext, "locale" | "exec">) => DoctorFinding[] | Promise<DoctorFinding[]>;
+  /**
+   * The calls of its switch targets (`contributes.switchTargets`, bundled extensions only), with `exec` as an action
+   * has it; a call it leaves out answers MethodNotFound.
+   */
+  targets?: TargetHandlers;
+};
+
+/** What a switch target's call gets: the language `initialize` named, and `exec` through the host. */
+export type TargetContext = Pick<ActionContext, "locale" | "exec">;
+/** An async handler per `target/*` call; each rejects to fail. */
+export type TargetHandlers = {
+  [C in TargetCall]?: (params: TargetCallParams[C], context: TargetContext) => Promise<TargetAnswers[C]>;
 };
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
@@ -94,6 +112,21 @@ const outputsOf = (value: unknown): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(json));
 };
 
+// Answers the host's call of a switch target with its handler, which runs programs through the host.
+const serveTarget = <C extends TargetCall>(
+  connection: MessageConnection,
+  call: C,
+  handle: TargetHandlers[C],
+  locale: () => string,
+): void => {
+  if (handle === undefined) return;
+  // The answer is typed by the handler: the host checks it against its contract.
+  connection.onRequest(new RequestType<TargetCallParams[C], unknown, void>(call), (params, token) => {
+    const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
+    return handle(params, { locale: locale(), exec }).catch(failure);
+  });
+};
+
 /* v8 ignore start -- an extension's own process on its real stdio; the spawned extension of the tests runs it */
 // Standard output carries the protocol: its writes (console.log, console.dir, process.stdout.write) go to standard
 // error, and the protocol writes through the original.
@@ -125,6 +158,7 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     return { findings: (await options.doctor?.({ locale: hello.locale, exec })) ?? [] };
   });
+  for (const call of TARGET_CALLS) serveTarget(connection, call, options.targets?.[call], () => hello.locale);
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);

@@ -1,15 +1,5 @@
 import { PlainText, Quota } from "@cedarloom/contracts";
-import type {
-  SwitchEvent,
-  TargetAccount,
-  TargetParams,
-  TargetPolicy,
-  TargetPolicyParams,
-  TargetProbe,
-  TargetSelect,
-  TargetSelectParams,
-  TargetTick,
-} from "@cedarloom/extension-sdk";
+import type { SwitchEvent, TargetAnswers, TargetCall, TargetCallParams } from "@cedarloom/extension-sdk";
 import { z } from "zod";
 
 // What a switch target answers reaches the ledger and the screens: bounded, and text without control characters.
@@ -44,16 +34,8 @@ const few = (values: object): boolean => Object.keys(values).length <= 64;
 /** The settings a policy call may change: what its answer may hold, so no applied change is refused when echoed. */
 export const PolicySet = z.record(Key, Text).refine(few);
 
-type Answers = {
-  "target/probe": TargetProbe;
-  "target/accounts": { accounts: TargetAccount[] };
-  "target/current": { number: number | null };
-  "target/select": TargetSelect;
-  "target/tick": TargetTick;
-  "target/policy": TargetPolicy;
-};
 /** What each call of a switch target answers (protocol `target/*`); the host refuses anything else. */
-export const ANSWERS: { [C in keyof Answers]: z.ZodType<Answers[C]> } = {
+export const ANSWERS: { [C in keyof TargetAnswers]: z.ZodType<TargetAnswers[C]> } = {
   "target/probe": z.strictObject({
     status: z.enum(["supported", "partial", "unsupported"]),
     detail: PlainText.max(2000),
@@ -71,14 +53,5 @@ export const ANSWERS: { [C in keyof Answers]: z.ZodType<Answers[C]> } = {
     values: z.record(Key, Setting).refine(few),
   }),
 };
-export type TargetCall = keyof Answers;
-export type TargetAnswer<C extends TargetCall> = Answers[C];
-/** What each call sends: the target, and for a select the account's number, for a policy the settings to change. */
-export type TargetCallParams = {
-  "target/probe": TargetParams;
-  "target/accounts": TargetParams;
-  "target/current": TargetParams;
-  "target/select": TargetSelectParams;
-  "target/tick": TargetParams;
-  "target/policy": TargetPolicyParams;
-};
+export type TargetAnswer<C extends TargetCall> = TargetAnswers[C];
+export type { TargetCall, TargetCallParams };

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.extension",
+  "id": "cedarloom.claude-swap",
+  "version": "0.0.0",
+  "name": "claude-swap",
+  "description": "Every Claude Code account's usage, and the account interactive sessions use, from the user's claude-swap.",
+  "license": "MIT",
+  "api": "1.0",
+  "runtime": { "kind": "node", "entry": "main.mjs" },
+  "capabilities": {
+    "programs": {
+      "cswap": {
+        "darwin": ["cswap", "~/.local/bin/cswap"],
+        "linux": ["cswap", "~/.local/bin/cswap"],
+        "win32": ["cswap"]
+      }
+    }
+  },
+  "contributes": {
+    "actions": {
+      "status": {
+        "title": "claude-swap status",
+        "outputs": {
+          "installed": { "type": "boolean" },
+          "version": { "type": "string", "description": "Absent when claude-swap is not installed" },
+          "accounts": { "type": "number", "description": "The accounts claude-swap manages" },
+          "active": { "type": "number", "description": "The account interactive sessions use; absent when none" }
+        }
+      }
+    },
+    "switchTargets": { "interactive": { "agent": "claude" } },
+    "doctor": { "claude-swap": { "title": "claude-swap" } },
+    "commands": ["status"]
+  }
+}

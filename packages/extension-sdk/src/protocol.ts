@@ -109,6 +109,34 @@ export type TargetTick = { code: number | null; events: SwitchEvent[] };
 /** The target's settings; `set` changes the named ones first. */
 export type TargetPolicyParams = TargetParams & { set?: Record<string, string> };
 export type TargetPolicy = { values: Record<string, string | number | boolean> };
+/** The calls of a switch target. */
+export const TARGET_CALLS = [
+  "target/probe",
+  "target/accounts",
+  "target/current",
+  "target/select",
+  "target/tick",
+  "target/policy",
+] as const;
+export type TargetCall = (typeof TARGET_CALLS)[number];
+/** What each call of a switch target sends. */
+export type TargetCallParams = {
+  "target/probe": TargetParams;
+  "target/accounts": TargetParams;
+  "target/current": TargetParams;
+  "target/select": TargetSelectParams;
+  "target/tick": TargetParams;
+  "target/policy": TargetPolicyParams;
+};
+/** What each call of a switch target answers. */
+export type TargetAnswers = {
+  "target/probe": TargetProbe;
+  "target/accounts": { accounts: TargetAccount[] };
+  "target/current": { number: number | null };
+  "target/select": TargetSelect;
+  "target/tick": TargetTick;
+  "target/policy": TargetPolicy;
+};
 
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");

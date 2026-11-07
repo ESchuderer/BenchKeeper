@@ -902,6 +902,7 @@ export interface components {
             params: {
                 found: components["schemas"]["SchemaVersionInput"];
                 known: components["schemas"]["SchemaVersionInput"];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -911,6 +912,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -1763,11 +1765,27 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.newer-pack";
+            params: {
+                path: string;
+                recorded: string;
+                local: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.binding-waiting";
             params: {
                 part: string;
                 /** @enum {string} */
                 binding: "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.when-unmet";
+            params: {
+                part: string;
+                /** @enum {string} */
+                when: "orca";
             };
         } | {
             /** @constant */
@@ -2169,6 +2187,7 @@ export interface components {
             params: {
                 found: components["schemas"]["SchemaVersion"];
                 known: components["schemas"]["SchemaVersion"];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -2178,6 +2197,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -3030,11 +3050,27 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.newer-pack";
+            params: {
+                path: string;
+                recorded: string;
+                local: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.binding-waiting";
             params: {
                 part: string;
                 /** @enum {string} */
                 binding: "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.when-unmet";
+            params: {
+                part: string;
+                /** @enum {string} */
+                when: "orca";
             };
         } | {
             /** @constant */

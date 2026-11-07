@@ -59,8 +59,9 @@ const ENTRY_KINDS = {
 // shortcut: English text in code until the Lingui catalog package exists; the codes and parameters are the contract.
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
-  "document.newer-schema": (p) => `The document has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
-  "document.invalid": (p) => `The document does not match its schema: ${issueList(p.issues)}.`,
+  "document.newer-schema": (p) =>
+    `${p.path ?? "The document"} has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
+  "document.invalid": (p) => `${p.path ?? "The document"} does not match its schema: ${issueList(p.issues)}.`,
   "plan.not-approved": (p) => `The approval names plan ${short(p.approvedHash)}, not ${short(p.planHash)}.`,
   "plan.path-not-absolute": (p) =>
     `${p.path} is not an absolute, normalized path; plans name every file by its full path.`,
@@ -274,8 +275,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
   "profile.copy-exists": (p) =>
     `${p.path} is there already or is the selection file; profiles init copies into a new file, so name another one.`,
+  "profile.newer-pack": (p) =>
+    `${p.path} was written from ${p.recorded}, newer than ${p.local} here; CedarLoom leaves it until it is updated here.`,
   "profile.binding-waiting": (p) =>
     `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
+  "profile.when-unmet": (p) =>
+    `${p.part} is switched on but stays off while Orca is not here: install Orca, switch its extension back on with cedarloom components switch cedarloom.orca auto, or cedarloom profiles select ${p.part} default`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {

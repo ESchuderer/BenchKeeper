@@ -46,8 +46,8 @@ const BASELINE = [
   GRAPH_TABLES,
   OUTBOX_TABLES,
 ];
-// Its number follows every schema before 0.1.0 (1 to 17), so a store from before it is never read as this one.
-const SCHEMA = 18;
+// Its number follows every schema before 0.1.0 (1 to 18), so a store from before it is never read as this one.
+const SCHEMA = 19;
 
 // A JSON column's value; null for SQL NULL.
 export const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
@@ -518,13 +518,14 @@ export class RunStore extends RunView {
   recordSwitch(input: AccountSwitch): void {
     const choice = AccountSwitch.parse(input);
     this.db
-      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(
         choice.at,
         choice.task,
         choice.from,
         choice.to,
         choice.reason,
+        choice.trigger,
         JSON.stringify(choice.readings),
         JSON.stringify(choice.candidates),
       );
@@ -657,12 +658,23 @@ export class RunStore extends RunView {
     this.db.prepare("UPDATE launches SET totals = ? WHERE runId = ?").run(canonicalJson(totals), runId);
   }
 
+  /** When the task last changed account or started a worker: its latest switch row or launch; null when neither. */
+  lastSwitchOrLaunch(task: string): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT max(at) AS at FROM (SELECT max(at) AS at FROM switches WHERE task = ?
+         UNION ALL SELECT max(startedAt) FROM launches WHERE task = ?)`,
+      )
+      .get(task, task);
+    return typeof row?.["at"] === "string" ? row["at"] : null;
+  }
+
   /** The account choices in the order they were made. */
   switches(): AccountSwitch[] {
     return this.db
       .prepare(
         `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount, 'reason', reason,
-         'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
+         'trigger', trigger, 'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
       )
       .all()
       .map((row) => AccountSwitch.parse(JSON.parse(String(row["row"]))));

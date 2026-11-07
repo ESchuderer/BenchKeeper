@@ -101,6 +101,12 @@ const waitText = (run: GraphRun, { node, point, planHash, firstRun }: useCases.W
     : `${node} waits to start`;
 };
 
+// The shell line a node runs: a command's, or a trigger's precheck.
+const lineOf = (run: GraphRun, node: string): Json | undefined => {
+  const config = run.definition.nodes.find((each) => each.id === node)?.with;
+  return config?.["command"] ?? config?.["precheck"];
+};
+
 /** Approves or rejects what a graph run's node waits for; without --yes, shows what that is and changes nothing. */
 export const runsDecide = async (
   ctx: Context,
@@ -118,8 +124,7 @@ export const runsDecide = async (
   const verb = approved ? "approve" : "reject";
   const writes = wait.content === null ? [] : ["It writes:", escaped(wait.content)];
   // An approval of a first run admits the command for every later run of this version, so the owner reads it here.
-  const command = shown.value.run.definition.nodes.find((each) => each.id === node)?.with?.["command"];
-  const runs = wait.firstRun ? ["It runs:", escaped(said(command))] : [];
+  const runs = wait.firstRun ? ["It runs:", escaped(said(lineOf(shown.value.run, node)))] : [];
   const lines = [
     `Run ${runId}: ${waitText(shown.value.run, wait)}.`,
     ...runs,

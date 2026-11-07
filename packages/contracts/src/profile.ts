@@ -1,16 +1,21 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
-import { GitSource, PackId, skillFolder, skillName } from "./pack.ts";
+import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
+import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText, shown, UNSAFE } from "./text.ts";
 import type { Json } from "./json.ts";
-import { JsonValue, License, semver } from "./workflow.ts";
+import { JsonValue, License, SEMVER, semver } from "./workflow.ts";
 
 /** The profile format (`cedarloom.profile`) this CedarLoom reads; readers refuse a newer one. */
 export const PROFILE_SCHEMA_VERSION = 1;
 /** The format of this machine's profile selection, `profile.json` in CedarLoom's config folder. */
 export const SELECTION_SCHEMA_VERSION = 1;
+/** The format of a project's record of the files CedarLoom wrote there, committed as `.cedarloom/profile-files.json`. */
+export const FILES_SCHEMA_VERSION = 1;
+/** Where a project keeps that record, which no part writes (`sealedTarget`). */
+export const FILES_RECORD = ".cedarloom/profile-files.json";
 
 const title = PlainText.min(1).max(200);
 const PART = "[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?";
@@ -229,12 +234,16 @@ const LEVELS = ["machine", "workspace", "project"] as const;
 // paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part.
 // The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
 const SEALED =
-  "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
+  "not a .claude/settings.json, .claude/settings.local.json, .mcp.json or .cedarloom/profile-files.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
 const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
-/** Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files. */
+/**
+ * Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files,
+ * CedarLoom's record of the files it wrote.
+ */
 export const sealedTarget = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
   if (folder === undefined && MANUAL.includes(file)) return true;
+  if (folder === ".cedarloom" && file === "profile-files.json") return true;
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 
@@ -397,6 +406,33 @@ export const ProfileSelection = z
   })
   .register(fileFormats, { id: "ProfileSelection" });
 export type ProfileSelection = z.infer<typeof ProfileSelection>;
+
+/**
+ * The files CedarLoom wrote into a project that Git keeps, by their paths from the project: the hash of what CedarLoom
+ * left there and the pack version the text came from, so another clone tells them from the owner's (hub issue 151).
+ */
+export const ProfileFiles = z
+  .strictObject({
+    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
+    schemaVersion: z.literal(FILES_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.profile-files"),
+    files: sized(
+      z.record(
+        PortablePath,
+        z.strictObject({
+          sha256: Sha256,
+          pack: z
+            .string()
+            .regex(new RegExp(`^${PACK_ID}@${SEMVER}$`))
+            .optional()
+            .describe("The pack its text came from, as `id@version`: a pack id and its SemVer version"),
+        }),
+      ),
+      2000,
+    ),
+  })
+  .register(fileFormats, { id: "ProfileFiles" });
+export type ProfileFiles = z.infer<typeof ProfileFiles>;
 
 // Token shapes by their documented prefixes and lengths (GitHub, npm, Anthropic and OpenAI, GitLab, Slack, AWS,
 // Google), private keys in PEM form and URLs with a password; and environment names with a credential word. A profile

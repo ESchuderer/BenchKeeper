@@ -7,7 +7,9 @@ import {
   accountsConfirm,
   accountsHome,
   accountsList,
+  accountsPolicy,
   accountsStatus,
+  accountsSwitch,
   accountsLogin,
   componentsSwitch,
   doctor,
@@ -210,6 +212,32 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
+// The accounts commands that act through claude-swap: interactive sessions' account and claude-swap's settings.
+const swapCommands = (accounts: Command, ctx: Ctx, done: Done): void => {
+  accounts
+    .command("switch")
+    .description("show switching interactive sessions to an account through claude-swap; with --yes, switch")
+    .argument("<name>", "the account, whose claude-swap alias is its name")
+    .addOption(
+      new Option("--target <target>", "what switches")
+        .choices(["interactive"] as const)
+        .default("interactive" as const),
+    )
+    .option("--yes", "switch as shown now")
+    .action(async (name, options) => done(await accountsSwitch(ctx(), name, options)));
+  const policy = accounts
+    .command("policy")
+    .description("show claude-swap's settings, which its auto mode switches by")
+    .action(async () => done(await accountsPolicy(ctx(), null)));
+  policy
+    .command("set")
+    .description("show setting one of claude-swap's settings; with --yes, set it through claude-swap, which checks it")
+    .argument("<key>", "such as autoswitch.threshold")
+    .argument("<value>")
+    .option("--yes", "set as shown now")
+    .action(async (key, value, options) => done(await accountsPolicy(ctx(), { key, value }, options)));
+};
+
 const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
   accounts
@@ -222,6 +250,7 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
       "show the account a new worker of each confirmed pool would start on now (leases and the worker's model aside), and its windows",
     )
     .action(async () => done(await accountsStatus(ctx())));
+  swapCommands(accounts, ctx, done);
   accounts
     .command("pool")
     .description("account pools")

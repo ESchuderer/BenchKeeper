@@ -2235,6 +2235,77 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "accounts.swap-unlinked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.swap-busy"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.swap-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "accounts.name-taken"
               },
               "params": {
@@ -8334,6 +8405,77 @@
                 "required": [
                   "account"
                 ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.swap-unlinked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.swap-busy"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "accounts.swap-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": false
               }
             },

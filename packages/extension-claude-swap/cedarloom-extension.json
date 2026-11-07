@@ -7,7 +7,10 @@
   "description": "Every Claude Code account's usage, and the account interactive sessions use, from the user's claude-swap.",
   "license": "MIT",
   "api": "1.0",
-  "runtime": { "kind": "node", "entry": "main.mjs" },
+  "runtime": {
+    "kind": "node",
+    "entry": "main.mjs"
+  },
   "capabilities": {
     "programs": {
       "cswap": {
@@ -32,25 +35,111 @@
       "status": {
         "title": "claude-swap status",
         "outputs": {
-          "installed": { "type": "boolean" },
-          "version": { "type": "string", "description": "Absent when claude-swap is not installed" },
-          "accounts": { "type": "number", "description": "The accounts claude-swap manages" },
-          "active": { "type": "number", "description": "The account interactive sessions use; absent when none" }
+          "installed": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "description": "Absent when claude-swap is not installed"
+          },
+          "accounts": {
+            "type": "number",
+            "description": "The accounts claude-swap manages"
+          },
+          "active": {
+            "type": "number",
+            "description": "The account interactive sessions use; absent when none"
+          }
         }
       },
       "install": {
         "title": "Install claude-swap",
         "outputs": {
-          "installed": { "type": "boolean" },
-          "version": { "type": "string", "description": "Absent while claude-swap is not installed" },
-          "runs": { "type": "string", "description": "The command the install runs once allowed" },
-          "approve": { "type": "string", "description": "The command line that allows it" }
+          "installed": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "description": "Absent while claude-swap is not installed"
+          },
+          "runs": {
+            "type": "string",
+            "description": "The command the install runs once allowed"
+          },
+          "approve": {
+            "type": "string",
+            "description": "The command line that allows it"
+          }
+        }
+      },
+      "auto": {
+        "title": "claude-swap's auto mode",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "hint": {
+            "type": "string",
+            "description": "What to do next for claude-swap's auto mode"
+          }
+        }
+      },
+      "auto-on": {
+        "title": "Install claude-swap's menu bar service",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "hint": {
+            "type": "string",
+            "description": "What to do next for claude-swap's auto mode"
+          },
+          "runs": {
+            "type": "string",
+            "description": "The command it runs once allowed"
+          },
+          "approve": {
+            "type": "string",
+            "description": "The command line that allows it"
+          }
+        }
+      },
+      "auto-off": {
+        "title": "Remove claude-swap's menu bar service",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "runs": {
+            "type": "string",
+            "description": "The command it runs once allowed"
+          },
+          "approve": {
+            "type": "string",
+            "description": "The command line that allows it"
+          }
         }
       }
     },
-    "switchTargets": { "interactive": { "agent": "claude" } },
-    "sessionProviders": { "claude": { "agent": "claude", "program": "cswap" } },
-    "doctor": { "claude-swap": { "title": "claude-swap" } },
-    "commands": ["status", "install"]
+    "switchTargets": {
+      "interactive": {
+        "agent": "claude"
+      }
+    },
+    "sessionProviders": {
+      "claude": {
+        "agent": "claude",
+        "program": "cswap"
+      }
+    },
+    "doctor": {
+      "claude-swap": {
+        "title": "claude-swap"
+      }
+    },
+    "commands": ["status", "install", "auto", "auto-on", "auto-off"]
   }
 }

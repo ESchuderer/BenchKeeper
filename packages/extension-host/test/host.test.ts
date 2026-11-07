@@ -744,7 +744,7 @@ test("a switch target answers each call within its contract, its accounts by num
     await fixture.target("target/current", INTERACTIVE),
     await fixture.target("target/select", { ...INTERACTIVE, number: 2 }),
     await fixture.target("target/tick", INTERACTIVE),
-    await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.cooldown": "600" } }),
+    await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.cooldownSeconds": "600" } }),
   ];
   const when = "2026-11-07T10:00:00.000Z";
   const window = { window: "fiveHour", usedPercent: 91, resetsAt: when, readAt: when };
@@ -759,7 +759,7 @@ test("a switch target answers each call within its contract, its accounts by num
     { number: 1 },
     { switched: true, from: 1, to: 2, reason: "asked" },
     { code: 0, events: [{ at: when, from: 1, to: 2, reason: "over the line", trigger: "proactive" }] },
-    { values: { "autoswitch.threshold": 90, "autoswitch.cooldown": "600" } },
+    { values: { "autoswitch.threshold": 90, "autoswitch.cooldownSeconds": "600" } },
   ]);
 });
 

@@ -29,7 +29,8 @@ const Account = z.strictObject({
   threshold: Percent.nullable(),
   windows: z.array(Window).max(16),
 });
-const Key = z.string().regex(/^[a-z][a-z0-9._-]{0,63}$/);
+// claude-swap's settings are camelCase after their section (autoswitch.weeklyThreshold).
+const Key = z.string().regex(/^[a-z][A-Za-z0-9._-]{0,63}$/);
 const Setting = z.union([Text, z.number(), z.boolean()]);
 const few = (values: object): boolean => Object.keys(values).length <= 64;
 /** The settings a policy call may change: what its answer may hold, so no applied change is refused when echoed. */

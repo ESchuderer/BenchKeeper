@@ -99,6 +99,12 @@ export const Finding = z
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
     finding("accounts.unknown-account", { account: z.string() }),
+    // claude-swap has no account whose alias is the account's name, the link between them (switching plan 1.6).
+    finding("accounts.swap-unlinked", { account: z.string() }),
+    // CedarLoom workers run on the account, so the interactive account does not move onto it, as in claude-swap's auto.
+    finding("accounts.swap-busy", { account: z.string() }),
+    // claude-swap is missing, its extension is off, or its version is not one the extension reads.
+    finding("accounts.swap-unavailable", {}),
     finding("accounts.name-taken", { account: z.string() }),
     // An account or pool name the registry's rule refuses.
     finding("accounts.name-invalid", { name: z.string() }),
@@ -391,6 +397,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
+  "accounts.swap-unlinked": { severity: "error", effort: "command" },
+  "accounts.swap-busy": { severity: "error", effort: "manual" },
+  "accounts.swap-unavailable": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },

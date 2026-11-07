@@ -1318,6 +1318,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -1586,6 +1592,76 @@ export interface components {
             hash: components["schemas"]["Sha256Input"];
             bytes: number;
             overwrote: boolean;
+        };
+        ImportReviewInput: {
+            source: {
+                folder: string;
+            } | {
+                git: string;
+                ref: string;
+                commit: string;
+            };
+            units: {
+                id: string;
+                /** @enum {string} */
+                status: "new" | "same" | "update" | "conflict";
+                version: string;
+                stored: string | null;
+                license: string | null;
+                changes: {
+                    added: string[];
+                    removed: string[];
+                    changed: string[];
+                };
+            }[];
+            risks: {
+                workflow: string;
+                node: string;
+                /** @enum {string} */
+                kind: "schedule" | "precheck" | "command" | "agent" | "write" | "workflow" | "extension";
+                text: string;
+            }[];
+            extensions: {
+                id: string;
+                version: string;
+                git: string;
+                commit: string;
+                path?: string;
+                digest: components["schemas"]["Sha256Input"];
+                /** @enum {string} */
+                status: "verified" | "mismatch" | "unreachable";
+                installed: boolean;
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                } | null;
+            }[];
         };
         SchemaVersion: number;
         Sha256: string;
@@ -2316,6 +2392,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -2582,6 +2664,76 @@ export interface components {
             hash: components["schemas"]["Sha256"];
             bytes: number;
             overwrote: boolean;
+        };
+        ImportReview: {
+            source: {
+                folder: string;
+            } | {
+                git: string;
+                ref: string;
+                commit: string;
+            };
+            units: {
+                id: string;
+                /** @enum {string} */
+                status: "new" | "same" | "update" | "conflict";
+                version: string;
+                stored: string | null;
+                license: string | null;
+                changes: {
+                    added: string[];
+                    removed: string[];
+                    changed: string[];
+                };
+            }[];
+            risks: {
+                workflow: string;
+                node: string;
+                /** @enum {string} */
+                kind: "schedule" | "precheck" | "command" | "agent" | "write" | "workflow" | "extension";
+                text: string;
+            }[];
+            extensions: {
+                id: string;
+                version: string;
+                git: string;
+                commit: string;
+                path?: string;
+                digest: components["schemas"]["Sha256"];
+                /** @enum {string} */
+                status: "verified" | "mismatch" | "unreachable";
+                installed: boolean;
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                } | null;
+            }[];
         };
     };
     responses: never;

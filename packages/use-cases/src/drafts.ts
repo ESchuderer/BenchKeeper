@@ -93,10 +93,10 @@ export const listDrafts = (state: string): DraftInfo[] => {
 const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
 
 /**
- * The draft at `path`, its status and, under the limit, its bytes, all from one open file, so a save meanwhile is
- * never mixed in. Undefined when nothing is there; null when what is there is no draft (a link, a FIFO, a folder).
+ * The file at `path`, its status and, under the draft limit, its bytes, all from one open file, so a write meanwhile is
+ * never mixed in. Undefined when nothing is there; null when what is there is no file (a link, a FIFO, a folder).
  */
-const load = (path: string): { info: Stats; bytes: Buffer | null } | null | undefined => {
+export const load = (path: string): { info: Stats; bytes: Buffer | null } | null | undefined => {
   let file: number;
   try {
     file = openSync(path, READ);

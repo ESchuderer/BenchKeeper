@@ -109,7 +109,7 @@ export const fetchInto = async (state: string, source: Source, fetch: Fetch): Pr
 };
 
 // The manifest at the root of the fetched folder, read as data: nothing of the extension runs.
-const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
+export const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
   const file = tree.files.find((each) => each.path === MANIFEST);
   if (file === undefined) return { ok: false, finding: refusal(null, "no-manifest") };
   return parseDocument(file.content.toString("utf8"), (json) =>

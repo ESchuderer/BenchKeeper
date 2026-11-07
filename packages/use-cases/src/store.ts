@@ -31,13 +31,13 @@ import { parseDocument, storeOf } from "./use-cases.ts";
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 // A workflow's file in the store, as the export layout names it.
-const fileOf = (id: string): string => {
+export const fileOf = (id: string): string => {
   if (!WorkflowId.safeParse(id).success) throw new Error(`not a workflow id: ${id}`);
   return `workflows/workflow-${id.toLowerCase()}.json`;
 };
 
 // A stored workflow: its file's text, which an export writes byte for byte, and the workflow.
-const readStored = (store: Store, blob: string): Result<{ text: string; workflow: WorkflowDefinition }> => {
+export const readStored = (store: Store, blob: string): Result<{ text: string; workflow: WorkflowDefinition }> => {
   const bytes = store.read(blob);
   if (!bytes.ok) return bytes;
   const text = bytes.value.toString("utf8");
@@ -67,6 +67,15 @@ const baseOf = (state: string, id: string): string | null => {
   }
 };
 
+/**
+ * The validator's first error that keeps a workflow out of the store, for a save and an import alike. An extension not
+ * installed here yet is none: the stored workflow runs once it is.
+ */
+export const unstorable = (workflow: WorkflowDefinition): Finding | undefined =>
+  validateWorkflow(workflow).find(
+    (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
+  );
+
 /** A planned save: the plan, the version it stores, and the stored version it follows (null: the first). */
 export type SavePlan = { plan: Plan; version: string; stored: string | null };
 
@@ -80,10 +89,7 @@ export const planSave = (state: string, id: string, { onTop = false } = {}): Res
   if (!draft.ok) return draft;
   // A draft read is a workflow already; the contract types its JSON form.
   const workflow = WorkflowDefinition.parse(draft.value.workflow);
-  // An extension not installed here yet does not stop a save: the stored workflow runs once it is.
-  const error = validateWorkflow(workflow).find(
-    (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
-  );
+  const error = unstorable(workflow);
   if (error !== undefined) return refuse(error);
   const store = storeOf(state);
   const head = store.head();
@@ -93,12 +99,12 @@ export const planSave = (state: string, id: string, { onTop = false } = {}): Res
   const was = risen(store, stored, draft.value.id, version);
   if (!was.ok) return was;
   // One line per stored workflow, which the history reads.
-  const made = store.commit(head, fileOf(id), formatWorkflow(workflow), `${draft.value.id} ${version}\n`);
+  const made = store.commit(head, [[fileOf(id), formatWorkflow(workflow)]], `${draft.value.id} ${version}\n`);
   if (!made.ok) return made;
   const base = basePathOf(state, id);
   const operations: Plan["operations"] = [
     { kind: "store.update", ref: STORE_REF, before: head, after: made.value.commit },
-    { kind: "write", path: base, before: hashFile(base), content: `${made.value.blob}\n`, mode: 0o600 },
+    { kind: "write", path: base, before: hashFile(base), content: `${made.value.blobs[0]}\n`, mode: 0o600 },
   ];
   return { ok: true, value: { plan: { schemaVersion: PLAN_SCHEMA_VERSION, operations }, version, stored: was.value } };
 };
@@ -139,7 +145,7 @@ export const openVersion = (state: string, id: string, commit?: string): Result<
 };
 
 // The extensions a workflow's nodes use: the id before an extension action's `/`.
-const extensionsOf = (workflow: WorkflowDefinition): string[] =>
+export const extensionsOf = (workflow: WorkflowDefinition): string[] =>
   workflow.nodes.flatMap(({ type }) => (isExtensionType(type) ? [type.slice(0, type.indexOf("/"))] : []));
 
 /** The lock of `ids`, each pinned as it is installed here; an extension not installed cannot be pinned. */
@@ -176,7 +182,7 @@ const storedFiles = (state: string, ids: string[]): Result<Stored> => {
 
 // A link anywhere inside the folder, which a shared clone can hold, would redirect the write: from `workflows` into
 // the state folder's drafts, say. Apply refuses a link at the file itself; this refuses one on the way to it too.
-const linkIn = (folder: string, path: string): string | undefined => {
+export const linkIn = (folder: string, path: string): string | undefined => {
   const parts = path.split("/");
   return parts
     .map((_, depth) => join(folder, ...parts.slice(0, depth + 1)))

@@ -25,6 +25,8 @@ export interface Script {
 // Words that start a compound command whose words the reader does not follow.
 const UNMODELED = new Set(["for", "case", "select", "function", "coproc"]);
 const NAME = /^[A-Za-z_]\w*/;
+const OPENERS = new Set(["(", "{", "'", '"']);
+const REDIRECT = /^(?:&>>?|<<<|<<-|<<|<>|<&|>&|>>|>\||[<>])/;
 
 class Builder {
   text = "";
@@ -67,21 +69,26 @@ class Reader {
   /** Reads commands up to `closer` (the `)` of a substitution or subshell) or the end. */
   script(closer: ")" | null): void {
     let command: Command = { words: [], stdin: [] };
-    let closed = closer === null;
-    while (!this.done && !(closed && closer !== null)) {
+    while (!this.done) {
       const c = this.#peek();
       if (c === closer) {
         this.#i += 1;
-        closed = true;
-      } else if (this.#separate(c)) {
+        this.#end(command);
+        return;
+      }
+      if (this.#separate(c)) {
         this.#end(command);
         command = { words: [], stdin: [] };
-      } else if (!this.#space(c, command)) {
-        command.words.push(this.#word().word());
-      }
+      } else if (!this.#space(c, command)) this.#push(command);
     }
     this.#end(command);
-    if (!closed) this.unread = true;
+    if (closer !== null) this.unread = true;
+  }
+
+  // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word.
+  #push(command: Command): void {
+    const word = this.#word().word();
+    if (!(/^\d+$/.test(word.text ?? "") && /^[<>]$/.test(this.#peek()))) command.words.push(word);
   }
 
   /** Ends the reading: a heredoc whose body never came leaves the text unread. */
@@ -115,46 +122,49 @@ class Reader {
 
   // Blanks, comments, subshells and redirections: whatever is no word of the command. True when it took the character.
   #space(c: string, command: Command): boolean {
-    if (c === " " || c === "\t" || c === "\r") {
+    if (/^[ \t\r]$/.test(c)) {
       this.#i += 1;
       return true;
     }
-    if (c === "#") {
-      while (!this.done && this.#peek() !== "\n") this.#i += 1;
-      return true;
-    }
+    if (c !== "#") return this.#opens(c, command);
+    while (!this.done && this.#peek() !== "\n") this.#i += 1;
+    return true;
+  }
+
+  // A subshell or a redirection. `name()` defines a function, whose body the reader does not follow.
+  #opens(c: string, command: Command): boolean {
     if (c === "(") {
       this.#i += 1;
-      // `name()` defines a function, whose body the reader does not follow.
       if (command.words.length > 0) this.unread = true;
       this.script(")");
       return true;
     }
-    if (c === "<" || c === ">" || (c === "&" && this.#peek(1) === ">")) {
-      this.#redirect(command);
-      return true;
-    }
-    return false;
+    if (!/^[<>]$/.test(c) && !(c === "&" && this.#peek(1) === ">")) return false;
+    this.#redirect(command);
+    return true;
   }
 
   // A redirection: its target word is no argument; a heredoc's body is read after the line ends; `<(` and `>(` run a
   // process substitution.
   #redirect(command: Command): void {
-    const op = /^(?:&>>?|<<<|<<-|<<|<>|<&|>&|>>|>\||[<>])/.exec(this.#text.slice(this.#i, this.#i + 3))?.[0] ?? "<";
-    if ((op === "<" || op === ">") && this.#peek(1) === "(") {
+    const op = REDIRECT.exec(this.#text.slice(this.#i, this.#i + 3))?.[0] ?? "<";
+    if (/^[<>]$/.test(op) && this.#peek(1) === "(") {
       this.#i += 2;
       this.script(")");
       command.words.push({ text: null, start: "" });
       return;
     }
     this.#i += op.length;
-    while (this.#peek() === " " || this.#peek() === "\t") this.#i += 1;
+    while (/^[ \t]$/.test(this.#peek())) this.#i += 1;
     const target = this.#word();
     if (op === "<<<") command.stdin.push(target.word());
-    if (op !== "<<" && op !== "<<-") return;
+    else if (op.startsWith("<<")) this.#heredoc(target, op === "<<-", command);
+  }
+
+  #heredoc(target: Builder, strip: boolean, into: Command): void {
     const delimiter = target.word().text;
     if (delimiter === null || delimiter === "") this.unread = true;
-    else this.#heredocs.push({ delimiter, quoted: target.quoted, strip: op === "<<-", into: command });
+    else this.#heredocs.push({ delimiter, quoted: target.quoted, strip, into });
   }
 
   #readHeredocs(): void {
@@ -183,7 +193,7 @@ class Reader {
     return word.word();
   }
 
-  #adopt(reader: Reader): void {
+  #adopt(reader: Script): void {
     this.commands.push(...reader.commands);
     if (reader.unread) this.unread = true;
   }
@@ -240,13 +250,18 @@ class Reader {
   // `$`: a parameter, a command or arithmetic substitution, or `$'...'`; each makes the word unknown.
   #dollar(word: Builder): void {
     const c = this.#peek();
-    const name = NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]/.test(c) ? c : "");
-    if (c !== "(" && c !== "{" && c !== "'" && c !== '"' && name === "") {
+    const name = NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]$/.test(c) ? c : "");
+    if (!OPENERS.has(c) && name === "") {
       word.add("$");
       return;
     }
     word.expand();
-    this.#i += "({'\"".includes(c) ? 1 : name.length;
+    this.#i += OPENERS.has(c) ? 1 : name.length;
+    this.#expansion(c);
+  }
+
+  // What follows a `$`: a substitution runs, the rest only makes the word unknown.
+  #expansion(c: string): void {
     if (c === "(") this.script(")");
     else if (c === "{") this.#braced();
     else if (c === "'") this.#singleQuoted(new Builder());

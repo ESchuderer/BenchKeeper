@@ -58,7 +58,8 @@ export const jsonFile = (path: string): Result<{ text: string; json: unknown } |
 
 // A pack's file from its fetched folder, or from this release's bundled packs without one; null when it is absent.
 const packFile = (pack: string, path: string, folder: Folder | undefined): Result<Buffer | null> => {
-  if (folder !== undefined) return { ok: true, value: folder.files.find((file) => file.path === path)?.content ?? null };
+  if (folder !== undefined)
+    return { ok: true, value: folder.files.find((file) => file.path === path)?.content ?? null };
   const file = join(BUNDLED, pack, path);
   try {
     return { ok: true, value: readFileSync(file) };
@@ -70,15 +71,19 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
 
 type Entry = PackManifest["entries"][string];
 
+// A pack's manifest; null when the pack has none here.
+const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManifest | null> => {
+  const bytes = packFile(pack, "cedarloom-pack.json", folder);
+  if (!bytes.ok || bytes.value === null) return bytes.ok ? { ok: true, value: null } : bytes;
+  const json = parseJson(bytes.value.toString("utf8"));
+  return json.ok ? readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value) : json;
+};
+
 /** The manifest's entry for a reference, only as an entry of that kind; a pack without a folder lists none. */
 export const entryOf = (ref: Ref, kind: EntryKind, folder?: Folder): Result<Entry> => {
-  const bytes = packFile(ref.pack, "cedarloom-pack.json", folder);
-  if (!bytes.ok) return bytes;
-  const json = bytes.value === null ? null : parseJson(bytes.value.toString("utf8"));
-  if (json?.ok === false) return json;
-  const manifest = json === null ? null : readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value);
-  if (manifest?.ok === false) return manifest;
-  const entry = Object.entries(manifest?.value.entries ?? {}).find(([path]) => path === ref.path)?.[1];
+  const manifest = manifestOf(ref.pack, folder);
+  if (!manifest.ok) return manifest;
+  const entry = Object.entries(manifest.value?.entries ?? {}).find(([path]) => path === ref.path)?.[1];
   if (entry?.kind === kind) return { ok: true, value: entry };
   return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
 };
@@ -93,7 +98,8 @@ export const readEntry = (ref: Ref, kind: EntryKind, folder?: Folder): Result<st
   if (!entry.ok) return entry;
   const bytes = packFile(ref.pack, ref.path, folder);
   if (!bytes.ok) return bytes;
-  if (bytes.value === null) return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
+  if (bytes.value === null)
+    return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
   return { ok: true, value: bytes.value.toString("utf8") };
 };
 

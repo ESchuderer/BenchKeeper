@@ -262,7 +262,7 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .description("show the profile's plan for this machine's Claude Code home; with --yes, apply it as one run")
     .option("--allow <part...>", "include a plugin part, which --yes alone never does, such as machine.plugin.ponytail")
     .option("--yes", "apply the plan as computed now")
-    .action((options) => done(profilesApply(ctx(), options)));
+    .action(async (options) => done(await profilesApply(ctx(), options)));
   profiles
     .command("select")
     .description("switch a part on or off, or back to its default; with --yes, save it as one run")

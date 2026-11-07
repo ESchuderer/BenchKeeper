@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import {
   type Finding,
   PLAN_SCHEMA_VERSION,
@@ -10,8 +10,19 @@ import {
   SELECTION_SCHEMA_VERSION,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
-import { DEFAULT_PROFILE, onDisk, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
+import { fetchTree, type Tree } from "@cedarloom/git";
+import {
+  DEFAULT_PROFILE,
+  onDisk,
+  planMachine,
+  type Resolved,
+  resolveProfile,
+  sourceKey,
+  sourcesOf,
+} from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
+import type { Fetch } from "./extensions.ts";
+import { fetchSources } from "./sources.ts";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
@@ -53,36 +64,65 @@ const guardedFolders = (config: string, state: string, { home, user }: Machine):
   return { ok: true, value: [home, join(user, ".claude"), config, state, ...accounts] };
 };
 
+// The folders the plan writes into with those no options file may reach, and what CedarLoom last left in the home.
+const targetOf = (config: string, state: string, { home, user }: Machine) => {
+  const guarded = guardedFolders(config, state, { home, user });
+  if (!guarded.ok) return guarded;
+  const written = writtenIn(state, home);
+  if (!written.ok) return written;
+  return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
+};
+
+// The profile this machine's selection names, resolved.
+const selectedProfile = (config: string): Result<Resolved> => {
+  const read = readSelection(config);
+  return read.ok ? resolveProfile(read.value.selection) : read;
+};
+
+// What CedarLoom last left at each path of the Claude Code home, from the run store.
+const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
+  withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
+
+// Fetches the Git sources the profile needs, in rounds: its packs and the skills' own sources, then a pack's skill
+// entry's source once that pack's folder is here.
+const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch) => {
+  const fetched = new Map<string, Tree>();
+  const findings: Finding[] = [];
+  for (let round = 0; round < 2; round += 1) {
+    const missing = sourcesOf(resolved, fetched).filter((source) => !fetched.has(sourceKey(source)));
+    const got = missing.length === 0 ? null : await fetchSources(state, missing, fetch);
+    if (got?.ok === false) return got;
+    for (const [key, tree] of got?.value.trees ?? []) fetched.set(key, tree);
+    findings.push(...(got?.value.findings ?? []));
+  }
+  return { ok: true as const, value: { fetched, findings } };
+};
+
 /**
  * Plans the selected profile's machine level; a profile with problems gets no plan, only its findings. A plugin part
- * is planned only when `allow` names it.
+ * is planned only when `allow` names it. Git sources are fetched first, through `fetch`.
  */
-export const planProfile = (
+export const planProfile = async (
   config: string,
   state: string,
   { home, user }: Machine,
-  allow: readonly string[] = [],
-): Result<ProfilePlan> => {
-  const read = readSelection(config);
-  if (!read.ok) return read;
-  const resolved = resolveProfile(read.value.selection);
+  { allow = [], fetch = fetchTree }: { allow?: readonly string[]; fetch?: Fetch | undefined } = {},
+): Promise<Result<ProfilePlan>> => {
+  const resolved = selectedProfile(config);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
     return { ok: true, value: { plan: null, findings: resolved.value.problems } };
   }
-  const written = withView(state, (view) => ({
-    ok: true,
-    value: view?.written(rulesFolder(home)) ?? new Map<string, string | null>(),
-  }));
-  if (!written.ok) return written;
-  const guarded = guardedFolders(config, state, { home, user });
-  if (!guarded.ok) return guarded;
-  const target = { home, user, guarded: guarded.value };
-  const level = planMachine(resolved.value, target, written.value, new Set(allow));
+  const where = targetOf(config, state, { home, user });
+  if (!where.ok) return where;
+  const sources = await fetchAll(state, resolved.value, fetch);
+  if (!sources.ok) return sources;
+  const options = { approved: new Set(allow), fetched: sources.value.fetched };
+  const level = planMachine(resolved.value, where.value.target, where.value.written, options);
   if (!level.ok) return level;
   const { operations, findings } = level.value;
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };
-  return { ok: true, value: { plan, findings } };
+  return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings] } };
 };
 
 /** One change of the selection: a part on, off or back to its default (null), or this machine's hub repository. */

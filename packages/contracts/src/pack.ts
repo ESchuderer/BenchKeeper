@@ -28,6 +28,7 @@ export const GitSource = z.union([
   }),
   z.strictObject({ ...located, commit: Commit, digest: FolderDigest }),
 ]);
+export type GitSource = z.infer<typeof GitSource>;
 
 const Entry = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.enum(["rules", "template", "profile"]), description }),

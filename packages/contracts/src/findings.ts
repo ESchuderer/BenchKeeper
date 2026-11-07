@@ -200,7 +200,7 @@ export const Finding = z
     finding("profile.entry-unknown", {
       pack: z.string(),
       path: z.string(),
-      kind: z.enum(["rules", "template", "profile"]),
+      kind: z.enum(["rules", "template", "profile", "skill"]),
     }),
     finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
     // A part the selection or a `requires` names that the profile does not hold, both as `level.id`.

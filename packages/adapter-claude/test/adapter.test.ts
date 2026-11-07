@@ -247,16 +247,23 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
-test("a read-only launch denies every write in the working folder and any git push", async () => {
-  const settings = z
-    .object({
-      permissions: z.object({ ask: z.array(z.string()), deny: z.array(z.string()) }),
-      sandbox: z.object({ filesystem: z.object({ denyWrite: z.array(z.string()) }) }),
-    })
-    .parse(JSON.parse(started(await events(runtime.start(launch({}, { readOnly: true })))).args[12] ?? ""));
+test("commands write in no plugin folder; a read-only launch writes nothing in its working folder, pushes nothing", async () => {
+  const plugin = join(fixtures, "plugins", "workflow");
+  const Settings = z.object({
+    permissions: z.object({ deny: z.array(z.string()) }),
+    sandbox: z.object({ filesystem: z.object({ denyWrite: z.array(z.string()) }) }),
+  });
+  const settingsOf = async (readOnly: boolean) => {
+    const { args } = started(await events(runtime.start(launch({}, { readOnly, pluginDirs: [plugin] }))));
+    return Settings.parse(JSON.parse(args[args.indexOf("--settings") + 1] ?? ""));
+  };
+  const [worker, report] = [await settingsOf(false), await settingsOf(true)];
   // The file tools by a deny rule, shell commands by the sandbox; the result file lies outside the working folder.
-  expect([settings.permissions.ask, settings.sandbox.filesystem.denyWrite]).toEqual([[], [fixtures]]);
-  expect(settings.permissions.deny).toEqual(
+  expect([worker.sandbox.filesystem.denyWrite, report.sandbox.filesystem.denyWrite]).toEqual([
+    [join(fixtures, ".github", "workflows"), plugin],
+    [fixtures, plugin],
+  ]);
+  expect(report.permissions.deny).toEqual(
     expect.arrayContaining([expect.stringMatching(/^Edit\(\/\/.*fixtures\/\*\*\)$/), "Bash(git push *)"]),
   );
 });

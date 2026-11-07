@@ -13,7 +13,12 @@ export interface OverlayInput {
   readonly env: Readonly<Record<string, string>>;
   /** Plugin folders the session loads; its file tools may read them, never change them. */
   readonly pluginDirs: readonly string[];
-  /** A report run's worker: it changes nothing in the working folder and pushes nothing; it still writes its result. */
+  /**
+   * A report run's worker: it changes nothing in the working folder and runs no `git push`; it still writes its result.
+   * It does not stop a push in another spelling (`git -C`, `sh -c`, `gh`, `curl`: the read-only token, or none, is that
+   * boundary), hooks, writes to its temporary and result folders, or sending out what it read. A linked worktree's shared
+   * `.git` stays writable to its commands; PR 7 closes it for report runs.
+   */
   readonly readOnly?: boolean;
 }
 
@@ -92,7 +97,7 @@ export const overlay = (input: OverlayInput) => {
     permissions: {
       // Edit rules cover every tool that writes a file (https://code.claude.com/docs/en/permissions).
       allow: [...allow, `Edit(${rulePath(resultFile)})`],
-      ask: readOnly ? [] : [PUSH],
+      ask: [PUSH],
       // The path itself and everything below it: a credential file inside the working folder is matched too.
       deny: [
         ...closed
@@ -115,7 +120,8 @@ export const overlay = (input: OverlayInput) => {
       failIfUnavailable: true,
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: false,
-      filesystem: { denyRead, denyWrite: [closedToWrites], allowRead: TOOLCHAINS },
+      // Every --add-dir folder is writable to commands: the plugins, whose hooks run outside the sandbox, are closed.
+      filesystem: { denyRead, denyWrite: [closedToWrites, ...pluginDirs], allowRead: TOOLCHAINS },
       network: { allowedDomains, strictAllowlist: true },
     },
     // A102: a window lasts hours, not minutes.

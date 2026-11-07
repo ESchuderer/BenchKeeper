@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.pack",
+  "id": "cedarloom.orca",
+  "version": "0.1.0",
+  "name": "Orca",
+  "description": "The files a project's Orca worktrees start from; Orca installs its own skills.",
+  "license": "MIT",
+  "minApp": "0.1.0",
+  "entries": {
+    "templates/orca.yaml": {
+      "kind": "template",
+      "description": "Orca's per-worktree setup and archive scripts"
+    },
+    "templates/worktreeinclude": {
+      "kind": "template",
+      "description": ".worktreeinclude: the local files a new worktree copies"
+    }
+  }
+}

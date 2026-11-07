@@ -2,8 +2,8 @@ import { type ActionContext, type DoctorFinding, HOST_MISSING } from "@cedarloom
 
 /** The Orca version this extension and its recorded test outputs were checked with; another major is a warning. */
 export const OBSERVED = "1.4.251";
-// Below the doctor's 10 s for both calls: Orca's own status call gives up after 1 s.
-const MS = 4000;
+// Below the doctor's 10 s for all three calls: Orca's own status call gives up after 1 s.
+const MS = 3000;
 // Where the manifest names Orca's CLI. On Windows it is an orca.cmd, which only cmd.exe runs, and the host starts no
 // shell (CVE-2024-27980).
 const CHECKED = new Set(["darwin", "linux"]);
@@ -38,6 +38,19 @@ const probe = async ({ exec }: Exec): Promise<Probe> => {
   return { installed: true, version: version.stdout.trim(), running };
 };
 
+// Orca's skills a Claude Code session of an Orca worker needs; Orca installs them, CedarLoom never does.
+const SKILLS = ["orca-cli", "orchestration"];
+
+// Which of them Claude Code lacks, by the list of Orca's running app (its CLI asks the app).
+const missingSkills = async ({ exec }: Exec): Promise<string[]> => {
+  const listed = await exec({ program: "orca", args: ["skills", "installed", "--json"], timeoutMs: MS });
+  if (listed.code !== 0) throw new Error(`orca skills installed --json exited with ${listed.code}`);
+  const skills: unknown = at(JSON.parse(listed.stdout), "result", "skills");
+  if (!Array.isArray(skills)) throw new Error("orca skills installed --json lists no skills");
+  const forClaude = skills.filter((skill) => [at(skill, "providers")].flat().includes("claude"));
+  return SKILLS.filter((name) => !forClaude.some((skill) => at(skill, "name") === name));
+};
+
 const finding = (severity: DoctorFinding["severity"], code: string, message: string): DoctorFinding => ({
   check: "orca",
   severity,
@@ -45,9 +58,31 @@ const finding = (severity: DoctorFinding["severity"], code: string, message: str
   message,
 });
 
+// A warning for a major version not checked with or a version that does not read.
+const versionWarnings = (version: string): DoctorFinding[] => {
+  const major = majorOf(version);
+  if (major === undefined) return [finding("warning", "orca.unreadable", `Orca's version ${version} does not read.`)];
+  if (major === majorOf(OBSERVED)) return [];
+  const unobserved = `Orca ${version} is a major version this CedarLoom was not checked with (${OBSERVED}).`;
+  return [finding("warning", "orca.unobserved-major", unobserved)];
+};
+
+// While Orca runs: the command that installs the skills Claude Code lacks.
+const skillFindings = async (context: Exec): Promise<DoctorFinding[]> => {
+  let missing: string[];
+  try {
+    missing = await missingSkills(context);
+  } catch (error) {
+    return [finding("warning", "orca.unreadable", `Orca's skills did not list as expected: ${messageOf(error)}`)];
+  }
+  if (missing.length === 0) return [];
+  const command = ["orca skills install", ...missing.map((name) => `--skill ${name}`)].join(" ");
+  return [finding("info", "orca.skills-missing", `Claude Code lacks Orca's ${missing.join(", ")}: run ${command}.`)];
+};
+
 /**
- * The doctor's check: whether Orca is installed and running, and a warning for a major version not checked with or a
- * version it cannot read.
+ * The doctor's check: whether Orca is installed and running, a warning for a major version not checked with or a
+ * version it cannot read, and while it runs, the command for the Orca skills Claude Code lacks.
  */
 export const doctor = async (context: Exec, platform: string = process.platform): Promise<DoctorFinding[]> => {
   if (!CHECKED.has(platform)) return [finding("info", "orca.unchecked", "Orca is not checked on this platform yet.")];
@@ -61,12 +96,8 @@ export const doctor = async (context: Exec, platform: string = process.platform)
   const state = found.running
     ? finding("info", "orca.running", `Orca ${found.version} is running.`)
     : finding("info", "orca.not-running", `Orca ${found.version} is installed and not running.`);
-  const major = majorOf(found.version);
-  if (major === undefined)
-    return [state, finding("warning", "orca.unreadable", `Orca's version ${found.version} does not read.`)];
-  if (major === majorOf(OBSERVED)) return [state];
-  const unobserved = `Orca ${found.version} is a major version this CedarLoom was not checked with (${OBSERVED}).`;
-  return [state, finding("warning", "orca.unobserved-major", unobserved)];
+  const skills = found.running ? await skillFindings(context) : [];
+  return [state, ...versionWarnings(found.version), ...skills];
 };
 
 /** The status action: whether Orca is installed, its version, and whether it is running. */

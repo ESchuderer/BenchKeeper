@@ -209,8 +209,7 @@ const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, p
 
 /**
  * The profile the selection names (the bundled default without one), composed with its parents, and its parts switched
- * on: the selection's choice, else the part's default, an `auto` part's by its probe. shortcut: no Orca probe runs, so
- * a part `auto` with Orca is on only when selected; upgrade once Orca names its worktrees in a documented way.
+ * on: the selection's choice, else the part's default, an `auto` part's by its probe.
  */
 export const resolveProfile = (
   selection: ProfileSelection | null,

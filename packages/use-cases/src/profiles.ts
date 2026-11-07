@@ -14,6 +14,7 @@ import {
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 import { fetchTree, type Tree } from "@cedarloom/git";
+import { programFound } from "@cedarloom/extension-host";
 import {
   APP_VERSION,
   DEFAULT_PROFILE,
@@ -30,6 +31,7 @@ import {
   sourcesOf,
 } from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
+import { bundledExtensions } from "./bundled.ts";
 import type { Fetch } from "./extensions.ts";
 import { type ApplyTemplate, devcontainerCli, templatesOf } from "./devcontainer.ts";
 import { fetchSources, readRecord, writeRecord } from "./sources.ts";
@@ -83,17 +85,32 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
   return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
 };
 
-// The profile this machine's selection names, resolved.
-// A project's probes: whether it has a dev container. No Orca probe runs (see resolveProfile).
-const projectProbe = (project: string) => {
-  const container = hasContainer(project);
-  return (when: Probe): boolean => (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
+// Whether Orca is here: its bundled extension not switched off, and its program found as host/exec finds it.
+const orcaHere = (app: string | undefined, config: string): Result<boolean> => {
+  const bundled = app === undefined ? { ok: true as const, value: [] } : bundledExtensions(app, config);
+  if (!bundled.ok) return bundled;
+  const orca = bundled.value.find(({ id }) => id === "cedarloom.orca");
+  return { ok: true, value: orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca") };
 };
 
-const selectedProfile = (config: string, project: string | undefined): Result<Resolved> => {
+// The probes: whether Orca is here and whether the project has a dev container; the gates' is resolveProfile's own.
+const probeOf = (orca: boolean, project: string | undefined) => {
+  const container = project !== undefined && hasContainer(project);
+  const holds: Record<Probe, boolean> = {
+    orca,
+    devcontainer: container,
+    "no-devcontainer": project !== undefined && !container,
+    gates: false,
+  };
+  return (when: Probe): boolean => holds[when];
+};
+
+// The profile this machine's selection names, resolved.
+const selectedProfile = (config: string, app: string | undefined, project: string | undefined): Result<Resolved> => {
   const read = readSelection(config);
-  const probe = project === undefined ? undefined : projectProbe(project);
-  return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probe) : read;
+  if (!read.ok) return read;
+  const orca = orcaHere(app, config);
+  return orca.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(orca.value, project)) : orca;
 };
 
 // What CedarLoom last left at each path of a folder, the Claude Code home or a project, from the run store.
@@ -131,11 +148,12 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project
 };
 
 /**
- * How a profile plan runs: the parts approved by name, how Git sources are fetched, the project, if any, and how a dev
- * container part's Template is applied.
+ * How a profile plan runs: the parts approved by name, the app's folder of its own extensions (without it no Orca is
+ * found), how Git sources are fetched, the project, if any, and how a dev container part's Template is applied.
  */
 export type PlanOptions = {
   allow?: readonly string[];
+  app?: string | undefined;
   fetch?: Fetch | undefined;
   project?: string | undefined;
   template?: ApplyTemplate | undefined;
@@ -189,12 +207,12 @@ export const planProfile = async (
   config: string,
   state: string,
   machine: Machine,
-  { allow = [], fetch = fetchTree, project, template }: PlanOptions = {},
+  { allow = [], app, fetch = fetchTree, project, template }: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
   const where = folderOf(project);
   if (!where.ok) return where;
   const folder = where.value;
-  const resolved = selectedProfile(config, folder);
+  const resolved = selectedProfile(config, app, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
     return { ok: true, value: { plan: null, findings: resolved.value.problems } };

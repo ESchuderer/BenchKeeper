@@ -8,10 +8,18 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import type { Plan } from "@cedarloom/contracts";
-import { applyPlan, claudeHome, type Fetch, type PlanOptions, planChoice, planProfile } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import {
+  applyPlan,
+  claudeHome,
+  type Fetch,
+  type PlanOptions,
+  planChoice,
+  planProfile,
+  planSwitch,
+} from "@cedarloom/use-cases";
+import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
 const root = testRoot("profiles");
@@ -313,6 +321,53 @@ test("a broken block, or a project that is no folder, stops the plan", async () 
     },
     { ok: false, finding: { code: "document.unreadable", params: { path: missing, error: "not a folder" } } },
   ]);
+});
+
+// An app folder shipping cedarloom.orca, whose program is a file in `bin` of a name no PATH holds.
+const orcaApp = () => {
+  const at = mkdtempSync(join(root, "orca-"));
+  const [extension, bin] = [join(at, "app", "cedarloom.orca"), join(at, "bin")];
+  mkdirSync(extension, { recursive: true });
+  mkdirSync(bin);
+  const name = ["cedarloom-test-orca"];
+  const manifest = {
+    schemaVersion: 1,
+    kind: "cedarloom.extension",
+    id: "cedarloom.orca",
+    version: "1.0.0",
+    name: "Orca",
+    api: "1.0",
+    runtime: { kind: "node", entry: "main.mjs" },
+    capabilities: { programs: { orca: { darwin: name, linux: name, win32: name } } },
+    contributes: { actions: { status: { title: "Status" } } },
+  };
+  writeFileSync(join(extension, "cedarloom-extension.json"), JSON.stringify(manifest));
+  writeFileSync(join(bin, process.platform === "win32" ? "cedarloom-test-orca.exe" : "cedarloom-test-orca"), "", {
+    mode: 0o755,
+  });
+  return { app: join(at, "app"), bin };
+};
+
+test("Orca's worktree files are planned while its extension is not switched off and its program is found", async () => {
+  const box = machine();
+  const { app, bin } = orcaApp();
+  const project = projectWith();
+  // The orca part, on, waits for its approval: its files configure a tool.
+  const waits = async () => {
+    const result = ok(
+      await planProfile(box.config, box.state, { home: box.home, user: box.home }, { app, fetch: stock, project }),
+    );
+    return result.findings.some((finding) => "part" in finding.params && finding.params.part === "project.orca");
+  };
+  const missing = await waits();
+  vi.stubEnv("PATH", `${bin}${delimiter}${process.env["PATH"] ?? ""}`);
+  try {
+    const found = await waits();
+    applied(box.state, ok(planSwitch(app, box.config, "cedarloom.orca", "off")));
+    expect([missing, found, await waits()]).toEqual([false, true, false]);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 test("a project's plan keeps the record of the machine's skills", async () => {

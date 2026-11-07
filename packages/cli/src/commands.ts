@@ -548,7 +548,12 @@ export const profilesApply = async (
   { yes, allow = [], project }: { yes?: true; allow?: string[]; project?: string },
 ): Promise<number> => {
   const machine = { home: useCases.claudeHome(ctx.io.env), user: homedir() };
-  const profile = await useCases.planProfile(ctx.config, ctx.state, machine, { allow, fetch: ctx.io.fetch, project });
+  const profile = await useCases.planProfile(ctx.config, ctx.state, machine, {
+    allow,
+    app: ctx.app,
+    fetch: ctx.io.fetch,
+    project,
+  });
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
   if (findings.some((finding) => severityOf(finding) === "error")) {

@@ -11,6 +11,9 @@
   "packs": {
     "cedarloom.core": {
       "bundled": true
+    },
+    "cedarloom.orca": {
+      "bundled": true
     }
   },
   "machine": {
@@ -56,28 +59,6 @@
         "git": "https://github.com/vercel-labs/skills.git",
         "ref": "main",
         "path": "skills/find-skills"
-      }
-    },
-    "skill.orca-cli": {
-      "type": "skill",
-      "title": "Orca CLI skill",
-      "default": "auto",
-      "when": "orca",
-      "source": {
-        "git": "https://github.com/stablyai/orca.git",
-        "ref": "main",
-        "path": "skills/orca-cli"
-      }
-    },
-    "skill.orchestration": {
-      "type": "skill",
-      "title": "Orca orchestration skill",
-      "default": "auto",
-      "when": "orca",
-      "source": {
-        "git": "https://github.com/stablyai/orca.git",
-        "ref": "main",
-        "path": "skills/orchestration"
       }
     },
     "rules.global": {
@@ -293,11 +274,11 @@
       "commit": false,
       "files": {
         "orca.yaml": {
-          "pack": "cedarloom.core",
+          "pack": "cedarloom.orca",
           "path": "templates/orca.yaml"
         },
         ".worktreeinclude": {
-          "pack": "cedarloom.core",
+          "pack": "cedarloom.orca",
           "path": "templates/worktreeinclude"
         }
       }

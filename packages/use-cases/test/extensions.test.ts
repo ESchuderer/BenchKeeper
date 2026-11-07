@@ -175,7 +175,7 @@ test("a second extension joins the installed set; the plan replaces the file it 
   ]).toEqual([false, ["acme.jira", "acme.two"], true]);
 });
 
-test("no install without a manifest, with an invalid one (the cedarloom publisher), without its entry, for another protocol, or from a refused source", async () => {
+test("no install without a manifest, of the cedarloom publisher (the app ships those), without its entry, for another protocol, or from a refused source", async () => {
   const at = state();
   const sources = [
     publish("bare", { "main.mjs": ENTRY }),
@@ -189,7 +189,7 @@ test("no install without a manifest, with an invalid one (the cedarloom publishe
   ]);
   expect([...results.map(findingOf), existsSync(join(at, "extensions"))]).toEqual([
     { code: "extension.install-refused", params: { extension: null, reason: "no-manifest" } },
-    { code: "document.invalid", params: { issues: [expect.objectContaining({ path: "id" })] } },
+    { code: "extension.install-refused", params: { extension: "cedarloom.jira", reason: "reserved" } },
     { code: "extension.install-refused", params: { extension: "acme.jira", reason: "entry" } },
     { code: "extension.install-refused", params: { extension: "acme.jira", reason: "protocol" } },
     { code: "git.refused-source", params: { field: "ref" } },

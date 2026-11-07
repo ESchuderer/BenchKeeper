@@ -35,8 +35,6 @@ import {
   ownHome,
   resumeRun,
   runWorkflow,
-  startTelemetry,
-  type TelemetryRun,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -271,38 +269,6 @@ const fill = (state: string, account: string, from: number) =>
   );
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
-
-test("a worker's API requests reach its run's token rows through the receiver, and its token ends with the run", async () => {
-  const { state, config, work } = setup();
-  const receiver = await startTelemetry(state);
-  // The receiver as the launcher gets it, keeping the token it hands out.
-  const tokens: string[] = [];
-  const register = (run: TelemetryRun) => {
-    const token = receiver.register(run);
-    tokens.push(token);
-    return token;
-  };
-  try {
-    const otlp = readFileSync(join(import.meta.dirname, "fixtures", "otlp-logs.jsonl"), "utf8");
-    const sent = request(work, { result: passing, runEnv: { FAKE_OTLP: otlp } });
-    const outcome = await launchWorker(state, config, sent, { ...host, telemetry: { ...receiver, register } });
-    expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", verdict: "pass" } });
-    const runId = outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null;
-    // The row carries the run and account the token names.
-    expect(withLedger(state, (store) => store.tokenRows())).toMatchObject([{ runId, account: "work", inputTokens: 2 }]);
-    // A leased worker that never runs ends its token on release, as a run does when it ends.
-    const leased = await leaseWorker(state, config, sent, { ...host, telemetry: { ...receiver, register } });
-    if (!leased.ok || leased.value.kind !== "leased") throw new Error("no lease");
-    await leased.value.release();
-    const statuses = tokens.map(async (token) => {
-      const headers = { "content-type": "application/json", authorization: `Bearer ${token}` };
-      return (await fetch(receiver.endpoint, { method: "POST", headers, body: "{}" })).status;
-    });
-    expect(await Promise.all(statuses)).toEqual([401, 401]);
-  } finally {
-    await receiver.close();
-  }
-});
 
 test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {
   const { state, config, work } = setup();

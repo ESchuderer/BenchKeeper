@@ -192,7 +192,7 @@ class Runner {
    * until the run has finished.
    */
   async run(actions: readonly Action[], left: readonly Open[]): Promise<Result<RunStatus>> {
-    this.#options.signal?.addEventListener("abort", () => this.#post({ type: "cancel" }), { once: true });
+    this.#listen();
     for (const open of left) void this.#recover(open);
     actions.forEach((action) => this.#handle(action));
     while (this.#status === "running" && this.#lost === null) {
@@ -210,6 +210,16 @@ class Runner {
     }
     this.#ending.abort();
     return this.#lost === null ? { ok: true, value: this.#status } : { ok: false, finding: this.#lost };
+  }
+
+  // Turns the signal's abort into a cancel. The run's end removes the listener, so a signal that outlives the run keeps
+  // no finished runner.
+  #listen(): void {
+    const { signal } = this.#options;
+    const cancel = (): void => this.#post({ type: "cancel" });
+    signal?.addEventListener("abort", cancel, { once: true, signal: this.#ending.signal });
+    // A signal that ended already sends no abort event.
+    if (signal?.aborted === true) cancel();
   }
 
   // Writes an event with the run's epoch; once a write is refused, every attempt stops and nothing more is written.

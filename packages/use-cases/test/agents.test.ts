@@ -52,7 +52,6 @@ const probe = {
   denyRead: [],
   allowedDomains: [],
   pluginDirs: [],
-  telemetry: null,
 } as const;
 const input = { env: {}, probe, account: "work" };
 const checked = (dir: string, cli: ReturnType<typeof runtime>) => checkedVersions(dir, "claude", cli, input);

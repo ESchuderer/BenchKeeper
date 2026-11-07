@@ -22,6 +22,7 @@ import mark from "../../../brand/cedarloom-icon.svg?no-inline";
 import { t, when } from "./i18n.ts";
 
 type Run = components["schemas"]["Run"];
+type GraphRun = components["schemas"]["GraphRunSummary"];
 type Preview = { planHash: string | null; count: number; skipped: number };
 type Fetched<T> = { data: T; error?: never; response: Response } | { data?: never; error: unknown; response: Response };
 
@@ -47,42 +48,72 @@ const previewOf = ({ planHash, plan, findings }: components["schemas"]["UndoPrev
 
 type Select = (runId: string) => void;
 
-const RunsTable = ({ runs, selected, onSelect }: { runs: Run[]; selected: string | null; onSelect: Select }) => (
+type Row = { id: string; first: ReactNode; second: string; status: string; startedAt: string };
+
+/** A table of runs, newest first, under its caption: the run, a second column, its status and when it started. */
+const RunsFrame = ({ caption, second, rows }: { caption: string; second: string; rows: Row[] }) => (
   // Narrow windows scroll the table, not the page.
   <Table.ScrollContainer minWidth={480}>
     <Table striped highlightOnHover>
-      <Table.Caption c="bright">{t("runs.caption")}</Table.Caption>
+      <Table.Caption c="bright">{caption}</Table.Caption>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>{t("runs.run")}</Table.Th>
-          <Table.Th>{t("runs.kind")}</Table.Th>
+          <Table.Th>{second}</Table.Th>
           <Table.Th>{t("runs.status")}</Table.Th>
           <Table.Th>{t("runs.started")}</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {runs.map((run) => (
-          <Table.Tr key={run.id}>
-            <Table.Td>
-              <Button
-                variant="subtle"
-                size="compact-sm"
-                ff="monospace"
-                aria-pressed={run.id === selected}
-                onClick={() => onSelect(run.id)}
-              >
-                {run.id.slice(0, 8)}
-              </Button>
-            </Table.Td>
-            <Table.Td>{t("run.kind", { kind: run.kind })}</Table.Td>
-            <Table.Td>{t("run.status", { status: run.status })}</Table.Td>
-            <Table.Td>{when(run.startedAt)}</Table.Td>
+        {rows.map((row) => (
+          <Table.Tr key={row.id}>
+            <Table.Td>{row.first}</Table.Td>
+            <Table.Td>{row.second}</Table.Td>
+            <Table.Td>{row.status}</Table.Td>
+            <Table.Td>{when(row.startedAt)}</Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>
     </Table>
   </Table.ScrollContainer>
 );
+
+const RunsTable = ({ runs, selected, onSelect }: { runs: Run[]; selected: string | null; onSelect: Select }) => {
+  const rows = runs.map((run) => ({
+    id: run.id,
+    first: (
+      <Button
+        variant="subtle"
+        size="compact-sm"
+        ff="monospace"
+        aria-pressed={run.id === selected}
+        onClick={() => onSelect(run.id)}
+      >
+        {run.id.slice(0, 8)}
+      </Button>
+    ),
+    second: t("run.kind", { kind: run.kind }),
+    status: t("run.status", { status: run.status }),
+    startedAt: run.startedAt,
+  }));
+  return <RunsFrame caption={t("runs.caption")} second={t("runs.kind")} rows={rows} />;
+};
+
+/** The workflows' runs: which workflow, and where it stands (its execution view comes later). */
+const GraphRunsTable = ({ runs }: { runs: GraphRun[] }) => {
+  const rows = runs.map((run) => ({
+    id: run.id,
+    first: (
+      <Text span ff="monospace" size="sm">
+        {run.id.slice(0, 8)}
+      </Text>
+    ),
+    second: run.workflow,
+    status: t("graphRun.status", { status: run.status }),
+    startedAt: run.startedAt,
+  }));
+  return <RunsFrame caption={t("graphRuns.caption")} second={t("graphRuns.workflow")} rows={rows} />;
+};
 
 const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean; onUndo: (hash: string) => void }) => (
   <Stack gap="xs">
@@ -159,6 +190,7 @@ export type Session = { api: Api; listen: (onEvent: (event: RunEvent) => void, s
 /** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
 const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => {
   const [runs, setRuns] = useState<Run[] | null>(null);
+  const [graphRuns, setGraphRuns] = useState<GraphRun[]>([]);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -170,6 +202,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
     }
     setError("");
     setRuns(event.runs);
+    setGraphRuns(event.graphRuns);
     setRevision((value) => value + 1);
   }, []);
   useEffect(() => {
@@ -198,11 +231,12 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   }, [api, listen, update]);
   if (error !== "") return <Alert color="red">{error}</Alert>;
   if (runs === null) return null;
-  if (runs.length === 0) return <Text>{t("runs.empty")}</Text>;
+  if (runs.length + graphRuns.length === 0) return <Text>{t("runs.empty")}</Text>;
   return (
     <Stack>
       {selected && <RunDetail key={selected} api={api} runId={selected} revision={revision} />}
-      <RunsTable runs={runs} selected={selected} onSelect={setSelected} />
+      {runs.length > 0 && <RunsTable runs={runs} selected={selected} onSelect={setSelected} />}
+      {graphRuns.length > 0 && <GraphRunsTable runs={graphRuns} />}
     </Stack>
   );
 };

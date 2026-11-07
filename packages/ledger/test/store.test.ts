@@ -19,7 +19,7 @@ import {
   sha256,
 } from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
-import { failCommits } from "./helpers.ts";
+import { failCommits } from "./fail-commits.ts";
 
 const plan: Plan = {
   schemaVersion: 1,

@@ -21,7 +21,7 @@ import type { Operation } from "@cedarloom/contracts";
 import { apply, hashFile, tempPath } from "@cedarloom/engine";
 import { planHash } from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
-import { hash, modeOf, plan, read, run, storeAt, undo, workspace } from "./helpers.ts";
+import { hash, modeOf, plan, read, run, storeAt, undo, workspace } from "./plan-runs.ts";
 
 const posix = process.platform !== "win32";
 const stores: { close: () => void }[] = [];

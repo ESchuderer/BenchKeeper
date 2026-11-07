@@ -56,11 +56,17 @@ const column = (value: unknown): unknown => (typeof value === "string" ? JSON.pa
 const blanked = (plan: unknown): string =>
   JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
 
-// Moves the log into the database and empties it, so the pages from before a blanking leave the log too. While another
-// process reads the store, the checkpoint stops short and says so in its result row, without an error; that log then
-// keeps them until the store's last connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+// Moves the log into the database and empties it, so the pages from before a blanking leave the log too. It waits for
+// nothing: a waiting checkpoint holds the write lock and keeps another process's writes out past their own wait. While
+// another process uses the store, it stops short and says so in its result row, without an error; that log then keeps
+// the pages until the store's last connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
 const emptyLog = (db: DatabaseSync): void => {
-  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.exec("PRAGMA busy_timeout = 0");
+  try {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } finally {
+    db.exec(`PRAGMA busy_timeout = ${SETTLE_MS}`);
+  }
 };
 
 /** A launch as its lease takes it, with the settings it runs with. */

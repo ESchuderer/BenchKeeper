@@ -14,7 +14,7 @@ Read this before changing code that runs git or another program. Each item names
 
 - **The caller's `GIT_*` variables** point git at another repository (`GIT_DIR` is set when CedarLoom runs inside a hook) or add configuration: drop them, and turn off prompts so git fails instead of waiting (`environment` in `packages/git/src/git.ts`).
 - **Configuration of the repository or the user** can run hooks, an fsmonitor, maintenance or any transport. `-c` flags win over every configuration file (`config` in `packages/git/src/git.ts`; the legacy app's clone, `cloneChange` in `app/src/origin.mjs`). Hooks defined as `hook.<name>` (git 2.54) run even when `core.hooksPath` points at the null device: each is turned off through `GIT_CONFIG_*` (`hooksOff` in `packages/git/src/git.ts`).
-- **Text from git, a server or another program** shown in a terminal can move the cursor or rewrite a line: escape control and bidirectional characters first (`shown` in `packages/contracts/src/text.ts`).
+- **Text from git or a server** shown in a terminal can move the cursor or rewrite a line: escape control characters first (`shown` in `packages/git/src/git.ts`).
 
 ## Files
 

@@ -49,6 +49,12 @@ const pathOf = (state: string, id: string): string => {
   return path;
 };
 
+/**
+ * The draft's base: the id of the stored blob it was opened from or last saved as, in a file beside it, so a save can
+ * tell a version stored meanwhile (P3 a).
+ */
+export const basePathOf = (state: string, id: string): string => pathOf(state, id).replace(/\.json$/, ".base");
+
 const tooLarge = (id: string, bytes: number): Result<never> => ({
   ok: false,
   finding: { code: "draft.too-large", params: { id, bytes, limit: DRAFT_LIMIT } },
@@ -180,8 +186,9 @@ export const saveDraft = (
   return { ok: true, value: { id: id.toLowerCase(), savedAt: savedAt(path), hash: sha256(text), bytes, overwrote } };
 };
 
-/** Removes a draft: after an export, or when the user starts a new workflow or discards it. */
+/** Removes a draft and its base: after an export, or when the user starts a new workflow or discards it. */
 export const deleteDraft = (state: string, id: string): Result<null> => {
+  rmSync(basePathOf(state, id), { force: true });
   try {
     unlinkSync(pathOf(state, id));
   } catch (error) {

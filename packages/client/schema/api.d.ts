@@ -605,7 +605,16 @@ export interface components {
             path: string;
             before: components["schemas"]["Sha256Input"];
         };
-        OperationInput: components["schemas"]["WriteFileInput"] | components["schemas"]["DeleteFileInput"];
+        GitOidInput: string;
+        StoreUpdateInput: {
+            /** @constant */
+            kind: "store.update";
+            /** @constant */
+            ref: "refs/heads/main";
+            before: components["schemas"]["GitOidInput"] | null;
+            after: components["schemas"]["GitOidInput"] | null;
+        };
+        OperationInput: components["schemas"]["WriteFileInput"] | components["schemas"]["DeleteFileInput"] | components["schemas"]["StoreUpdateInput"];
         PlanInput: {
             /** @constant */
             schemaVersion: 1;
@@ -1218,8 +1227,50 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read" | "worktree";
+                step: "start" | "fetch" | "list" | "read" | "worktree" | "commit" | "update";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.conflict";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.version-not-higher";
+            params: {
+                id: string;
+                stored: string;
+                found: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.identity-missing";
+            params: {
+                /** @enum {string} */
+                key: "user.name" | "user.email";
+            };
+        } | {
+            /** @constant */
+            code: "store.moved";
+            params: {
+                ref: string;
+                expected: components["schemas"]["GitOidInput"] | null;
+                actual: components["schemas"]["GitOidInput"] | null;
+            };
+        } | {
+            /** @constant */
+            code: "store.not-found";
+            params: {
+                id: string;
+                commit: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "store.draft-exists";
+            params: {
+                id: string;
             };
         } | {
             /** @constant */
@@ -1318,8 +1369,8 @@ export interface components {
         StepInput: {
             index: number;
             path: string;
-            before: components["schemas"]["Sha256Input"] | null;
-            after: components["schemas"]["Sha256Input"] | null;
+            before: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
+            after: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
             /** @enum {string} */
             state: "pending" | "running" | "done" | "skipped";
             mode: number | null;
@@ -1337,7 +1388,7 @@ export interface components {
                     mode?: number;
                     after: components["schemas"]["Sha256Input"];
                     bytes: number;
-                })[];
+                } | components["schemas"]["StoreUpdateInput"])[];
             };
         };
         UndoPreviewInput: {
@@ -1353,7 +1404,7 @@ export interface components {
                     mode?: number;
                     after: components["schemas"]["Sha256Input"];
                     bytes: number;
-                })[];
+                } | components["schemas"]["StoreUpdateInput"])[];
             } | null;
             findings: components["schemas"]["FindingInput"][];
         };
@@ -1409,7 +1460,16 @@ export interface components {
             path: string;
             before: components["schemas"]["Sha256"];
         };
-        Operation: components["schemas"]["WriteFile"] | components["schemas"]["DeleteFile"];
+        GitOid: string;
+        StoreUpdate: {
+            /** @constant */
+            kind: "store.update";
+            /** @constant */
+            ref: "refs/heads/main";
+            before: components["schemas"]["GitOid"] | null;
+            after: components["schemas"]["GitOid"] | null;
+        };
+        Operation: components["schemas"]["WriteFile"] | components["schemas"]["DeleteFile"] | components["schemas"]["StoreUpdate"];
         Plan: {
             /** @constant */
             schemaVersion: 1;
@@ -2022,8 +2082,50 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read" | "worktree";
+                step: "start" | "fetch" | "list" | "read" | "worktree" | "commit" | "update";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.conflict";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.version-not-higher";
+            params: {
+                id: string;
+                stored: string;
+                found: string;
+            };
+        } | {
+            /** @constant */
+            code: "store.identity-missing";
+            params: {
+                /** @enum {string} */
+                key: "user.name" | "user.email";
+            };
+        } | {
+            /** @constant */
+            code: "store.moved";
+            params: {
+                ref: string;
+                expected: components["schemas"]["GitOid"] | null;
+                actual: components["schemas"]["GitOid"] | null;
+            };
+        } | {
+            /** @constant */
+            code: "store.not-found";
+            params: {
+                id: string;
+                commit: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "store.draft-exists";
+            params: {
+                id: string;
             };
         } | {
             /** @constant */
@@ -2122,8 +2224,8 @@ export interface components {
         Step: {
             index: number;
             path: string;
-            before: components["schemas"]["Sha256"] | null;
-            after: components["schemas"]["Sha256"] | null;
+            before: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
+            after: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
             /** @enum {string} */
             state: "pending" | "running" | "done" | "skipped";
             mode: number | null;
@@ -2141,7 +2243,7 @@ export interface components {
                     mode?: number;
                     after: components["schemas"]["Sha256"];
                     bytes: number;
-                })[];
+                } | components["schemas"]["StoreUpdate"])[];
             };
         };
         UndoPreview: {
@@ -2157,7 +2259,7 @@ export interface components {
                     mode?: number;
                     after: components["schemas"]["Sha256"];
                     bytes: number;
-                })[];
+                } | components["schemas"]["StoreUpdate"])[];
             } | null;
             findings: components["schemas"]["Finding"][];
         };

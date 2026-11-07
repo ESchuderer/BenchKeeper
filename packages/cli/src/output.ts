@@ -51,6 +51,7 @@ export const fail = (ctx: Context, format: string, findings: Finding[], code: nu
 export const showPlan = ({ planHash, plan }: PlanPreview): string => {
   const lines = plan.operations.map((op) => {
     if (op.kind === "delete") return `  delete  ${op.path}`;
+    if (op.kind === "store.update") return `  store   ${op.ref} -> ${op.after?.slice(0, 12) ?? "(removed)"}`;
     const how = op.before === null ? "create" : "replace";
     return `  write   ${op.path} (${how}, ${op.bytes} bytes)`;
   });

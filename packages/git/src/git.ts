@@ -21,7 +21,7 @@ type Ran = { code: number | null; stdout: Buffer; stderr: string; failure: strin
 
 // Text from git, a server or a tree, shown in a terminal: line breaks as spaces, other control characters and
 // non-ASCII text as \u escapes, so none of it can move the cursor or rewrite a line.
-const shown = (text: string): string =>
+export const shown = (text: string): string =>
   text
     .replace(/[\t\n\r]+/g, " ")
     .replace(/[^ -~]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
@@ -32,7 +32,7 @@ const failed = (step: "start" | "fetch" | "list" | "read" | "worktree", error: s
 });
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
-const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+export const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]) => ["-c", `${key}=${value}`]);
 
 // BenchKeeper's hardened clone (app/src/origin.mjs): no hooks and no fsmonitor, only the given transports, every
 // object checked, no bundles a server offers, and a stalled transfer ends. `-c` wins over every configuration file.
@@ -56,9 +56,9 @@ const config = (protocols: readonly string[]): string[] => [
 // The names of hooks the user's configuration defines (`hook.<name>.event`, git 2.54), which run whatever
 // core.hooksPath says, already when `init` writes HEAD: `config -z` gives `<key>\n<value>\0` items, and a name may
 // hold dots and spaces.
-const hookNames = (ran: Ran): string[] => [
+export const hookNames = ({ stdout }: { stdout: Buffer }): string[] => [
   ...new Set(
-    ran.stdout
+    stdout
       .toString()
       .split("\0")
       .map((item) => item.slice(0, item.indexOf("\n")))
@@ -68,7 +68,7 @@ const hookNames = (ran: Ran): string[] => [
 ];
 
 // Each is turned off through the environment, where a name holding "=" stays one key; `-c` would split it there.
-const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
+export const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
   Object.fromEntries([
     ["GIT_CONFIG_COUNT", String(names.length)],
     ...names.flatMap((name, index) => [
@@ -79,7 +79,7 @@ const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
 
 // The caller's environment without GIT_* variables, which would point git at another repository (GIT_DIR, set when
 // CedarLoom runs inside a hook) or add configuration; then no prompts, and ssh fails instead of asking.
-const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
+export const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
   ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
   GIT_ALLOW_PROTOCOL: protocols.join(":"),
   GIT_TERMINAL_PROMPT: "0",

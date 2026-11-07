@@ -18,8 +18,9 @@ RUN npm i -g --ignore-scripts --prefix /usr/local @playwright/mcp@0.0.83 \
   && chown -R node:node /ms-playwright \
   && npm cache clean --force && rm -rf /tmp/pw /var/lib/apt/lists/*
 
-# pnpm for the CedarLoom workspace, the version .github/pnpm/package-lock.json pins for CI (keep both equal); its
-# platform binary comes as an optional dependency, so no install script runs
-RUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && npm cache clean --force
+# pnpm for the CedarLoom workspace, the version .github/pnpm/package-lock.json pins for CI (keep both equal). Its
+# platform binary comes as an optional dependency; pnpm's own install.js (no other install script runs) links it over
+# the shebang-less placeholder of /usr/local/bin/pnpm, which a shell runs but devcontainer exec cannot (Exec format error).
+RUN npm i -g --ignore-scripts --prefix /usr/local pnpm@12.16.1 && node /usr/local/lib/node_modules/pnpm/install.js && npm cache clean --force
 
 USER node

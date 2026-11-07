@@ -587,7 +587,7 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
 });
 
-test("a launch keeps the totals its result reported, which a view reads", () => {
+test("a launch keeps the totals its result reported, which a view reads by its run id", () => {
   const dir = fresh();
   const store = opened(dir);
   store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2)?.release();
@@ -602,7 +602,8 @@ test("a launch keeps the totals its result reported, which a view reads", () => 
   const view = openRunView(dir);
   if (!view.ok || view.value === null) throw new Error("no view");
   try {
-    expect(view.value.launches().map((row) => row.totals)).toEqual([totals]);
+    // One launch by its run id, as runs show reads it; none for another id.
+    expect([view.value.launch(runIdOf(1))?.totals, view.value.launch(runIdOf(9))]).toEqual([totals, undefined]);
   } finally {
     view.value.close();
   }

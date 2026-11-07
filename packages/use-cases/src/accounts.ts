@@ -1,6 +1,6 @@
-import { chmodSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
+import { chmodSync, lstatSync, mkdirSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { counted, headroom, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
@@ -18,6 +18,7 @@ import {
 } from "@cedarloom/contracts";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
+import { projectFolder } from "./automation.ts";
 import { readJson, readOptionalJson, withStore } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
@@ -232,15 +233,6 @@ const mapRefused = (reason: "unknown-target" | "no-folder" | "not-mapped", name:
   finding: { code: "accounts.map-refused", params: { reason, name } },
 });
 
-// A folder's real path, as graph runs keep their project folder; null when it does not exist.
-const realFolder = (folder: string): string | null => {
-  try {
-    return realpathSync.native(folder);
-  } catch {
-    return null;
-  }
-};
-
 // The plan that writes the registry with `folders`, left out when empty.
 const withFolders = (path: string, text: string, registry: AccountRegistry, folders: Record<string, FolderTarget>) => {
   const { folders: _, ...rest } = registry;
@@ -254,7 +246,7 @@ const withFolders = (path: string, text: string, registry: AccountRegistry, fold
  * on that account, or on the pool's choice. The folder is kept by its real path.
  */
 export const planMap = (config: string, name: string, folder: string): Result<{ plan: Plan; folder: string }> => {
-  const real = realFolder(folder);
+  const real = projectFolder(folder);
   if (real === null) return mapRefused("no-folder", resolve(folder));
   const path = registryPath(config);
   const read = readRegistry(path);
@@ -269,7 +261,7 @@ export const planMap = (config: string, name: string, folder: string): Result<{ 
 
 /** Plans removing the binding of `folder`, by its real path, or as written when it no longer exists. */
 export const planUnmap = (config: string, folder: string): Result<{ plan: Plan; folder: string }> => {
-  const real = realFolder(folder) ?? resolve(folder);
+  const real = projectFolder(folder) ?? resolve(folder);
   const path = registryPath(config);
   const read = readRegistry(path);
   if (!read.ok) return read;
@@ -283,7 +275,7 @@ export const planUnmap = (config: string, folder: string): Result<{ plan: Plan; 
 export const boundTarget = (registry: AccountRegistry, project: string): FolderTarget | null => {
   const holding = Object.keys(registry.folders ?? {}).filter((folder) => {
     const below = relative(folder, project);
-    return below === "" || (!below.startsWith("..") && !isAbsolute(below));
+    return below === "" || (below.split(sep)[0] !== ".." && !isAbsolute(below));
   });
   const [deepest] = holding.toSorted((a, b) => b.length - a.length);
   return deepest === undefined ? null : (registry.folders?.[deepest] ?? null);
@@ -434,3 +426,15 @@ export const chooseAccount = (
     }
     return { ok: true, value: selection };
   });
+
+/**
+ * The margin above the minimums of the account a folder is bound to, by the store's readings at `now`: null when a
+ * window is unknown. The launch refuses a bound account below 0 instead of taking another one.
+ */
+export const boundHeadroom = (
+  state: string,
+  account: Account,
+  model: string | undefined,
+  now?: number,
+): Result<number | null> =>
+  withStore(state, (store) => ({ ok: true, value: headroom(account, store.readings(), model, now ?? Date.now()) }));

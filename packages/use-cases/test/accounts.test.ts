@@ -230,11 +230,14 @@ test("a folder is bound to an account or a pool by a plan with undo, kept by its
   applied(state, planMap(config, "main", project));
   expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
   const unmapped = applied(state, planUnmap(config, project));
-  expect(loadRegistry(config).ok && loadRegistry(config)).not.toHaveProperty("value.folders");
+  const after = loadRegistry(config);
+  expect([after.ok, after.ok && after.value !== null && "folders" in after.value]).toEqual([true, false]);
   undoRun(state, unmapped, { yes: true });
   expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
   expect(planMap(config, "nobody", project)).toEqual(mapRefused("unknown-target", "nobody"));
   expect(planMap(config, "work", join(real, "missing"))).toEqual(mapRefused("no-folder", join(real, "missing")));
+  writeFileSync(join(real, "README.md"), "");
+  expect(planMap(config, "work", join(real, "README.md"))).toEqual(mapRefused("no-folder", join(real, "README.md")));
   expect(planUnmap(config, join(real, "missing"))).toEqual(mapRefused("not-mapped", join(real, "missing")));
 });
 

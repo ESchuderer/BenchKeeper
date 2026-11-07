@@ -219,7 +219,7 @@ export const Finding = z
     finding("profile.owner-changed", { path: z.string() }),
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
-    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -229,6 +229,8 @@ export const Finding = z
       source: z.string().nullable(),
       ref: z.string().nullable(),
       autoUpdate: z.boolean(),
+      // The project folder of a project's plugin part; null for the machine's.
+      project: z.string().nullable(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     // A files part that writes targets that run as programs or configure tools, which wait for an approval by name (hub
@@ -237,9 +239,20 @@ export const Finding = z
       part: z.string(),
       title: z.string(),
       project: z.string(),
+      // Where the part's code comes from: the gates' `owner/repo@commit`, a dev container's Template and Features.
+      source: z.string().nullable(),
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    // The Dev Containers CLI did not apply a devcontainer part's Template, which then writes nothing: the part, the
+    // Template and why.
+    finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
+    // A target two parts write, such as the Dependabot file of two gates parts: the later part and the target.
+    finding("profile.target-twice", { part: z.string(), target: z.string() }),
+    // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
+    finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
+    // A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file.
+    finding("profile.skill-plugin", { skill: z.string(), path: z.string() }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
@@ -393,6 +406,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
+  "profile.skill-twice": { severity: "error", effort: "manual" },
+  "profile.template-failed": { severity: "warning", effort: "manual" },
+  "profile.target-twice": { severity: "error", effort: "manual" },
+  "profile.skill-plugin": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

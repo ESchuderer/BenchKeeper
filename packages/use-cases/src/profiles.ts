@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
@@ -18,6 +18,8 @@ import {
   APP_VERSION,
   DEFAULT_PROFILE,
   type Fetched,
+  hasContainer,
+  type Level,
   onDisk,
   planMachine,
   planProject,
@@ -29,6 +31,7 @@ import {
 } from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
 import type { Fetch } from "./extensions.ts";
+import { type ApplyTemplate, devcontainerCli, templatesOf } from "./devcontainer.ts";
 import { fetchSources, readRecord, writeRecord } from "./sources.ts";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
@@ -83,8 +86,7 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
 // The profile this machine's selection names, resolved.
 // A project's probes: whether it has a dev container. No Orca probe runs (see resolveProfile).
 const projectProbe = (project: string) => {
-  // A dev container in a folder or in a file at the root (https://containers.dev/implementors/spec/#devcontainerjson).
-  const container = existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
+  const container = hasContainer(project);
   return (when: Probe): boolean => (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
 };
 
@@ -98,10 +100,11 @@ const selectedProfile = (config: string, project: string | undefined): Result<Re
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
-// Fetches the Git sources the profile needs: its packs and, for the machine, the skills' own sources, then each pack's
-// skill entry's source once that pack's folder is here; then keeps the record of the followed ones. A project's plan
-// fetches no skill, so it keeps their record as it is.
+// Fetches the Git sources the level needs: the profile's packs and the level's skills' own sources, then each pack's
+// skill entry's source once that pack's folder is here; then keeps the record of the followed ones, and of the other
+// level's, so neither level's wait starts over.
 const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project: boolean) => {
+  const level: Level = project ? "project" : "machine";
   const record = readRecord(state);
   if (!record.ok) return record;
   const fetched = new Map<string, Tree>();
@@ -109,37 +112,61 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project
   const findings: Finding[] = [];
   // Two passes reach every source: a pack's skill entry names its own source, never another pack.
   for (let pass = 0; pass < 2; pass += 1) {
-    const missing = sourcesOf(resolved, fetched, !project).filter(({ source }) => !fetched.has(sourceKey(source)));
+    const missing = sourcesOf(resolved, fetched, level).filter(({ source }) => !fetched.has(sourceKey(source)));
     const got = await fetchSources(state, missing, fetch, record.value);
     if (!got.ok) return got;
     for (const [key, tree] of got.value.trees) fetched.set(key, tree);
     Object.assign(entries, got.value.entries);
     findings.push(...got.value.findings);
   }
-  const next = project ? { ...record.value, ...entries } : entries;
+  // A project's skills are kept on or off, as another project's probes may switch them on.
+  const other = [
+    ...sourcesOf(resolved, fetched, "project", true),
+    ...(project ? sourcesOf(resolved, fetched, "machine") : []),
+  ];
+  const keys = new Set(other.map(({ source }) => sourceKey(source)));
+  const next = { ...Object.fromEntries(Object.entries(record.value).filter(([key]) => keys.has(key))), ...entries };
   if (canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);
   return { ok: true as const, value: { fetched, findings } };
 };
 
-/** How a profile plan runs: the parts approved by name, how Git sources are fetched, and the project, if any. */
-export type PlanOptions = { allow?: readonly string[]; fetch?: Fetch | undefined; project?: string | undefined };
+/**
+ * How a profile plan runs: the parts approved by name, how Git sources are fetched, the project, if any, and how a dev
+ * container part's Template is applied.
+ */
+export type PlanOptions = {
+  allow?: readonly string[];
+  fetch?: Fetch | undefined;
+  project?: string | undefined;
+  template?: ApplyTemplate | undefined;
+};
 
+// A project's level, with its dev container parts' Templates applied first.
+const projectLevel = async (state: string, project: string, given: Given, apply: ApplyTemplate) => {
+  const { approved } = given.options;
+  const { templates, findings } = await templatesOf(state, given.resolved, { project, approved, apply });
+  const written = writtenIn(state, project);
+  if (!written.ok) return written;
+  const level = planProject(given.resolved, project, written.value, { ...given.options, templates });
+  return level.ok
+    ? { ok: true as const, value: { ...level.value, findings: [...findings, ...level.value.findings] } }
+    : level;
+};
+
+type Given = {
+  resolved: Resolved;
+  project?: string | undefined;
+  options: { approved: ReadonlySet<string>; fetched: Fetched };
+};
 // The plan of the machine level, or of the project's level when there is one.
-const levelOf = (
+const levelOf = async (
   config: string,
   state: string,
   machine: Machine,
-  given: {
-    resolved: Resolved;
-    project?: string | undefined;
-    options: { approved: ReadonlySet<string>; fetched: Fetched };
-  },
+  given: Given & { apply: ApplyTemplate | undefined },
 ) => {
   const { resolved, project, options } = given;
-  if (project !== undefined) {
-    const written = writtenIn(state, project);
-    return written.ok ? planProject(resolved, project, written.value, options) : written;
-  }
+  if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
 };
@@ -162,7 +189,7 @@ export const planProfile = async (
   config: string,
   state: string,
   machine: Machine,
-  { allow = [], fetch = fetchTree, project }: PlanOptions = {},
+  { allow = [], fetch = fetchTree, project, template }: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
   const where = folderOf(project);
   if (!where.ok) return where;
@@ -175,18 +202,26 @@ export const planProfile = async (
   const sources = await fetchAll(state, resolved.value, fetch, folder !== undefined);
   if (!sources.ok) return sources;
   const options = { approved: new Set(allow), fetched: sources.value.fetched };
-  const level = levelOf(config, state, machine, { resolved: resolved.value, project: folder, options });
+  const level = await levelOf(config, state, machine, {
+    resolved: resolved.value,
+    project: folder,
+    options,
+    apply: template,
+  });
   if (!level.ok) return level;
   const { operations, findings } = level.value;
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };
   return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings] } };
 };
 
-/** One change of the selection: a part on, off or back to its default (null), or this machine's hub repository. */
-export type Choice = { readonly part: string; readonly on: boolean | null } | { readonly hub: string };
+/** One change of the selection: a part on, off or back to its default (null), or one of this machine's bindings. */
+export type Choice =
+  | { readonly part: string; readonly on: boolean | null }
+  | { readonly hub: string }
+  | { readonly gates: string };
 
 const chosen = (current: ProfileSelection, choice: Choice): unknown => {
-  if ("hub" in choice) return { ...current, bindings: { ...current.bindings, hub: choice.hub } };
+  if (!("part" in choice)) return { ...current, bindings: { ...current.bindings, ...choice } };
   const select = Object.entries(current.select).filter(([part]) => part !== choice.part);
   return {
     ...current,

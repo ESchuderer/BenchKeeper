@@ -73,6 +73,11 @@
           "description": "The hub repository, `{{hub}}` in the profile's texts",
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}$"
+        },
+        "gates": {
+          "description": "Where a gates part's callers find the reusable workflows: `owner/repo@<commit>`",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}@[0-9a-f]{40}$"
         }
       },
       "additionalProperties": false

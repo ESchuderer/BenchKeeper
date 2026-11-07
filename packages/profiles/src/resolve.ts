@@ -108,6 +108,14 @@ export const readEntry = (ref: Ref, kind: EntryKind, folder?: Folder): Result<st
   return { ok: true, value: bytes.value.toString("utf8") };
 };
 
+/** The paths of a pack's skill entries; none for a pack without a manifest here. */
+export const skillEntries = (pack: string, folder: Folder | undefined): Result<string[]> => {
+  const manifest = manifestOf(pack, folder);
+  if (!manifest.ok) return manifest;
+  const entries = Object.entries(manifest.value?.entries ?? {});
+  return { ok: true, value: entries.filter(([, entry]) => entry.kind === "skill").map(([path]) => path) };
+};
+
 /** The files under a fetched pack's folder entry, paths relative to it. */
 export const entryFiles = (ref: Ref, folder: Folder): Folder["files"] => {
   const prefix = `${ref.path}/`;
@@ -140,10 +148,14 @@ const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; b
   return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 
-/** A composed profile with the parts switched on (`level.id`), this machine's hub, and what keeps it from applying. */
+/**
+ * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, and what
+ * keeps it from applying.
+ */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
   readonly hub: string | undefined;
+  readonly gates: string | undefined;
   readonly problems: Finding[];
 }
 
@@ -208,6 +220,6 @@ export const resolveProfile = (
   if (!composed.ok) return composed;
   const parts = new Map(partsOf(composed.value.profile));
   const on = switchedOn(parts, selection?.select ?? {}, probe);
-  const hub = selection?.bindings?.hub;
-  return { ok: true, value: { ...composed.value, on, hub, problems: problemsOf(parts, on, selection) } };
+  const { hub, gates } = selection?.bindings ?? {};
+  return { ok: true, value: { ...composed.value, on, hub, gates, problems: problemsOf(parts, on, selection) } };
 };

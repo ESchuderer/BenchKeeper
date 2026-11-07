@@ -1,22 +1,34 @@
 import { inspect } from "node:util";
-import { Refusal, RunsEvent } from "@cedarloom/contracts";
+import { Refusal, type Result, RunsEvent } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { summaryOf } from "./routes.ts";
 
 type Options = { state: string; every: number; log: (text: string) => void };
 type Message = { event: string; data: unknown };
 
+// The apply runs and the graph runs, from one read of each.
+const readRuns = (state: string): Result<RunsEvent> => {
+  const runs = useCases.listRuns(state);
+  if (!runs.ok) return runs;
+  const graphRuns = useCases.listGraphRuns(state);
+  return graphRuns.ok
+    ? { ok: true, value: { runs: runs.value, graphRuns: graphRuns.value.map(summaryOf) } }
+    : graphRuns;
+};
+
 /**
  * A reader of the run store that returns the event to send when the runs, or the findings that say why they cannot be
  * read, differ from what it returned last time; otherwise nothing.
- * shortcut: every change sends the whole run list (527 KB at 2,000 runs); page it or send only the changed runs when
- * stores grow that large.
+ * shortcut: every change sends the whole run list (527 KB at 2,000 runs), and every tick reads each graph run in full
+ * for its summary (about 11 ms per tick per tab at 200 graph runs, 115 ms at 2,000); page it, or read and send only the
+ * changed runs, when stores grow that large.
  */
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";
   return () => {
-    const runs = useCases.listRuns(state);
-    const [event, data] = runs.ok ? ["runs", { runs: runs.value }] : ["refusal", { findings: [runs.finding] }];
+    const runs = readRuns(state);
+    const [event, data] = runs.ok ? ["runs", runs.value] : ["refusal", { findings: [runs.finding] }];
     const text = JSON.stringify(data);
     if (text === last) return undefined;
     last = text;
@@ -36,7 +48,10 @@ export const eventRoutes: FastifyPluginAsyncZod<Options> = async (app, { state, 
       sse: { kind: "only" },
       // A HEAD would open a stream that never ends.
       exposeHeadRoute: false,
-      schema: { description: "text/event-stream: `runs` events with RunsEvent, `refusal` events with Refusal" },
+      schema: {
+        description:
+          "text/event-stream: `runs` events with RunsEvent (apply and graph runs), `refusal` events with Refusal",
+      },
     },
     async (_req, reply) => {
       const next = changes(state);

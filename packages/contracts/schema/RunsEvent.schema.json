@@ -8,10 +8,17 @@
       "items": {
         "$ref": "Run.schema.json"
       }
+    },
+    "graphRuns": {
+      "type": "array",
+      "items": {
+        "$ref": "GraphRunSummary.schema.json"
+      }
     }
   },
   "required": [
-    "runs"
+    "runs",
+    "graphRuns"
   ],
   "additionalProperties": false
 }

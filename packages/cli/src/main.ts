@@ -322,11 +322,13 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     );
   profiles
     .command("bind")
-    .description("name this machine's hub repository; with --yes, save it as one run")
-    .addArgument(new Argument("<binding>").choices(["hub"] as const))
-    .argument("<repository>", "the repository as owner/repo")
+    .description("name this machine's hub repository or gate workflow source; with --yes, save it as one run")
+    .addArgument(new Argument("<binding>").choices(["hub", "gates"] as const))
+    .argument("<repository>", "the hub as owner/repo; the gates' reusable workflows as owner/repo@<commit>")
     .option("--yes", "save the binding as computed now")
-    .action((_binding, repository, options) => done(profilesChoose(ctx(), { hub: repository }, options)));
+    .action((binding, repository, options) =>
+      done(profilesChoose(ctx(), binding === "hub" ? { hub: repository } : { gates: repository }, options)),
+    );
 };
 
 const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {

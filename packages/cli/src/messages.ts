@@ -250,7 +250,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.part-requires": (p) =>
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
-    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
+    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {
@@ -259,7 +259,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
         ? "a marketplace Claude Code already knows"
         : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
     const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
-    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+    const where = p.project === null ? "" : ` --project ${folderArgument(p.project)}`;
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply${where} --allow ${p.part}`;
   },
   "profile.options-guarded": (p) =>
     `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
@@ -276,10 +277,19 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
       ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
     ];
-    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
+    const from = p.source === null ? "" : `, from ${p.source}`;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}${from}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.template-failed": (p) =>
+    `${p.part} could not apply the Dev Container Template ${p.template}, so it writes nothing: ${shown(p.error, 300)}${/ENOENT/.test(p.error) ? ". Install the Dev Containers CLI: npm install -g @devcontainers/cli" : ""}`,
+  "profile.target-twice": (p) =>
+    `${p.part} writes ${p.target}, which another part of the profile writes too; switch one of them off.`,
+  "profile.skill-plugin": (p) =>
+    `The skill ${p.skill} holds ${p.path}, so Claude Code would load it as a plugin with its hooks and servers. Add it as a plugin part instead, which waits for your approval by name.`,
+  "profile.skill-twice": (p) =>
+    `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>

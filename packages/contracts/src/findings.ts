@@ -186,6 +186,11 @@ export const Finding = z
     // Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown.
     finding("profile.secret-like", { path: z.string() }),
     finding("profile.forbidden-setting", { path: z.string() }),
+    finding("profile.parent-unknown", { pack: z.string(), path: z.string() }),
+    finding("profile.parent-cycle", { chain: z.array(z.string()) }),
+    finding("profile.parent-limit", { chain: z.array(z.string()), limit: z.int() }),
+    // One pack id with two sources in one composition: the files that name each.
+    finding("profile.pack-sources", { pack: z.string(), files: z.array(z.string()) }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -308,4 +313,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.foreign-kind": { severity: "error", effort: "manual" },
   "profile.secret-like": { severity: "error", effort: "manual" },
   "profile.forbidden-setting": { severity: "error", effort: "manual" },
+  "profile.parent-unknown": { severity: "error", effort: "manual" },
+  "profile.parent-cycle": { severity: "error", effort: "manual" },
+  "profile.parent-limit": { severity: "error", effort: "manual" },
+  "profile.pack-sources": { severity: "error", effort: "manual" },
 };

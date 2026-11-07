@@ -470,6 +470,9 @@ const SAMPLE_PARAMS: Record<string, Record<string, unknown>> = {
   "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
   "store.version-not-higher": { id: "w", stored: "1.9.0", found: "1.9.0" },
   "store.identity-missing": { key: "user.email" },
+  "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
+  "profile.parent-limit": { chain: ["acme.x/a.json", "acme.x/b.json"], limit: 50 },
+  "profile.pack-sources": { pack: "acme.x", files: ["acme.a", "acme.b"] },
 };
 
 test("every finding code has an English sentence", () => {

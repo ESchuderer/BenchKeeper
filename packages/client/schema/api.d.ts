@@ -1357,6 +1357,33 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2222,6 +2249,33 @@ export interface components {
             code: "profile.forbidden-setting";
             params: {
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
             };
         } | {
             /** @constant */

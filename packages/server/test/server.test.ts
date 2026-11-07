@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
 import { connect } from "node:net";
@@ -606,6 +606,7 @@ const exportFolder = async (): Promise<string> => {
   // Store commits carry the user's Git identity: a home folder of the test's own gives one.
   writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
   vi.stubEnv("HOME", root);
+  vi.stubEnv("USERPROFILE", root);
   vi.stubEnv("XDG_CONFIG_HOME", root);
   const from = join(root, "state");
   const minimal: unknown = JSON.parse(await readFile(join(corpus, "valid-minimal.json"), "utf8"));
@@ -616,7 +617,7 @@ const exportFolder = async (): Promise<string> => {
   return join(root, "shared");
 };
 
-test("an import is reviewed with its plan under an id, which applies only with the hash of its preview, once", async () => {
+test("an import is reviewed with its plan under an id, which applies only with the hash of its preview, once; the API reads folders in home only", async () => {
   const client = await ready();
   const folder = await exportFolder();
   const reviewed = await client.api({ method: "POST", path: "/api/imports", body: { folder } });
@@ -629,8 +630,13 @@ test("an import is reviewed with its plan under an id, which applies only with t
     (await apply(sha256("another plan"))).status,
     (await apply(planHash)).status,
     (await apply(planHash)).status,
-    (await client.api({ method: "POST", path: "/api/imports", body: { folder: join(folder, "none") } })).status,
   ];
+  // Outside home, through a link in home that leads out, or nowhere: refused before anything is read.
+  const out = join(folder, "..", "out");
+  symlinkSync(tmpdir(), out, "junction");
+  for (const elsewhere of [tmpdir(), out, join(folder, "none")]) {
+    answers.push((await client.api({ method: "POST", path: "/api/imports", body: { folder: elsewhere } })).status);
+  }
   vi.unstubAllEnvs();
-  expect(answers).toEqual([200, ["new"], 409, 200, 404, 409]);
+  expect(answers).toEqual([200, ["new"], 409, 200, 404, 403, 403, 403]);
 }, 30_000);

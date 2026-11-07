@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { type Started, startServer } from "@cedarloom/server";
-import { applyPlan } from "@cedarloom/use-cases";
+import { applyPlan, runWorkflow } from "@cedarloom/use-cases";
 import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
 import { accessible as check, openPage } from "./browser.ts";
 
@@ -46,11 +46,11 @@ test("the printed link opens the shell, leaves the address bar without its token
   await page.goto(server.url);
   await expect(page.getByRole("heading", { level: 1, name: "CedarLoom" })).toBeVisible();
   expect(page.url()).toBe(`${new URL(server.url).origin}/`);
-  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
   // Kind and status come from the catalog, not as the API's raw values.
   await expect(page.getByRole("cell", { name: "Applied", exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -144,13 +144,13 @@ test("a narrow window keeps the views behind a menu button, out of the keyboard'
   expect(await inNav()).toBe(true);
   // At 320 px the runs table scrolls inside its container, never the page.
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 test("a run's undo is reached by keyboard, applies only the previewed plan, and announces its result", async () => {
-  await page.getByRole("table", { name: "Runs, newest first" }).getByRole("button").first().click();
+  await page.getByRole("table", { name: "Runs, newest first", exact: true }).getByRole("button").first().click();
   await expect(page.getByRole("heading", { level: 3, name: /^Run [0-9a-f-]{36}$/ })).toBeFocused();
   await expect(page.getByText("Undoing it changes 1 file.")).toBeVisible();
   await accessible();
@@ -161,7 +161,7 @@ test("a run's undo is reached by keyboard, applies only the previewed plan, and 
   await expect(page.getByRole("status")).toBeFocused();
   await expect(page.getByText("Nothing to undo.")).toBeVisible();
   // The undo run arrives through the event stream.
-  const table = page.getByRole("table", { name: "Runs, newest first" });
+  const table = page.getByRole("table", { name: "Runs, newest first", exact: true });
   await expect(table.getByRole("cell", { name: "Undo", exact: true })).toBeVisible();
   expect([existsSync(file), errors]).toEqual([false, []]);
 });
@@ -170,7 +170,7 @@ const failed = (route: Route): Promise<void> => route.fulfill({ status: 500, jso
 
 /** Applies a run from outside the page, as the CLI does, and waits for its row to appear without a reload. */
 const appliedElsewhere = async (name: string): Promise<void> => {
-  const table = page.getByRole("table", { name: "Runs, newest first" });
+  const table = page.getByRole("table", { name: "Runs, newest first", exact: true });
   await expect(table).toBeVisible();
   const rows = await table.getByRole("row").count();
   const path = join(stateDir, "..", name);
@@ -184,6 +184,25 @@ const appliedElsewhere = async (name: string): Promise<void> => {
 
 test("a run another process applies appears without a reload", async () => {
   await appliedElsewhere("other.md");
+  expect(errors).toEqual([]);
+});
+
+test("a workflow run another process makes appears in its own table with its status, without a reload", async () => {
+  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
+  const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+  // Its trigger only: no shell needed.
+  const ran = await runWorkflow(
+    stateDir,
+    join(corpus, "valid-minimal.json"),
+    {},
+    { project: join(stateDir, ".."), shell: null },
+  );
+  expect(ran.ok).toBe(true);
+  const table = page.getByRole("table", { name: "Workflow runs, newest first" });
+  await expect(table.getByRole("cell", { name: "minimal", exact: true })).toBeVisible();
+  // The status comes from the catalog, not as the API's raw value.
+  await expect(table.getByRole("cell", { name: "Succeeded", exact: true })).toBeVisible();
+  await accessible();
   expect(errors).toEqual([]);
 });
 
@@ -221,7 +240,7 @@ test("while the API keeps failing, each check waits twice as long as the one bef
   await expect.poll(doubling, { timeout: 10_000 }).toBe(true);
   await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.reload();
-  await expect(page.getByRole("table", { name: "Runs, newest first" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
   expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
   errors.length = 0;
 });

@@ -60,6 +60,9 @@ export interface MessageValues {
   "error.failed": { status: string | number; error: string | number };
   "error.unreachable": Record<never, never>;
   "error.unreadable": { codes: string | number };
+  "graphRun.status": { status: string };
+  "graphRuns.caption": Record<never, never>;
+  "graphRuns.workflow": Record<never, never>;
   "nav.accounts": Record<never, never>;
   "nav.label": Record<never, never>;
   "nav.memory": Record<never, never>;

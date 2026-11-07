@@ -830,10 +830,11 @@ test("a worker runner starts, shows and releases a worker within its contract; n
   ]);
 });
 
-// The fixture as a session provider whose program is `node`, which the host finds on PATH.
+// The fixture as a session provider whose program `runtime` the host finds as `node` on PATH, so the line's first word
+// is the host's lookup, never the extension's own.
 const providing = (): ExtensionManifest => {
-  const plain = withPrograms({ node: ["node"] });
-  const sessionProviders = { claude: { agent: "claude", program: "node" } };
+  const plain = withPrograms({ runtime: ["node"] });
+  const sessionProviders = { claude: { agent: "claude", program: "runtime" } };
   return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, sessionProviders } });
 };
 

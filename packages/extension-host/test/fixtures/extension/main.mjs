@@ -225,10 +225,10 @@ Object.assign(requests, {
       : { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
   "worker/show": () => ({ state: "succeeded", settled: true }),
   "worker/release": ({ handles }) => ({ released: handles.length === 2 }),
-  // Its session provider, on the program `node`: x-bad-session adds a flag the host refuses.
+  // Its session provider, on the program `runtime`: x-bad-session adds a flag the host refuses.
   "session/line": ({ number }) => ({
     argv: [
-      "node",
+      "runtime",
       "run",
       String(number),
       "--require-session",

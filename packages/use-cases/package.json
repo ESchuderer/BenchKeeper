@@ -35,10 +35,10 @@
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/orchestration": "workspace:*",
-    "@cedarloom/profiles": "workspace:*",
-    "zod": "catalog:"
+    "@cedarloom/profiles": "workspace:*"
   },
   "devDependencies": {
-    "@cedarloom/adapter-claude": "workspace:*"
+    "@cedarloom/adapter-claude": "workspace:*",
+    "zod": "catalog:"
   }
 }

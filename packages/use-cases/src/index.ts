@@ -71,10 +71,4 @@ export {
   showGraphRun,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export {
-  startTelemetry,
-  type TelemetryReceiver,
-  type TelemetryRun,
-  tokenRowsOf,
-} from "./telemetry.ts";
 export { type Choice, claudeHome, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";

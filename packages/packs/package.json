@@ -2,7 +2,7 @@
   "name": "@cedarloom/packs",
   "version": "0.0.0",
   "private": true,
-  "description": "CedarLoom's packs: the bundled cedarloom.core pack with its rules, templates and the default profile.",
+  "description": "CedarLoom's packs: the bundled cedarloom.core pack with its rules, templates and the default profile, and cedarloom.orca with Orca's worktree files.",
   "license": "MIT",
   "type": "module",
   "exports": {

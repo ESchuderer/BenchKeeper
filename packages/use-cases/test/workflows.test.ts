@@ -487,27 +487,43 @@ const passesOf = (state: string) => {
   return rows.map((row) => Object.values(row));
 };
 
-test("each level waits where Q10 has it: Supervised before a command and a plan, Checkpoint before a plan, Auto at neither, and Auto records its passes", async () => {
+test("a first run waits before its command at every level; then each level waits where Q10 has it: Supervised before a node and a plan, Checkpoint before a plan, Auto at neither, and Auto records its passes", async () => {
   const waited = await Promise.all(
     ["supervised", "checkpoint", "auto"].map(async (level) => {
       const at = writing();
-      const ran = await runWorkflow(at.state, at.file, {}, { ...at.options, config: configAt(at.root, level) });
-      return [level, idOf(ran) === "" ? ran : pointsOf(at.state, idOf(ran)), at.text(), passesOf(at.state)];
+      const options = { ...at.options, config: configAt(at.root, level) };
+      const runId = idOf(await runWorkflow(at.state, at.file, {}, options));
+      const first = pointsOf(at.state, runId);
+      await decideRun(at.state, runId, { node: "say", approved: true }, options);
+      return [level, first, pointsOf(at.state, runId), at.text(), passesOf(at.state)];
     }),
   );
+  const atAuto = [
+    ["out", "before-node", "auto", "approved", "level"],
+    ["out", "before-apply", "auto", "approved", "level"],
+  ];
   expect(waited).toEqual([
-    ["supervised", [["say", "before-node"]], "old", []],
-    ["checkpoint", [["out", "before-apply"]], "old", []],
-    [
-      "auto",
-      [],
-      "new",
-      [
-        ["say", "before-node", "auto", "approved", "level"],
-        ["out", "before-node", "auto", "approved", "level"],
-        ["out", "before-apply", "auto", "approved", "level"],
-      ],
-    ],
+    ["supervised", [["say", "before-node"]], [["out", "before-node"]], "old", []],
+    ["checkpoint", [["say", "before-node"]], [["out", "before-apply"]], "old", []],
+    ["auto", [["say", "before-node"]], [], "new", atAuto],
+  ]);
+});
+
+test("a command waits at Auto until the owner approved it once in this workflow version and project; a changed definition asks again", async () => {
+  const at = writing();
+  const options = { ...at.options, config: configAt(at.root, "auto") };
+  const first = idOf(await runWorkflow(at.state, at.file, {}, options));
+  const asked = waitsOf(at.state, first);
+  await decideRun(at.state, first, { node: "say", approved: true }, options);
+  const again = await runWorkflow(at.state, at.file, {}, options);
+  const changed = JSON.parse(readFileSync(at.file, "utf8"));
+  changed.nodes[1].with.command = "printf newer";
+  writeFileSync(at.file, JSON.stringify(changed));
+  const third = idOf(await runWorkflow(at.state, at.file, {}, options));
+  expect([asked, again, pointsOf(at.state, third)]).toMatchObject([
+    { value: { waits: [{ node: "say", point: "before-node", firstRun: true }] } },
+    { value: { status: "succeeded" } },
+    [["say", "before-node"]],
   ]);
 });
 
@@ -520,6 +536,8 @@ test("a level switched while a node runs takes effect at the next gate, not in t
   };
   const options = { ...at.options, config: configAt(at.root, "auto"), onEvent };
   const runId = idOf(await runWorkflow(at.state, at.file, {}, options));
+  // The first run's command waits for the owner at Auto too.
+  await decideRun(at.state, runId, { node: "say", approved: true }, options);
   expect([eventsOf(at.state, runId).find((event) => event.type === "ended"), pointsOf(at.state, runId)]).toMatchObject([
     { node: "say", outcome: "done" },
     [["out", "before-node"]],
@@ -557,7 +575,7 @@ test("an approval's answer picks its branch; a cancel ends a waiting write; a no
   const asked = idOf(await runWorkflow(asking.state, asking.file, {}, asking.options));
   const waits = waitsOf(asking.state, asked);
   expect(waits.ok && waits.value.waits).toEqual([
-    { node: "ask", point: "human.approval", planHash: null, content: null },
+    { node: "ask", point: "human.approval", planHash: null, content: null, firstRun: false },
   ]);
   expect(await decideRun(asking.state, asked, { node: "ask", approved: false }, asking.options)).toMatchObject({
     value: { status: "succeeded" },

@@ -3990,6 +3990,39 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.when-unmet"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "when": {
+              "type": "string",
+              "enum": [
+                "orca"
+              ]
+            }
+          },
+          "required": [
+            "part",
+            "when"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.approval-needed"
         },
         "params": {

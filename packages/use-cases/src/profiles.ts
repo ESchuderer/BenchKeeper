@@ -181,8 +181,10 @@ const levelOf = async (
   const { resolved, project, options } = given;
   // A project's level offers no removal.
   const [stray] = project === undefined ? [] : options.remove;
-  const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray ?? "" } };
-  if (stray !== undefined) return { ok: false as const, finding: unknown };
+  if (stray !== undefined) {
+    const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray } };
+    return { ok: false as const, finding: unknown };
+  }
   if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
@@ -266,12 +268,13 @@ export const checkProfile = async (
   { fetch, project }: Pick<PlanOptions, "fetch" | "project"> = {},
 ): Promise<Result<Finding[]>> => {
   const planned = await planProfile(config, state, machine, { fetch, project, readOnly: true });
+  const level = project === undefined ? machine.home : onDisk(resolve(project));
   if (!planned.ok && planned.finding.code.startsWith("git.")) {
-    const params = { status: "not-run" as const, subject: "the profile's Git sources", remove: null };
+    const params = { status: "not-run" as const, subject: level, remove: null };
     return { ok: true, value: [{ code: "profile.drift", params }, planned.finding] };
   }
   if (!planned.ok) return planned;
-  const written = writtenIn(state, project === undefined ? machine.home : onDisk(resolve(project)));
+  const written = writtenIn(state, level);
   if (!written.ok) return written;
   const lines = (planned.value.plan?.operations ?? []).flatMap((operation) => driftOf(operation, written.value));
   return { ok: true, value: [...lines, ...planned.value.findings] };

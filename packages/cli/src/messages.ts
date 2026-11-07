@@ -256,7 +256,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       missing: "lacks what the profile writes there; an apply writes it",
       outdated: "holds an older version of what the profile writes there; an apply updates it",
       "deselected-present": "is no longer part of the profile",
-      "not-run": "could not be read, so the check did not run",
+      "not-run": "was not checked, as a Git source of the profile could not be fetched",
     }[p.status];
     const removal = p.remove === null ? "" : `. Remove it: cedarloom profiles apply --remove ${p.remove}`;
     const next = p.remove === null && p.status === "deselected-present" ? "; an apply removes it" : "";

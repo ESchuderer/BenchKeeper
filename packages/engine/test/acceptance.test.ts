@@ -71,6 +71,22 @@ test("every change is backed up and hash-verified before it is written; undo res
   expect([read(kept), existsSync(made), read(gone)]).toEqual(['{ "a": 1 }\n', false, "old\n"]);
 });
 
+test("a finished run keeps no file content in its stored plan, and undo still restores from its backups", () => {
+  const { store, file } = fresh();
+  const path = file("token.env", "TOKEN=1\n");
+  const applied = run(store, plan({ kind: "write", path, before: hash("TOKEN=1\n"), content: "TOKEN=2\n" }));
+  expect(store.run(applied.runId ?? "")?.plan.operations).toEqual([
+    { kind: "write", path, before: hash("TOKEN=1\n"), content: "" },
+  ]);
+  // The undo run's own plan held the backup's content until it finished.
+  const undone = undo(store, applied.runId);
+  expect([undone.status, read(path), store.run(undone.runId ?? "")?.plan.operations]).toMatchObject([
+    "applied",
+    "TOKEN=1\n",
+    [{ kind: "write", path, before: hash("TOKEN=2\n"), content: "" }],
+  ]);
+});
+
 test.skipIf(!posix)("a failed backup stops the step before any write", () => {
   const { store, file } = fresh();
   const path = file("a.md", "mine\n");

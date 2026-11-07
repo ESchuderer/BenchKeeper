@@ -1,4 +1,4 @@
-// The smallest extension with a doctor check, speaking the protocol itself (Content-Length frames over stdio), since
+// The smallest extension with a doctor check and an action, speaking the protocol itself (Content-Length frames over stdio), since
 // its folder holds nothing to import.
 let input = Buffer.alloc(0);
 const send = (message) => {
@@ -11,6 +11,7 @@ const answers = {
   "doctor/run": () => ({
     findings: [{ check: "setup", severity: "info", code: "example.ready", message: `ready ${process.pid}` }],
   }),
+  "action/run": () => ({ outputs: { ready: true } }),
   shutdown: () => null,
 };
 process.stdin.on("data", (chunk) => {

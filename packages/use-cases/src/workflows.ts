@@ -77,7 +77,7 @@ export interface RunOptions {
   readonly report?: boolean | undefined;
 }
 
-// Stored outputs are blanked after the same 90 days as plan contents, since a command's output can hold a secret.
+// Stored outputs are blanked after 90 days, since a command's output can hold a secret.
 const OUTPUT_DAYS = 90;
 
 // The node types that run in this version, `agent.run` where agents are set up.

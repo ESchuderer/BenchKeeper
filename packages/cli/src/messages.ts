@@ -202,6 +202,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
   "extension.finding": (p) => `${p.extension}: ${p.message}`,
   "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
+  "extension.digest-mismatch": (p) =>
+    `The lock pins ${p.extension} at a commit whose files are not the ones it names; nothing is imported.`,
   "extension.consent-needed": (p) =>
     `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,
   "extension.install-refused": (p) =>

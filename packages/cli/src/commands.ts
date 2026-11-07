@@ -168,7 +168,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (
+export const refused = (
   ctx: Context,
   format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
   finding: Finding,
@@ -181,7 +181,7 @@ const refused = (
  * Shows a planned change with `note` below it and its findings, or with --yes applies it as one run; `data` joins the
  * plan's JSON, and the findings join the plan's and the run's, so every output form carries them.
  */
-const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
+export const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
   if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
   const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;
@@ -267,7 +267,7 @@ export const accountsLogin = (ctx: Context, name: string): number => {
 type Pin = useCases.InstallPlan["pin"];
 
 // What the extension may do, in plain words.
-const mayDo = (capabilities: useCases.Capabilities): string[] => [
+export const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
   ...Object.entries(capabilities.credentials ?? {}).map(
     ([id, { hosts }]) =>
@@ -275,6 +275,7 @@ const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ),
   ...(capabilities.projectRead === true ? ["reads files of your projects"] : []),
   ...(capabilities.planWrite === true ? ["proposes file changes, applied only through a plan you approve"] : []),
+  ...Object.keys(capabilities.programs ?? {}).map((id) => `runs the program ${id} on this machine`),
 ];
 
 // What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what

@@ -34,6 +34,8 @@ export interface AgentOptions<L extends Launch = Launch> {
    * `readOnly`, `cwd` and those folders are closed to its writes.
    */
   readonly launch: (decided: Decided, phase: Phase, cwd: string, readOnly?: readonly string[]) => L;
+  /** The model a worker of the phase runs, whose own weekly window counts in its account's choice. */
+  readonly model?: (phase: Phase) => string;
   /** How long an agent may send nothing before it counts as stalled: 15 minutes when unset. */
   readonly stallMs?: number;
   /** How long a wait for a free account lease waits before it asks again: 5 seconds when unset. */
@@ -108,6 +110,7 @@ const requestOf = (
     agent: "claude",
     pool,
     previous: null,
+    model: options.model?.(phase),
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
     runtime: options.runtime,

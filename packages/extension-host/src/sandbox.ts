@@ -68,7 +68,9 @@ const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> 
   const filesystem = { denyRead: ["/"], allowRead, allowWrite: policy.write, denyWrite };
   const environment = Object.entries(launch.env).filter(([, value]) => value !== undefined);
   const assignments = environment.map(([name, value]) => `${name}=${String(value)}`);
-  const command = ["/usr/bin/env", "-i", ...assignments, launch.command, ...launch.args].map(shellWord).join(" ");
+  const command = ["/usr/bin/env", "-i", ...assignments, launch.command, ...launch.args]
+    .map((word) => shellWord(word))
+    .join(" ");
   const { argv } = await SandboxManager.wrapWithSandboxArgv(command, undefined, { filesystem }, undefined, launch.cwd);
   const [wrapper = "", ...args] = argv;
   return { ...launch, command: wrapper, args };

@@ -194,7 +194,7 @@ export const startWorker = async (
   const sender = await terminalOf(context, worktree, `${title} (CedarLoom)`);
   const handles = [sender];
   try {
-    const agent = await terminalOf(context, worktree, title, line.map(shellWord).join(" "));
+    const agent = await terminalOf(context, worktree, title, line.map((word) => shellWord(word)).join(" "));
     handles.unshift(agent);
     await settled(context, agent, trusted);
     const start = ["orchestration", "worker-start", "--from", sender, "--terminal", agent, "--worktree", worktree];

@@ -2057,12 +2057,20 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */
             code: "tracker.refused";
             params: {
                 status: number;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
                 error: string;
             };
         };
@@ -3368,12 +3376,20 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */
             code: "tracker.refused";
             params: {
                 status: number;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
                 error: string;
             };
         };

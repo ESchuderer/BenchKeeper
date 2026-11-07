@@ -21,6 +21,21 @@ export interface LevelPlan {
 
 /** The hub's question rule, a file of the rules folder while a hub part is on. */
 export const HUB_RULES = "cedarloom-hub.md";
+/**
+ * A path as the disk names it: through links and in the case the disk stores, from its nearest existing folder when
+ * it is not made yet, so CedarLoom's records of a file always match it.
+ */
+export const onDisk = (path: string): string => {
+  if (existsSync(path)) {
+    try {
+      return realpathSync.native(path);
+    } catch {
+      return path;
+    }
+  }
+  return dirname(path) === path ? path : join(onDisk(dirname(path)), basename(path));
+};
+
 /** The rules folder of a Claude Code home, as the run store's `written` takes it. */
 export const rulesFolder = (home: string): string => join(home, "rules") + sep;
 
@@ -160,19 +175,8 @@ export interface Target {
   readonly guarded: readonly string[];
 }
 
-// The path as the file system resolves it: its deepest existing folder through links, the rest as written.
-const real = (path: string): string => {
-  const rest: string[] = [];
-  let at = path;
-  for (; !existsSync(at) && dirname(at) !== at; at = dirname(at)) rest.unshift(basename(at));
-  try {
-    return join(realpathSync.native(at), ...rest);
-  } catch {
-    return path;
-  }
-};
 const within = (path: string, root: string): boolean => {
-  const way = relative(real(root), real(path));
+  const way = relative(onDisk(root), onDisk(path));
   return way === "" || !(way === ".." || way.startsWith(`..${sep}`) || isAbsolute(way));
 };
 

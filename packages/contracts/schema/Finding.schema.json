@@ -3017,7 +3017,8 @@
                 "protocol",
                 "actions",
                 "folder",
-                "runtime"
+                "runtime",
+                "off"
               ]
             }
           },
@@ -3057,7 +3058,8 @@
                 "entry",
                 "protocol",
                 "installed",
-                "id"
+                "id",
+                "reserved"
               ]
             }
           },

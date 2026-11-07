@@ -366,16 +366,38 @@ export const extensionsRemove = (ctx: Context, id: string, { yes }: { yes?: true
   return change(ctx, planned.value, { note, data: { extension: id }, findings: [] }, yes);
 };
 
+// The app's own extensions with their switch, then the installed ones with their source.
+const extensionLines = (own: { id: string; version: string; state: string }[], installed: useCases.Installed[]) => [
+  ...own.map(({ id, version, state }) => `${id}  ${version}  bundled  ${state}`),
+  ...installed.map(({ id, version, trust, source }) => {
+    const folder = source.path === undefined ? "" : ` (${source.path})`;
+    return `${id}  ${version}  ${trust}  ${source.git}${folder}  ${source.commit.slice(0, 12)}`;
+  }),
+];
+
 export const extensionsList = (ctx: Context): number => {
   const listed = useCases.installedExtensions(ctx.state);
   if (!listed.ok) return refused(ctx, "extensions", listed.finding);
-  const lines = listed.value.map(({ id, version, trust, source }) => {
-    const folder = source.path === undefined ? "" : ` (${source.path})`;
-    return `${id}  ${version}  ${trust}  ${source.git}${folder}  ${source.commit.slice(0, 12)}`;
-  });
+  const bundled = useCases.bundledExtensions(ctx.app, ctx.config);
+  if (!bundled.ok) return refused(ctx, "extensions", bundled.finding);
+  const own = bundled.value.map(({ id, manifest, state }) => ({
+    id,
+    version: manifest.version,
+    trust: "bundled",
+    state,
+  }));
+  const lines = extensionLines(own, listed.value);
   const none = "No extensions installed. Add one with: cedarloom extensions add <Git URL>";
-  emit(ctx, "extensions", { extensions: listed.value }, lines.length > 0 ? lines.join("\n") : none);
+  emit(ctx, "extensions", { extensions: [...own, ...listed.value] }, lines.length > 0 ? lines.join("\n") : none);
   return EXIT.ok;
+};
+
+/** Shows switching a bundled extension auto or off, or with --yes switches it as one run; runs undo takes it back. */
+export const componentsSwitch = (ctx: Context, id: string, state: "auto" | "off", { yes }: { yes?: true }): number => {
+  const planned = useCases.planSwitch(ctx.app, ctx.config, id, state);
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const note = `\n  ${id} becomes ${state === "off" ? "off: it no longer starts" : "auto: it starts when it can run"}.`;
+  return change(ctx, planned.value, { note, data: { component: id, state }, findings: [] }, yes);
 };
 
 // What the latest switch of running work does, by the settings' modeScope (running when unset; owner decision,

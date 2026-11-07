@@ -1,19 +1,11 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Plan, Result } from "@cedarloom/contracts";
-import { applyPlan, planChoice, planProfile } from "@cedarloom/use-cases";
-import { afterAll, expect, test } from "vitest";
+import type { Plan } from "@cedarloom/contracts";
+import { applyPlan, claudeHome, planChoice, planProfile } from "@cedarloom/use-cases";
+import { expect, test } from "vitest";
+import { ok, testRoot } from "./harness.ts";
 
-const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-profiles-"));
-afterAll(() => {
-  rmSync(root, { recursive: true, force: true });
-});
-
-const ok = <T>(result: Result<T>): T => {
-  if (!result.ok) throw new Error(`refused: ${result.finding.code}`);
-  return result.value;
-};
+const root = testRoot("profiles");
 const applied = (state: string, plan: Plan | null): void => {
   if (plan === null) throw new Error("no plan");
   expect(ok(applyPlan(state, plan, { yes: true })).status).toBe("applied");
@@ -97,4 +89,12 @@ test("the selection names only the profile's parts, and a part goes back to its 
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },
     },
   ]);
+});
+
+test("a Claude Code home not made yet is named as the disk will name it, through a linked folder", () => {
+  const folder = mkdtempSync(join(root, "real-"));
+  const link = join(root, `link-${folder.slice(-6)}`);
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(folder, link, "junction");
+  expect(claudeHome({ CLAUDE_CONFIG_DIR: join(link, "home") })).toBe(join(realpathSync.native(folder), "home"));
 });

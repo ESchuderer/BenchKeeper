@@ -1,4 +1,3 @@
-import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -11,7 +10,7 @@ import {
   SELECTION_SCHEMA_VERSION,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
-import { DEFAULT_PROFILE, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
+import { DEFAULT_PROFILE, onDisk, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
@@ -20,11 +19,8 @@ import { readOptionalJson, withView } from "./use-cases.ts";
  * (https://code.claude.com/docs/en/env-vars). The accounts' homes are CedarLoom's worker homes, which get their
  * settings per launch, and their aliases are only read.
  */
-export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string => {
-  const home = resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"));
-  // The home as the disk names it, through links and in its stored case, so CedarLoom's records of it always match.
-  return existsSync(home) ? realpathSync.native(home) : home;
-};
+export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
+  onDisk(resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude")));
 
 const selectionPath = (config: string): string => join(config, "profile.json");
 

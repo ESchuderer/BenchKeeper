@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Agent, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
@@ -7,6 +8,7 @@ import {
   accountsHome,
   accountsList,
   accountsLogin,
+  componentsSwitch,
   doctor,
   extensionsAdd,
   extensionsList,
@@ -32,6 +34,9 @@ import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
 
 type Done = (code: number) => void;
+
+// The app's own extensions ship in the package's `extensions` folder, beside `src` (or the emitted `dist`).
+const BUNDLED = fileURLToPath(new URL("../extensions", import.meta.url));
 type Ctx = () => Context;
 
 const plansGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -194,7 +199,7 @@ const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .description("extensions from Git, pinned by commit and digest; community code, run only inside an OS sandbox");
   extensions
     .command("list")
-    .description("list the installed extensions")
+    .description("list the app's own extensions and the installed ones")
     .action(() => done(extensionsList(ctx())));
   extensions
     .command("add")
@@ -218,6 +223,18 @@ const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .argument("<id>", "the extension's id, publisher.name")
     .option("--yes", "remove as planned now")
     .action((id, options) => done(extensionsRemove(ctx(), id, options)));
+};
+
+const componentsGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("components")
+    .description("the app's own parts, each auto (on when it can run) or off")
+    .command("switch")
+    .description("show switching a bundled extension auto or off; with --yes, switch it as one run")
+    .argument("<id>", "the extension's id, publisher.name")
+    .addArgument(new Argument("<state>", "auto or off").choices(["auto", "off"] as const))
+    .option("--yes", "switch it as computed now")
+    .action((id, state, options) => done(componentsSwitch(ctx(), id, state, options)));
 };
 
 const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -310,13 +327,15 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   const ctx = (): Context => {
     const { json, state } = program.opts();
     // Resolved once, so every path built from it, an own home's too, is absolute.
-    return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env) };
+    const app = io.bundled ?? BUNDLED;
+    return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
   };
   plansGroup(program, ctx, done);
   runsGroup(program, ctx, done);
   workflowsGroup(program, ctx, done);
   accountsGroup(program, ctx, done);
   extensionsGroup(program, ctx, done);
+  componentsGroup(program, ctx, done);
   modeGroup(program, ctx, done);
   levelGroup(program, ctx, done);
   profilesGroup(program, ctx, done);

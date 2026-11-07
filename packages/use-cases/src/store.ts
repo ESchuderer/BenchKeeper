@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type DraftSaved,
@@ -180,21 +180,44 @@ const lockOf = (state: string, ids: Set<string>): Result<ExtensionLock> => {
   return { ok: true, value: { schemaVersion: LOCK_SCHEMA_VERSION, kind: "cedarloom.lock", extensions } };
 };
 
-/** The stored files of `ids` by their paths in the export layout, and the extensions they use. */
-const storedFiles = (state: string, ids: string[]): Result<{ files: [string, string][]; used: Set<string> }> => {
+type Stored = { files: [string, string][]; ids: string[]; used: Set<string> };
+
+/** The stored files of `ids` by their paths in the export layout, their ids as stored, and the extensions they use. */
+const storedFiles = (state: string, ids: string[]): Result<Stored> => {
   const store = storeOf(state);
   const head = store.head();
-  const files: [string, string][] = [];
-  const used = new Set<string>();
+  const stored: Stored = { files: [], ids: [], used: new Set() };
   for (const id of ids) {
     const blob = head === null ? null : store.blob(head, fileOf(id));
     if (blob === null) return refuse({ code: "store.not-found", params: { id, commit: null } });
     const read = readStored(store, blob);
     if (!read.ok) return read;
-    files.push([fileOf(id), read.value.text]);
-    for (const extension of extensionsOf(read.value.workflow)) used.add(extension);
+    stored.files.push([fileOf(id), read.value.text]);
+    stored.ids.push(read.value.workflow.metadata.id);
+    for (const extension of extensionsOf(read.value.workflow)) stored.used.add(extension);
   }
-  return { ok: true, value: { files, used } };
+  return { ok: true, value: stored };
+};
+
+// A link anywhere inside the folder, which a shared clone can hold, would redirect the write: from `workflows` into
+// the state folder's drafts, say. Apply refuses a link at the file itself; this refuses one on the way to it too.
+const linkIn = (folder: string, path: string): string | undefined => {
+  const parts = path.split("/");
+  return parts
+    .map((_, depth) => join(folder, ...parts.slice(0, depth + 1)))
+    .find((at) => lstatSync(at, { throwIfNoEntry: false })?.isSymbolicLink() === true);
+};
+
+const writeOf = (folder: string, [path, content]: [string, string]): Result<Plan["operations"][number]> => {
+  const target = join(folder, ...path.split("/"));
+  try {
+    const link = linkIn(folder, path);
+    if (link !== undefined) return refuse({ code: "apply.symlink", params: { path: link } });
+    return { ok: true, value: { kind: "write", path: target, before: hashFile(target), content } };
+  } catch (error) {
+    // A folder at the file's place, or a file at its folder's place: apply would refuse it as well.
+    return refuse({ code: "plan.not-a-file", params: { path: target, error: errorCode(error) } });
+  }
 };
 
 /** A planned export: the plan, and the extensions its lock pins. */
@@ -211,11 +234,19 @@ export const planExport = (
   folder: string,
   about: Pick<ExportIndex, "name" | "license">,
 ): Result<ExportPlan> => {
-  const candidate = { schemaVersion: EXPORT_SCHEMA_VERSION, kind: "cedarloom.export", ...about, workflows: ids };
-  const index = readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, candidate);
-  if (!index.ok) return index;
-  const stored = storedFiles(state, ids);
+  const indexOf = (workflows: string[]) =>
+    readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, {
+      schemaVersion: EXPORT_SCHEMA_VERSION,
+      kind: "cedarloom.export",
+      ...about,
+      workflows,
+    });
+  // The ids as typed are checked before any path is built from them; the index lists them as stored.
+  const typed = indexOf(ids);
+  const stored = typed.ok ? storedFiles(state, ids) : typed;
   if (!stored.ok) return stored;
+  const index = indexOf(stored.value.ids);
+  if (!index.ok) return index;
   const lock = lockOf(state, stored.value.used);
   if (!lock.ok) return lock;
   const files: [string, string][] = [
@@ -223,10 +254,12 @@ export const planExport = (
     ["cedarloom.lock.json", formatLock(lock.value)],
     ...stored.value.files,
   ];
-  const operations = files.map(([path, content]): Plan["operations"][number] => {
-    const target = join(folder, ...path.split("/"));
-    return { kind: "write", path: target, before: hashFile(target), content };
-  });
+  const operations: Plan["operations"] = [];
+  for (const file of files) {
+    const write = writeOf(folder, file);
+    if (!write.ok) return write;
+    operations.push(write.value);
+  }
   const extensions = Object.keys(lock.value.extensions);
   return { ok: true, value: { plan: { schemaVersion: PLAN_SCHEMA_VERSION, operations }, extensions } };
 };

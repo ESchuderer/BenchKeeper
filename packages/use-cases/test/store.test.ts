@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Result, RunResult, WorkflowDefinition } from "@cedarloom/contracts";
@@ -160,6 +160,7 @@ test("a branch git cannot move, its ref locked by another process, is git's fail
   ]);
 });
 
+const installed = join(corpus, "..", "..", "InstalledExtensions", "1", "valid-installed.json");
 // A stored workflow w that uses the extension acme.jira.
 const storedWithExtension = (dir: string): void => {
   const minimal = sample("valid-minimal.json");
@@ -171,10 +172,10 @@ const storedWithExtension = (dir: string): void => {
 test("an export writes the index, each stored workflow byte for byte, and the lock of the extensions they use", () => {
   const dir = state();
   storedWithExtension(dir);
-  const installed = join(corpus, "..", "..", "InstalledExtensions", "1", "valid-installed.json");
   writeFileSync(join(dir, "extensions.json"), readFileSync(installed));
   const folder = join(dir, "shared");
-  const { plan, extensions } = ok(planExport(dir, ["w"], folder, { name: "Team flows" }));
+  // Typed in another case, the id is listed as stored.
+  const { plan, extensions } = ok(planExport(dir, ["W"], folder, { name: "Team flows" }));
   ok(applyPlan(dir, plan, { yes: true }));
   const store = openStore(join(dir, "store.git"));
   const blob = String(store.blob(String(store.head()), "workflows/workflow-w.json"));
@@ -214,3 +215,32 @@ test("an export refuses a workflow the store does not hold, and an extension not
     { code: "extension.unknown", params: { extension: "acme.jira" } },
   ]);
 });
+
+test("an export refuses a folder where it would write a file", () => {
+  const dir = state();
+  storedWithExtension(dir);
+  writeFileSync(join(dir, "extensions.json"), readFileSync(installed));
+  const taken = join(dir, "taken");
+  mkdirSync(join(taken, "cedarloom-export.json"), { recursive: true });
+  expect(refusal(planExport(dir, ["w"], taken, { name: "x" }))).toEqual({
+    code: "plan.not-a-file",
+    params: { path: join(taken, "cedarloom-export.json"), error: "EISDIR" },
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "an export refuses a link inside the folder, which would redirect a write",
+  () => {
+    const dir = state();
+    storedWithExtension(dir);
+    writeFileSync(join(dir, "extensions.json"), readFileSync(installed));
+    // A shared clone's `workflows` pointing at the drafts, which the export would replace.
+    const shared = join(dir, "shared");
+    mkdirSync(shared);
+    symlinkSync(join(dir, "drafts"), join(shared, "workflows"));
+    expect(refusal(planExport(dir, ["w"], shared, { name: "x" }))).toEqual({
+      code: "apply.symlink",
+      params: { path: join(shared, "workflows") },
+    });
+  },
+);

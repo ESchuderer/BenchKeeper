@@ -902,8 +902,9 @@ test("workflows save stores a draft as a version, history lists it, export write
   const none = await cli("workflows", "history", "9w");
   const exported = await cli("workflows", "export", "w", "--to", join(root, "shared"), "--yes", "--json");
   const index = JSON.parse(readFileSync(join(root, "shared", "cedarloom-export.json"), "utf8"));
+  const badId = await cli("workflows", "export", "9w", "--to", join(root, "other"));
   vi.unstubAllEnvs();
-  expect([saved.code, history["versions"], none.code, exported.code, index["workflows"]]).toEqual([
+  expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code]).toEqual([
     EXIT.ok,
     [
       {
@@ -916,5 +917,6 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.usage,
     EXIT.ok,
     ["w"],
+    EXIT.usage,
   ]);
 });

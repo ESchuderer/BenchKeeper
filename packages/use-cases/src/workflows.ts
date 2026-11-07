@@ -42,7 +42,8 @@ import {
   type RunLease,
 } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
-import { stopOrphans, stopTree } from "./orphans.ts";
+import { stopTree } from "@cedarloom/extension-host";
+import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
 import { readJson, retryBusy, withStore } from "./use-cases.ts";
 

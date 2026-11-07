@@ -1,4 +1,11 @@
-export { type Bundled, bundledExtensions, extensionToStart, planSwitch, type Startable } from "./bundled.ts";
+export {
+  type Bundled,
+  bundledExtensions,
+  extensionChecks,
+  extensionToStart,
+  planSwitch,
+  type Startable,
+} from "./bundled.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export {
   type ExportPlan,
@@ -66,6 +73,7 @@ export {
   loadPlan,
   previewPlan,
   previewUndo,
+  showLaunch,
   showRun,
   undoRun,
 } from "./use-cases.ts";
@@ -84,4 +92,4 @@ export {
   waitsOf,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export { type Choice, claudeHome, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";
+export { type Choice, claudeHome, type Machine, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";

@@ -193,6 +193,49 @@
         "planWrite": {
           "description": "Proposes file writes, which apply only through a plan the user approves",
           "type": "boolean"
+        },
+        "programs": {
+          "description": "Programs the host runs for the extension (host/exec), found from these candidates; bundled extensions only",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "darwin": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                }
+              },
+              "linux": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                }
+              },
+              "win32": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Where the host looks for the program on each platform; none listed: not on that platform"
+          },
+          "maxProperties": 8
         }
       },
       "additionalProperties": false
@@ -312,6 +355,30 @@
           },
           "minProperties": 1,
           "maxProperties": 100
+        },
+        "doctor": {
+          "description": "The extension's own checks, which the doctor asks it for (doctor/run)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "maxProperties": 20
         }
       },
       "required": [

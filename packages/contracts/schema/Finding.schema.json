@@ -3048,7 +3048,8 @@
                 "actions",
                 "folder",
                 "runtime",
-                "off"
+                "off",
+                "programs"
               ]
             }
           },
@@ -3089,7 +3090,8 @@
                 "protocol",
                 "installed",
                 "id",
-                "reserved"
+                "reserved",
+                "programs"
               ]
             }
           },
@@ -3177,7 +3179,8 @@
                 "stage",
                 "start",
                 "initialize",
-                "run"
+                "run",
+                "doctor"
               ]
             },
             "error": {
@@ -3188,6 +3191,53 @@
             "extension",
             "step",
             "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "extension.finding"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "check": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info"
+              ]
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "extension",
+            "check",
+            "severity",
+            "code",
+            "message"
           ],
           "additionalProperties": false
         }
@@ -3611,6 +3661,84 @@
           "required": [
             "part",
             "binding"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.approval-needed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "plugin": {
+              "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "autoUpdate": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "part",
+            "plugin",
+            "source",
+            "ref",
+            "autoUpdate"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.options-guarded"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "path"
           ],
           "additionalProperties": false
         }

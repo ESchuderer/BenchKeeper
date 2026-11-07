@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plan } from "@cedarloom/contracts";
 import { applyPlan, claudeHome, planChoice, planProfile } from "@cedarloom/use-cases";
@@ -11,12 +11,17 @@ const applied = (state: string, plan: Plan | null): void => {
   expect(ok(applyPlan(state, plan, { yes: true })).status).toBe("applied");
 };
 
-// A machine with its hub named: config, state and Claude Code home folders of its own.
+// The default profile's plugin parts, approved by name.
+const PLUGINS = ["machine.plugin.cedarloom", "machine.plugin.ponytail", "machine.plugin.matt-pocock"];
+// A machine with its hub named: config, state, Claude Code home and user home folders of its own.
 const machine = () => {
-  const [config, state, home] = ["config-", "state-", "home-"].map((name) => mkdtempSync(join(root, name)));
-  if (config === undefined || state === undefined || home === undefined) throw new Error("no folders");
+  const [config, state, home, user] = ["config-", "state-", "home-", "user-"].map((name) =>
+    mkdtempSync(join(root, name)),
+  );
+  if (config === undefined || state === undefined || home === undefined || user === undefined)
+    throw new Error("no folders");
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
-  return { config, state, home, plan: () => ok(planProfile(config, state, home)) };
+  return { config, state, home, user, plan: () => ok(planProfile(config, state, { home, user }, PLUGINS)) };
 };
 const setUp = () => {
   const box = machine();
@@ -66,7 +71,7 @@ test("a settings file that is no JSON is never rewritten", () => {
   const { config, state, home } = machine();
   const path = join(home, "settings.json");
   writeFileSync(path, '{ "model": "opus", // mine\n}');
-  expect(planProfile(config, state, home)).toEqual({
+  expect(planProfile(config, state, { home, user: home })).toEqual({
     ok: false,
     finding: { code: "document.unreadable", params: { path, error: "not JSON" } },
   });
@@ -92,4 +97,16 @@ test("a Claude Code home not made yet is named as the disk will name it, through
   // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
   symlinkSync(folder, link, "junction");
   expect(claudeHome({ CLAUDE_CONFIG_DIR: join(link, "home") })).toBe(join(realpathSync.native(folder), "home"));
+});
+
+test("a plugin's options never land in CedarLoom's state, where the worker homes are", () => {
+  const { config, state, home, user } = machine();
+  mkdirSync(join(user, ".config"));
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(state, join(user, ".config", "ponytail"), "junction");
+  const path = join(user, ".config", "ponytail", "config.json");
+  expect(planProfile(config, state, { home, user }, PLUGINS)).toEqual({
+    ok: false,
+    finding: { code: "profile.options-guarded", params: { part: "machine.plugin.ponytail", path } },
+  });
 });

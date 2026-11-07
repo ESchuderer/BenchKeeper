@@ -191,6 +191,46 @@ test("doctor reports an interrupted run as a warning with its fix, and a busy st
   expect((await cli("runs", "list")).out).toContain("interrupted");
 });
 
+test("runs show names a worker run's totals as its session's result reported them", async () => {
+  const { state, cli } = setup();
+  const runId = "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e61";
+  const labels = {
+    phase: "implement",
+    model: "claude-opus-5-5",
+    subagentModel: "claude-opus-5-5",
+    effort: "high",
+    permissionMode: "dontAsk",
+    review: false,
+    level: "supervised",
+    tier: null,
+  } as const;
+  const lease = {
+    runId,
+    task: "t",
+    agent: "claude",
+    account: "work",
+    version: "2.1.316",
+    pid: process.pid,
+    labels,
+  } as const;
+  const totals = {
+    inputTokens: 2,
+    outputTokens: 70,
+    cacheReadTokens: 11687,
+    cacheCreationTokens: 12674,
+    costUsd: 0.105,
+  };
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  store.value.leaseAccount({ ...lease, startedAt: "2026-11-07T08:00:00.000Z" }, 2)?.release();
+  store.value.recordTotals(runId, totals);
+  store.value.close();
+  expect(json((await cli("runs", "show", runId, "--json")).out)).toMatchObject({
+    launch: { runId, account: "work", totals },
+  });
+  expect((await cli("runs", "show", runId)).code).toBe(EXIT.ok);
+});
+
 test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit 1", async () => {
   const { state, cli } = setup();
   const store = openRunStore(state);
@@ -492,6 +532,7 @@ test("every finding code has an English sentence", () => {
 // An enum's first option, a count for found and known, else a string.
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
+  if (schema instanceof z.ZodBoolean) return true;
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {

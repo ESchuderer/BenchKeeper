@@ -1,5 +1,14 @@
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
@@ -13,7 +22,8 @@ import {
   startExtension,
   type Transport,
 } from "@cedarloom/extension-host";
-import { afterAll, afterEach, expect, test } from "vitest";
+import { HOST_FAILED, HOST_MISSING, HOST_REFUSED } from "@cedarloom/extension-sdk";
+import { afterAll, afterEach, expect, test, vi } from "vitest";
 import { CONFORMANT, conformance, SANDBOX_ONLY } from "./conformance.ts";
 
 const ACTIONS = [
@@ -33,6 +43,7 @@ const ACTIONS = [
   "fetch",
   "fetch-cancel",
   "fetch-then-crash",
+  "exec",
 ];
 const manifestOf = (actions: string[], api = "1.0", capabilities?: unknown): ExtensionManifest =>
   ExtensionManifest.parse({
@@ -538,4 +549,168 @@ test.skipIf(process.platform === "win32")(
 test("sandbox-runtime wraps nothing on Windows, whose sandbox needs an install of its own", async () => {
   const launch = { command: process.execPath, args: [], cwd: folder, env: {} };
   expect(await sandboxRuntime("win32").wrap(launch, { read: [folder], write: [], network: "none" })).toBeUndefined();
+});
+
+// The fixture with `programs` in its manifest: `node`, found on PATH (on Windows node.exe), and more as a test names.
+const withPrograms = (programs: Record<string, string[]>): ExtensionManifest =>
+  manifestOf(ACTIONS, "1.0", {
+    programs: Object.fromEntries(Object.entries(programs).map(([id, found]) => [id, { [process.platform]: found }])),
+  });
+const execs = async (fixture: RunningExtension, requests: unknown[]): Promise<unknown> =>
+  codeOf(await run(fixture, "exec", undefined, { requests }));
+
+test("host/exec runs a program its manifest names, found by the host, without a shell and in a clean environment", async () => {
+  vi.stubEnv("CEDARLOOM_TEST_TOKEN", "secret");
+  vi.stubEnv("CLAUDE_CONFIG_DIR", "/elsewhere");
+  const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+  const script =
+    "process.stdout.write(JSON.stringify([process.argv[1], process.env.CEDARLOOM_TEST_TOKEN ?? null, process.env.CLAUDE_CONFIG_DIR ?? null, process.cwd()])); process.exit(3)";
+  const answers = await execs(fixture, [
+    { program: "node", args: ["-e", script, "$(id); echo x"] },
+    { program: "git" },
+  ]);
+  vi.unstubAllEnvs();
+  expect(answers).toEqual({
+    answers: [
+      { result: { code: 3, stdout: JSON.stringify(["$(id); echo x", null, null, homedir()]), stderr: "" } },
+      { error: { code: HOST_REFUSED, message: "no program git in the manifest" } },
+    ],
+  });
+});
+
+test("host/exec stops a program at its time limit and at its output cap, and says when a program is not installed", async () => {
+  const fixture = await extension({
+    manifest: withPrograms({ node: ["node"], absent: ["cedarloom-no-such-program"] }),
+    limits: { execMs: 300, execBytes: 1000 },
+  });
+  const answers = await execs(fixture, [
+    { program: "node", args: ["-e", "setTimeout(() => {}, 10000)"] },
+    { program: "node", args: ["-e", "process.stdout.write('x'.repeat(5000))"] },
+    { program: "absent" },
+  ]);
+  expect(answers).toEqual({
+    answers: [
+      { error: { code: HOST_FAILED, message: "stopped at the time limit of 300 ms" } },
+      { error: { code: HOST_FAILED, message: "stopped at the output cap of 1000 bytes" } },
+      { error: { code: HOST_MISSING, message: "absent is not installed: none of cedarloom-no-such-program found" } },
+    ],
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "host/exec finds a program in the user's home folder, which a desktop app's PATH lacks",
+  async () => {
+    const home = mkdtempSync(join(scratch, "home-"));
+    mkdirSync(join(home, ".local", "bin"), { recursive: true });
+    const tool = join(home, ".local", "bin", "tool");
+    writeFileSync(tool, "#!/bin/sh\necho from home\n", { mode: 0o755 });
+    vi.stubEnv("HOME", home);
+    const fixture = await extension({
+      manifest: withPrograms({ tool: ["cedarloom-no-such-program", "~/.local/bin/tool"] }),
+    });
+    const answers = await execs(fixture, [{ program: "tool" }]);
+    vi.unstubAllEnvs();
+    expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "from home\n", stderr: "" } }] });
+  },
+);
+
+test("an extension from elsewhere that names programs is refused, since a program runs outside every sandbox", async () => {
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
+  const result = await start({
+    manifest: withPrograms({ node: ["node"] }),
+    trust: "community",
+    platform: "linux",
+    sandbox: wraps,
+  });
+  expect(result.ok ? "started" : result.finding).toEqual(refusal("programs"));
+});
+
+test.skipIf(process.platform === "win32")(
+  "host/exec stops a program's whole tree at its limit and answers at once",
+  async () => {
+    // The shell exits at once; its background child holds the output open and would run on for 30 s.
+    const pidFile = join(scratch, "background.pid");
+    const fixture = await extension({ manifest: withPrograms({ sh: ["sh"] }), limits: { execMs: 500 } });
+    const begun = Date.now();
+    const answers = await execs(fixture, [
+      { program: "sh", args: ["-c", `sleep 30 & echo $! > '${pidFile}'; echo started`] },
+    ]);
+    const answeredIn = Date.now() - begun;
+    expect([answers, answeredIn < 5000]).toEqual([
+      { answers: [{ error: { code: HOST_FAILED, message: "stopped at the time limit of 500 ms" } }] },
+      true,
+    ]);
+    // A killed process is gone once init has reaped it, shortly after.
+    const background = Number(readFileSync(pidFile, "utf8"));
+    await vi.waitFor(() => expect(() => process.kill(background, 0)).toThrow("ESRCH"), { timeout: 3000 });
+  },
+);
+
+test.runIf(process.platform === "win32")(
+  "host/exec finds a program on a Windows search path spelled Path",
+  async () => {
+    const path = process.env["PATH"] ?? "";
+    delete process.env["PATH"];
+    process.env["Path"] = path;
+    try {
+      const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+      const answers = await execs(fixture, [{ program: "node", args: ["-e", "process.stdout.write('found')"] }]);
+      expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "found", stderr: "" } }] });
+    } finally {
+      delete process.env["Path"];
+      process.env["PATH"] = path;
+    }
+  },
+);
+
+test("host/exec refuses an argument with a NUL, which no program can take", async () => {
+  const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+  expect(await execs(fixture, [{ program: "node", args: ["-e", "1", "a\u0000b"] }])).toEqual({
+    answers: [{ error: { code: HOST_REFUSED, message: "invalid request" } }],
+  });
+});
+
+test.runIf(process.platform === "win32")("host/exec finds a candidate named with its .exe as named", async () => {
+  const fixture = await extension({ manifest: withPrograms({ node: ["node.exe"] }) });
+  const answers = await execs(fixture, [{ program: "node", args: ["-e", "process.stdout.write('found')"] }]);
+  expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "found", stderr: "" } }] });
+});
+
+// A doctor run that ended without findings of the extension's own.
+const unanswered = (error: string) => ({
+  code: "extension.failed",
+  params: { extension: "acme.fixture", step: "doctor", error },
+});
+
+test("the doctor asks an extension's own checks once and shows their texts safely; no answer in time is a finding", async () => {
+  const plain = manifestOf(ACTIONS);
+  const checked = ExtensionManifest.parse({
+    ...plain,
+    contributes: { ...plain.contributes, doctor: { fixture: { title: "Fixture" } } },
+  });
+  const ask = async (more: Partial<ExtensionLaunch>) => (await extension({ manifest: checked, ...more })).doctor();
+  expect([
+    await ask({}),
+    await ask({ locale: "x-slow-doctor", limits: { doctorMs: 200 } }),
+    await ask({ locale: "x-other-check" }),
+    await (await extension()).doctor(),
+  ]).toEqual([
+    [
+      {
+        code: "extension.finding",
+        params: {
+          extension: "acme.fixture",
+          check: "fixture",
+          severity: "warning",
+          code: "fixture.checked",
+          message: "checked\\u001b[2K",
+        },
+      },
+    ],
+    [unanswered("no answer within 200 ms")],
+    [unanswered("an answer the host refuses")],
+    [],
+  ]);
 });

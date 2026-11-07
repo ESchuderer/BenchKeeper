@@ -41,12 +41,13 @@ export { canonicalJson, type Json } from "./json.ts";
 export {
   LaunchPlugins,
   LaunchRecord,
+  RunTotals,
   RunLabels,
   Verdict,
   WORKER_RESULT_SCHEMA_VERSION,
   WorkerResult,
 } from "./launch.ts";
-export { Finding, type FindingCode, findingInfo } from "./findings.ts";
+export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {
   AttemptOutcome,
   GatePoint,

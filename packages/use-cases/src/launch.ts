@@ -5,7 +5,7 @@ import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
 import type { Account, AccountRegistry, Agent, LaunchRecord, Result, RunLabels } from "@cedarloom/contracts";
 import { fetchTree } from "@cedarloom/git";
-import type { Lease, LeaseLock } from "@cedarloom/ledger";
+import type { Lease, LeaseLock, RunStore } from "@cedarloom/ledger";
 import {
   deniedPaths,
   GITHUB_DOMAINS,
@@ -222,23 +222,35 @@ const keepUsage = async (state: string, lease: Lease, event: Extract<AgentEvent,
   }
 };
 
-// Keeps the plugins the run's init line names, with the skills of the ones the launch passed, for the doctor; a store
-// error drops them, as the run's outcome does not depend on them.
+// Keeps what a session reports about its run for the doctor and the run's views; a store error drops it, as the run's
+// outcome does not depend on it.
+const keep = async (state: string, work: (store: RunStore) => void): Promise<void> => {
+  try {
+    await retryBusy(() =>
+      withStore(state, (store) => {
+        work(store);
+        return { ok: true, value: null };
+      }),
+    );
+  } catch {
+    // Dropped: the views read what the run kept.
+  }
+};
+
+// Keeps the plugins the run's init line names, with the skills of the ones the launch passed, for the doctor.
 const keepPlugins = async (state: string, lease: Lease, expected: readonly string[], event: AgentEvent) => {
   if (event.type !== "init" || event.plugins === null) return;
   const { loaded, skills, errors } = event.plugins;
   const own = skills.filter((skill) => expected.some((name) => skill.startsWith(`${name}:`)));
   const plugins = { expected: [...expected], loaded: [...loaded], skills: own, errors: [...errors] };
-  try {
-    await retryBusy(() =>
-      withStore(state, (store) => {
-        store.recordPlugins(lease.runId, plugins);
-        return { ok: true, value: null };
-      }),
-    );
-  } catch {
-    // Dropped: the doctor reads the latest launch that kept them.
-  }
+  await keep(state, (store) => store.recordPlugins(lease.runId, plugins));
+};
+
+// Keeps the totals the session's result reports.
+const keepTotals = async (state: string, lease: Lease, event: AgentEvent) => {
+  if (event.type !== "result" || event.totals === null) return;
+  const { totals } = event;
+  await keep(state, (store) => store.recordTotals(lease.runId, totals));
 };
 
 // Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
@@ -259,6 +271,7 @@ const observe = async (
     }
     if (event.type === "init") proved = true;
     await keepPlugins(state, lease, expected, event);
+    await keepTotals(state, lease, event);
     if (event.type === "usage") await keepUsage(state, lease, event);
     if (event.type === "exit") exit = event;
   }

@@ -13,6 +13,7 @@ export {
   sameFolder,
   USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
+  TokenRow,
   UsageSample,
 } from "./accounts.ts";
 export {
@@ -88,8 +89,9 @@ export {
   ProfileSelection,
   readProfile,
   SELECTION_SCHEMA_VERSION,
+  targetClass,
 } from "./profile.ts";
-export { type Composed, composeProfile, type LoadParent, type ParentRef } from "./compose.ts";
+export { type Composed, composeProfile, type LoadParent, MAX_PROFILE_FILES, type ParentRef } from "./compose.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {

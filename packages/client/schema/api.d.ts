@@ -1051,6 +1051,18 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-unsupported";
             params: {
                 account: string;
@@ -1206,7 +1218,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {
@@ -1291,6 +1303,20 @@ export interface components {
             code: "profile.parent-cycle";
             params: {
                 chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
             };
         } | {
             /** @constant */
@@ -1856,6 +1882,18 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-unsupported";
             params: {
                 account: string;
@@ -2011,7 +2049,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {
@@ -2096,6 +2134,20 @@ export interface components {
             code: "profile.parent-cycle";
             params: {
                 chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
             };
         } | {
             /** @constant */

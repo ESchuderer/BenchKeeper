@@ -12,5 +12,5 @@ export {
 } from "./host.ts";
 // The guard on an extension's output, for any reader of it.
 export { framesUpTo } from "./reader.ts";
-export { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
+export { type Launch, type Sandbox, type SandboxPolicy, sandboxRuntime, unavailable } from "./sandbox.ts";
 export { type Hop, type HopAnswer, isPublic, type Transport, transport } from "./transport.ts";

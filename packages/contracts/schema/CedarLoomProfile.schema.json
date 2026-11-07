@@ -552,7 +552,8 @@
                     "properties": {
                       "inline": {
                         "type": "string",
-                        "maxLength": 16384
+                        "maxLength": 16384,
+                        "pattern": "^(?:[\\t\\n]|[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
                       }
                     },
                     "required": [
@@ -762,7 +763,8 @@
                     "properties": {
                       "inline": {
                         "type": "string",
-                        "maxLength": 16384
+                        "maxLength": 16384,
+                        "pattern": "^(?:[\\t\\n]|[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
                       }
                     },
                     "required": [
@@ -940,7 +942,8 @@
                       "properties": {
                         "inline": {
                           "type": "string",
-                          "maxLength": 16384
+                          "maxLength": 16384,
+                          "pattern": "^(?:[\\t\\n]|[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
                         }
                       },
                       "required": [
@@ -1036,7 +1039,8 @@
                       "properties": {
                         "inline": {
                           "type": "string",
-                          "maxLength": 16384
+                          "maxLength": 16384,
+                          "pattern": "^(?:[\\t\\n]|[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
                         }
                       },
                       "required": [
@@ -1133,7 +1137,8 @@
                       "properties": {
                         "inline": {
                           "type": "string",
-                          "maxLength": 16384
+                          "maxLength": 16384,
+                          "pattern": "^(?:[\\t\\n]|[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
                         }
                       },
                       "required": [

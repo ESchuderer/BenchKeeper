@@ -43,7 +43,7 @@
             "file": {
               "type": "string",
               "maxLength": 4096,
-              "pattern": "^(?:\\/|[A-Za-z]:[\\\\/])"
+              "pattern": "^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
             }
           },
           "required": [

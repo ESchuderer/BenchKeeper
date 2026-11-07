@@ -91,6 +91,9 @@ export const Finding = z
     // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
     finding("accounts.pool-terms", { pool: z.string() }),
     finding("accounts.unknown-account", { account: z.string() }),
+    finding("accounts.name-taken", { account: z.string() }),
+    // An account or pool name the registry's rule refuses.
+    finding("accounts.name-invalid", { name: z.string() }),
     // Own homes and their login are Claude Code's only, until a Codex adapter starts workers.
     finding("accounts.login-unsupported", { account: z.string(), agent: z.string() }),
     // The own home of the account is a folder another account names: it is not taken over.
@@ -131,8 +134,9 @@ export const Finding = z
     finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
-    // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
-    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read"]), error: z.string() }),
+    // Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
+    // hold a token.
+    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read", "worktree"]), error: z.string() }),
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
@@ -166,6 +170,9 @@ export const Finding = z
     finding("profile.forbidden-setting", { path: z.string() }),
     finding("profile.parent-unknown", { pack: z.string(), path: z.string() }),
     finding("profile.parent-cycle", { chain: z.array(z.string()) }),
+    finding("profile.parent-limit", { chain: z.array(z.string()), limit: z.int() }),
+    // One pack id with two sources in one composition: the files that name each.
+    finding("profile.pack-sources", { pack: z.string(), files: z.array(z.string()) }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -245,6 +252,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.codex-switching-off": { severity: "error", effort: "manual" },
   "accounts.pool-terms": { severity: "warning", effort: "manual" },
   "accounts.unknown-account": { severity: "error", effort: "manual" },
+  "accounts.name-taken": { severity: "error", effort: "manual" },
+  "accounts.name-invalid": { severity: "error", effort: "manual" },
   "accounts.login-unsupported": { severity: "error", effort: "manual" },
   "accounts.folder-taken": { severity: "error", effort: "manual" },
   "accounts.home-not-own": { severity: "error", effort: "manual" },
@@ -281,4 +290,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.forbidden-setting": { severity: "error", effort: "manual" },
   "profile.parent-unknown": { severity: "error", effort: "manual" },
   "profile.parent-cycle": { severity: "error", effort: "manual" },
+  "profile.parent-limit": { severity: "error", effort: "manual" },
+  "profile.pack-sources": { severity: "error", effort: "manual" },
 };

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   composeProfile,
   type LoadParent,
+  MAX_PROFILE_FILES,
   Profile,
   PROFILE_SCHEMA_VERSION,
   ProfileFile,
@@ -11,6 +12,7 @@ import {
   readProfile,
   type Result,
   SELECTION_SCHEMA_VERSION,
+  targetClass,
 } from "@cedarloom/contracts";
 import { expect, test } from "vitest";
 import { set } from "./published.ts";
@@ -43,10 +45,18 @@ test.for<[string, string, unknown]>([
   ["the owner's bypass switch", "permissions.disableBypassPermissionsMode", "disable"],
   ["updates switched off", "env.DISABLE_UPDATES", "1"],
   ["the auto-updater switched off", "env.DISABLE_AUTOUPDATER", "1"],
+  ["a base URL, which sends the login elsewhere", "env.ANTHROPIC_BASE_URL", "https://x.example"],
+  ["a plugin outside a plugin part", "enabledPlugins", { "x@x": true }],
+  ["the sandbox switched off", "sandbox.enabled", false],
 ])("a profile with %s is refused", ([, key, value]) => {
   const path = `machine.settings.claude-code.set.${key}`;
   const finding = { code: "profile.forbidden-setting", params: { path } };
   expect(outcome(readProfile(set(defaults, [...claude, ...key.split(".")], value)))).toEqual(finding);
+});
+
+test("a project's settings, which a commit shares with everyone, are held to the same list", () => {
+  const finding = { code: "profile.forbidden-setting", params: { path: "project.guards.set.hooks" } };
+  expect(outcome(readProfile(set(defaults, ["project", "guards", "set", "hooks"], {})))).toEqual(finding);
 });
 
 test.for<[string, (string | number)[], unknown, unknown]>([
@@ -55,6 +65,24 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project", "agent-docs", "files", "docs/agents/domain.md"],
     { inline: "use ghp_0123456789abcdefghij0123456789abcdef" },
     secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a private key in inline text",
+    ["project", "agent-docs", "files", "docs/agents/domain.md"],
+    { inline: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk=\n" },
+    secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a URL with a password",
+    ["project", "agent-docs", "files", "docs/agents/domain.md"],
+    { inline: "Proxy: http://bot:hunter22@proxy.example:3128" },
+    secret("project.agent-docs.files.docs/agents/domain.md.inline"),
+  ],
+  [
+    "a token as a key, reported where it sits",
+    ["workspace", "hub", "labels", "ghp_0123456789abcdefghij0123456789abcdef"],
+    { color: "ffffff" },
+    secret("workspace.hub.labels"),
   ],
   [
     "a credential in the environment",
@@ -89,6 +117,24 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project.agent-docs.requires.0"],
   ],
   [
+    "a pack in a packs part the file does not name",
+    ["project", "packs", "packs"],
+    ["acme.x"],
+    ["project.packs.packs.0"],
+  ],
+  [
+    "Claude Code's project settings as a file",
+    ["project", "agent-docs", "files", ".claude/settings.json"],
+    { inline: "{}" },
+    ["project.agent-docs.files..claude/settings.json"],
+  ],
+  [
+    "a Git hook as a file",
+    ["project", "agent-docs", "files", ".git/hooks/pre-commit"],
+    { inline: "#!/bin/sh" },
+    ["project.agent-docs.files..git/hooks/pre-commit"],
+  ],
+  [
     "a project plugin that would be committed",
     ["project", "plugin"],
     { type: "plugin", commit: true },
@@ -101,6 +147,8 @@ test.for<[string, (string | number)[], unknown, unknown]>([
 test.for<[string, (string | number)[], unknown]>([
   ["a token budget, no credential", [...claude, "env", "MAX_THINKING_TOKENS"], "32000"],
   ["npm settings named in text", ["project", "agent-docs", "files", "x.md"], { inline: "Set npm_config_registry." }],
+  ["a sandbox that only tightens", [...claude, "sandbox"], { enabled: true, filesystem: { denyRead: ["~/.ssh"] } }],
+  ["a packs part that requires a part", ["project", "packs", "requires"], ["workspace.hub"]],
 ])("a profile file with %s is read", ([, path, value]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toBe("ok");
 });
@@ -120,6 +168,12 @@ test.for<[string, (string | number)[], unknown, string]>([
     "a plugin's options in Claude Code's settings",
     ["machine", "plugin.ponytail", "options", "file"],
     ".claude/settings.json",
+    "machine.plugin.ponytail.options.file",
+  ],
+  [
+    "a plugin's options in gh's credential folder",
+    ["machine", "plugin.ponytail", "plugin"],
+    "gh@x",
     "machine.plugin.ponytail.options.file",
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
@@ -250,9 +304,38 @@ test("a part left incomplete by every file, or an auto part without its probe, i
   ]).toEqual([["machine.x.title", "machine.x.set"], ["machine.x.when"]]);
 });
 
-test("a parent the reader refuses stops the composition with its finding", () => {
-  const finding = { code: "profile.foreign-kind", params: { kind: "benchkeeper-profile" } } as const;
-  expect(outcome(composeProfile(child, () => ({ ok: false, finding })))).toEqual(finding);
+const foreign = (kind: string) => ({ code: "profile.foreign-kind", params: { kind } });
+test("the root and each parent are read as profiles, so a file the reader refuses stops the composition", () => {
+  expect([
+    outcome(composeProfile(child, () => ({ ok: true, value: { kind: "benchkeeper-profile" } }))),
+    outcome(composeProfile({ kind: "benchkeeper-preset" }, library)),
+  ]).toEqual([foreign("benchkeeper-profile"), foreign("benchkeeper-preset")]);
+});
+
+const manual = (text: string) => ({
+  manual: { type: "manual", title: "m", default: "on", claudeImport: true, rules: [{ inline: text }] },
+});
+test("a list of texts grows like any list", () => {
+  const parent = file({ ...own, id: "acme.p", project: manual("a\n") });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }], project: manual("b\n") });
+  const composed = composeProfile(root, loader({ "acme.x/p": parent }));
+  const part = composed.ok && composed.value.profile.project["manual"];
+  expect(part && part.type === "manual" && part.rules).toEqual([{ inline: "a\n" }, { inline: "b\n" }]);
+});
+
+test(`more than ${MAX_PROFILE_FILES} profile files through parents are refused, however deep they go`, () => {
+  const files = Object.fromEntries(
+    Array.from({ length: 60 }, (_, at) => [
+      `acme.x/${at}`,
+      file({ ...own, id: `acme.f${at}`, extends: [{ pack: "acme.x", path: String(at + 1) }] }),
+    ]),
+  );
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "0" }] });
+  const composed = composeProfile(root, loader(files));
+  expect(!composed.ok && composed.finding.code === "profile.parent-limit" && composed.finding.params).toEqual({
+    chain: Array.from({ length: 50 }, (_, at) => `acme.x/${at}`),
+    limit: 50,
+  });
 });
 
 test("a part replaced whole forgets who set its fields", () => {
@@ -289,20 +372,32 @@ test("a label named like a source field merges as a label", () => {
   expect(Object.keys(labels || {})).toEqual(["github", "extra"]);
 });
 
-test("one entry from two sources is two parents", () => {
-  const other = { "acme.x": { git: "https://x.example/other.git", ref: "main" } };
-  const p = file({ ...tier("acme.p", "full", ["base"]), packs: other });
-  const files: Record<string, ProfileFile> = {
-    "https://x.example/x.git/p": p,
-    "https://x.example/x.git/base": tier("acme.base-x", null),
-    "https://x.example/other.git/base": tier("acme.base-other", "quick"),
-  };
-  const bySource: LoadParent = (parent, from) => {
-    const source = from.packs?.[parent.pack];
-    const found = source !== undefined && "git" in source ? files[`${source.git}/${parent.path}`] : undefined;
-    return found === undefined ? undefined : { ok: true, value: found };
-  };
-  const root = tier("acme.root", "standard", ["p", "base"]);
-  const composed = composeProfile(ProfileFile.parse(set(root, ["project"], {})), bySource);
-  expect(composed.ok && composed.value.setBy["/project/tier/tier"]).toBe("acme.base-x");
+test("a pack id two files give different sources is refused, naming both files", () => {
+  const parent = file({
+    ...own,
+    id: "acme.p",
+    packs: { "acme.x": { git: "https://x.example/other.git", ref: "main" } },
+  });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }] });
+  expect(outcome(composeProfile(root, loader({ "acme.x/p": parent })))).toEqual({
+    code: "profile.pack-sources",
+    params: { pack: "acme.x", files: ["acme.p", "acme.root"] },
+  });
+});
+
+test("a selection names its profile file by an absolute path, also a UNC path", async () => {
+  const selection = set(await read("ProfileSelection/1/valid-selection.json"), ["profile"], {
+    file: "\\\\host\\share\\p.json",
+  });
+  expect(readDocument(ProfileSelection, SELECTION_SCHEMA_VERSION, selection).ok).toBe(true);
+});
+
+test.for<[string, string, string]>([
+  ["docs/agents/domain.md", "# Domain", "text"],
+  ["scripts/dc", "#!/bin/sh\n", "executable"],
+  ["tools/check.py", "print(1)", "executable"],
+  ["orca.yaml", "scripts: {}", "configuration"],
+  [".claude/agents/reviewer.md", "---", "configuration"],
+])("a target %s is %s", ([target, text, expected]) => {
+  expect(targetClass(target, text)).toBe(expected);
 });

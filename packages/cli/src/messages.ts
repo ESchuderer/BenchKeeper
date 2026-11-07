@@ -143,6 +143,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
   "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.name-taken": (p) => `The registry has an account named ${p.account} already.`,
+  "accounts.name-invalid": (p) =>
+    `${p.name} is no name for an account or a pool: a lowercase letter or digit, then up to 31 more of them, - or _.`,
   "accounts.login-unsupported": (p) =>
     `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
   "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
@@ -208,6 +211,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The profile sets ${p.path}, which CedarLoom never writes: it removes a guard, runs a command or keeps your own choice.`,
   "profile.parent-unknown": (p) => `The parent profile ${p.path} is not in pack ${p.pack}.`,
   "profile.parent-cycle": (p) => `The profiles extend each other in a circle: ${p.chain.join(" -> ")}.`,
+  "profile.parent-limit": (p) =>
+    `The profile reaches more than ${p.limit} profile files through its parents, last ${p.chain.join(" -> ")}; nothing is read further.`,
+  "profile.pack-sources": (p) =>
+    `Pack ${p.pack} comes from different sources in ${p.files.join(" and ")}; give it one source in every profile file.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

@@ -26,6 +26,7 @@ export {
   type Decided,
   type LaunchHost,
   launchWorker,
+  leaseWorker,
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
@@ -40,6 +41,8 @@ export {
   loginAccount,
   MAX_CONCURRENT,
   ownHome,
+  type NewAccount,
+  planAdd,
   planConfirm,
   planHome,
   type StatusHost,
@@ -55,6 +58,7 @@ export {
   showRun,
   undoRun,
 } from "./use-cases.ts";
+export type { AgentOptions, Phase } from "./agent-node.ts";
 export {
   cancelRun,
   type GraphOutcome,
@@ -66,3 +70,9 @@ export {
   showGraphRun,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
+export {
+  startTelemetry,
+  type TelemetryReceiver,
+  type TelemetryRun,
+  tokenRowsOf,
+} from "./telemetry.ts";

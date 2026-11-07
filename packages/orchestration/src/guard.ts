@@ -1,17 +1,25 @@
-import type { GuardPolicy } from "@cedarloom/contracts";
+import { homedir } from "node:os";
+import { resolve } from "node:path";
+import { type GuardPolicy, RepoName } from "@cedarloom/contracts";
 import { type Command, readShell, type Script, type Word } from "./shell.ts";
 
 /** Why the guard refuses a call. */
-export type Rule = "unreadable" | "environment" | "forbidden";
+export type Rule = "unreadable" | "environment" | "git-config" | "forbidden" | "outside-profiles" | "memory-main";
 
 export interface Denial {
   readonly rule: Rule;
   readonly detail: string;
 }
 
+/** The push URLs of a folder's git remotes by name; null when they cannot be read, as outside a repository. */
+export type Remotes = (folder: string) => ReadonlyMap<string, readonly string[]> | null;
+
 interface Context {
   readonly policy: GuardPolicy;
+  readonly remotes: Remotes;
   readonly text: string;
+  /** Every folder a command of the text may run in (the session's, and each literal `cd`); null when one is unknown. */
+  readonly folders: readonly string[] | null;
   readonly depth: number;
 }
 
@@ -63,9 +71,24 @@ const programOf = (word: string): string =>
 const literal = (words: readonly Word[]): string[] | null =>
   words.every((word) => word.text !== null) ? words.map((word) => word.text ?? "") : null;
 
-/** Whether the guard refuses the shell command `text`, and why; null to let it run. */
-export const guardCommand = (text: string, policy: GuardPolicy): Denial | null =>
-  checkScript(readShell(text), { policy, text, depth: 0 });
+/** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
+export const guardCommand = (text: string, folder: string, policy: GuardPolicy, remotes: Remotes): Denial | null => {
+  const script = readShell(text);
+  return checkScript(script, { policy, remotes, text, folders: foldersOf(script, folder), depth: 0 });
+};
+
+// The folders a command may run in: the session's, and each literal `cd` or `pushd` from every folder before it.
+const foldersOf = (script: Script, start: string): string[] | null => {
+  const folders = [start];
+  for (const { words } of script.commands) {
+    if (!["cd", "pushd"].includes(words[0]?.text ?? "")) continue;
+    const target = words.find((word, index) => index > 0 && !(word.text ?? "").startsWith("-"));
+    if (target === undefined) folders.push(homedir());
+    else if (target.text === null) return null;
+    else folders.push(...folders.map((folder) => resolve(folder, target.text?.replace(/^~(?=\/|$)/, homedir()) ?? "")));
+  }
+  return [...new Set(folders)];
+};
 
 const checkScript = (script: Script, context: Context): Denial | null => {
   if (script.skipped) return unreadable("the command holds text the guard cannot split, such as an unclosed quote");
@@ -179,6 +202,8 @@ const checkCommand = (command: Command, context: Context): Denial | null => {
 };
 
 const checkProgram = (name: string, args: Word[], command: Command, context: Context): Denial | null => {
+  if (name === "git") return checkGit(args, context);
+  if (name.startsWith("git-")) return checkGit([{ text: name.slice(4), start: name.slice(4) }, ...args], context);
   if (SETTERS.has(name)) return checkSetter(name, args);
   if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args, command, context);
   return checkRunner(name, args, context);
@@ -291,3 +316,340 @@ const checkFind = (args: readonly Word[], context: Context): Denial | null =>
   execSegments(args)
     .map((words) => checkCommand({ words, stdin: [] }, context))
     .find((denial) => denial !== null) ?? null;
+
+const checkGit = (args: readonly Word[], context: Context): Denial | null => {
+  const at = globalOptions(args, context);
+  if ("rule" in at) return at;
+  const [sub, ...rest] = args.slice(at.index);
+  if (sub === undefined) return null;
+  if (sub.text === null) return unreadable("git runs a subcommand the guard cannot read");
+  if (!GIT_COMMANDS.has(sub.text)) {
+    return unreadable(`git ${sub.text} is no git command the guard knows, and an alias may hide a push`);
+  }
+  return checkGitCommand(sub.text, rest, { ...context, folders: at.folders });
+};
+
+// The folders git works in after -C `value`; null when one of them, or the value, is unknown.
+const moved = (folders: readonly string[] | null, value: Word | undefined): readonly string[] | null => {
+  const to = value?.text;
+  return typeof to === "string" && folders !== null ? folders.map((folder) => resolve(folder, to)) : null;
+};
+
+// One of git's options before its subcommand: -c and --config-env change its configuration, -C moves it, --git-dir and
+// --work-tree name a repository the guard does not look up. How many words it takes, and the folders git works in.
+const globalOption = (
+  option: string,
+  value: Word | undefined,
+  folders: readonly string[] | null,
+): Denial | { taken: number; folders: readonly string[] | null } => {
+  if (option.startsWith("-c") || option.startsWith("--config-env")) return deny("git-config", `git ${option}`);
+  if (option === "-C") return { taken: 2, folders: moved(folders, value) };
+  if (/^--(?:git-dir|work-tree)/.test(option)) return { taken: option.includes("=") ? 1 : 2, folders: null };
+  return { taken: option === "--namespace" || option === "--super-prefix" ? 2 : 1, folders };
+};
+
+const globalOptions = (
+  args: readonly Word[],
+  context: Context,
+): Denial | { index: number; folders: readonly string[] | null } => {
+  let { folders } = context;
+  let i = 0;
+  while ((args[i]?.start ?? "").startsWith("-")) {
+    const step = globalOption(args[i]?.start ?? "", args[i + 1], folders);
+    if ("rule" in step) return step;
+    folders = step.folders;
+    i += step.taken;
+  }
+  return { index: i, folders };
+};
+
+const checkGitCommand = (sub: string, rest: readonly Word[], context: Context): Denial | null =>
+  unknownWord(sub, rest) ??
+  configChange(sub, rest) ??
+  skippedChecks(sub, rest) ??
+  ranCommand(sub, rest) ??
+  networkCheck(sub, rest, context);
+
+const networkCheck = (sub: string, rest: readonly Word[], context: Context): Denial | null => {
+  if (sub === "push") return checkPush(rest) ?? checkTargets("push", pushTargets(rest), context);
+  if (sub === "clone")
+    return checkClone(rest) ?? checkTargets("clone", positionals(rest, VALUED["clone"] ?? []).slice(0, 1), context);
+  return NETWORK.has(sub) ? checkTargets(sub, positionals(rest, VALUED[sub] ?? []), context) : null;
+};
+
+// Whether `word`, before any `=`, abbreviates the long option `option` to at least `min` characters, as git accepts.
+const abbreviates = (word: string | null, option: string, min: number): boolean => {
+  const name = (word ?? "").split("=")[0] ?? "";
+  return name.length >= min && option.startsWith(name);
+};
+
+interface Valued {
+  readonly short: string;
+  readonly long: readonly string[];
+}
+const NONE: Valued = { short: "", long: [] };
+
+// The git commands whose options the guard checks, and the options of theirs that take the next word as a value.
+const CHECKED = new Map<string, Valued>([
+  ["commit", { short: "mFCct", long: ["--message", "--file", "--author", "--date", "--template", "--trailer"] }],
+  ["merge", { short: "mFsX", long: ["--message", "--file", "--strategy", "--strategy-option"] }],
+  ["pull", { short: "sX", long: ["--strategy", "--strategy-option"] }],
+  ["push", { short: "o", long: ["--push-option", "--repo"] }],
+  ...["config", "clone", "remote", "fetch", "rebase", "am", "cherry-pick", "revert", "submodule", "bisect"].map(
+    (name): [string, Valued] => [name, NONE],
+  ),
+]);
+
+// A word of a checked command that the guard cannot read could be an option, such as one that forces a push; one that
+// is the value of an option, such as a commit message, is no option.
+const unknownWord = (sub: string, rest: readonly Word[]): Denial | null => {
+  const valued = CHECKED.get(sub);
+  if (valued === undefined) return null;
+  const hidden = rest.find(({ text, start }, i) => {
+    const before = rest[i - 1]?.text ?? "";
+    const value =
+      valued.long.includes(before) || (/^-[A-Za-z]+$/.test(before) && valued.short.includes(before.at(-1) ?? " "));
+    return text === null && /^[-+]?$/.test(start.charAt(0)) && !value;
+  });
+  return hidden === undefined
+    ? null
+    : unreadable(`git ${sub} gets a word the guard cannot read, which may be an option`);
+};
+
+// The git commands the guard knows; any other word may be an alias, which could hide a push.
+const GIT_COMMANDS = new Set(
+  (
+    "add am annotate apply archive bisect blame branch bundle cat-file check-attr check-ignore check-mailmap " +
+    "check-ref-format checkout checkout-index cherry cherry-pick citool clean clone commit commit-graph commit-tree " +
+    "config count-objects describe diff diff-files diff-index diff-tree difftool fetch for-each-ref format-patch fsck " +
+    "gc grep hash-object help hook init interpret-trailers lfs log ls-files ls-remote ls-tree maintenance merge " +
+    "merge-base merge-file merge-tree mergetool mktag mktree mv name-rev notes pack-refs prune pull push range-diff " +
+    "read-tree rebase reflog remote repack replace rerere reset restore rev-list rev-parse revert rm shortlog show " +
+    "show-branch show-ref sparse-checkout stash status stripspace submodule switch symbolic-ref tag update-index " +
+    "update-ref var verify-commit verify-pack verify-tag version whatchanged worktree write-tree"
+  ).split(" "),
+);
+const REMOTE_CHANGES = new Set(["add", "set-url", "rename", "remove", "rm", "set-branches"]);
+const CONFIG_VALUED = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value"]);
+const CONFIG_WRITES = /^(?:--(?:unset|unset-all|add|replace-all|rename-section|remove-section|edit)|-e)$/;
+const CONFIG_VERBS = new Set(["set", "unset", "rename-section", "remove-section", "edit"]);
+
+const configChange = (sub: string, rest: readonly Word[]): Denial | null => {
+  if (sub === "config") return configWrite(rest) ? deny("git-config", "git config with a value") : null;
+  const verb = rest.find(({ start }) => !start.startsWith("-"))?.text ?? "";
+  return sub === "remote" && REMOTE_CHANGES.has(verb) ? deny("git-config", `git remote ${verb}`) : null;
+};
+
+// git config's positional words and whether an option writes.
+const configWords = (rest: readonly Word[]): { positional: (string | null)[]; write: boolean } => {
+  const positional: (string | null)[] = [];
+  let write = false;
+  for (let i = 0; i < rest.length; i += 1) {
+    const text = rest[i]?.text ?? null;
+    if (text === null || !text.startsWith("-")) positional.push(text);
+    else if (CONFIG_VALUED.has(text)) i += 1;
+    else write ||= CONFIG_WRITES.test(text);
+  }
+  return { positional, write };
+};
+
+// git config with a value, a write option or a writing subcommand; `get` and `list` and a lone key read.
+const configWrite = (rest: readonly Word[]): boolean => {
+  const { positional, write } = configWords(rest);
+  const verb = positional[0] ?? "";
+  if (verb === "get" || verb === "list") return false;
+  return write || CONFIG_VERBS.has(verb) || positional.length > 1;
+};
+
+// --no-verify, abbreviated as git allows, skips the checks a repository's hooks run on any command; so does a
+// commit's -n.
+const skippedChecks = (sub: string, rest: readonly Word[]): Denial | null => {
+  if (rest.some(({ text }) => abbreviates(text, "--no-verify", 7))) return deny("forbidden", `git ${sub} --no-verify`);
+  return sub === "commit" && hasShortFlag(rest, "n", "mFCct", "uS") ? deny("forbidden", "git commit -n") : null;
+};
+
+const RUNNER_OPTIONS = ["--upload-pack", "--receive-pack", "--exec", "--extcmd"];
+// Options and commands with which git runs a command or program of its own choosing, which the guard does not read.
+const RUNS: readonly ((sub: string, rest: readonly Word[]) => boolean)[] = [
+  (_, rest) => rest.some(({ text }) => RUNNER_OPTIONS.some((option) => abbreviates(text, option, 5))),
+  (sub, rest) => ["rebase", "difftool", "mergetool"].includes(sub) && hasShortFlag(rest, "x", "", ""),
+  (sub, rest) => ["clone", "ls-remote"].includes(sub) && hasShortFlag(rest, "u", "objc", ""),
+  (sub, rest) => sub === "submodule" && rest.some(({ text }) => text === "foreach"),
+  (sub, rest) => sub === "bisect" && rest[0]?.text === "run",
+];
+
+const ranCommand = (sub: string, rest: readonly Word[]): Denial | null =>
+  RUNS.some((runs) => runs(sub, rest)) ? unreadable(`git ${sub} runs a command the guard does not read`) : null;
+
+// What a short-option cluster such as -am does with `letter`: holds it, takes the next word as a value, or neither.
+const inCluster = (text: string, letter: string, valued: string, attached: string): "found" | "value" | "none" => {
+  for (let k = 1; k < text.length; k += 1) {
+    const c = text.charAt(k);
+    if (attached.includes(c)) return "none";
+    if (c === letter) return "found";
+    if (valued.includes(c)) return k === text.length - 1 ? "value" : "none";
+  }
+  return "none";
+};
+
+// Whether a short-option cluster before `--` holds `letter`, skipping the values of `valued` letters.
+const hasShortFlag = (rest: readonly Word[], letter: string, valued: string, attached: string): boolean => {
+  for (let i = 0; i < rest.length; i += 1) {
+    const text = rest[i]?.text ?? "";
+    if (text === "--") return false;
+    const found = /^-[A-Za-z]/.test(text) ? inCluster(text, letter, valued, attached) : "none";
+    if (found === "found") return true;
+    if (found === "value") i += 1;
+  }
+  return false;
+};
+
+// A forced push: --force and its abbreviations, --force-with-lease, --mirror, -f in a cluster, or a +refspec.
+const checkPush = (rest: readonly Word[]): Denial | null => {
+  const forced = rest.some(
+    ({ text, start }) =>
+      (abbreviates(text, "--force", 5) && text !== "--force-if-includes") ||
+      abbreviates(text, "--force-with-lease", 9) ||
+      abbreviates(text, "--mirror", 4) ||
+      start.startsWith("+"),
+  );
+  return forced || hasShortFlag(rest, "f", "o", "") ? deny("forbidden", "a forced git push") : null;
+};
+
+const checkClone = (rest: readonly Word[]): Denial | null =>
+  hasShortFlag(rest, "c", "obuj", "") || rest.some(({ text }) => abbreviates(text, "--config", 4))
+    ? deny("git-config", "git clone -c")
+    : null;
+
+const NETWORK = new Set(["fetch", "pull", "ls-remote"]);
+const FETCH_VALUED = [
+  "--depth",
+  "--deepen",
+  "--shallow-since",
+  "--shallow-exclude",
+  "-j",
+  "--jobs",
+  "--upload-pack",
+  "--refmap",
+  "-o",
+  "--server-option",
+  "--negotiation-tip",
+  "--filter",
+];
+// The options of each network command that take the next word as their value.
+const VALUED: Readonly<Record<string, readonly string[]>> = {
+  fetch: FETCH_VALUED,
+  pull: [...FETCH_VALUED, "-s", "--strategy", "-X", "--strategy-option"],
+  "ls-remote": ["--upload-pack", "-o", "--server-option", "--sort"],
+  push: ["--repo", "-o", "--push-option", "--receive-pack", "--exec"],
+  clone: [
+    "-b",
+    "--branch",
+    "-o",
+    "--origin",
+    "--depth",
+    "--reference",
+    "--reference-if-able",
+    "--template",
+    "-u",
+    "--upload-pack",
+    "--separate-git-dir",
+    "--filter",
+    "-j",
+    "--jobs",
+    "--shallow-since",
+    "--shallow-exclude",
+    "--server-option",
+    "--bundle-uri",
+    "--ref-format",
+  ],
+};
+// The words that are no option or option value; every word after `--`.
+const positionals = (rest: readonly Word[], valued: readonly string[]): Word[] => {
+  const found: Word[] = [];
+  for (let i = 0; i < rest.length; i += 1) {
+    const word = rest[i] ?? { text: "", start: "" };
+    if (word.text === "--") return [...found, ...rest.slice(i + 1)];
+    if (valued.includes(word.start)) i += 1;
+    else if (!word.start.startsWith("-") || word.text === null) found.push(word);
+  }
+  return found;
+};
+
+// The repository a push names and its refspecs: the first positional, else the value of --repo; --all and --branches
+// push every branch, whatever refspecs follow.
+const pushTargets = (rest: readonly Word[]): Word[] => {
+  const words = positionals(rest, VALUED["push"] ?? []);
+  const option = rest.findIndex(({ start }) => start === "--repo" || start.startsWith("--repo="));
+  const named = rest[option]?.start === "--repo" ? rest[option + 1] : rest[option];
+  const repo = named === undefined ? [] : [{ text: named.text?.replace(/^--repo=/, "") ?? null, start: "" }];
+  const targets = words.length > 0 || option < 0 ? words : repo;
+  return rest.some(({ text }) => text === "--all" || text === "--branches") ? targets.slice(0, 1) : targets;
+};
+
+// A remote's URL, an scp-like address, or a local path, which reaches no GitHub repository.
+const isUrl = (text: string): boolean =>
+  /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:]+\.[^\s/@:]+:/.test(text);
+
+/** The GitHub repository a remote URL names, as owner/name; null for any other host or form. */
+const githubRepo = (url: string): string | null => {
+  const scp = /^(?:[^\s/@:]+@)?(?:www\.)?github\.com:/i.exec(url);
+  let path: string;
+  if (scp === null) {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+    if (!/^(?:www\.)?github\.com$/i.test(parsed.hostname)) return null;
+    path = parsed.pathname;
+  } else path = url.slice(scp[0].length);
+  const name = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  return RepoName.safeParse(name).success ? name : null;
+};
+
+// The URLs a git network command reaches: the remote or URL it names, or every remote of every folder it may run in;
+// null when the guard cannot tell.
+const urlsOf = (word: Word | undefined, context: Context): string[] | null => {
+  const name = word?.text;
+  if (name === null || context.folders === null) return null;
+  if (name !== undefined && isUrl(name)) return [name];
+  const urls: string[] = [];
+  for (const folder of context.folders) {
+    const remotes = context.remotes(folder);
+    if (remotes === null) return null;
+    urls.push(...(name === undefined ? [...remotes.values()].flat() : (remotes.get(name) ?? [])));
+  }
+  return urls;
+};
+
+const sameRepo = (a: string | null, b: string | null): boolean =>
+  a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
+
+// A push to the memory repository goes to proposal branches only: each refspec literal, its destination under memory/.
+const proposals = (refspecs: readonly Word[]): boolean =>
+  refspecs.length > 0 &&
+  refspecs.every(
+    ({ text }) => text !== null && /^(?:refs\/heads\/)?memory\/[^:]+$/.test(text.slice(text.lastIndexOf(":") + 1)),
+  );
+
+const checkUrl = (sub: string, url: string, refspecs: readonly Word[], policy: GuardPolicy): Denial | null => {
+  const repo = githubRepo(url);
+  if (policy.repositories !== null && !policy.repositories.some((allowed) => sameRepo(allowed, repo))) {
+    return deny("outside-profiles", `git ${sub} reaches ${repo ?? url}, outside this session's repositories`);
+  }
+  return sub === "push" && sameRepo(repo, policy.memory) && !proposals(refspecs)
+    ? deny("memory-main", "git push may update main of the memory repository; push a memory/<name> branch")
+    : null;
+};
+
+const checkTargets = (sub: string, words: readonly Word[], context: Context): Denial | null => {
+  const { repositories, memory } = context.policy;
+  if (repositories === null && (sub !== "push" || memory === null)) return null;
+  const urls = urlsOf(words[0], context);
+  if (urls === null) return unreadable(`git ${sub} reaches a repository the guard cannot tell`);
+  return (
+    urls.map((url) => checkUrl(sub, url, words.slice(1), context.policy)).find((denial) => denial !== null) ?? null
+  );
+};

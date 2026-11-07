@@ -3,25 +3,30 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand } from "@cedarloom/orchestration";
+import { guardCommand, type Remotes } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
   policies: z.record(z.string(), GuardPolicy),
+  remotes: z.record(z.string(), z.record(z.string(), z.array(z.string()))),
   // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
+const remotes: Remotes = (folder) => {
+  const found = fixtures.remotes[folder];
+  return found === undefined ? null : new Map(Object.entries(found));
+};
 const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {
   const [policy = "", cwd = ""] = key.split(" ");
   return list.map(([name, command, rule]) => ({ name, policy, cwd, command, rule }));
 });
 
-test.each(cases)("$name", ({ policy, command, rule }) => {
+test.each(cases)("$name", ({ policy, cwd, command, rule }) => {
   const chosen = fixtures.policies[policy];
   if (chosen === undefined) throw new Error(`no policy ${policy}`);
-  expect(guardCommand(command, chosen)?.rule ?? null).toBe(rule);
+  expect(guardCommand(command, cwd, chosen, remotes)?.rule ?? null).toBe(rule);
 });
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");

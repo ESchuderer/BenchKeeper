@@ -22,11 +22,10 @@ const POOL = ["one", "two", "three"];
 
 const registry: AccountRegistry = {
   schemaVersion: 1,
-  minimum: { fiveHour: 8, sevenDay: 3 },
   accounts: [
     account("one"),
     account("two"),
-    account("three", { minimum: { fiveHour: 40 } }),
+    account("three"),
     account("four", { pool: "spare" }),
     account("solo", { pool: null }),
     account("other", { agent: "codex" }),
@@ -50,8 +49,8 @@ const used = (name: string, fiveHour: number, sevenDay: number, resetsAt = LATER
 
 const main = { agent: "claude", pool: "main" } as const;
 
-test("a new worker gets the pool account with the most headroom above both of its minimums", () => {
-  const readings = [...used("one", 50, 20), ...used("two", 30, 90), ...used("three", 30, 10), ...used("other", 0, 0)];
+test("a new worker gets the pool account with the most headroom above both minimums, 8 and 3 percent", () => {
+  const readings = [...used("one", 50, 20), ...used("two", 30, 90), ...used("three", 60, 10), ...used("other", 0, 0)];
   expect(selectAccount(registry, main, readings, NOW)).toEqual({
     ok: true,
     account: registry.accounts[0],
@@ -59,7 +58,7 @@ test("a new worker gets the pool account with the most headroom above both of it
     candidates: [
       { account: "one", margin: 42 },
       { account: "two", margin: 7 },
-      { account: "three", margin: 30 },
+      { account: "three", margin: 32 },
     ],
   });
   const tie = selectAccount(registry, main, [...used("one", 50, 0), ...used("two", 50, 0)], NOW);
@@ -210,15 +209,11 @@ const holds = (chosen: Selection, previous: string | null): boolean => {
 };
 
 test("property: the choice follows the rule, and readings of accounts outside the pool change nothing", () => {
-  const minimums = fc.array(fc.constantFrom(undefined, 0, 8, 40), { minLength: 3, maxLength: 3 });
   const previous = fc.constantFrom(null, "one", "two", "three", "solo");
   expect(() =>
     fc.assert(
-      fc.property(randomReadings, minimums, previous, (readings, own, from) => {
-        const accounts = POOL.map((name, index) => {
-          const fiveHour = own[index];
-          return account(name, fiveHour === undefined ? {} : { minimum: { fiveHour } });
-        });
+      fc.property(randomReadings, previous, (readings, from) => {
+        const accounts = POOL.map((name) => account(name));
         const random = { ...registry, accounts: [...accounts, account("solo", { pool: null })] };
         const chosen = selectAccount(random, { ...main, previous: from }, readings, NOW);
         const inPool = selectAccount(

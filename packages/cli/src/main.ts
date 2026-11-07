@@ -150,9 +150,7 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
 };
 
 const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
-  const accounts = program
-    .command("accounts")
-    .description("agent accounts: config folders, pools and minimums, no credential");
+  const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
   accounts
     .command("list")
     .description("list the accounts and their pools")

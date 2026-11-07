@@ -3,7 +3,10 @@ import { type Account, type AccountRegistry, type Agent, QuotaWindow, type Readi
 /** What the choice reads of a reading: the time it was read is not needed. */
 type Current = Omit<Reading, "readAt">;
 
-/** The minimums a new registry starts with, in percent of each window. */
+/**
+ * The headroom a new worker needs in each window, in percent, the same for every account: claude-swap's lines replace
+ * it once they reach the choice (owner decision, 2026-11-07).
+ */
 export const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
 
 /** A pool account as the choice saw it: its smallest margin above its minimums, null when a window is unknown. */
@@ -47,17 +50,13 @@ export type Counted<T extends Current> = T & { readonly source: "reported" | "as
 
 // A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
 // disqualifies the account even when the other window is unknown.
-const margin = (registry: AccountRegistry, account: Account, readings: readonly Current[]) => {
+const margin = (account: Account, readings: readonly Current[]) => {
   let smallest = Number.POSITIVE_INFINITY;
   let unknown = false;
   for (const window of QuotaWindow.options) {
     const reading = readings.find((each) => each.account === account.name && each.window === window);
     if (reading === undefined) unknown = true;
-    else
-      smallest = Math.min(
-        smallest,
-        100 - reading.usedPercent - (account.minimum?.[window] ?? registry.minimum[window]),
-      );
+    else smallest = Math.min(smallest, 100 - reading.usedPercent - DEFAULT_MINIMUM[window]);
   }
   return unknown && smallest >= 0 ? null : smallest;
 };
@@ -124,7 +123,7 @@ export const selectAccount = (
   const members = freeMembers(registry, ref, busy ?? new Set());
   if (members === null) return { ok: false, reason: "all-leased", candidates: [] };
   const current = counted(readings, now);
-  const scored = members.map((account) => ({ account, margin: margin(registry, account, current) }));
+  const scored = members.map((account) => ({ account, margin: margin(account, current) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);
   if (best !== undefined) return { ok: true, account: best.account, reason: "most-headroom", candidates };

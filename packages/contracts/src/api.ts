@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Finding } from "./findings.ts";
+import { ImportReview } from "./imports.ts";
 import { DeleteFile, GitOid, PLAN_SCHEMA_VERSION, Sha256, StoreUpdate, WriteFile } from "./plan.ts";
 import { contracts } from "./registry.ts";
 import { WorkflowId } from "./workflow.ts";
@@ -64,6 +65,19 @@ export const UndoPreview = z
   .strictObject({ planHash: Sha256.nullable(), plan: summary.nullable(), findings })
   .register(contracts, { id: "UndoPreview" });
 export type UndoPreview = z.infer<typeof UndoPreview>;
+
+/**
+ * An import's review and, when anything is new or updated, its plan under an id, which POST
+ * /api/imports/{importId}/apply applies with the approved `planHash`; otherwise `id`, `planHash` and `plan` are null.
+ */
+export const ImportPreview = z
+  .strictObject({
+    id: z.uuid().nullable(),
+    review: ImportReview,
+    planHash: Sha256.nullable(),
+    plan: summary.nullable(),
+  })
+  .register(contracts, { id: "ImportPreview" });
 
 /** How a change ended; a run that stopped midway carries a `run.failed` finding that names it and its undo. */
 export const RunResult = z

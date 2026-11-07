@@ -1,5 +1,5 @@
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
@@ -13,7 +13,8 @@ import {
   startExtension,
   type Transport,
 } from "@cedarloom/extension-host";
-import { afterAll, afterEach, expect, test } from "vitest";
+import { HOST_FAILED, HOST_MISSING, HOST_REFUSED } from "@cedarloom/extension-sdk";
+import { afterAll, afterEach, expect, test, vi } from "vitest";
 import { CONFORMANT, conformance, SANDBOX_ONLY } from "./conformance.ts";
 
 const ACTIONS = [
@@ -33,6 +34,7 @@ const ACTIONS = [
   "fetch",
   "fetch-cancel",
   "fetch-then-crash",
+  "exec",
 ];
 const manifestOf = (actions: string[], api = "1.0", capabilities?: unknown): ExtensionManifest =>
   ExtensionManifest.parse({
@@ -538,4 +540,80 @@ test.skipIf(process.platform === "win32")(
 test("sandbox-runtime wraps nothing on Windows, whose sandbox needs an install of its own", async () => {
   const launch = { command: process.execPath, args: [], cwd: folder, env: {} };
   expect(await sandboxRuntime("win32").wrap(launch, { read: [folder], write: [], network: "none" })).toBeUndefined();
+});
+
+// The fixture with `programs` in its manifest: `node`, found on PATH (on Windows node.exe), and more as a test names.
+const withPrograms = (programs: Record<string, string[]>): ExtensionManifest =>
+  manifestOf(ACTIONS, "1.0", {
+    programs: Object.fromEntries(Object.entries(programs).map(([id, found]) => [id, { [process.platform]: found }])),
+  });
+const execs = async (fixture: RunningExtension, requests: unknown[]): Promise<unknown> =>
+  codeOf(await run(fixture, "exec", undefined, { requests }));
+
+test("host/exec runs a program its manifest names, found by the host, without a shell and in a clean environment", async () => {
+  vi.stubEnv("CEDARLOOM_TEST_TOKEN", "secret");
+  vi.stubEnv("CLAUDE_CONFIG_DIR", "/elsewhere");
+  const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+  const script =
+    "process.stdout.write(JSON.stringify([process.argv[1], process.env.CEDARLOOM_TEST_TOKEN ?? null, process.env.CLAUDE_CONFIG_DIR ?? null, process.cwd()])); process.exit(3)";
+  const answers = await execs(fixture, [
+    { program: "node", args: ["-e", script, "$(id); echo x"] },
+    { program: "git" },
+  ]);
+  vi.unstubAllEnvs();
+  expect(answers).toEqual({
+    answers: [
+      { result: { code: 3, stdout: JSON.stringify(["$(id); echo x", null, null, homedir()]), stderr: "" } },
+      { error: { code: HOST_REFUSED, message: "no program git in the manifest" } },
+    ],
+  });
+});
+
+test("host/exec stops a program at its time limit and at its output cap, and says when a program is not installed", async () => {
+  const fixture = await extension({
+    manifest: withPrograms({ node: ["node"], absent: ["cedarloom-no-such-program"] }),
+    limits: { execMs: 300, execBytes: 1000 },
+  });
+  const answers = await execs(fixture, [
+    { program: "node", args: ["-e", "setTimeout(() => {}, 10000)"] },
+    { program: "node", args: ["-e", "process.stdout.write('x'.repeat(5000))"] },
+    { program: "absent" },
+  ]);
+  expect(answers).toEqual({
+    answers: [
+      { error: { code: HOST_FAILED, message: "stopped at the time limit of 300 ms" } },
+      { error: { code: HOST_FAILED, message: "stopped at the output cap of 1000 bytes" } },
+      { error: { code: HOST_MISSING, message: "absent is not installed: none of cedarloom-no-such-program found" } },
+    ],
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "host/exec finds a program in the user's home folder, which a desktop app's PATH lacks",
+  async () => {
+    const home = mkdtempSync(join(scratch, "home-"));
+    mkdirSync(join(home, ".local", "bin"), { recursive: true });
+    const tool = join(home, ".local", "bin", "tool");
+    writeFileSync(tool, "#!/bin/sh\necho from home\n", { mode: 0o755 });
+    vi.stubEnv("HOME", home);
+    const fixture = await extension({
+      manifest: withPrograms({ tool: ["cedarloom-no-such-program", "~/.local/bin/tool"] }),
+    });
+    const answers = await execs(fixture, [{ program: "tool" }]);
+    vi.unstubAllEnvs();
+    expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "from home\n", stderr: "" } }] });
+  },
+);
+
+test("an extension from elsewhere that names programs is refused, since a program runs outside every sandbox", async () => {
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
+  const result = await start({
+    manifest: withPrograms({ node: ["node"] }),
+    trust: "community",
+    platform: "linux",
+    sandbox: wraps,
+  });
+  expect(result.ok ? "started" : result.finding).toEqual(refusal("programs"));
 });

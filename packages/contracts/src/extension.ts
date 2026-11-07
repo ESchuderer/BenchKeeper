@@ -112,6 +112,19 @@ const Credential = z.strictObject({
     .describe("The host adds the credential to requests to these hosts only; each is in `net`"),
 });
 
+// A program's name for the extension, and where the host looks for it on each platform, in order: a file name on PATH
+// (on Windows its .exe or .com, which run without a shell), or `~/` and a path in the user's home folder, such as
+// ~/.local/bin, which a desktop app's PATH often lacks.
+const ProgramId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
+// Each part of a home path starts with a letter, a digit or `_`, after one optional dot, so no part is `.` or `..`.
+const Candidate = z
+  .string()
+  .regex(/^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\/\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$/);
+const candidates = z.array(Candidate).min(1).max(8);
+const Program = z
+  .strictObject({ darwin: candidates.optional(), linux: candidates.optional(), win32: candidates.optional() })
+  .describe("Where the host looks for the program on each platform; none listed: not on that platform");
+
 const Capabilities = z.strictObject({
   net: distinct(Origin)
     .max(32)
@@ -122,6 +135,11 @@ const Capabilities = z.strictObject({
     .describe("Credential types the extension uses; it never receives their values"),
   projectRead: z.boolean().optional().describe("Reads project files through the host"),
   planWrite: z.boolean().optional().describe("Proposes file writes, which apply only through a plan the user approves"),
+  programs: sized(z.record(ProgramId, Program), 8)
+    .optional()
+    .describe(
+      "Programs the host runs for the extension (host/exec), found from these candidates; bundled extensions only",
+    ),
 });
 
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";

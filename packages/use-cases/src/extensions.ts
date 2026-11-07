@@ -50,7 +50,7 @@ const STAGING_MS = 60 * 60 * 1000;
 
 const refusal = (
   extension: string | null,
-  reason: "no-manifest" | "entry" | "protocol" | "installed" | "id",
+  reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "programs",
 ): Finding => ({
   code: "extension.install-refused",
   params: { extension, reason },
@@ -117,6 +117,8 @@ const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
 };
 
 const runnable = (manifest: ExtensionManifest, tree: Tree): Finding | undefined => {
+  // A program the host runs is outside every sandbox: only the app's own extensions may name one (Q-O1 a).
+  if (manifest.capabilities?.programs !== undefined) return refusal(manifest.id, "programs");
   if (!tree.files.some((file) => file.path === manifest.runtime.entry)) return refusal(manifest.id, "entry");
   return speaks(manifest.api) ? undefined : refusal(manifest.id, "protocol");
 };

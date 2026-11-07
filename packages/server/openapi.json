@@ -3171,7 +3171,8 @@
                       "protocol",
                       "actions",
                       "folder",
-                      "runtime"
+                      "runtime",
+                      "programs"
                     ]
                   }
                 },
@@ -3211,7 +3212,8 @@
                       "entry",
                       "protocol",
                       "installed",
-                      "id"
+                      "id",
+                      "programs"
                     ]
                   }
                 },
@@ -7253,7 +7255,8 @@
                       "protocol",
                       "actions",
                       "folder",
-                      "runtime"
+                      "runtime",
+                      "programs"
                     ]
                   }
                 },
@@ -7293,7 +7296,8 @@
                       "entry",
                       "protocol",
                       "installed",
-                      "id"
+                      "id",
+                      "programs"
                     ]
                   }
                 },

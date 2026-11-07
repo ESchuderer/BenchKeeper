@@ -159,14 +159,14 @@ export const Finding = z
     // grant, or that speaks another protocol or serves other actions than its manifest names; it is stopped at once.
     finding("extension.refused", {
       extension: z.string(),
-      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime"]),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "programs"]),
     }),
     // An extension that is not installed or updated: no manifest at its folder's root, no entry file, another protocol
     // than this CedarLoom speaks, one installed already, or an update whose folder now holds another extension. Its id
     // when the manifest names it.
     finding("extension.install-refused", {
       extension: z.string().nullable(),
-      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id"]),
+      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "programs"]),
     }),
     // An extension to update or remove that is not installed.
     finding("extension.unknown", { extension: z.string() }),

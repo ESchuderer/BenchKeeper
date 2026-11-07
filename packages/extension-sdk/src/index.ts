@@ -10,9 +10,12 @@ import {
 import {
   ACTION_FAILED,
   exit,
+  type ExecParams,
+  type ExecResult,
   type FetchParams,
   type FetchResult,
   type Granted,
+  hostExec,
   hostFetch,
   initialize,
   type LogParams,
@@ -27,9 +30,9 @@ export * from "./protocol.ts";
 
 /**
  * What an action gets: its node's `with`, its data inputs, the run's id, the user's language and its grant (from
- * `initialize`), a signal the host's cancel aborts, a log that reaches the run's log, and `fetch` through the host,
- * which the host's cancel of the run cancels too. A refused or failed fetch throws an error with `HOST_REFUSED` or
- * `HOST_FAILED` as its `code`.
+ * `initialize`), a signal the host's cancel aborts, a log that reaches the run's log, and `fetch` and `exec` through the
+ * host, which the host's cancel of the run cancels too. A refused or failed call throws an error with `HOST_REFUSED` or
+ * `HOST_FAILED` as its `code`, and an `exec` of a program not installed here one with `HOST_MISSING`.
  */
 export type ActionContext = Omit<RunParams, "action"> & {
   locale: string;
@@ -37,6 +40,7 @@ export type ActionContext = Omit<RunParams, "action"> & {
   signal: AbortSignal;
   log: (message: string, level?: LogParams["level"]) => void;
   fetch: (request: FetchParams) => Promise<FetchResult>;
+  exec: (request: ExecParams) => Promise<ExecResult>;
 };
 /** An action returns the values of its data outputs; it throws to fail. */
 export type Action = (context: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
@@ -123,8 +127,9 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
       }
     };
     const fetch = (request: FetchParams): Promise<FetchResult> => connection.sendRequest(hostFetch, request, token);
+    const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     try {
-      return { outputs: outputsOf(await run({ ...given, ...hello, signal: abortOn(token), log: send, fetch })) };
+      return { outputs: outputsOf(await run({ ...given, ...hello, signal: abortOn(token), log: send, fetch, exec })) };
     } catch (error) {
       return failure(error);
     }

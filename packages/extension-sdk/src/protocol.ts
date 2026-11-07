@@ -49,9 +49,24 @@ export type FetchParams = {
 /** The answer of the last request: its status, URL, headers (names in lower case) and body. */
 export type FetchResult = { status: number; url: string; headers: Record<string, string>; body: string };
 export const hostFetch = new RequestType<FetchParams, FetchResult, void>("host/fetch");
-/** Host call error codes: a request outside the extension's grant, and one the host could not complete. */
+/**
+ * A program the host runs for the extension, which starts none itself: one its manifest names under `programs`, found
+ * by the host from the manifest's candidates, run without a shell, in the user's home folder with a clean environment
+ * (the user's home, PATH, language and temp folders, no tokens), within a time limit and an output cap. Bundled
+ * extensions only. `timeoutMs` may shorten the host's limit, never lengthen it.
+ */
+export type ExecParams = { program: string; args?: string[]; timeoutMs?: number };
+/** How the program ended: its exit code (null when a signal ended it) and its output as UTF-8 text. */
+export type ExecResult = { code: number | null; stdout: string; stderr: string };
+export const hostExec = new RequestType<ExecParams, ExecResult, void>("host/exec");
+
+/**
+ * Host call error codes: a request outside the extension's grant, one the host could not complete (a program stopped
+ * at its limits), and a program of the manifest that is not installed here.
+ */
 export const HOST_REFUSED = 2;
 export const HOST_FAILED = 3;
+export const HOST_MISSING = 4;
 
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");

@@ -5,6 +5,7 @@ import { type ExtensionManifest as Manifest, type Finding, type Result, shown } 
 import {
   exit,
   type Granted,
+  hostExec,
   hostFetch,
   initialize,
   type LogParams,
@@ -21,6 +22,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
+import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
@@ -47,6 +49,10 @@ export type HostLimits = {
   fetchBytes: number;
   fetchMs: number;
   fetches: number;
+  /** For `host/exec`: how long a program may run, its output (both streams), and how many at once. */
+  execMs: number;
+  execBytes: number;
+  execs: number;
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
@@ -58,6 +64,10 @@ export const HOST_LIMITS: HostLimits = {
   fetchBytes: 512 * 1024,
   fetchMs: 30_000,
   fetches: 8,
+  // A claude-swap tick may wait about 18 s on Claude Code's locks and then fetch usage (account-switching plan 1.5).
+  execMs: 120_000,
+  execBytes: 1024 * 1024,
+  execs: 4,
 };
 
 export type ExtensionLaunch = {
@@ -92,7 +102,7 @@ export type RunningExtension = {
   stop: () => Promise<void>;
 };
 
-type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
 type Step = "start" | "initialize" | "run";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
@@ -137,6 +147,13 @@ const folderIsPlain = (folder: string): boolean => !/[*?]/.test(folder) && !hold
  * files past the flags), and for an extension from elsewhere in a sandbox. Node denies the network under
  * `--permission` only from version 25 (`--allow-net`, v25.0.0), so an older Node is refused.
  */
+// Why an extension from elsewhere may not run at all: a program the host runs is outside every sandbox (Q-O1 a), and
+// native Windows has none.
+const elsewhere = (launch: ExtensionLaunch): Refusal | undefined => {
+  if (launch.manifest.capabilities?.programs !== undefined) return "programs";
+  return (launch.platform ?? process.platform) === "win32" ? "windows" : undefined;
+};
+
 const launchOf = async (launch: ExtensionLaunch, folder: string): Promise<Launch | Finding> => {
   const { id, api, runtime } = launch.manifest;
   const flags = ["--permission", "--no-experimental-sqlite", `--allow-fs-read=${folder}`, join(folder, runtime.entry)];
@@ -145,7 +162,8 @@ const launchOf = async (launch: ExtensionLaunch, folder: string): Promise<Launch
   if (!speaks(api)) return refused(id, "protocol");
   if (!folderIsPlain(folder)) return refused(id, "folder");
   if (launch.trust === "bundled") return plain;
-  if ((launch.platform ?? process.platform) === "win32") return refused(id, "windows");
+  const refusal = elsewhere(launch);
+  if (refusal !== undefined) return refused(id, refusal);
   const policy: SandboxPolicy = { read: [folder], write: [], network: "none" };
   return (await (launch.sandbox ?? unavailable).wrap(plain, policy)) ?? refused(id, "sandbox-unavailable");
 };
@@ -295,6 +313,11 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     session.connection.onRequest(hostFetch, (params, token) => {
       if (!token.isCancellationRequested) token.onCancellationRequested(consumed);
       return fetch(params, token);
+    });
+    const exec = executor(broker);
+    session.connection.onRequest(hostExec, (params, token) => {
+      if (!token.isCancellationRequested) token.onCancellationRequested(consumed);
+      return exec(params, token);
     });
     session.connection.listen();
     const problem = await greet(launch, session, limits);

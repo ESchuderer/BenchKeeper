@@ -41,6 +41,20 @@ afterEach(() => {
   for (const store of open.splice(0)) store.close();
 });
 
+// A plan that writes `content` to one file that does not exist yet.
+const writing = (content: string): Plan => ({
+  schemaVersion: 1,
+  operations: [{ kind: "write", path: "/work/a.md", before: null, content }],
+});
+
+test("a plan's hash covers what its writes write: two plans that differ only in content have different hashes", () => {
+  // SHA-256 of the canonical JSON, keys sorted: {"operations":[{"before":null,"content":"hi\n",...}],"schemaVersion":1}.
+  expect([planHash(writing("hi\n")), planHash(writing("ho\n"))]).toEqual([
+    "0b6a7f4317071348c5957b94ca5d2a508554b168cf94bc541d36c97c14fe830e",
+    "fac188cb945c2e144cd9a788193aa98b60767bb527dd1a1d0ef1f16056620e09",
+  ]);
+});
+
 test.skipIf(process.platform === "win32")("the store folder, its backups and the database are private", () => {
   const store = opened(fresh());
   const id = store.begin("apply", plan, planHash(plan));

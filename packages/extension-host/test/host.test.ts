@@ -817,6 +817,7 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     codeOf(await fixture.worker("worker/show", { ...show, runner: "elsewhere" })),
     codeOf(await bad.worker("worker/start", START)),
     codeOf(await fixture.worker("worker/start", { ...START, line: [] })),
+    codeOf(await fixture.worker("worker/start", { ...START, line: ["cswap", "run\u0007"] })),
   ]).toEqual([
     { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
     { state: "succeeded", settled: true },
@@ -824,6 +825,7 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     failure("worker", "worker runners are the app's own extensions' only"),
     failure("worker", "no worker runner elsewhere"),
     failure("worker", "an answer the host refuses"),
+    failure("worker", "a request outside its contract"),
     failure("worker", "a request outside its contract"),
   ]);
 });

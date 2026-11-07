@@ -23,7 +23,11 @@ export const WORKER_PARAMS: { [C in WorkerCall]: z.ZodType<WorkerCallParams[C]> 
   "worker/start": z.strictObject({
     runner: z.string(),
     worktree: Path,
-    line: z.array(Word).min(1).max(200),
+    // Typed into the terminal's login shell: no control character in a word.
+    line: z
+      .array(PlainText.min(1).max(32 * 1024))
+      .min(1)
+      .max(200),
     spec: Word,
     title: PlainText.min(1).max(200),
     repository: Path,

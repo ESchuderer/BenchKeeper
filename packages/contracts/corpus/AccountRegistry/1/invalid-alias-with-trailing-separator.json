@@ -1,9 +1,5 @@
 {
   "schemaVersion": 1,
-  "minimum": {
-    "fiveHour": 10,
-    "sevenDay": 5
-  },
   "accounts": [
     {
       "name": "left",

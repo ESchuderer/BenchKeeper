@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { basename } from "node:path";
 import {
   type Account,
@@ -5,9 +6,10 @@ import {
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
-  findingInfo,
+  severityOf,
   type Plan,
   type PlanPreview,
+  type Result,
   type RunResult,
   shown as printable,
 } from "@cedarloom/contracts";
@@ -96,9 +98,27 @@ export const runsList = (ctx: Context): number => {
   return EXIT.ok;
 };
 
+// A worker run with the totals its session reported, else a graph run.
+const launchShow = (ctx: Context, runId: string): number => {
+  const shown = useCases.showLaunch(ctx.state, runId);
+  if (!shown.ok) return graphRunShow(ctx, runId);
+  const { account, verdict, startedAt, totals: t } = shown.value;
+  const spent =
+    t === null
+      ? "  no token or cost totals reported"
+      : `  ${t.inputTokens} input, ${t.outputTokens} output, ${t.cacheReadTokens} cache read and ${t.cacheCreationTokens} cache written tokens, about $${t.costUsd.toFixed(2)}`;
+  emit(
+    ctx,
+    "run",
+    { launch: shown.value },
+    `Run ${runId}: worker on ${account}, ${verdict ?? "running"}, ${startedAt}\n${spent}`,
+  );
+  return EXIT.ok;
+};
+
 export const runsShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showRun(ctx.state, runId);
-  if (!shown.ok && shown.finding.code === "run.not-found") return graphRunShow(ctx, runId);
+  if (!shown.ok && shown.finding.code === "run.not-found") return launchShow(ctx, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);
   const { run, steps } = shown.value;
   const lines = steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);
@@ -139,10 +159,11 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
   const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
-  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding])];
+  const own = await useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config });
+  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding]), ...own];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
-  return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;
+  return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;
 };
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
@@ -420,13 +441,13 @@ const showLevels = (ctx: Context): number => {
   return EXIT.ok;
 };
 
+// A planned change of a config file, shown or with --yes applied, or why there is none.
+const configChange = (ctx: Context, plan: Result<Plan>, yes?: true): number =>
+  plan.ok ? change(ctx, plan.value, { note: "", data: {}, findings: [] }, yes) : refused(ctx, "plan", plan.finding);
+
 /** Shows the default level and each project's own (`next` null), or plans the change `next`; --yes applies it. */
-export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number => {
-  if (next === null) return showLevels(ctx);
-  const planned = useCases.planLevel(ctx.config, next);
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  return change(ctx, planned.value, { note: "", data: {}, findings: [] }, yes);
-};
+export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number =>
+  next === null ? showLevels(ctx) : configChange(ctx, useCases.planLevel(ctx.config, next), yes);
 
 // The JSON of `cedarloom mode`: the latest switch's level and time, the default, and how long a switch lasts.
 const modeData = ({ switched, settings }: useCases.Mode) => ({
@@ -519,3 +540,29 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
   const note = `\n  ${ids.join(", ")} with the lock of ${extensions.length} extensions; commit and push ${folder} yourself.`;
   return change(ctx, plan, { note, data: { folder, workflows: ids, extensions }, findings: [] }, yes);
 };
+
+/** Shows the profile's plan for this machine, or with --yes applies it as one run. */
+export const profilesApply = (ctx: Context, { yes, allow = [] }: { yes?: true; allow?: string[] }): number => {
+  const machine = { home: useCases.claudeHome(ctx.io.env), user: homedir() };
+  const profile = useCases.planProfile(ctx.config, ctx.state, machine, allow);
+  if (!profile.ok) return refused(ctx, "plan", profile.finding);
+  const { plan, findings } = profile.value;
+  if (findings.some((finding) => severityOf(finding) === "error")) {
+    return fail(ctx, "plan", findings, EXIT.refused);
+  }
+  if (plan === null) {
+    emit(
+      ctx,
+      "plan",
+      { planHash: null, plan: null, findings },
+      "Nothing to change in this machine's rules and settings.",
+    );
+    report(ctx, findings);
+    return EXIT.ok;
+  }
+  return change(ctx, plan, { note: "", data: {}, findings }, yes);
+};
+
+/** Shows a change of this machine's profile selection, or with --yes makes it as one run. */
+export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: { yes?: true }): number =>
+  configChange(ctx, useCases.planChoice(ctx.config, choice), yes);

@@ -140,16 +140,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 13 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 14 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 12 is the last schema before 0.1.0, the one with token rows.
-  const dir = storeAt(12);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 12, known: 13 } } };
+  // 13 is the last schema before 0.1.0, whose launches kept no totals.
+  const dir = storeAt(13);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 13, known: 14 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 12 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 13 });
   after.close();
 });
 
@@ -475,6 +475,7 @@ test("an account gives at most max leases; a finished lease frees one, another a
     finishedAt: "2026-11-06T08:10:00.000Z",
     verdict: "pass",
     plugins: null,
+    totals: null,
   });
   expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
   // A run takes one lease: a second lease of a run whose lock is held is refused.
@@ -612,6 +613,30 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   expect(latest()).toEqual({ ...plugins, loaded: [], errors: ["workflow: no plugin.json"] });
   // Checked on write, so the launches stay readable.
   expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
+});
+
+test("a launch keeps the totals its result reported, which a view reads by its run id", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2)?.release();
+  const totals = {
+    inputTokens: 2,
+    outputTokens: 70,
+    cacheReadTokens: 11687,
+    cacheCreationTokens: 12674,
+    costUsd: 0.105,
+  };
+  store.recordTotals(runIdOf(1), totals);
+  const view = openRunView(dir);
+  if (!view.ok || view.value === null) throw new Error("no view");
+  try {
+    // One launch by its run id, as runs show reads it; none for another id.
+    expect([view.value.launch(runIdOf(1))?.totals, view.value.launch(runIdOf(9))]).toEqual([totals, undefined]);
+  } finally {
+    view.value.close();
+  }
+  // Checked on write, so the launches stay readable.
+  expect(() => store.recordTotals(runIdOf(1), { ...totals, outputTokens: -1 })).toThrow(/too_small|>=0/);
 });
 
 const sample = {

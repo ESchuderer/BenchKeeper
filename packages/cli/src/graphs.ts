@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { phaseLaunch } from "@cedarloom/adapter-claude";
-import type { Finding, Result } from "@cedarloom/contracts";
+import { type Finding, type GraphRun, type Json, type Result, shown as safeText } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail } from "./output.ts";
 
@@ -10,7 +10,8 @@ const exitOf = (finding: Finding): number => (finding.code === "document.unreada
 const ran = (ctx: Context, result: Result<{ runId: string; status: string }>): number => {
   if (!result.ok) return fail(ctx, "run", [result.finding], exitOf(result.finding));
   const { runId, status } = result.value;
-  emit(ctx, "run", { runId, status }, `Run ${runId}: ${status}.`);
+  const next = status === "waiting" ? ` cloom runs show ${runId} lists what for.` : "";
+  emit(ctx, "run", { runId, status }, `Run ${runId}: ${status}.${next}`);
   return status === "failed" ? EXIT.refused : EXIT.ok;
 };
 
@@ -30,10 +31,12 @@ export const workflowsRun = async (
 ): Promise<number> => ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, runOptions(ctx, project)));
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
-// What becomes of the attempts still running: a live runner ends them cancelled; those a dead runner left end interrupted.
+// What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,
+// except an agent's that a resume recovers.
 const ATTEMPTS = {
   live: "Running now; its runner ends them cancelled:",
-  resume: "Left running when its runner died; they end interrupted, count as failed, and retries rerun them:",
+  resume:
+    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, the others end interrupted, count as failed, and retries rerun them:",
   cancel: "Left running when its runner died; they end interrupted:",
 } as const;
 
@@ -67,6 +70,56 @@ interface Acting {
   readonly yes?: true | undefined;
 }
 
+// A configuration value as text: the validator checked that these are strings.
+const said = (value: Json | undefined): string => (typeof value === "string" ? value : JSON.stringify(value ?? ""));
+
+// A write's content as the owner reads it before approving: its lines and tabs as they are, every other control or
+// bidirectional character as an escape, so the untrusted content cannot move the cursor or rewrite what is shown.
+const escaped = (content: string): string =>
+  content
+    .split("\n")
+    .map((line) =>
+      line
+        .split("\t")
+        .map((part) => safeText(part, Number.POSITIVE_INFINITY))
+        .join("\t"),
+    )
+    .join("\n");
+
+// What a node waits for: an approval's question, or a gate with the plan it would apply.
+const waitText = (run: GraphRun, { node, point, planHash }: useCases.Waiting): string => {
+  const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
+  if (point === "human.approval") return `${node} asks: ${said(config["message"])}`;
+  return planHash === null
+    ? `${node} waits to start`
+    : `${node} waits to write ${said(config["path"])} (plan ${planHash})`;
+};
+
+/** Approves or rejects what a graph run's node waits for; without --yes, shows what that is and changes nothing. */
+export const runsDecide = async (
+  ctx: Context,
+  { runId, node, approved }: { readonly runId: string; readonly node: string; readonly approved: boolean },
+  options: Acting,
+): Promise<number> => {
+  if (options.yes === true) {
+    const decided = await useCases.decideRun(ctx.state, runId, { node, approved }, runOptions(ctx, options.project));
+    return ran(ctx, decided);
+  }
+  const shown = useCases.waitsOf(ctx.state, runId);
+  if (!shown.ok) return fail(ctx, "run", [shown.finding], EXIT.refused);
+  const wait = shown.value.waits.find((each) => each.node === node);
+  if (wait === undefined) return fail(ctx, "run", [{ code: "run.not-waiting", params: { runId, node } }], EXIT.refused);
+  const verb = approved ? "approve" : "reject";
+  const writes = wait.content === null ? [] : ["It writes:", escaped(wait.content)];
+  const lines = [
+    `Run ${runId}: ${waitText(shown.value.run, wait)}.`,
+    ...writes,
+    `Nothing changed. Run it again with --yes to ${verb} it.`,
+  ];
+  emit(ctx, "run", { run: shown.value.run, wait }, lines.join("\n"));
+  return EXIT.ok;
+};
+
 /** A graph run and its attempts, each with the process it started: one that ended interrupted may still run. */
 export const graphRunShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showGraphRun(ctx.state, runId);
@@ -77,6 +130,8 @@ export const graphRunShow = (ctx: Context, runId: string): number => {
     return `  ${`${each.node}#${each.attempt}`.padEnd(16)} ${each.state.padEnd(11)}${pid}`;
   });
   const head = `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}, ${run.startedAt}`;
-  emit(ctx, "run", { run, attempts }, [head, ...lines].join("\n"));
+  const waiting = useCases.waitsOf(ctx.state, runId);
+  const waits = waiting.ok ? waiting.value.waits.map((wait) => `  ${waitText(run, wait)}`) : [];
+  emit(ctx, "run", { run, attempts }, [head, ...lines, ...waits].join("\n"));
   return EXIT.ok;
 };

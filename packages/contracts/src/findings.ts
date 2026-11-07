@@ -41,6 +41,8 @@ export const Finding = z
     // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
     finding("run.lease-held", { runId: z.string(), pid: z.int() }),
     finding("run.finished", { runId: z.string(), status: z.string() }),
+    // A decision for a node of a graph run that waits for none: no approval, no gate.
+    finding("run.not-waiting", { runId: z.string(), node: z.string() }),
     // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
     // A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts.
@@ -160,14 +162,14 @@ export const Finding = z
     // bundled one switched off.
     finding("extension.refused", {
       extension: z.string(),
-      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "off"]),
+      reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "off", "programs"]),
     }),
     // An extension that is not installed or updated: no manifest at its folder's root, no entry file, another protocol
     // than this CedarLoom speaks, one installed already, an update whose folder now holds another extension, or one of
     // the `cedarloom` publisher, which only the app ships. Its id when the manifest names it.
     finding("extension.install-refused", {
       extension: z.string().nullable(),
-      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "reserved"]),
+      reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "reserved", "programs"]),
     }),
     // An extension to update or remove that is not installed.
     finding("extension.unknown", { extension: z.string() }),
@@ -176,8 +178,16 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor"]),
       error: z.string(),
+    }),
+    // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
+    finding("extension.finding", {
+      extension: z.string(),
+      check: z.string(),
+      severity: z.enum(["error", "warning", "info"]),
+      code: z.string(),
+      message: z.string(),
     }),
     // A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33).
     finding("profile.foreign-kind", { kind: z.string() }),
@@ -189,6 +199,31 @@ export const Finding = z
     finding("profile.parent-limit", { chain: z.array(z.string()), limit: z.int() }),
     // One pack id with two sources in one composition: the files that name each.
     finding("profile.pack-sources", { pack: z.string(), files: z.array(z.string()) }),
+    finding("profile.entry-unknown", {
+      pack: z.string(),
+      path: z.string(),
+      kind: z.enum(["rules", "template", "profile"]),
+    }),
+    finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
+    // A part the selection or a `requires` names that the profile does not hold, both as `level.id`.
+    finding("profile.part-unknown", { part: z.string(), by: z.string() }),
+    finding("profile.part-requires", { part: z.string(), requires: z.string() }),
+    // A file the owner changed or made since CedarLoom last wrote it: the plan leaves it as it is.
+    finding("profile.owner-changed", { path: z.string() }),
+    // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
+    finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
+    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
+    // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
+    // updates it by itself; no source: a marketplace Claude Code already knows.
+    finding("profile.approval-needed", {
+      part: z.string(),
+      plugin: z.string(),
+      source: z.string().nullable(),
+      ref: z.string().nullable(),
+      autoUpdate: z.boolean(),
+    }),
+    finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -229,6 +264,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.event-invalid": { severity: "error", effort: "manual" },
   "run.lease-held": { severity: "error", effort: "manual" },
   "run.finished": { severity: "error", effort: "manual" },
+  "run.not-waiting": { severity: "error", effort: "manual" },
   "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },
@@ -294,6 +330,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "doctor.plugin-not-loaded": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
+  // Its severity is the extension's: see severityOf.
+  "extension.finding": { severity: "warning", effort: "manual" },
   "extension.install-refused": { severity: "error", effort: "manual" },
   "extension.unknown": { severity: "error", effort: "manual" },
   "extension.consent-needed": { severity: "error", effort: "command" },
@@ -314,4 +352,17 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.parent-cycle": { severity: "error", effort: "manual" },
   "profile.parent-limit": { severity: "error", effort: "manual" },
   "profile.pack-sources": { severity: "error", effort: "manual" },
+  "profile.entry-unknown": { severity: "error", effort: "manual" },
+  "profile.app-too-old": { severity: "error", effort: "manual" },
+  "profile.part-unknown": { severity: "error", effort: "manual" },
+  "profile.part-requires": { severity: "error", effort: "command" },
+  "profile.owner-changed": { severity: "warning", effort: "manual" },
+  "profile.placeholder-unknown": { severity: "error", effort: "manual" },
+  "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.approval-needed": { severity: "warning", effort: "command" },
+  "profile.options-guarded": { severity: "error", effort: "manual" },
 };
+
+/** A finding's severity: an extension's own finding carries its own, every other code has one. */
+export const severityOf = (found: Finding): FindingInfo["severity"] =>
+  found.code === "extension.finding" ? found.params.severity : findingInfo[found.code].severity;

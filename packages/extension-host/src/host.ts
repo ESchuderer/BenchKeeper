@@ -3,8 +3,10 @@ import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
 import {
+  doctorRun,
   exit,
   type Granted,
+  hostExec,
   hostFetch,
   initialize,
   type LogParams,
@@ -21,6 +23,8 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
+import { z } from "zod";
+import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
@@ -47,6 +51,12 @@ export type HostLimits = {
   fetchBytes: number;
   fetchMs: number;
   fetches: number;
+  /** For `host/exec`: how long a program may run, its output (both streams), and how many at once. */
+  execMs: number;
+  execBytes: number;
+  execs: number;
+  /** How long the extension's own checks may take to answer the doctor. */
+  doctorMs: number;
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
@@ -58,6 +68,11 @@ export const HOST_LIMITS: HostLimits = {
   fetchBytes: 512 * 1024,
   fetchMs: 30_000,
   fetches: 8,
+  // A claude-swap tick may wait about 18 s on Claude Code's locks and then fetch usage (account-switching plan 1.5).
+  execMs: 120_000,
+  execBytes: 1024 * 1024,
+  execs: 4,
+  doctorMs: 10_000,
 };
 
 export type ExtensionLaunch = {
@@ -90,10 +105,15 @@ export type RunningExtension = {
   log: (run: string) => RunLog;
   /** Asks the extension to end (shutdown, exit), and kills it after `stopMs`. */
   stop: () => Promise<void>;
+  /**
+   * The findings of the extension's own checks (`contributes.doctor`), asked once: none when it names no check, and
+   * `extension.failed` (step doctor) when it does not answer within `doctorMs` or answers what the host refuses.
+   */
+  doctor: () => Promise<Finding[]>;
 };
 
-type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
-type Step = "start" | "initialize" | "run";
+type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
+type Step = "start" | "initialize" | "run" | "doctor";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
   code: "extension.refused",
@@ -132,6 +152,12 @@ const holdsLink = (folder: string): boolean =>
  */
 const folderIsPlain = (folder: string): boolean => !/[*?]/.test(folder) && !holdsLink(folder);
 
+// Why an extension from elsewhere may not run: a program runs outside every sandbox (Q-O1 a); Windows has none.
+const elsewhere = (launch: ExtensionLaunch): Refusal | undefined => {
+  if (launch.manifest.capabilities?.programs !== undefined) return "programs";
+  return (launch.platform ?? process.platform) === "win32" ? "windows" : undefined;
+};
+
 /**
  * How to start the extension: under Node's permission flags, reading its folder only, `node:sqlite` off (it reaches
  * files past the flags), and for an extension from elsewhere in a sandbox. Node denies the network under
@@ -145,7 +171,8 @@ const launchOf = async (launch: ExtensionLaunch, folder: string): Promise<Launch
   if (!speaks(api)) return refused(id, "protocol");
   if (!folderIsPlain(folder)) return refused(id, "folder");
   if (launch.trust === "bundled") return plain;
-  if ((launch.platform ?? process.platform) === "win32") return refused(id, "windows");
+  const refusal = elsewhere(launch);
+  if (refusal !== undefined) return refused(id, refusal);
   const policy: SandboxPolicy = { read: [folder], write: [], network: "none" };
   return (await (launch.sandbox ?? unavailable).wrap(plain, policy)) ?? refused(id, "sandbox-unavailable");
 };
@@ -296,9 +323,14 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
       if (!token.isCancellationRequested) token.onCancellationRequested(consumed);
       return fetch(params, token);
     });
+    const exec = executor(broker);
+    session.connection.onRequest(hostExec, (params, token) => {
+      if (!token.isCancellationRequested) token.onCancellationRequested(consumed);
+      return exec(params, token);
+    });
     session.connection.listen();
     const problem = await greet(launch, session, limits);
-    if (problem === undefined) return { ok: true, value: running(id, session, logs, limits) };
+    if (problem === undefined) return { ok: true, value: running(launch.manifest, session, logs, limits) };
     session.kill();
     return "code" in problem ? { ok: false, finding: problem } : problem;
   } catch (error) {
@@ -314,13 +346,50 @@ const outputsOf = (id: string, answer: unknown): Result<Record<string, unknown>>
   return plain ? { ok: true, value: Object.fromEntries(Object.entries(outputs)) } : failed(id, "run", "no outputs");
 };
 
+// An answer to doctor/run: checks of the manifest's own, each with a text of a bounded length.
+const DoctorAnswer = (checks: string[]) =>
+  z.strictObject({
+    findings: z
+      .array(
+        z.strictObject({
+          check: z.string().refine((check) => checks.includes(check)),
+          severity: z.enum(["error", "warning", "info"]),
+          code: z.string().regex(/^[a-z][a-z0-9.-]{0,63}$/),
+          // As much as a finding shows (shown's 2000 characters): a longer text is refused, not cut.
+          message: z.string().max(2000),
+        }),
+      )
+      .max(50),
+  });
+
+const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits): Promise<Finding[]> => {
+  const checks = Object.keys(manifest.contributes.doctor ?? {});
+  if (checks.length === 0) return [];
+  const asked = Promise.resolve().then(() => session.connection.sendRequest(doctorRun));
+  const answer = await within(asked, limits.doctorMs, `no answer within ${limits.doctorMs} ms`).catch(
+    (error: unknown) => new Error(session.broken() ?? messageOf(error)),
+  );
+  const unanswered = (error: string): Finding[] => [
+    { code: "extension.failed", params: { extension: manifest.id, step: "doctor", error: shown(error) } },
+  ];
+  if (answer instanceof Error) return unanswered(answer.message);
+  const parsed = DoctorAnswer(checks).safeParse(answer);
+  if (!parsed.success) return unanswered("an answer the host refuses");
+  return parsed.data.findings.map(({ check, severity, code, message }) => ({
+    code: "extension.finding",
+    params: { extension: manifest.id, check, severity, code, message: shown(message) },
+  }));
+};
+
 const running = (
-  id: string,
+  manifest: Manifest,
   session: Session,
   logs: ReturnType<typeof logBook>,
   limits: HostLimits,
 ): RunningExtension => ({
+  doctor: () => doctorOf(manifest, session, limits),
   run: async (request, signal) => {
+    const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");
     logs.open(request.run);
     const source = new CancellationTokenSource();

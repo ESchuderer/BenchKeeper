@@ -24,12 +24,14 @@ const EXTENSION_REFUSALS = {
   folder: "its folder has a * or ? in its path or a link inside, which would widen what it may read",
   runtime: "Node denies an extension the network only from version 25 on",
   off: "it is switched off (cedarloom components switch)",
+  programs: "only an extension that ships with CedarLoom may have programs run for it",
 } as const;
 const EXTENSION_STEPS = {
   stage: "stage its files",
   start: "start",
   initialize: "answer its handshake",
   run: "run an action",
+  doctor: "answer the doctor's checks",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
@@ -37,6 +39,7 @@ const INSTALL_REFUSALS = {
   protocol: "it needs a version of the extension protocol this CedarLoom does not speak",
   installed: "it is installed already",
   reserved: "its publisher, cedarloom, is CedarLoom's own, whose extensions come only with the app",
+  programs: "it asks for programs to run, which only an extension that ships with CedarLoom may",
   id: "its folder now holds another extension",
 } as const;
 
@@ -78,6 +81,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.lease-held": (p) =>
     `Process ${p.pid} holds run ${p.runId}; resuming the run takes it over once that process has ended.`,
   "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
+  "run.not-waiting": (p) => `Node ${p.node} of run ${p.runId} waits for no decision.`,
   "run.report-only-apply": (p) =>
     `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
   "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
@@ -194,6 +198,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
+  "extension.finding": (p) => `${p.extension}: ${p.message}`,
   "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
   "extension.consent-needed": (p) =>
     `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,
@@ -228,6 +233,27 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The profile reaches more than ${p.limit} profile files through its parents, last ${p.chain.join(" -> ")}; nothing is read further.`,
   "profile.pack-sources": (p) =>
     `Pack ${p.pack} comes from different sources in ${p.files.join(" and ")}; give it one source in every profile file.`,
+  "profile.entry-unknown": (p) => `Pack ${p.pack} has no ${p.kind} entry ${p.path} on this machine.`,
+  "profile.app-too-old": (p) => `The profile needs CedarLoom ${p.minApp} or newer; this is ${p.app}. Update CedarLoom.`,
+  "profile.part-unknown": (p) => `${p.by} names the part ${p.part}, which the profile does not have.`,
+  "profile.part-requires": (p) =>
+    `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
+  "profile.binding-missing": (p) =>
+    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.placeholder-unknown": (p) =>
+    `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
+  "profile.approval-needed": (p) => {
+    const from =
+      p.source === null
+        ? "a marketplace Claude Code already knows"
+        : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
+    const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+  },
+  "profile.options-guarded": (p) =>
+    `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
+  "profile.owner-changed": (p) =>
+    `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

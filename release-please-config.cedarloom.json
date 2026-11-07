@@ -20,6 +20,7 @@
         "ledger",
         "orchestration",
         "packs",
+        "profiles",
         "server",
         "ui",
         "use-cases"
@@ -40,6 +41,7 @@
     "packages/ledger": { "component": "ledger" },
     "packages/orchestration": { "component": "orchestration" },
     "packages/packs": { "component": "packs" },
+    "packages/profiles": { "component": "profiles" },
     "packages/server": {
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]

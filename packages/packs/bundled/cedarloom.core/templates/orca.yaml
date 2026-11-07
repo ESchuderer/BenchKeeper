@@ -1,0 +1,9 @@
+# Orca runs the setup script in each new worktree when its setup run policy allows it, then starts the agent; the archive script runs before it removes a worktree with --run-hooks.
+scripts:
+  setup: |
+    cd "$ORCA_WORKTREE_PATH"
+    # the install command from AGENTS.md, for example: npm ci
+  archive: |
+    # Before the worktree is removed: stop and remove its dev containers (volumes stay); a failure never blocks the removal.
+    sh -c 'e=$(command -v podman || command -v docker) && [ -n "$ORCA_WORKTREE_PATH" ] && "$e" ps -aq --filter "label=devcontainer.local_folder=$ORCA_WORKTREE_PATH" | xargs -r "$e" rm -f >/dev/null; exit 0'
+setupAgentStartupPolicy: wait-for-setup

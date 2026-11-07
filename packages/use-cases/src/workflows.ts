@@ -231,7 +231,13 @@ const sandboxed =
     // shortcut: srt's wrapper gets the environment on its command line, so the command's inputs show in the process list
     // to other local users; hand them over in a file once inputs can hold secrets.
     const temp = realpathSync.native(mkdtempSync(join(tmpdir(), "cedarloom-command-")));
-    const gone = (): void => rmSync(temp, { recursive: true, force: true });
+    const gone = (): void => {
+      try {
+        rmSync(temp, { recursive: true, force: true });
+      } catch {
+        // A folder the command left unreadable stays for the system's cleanup; the command's result counts.
+      }
+    };
     const plain = launchOf(shell, project, attempt);
     const launch = { ...plain, env: { ...plain.env, TMPDIR: temp } };
     const inside = await inSandbox(sandbox, launch, policyOf(project, [temp]));
@@ -239,7 +245,15 @@ const sandboxed =
       gone();
       return refusing("run.sandbox-unavailable", inside)();
     }
-    const prepared = attemptOf(spawnGated(inside), attempt);
+    let child: ReturnType<typeof spawnGated>;
+    try {
+      child = spawnGated(inside);
+    } catch (error) {
+      // A spawn that throws, as on a NUL byte in an input, leaves no folder behind.
+      gone();
+      throw error;
+    }
+    const prepared = attemptOf(child, attempt);
     return { ...prepared, run: () => prepared.run().finally(gone) };
   };
 

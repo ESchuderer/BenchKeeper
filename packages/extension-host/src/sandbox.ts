@@ -49,7 +49,7 @@ const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
 
 // One initialization per process: srt's proxies serve every wrapped launch, and no allowed host lets them pass anything.
 let ready: Promise<void> | undefined;
-// Whether a program starts inside srt at all, checked once per program: srt's own checks pass where bubblewrap lacks
+// Whether a program starts inside srt at all, checked once per program and probe: srt's own checks pass where bubblewrap lacks
 // the rights it needs (a rootless container, Ubuntu's AppArmor profile), or a library lies outside SYSTEM.
 const probes = new Map<string, Promise<void>>();
 
@@ -109,8 +109,10 @@ export const sandboxRuntime = (platform: NodeJS.Platform = process.platform): Sa
       filesystem: { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] },
     });
     await ready;
-    const starts = probes.get(launch.command) ?? probe(launch.command, policy.probe ?? ["-e", ""]);
-    probes.set(launch.command, starts);
+    const args = policy.probe ?? ["-e", ""];
+    const key = JSON.stringify([launch.command, args]);
+    const starts = probes.get(key) ?? probe(launch.command, args);
+    probes.set(key, starts);
     await starts;
     return confined(launch, policy);
   },

@@ -209,6 +209,26 @@ test("maps the stream-json lines to events", async () => {
   expect(all[6]).toEqual({ type: "exit", code: 0, signal: null, error: null, stderr: "fake stderr\n" });
 });
 
+test("a model's own weekly window, seven_day_<family>, is that family's 7-day window; another window is none", async () => {
+  const [init] = readFileSync(join(fixtures, "stream.jsonl"), "utf8").split("\n");
+  const window = { utilization: 0.5, resetsAt: 1793988000, status: "allowed" };
+  const unifiedWindows = { seven_day: window, seven_day_opus: window, overage: window };
+  const limit = {
+    type: "rate_limit_event",
+    rate_limit_info: { ...window, rateLimitType: "seven_day_opus", unifiedWindows },
+  };
+  const file = join(mkdtempSync(join(tmpdir(), "cedarloom-windows-")), "windows.jsonl");
+  writeFileSync(file, `${init}\n${JSON.stringify(limit)}\n`);
+  const all = await events(runtime.start(launch({ FAKE_STREAM: file })));
+  expect(all.find((event) => event.type === "usage")).toMatchObject({
+    windows: [
+      { window: "seven_day", quota: "sevenDay" },
+      { window: "seven_day_opus", quota: "sevenDay:opus" },
+      { window: "overage", quota: null },
+    ],
+  });
+});
+
 // A result line with `spend`, and one model's usage of n, 2n, 3n and 4n tokens.
 const result = (spend: object) =>
   JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "OK", ...spend });

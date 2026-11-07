@@ -5,24 +5,40 @@ import {
   AppShell,
   Burger,
   Button,
+  Fieldset,
   Group,
+  List,
   NavLink,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
   useMatches,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Brain, ClipboardList, Gauge, History, MessagesSquare, Undo2, Users, Workflow } from "lucide-react";
+import {
+  Brain,
+  ClipboardList,
+  Gauge,
+  History,
+  MessagesSquare,
+  SlidersHorizontal,
+  Undo2,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { MessageId } from "@lingui/core";
 // A file, never a data: URL: the server's CSP allows images from its own origin only.
 import mark from "../../../brand/cedarloom-icon.svg?no-inline";
 import { t, when } from "./i18n.ts";
+import { describe } from "./workflow/problems.ts";
 
 type Run = components["schemas"]["Run"];
 type GraphRun = components["schemas"]["GraphRunSummary"];
+type ProfileView = components["schemas"]["ProfileView"];
+type Part = components["schemas"]["ProfilePart"];
 type Preview = { planHash: string | null; count: number; skipped: number };
 type Fetched<T> = { data: T; error?: never; response: Response } | { data?: never; error: unknown; response: Response };
 
@@ -241,9 +257,96 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   );
 };
 
+/** A part's switch; its description names its id, which the lines use, and the probe it is left to. */
+const PartSwitch = ({ part, onSwitch }: { part: Part; onSwitch: (on: boolean) => void }) => (
+  <Switch
+    label={part.title}
+    description={
+      <>
+        <Text span ff="monospace" inherit>
+          {part.id}
+        </Text>
+        {part.when !== null && ` ${t("profile.when", { when: part.when })}`}
+        {part.description !== null && ` ${part.description}`}
+      </>
+    }
+    // The theme's dimmed description falls below 4.5:1 on white.
+    styles={{ description: { color: "var(--mantine-color-text)" } }}
+    checked={part.on}
+    onChange={(event) => onSwitch(event.currentTarget.checked)}
+  />
+);
+
+type OnSwitch = (part: string, on: boolean) => void;
+
+/** The parts in a group per level, in the order the profile gives them. */
+const Levels = ({ parts, onSwitch }: { parts: Part[]; onSwitch: OnSwitch }) =>
+  [...Map.groupBy(parts, (part) => part.level)].map(([level, inLevel]) => (
+    <Fieldset key={level} legend={t("profile.level", { level })}>
+      <Stack gap="sm">
+        {inLevel.map((part) => (
+          <PartSwitch key={part.id} part={part} onSwitch={(on) => onSwitch(part.id, on)} />
+        ))}
+      </Stack>
+    </Fieldset>
+  ));
+
+/**
+ * The selected profile's parts per level, each switch a run that changes this machine's selection, and this machine's
+ * plan with its lines; the plan's sentence is a live region, so what a switch changed is announced. A switch made while
+ * the last one is still applied or read is ignored rather than disabled, which would drop the keyboard focus.
+ */
+const Profile = ({ api }: { api: Api }): ReactNode => {
+  const [view, setView] = useState<ProfileView | null>(null);
+  const [problem, setProblem] = useState("");
+  const busy = useRef(false);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    let current = true;
+    const show = async (): Promise<void> => {
+      const answer = await call(() => api.GET("/api/profile"));
+      if (!current) return;
+      setProblem("problem" in answer ? answer.problem : "");
+      if ("data" in answer) setView(answer.data);
+      busy.current = false;
+    };
+    void show();
+    return () => void (current = false);
+  }, [api, version]);
+  const choose = async (part: string, on: boolean): Promise<void> => {
+    if (busy.current) return;
+    busy.current = true;
+    const answer = await call(() => api.PUT("/api/profile/parts/{part}", { params: { path: { part } }, body: { on } }));
+    if ("data" in answer) return setVersion((value) => value + 1);
+    setProblem(answer.problem);
+    busy.current = false;
+  };
+  return (
+    <Stack>
+      {problem !== "" && <Alert color="red">{problem}</Alert>}
+      {view && (
+        <>
+          <Text role="status">
+            {view.held ? t("profile.held") : t("profile.plan", { count: view.plan?.operations.length ?? 0 })}
+          </Text>
+          {view.findings.length > 0 && (
+            <List>
+              {view.findings.map((finding) => (
+                <List.Item key={JSON.stringify(finding)}>{describe(finding)}</List.Item>
+              ))}
+            </List>
+          )}
+          <Levels parts={view.parts} onSwitch={(part, on) => void choose(part, on)} />
+        </>
+      )}
+    </Stack>
+  );
+};
+
 const VIEWS = [
   { id: "nav.runs", icon: History },
   { id: "nav.workflows", icon: Workflow },
+  { id: "nav.profile", icon: SlidersHorizontal },
   { id: "nav.sessions", icon: MessagesSquare },
   { id: "nav.accounts", icon: Users },
   { id: "nav.memory", icon: Brain },
@@ -258,6 +361,7 @@ const WorkflowEditor = lazy(() => import("./workflow/Editor.tsx"));
 
 const content = (view: View, session: Session): ReactNode => {
   if (view === "nav.runs") return <Runs session={session} />;
+  if (view === "nav.profile") return <Profile api={session.api} />;
   if (view === "nav.workflows") {
     return (
       <Suspense fallback={null}>

@@ -36,7 +36,7 @@ export const automationSettings = (config: string): Result<AutomationSettings | 
  * A project's folder by its real path, symbolic links followed and in its on-disk case, so one folder has one entry
  * (realpathSync.native: https://nodejs.org/api/fs.html#fsrealpathsyncnativepath-options); null when no folder is there.
  */
-export const projectFolder = (folder: string): string | null => {
+const projectFolder = (folder: string): string | null => {
   try {
     const real = realpathSync.native(folder);
     return statSync(real).isDirectory() ? real : null;

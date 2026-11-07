@@ -6,7 +6,7 @@ import type { AccountRegistry, Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared, Recovery } from "@cedarloom/engine";
 import { commonDir, worktreeOf } from "@cedarloom/git";
 import { readResult } from "@cedarloom/orchestration";
-import { boundTarget, loadRegistry } from "./accounts.ts";
+import { loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
 import {
   type Decided,
@@ -40,6 +40,8 @@ export interface AgentOptions<L extends Launch = Launch> {
   readonly stallMs?: number;
   /** How long a wait for a free account lease waits before it asks again: 5 seconds when unset. */
   readonly retryMs?: number;
+  /** Keeps the accounts' latest readings (claude-swap's) before a new worker's account is chosen. */
+  readonly readings?: () => Promise<unknown>;
 }
 
 /** The run an agent works for: its state folder, id and project folder, and whether it only reports. */
@@ -80,15 +82,10 @@ const worktrees = (run: AgentRun) => {
   };
 };
 
-// The pool an agent's worker chooses from: the one `accounts map` bound the run's folder to, else the registry's only
-// Claude Code pool. A folder bound to an account takes that account, and the only pool once the binding is removed.
-// shortcut: an unbound folder runs on the only pool; give the run a choice once someone keeps two pools unbound.
-const poolOf = (registry: AccountRegistry | null, project: string): string | null => {
-  const bound = registry === null ? null : boundTarget(registry, project);
-  if (bound !== null && "pool" in bound) return bound.pool;
+// shortcut: an agent runs on the registry's only Claude Code pool; give the run a choice once someone keeps two.
+const onlyPool = (registry: AccountRegistry | null): string | null => {
   const pools = Object.keys(registry?.pools.claude ?? {});
-  if (pools.length === 1) return pools[0] ?? null;
-  return bound === null ? null : "";
+  return pools.length === 1 ? (pools[0] ?? null) : null;
 };
 
 // The launcher's task of an attempt: a later runner finds the attempt's launches by it.
@@ -104,7 +101,7 @@ const requestOf = (
 ): WorkerRequest<Launch> | string => {
   const registry = loadRegistry(options.config);
   if (!registry.ok) return registry.finding.code;
-  const pool = poolOf(registry.value, run.project);
+  const pool = onlyPool(registry.value);
   if (pool === null) return "no-single-pool";
   const level = levelAtGate(run.state, options.config, { project: run.project, startedAt: new Date().toISOString() });
   if (!level.ok) return level.finding.code;
@@ -117,7 +114,6 @@ const requestOf = (
     pool,
     previous: null,
     model: options.model?.(phase),
-    project: run.project,
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
     runtime: options.runtime,
@@ -215,7 +211,11 @@ const attempted = async (
   if (!readOnly.ok) return failed(readOnly.finding.code);
   const request = requestOf(attempt, run, options, { resume, readOnly: readOnly.value });
   if (typeof request === "string") return failed(request);
-  const lease = () => leaseWorker(run.state, options.config, request, options.host);
+  const lease = async () => {
+    // A resumed worker keeps its account; a new one is chosen on readings as fresh as each try for a lease.
+    if (resume === null) await options.readings?.();
+    return leaseWorker(run.state, options.config, request, options.host);
+  };
   const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
   if (!got.ok) return failed(got.finding.code);
   if (got.value.kind === "no-account") return failed(got.value.reason);

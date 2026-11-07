@@ -5,6 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
+import { missing, programPath } from "@cedarloom/orchestration";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
 export type Limits = { files: number; bytes: number; fileBytes: number };
@@ -106,7 +107,12 @@ type RunOptions = {
  */
 const run = (args: string[], options: RunOptions): Promise<Ran> =>
   new Promise((resolve) => {
-    const child = spawn(options.program, args, { cwd: options.cwd, env: options.env, windowsHide: true });
+    const file = programPath(options.program, options.env);
+    if (file === undefined) {
+      resolve({ code: null, stdout: Buffer.alloc(0), stderr: "", failure: missing(options.program) });
+      return;
+    }
+    const child = spawn(file, args, { cwd: options.cwd, env: options.env, windowsHide: true });
     const chunks: Buffer[] = [];
     let bytes = 0;
     let stderr = "";

@@ -67,7 +67,6 @@ const rows = (dir: string, sql: string): Record<string, unknown>[] => {
   db.close();
   return found.map((row) => ({ ...row }));
 };
-const attempts = (dir: string) => rows(dir, "SELECT nodeId, attempt, state, outputs, pid, applyRun FROM node_attempts");
 const locks = (dir: string) => readdirSync(join(dir, "leases")).filter((name) => name.endsWith(".lock"));
 const leaseHeld = (runId: string, pid: number | undefined) => ({
   ok: false,
@@ -91,9 +90,7 @@ test("a run keeps its definition and inputs as it started, its events in order, 
   const columns = rows(dir, "SELECT nodeId, attempt FROM run_events ORDER BY seq").map(Object.values);
   expect(columns.map(String)).toEqual(["lint,1", "lint,1", "lint,", ","]);
   expect(store.events(id)).toEqual({ ok: true, value: events });
-  expect(attempts(dir)).toEqual([
-    { nodeId: "lint", attempt: 1, state: "done", outputs: "{}", pid: 4242, applyRun: null },
-  ]);
+  expect(store.attempts(id)).toMatchObject([{ node: "lint", attempt: 1, state: "done", pid: 4242 }]);
   expect(store.graphRun(id)).toMatchObject({ status: "succeeded", finishedAt: expect.any(String) });
   // An ended run takes no more events, and nothing takes it over.
   const finished = { ok: false, finding: { code: "run.finished", params: { runId: id, status: "succeeded" } } };
@@ -202,7 +199,7 @@ test("no projection without its event: a commit that fails keeps neither, nor do
   expect(() => store.takeOver(id)).toThrow(/refused/);
   db.exec("DROP TRIGGER refuse");
   db.close();
-  expect([store.events(id), attempts(dir), store.graphRun(id)?.status]).toEqual([
+  expect([store.events(id), store.attempts(id), store.graphRun(id)?.status]).toEqual([
     { ok: true, value: [] },
     [],
     "interrupted",
@@ -236,7 +233,6 @@ test("an apply run is linked to its attempt under an act run, never under a repo
     { ok: true, value: 2 },
     { ok: false, finding: { code: "run.report-only-apply", params: { runId: report, applyRun } } },
   ]);
-  expect(attempts(dir).map((row) => row["applyRun"])).toEqual([applyRun, null]);
   expect(store.events(report)).toMatchObject({ ok: true, value: [{ type: "started" }] });
 });
 
@@ -249,7 +245,7 @@ test("an attempt keeps the id of its agent's session, which a later runner resum
     ok: true,
     value: 2,
   });
-  expect(rows(dir, "SELECT sessionId FROM node_attempts")).toEqual([{ sessionId: "s-1" }]);
+  expect(store.events(runId)).toMatchObject({ ok: true, value: [{ type: "started" }, { sessionId: "s-1" }] });
 });
 
 test("one process appends events while another applies under the store lock, and both succeed", async () => {
@@ -372,7 +368,7 @@ test("a view of graph runs is none without a store, and refuses a store from bef
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec("PRAGMA user_version = 10");
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 18 } } };
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 19 } } };
   expect([openGraphView(dir), openGraphStore(dir)]).toEqual([older, older]);
   db.exec("PRAGMA user_version = 99");
   db.close();

@@ -820,6 +820,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProfileView"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/parts/{part}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    part: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        on: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"] | components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -1405,14 +1523,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.map-refused";
-            params: {
-                /** @enum {string} */
-                reason: "unknown-target" | "no-folder" | "not-mapped";
-                name: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -1626,7 +1736,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
                 error: string;
             };
         } | {
@@ -1899,6 +2009,62 @@ export interface components {
                 /** @enum {string} */
                 unit: "files" | "bytes";
             };
+        } | {
+            /** @constant */
+            code: "outbox.not-approved";
+            params: {
+                key: string;
+                hash: components["schemas"]["Sha256Input"];
+                approvedHash: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-hub";
+            params: {
+                id: string;
+                repo: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.status";
+            params: {
+                id: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-undoable";
+            params: {
+                id: string;
+                /** @enum {string} */
+                reason: "unchanged" | "no-inverse";
+            };
+        } | {
+            /** @constant */
+            code: "tracker.unavailable";
+            params: {
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.refused";
+            params: {
+                status: number;
+                error: string;
+            };
         };
         ImportReviewInput: {
             source: {
@@ -2042,6 +2208,33 @@ export interface components {
                     bytes: number;
                 } | components["schemas"]["StoreUpdateInput"])[];
             } | null;
+        };
+        ProfilePartInput: {
+            id: string;
+            /** @enum {string} */
+            level: "machine" | "workspace" | "project";
+            title: string;
+            description: string | null;
+            on: boolean;
+            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates") | null;
+        };
+        ProfileViewInput: {
+            parts: components["schemas"]["ProfilePartInput"][];
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdateInput"])[];
+            } | null;
+            findings: components["schemas"]["FindingInput"][];
+            held: boolean;
         };
         RunResultInput: {
             runId: string | null;
@@ -2641,14 +2834,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.map-refused";
-            params: {
-                /** @enum {string} */
-                reason: "unknown-target" | "no-folder" | "not-mapped";
-                name: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -2862,7 +3047,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
                 error: string;
             };
         } | {
@@ -3135,6 +3320,62 @@ export interface components {
                 /** @enum {string} */
                 unit: "files" | "bytes";
             };
+        } | {
+            /** @constant */
+            code: "outbox.not-approved";
+            params: {
+                key: string;
+                hash: components["schemas"]["Sha256"];
+                approvedHash: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-hub";
+            params: {
+                id: string;
+                repo: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.status";
+            params: {
+                id: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-undoable";
+            params: {
+                id: string;
+                /** @enum {string} */
+                reason: "unchanged" | "no-inverse";
+            };
+        } | {
+            /** @constant */
+            code: "tracker.unavailable";
+            params: {
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.refused";
+            params: {
+                status: number;
+                error: string;
+            };
         };
         ImportReview: {
             source: {
@@ -3278,6 +3519,33 @@ export interface components {
                     bytes: number;
                 } | components["schemas"]["StoreUpdate"])[];
             } | null;
+        };
+        ProfilePart: {
+            id: string;
+            /** @enum {string} */
+            level: "machine" | "workspace" | "project";
+            title: string;
+            description: string | null;
+            on: boolean;
+            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates") | null;
+        };
+        ProfileView: {
+            parts: components["schemas"]["ProfilePart"][];
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFile"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdate"])[];
+            } | null;
+            findings: components["schemas"]["Finding"][];
+            held: boolean;
         };
         RunResult: {
             runId: string | null;

@@ -190,6 +190,23 @@ jobs:
         run: |
           echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
           echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      # The OS sandbox of community extensions (sandbox-runtime), whose conformance kit the extension-host tests run:
+      # bubblewrap, socat and ripgrep on Linux; ripgrep on macOS, which ships sandbox-exec. Ubuntu 24.04 and later strip
+      # the capabilities of an unprivileged user namespace (the sysctl), and from 25.04 the bwrap-userns-restrict
+      # AppArmor profile confines bubblewrap's children to none, so srt's seccomp helper cannot set up its own nested
+      # namespace: the runner lifts both.
+      - if: runner.os == 'Linux'
+        name: Sandbox programs and user namespaces
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          if [ -e /etc/apparmor.d/bwrap-userns-restrict ]; then sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict; fi
+      - if: runner.os == 'macOS'
+        name: Sandbox programs
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: command -v rg || brew install ripgrep
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed

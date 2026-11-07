@@ -8,7 +8,7 @@ import { License, semver } from "./workflow.ts";
 export const PACK_SCHEMA_VERSION = 1;
 
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
-const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
+export const PackId = z.string().regex(/^[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}$/);
 
 // Where Git fetches a folder (A29 b): a text-only one follows a branch or tag, taking a new commit once CedarLoom has
 // seen it there for 3 days (A94); one with a file that runs is pinned by commit and digest, as an extension is.
@@ -16,7 +16,7 @@ const located = {
   git: GitUrl,
   path: PortablePath.optional().describe("The folder inside the repository; its root when absent"),
 };
-const GitSource = z.union([
+export const GitSource = z.union([
   z.strictObject({
     ...located,
     // A commit never moves, so following one would only skip the digest a pin needs.

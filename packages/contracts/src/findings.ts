@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Sha256 } from "./plan.ts";
+import { GitOid, Sha256 } from "./plan.ts";
 import { contracts, SchemaVersion } from "./registry.ts";
 import { HandleType } from "./workflow.ts";
 
@@ -136,7 +136,22 @@ export const Finding = z
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
     // Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
     // hold a token.
-    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read", "worktree"]), error: z.string() }),
+    finding("git.failed", {
+      step: z.enum(["start", "fetch", "list", "read", "worktree", "commit", "update"]),
+      error: z.string(),
+    }),
+    // The workflow store (P3 a). A draft opened from another stored version than the one there now (an import changed
+    // it meanwhile): saved only on top of it, never merged.
+    finding("store.conflict", { id: z.string() }),
+    // A saved version must be above the stored one (semver precedence).
+    finding("store.version-not-higher", { id: z.string(), stored: z.string(), found: z.string() }),
+    // Store commits carry the user's Git identity, which their configuration lacks.
+    finding("store.identity-missing", { key: z.enum(["user.name", "user.email"]) }),
+    // The branch moved since the plan was made: the apply moves nothing.
+    finding("store.moved", { ref: z.string(), expected: GitOid.nullable(), actual: GitOid.nullable() }),
+    finding("store.not-found", { id: z.string(), commit: z.string().nullable() }),
+    // Opening a stored version as a draft never replaces a draft.
+    finding("store.draft-exists", { id: z.string() }),
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
@@ -163,6 +178,11 @@ export const Finding = z
       step: z.enum(["stage", "start", "initialize", "run"]),
       error: z.string(),
     }),
+    // A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33).
+    finding("profile.foreign-kind", { kind: z.string() }),
+    // Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown.
+    finding("profile.secret-like", { path: z.string() }),
+    finding("profile.forbidden-setting", { path: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -272,7 +292,16 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "extension.unknown": { severity: "error", effort: "manual" },
   "extension.consent-needed": { severity: "error", effort: "command" },
   "git.failed": { severity: "error", effort: "manual" },
+  "store.conflict": { severity: "error", effort: "command" },
+  "store.version-not-higher": { severity: "error", effort: "manual" },
+  "store.identity-missing": { severity: "error", effort: "manual" },
+  "store.moved": { severity: "error", effort: "command" },
+  "store.not-found": { severity: "error", effort: "manual" },
+  "store.draft-exists": { severity: "error", effort: "manual" },
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },
   "git.too-large": { severity: "error", effort: "manual" },
+  "profile.foreign-kind": { severity: "error", effort: "manual" },
+  "profile.secret-like": { severity: "error", effort: "manual" },
+  "profile.forbidden-setting": { severity: "error", effort: "manual" },
 };

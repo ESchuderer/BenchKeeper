@@ -198,11 +198,28 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "extension.install-refused": (p) =>
     `${p.extension === null ? "The extension" : `Extension ${p.extension}`} is not installed: ${INSTALL_REFUSALS[p.reason]}.`,
   "git.failed": (p) => `Git failed to ${p.step} (${p.error}).`,
+  "store.conflict": (p) =>
+    `The draft of ${p.id} was opened from another stored version than the one in the store now; save it on top with --on-top, or discard it.`,
+  "store.version-not-higher": (p) =>
+    `The draft of ${p.id} has version ${p.found}, which is not above the stored ${p.stored}; raise metadata.version.`,
+  "store.identity-missing": (p) =>
+    `Stored versions carry your Git identity, and ${p.key} is not set; set it with: git config --global ${p.key} "…"`,
+  "store.moved": (p) =>
+    `The workflow store's ${p.ref} is at ${p.actual?.slice(0, 12) ?? "no commit"}, not at ${p.expected?.slice(0, 12) ?? "no commit"} as planned; nothing moved. Plan again.`,
+  "store.not-found": (p) =>
+    `The workflow store holds no version of ${p.id}${p.commit === null ? "" : ` at ${p.commit.slice(0, 12)}`}.`,
+  "store.draft-exists": (p) => `A draft of ${p.id} exists; save or discard it before opening a stored version.`,
   "git.refused-source": (p) =>
     `The ${p.field} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with "-".`,
   "git.unsafe-entry": (p) => `${p.path} ${ENTRY_KINDS[p.kind]}, so nothing of the fetched tree is used.`,
   "git.too-large": (p) =>
     `${p.path ?? "The tree"} has ${p.found} ${p.unit}, more than the ${p.limit} a fetched tree may have; nothing of it is used.`,
+  "profile.foreign-kind": (p) =>
+    `This is a "${p.kind}" file, not a CedarLoom profile. CedarLoom does not import BenchKeeper profiles or presets; remove BenchKeeper's setup with BenchKeeper, then apply a CedarLoom profile.`,
+  "profile.secret-like": (p) =>
+    `The profile holds what looks like a credential at ${p.path}. A profile is shared, so it is refused; keep the value in your environment or a secret store.`,
+  "profile.forbidden-setting": (p) =>
+    `The profile sets ${p.path}, which CedarLoom never writes: it removes a guard, runs a command or keeps your own choice.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

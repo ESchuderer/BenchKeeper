@@ -3,7 +3,7 @@ import { z } from "zod";
 // Characters a manifest text or its translation may not hold: control characters, with which a text could move a
 // terminal's cursor or rewrite a line, and the bidirectional controls that reorder what a reader sees (Trojan Source,
 // CVE-2021-42574): U+061C, U+200E and U+200F, U+202A to U+202E, U+2066 to U+2069.
-const UNSAFE = "\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069";
+export const UNSAFE = "\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069";
 const unsafe = new RegExp(`[${UNSAFE}]`, "u");
 const unsafeAll = new RegExp(`[${UNSAFE}]`, "gu");
 

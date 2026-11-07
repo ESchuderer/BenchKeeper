@@ -76,6 +76,50 @@
         ],
         "additionalProperties": false
       },
+      "GitOidInput": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+      },
+      "StoreUpdateInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "store.update"
+          },
+          "ref": {
+            "type": "string",
+            "const": "refs/heads/main"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitOidInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitOidInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "before",
+          "after"
+        ],
+        "additionalProperties": false
+      },
       "OperationInput": {
         "oneOf": [
           {
@@ -83,6 +127,9 @@
           },
           {
             "$ref": "#/components/schemas/DeleteFileInput"
+          },
+          {
+            "$ref": "#/components/schemas/StoreUpdateInput"
           }
         ]
       },
@@ -2817,7 +2864,9 @@
                       "fetch",
                       "list",
                       "read",
-                      "worktree"
+                      "worktree",
+                      "commit",
+                      "update"
                     ]
                   },
                   "error": {
@@ -2827,6 +2876,203 @@
                 "required": [
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.version-not-higher"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "stored": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "stored",
+                  "found"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.identity-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "user.name",
+                      "user.email"
+                    ]
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.moved"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/GitOidInput"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "actual": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/GitOidInput"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "ref",
+                  "expected",
+                  "actual"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "commit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.draft-exists"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
                 ],
                 "additionalProperties": false
               }
@@ -3079,6 +3325,84 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.foreign-kind"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.secret-like"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.forbidden-setting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "git.too-large"
               },
               "params": {
@@ -3204,7 +3528,14 @@
           "before": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Sha256Input"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOidInput"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -3214,7 +3545,14 @@
           "after": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Sha256Input"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOidInput"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -3315,6 +3653,9 @@
                         "bytes"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/StoreUpdateInput"
                     }
                   ]
                 }
@@ -3405,6 +3746,9 @@
                             "bytes"
                           ],
                           "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdateInput"
                         }
                       ]
                     }
@@ -3687,6 +4031,50 @@
         ],
         "additionalProperties": false
       },
+      "GitOid": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+      },
+      "StoreUpdate": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "store.update"
+          },
+          "ref": {
+            "type": "string",
+            "const": "refs/heads/main"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "before",
+          "after"
+        ],
+        "additionalProperties": false
+      },
       "Operation": {
         "oneOf": [
           {
@@ -3694,6 +4082,9 @@
           },
           {
             "$ref": "#/components/schemas/DeleteFile"
+          },
+          {
+            "$ref": "#/components/schemas/StoreUpdate"
           }
         ]
       },
@@ -6428,7 +6819,9 @@
                       "fetch",
                       "list",
                       "read",
-                      "worktree"
+                      "worktree",
+                      "commit",
+                      "update"
                     ]
                   },
                   "error": {
@@ -6438,6 +6831,203 @@
                 "required": [
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.version-not-higher"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "stored": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "stored",
+                  "found"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.identity-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "user.name",
+                      "user.email"
+                    ]
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.moved"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/GitOid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "actual": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/GitOid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "ref",
+                  "expected",
+                  "actual"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "commit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "store.draft-exists"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
                 ],
                 "additionalProperties": false
               }
@@ -6690,6 +7280,84 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.foreign-kind"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.secret-like"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.forbidden-setting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "git.too-large"
               },
               "params": {
@@ -6816,7 +7484,14 @@
           "before": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Sha256"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOid"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -6826,7 +7501,14 @@
           "after": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Sha256"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOid"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -6928,6 +7610,9 @@
                         "bytes"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/StoreUpdate"
                     }
                   ]
                 }
@@ -7018,6 +7703,9 @@
                             "bytes"
                           ],
                           "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdate"
                         }
                       ]
                     }

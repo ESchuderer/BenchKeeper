@@ -14,7 +14,14 @@
     "before": {
       "anyOf": [
         {
-          "$ref": "Sha256.schema.json"
+          "anyOf": [
+            {
+              "$ref": "Sha256.schema.json"
+            },
+            {
+              "$ref": "GitOid.schema.json"
+            }
+          ]
         },
         {
           "type": "null"
@@ -24,7 +31,14 @@
     "after": {
       "anyOf": [
         {
-          "$ref": "Sha256.schema.json"
+          "anyOf": [
+            {
+              "$ref": "Sha256.schema.json"
+            },
+            {
+              "$ref": "GitOid.schema.json"
+            }
+          ]
         },
         {
           "type": "null"

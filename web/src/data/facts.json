@@ -34,7 +34,7 @@
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
-    "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
+    "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tdd, code review, pull request)",
     "evidence": [
       "plugins/benchkeeper/library/library.json",
       "plugins/benchkeeper/skills/workflow/software.md#steps"
@@ -408,9 +408,9 @@
       {
         "name": "Build",
         "phase": "build",
-        "sub": "tests first",
-        "tip": "Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
-        "text": "Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
+        "sub": "tests where they count",
+        "tip": "Standard and full: the existing tests of the touched code, then a test first only where the test rule calls for one.",
+        "text": "Standard and full tiers: the existing tests that cover the touched code run first, then a test first at the agreed seams only where the test rule calls for one (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/software.md#steps",
           "docs/stack.md#components"

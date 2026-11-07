@@ -113,12 +113,7 @@ export const extensionToStart = (paths: Paths, id: string): Result<Startable> =>
   return manifest.ok ? { ok: true, value: { manifest: manifest.value, folder, trust: "community" } } : manifest;
 };
 
-/**
- * The doctor's checks of the app's own extensions: each one switched on that names checks is started through
- * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
- * Their texts are in English, the CLI's language for now.
- */
-// The app's own extension `id` started in English, the CLI's language for now.
+/** The app's own extension `id` started in English, the CLI's language for now. */
 export const startBundled = async (paths: Paths, id: string) => {
   const startable = extensionToStart(paths, id);
   return startable.ok ? startExtension({ ...startable.value, locale: "en" }) : startable;
@@ -143,6 +138,11 @@ export const runBundled = async (
   }
 };
 
+/**
+ * The doctor's checks of the app's own extensions: each one switched on that names checks is started through
+ * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
+ * Their texts are in English, the CLI's language for now.
+ */
 export const extensionChecks = async (paths: Paths): Promise<Finding[]> => {
   const bundled = bundledExtensions(paths.app, paths.config);
   if (!bundled.ok) return [bundled.finding];

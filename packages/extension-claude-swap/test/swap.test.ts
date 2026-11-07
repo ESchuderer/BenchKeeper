@@ -105,6 +105,33 @@ test("the interactive target lists claude-swap's accounts by number with their w
   ]);
 });
 
+test("a row without a number is left out, an alias no CedarLoom account can have is dropped, and an untrusted row without last good windows sends both windows unread", async () => {
+  const unnumbered = firstRow(({ number: _number, ...row }) => row);
+  const odd = firstRow((row) => ({ ...row, alias: "Work Laptop" }));
+  const dead = firstRow(({ usage: _usage, ...row }) => ({ ...row, usageStatus: "relogin_required", usage: null }));
+  const listed = [await accounts(cswap({ list: unnumbered })), await accounts(cswap({ list: odd }))];
+  expect([
+    listed.map((each) => each?.map(({ number, alias }) => [number, alias])),
+    (await accounts(cswap({ list: dead })))?.[0]?.windows,
+  ]).toEqual([
+    [
+      [
+        [2, "home"],
+        [3, "spare"],
+      ],
+      [
+        [1, undefined],
+        [2, "home"],
+        [3, "spare"],
+      ],
+    ],
+    [
+      { window: "fiveHour", usedPercent: 0, resetsAt: null, readAt: null },
+      { window: "sevenDay", usedPercent: 0, resetsAt: null, readAt: null },
+    ],
+  ]);
+});
+
 test("the probe takes claude-swap from 0.30.0 with JSON schemaVersion 1; missing, older, unreadable or another schema is unsupported", async () => {
   const newer = JSON.stringify({ ...JSON.parse(recorded("status.json")), schemaVersion: 2 });
   expect([

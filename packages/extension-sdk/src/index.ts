@@ -34,6 +34,7 @@ import {
   type TargetCallParams,
 } from "./protocol.ts";
 
+export { type ProgramVersion, programVersion, valueAt } from "./answers.ts";
 export * from "./protocol.ts";
 
 /**

@@ -1,11 +1,13 @@
 import {
   type ActionContext,
   type DoctorFinding,
-  HOST_MISSING,
+  type ProgramVersion,
+  programVersion,
   type TargetAccount,
   type TargetHandlers,
   type TargetProbe,
   type TargetWindow,
+  valueAt as at,
 } from "@cedarloom/extension-sdk";
 
 /** The claude-swap version whose JSON this extension and its recorded test outputs were checked with; older is not read. */
@@ -14,11 +16,8 @@ export const OBSERVED = "0.30.0";
 const MS = 3000;
 
 type Exec = Pick<ActionContext, "exec">;
-type Probe = { installed: false; reason: string } | { installed: true; version: string };
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-const at = (value: unknown, ...keys: string[]): unknown =>
-  keys.reduce((inner, key) => Reflect.get(Object(inner), key), value);
 const textOr = (value: unknown, otherwise: string | null): string | null =>
   typeof value === "string" ? value : otherwise;
 const releaseOf = (version: string): number[] | undefined => /^(\d+)\.(\d+)\.(\d+)/.exec(version)?.slice(1).map(Number);
@@ -28,28 +27,28 @@ const older = (release: number[], than: number[]): boolean => {
   return step !== -1 && (release[step] ?? 0) < (than[step] ?? 0);
 };
 
-/** Its version from `cswap --version`, or why it is not installed here (none of the manifest's candidates found). */
-const probeOf = async ({ exec }: Exec): Promise<Probe> => {
-  let answer;
-  try {
-    answer = await exec({ program: "cswap", args: ["--version"], timeoutMs: MS });
-  } catch (error) {
-    if (at(error, "code") === HOST_MISSING) return { installed: false, reason: messageOf(error) };
-    throw error;
-  }
-  if (answer.code !== 0) throw new Error(`cswap --version exited with ${answer.code}`);
-  return { installed: true, version: answer.stdout.trim().replace(/^cswap\s+/, "") };
+/** Its version from `cswap --version` ("cswap 0.30.0"), or why it is not installed here. */
+const probeOf = async ({ exec }: Exec): Promise<ProgramVersion> => {
+  const found = await programVersion(exec, "cswap", MS);
+  return found.installed ? { installed: true, version: found.version.replace(/^cswap\s+/, "") } : found;
 };
 
 /** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
 const cswap = async ({ exec }: Exec, args: string[]): Promise<unknown> => {
+  const command = `cswap ${args.join(" ")}`;
   const { code, stdout } = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs: MS });
-  const answer: unknown = JSON.parse(stdout);
-  const error = at(answer, "error", "message");
-  if (typeof error === "string") throw new Error(`cswap ${args.join(" ")}: ${error}`);
-  if (code !== 0) throw new Error(`cswap ${args.join(" ")} exited with ${code}`);
+  let answer: unknown;
+  try {
+    answer = JSON.parse(stdout);
+  } catch (error) {
+    // A failing run's exit code says more than its empty output.
+    throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
+  }
+  const message = at(answer, "error", "message");
+  if (typeof message === "string") throw new Error(`${command}: ${message}`);
+  if (code !== 0) throw new Error(`${command} exited with ${code}`);
   const version = at(answer, "schemaVersion");
-  if (version !== 1) throw new Error(`cswap ${args.join(" ")} answered schemaVersion ${String(version)}, not 1`);
+  if (version !== 1) throw new Error(`${command} answered schemaVersion ${String(version)}, not 1`);
   return answer;
 };
 
@@ -74,25 +73,34 @@ const windowsOf = (row: unknown): TargetWindow[] => {
       entry,
     ]),
   ];
-  return named.flatMap(([window, entry]) => {
+  const windows = named.flatMap(([window, entry]) => {
     const pct = at(entry, "pct");
     if (window === undefined || typeof pct !== "number") return [];
     const resetsAt = textOr(at(entry, "resetsAt"), null);
     return [{ window, usedPercent: Math.min(100, Math.max(0, pct)), resetsAt, readAt }];
   });
+  // Without last good windows, the two every account has, unread, still drop what CedarLoom kept.
+  const unread = ["fiveHour", "sevenDay"].map((window) => ({ window, usedPercent: 0, resetsAt: null, readAt: null }));
+  return trusted || windows.length > 0 ? windows.slice(0, 16) : unread;
 };
 
-const accountOf = (row: unknown): TargetAccount => {
-  const alias = at(row, "alias");
-  const threshold = at(row, "threshold");
-  return {
-    number: Number(at(row, "number")),
-    ...(typeof alias === "string" && alias !== "" ? { alias } : {}),
-    active: at(row, "active") === true,
-    disabled: at(row, "disabled") === true,
-    threshold: typeof threshold === "number" ? threshold : null,
-    windows: windowsOf(row),
-  };
+// Only an alias that can be a CedarLoom account's name links one (switching plan 1.6).
+const ALIAS = /^[a-z0-9_-]{1,32}$/;
+
+// An account by its number; a row without one is left out, so the host takes the rest of the answer.
+const accountOf = (row: unknown): TargetAccount[] => {
+  const [number, alias, threshold] = [at(row, "number"), at(row, "alias"), at(row, "threshold")];
+  if (!Number.isInteger(number) || Number(number) < 1) return [];
+  return [
+    {
+      number: Number(number),
+      ...(typeof alias === "string" && ALIAS.test(alias) ? { alias } : {}),
+      active: at(row, "active") === true,
+      disabled: at(row, "disabled") === true,
+      threshold: typeof threshold === "number" && threshold >= 0 && threshold <= 100 ? threshold : null,
+      windows: windowsOf(row),
+    },
+  ];
 };
 
 const rowsOf = async (context: Exec): Promise<unknown[]> => {
@@ -102,7 +110,7 @@ const rowsOf = async (context: Exec): Promise<unknown[]> => {
 };
 
 /** Whether the claude-swap found is a version whose JSON this extension reads, and why not. */
-const judged = async (context: Exec, found: Probe): Promise<TargetProbe> => {
+const judged = async (context: Exec, found: ProgramVersion): Promise<TargetProbe> => {
   if (!found.installed) return { status: "unsupported", detail: `claude-swap is not installed: ${found.reason}` };
   const release = releaseOf(found.version);
   if (release === undefined)
@@ -121,7 +129,9 @@ const judged = async (context: Exec, found: Probe): Promise<TargetProbe> => {
 /** The switch target `interactive`: the default home's account, which claude-swap switches. */
 export const targets: TargetHandlers = {
   "target/probe": async (_params, context) => judged(context, await probeOf(context)),
-  "target/accounts": async (_params, context) => ({ accounts: (await rowsOf(context)).map(accountOf) }),
+  "target/accounts": async (_params, context) => ({
+    accounts: (await rowsOf(context)).flatMap(accountOf).slice(0, 64),
+  }),
   "target/current": async (_params, context) => {
     const active = at(await cswap(context, ["status"]), "active");
     const number = at(active, "number");

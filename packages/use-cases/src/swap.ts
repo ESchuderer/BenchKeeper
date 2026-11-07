@@ -2,6 +2,7 @@ import { type Finding, Quota, type Result } from "@cedarloom/contracts";
 import type { RunningExtension } from "@cedarloom/extension-host";
 import { keepSwapReadings, loadRegistry } from "./accounts.ts";
 import { bundledExtensions, type Paths, startBundled } from "./bundled.ts";
+import { retryBusy } from "./use-cases.ts";
 
 const ID = "cedarloom.claude-swap";
 const INTERACTIVE = { target: "interactive" };
@@ -45,8 +46,20 @@ const kept = async (state: string, running: RunningExtension, names: ReadonlySet
   if (!listed.ok) return [listed.finding];
   for (const { alias, windows } of listed.value.accounts) {
     if (alias === undefined || !names.has(alias)) continue;
-    const stored = keepSwapReadings(state, alias, windows.filter(isQuota));
+    const stored = await retryBusy(() => keepSwapReadings(state, alias, windows.filter(isQuota)));
     if (!stored.ok) return [stored.finding];
   }
   return [];
+};
+
+/**
+ * claude-swap's readings for one run's workers: one read at a time, and none again within `freshMs` (claude-swap polls
+ * usage about once a minute), so parallel workers start one extension, and a worker that waited for a lease reads anew.
+ */
+export const swapReader = (paths: Paths, freshMs = 60_000): (() => Promise<Finding[]>) => {
+  let last: { at: number; read: Promise<Finding[]> } | undefined;
+  return () => {
+    if (last === undefined || Date.now() - last.at >= freshMs) last = { at: Date.now(), read: readSwapAccounts(paths) };
+    return last.read;
+  };
 };

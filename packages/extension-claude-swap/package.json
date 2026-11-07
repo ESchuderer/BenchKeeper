@@ -12,14 +12,11 @@
     "node": ">=26"
   },
   "scripts": {
-    "build": "node ../extension-orca/scripts/build.ts",
+    "build": "node ../extension-sdk/scripts/build-extension.ts",
     "typecheck": "tsc -b test",
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
     "@cedarloom/extension-sdk": "workspace:*"
-  },
-  "devDependencies": {
-    "rolldown": "1.2.16"
   }
 }

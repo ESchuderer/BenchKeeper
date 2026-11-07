@@ -217,9 +217,11 @@ const attempted = async (
   if (!readOnly.ok) return failed(readOnly.finding.code);
   const request = requestOf(attempt, run, options, { resume, readOnly: readOnly.value });
   if (typeof request === "string") return failed(request);
-  // A resumed worker keeps its account: only a new one is chosen by the readings.
-  if (resume === null) await options.readings?.();
-  const lease = () => leaseWorker(run.state, options.config, request, options.host);
+  const lease = async () => {
+    // A resumed worker keeps its account; a new one is chosen on readings as fresh as each try for a lease.
+    if (resume === null) await options.readings?.();
+    return leaseWorker(run.state, options.config, request, options.host);
+  };
   const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
   if (!got.ok) return failed(got.finding.code);
   if (got.value.kind === "no-account") return failed(got.value.reason);

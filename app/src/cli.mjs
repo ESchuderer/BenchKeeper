@@ -189,8 +189,8 @@ Usage: benchkeeper <command> [options]
                                     where the project's CI and tests are bloated or in bad shape, from files only: workflow
                                     triggers, cancel, cache, repeated builds, matrix size, pins, permissions, duplicated
                                     code and tests, large files, a lint step that cannot fail; a check whose need is missing
-                                    (workflows, tests, source) is listed as skipped with how to enable it; Markdown, nothing
-                                    is run or written
+                                    (workflows, tests, snapshots, source) is listed as skipped with how to enable it; Markdown,
+                                    nothing is run or written
   projects rename <dir> [name] [--notes text]
                                     display name and notes (in projects.json only; an empty one clears it)
   projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it

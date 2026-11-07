@@ -187,7 +187,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run", "doctor"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target"]),
       error: z.string(),
     }),
     // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.

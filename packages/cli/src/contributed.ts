@@ -24,9 +24,9 @@ export const contributedGroups = (program: Command, ctx: () => Context, done: (c
   const bundled = useCases.bundledExtensions(app, config);
   // An unreadable folder of the app's own extensions adds no verbs; the doctor and extensions list name it.
   for (const { id, manifest } of bundled.ok ? bundled.value : []) {
-    const verbs = manifest.contributes.commands ?? [];
-    if (verbs.length === 0) continue;
-    const noun = program.command(id.slice(BUNDLED.length)).description(manifest.description ?? manifest.name);
+    const [name, verbs] = [id.slice(BUNDLED.length), manifest.contributes.commands ?? []];
+    if (verbs.length === 0 || program.commands.some((command) => command.name() === name)) continue;
+    const noun = program.command(name).description(manifest.description ?? manifest.name);
     for (const verb of verbs) {
       const title = manifest.contributes.actions[verb]?.title ?? verb;
       noun

@@ -178,6 +178,11 @@ export const Finding = z
       step: z.enum(["stage", "start", "initialize", "run"]),
       error: z.string(),
     }),
+    // A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33).
+    finding("profile.foreign-kind", { kind: z.string() }),
+    // Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown.
+    finding("profile.secret-like", { path: z.string() }),
+    finding("profile.forbidden-setting", { path: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -296,4 +301,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "git.refused-source": { severity: "error", effort: "manual" },
   "git.unsafe-entry": { severity: "error", effort: "manual" },
   "git.too-large": { severity: "error", effort: "manual" },
+  "profile.foreign-kind": { severity: "error", effort: "manual" },
+  "profile.secret-like": { severity: "error", effort: "manual" },
+  "profile.forbidden-setting": { severity: "error", effort: "manual" },
 };

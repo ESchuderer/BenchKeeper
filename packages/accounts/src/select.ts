@@ -85,7 +85,7 @@ const margin = (account: Account, readings: readonly Current[], model: string | 
  */
 interface Swap {
   readonly strategy?: "best" | "weekly-first" | "consume-first" | "priority-consume-first";
-  readonly tiers?: Readonly<Record<string, number>>;
+  readonly tiers?: ReadonlyMap<string, number>;
   readonly disabled?: ReadonlySet<string>;
   readonly active?: string | null;
 }
@@ -109,11 +109,11 @@ const weeklyReset = (account: Account, readings: readonly Current[], now: number
 // tier first. claude-swap's active account is passed over while another account qualifies.
 const ranked = <T extends { readonly account: Account; readonly margin: number | null; readonly reset: number }>(
   scored: readonly T[],
-  { strategy = "best", tiers = {}, active = null }: Swap,
+  { strategy = "best", tiers = new Map(), active = null }: Swap,
 ): (T & { readonly reason: (typeof REASONS)[keyof typeof REASONS] }) | undefined => {
   const qualifying = scored.filter((each) => each.margin !== null && each.margin >= 0);
   const others = qualifying.filter((each) => each.account.name !== active);
-  const tier = (each: T): number => (strategy === "priority-consume-first" ? (tiers[each.account.name] ?? 0) : 0);
+  const tier = (each: T): number => (strategy === "priority-consume-first" ? (tiers.get(each.account.name) ?? 0) : 0);
   const reset = (each: T): number => (strategy === "best" ? 0 : each.reset);
   const order = (a: T, b: T): number => tier(b) - tier(a) || reset(a) - reset(b) || (b.margin ?? 0) - (a.margin ?? 0);
   const [first] = (others.length > 0 ? others : qualifying).toSorted(order);

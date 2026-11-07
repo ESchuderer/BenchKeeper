@@ -3,7 +3,8 @@ name: CedarLoom
 # Gates of the CedarLoom pnpm workspace (packages/ and the root files in PATHS); app/ and web/ keep checks.yml.
 # `check` is the one aggregate result: it fails when a gate failed or was cancelled, and a gate skipped because no
 # CedarLoom path changed passes. A pull request builds and tests only the packages it changed plus their dependents
-# (pnpm's `...[<base>]` selector); a change to a root file, the weekly run and a manual run cover every package.
+# (pnpm's `...{./packages/**}[<base>]` selector; the root project stays out, as its test script runs every package); a
+# change to a root file, the weekly run and a manual run cover every package.
 # Repository-wide gates that cover these paths too run in their own workflows: CodeQL (codeql.yml), actionlint and
 # zizmor (checks.yml), the Conventional Commit title (pr-title.yml).
 # shortcut: every job is inline; switch them to the shared reusable workflows, pinned by full commit SHA, once those exist.
@@ -69,7 +70,7 @@ jobs:
           added=$(git diff --name-only --diff-filter=AD "$BASE...HEAD" -- 'packages/*/package.json')
           if [ -z "$changed" ]; then filter=''
           elif [ -n "$added" ] || printf '%s\n' "$changed" | grep -qv '^packages/'; then filter='*'
-          else filter="...[$BASE]"; fi
+          else filter="...{./packages/**}[$BASE]"; fi
           echo "filter=$filter" | tee -a "$GITHUB_OUTPUT"
 
   # Change size: a warning above 15 files or 400 lines, a failure above 30 files or 1000 lines unless the owner sets the

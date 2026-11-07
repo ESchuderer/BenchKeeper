@@ -34,7 +34,7 @@ const replay = (answers: Answer[]) => {
       headers,
     });
   };
-  return { requests, tracker: githubTracker("acme/tracker", "test-token", fetch) };
+  return { requests, tracker: githubTracker("acme/tracker", "test-token", { fetch }) };
 };
 
 test("a comment is posted to the issue with the token in its header, and GitHub's answer gives its id and link", async () => {
@@ -84,8 +84,13 @@ test("a label is found in any case, added by name, and removed by its name in th
   ]);
 });
 
-test("a deletion of what is gone is done while the issue answers; one the token cannot see refuses", async () => {
+test("a comment is deleted only on its own issue; what is gone is done while the issue answers, one the token cannot see refuses", async () => {
+  const own = { ...fixtures.comments[0], issue_url: `${API}/issues/7` };
+  const other = { ...fixtures.comments[0], issue_url: `${API}/issues/8` };
   const { requests, tracker } = replay([
+    { status: 200, body: own },
+    { status: 204 },
+    { status: 200, body: other },
     { status: 404, body: fixtures.notFound },
     { status: 200, body: { number: 7 } },
     { status: 404, body: fixtures.notFound },
@@ -94,19 +99,41 @@ test("a deletion of what is gone is done while the issue answers; one the token 
     { status: 404, body: fixtures.notFound },
   ]);
   expect(await tracker.deleteComment(issue, 1)).toEqual({ ok: true, value: null });
+  expect(await tracker.deleteComment(issue, 2)).toMatchObject({
+    ok: false,
+    finding: { code: "tracker.refused", params: { status: 404 } },
+  });
+  expect(await tracker.deleteComment(issue, 3)).toEqual({ ok: true, value: null });
   expect(await tracker.setLabel(issue, "agent:review", false)).toEqual({ ok: true, value: null });
-  expect(await tracker.deleteComment(issue, 1)).toMatchObject({
+  expect(await tracker.deleteComment(issue, 4)).toMatchObject({
     ok: false,
     finding: { code: "tracker.refused", params: { status: 404 } },
   });
   expect(requests.map(({ method, url }) => [method, url])).toEqual([
+    ["GET", `${API}/issues/comments/1`],
     ["DELETE", `${API}/issues/comments/1`],
+    ["GET", `${API}/issues/comments/2`],
+    ["GET", `${API}/issues/comments/3`],
     ["GET", `${API}/issues/7`],
     ["DELETE", `${API}/issues/7/labels/agent%3Areview`],
     ["GET", `${API}/issues/7`],
-    ["DELETE", `${API}/issues/comments/1`],
+    ["GET", `${API}/issues/comments/4`],
     ["GET", `${API}/issues/7`],
   ]);
+});
+
+// A fetch that never answers until its signal aborts it.
+const hanging = (_input: string | URL | Request, init?: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+  });
+
+test("a request GitHub never finishes is given up as an outage", async () => {
+  const tracker = githubTracker("acme/tracker", "test-token", { fetch: hanging, timeoutMs: 10 });
+  expect(await tracker.comment(issue, "Run ended.")).toMatchObject({
+    ok: false,
+    finding: { code: "tracker.unavailable" },
+  });
 });
 
 test("a rate limit, a refused token, a server error and no answer keep the write waiting; a forbidden write or an answer that is no comment fails", async () => {
@@ -128,10 +155,11 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     new TypeError("fetch failed"),
     { status: 403, body: forbidden },
     { status: 201, body: { id: 1, html_url: "javascript:alert(1)" } },
+    { status: 201, body: null },
     { status: 200, body: [{ id: 1 }] },
   ]);
   const findings: unknown[] = [];
-  for (let i = 0; i < 9; i += 1) {
+  for (let i = 0; i < 10; i += 1) {
     const sent = await tracker.comment(issue, "Run ended.");
     findings.push(sent.ok ? "sent" : sent.finding);
   }
@@ -149,6 +177,7 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     "tracker.unavailable",
     "tracker.unavailable",
     "tracker.refused",
+    "tracker.invalid-answer",
     "tracker.invalid-answer",
   ]);
   expect(await tracker.hasLabel(issue, "bug")).toMatchObject({

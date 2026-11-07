@@ -13,7 +13,28 @@ const VERSION = { headers: { "x-github-api-version": "2026-03-10" } };
 
 // The parts of GitHub's list answers that are read, checked as GitHub's text is untrusted.
 const Labels = z.array(z.object({ name: z.string() }));
-const Comments = z.array(z.object({ id: z.number(), html_url: z.string(), body: z.string().nullish() }));
+const Comment = z.object({ id: z.number(), html_url: z.string(), body: z.string().nullish() });
+const Comments = z.array(Comment);
+const CommentIssue = z.object({ issue_url: z.string() });
+
+// A request GitHub has not answered in full by then is given up as an outage, so a send never holds its entry for good.
+const TIMEOUT_MS = 30_000;
+const deadline =
+  (fetch: typeof globalThis.fetch, ms: number): typeof globalThis.fetch =>
+  (input, init) => {
+    const signal = AbortSignal.timeout(ms);
+    return fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, signal]) : signal });
+  };
+
+// A refusal of the adapter's own, read as one of GitHub's: a comment that belongs to another issue.
+class Refused extends Error {
+  override readonly name = "HttpError";
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 // Octokit's RequestError, known by its name: an instanceof check fails once two copies of Octokit are installed.
 type HttpError = Error & { status: number; response?: { headers: Record<string, unknown> } };
@@ -71,26 +92,48 @@ const repoOf = ({ repo }: IssueRef): { owner: string; repo: string } => {
 };
 const issueOf = (issue: IssueRef) => ({ ...repoOf(issue), issue_number: issue.number, ...VERSION });
 
-// A deletion answered with 404 found nothing left to delete, once the issue answers: GitHub also answers 404 for a
-// repository the token cannot see, which the issue's own 404 then refuses.
-const gone = async (github: Client, issue: IssueRef, work: () => Promise<unknown>): Promise<null> => {
+// What `work` answers, or null when GitHub answers 404 while the issue answers: nothing left to delete. GitHub also
+// answers 404 for a repository the token cannot see, which the issue's own 404 then refuses.
+const orGone = async <T>(github: Client, issue: IssueRef, work: () => Promise<T>): Promise<T | null> => {
   try {
-    await work();
+    return await work();
   } catch (error) {
     if (!(httpError(error) && error.status === 404)) throw error;
     await github.request("GET /repos/{owner}/{repo}/issues/{issue_number}", issueOf(issue));
+    return null;
   }
+};
+
+// Deletes a comment of the issue: an id of a comment on another issue of the hub deletes nothing and refuses, one
+// already gone is done.
+const deleteComment = async (github: Client, issue: IssueRef, comment: number): Promise<null> => {
+  const params = { ...repoOf(issue), ...VERSION, comment_id: comment };
+  const found = await orGone(github, issue, () =>
+    github.request("GET /repos/{owner}/{repo}/issues/comments/{comment_id}", params),
+  );
+  if (found === null) return null;
+  if (!CommentIssue.parse(found.data).issue_url.endsWith(`/issues/${issue.number}`)) {
+    throw new Refused(404, `comment ${comment} is not on issue ${issue.number}`);
+  }
+  await orGone(github, issue, () =>
+    github.request("DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}", params),
+  );
   return null;
 };
 
 /**
  * The tracker of the hub (`owner/name`, from local config) on GitHub's REST API, with a token of its `hub-issues` access
- * profile (A37). `fetch` stands in for the network in tests. Answers are checked before they are kept.
+ * profile (A37). `fetch` and `timeoutMs` stand in for the network and its deadline in tests. Answers are checked before
+ * they are kept.
  */
-export const githubTracker = (hub: string, token: string, fetch?: typeof globalThis.fetch): Tracker => {
+export const githubTracker = (
+  hub: string,
+  token: string,
+  { fetch = globalThis.fetch, timeoutMs = TIMEOUT_MS }: { fetch?: typeof globalThis.fetch; timeoutMs?: number } = {},
+): Tracker => {
   // A token a header cannot carry would make fetch's error, and so a finding, repeat it.
   if (!/^[\x21-\x7e]+$/.test(token)) throw new Error("the GitHub token holds characters an HTTP header cannot carry");
-  const github = new GitHub({ auth: token, request: fetch === undefined ? {} : { fetch } });
+  const github = new GitHub({ auth: token, request: { fetch: deadline(fetch, timeoutMs) } });
   return {
     hub,
     hasLabel: (issue, label) =>
@@ -110,24 +153,16 @@ export const githubTracker = (hub: string, token: string, fetch?: typeof globalT
     comment: (issue, body) =>
       call(async () => {
         const route = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments";
-        const { data } = await github.request(route, { ...issueOf(issue), body });
-        return RemoteComment.parse({ id: data.id, url: data.html_url });
+        const answer = Comment.parse((await github.request(route, { ...issueOf(issue), body })).data);
+        return RemoteComment.parse({ id: answer.id, url: answer.html_url });
       }),
-    deleteComment: (issue, comment) =>
-      call(() =>
-        gone(github, issue, () =>
-          github.request("DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}", {
-            ...repoOf(issue),
-            ...VERSION,
-            comment_id: comment,
-          }),
-        ),
-      ),
+    deleteComment: (issue, comment) => call(() => deleteComment(github, issue, comment)),
     setLabel: (issue, label, on) =>
       call(async () => {
         if (!on) {
           const route = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}";
-          return gone(github, issue, () => github.request(route, { ...issueOf(issue), name: label }));
+          await orGone(github, issue, () => github.request(route, { ...issueOf(issue), name: label }));
+          return null;
         }
         await github.request("POST /repos/{owner}/{repo}/issues/{issue_number}/labels", {
           ...issueOf(issue),

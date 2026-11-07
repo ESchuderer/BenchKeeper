@@ -35,6 +35,7 @@
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/orchestration": "workspace:*",
+    "@cedarloom/profiles": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

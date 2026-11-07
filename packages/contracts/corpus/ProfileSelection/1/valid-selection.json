@@ -2,5 +2,6 @@
   "schemaVersion": 1,
   "kind": "cedarloom.profile-selection",
   "profile": { "pack": "cedarloom.core", "path": "profiles/default.json" },
-  "select": { "workspace.memory": false, "machine.skill.orca-cli": true }
+  "select": { "workspace.memory": false, "machine.skill.orca-cli": true },
+  "bindings": { "hub": "acme/hub" }
 }

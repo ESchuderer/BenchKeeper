@@ -77,3 +77,4 @@ export {
   type TelemetryRun,
   tokenRowsOf,
 } from "./telemetry.ts";
+export { type Choice, claudeHome, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";

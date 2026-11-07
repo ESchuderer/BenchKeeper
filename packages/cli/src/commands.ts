@@ -7,6 +7,7 @@ import {
   findingInfo,
   type Plan,
   type PlanPreview,
+  type Result,
   type RunResult,
   shown as printable,
 } from "@cedarloom/contracts";
@@ -397,13 +398,13 @@ const showLevels = (ctx: Context): number => {
   return EXIT.ok;
 };
 
+// A planned change of a config file, shown or with --yes applied, or why there is none.
+const configChange = (ctx: Context, plan: Result<Plan>, yes?: true): number =>
+  plan.ok ? change(ctx, plan.value, { note: "", data: {}, findings: [] }, yes) : refused(ctx, "plan", plan.finding);
+
 /** Shows the default level and each project's own (`next` null), or plans the change `next`; --yes applies it. */
-export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number => {
-  if (next === null) return showLevels(ctx);
-  const planned = useCases.planLevel(ctx.config, next);
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  return change(ctx, planned.value, { note: "", data: {}, findings: [] }, yes);
-};
+export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number =>
+  next === null ? showLevels(ctx) : configChange(ctx, useCases.planLevel(ctx.config, next), yes);
 
 // The JSON of `cedarloom mode`: the latest switch's level and time, the default, and how long a switch lasts.
 const modeData = ({ switched, settings }: useCases.Mode) => ({
@@ -480,3 +481,33 @@ export const workflowsOpen = (ctx: Context, id: string, { at }: { at?: string })
   emit(ctx, "draft", { ...opened.value }, `Opened the stored ${id} as its draft.`);
   return EXIT.ok;
 };
+
+// One line per change under the plan: the file, the settings value, and the profile file that set it.
+const changeLines = (planned: useCases.ProfilePlan["changes"]): string =>
+  planned
+    .map(
+      ({ path, key, setBy }) =>
+        `\n  ${path}${key === null ? "" : ` ${key}`}: ${setBy === null ? "removed, its part is off" : `set by ${setBy}`}`,
+    )
+    .join("");
+
+/** Shows the profile's plan for this machine with who set each change, or with --yes applies it as one run. */
+export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => {
+  const profile = useCases.planProfile(ctx.config, ctx.state);
+  if (!profile.ok) return refused(ctx, "plan", profile.finding);
+  const { plan, changes: setters, findings } = profile.value;
+  if (findings.some((finding) => findingInfo[finding.code].severity === "error")) {
+    return fail(ctx, "plan", findings, EXIT.refused);
+  }
+  if (plan === null) {
+    emit(ctx, "plan", { planHash: null, plan: null, changes: setters, findings }, "This machine matches the profile.");
+    report(ctx, findings);
+    return EXIT.ok;
+  }
+  const note = setters.length === 0 ? "" : `\nChanges:${changeLines(setters)}`;
+  return change(ctx, plan, { note, data: { changes: setters }, findings }, yes);
+};
+
+/** Shows a change of this machine's profile selection, or with --yes makes it as one run. */
+export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: { yes?: true }): number =>
+  configChange(ctx, useCases.planChoice(ctx.config, choice), yes);

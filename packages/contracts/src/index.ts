@@ -101,7 +101,15 @@ export {
   SELECTION_SCHEMA_VERSION,
   targetClass,
 } from "./profile.ts";
-export { type Composed, composeProfile, type LoadParent, MAX_PROFILE_FILES, type ParentRef } from "./compose.ts";
+export {
+  type Composed,
+  composeProfile,
+  type LoadParent,
+  type Mark,
+  MAX_PROFILE_FILES,
+  mergeJson,
+  type ParentRef,
+} from "./compose.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {
@@ -109,6 +117,7 @@ export {
   HandleType,
   JoinConfig,
   JsonValue,
+  semverAbove,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
   WorkflowId,

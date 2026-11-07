@@ -1371,6 +1371,48 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.entry-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.app-too-old";
+            params: {
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-unknown";
+            params: {
+                part: string;
+                by: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-requires";
+            params: {
+                part: string;
+                requires: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.owner-changed";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-missing";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "hub";
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2250,6 +2292,48 @@ export interface components {
             params: {
                 pack: string;
                 files: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.entry-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.app-too-old";
+            params: {
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-unknown";
+            params: {
+                part: string;
+                by: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-requires";
+            params: {
+                part: string;
+                requires: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.owner-changed";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-missing";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "hub";
             };
         } | {
             /** @constant */

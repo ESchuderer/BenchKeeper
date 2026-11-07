@@ -1724,7 +1724,7 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
             };
         } | {
             /** @constant */
@@ -1751,8 +1751,24 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
             };
         } | {
             /** @constant */
@@ -2883,7 +2899,7 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
             };
         } | {
             /** @constant */
@@ -2910,8 +2926,24 @@ export interface components {
                 part: string;
                 title: string;
                 project: string;
+                source: string | null;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-twice";
+            params: {
+                part: string;
+                target: string;
             };
         } | {
             /** @constant */

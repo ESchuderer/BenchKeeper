@@ -1,3 +1,4 @@
+import { isUtf8 } from "node:buffer";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { type Finding, type Operation, type Result, sealedTarget, targetClass } from "@cedarloom/contracts";
@@ -5,7 +6,7 @@ import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
-import { type Resolved, textFile } from "./resolve.ts";
+import { type Folder, type Resolved, textFile } from "./resolve.ts";
 import { type Fetched, skillFiles } from "./skills.ts";
 
 type Part = Resolved["profile"]["project"][string];
@@ -123,67 +124,176 @@ const realTarget = (project: string, part: string, target: string): Result<strin
 };
 
 // A project's plan: the composed profile, the project and its `.claude` folder as the disk names them, the fetched
-// folders, and the parts approved by name.
+// folders, the folders the dev container parts' Templates wrote, by part id, and the parts approved by name.
 type Given = {
   resolved: Resolved;
   project: string;
   claude: string;
   fetched: Fetched;
+  templates: ReadonlyMap<string, Folder>;
   approved: ReadonlySet<string>;
 };
 
-// A files part's targets with their texts and their paths on disk.
-const filesPart = ({ resolved, project, fetched }: Given, id: string, part: Of<"files">) => {
-  const found: Found[] = [];
+// The parts that write whole files, and how each keeps them: committed or ignored by Git, an existing file left as is.
+type Whole = Of<"files"> | Of<"gates"> | Of<"devcontainer">;
+type Keeping = { commit: boolean; onlyIfAbsent: boolean };
+const isWhole = (part: Part): part is Whole => ["files", "gates", "devcontainer"].includes(part.type);
+
+const gatePath = (caller: string): string => `.github/workflows/${caller}.yml`;
+const DEPENDABOT = ".github/dependabot.yml";
+// The targets a part names before its texts are read; a dev container's are known once its Template is applied.
+const targetNames = (part: Whole): string[] => {
+  if (part.type === "files") return Object.keys(part.files);
+  return part.type === "gates" ? [...part.callers.map(gatePath), DEPENDABOT] : [];
+};
+
+// A caller of the reusable workflow of its name at the bound commit, with read access only, on each pull request and
+// merge queue entry, which every change to the default branch passes, whatever its name
+// (https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
+const callerText = (name: string, repository: string, commit: string): string => `name: ${name}
+on:
+  pull_request:
+  merge_group:
+permissions: {}
+jobs:
+  ${name}:
+    uses: ${repository}/.github/workflows/${name}.yml@${commit}
+    permissions:
+      contents: read
+`;
+// Dependabot's version updates of the workflows' pins, each once the release is the cooldown's days old
+// (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-).
+// The bound gates repository is ignored, so the binding stays the gates' one source and they move only by a new one.
+const dependabotText = (days: number, repository: string): string => `version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: ${days}
+    ignore:
+      - dependency-name: "${repository}"
+      - dependency-name: "${repository}/*"
+`;
+
+// A files part's targets with their texts.
+const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">): Result<[string, string][]> => {
+  const texts: [string, string][] = [];
   for (const [target, text] of Object.entries(part.files)) {
     const pointer = `/project/${id}/files/${target.replaceAll("~", "~0").replaceAll("/", "~1")}`;
     const read = textOf(text, { kind: "template", pointer }, resolved, fetched);
     if (!read.ok) return read;
-    const path = realTarget(project, `project.${id}`, target);
-    if (!path.ok) return path;
-    found.push({ target, path: path.value, content: read.value });
+    texts.push([target, read.value]);
   }
-  return { ok: true as const, value: found };
+  return { ok: true, value: texts };
 };
 
-// A files part that is on and approved: each target it writes now, and those Git is to ignore. An `onlyIfAbsent`
-// target that is there stays as it is, ignored only while it holds what CedarLoom left there.
-const addTargets = (files: Files, part: Of<"files">, found: Found[], written: Written): void => {
+/** Whether a project has a dev container: a folder, or a file at its root (https://containers.dev/implementors/spec/). */
+export const hasContainer = (project: string): boolean =>
+  existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
+
+// A dev container part's files where the project has none: what its Template wrote as the dev container, and nothing
+// else it ships. Before the part's approval its Template is not applied, so the approval line names the folder.
+const containerTexts = ({ project, templates, approved }: Given, id: string): Result<[string, string][]> => {
+  const folder = templates.get(id);
+  if (hasContainer(project) || (folder === undefined && approved.has(`project.${id}`))) return { ok: true, value: [] };
+  if (folder === undefined) return { ok: true, value: [[".devcontainer/", ""]] };
+  const files = folder.files.filter(({ path }) => path === ".devcontainer.json" || path.startsWith(".devcontainer/"));
+  const binary = files.find(({ content }) => !isUtf8(content));
+  if (binary !== undefined) return refuse({ code: "apply.not-text", params: { path: binary.path } });
+  return { ok: true, value: files.map(({ path, content }): [string, string] => [path, content.toString("utf8")]) };
+};
+
+// A part's targets and texts, and how it keeps them: a files part's from its texts, a gates part's from this machine's
+// gate source, a dev container's from what its Template wrote into `.devcontainer/`, an existing file left as it is.
+const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: [string, string][]; keeping: Keeping }> => {
+  if (part.type === "files") {
+    const texts = filesTexts(given, id, part);
+    const keeping = { commit: part.commit, onlyIfAbsent: part.onlyIfAbsent === true };
+    return texts.ok ? { ok: true, value: { texts: texts.value, keeping } } : texts;
+  }
+  if (part.type === "devcontainer") {
+    const texts = containerTexts(given, id);
+    return texts.ok
+      ? { ok: true, value: { texts: texts.value, keeping: { commit: true, onlyIfAbsent: true } } }
+      : texts;
+  }
+  const { gates } = given.resolved;
+  if (gates === undefined)
+    return refuse({ code: "profile.binding-missing", params: { part: `project.${id}`, binding: "gates" } });
+  const [repository = "", commit = ""] = gates.split("@");
+  const callers = part.callers.map((name): [string, string] => [gatePath(name), callerText(name, repository, commit)]);
+  const texts: [string, string][] = [...callers, [DEPENDABOT, dependabotText(part.dependabotCooldownDays, repository)]];
+  return { ok: true, value: { texts, keeping: { commit: true, onlyIfAbsent: false } } };
+};
+
+// A part's targets with their texts and their paths on disk, and how it keeps them.
+const foundOf = (given: Given, id: string, part: Whole): Result<{ found: Found[]; keeping: Keeping }> => {
+  const read = textsOf(given, id, part);
+  if (!read.ok) return read;
+  const found: Found[] = [];
+  for (const [target, content] of read.value.texts) {
+    const path = realTarget(given.project, `project.${id}`, target);
+    if (!path.ok) return path;
+    found.push({ target, path: path.value, content });
+  }
+  return { ok: true, value: { found, keeping: read.value.keeping } };
+};
+
+// A part that is on and approved: each target it writes now, and those Git is to ignore. An `onlyIfAbsent` target
+// that is there stays as it is, ignored only while it holds what CedarLoom left there.
+const addTargets = (files: Files, keeping: Keeping, found: Found[], written: Written): void => {
   for (const { target, path, content } of found) {
-    const kept = part.onlyIfAbsent === true && existsSync(path);
+    const kept = keeping.onlyIfAbsent && existsSync(path);
     if (!kept) {
       const mode = targetClass(target, content) === "executable" ? { mode: 0o755 } : {};
       files.wanted.set(path, { content, ...mode });
     }
-    if (!part.commit && (!kept || hashOf(path) === written.get(path))) files.excluded.push(path);
+    if (!keeping.commit && (!kept || hashOf(path) === written.get(path))) files.excluded.push(path);
   }
 };
 
 // The approval line of a part whose targets run as programs or configure tools, by class (owner, hub issue 130).
-const approval = (part: string, title: string, project: string, found: Found[]): Finding | undefined => {
+type Approval = { part: string; title: string; project: string; source: string | null };
+const approval = (line: Approval, found: Found[]): Finding | undefined => {
   const of = (kind: string) =>
     found.filter(({ target, content }) => targetClass(target, content) === kind).map(({ target }) => target);
   const [programs, configs] = [of("executable"), of("configuration")];
   if (programs.length + configs.length === 0) return undefined;
-  return { code: "profile.target-approval", params: { part, title, project, programs, configs } };
+  return { code: "profile.target-approval", params: { ...line, programs, configs } };
+};
+
+// Where a part's code comes from, for its approval line: the gates' bound workflows, or the dev container's Template
+// and Features; none for a files part, whose texts come from the profile's packs.
+const sourceOf = ({ resolved }: Given, part: Whole): string | null => {
+  if (part.type === "gates") return resolved.gates ?? null;
+  if (part.type === "files") return null;
+  const features = Object.keys(part.features ?? {});
+  return features.length === 0 ? part.template : `${part.template} with the Features ${features.join(", ")}`;
 };
 
 const filesOf = (given: Given, written: Written) => {
   const { resolved, project, approved } = given;
   const files: Files = { wanted: new Map(), stale: [], excluded: [], held: new Set(), findings: [] };
   for (const [id, part] of Object.entries(resolved.profile.project)) {
-    if (part.type !== "files") continue;
+    if (!isWhole(part)) continue;
     if (!resolved.on.has(`project.${id}`)) {
-      files.stale.push(...Object.keys(part.files).map((target) => onDisk(join(project, ...target.split("/")))));
+      files.stale.push(...targetNames(part).map((target) => onDisk(join(project, ...target.split("/")))));
       continue;
     }
-    const found = filesPart(given, id, part);
-    if (!found.ok) return found;
-    const waits = approval(`project.${id}`, part.title, project, found.value);
+    const read = foundOf(given, id, part);
+    if (!read.ok) return read;
+    const { found, keeping } = read.value;
+    const twice = found.find(({ path }) => files.wanted.has(path));
+    if (twice !== undefined)
+      return refuse({ code: "profile.target-twice", params: { part: `project.${id}`, target: twice.target } });
+    const line = { part: `project.${id}`, title: part.title, project, source: sourceOf(given, part) };
+    const waits = approval(line, found);
     // An approved part's files in place need no new approval.
-    const inPlace = found.value.every(({ path, content }) => hashOf(path) === sha256(content));
+    const inPlace = found.every(({ path, content }) => hashOf(path) === sha256(content));
     if (waits === undefined || approved.has(`project.${id}`) || inPlace) {
-      addTargets(files, part, found.value, written);
+      addTargets(files, keeping, found, written);
       continue;
     }
     files.findings.push(waits);
@@ -396,20 +506,30 @@ const heldOf = (given: Given, written: Written): Result<Given> => {
 };
 
 /**
- * The project level for one folder: the manual's marked blocks, each files part's targets (an executable or
- * configuration one only when `approved` names its part), the settings and the approved plugins merged into the
- * project's settings files, the packs' skills, and the Git exclude block for the machine-local files. `written` holds
+ * The project level for one folder: the manual's marked blocks; each files, gates and dev container part's targets (an
+ * executable or configuration one only when `approved` names its part, so CI files never come with `--yes` alone); the
+ * settings and the approved plugins merged into the project's settings files; the packs' skills; and the Git exclude
+ * block for the machine-local files. `templates` holds what each dev container part's Template wrote, and `written`
  * what CedarLoom last left at each path of the project (the run store's `written`).
  */
 export const planProject = (
   resolved: Resolved,
   project: string,
   written: Written,
-  { approved = new Set<string>(), fetched = new Map() }: { approved?: ReadonlySet<string>; fetched?: Fetched } = {},
+  options: { approved?: ReadonlySet<string>; fetched?: Fetched; templates?: ReadonlyMap<string, Folder> } = {},
 ): Result<LevelPlan> => {
-  const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin"]);
+  const { approved, fetched, templates } = {
+    approved: new Set<string>(),
+    fetched: new Map(),
+    templates: new Map(),
+    ...options,
+  };
+  const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin", "gates", "devcontainer"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const held = heldOf({ resolved, project, claude: onDisk(join(project, ".claude")), fetched, approved }, written);
+  const held = heldOf(
+    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
+    written,
+  );
   if (!held.ok) return held;
   const given = held.value;
   const files = filesOf(given, written);

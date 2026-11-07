@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { Plan } from "@cedarloom/contracts";
-import { applyPlan, claudeHome, type Fetch, planChoice, planProfile } from "@cedarloom/use-cases";
+import { applyPlan, claudeHome, type Fetch, type PlanOptions, planChoice, planProfile } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
@@ -36,6 +36,8 @@ const machine = () => {
   if (config === undefined || state === undefined || home === undefined || user === undefined)
     throw new Error("no folders");
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+  // The gates, which need a workflow source of their own, are switched on by the tests of them.
+  applied(state, ok(planChoice(config, { part: "project.gates", on: false })));
   return {
     config,
     state,
@@ -109,7 +111,7 @@ test("the selection names only the profile's parts, and a part goes back to its 
   applied(state, ok(planChoice(config, { part: "workspace.memory", on: null })));
   const selection = JSON.parse(readFileSync(join(config, "profile.json"), "utf8"));
   expect([selection.select, planChoice(config, { part: "machine.rules.gone", on: true })]).toEqual([
-    {},
+    { "project.gates": false },
     {
       ok: false,
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },
@@ -205,6 +207,7 @@ test("with a dev container, scripts/dc waits for approval with its local line; a
           part: "project.dc-wrapper",
           title: "scripts/dc, the dev container command",
           project,
+          source: null,
           programs: ["scripts/dc"],
           configs: [],
         },
@@ -475,6 +478,124 @@ test("a machine's plan keeps the record of a project's skill sources, even of a 
   const before = entry();
   ok(await planProfile(box.config, box.state, where, { fetch, allow: PLUGINS }));
   expect([entry(), before?.commit]).toEqual([before, "1".repeat(40)]);
+});
+
+test("gates wait for their approval by name, so --yes alone never writes a CI file, and need their workflow source", async () => {
+  const box = custom({
+    ci: { type: "gates", title: "CI", default: "on", callers: ["lint"], dependabotCooldownDays: 5 },
+  });
+  const project = projectWith();
+  const unbound = await planned(box, project);
+  applied(box.state, ok(planChoice(box.config, { gates: `acme/workflows@${"a".repeat(40)}` })));
+  const waiting = await projectPlan(box, project);
+  const approved = (await projectPlan(box, project, ["project.ci"])).plan;
+  const [caller, dependabot] = [".github/workflows/lint.yml", ".github/dependabot.yml"];
+  const configs = [caller, dependabot];
+  expect([
+    unbound,
+    waiting.findings,
+    configs.map((target) => contentOf(waiting.plan, join(project, target))),
+    configs.map((target) => contentOf(approved, join(project, target))),
+  ]).toEqual([
+    { ok: false, finding: { code: "profile.binding-missing", params: { part: "project.ci", binding: "gates" } } },
+    [
+      {
+        code: "profile.target-approval",
+        params: {
+          part: "project.ci",
+          title: "CI",
+          project,
+          source: `acme/workflows@${"a".repeat(40)}`,
+          programs: [],
+          configs,
+        },
+      },
+    ],
+    [null, null],
+    [
+      `name: lint\non:\n  pull_request:\n  merge_group:\npermissions: {}\njobs:\n  lint:\n    uses: acme/workflows/.github/workflows/lint.yml@${"a".repeat(40)}\n    permissions:\n      contents: read\n`,
+      'version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 5\n    ignore:\n      - dependency-name: "acme/workflows"\n      - dependency-name: "acme/workflows/*"\n',
+    ],
+  ]);
+});
+test("two parts that write one file stop the plan", async () => {
+  const gate = { type: "gates", title: "CI", default: "on", dependabotCooldownDays: 5 };
+  const box = custom({ ci: { ...gate, callers: ["lint"] }, more: { ...gate, callers: ["test"] } });
+  applied(box.state, ok(planChoice(box.config, { gates: `acme/workflows@${"a".repeat(40)}` })));
+  const params = { part: "project.more", target: ".github/dependabot.yml" };
+  expect(
+    await planProfile(
+      box.config,
+      box.state,
+      { home: box.home, user: box.home },
+      {
+        fetch: stock,
+        project: projectWith(),
+        allow: ["project.ci", "project.more"],
+      },
+    ),
+  ).toEqual({ ok: false, finding: { code: "profile.target-twice", params } });
+});
+
+// A Template as one image in `.devcontainer/` and a Dependabot file; the request it was last asked for.
+let asked: unknown;
+const template: PlanOptions["template"] = async (folder, request) => {
+  asked = request;
+  mkdirSync(join(folder, ".devcontainer"));
+  writeFileSync(join(folder, ".devcontainer", "devcontainer.json"), '{ "image": "alpine" }\n');
+  mkdirSync(join(folder, ".github"));
+  writeFileSync(join(folder, ".github", "dependabot.yml"), "version: 2\n");
+  return null;
+};
+const REQUEST = {
+  template: `ghcr.io/devcontainers/templates/alpine@sha256:${"0".repeat(64)}`,
+  args: { imageVariant: "3.20" },
+  features: { "ghcr.io/devcontainers/features/node:1": { version: "lts" } },
+};
+
+test("a dev container part is approved before its Template runs, and writes only the dev container it made", async () => {
+  asked = undefined;
+  const box = custom({ dc: { type: "devcontainer", title: "Alpine", default: "on", ...REQUEST } });
+  const [fresh, existing] = [projectWith(), projectWith({ ".devcontainer.json": "{}" })];
+  const run = (project: string, allow: string[], apply = template) =>
+    planProfile(
+      box.config,
+      box.state,
+      { home: box.home, user: box.home },
+      { fetch: stock, project, allow, template: apply },
+    );
+  // A project with a dev container runs no Template and asks for no approval of one.
+  const keptFindings = ok(await run(existing, [])).findings;
+  const keptPlan = ok(await run(existing, ["project.dc"])).plan;
+  const waiting = ok(await run(fresh, []));
+  const unasked = asked;
+  const approved = ok(await run(fresh, ["project.dc"])).plan;
+  const params = { part: "project.dc", template: REQUEST.template, error: "unauthorized" };
+  const configs = [".devcontainer/"];
+  const source = `${REQUEST.template} with the Features ghcr.io/devcontainers/features/node:1`;
+  expect([
+    waiting.findings,
+    [unasked, asked],
+    [".devcontainer/devcontainer.json", ".github/dependabot.yml"].map((target) =>
+      contentOf(approved, join(fresh, target)),
+    ),
+    [
+      keptFindings.some((finding) => "part" in finding.params && finding.params.part === "project.dc"),
+      keptPlan?.operations.some((op) => "path" in op && op.path.includes(".devcontainer")),
+    ],
+    ok(await run(fresh, ["project.dc"], async () => "unauthorized")).findings,
+  ]).toEqual([
+    [
+      {
+        code: "profile.target-approval",
+        params: { part: "project.dc", title: "Alpine", project: fresh, source, programs: [], configs },
+      },
+    ],
+    [undefined, REQUEST],
+    ['{ "image": "alpine" }\n', null],
+    [false, false],
+    [{ code: "profile.template-failed", params }],
+  ]);
 });
 
 const plugin = (path: string) => ({ skill: "acme.skills/skills/review", path });

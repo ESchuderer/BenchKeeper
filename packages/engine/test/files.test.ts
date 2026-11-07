@@ -4,7 +4,7 @@ import { existsSync, linkSync, readdirSync, renameSync, writeFileSync } from "no
 import type { Operation } from "@cedarloom/contracts";
 import { asidePath, recover, tempPath, writeAtomic } from "@cedarloom/engine";
 import { afterEach, expect, test, vi } from "vitest";
-import { hash, interruptedRun, plan, read, run, storeAt, workspace } from "./helpers.ts";
+import { hash, interruptedRun, plan, read, run, storeAt, workspace } from "./plan-runs.ts";
 
 // While `ids.rounded` is set, every number-valued lstat reports one file id, as Windows can when it rounds a 64-bit id.
 const ids = vi.hoisted(() => ({ rounded: false }));

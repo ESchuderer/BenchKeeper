@@ -4,6 +4,9 @@ import type { AccountRegistry } from "@cedarloom/contracts";
 // What a worker inherits from the launcher: what a CLI needs to run, nothing that selects a login or changes the agent.
 // USER on macOS: Claude Code finds its keychain login only with it (2.1.316: logged out under env -i with HOME and PATH).
 const INHERITED = ["PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TZ"];
+// Windows' system, profile and temp folders: a process without SystemRoot can fail to load system components
+// (https://docs.python.org/3/library/subprocess.html#popen-constructor).
+const WINDOWS = ["SYSTEMROOT", "WINDIR", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"];
 
 export interface WorkerEnvInput {
   readonly parent: Readonly<Record<string, string | undefined>>;
@@ -38,7 +41,8 @@ export const cleanEnv = (
   platform: NodeJS.Platform,
   extra: readonly string[] = [],
 ): Record<string, string> => {
-  const names = new Set([...INHERITED, ...(platform === "darwin" ? ["USER"] : []), ...extra]);
+  const own = [...(platform === "darwin" ? ["USER"] : []), ...(platform === "win32" ? WINDOWS : [])];
+  const names = new Set([...INHERITED, ...own, ...extra]);
   // Only Windows names ignore case (it spells PATH as Path); elsewhere `path` or `Home` is another variable.
   const key = (name: string) => (platform === "win32" ? name.toUpperCase() : name);
   const inherited = Object.entries(parent).filter(

@@ -153,7 +153,7 @@ test("a window past its reset is unknown until claude-swap reads it again, and a
   expect(switches(state)[2]).toMatchObject({ to: "spare", reason: "no-readings" });
 });
 
-test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row", () => {
+test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row or a later start", () => {
   const state = stateWithReadings(95, 20);
   const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };
   const moving = { ...registry, pools: { claude: { ...registry.pools.claude, main } } };
@@ -171,6 +171,33 @@ test("a running worker past its line moves as a ledger row with its trigger; the
     value: { move: false, reason: "cooldown" },
   });
   expect(switches(state)).toHaveLength(1);
+  // A resumed worker starts without a row: the cooldown counts from its start.
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const labels = {
+    phase: "implement",
+    model: "claude-sonnet-5-5",
+    subagentModel: "claude-sonnet-5-5",
+    effort: "high",
+    permissionMode: "dontAsk",
+    review: false,
+    level: "checkpoint",
+    tier: null,
+  } as const;
+  const started = {
+    runId: randomUUID(),
+    task: "t7",
+    agent: "claude",
+    account: "work",
+    version: "2.1.316",
+    pid: 101,
+  } as const;
+  store.value.leaseAccount({ ...started, startedAt: new Date(NOW + 600_000).toISOString(), labels }, 2)?.release();
+  store.value.close();
+  expect(chooseMove(state, moving, { ...request, task: "t7" }, NOW + 660_000)).toMatchObject({
+    ok: true,
+    value: { move: false, reason: "cooldown" },
+  });
 });
 
 test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {

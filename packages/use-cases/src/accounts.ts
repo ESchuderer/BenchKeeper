@@ -502,8 +502,8 @@ export interface MoveRequest {
 
 /**
  * Decides under the store's lock whether a running worker of the task moves to another account of its pool now
- * (`selectMove`), and records a move in the ledger with its trigger. claude-swap's cooldown counts from the task's last
- * row: its launch-time choice or its last move.
+ * (`selectMove`), and records a move in the ledger with its trigger. claude-swap's cooldown counts from the task's latest
+ * row or worker start: a resumed worker starts without a row.
  */
 export const chooseMove = (
   state: string,
@@ -514,8 +514,11 @@ export const chooseMove = (
   withStore(state, (store) => {
     const readings = store.readings();
     const judged = now ?? Date.now();
-    const last = store.switches().findLast((row) => row.task === request.task);
-    const since = last === undefined ? null : Date.parse(last.at);
+    const times = [
+      ...store.switches().flatMap((row) => (row.task === request.task ? [Date.parse(row.at)] : [])),
+      ...store.launches().flatMap((run) => (run.task === request.task ? [Date.parse(run.startedAt)] : [])),
+    ];
+    const since = times.length === 0 ? null : Math.max(...times);
     const move = selectMove(
       registry,
       { ...request, since, busy: fullAccounts(store, request.agent) },

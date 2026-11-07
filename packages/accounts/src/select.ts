@@ -221,7 +221,10 @@ export type Move =
     }
   | {
       readonly move: false;
-      /** `off`: the pool is unconfirmed or does not move running workers. `no-target`: no account clears the bar. */
+      /**
+       * `off`: the pool is unconfirmed, does not move running workers, or no longer holds the worker's account.
+       * `no-target`: no account clears the bar.
+       */
       readonly reason: "off" | "within-line" | "cooldown" | "no-target";
       readonly candidates: readonly Candidate[];
     };
@@ -288,7 +291,8 @@ export const selectMove = (
   const current = counted(readings, now);
   const members = membersOf(registry, request);
   const own = members.find((account) => account.name === from);
-  const left = own === undefined ? null : margin(own, current, model);
+  if (own === undefined) return stay("off");
+  const left = margin(own, current, model);
   const why = trigger === "line" ? lineStay(left, request.since, now, swap.cooldownSeconds) : null;
   if (why !== null) return stay(why);
   return target(members, request, { current, floor: floorOf(trigger, left, swap.hysteresisPct) });

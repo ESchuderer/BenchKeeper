@@ -302,6 +302,12 @@ test("at its limit a worker moves at once to any account with headroom; an accou
   const readings = [...used("one", 50, 0), ...used("two", 90, 0), ...used("three", 50, 0)];
   const limit = { ...main, from: "one", trigger: "at-limit", since: NOW } as const;
   expect(selectMove(moving, limit, readings, NOW)).toMatchObject({ move: true, account: { name: "three" } });
+  // A worker whose account the pool no longer holds does not move into it.
+  expect(selectMove(moving, { ...limit, from: "gone" }, readings, NOW)).toEqual({
+    move: false,
+    reason: "off",
+    candidates: [],
+  });
   expect(selectMove(moving, { ...limit, held: new Set(["three"]) }, readings, NOW)).toMatchObject({
     move: true,
     account: { name: "two" },

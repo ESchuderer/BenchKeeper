@@ -227,6 +227,8 @@ export const Finding = z
     finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
     // A new commit at a followed ref, taken once this machine has seen it there for 3 days.
     finding("profile.source-waiting", { source: z.string(), commit: z.string(), offered: z.string() }),
+    // The commit in use of a followed source, which its new commit waits to replace, can no longer be fetched.
+    finding("profile.source-unavailable", { source: z.string(), commit: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -366,6 +368,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },
   "profile.source-waiting": { severity: "info", effort: "manual" },
+  "profile.source-unavailable": { severity: "error", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

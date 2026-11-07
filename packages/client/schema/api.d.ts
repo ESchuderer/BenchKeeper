@@ -1473,6 +1473,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.source-unavailable";
+            params: {
+                source: string;
+                commit: string;
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2454,6 +2461,13 @@ export interface components {
                 source: string;
                 commit: string;
                 offered: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-unavailable";
+            params: {
+                source: string;
+                commit: string;
             };
         } | {
             /** @constant */

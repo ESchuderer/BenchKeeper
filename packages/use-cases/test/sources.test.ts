@@ -11,11 +11,11 @@ const root = testRoot("sources");
 
 // Each repository's commits, newest last: a fetch by branch takes the newest, a fetch by commit that one.
 const commits = new Map<string, Tree[]>();
-const publish = (url: string, files: Record<string, string>): Tree => {
+const publish = (url: string, files: Record<string, string>, executable: string[] = []): Tree => {
   const list = commits.get(url) ?? [];
   const content = Object.entries(files).map(([path, text]) => ({
     path,
-    mode: "100644" as const,
+    mode: executable.includes(path) ? ("100755" as const) : ("100644" as const),
     sha256: sha256(text),
     content: Buffer.from(text),
   }));
@@ -51,7 +51,8 @@ const machineWith = (machine: object, packs: object = {}) => {
 const skill = (source: object) => ({ "skill.text": { type: "skill", title: "Text", default: "on", source } });
 const paths = (plan: Plan | null) => plan?.operations.map((op) => [op.kind, "path" in op ? op.path : null]);
 
-test("a skill that follows a branch takes its first commit at once, and a new one only after 3 days", async () => {
+const DAY = 24 * 60 * 60 * 1000;
+test("a followed skill takes its first commit at once, a new one 3 days after it was seen, a moved ref waits anew", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   try {
     const url = "https://git.example.org/acme/wait.git";
@@ -62,11 +63,17 @@ test("a skill that follows a branch takes its first commit at once, and a new on
     expect(ok(applyPlan(state, first, { yes: true })).status).toBe("applied");
     publish(url, { "SKILL.md": "second\n" });
     const waiting = ok(await plan());
-    vi.setSystemTime(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    vi.setSystemTime(Date.now() + 2 * DAY);
+    publish(url, { "SKILL.md": "third\n" });
+    await plan();
+    vi.setSystemTime(Date.now() + DAY);
+    const moved = ok(await plan());
+    vi.setSystemTime(Date.now() + 2 * DAY);
     const folder = join(home, "skills", "text");
-    expect([waiting.plan, waiting.findings.map(({ code }) => code), paths(ok(await plan()).plan)]).toEqual([
+    expect([waiting.plan, waiting.findings.map(({ code }) => code), moved.plan, paths(ok(await plan()).plan)]).toEqual([
       null,
       ["profile.source-waiting"],
+      null,
       [
         ["write", join(folder, "SKILL.md")],
         ["delete", join(folder, "notes.md")],
@@ -77,12 +84,36 @@ test("a skill that follows a branch takes its first commit at once, and a new on
   }
 });
 
-test("a source that follows a branch and holds a file that may run is refused", async () => {
-  const url = "https://git.example.org/acme/script.git";
-  publish(url, { "SKILL.md": "x\n", "run.sh": "echo hi\n" });
-  expect(await machineWith(skill({ git: url, ref: "main" })).plan()).toEqual({
+const manifestOf = (id: string, entries: object) =>
+  JSON.stringify({
+    schemaVersion: 1,
+    kind: "cedarloom.pack",
+    id,
+    version: "1.0.0",
+    name: id,
+    minApp: "0.0.0",
+    entries,
+  });
+test.for<[string, Record<string, string>, string[], string, boolean]>([
+  ["a script", { "SKILL.md": "x\n", "run.sh": "echo hi\n" }, [], "run.sh", false],
+  ["a text file that runs", { "SKILL.md": "#!/bin/sh\n" }, ["SKILL.md"], "SKILL.md", false],
+  ["a pack manifest in a skill", { "SKILL.md": "x\n", "cedarloom-pack.json": "{}" }, [], "cedarloom-pack.json", false],
+  [
+    "a pack manifest that runs",
+    { "cedarloom-pack.json": manifestOf("acme.run", { "rules/a.md": { kind: "rules" } }) },
+    ["cedarloom-pack.json"],
+    "cedarloom-pack.json",
+    true,
+  ],
+])("a source that follows a branch with %s is refused", async ([name, files, executable, path, pack]) => {
+  const url = `https://git.example.org/acme/${name.replaceAll(" ", "-")}.git`;
+  publish(url, files, executable);
+  const box = pack
+    ? machineWith({}, { "acme.run": { git: url, ref: "main" } })
+    : machineWith(skill({ git: url, ref: "main" }));
+  expect(await box.plan()).toEqual({
     ok: false,
-    finding: { code: "profile.pack-unpinned", params: { source: url, path: "run.sh" } },
+    finding: { code: "profile.pack-unpinned", params: { source: url, path } },
   });
 });
 
@@ -105,17 +136,18 @@ test("a skill entry that may run, reached through a pack that follows a branch, 
   });
 });
 
-test("while a new commit waits and the one in use cannot be fetched, the installed skill stays", async () => {
+test("while a new commit waits and the one in use cannot be fetched, the plan stops and names the source", async () => {
   const url = "https://git.example.org/acme/gone.git";
-  publish(url, { "SKILL.md": "first\n" });
+  const used = publish(url, { "SKILL.md": "first\n" });
   const { state, plan } = machineWith(skill({ git: url, ref: "main" }));
   const first = ok(await plan()).plan;
   if (first === null) throw new Error("no plan");
   expect(ok(applyPlan(state, first, { yes: true })).status).toBe("applied");
-  const second = publish(url, { "SKILL.md": "second\n" });
-  commits.set(url, [second]);
-  const waiting = ok(await plan());
-  expect([waiting.plan, waiting.findings.map(({ code }) => code)]).toEqual([null, ["profile.source-waiting"]]);
+  commits.set(url, [publish(url, { "SKILL.md": "second\n" })]);
+  expect(await plan()).toEqual({
+    ok: false,
+    finding: { code: "profile.source-unavailable", params: { source: url, commit: used.commit } },
+  });
 });
 
 test("a record of the followed sources CedarLoom cannot read stops the plan", async () => {

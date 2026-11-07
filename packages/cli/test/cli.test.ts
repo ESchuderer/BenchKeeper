@@ -614,7 +614,7 @@ const sampleParams = (code: string): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(shape).map(([key, schema]) => [key, sampleValue(key, schema)]));
 };
 
-// Two Node processes each strip and load the whole CLI: about 3 s together, up to 6.5 s under full-suite load.
+// Two Node processes each strip and load the whole CLI: together past 5 s under full-suite load.
 test("the installed command runs the same program and sets the process exit code", () => {
   const { state } = setup();
   const bin = join(import.meta.dirname, "..", "src", "bin.ts");

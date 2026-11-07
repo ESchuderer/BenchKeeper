@@ -32,6 +32,10 @@ import {
   type TargetAnswers,
   type TargetCall,
   type TargetCallParams,
+  SESSION_CALLS,
+  type SessionAnswers,
+  type SessionCall,
+  type SessionCallParams,
   WORKER_CALLS,
   type WorkerAnswers,
   type WorkerCall,
@@ -79,12 +83,14 @@ export type ExtensionOptions = {
   targets?: TargetHandlers;
   /** The calls of its worker runners (`contributes.workerRunners`, bundled extensions only), as `targets` has them. */
   workers?: WorkerHandlers;
+  /** The call of its session providers (`contributes.sessionProviders`, bundled extensions only). */
+  sessions?: SessionHandlers;
 };
 
 /** What a switch target's call gets: the language `initialize` named, and `exec` through the host. */
 export type TargetContext = Pick<ActionContext, "locale" | "exec">;
-type CallParams = TargetCallParams & WorkerCallParams;
-type CallAnswers = TargetAnswers & WorkerAnswers;
+type CallParams = TargetCallParams & WorkerCallParams & SessionCallParams;
+type CallAnswers = TargetAnswers & WorkerAnswers & SessionAnswers;
 type Handlers<K extends keyof CallParams> = {
   [C in K]?: (params: CallParams[C], context: TargetContext) => Promise<CallAnswers[C]>;
 };
@@ -92,6 +98,8 @@ type Handlers<K extends keyof CallParams> = {
 export type TargetHandlers = Handlers<TargetCall>;
 /** An async handler per `worker/*` call; each rejects to fail. */
 export type WorkerHandlers = Handlers<WorkerCall>;
+/** An async handler per `session/*` call; each rejects to fail. */
+export type SessionHandlers = Handlers<SessionCall>;
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
 const abortOn = (token: CancellationToken): AbortSignal => {
@@ -173,8 +181,8 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     return { findings: (await options.doctor?.({ locale: hello.locale, exec })) ?? [] };
   });
-  const handlers: Handlers<keyof CallParams> = { ...options.targets, ...options.workers };
-  for (const call of [...TARGET_CALLS, ...WORKER_CALLS])
+  const handlers: Handlers<keyof CallParams> = { ...options.targets, ...options.workers, ...options.sessions };
+  for (const call of [...TARGET_CALLS, ...WORKER_CALLS, ...SESSION_CALLS])
     serveCall(connection, call, handlers[call], () => hello.locale);
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;

@@ -186,7 +186,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target", "worker"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target", "worker", "session"]),
       error: z.string(),
     }),
     // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
@@ -303,9 +303,17 @@ export const Finding = z
     // A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted.
     finding("outbox.not-undoable", { id: z.string(), reason: z.enum(["unchanged", "no-inverse"]) }),
     // The tracker was not reached, or answered with a server error or a rate limit: the entry stays queued.
-    finding("tracker.unavailable", { error: z.string() }),
+    // A rate limit keeps GitHub's retry-after (seconds) and x-ratelimit-reset (epoch seconds) as sent, null without them.
+    finding("tracker.unavailable", {
+      error: z.string(),
+      retryAfter: z.string().nullable(),
+      rateLimitReset: z.string().nullable(),
+    }),
     // The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission.
     finding("tracker.refused", { status: z.int(), error: z.string() }),
+    // The tracker's answer is not what CedarLoom reads, such as a comment without a link: the entry fails, as a retry
+    // would read the same answer; the write itself may have happened.
+    finding("tracker.invalid-answer", { error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -466,6 +474,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "outbox.not-undoable": { severity: "warning", effort: "manual" },
   "tracker.unavailable": { severity: "warning", effort: "command" },
   "tracker.refused": { severity: "error", effort: "manual" },
+  "tracker.invalid-answer": { severity: "error", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

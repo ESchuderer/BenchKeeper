@@ -176,6 +176,16 @@ export type WorkerAnswers = {
   "worker/release": { released: boolean };
 };
 
+/**
+ * The call of a session provider (its manifest's `contributes.sessionProviders`, bundled extensions only): the prefix
+ * of a launch line that runs its agent as the account of that number. The host checks the prefix and puts the
+ * provider's program, as it finds it, first.
+ */
+export const SESSION_CALLS = ["session/line"] as const;
+export type SessionCall = (typeof SESSION_CALLS)[number];
+export type SessionCallParams = { "session/line": { provider: string; number: number } };
+export type SessionAnswers = { "session/line": { argv: string[] } };
+
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");

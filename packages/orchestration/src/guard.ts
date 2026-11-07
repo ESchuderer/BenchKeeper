@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { type GuardPolicy, RepoName } from "@cedarloom/contracts";
-import { type Command, readShell, type Script, type Word } from "./shell.ts";
+import { type Command, RESERVED, readShell, type Script, type Word } from "./shell.ts";
 
 /** Why the guard refuses a call. */
 export type Rule =
@@ -27,65 +27,93 @@ export type Remotes = (folder: string) => ReadonlyMap<string, readonly string[]>
 interface Context {
   readonly policy: GuardPolicy;
   readonly remotes: Remotes;
-  readonly text: string;
   /** Every folder a command of the text may run in (the session's, and each literal `cd`); null when one is unknown. */
   readonly folders: readonly string[] | null;
-  readonly depth: number;
 }
 
 const deny = (rule: Rule, detail: string): Denial => ({ rule, detail });
 const unreadable = (detail: string): Denial => deny("unreadable", detail);
 
-// A program the guard checks, named anywhere in a text, in any case, after a path or as git-<command>.
+// A program the guard checks, named as a word of its own, in any case, after a path or as git-<command>.
 const GUARDED = /(?:^|[^\w.-])(?:gh|git|curl)\b/i;
 // Variables that choose the token, gh's or git's configuration, the home both read it from, or git's repository (A13).
 const PROTECTED_NAMES =
   "GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_CONFIG_DIR|GH_HOST|SSH_ASKPASS|HOME|" +
   // Every git variable but the pager's and the prompt's: they choose its repository, configuration, editor or programs.
-  "XDG_CONFIG_HOME|GH_REPO|GIT_(?!(?:PAGER|TERMINAL_PROMPT)\\b)\\w+";
+  "XDG_CONFIG_HOME|GIT_(?!(?:PAGER|TERMINAL_PROMPT)\\b)\\w+|" +
+  // gh's repository, curl's configuration, and the editors and browsers gh runs.
+  "GH_REPO|CURL_HOME|GH_EDITOR|GH_BROWSER|EDITOR|VISUAL|BROWSER";
 const PROTECTED = new RegExp(`^(?:${PROTECTED_NAMES})$`);
 const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
-const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish"]);
-// A shell's options that take the next word as their value.
-const SHELL_VALUED = new Set(["-o", "+o", "-O", "+O", "--rcfile", "--init-file"]);
-// Words that run the command after them, and the options of theirs that take a value.
-const WRAPPERS = new Map<string, readonly string[]>([
-  ["command", []],
-  ["builtin", []],
-  ["exec", ["-a"]],
-  ["nohup", []],
-  ["time", []],
-  ["nice", ["-n"]],
-  ["timeout", ["-s", "-k", "--signal", "--kill-after"]],
-  ["stdbuf", ["-i", "-o", "-e"]],
-  ["setsid", []],
-  ["ionice", ["-c", "-n", "-p"]],
-  ["caffeinate", ["-t", "-w"]],
-  ["watch", ["-n", "--interval"]],
-  ["env", ["-u", "--unset", "-C", "--chdir"]],
-  ["xargs", ["-I", "-n", "-L", "-P", "-d", "-E", "-s", "-a", "--max-args", "--max-procs", "--delimiter"]],
-]);
-const RESERVED = new Set(["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "!", "{", "}"]);
-const EXPORTS = new Set(["export", "declare", "typeset", "readonly", "local", "unset", "setenv"]);
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
+// Programs that run a command from their words or later, and shells the guard does not read.
+const RUNNERS = new Set(["eval", "trap", "alias", "watch", "pwsh", "powershell"]);
+// zsh's precommand modifiers.
+const ZSH_ONLY = new Set(["noglob", "nocorrect", "-"]);
+// find's actions that run a command.
+const FIND_RUNS = /^-(?:exec|execdir|ok|okdir)$/;
+
+interface Options {
+  readonly flags: ReadonlySet<string>;
+  readonly valued: ReadonlySet<string>;
+}
+const options = (spec: string): Options => {
+  const [flags = new Set<string>(), valued = new Set<string>()] = spec
+    .split("|")
+    .map((list) => new Set(list.split(" ").filter(Boolean)));
+  return { flags, valued };
+};
+
+// Words that run the command after them: their flags, then (after |) the options that take a value.
+const WRAPPERS = new Map<string, Options>(
+  Object.entries({
+    command: "-p -v -V |",
+    builtin: "|",
+    exec: "-c -l | -a",
+    nohup: "|",
+    time: "-p -v -a -q --verbose --portability --append --quiet | -o -f --output --format",
+    nice: "| -n --adjustment",
+    timeout: "-v --verbose --preserve-status --foreground | -s -k --signal --kill-after",
+    stdbuf: "| -i -o -e --input --output --error",
+    setsid: "-c -f -w --ctty --fork --wait |",
+    ionice: "-t --ignore | -c -n -p --class --classdata --pid",
+    caffeinate: "-d -i -m -s -u | -t -w",
+    env: "-i -0 -v - --ignore-environment --null --debug | -u -C --unset --chdir",
+    xargs:
+      "-0 -r -t -p -x -o --null --no-run-if-empty --verbose --interactive --exit --open-tty | -I -n -L -P -d -E -s " +
+      "-a --max-args --max-procs --delimiter --arg-file --max-lines --max-chars --eof",
+  }).map(([name, spec]) => [name, options(spec)]),
+);
 // Builtins that set a variable named by an argument.
+const EXPORTS = new Set(["export", "declare", "typeset", "readonly", "local", "unset", "setenv"]);
 const SETTERS = new Set([...EXPORTS, "read", "printf", "mapfile", "readarray"]);
-const MAX_DEPTH = 5;
 
 const EMPTY: Word = { text: "", start: "" };
-// A program by the name it runs under: its file name, in lower case (macOS and Windows match names so), without .exe.
-const programOf = (word: string): string =>
-  word
-    .slice(word.lastIndexOf("/") + 1)
+const known = (text: string): Word => ({ text, start: text });
+// A program by the name it runs under: its file name, folded as APFS and Windows fold names (NFKC, lower case), no .exe.
+const programOf = (word: string): string => {
+  const name = word.normalize("NFKC");
+  return name
+    .slice(name.lastIndexOf("/") + 1)
     .toLowerCase()
     .replace(/\.exe$/, "");
-const literal = (words: readonly Word[]): string[] | null =>
-  words.every((word) => word.text !== null) ? words.map((word) => word.text ?? "") : null;
+};
 
-/** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
+/**
+ * Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. It reads
+ * simple commands, pipelines, lists, quotes, `$(...)`, heredocs and if, for, while and until, and refuses every other
+ * form (A79).
+ */
 export const guardCommand = (text: string, folder: string, policy: GuardPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
-  return checkScript(script, { policy, remotes, text, folders: foldersOf(script, [folder]), depth: 0 });
+  if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
+  const context = { policy, remotes, folders: foldersOf(script, [folder]) };
+  for (const command of script.commands) {
+    const denial = checkCommand(command, context);
+    if (denial !== null) return denial;
+  }
+  return null;
 };
 
 const home = (path: string): string => path.replace(/^~(?=\/|$)/, homedir());
@@ -97,9 +125,8 @@ const cdTarget = (args: readonly Word[]): string | null => {
   return target.text === null ? null : home(target.text);
 };
 
-// The folders a command may run in: those it starts in, and each literal `cd` or `pushd` from each of them.
-const foldersOf = (script: Script, starts: readonly string[] | null): string[] | null => {
-  if (starts === null) return null;
+// The folders a command may run in: the session's, and each literal `cd` or `pushd` from each of them.
+const foldersOf = (script: Script, starts: readonly string[]): string[] | null => {
   const folders = new Set(starts);
   for (const command of script.commands) {
     const [name, ...args] = unwrap(command.words).words;
@@ -111,51 +138,76 @@ const foldersOf = (script: Script, starts: readonly string[] | null): string[] |
   return Array.from(folders);
 };
 
-const checkScript = (script: Script, context: Context): Denial | null => {
-  if (script.skipped) return unreadable("the command holds text the guard cannot split, such as an unclosed quote");
-  if (script.unmodeled && GUARDED.test(context.text)) {
-    return unreadable("the command runs gh, git or curl in a loop, case or function, which the guard does not follow");
-  }
-  for (const command of script.commands) {
-    const denial = checkCommand(command, context);
-    if (denial !== null) return denial;
-  }
-  return null;
-};
-
-// A script the guard reads from a word, as `sh -c`, `eval` or `env -S` run it.
-const nested = (text: string, context: Context): Denial | null =>
-  context.depth >= MAX_DEPTH
-    ? unreadable("the command nests shells too deep")
-    : nestedScript(readShell(text), text, context);
-
-const nestedScript = (script: Script, text: string, context: Context): Denial | null =>
-  checkScript(script, { ...context, text, folders: foldersOf(script, context.folders), depth: context.depth + 1 });
-
 interface Unwrapped {
   words: Word[];
   prefix: Word[];
-  // xargs adds words it reads; env -i or exec -c clears the environment; env -S runs a word as a command line.
+  // xargs adds words it reads; env -i or exec -c clears the environment; env -u unsets variables; env -C runs the
+  // command in another folder; an option the guard does not know may take the command word as its value.
   appended: boolean;
   cleared: boolean;
-  split: Word | null;
-  // env -C runs the command in another folder.
+  unset: (Word | undefined)[];
   moved: boolean;
+  unknown: string | null;
 }
 
 // The command's own words: assignments, reserved words and wrappers skipped, with the words before them (`prefix`).
 const unwrap = (words: readonly Word[]): Unwrapped => {
-  const found: Unwrapped = { words: [], prefix: [], appended: false, cleared: false, split: null, moved: false };
+  const found: Unwrapped = {
+    words: [],
+    prefix: [],
+    appended: false,
+    cleared: false,
+    unset: [],
+    moved: false,
+    unknown: null,
+  };
   let i = 0;
-  while (i < words.length) {
+  while (i < words.length && found.unknown === null) {
     const { text, start } = words[i] ?? EMPTY;
     const name = programOf(text ?? "");
-    const valued = WRAPPERS.get(name);
+    const spec = WRAPPERS.get(name);
     if (ASSIGNMENT.test(start) || RESERVED.has(text ?? "")) i += 1;
-    else if (valued === undefined) break;
-    else i = wrapper(name, words, i + 1, { valued, found });
+    else if (spec === undefined) break;
+    else i = wrapper(name, words, i + 1, { spec, found });
   }
   return { ...found, words: words.slice(i), prefix: words.slice(0, i) };
+};
+
+// An option of a wrapper, and its value when it takes one: attached, or the next word (`next`).
+interface Option {
+  readonly name: string;
+  readonly value?: Word | undefined;
+  readonly next?: boolean;
+}
+
+// The options an option word holds: a flag, an option that takes the next word, a long option with its =value, or a
+// cluster of short flags; null for one the guard does not know.
+const optionsOf = ({ text: option }: Word, next: Word | undefined, spec: Options): Option[] | null => {
+  if (option === null) return null;
+  if (spec.flags.has(option)) return [{ name: option }];
+  if (spec.valued.has(option)) return [{ name: option, value: next, next: true }];
+  if (/^--[^=]+=/.test(option)) return longOption(option, spec);
+  return /^-[^-]/.test(option) ? cluster(option, next, spec) : null;
+};
+
+const longOption = (option: string, spec: Options): Option[] | null => {
+  const name = option.slice(0, option.indexOf("="));
+  const value = known(option.slice(name.length + 1));
+  return spec.valued.has(name) || spec.flags.has(name) ? [{ name, value }] : null;
+};
+
+// Short flags in one word; the first that takes a value takes the rest of the word, or the next word at its end.
+const cluster = (option: string, next: Word | undefined, spec: Options): Option[] | null => {
+  const found: Option[] = [];
+  for (let k = 1; k < option.length; k += 1) {
+    const name = `-${option.charAt(k)}`;
+    const rest = option.slice(k + 1);
+    if (spec.valued.has(name))
+      return [...found, rest === "" ? { name, value: next, next: true } : { name, value: known(rest) }];
+    if (!spec.flags.has(name)) return null;
+    found.push({ name });
+  }
+  return found;
 };
 
 // A wrapper's options from `from` on, noted in `found`; the index of the word after them.
@@ -163,89 +215,92 @@ const wrapper = (
   name: string,
   words: readonly Word[],
   from: number,
-  { valued, found }: { valued: readonly string[]; found: Unwrapped },
+  read: { spec: Options; found: Unwrapped },
+): number => {
+  const i = wrapperOptions(name, words, from, read);
+  read.found.appended ||= name === "xargs";
+  // timeout's duration comes before its command; `--` ends the options.
+  return i + Number(name === "timeout") + Number(words[i]?.text === "--");
+};
+
+// The index of the first word after the options; at an option the guard does not know, that word's, noted as unknown.
+const wrapperOptions = (
+  name: string,
+  words: readonly Word[],
+  from: number,
+  { spec, found }: { spec: Options; found: Unwrapped },
 ): number => {
   let i = from;
-  for (; (words[i]?.start ?? "").startsWith("-"); i += 1) {
-    const option = words[i]?.start ?? "";
-    if (noteOption(name, option, words[i + 1], found) || valued.includes(option)) i += 1;
+  for (let word = words[i] ?? EMPTY; word.start.startsWith("-") && word.text !== "--"; word = words[++i] ?? EMPTY) {
+    const parsed = optionsOf(word, words[i + 1], spec);
+    if (parsed === null) {
+      found.unknown = `${name} ${word.text ?? word.start}`;
+      return i;
+    }
+    for (const option of parsed) noteOption(name, option, found);
+    if (parsed.some((option) => option.next === true)) i += 1;
   }
-  found.appended ||= name === "xargs";
-  // timeout's duration comes before its command.
-  return i + (name === "timeout" ? 1 : 0);
+  return i;
 };
 
-// What an option of env or exec does to the command, noted in `found`; true when it takes the next word.
-const noteOption = (name: string, option: string, next: Word | undefined, found: Unwrapped): boolean => {
-  if (name === "exec") found.cleared ||= option === "-c";
-  if (name !== "env") return false;
-  found.cleared ||= /^(?:-i|--ignore-environment|-)$/.test(option);
-  found.moved ||= /^(?:-C|--chdir)/.test(option);
-  if (!/^(?:-S|--split-string)/.test(option)) return false;
-  found.split = splitString(option, next);
-  return /^(?:-S|--split-string)$/.test(option);
+// What an option of env or exec does: clearing the environment (env -i, exec -c), unsetting a variable (env -u) or
+// moving to another folder (env -C).
+const noteOption = (wrapperName: string, { name, value }: Option, found: Unwrapped): void => {
+  if (wrapperName === "exec" && name === "-c") found.cleared = true;
+  if (wrapperName !== "env") return;
+  if (/^(?:-i|-|--ignore-environment)$/.test(name)) found.cleared = true;
+  if (name === "-u" || name === "--unset") found.unset.push(value);
+  if (name === "-C" || name === "--chdir") found.moved = true;
 };
 
-// The command line of env -S: attached to the option, or the next word.
-const splitString = (option: string, next: Word | undefined): Word | null => {
-  const attached = /^(?:-S|--split-string=)(.+)$/.exec(option)?.[1];
-  return attached === undefined ? (next ?? null) : { text: attached, start: attached };
-};
-
-// The variable a word before the command changes: NAME=value sets it, env -u NAME (or -uNAME, --unset=NAME) unsets it.
-const variableOf = (word: Word, next: Word | undefined): string => {
-  if (/^(?:-u|--unset)$/.test(word.start)) return next?.start ?? "";
-  return ASSIGNMENT.exec(word.start)?.[1] ?? /^(?:-u|--unset=)(.+)$/.exec(word.start)?.[1] ?? "";
-};
-
-const checkPrefix = ({ prefix, cleared, split }: Unwrapped, context: Context): Denial | null => {
-  const changed = prefix.map((word, index) => variableOf(word, prefix[index + 1])).find((name) => PROTECTED.test(name));
+const checkPrefix = ({ prefix, cleared, unset, unknown }: Unwrapped): Denial | null => {
+  if (unknown !== null) return unreadable(`${unknown} is an option the guard does not know`);
+  if (unset.some((word) => (word?.text ?? null) === null))
+    return unreadable("env -u names a variable the guard cannot read");
+  const names = [
+    ...prefix.map((word) => ASSIGNMENT.exec(word.start)?.[1] ?? ""),
+    ...unset.map((word) => word?.text ?? ""),
+  ];
+  const changed = names.find((name) => PROTECTED.test(name));
   if (changed !== undefined) return deny("environment", `it changes ${changed}`);
-  if (cleared) return deny("environment", "it clears the environment, the token with it");
-  if (split === null) return null;
-  return split.text === null ? unreadable("env -S runs words the guard cannot read") : nested(split.text, context);
+  return cleared ? deny("environment", "it clears the environment, the token with it") : null;
 };
 
 // Programs that run their arguments, which xargs would hand words the guard cannot read.
 const runsArguments = (name: string): boolean =>
   GUARDED.test(` ${name} `) ||
-  SHELLS.has(name) ||
-  WRAPPERS.has(name) ||
-  FORBIDDEN.has(name) ||
-  /^(?:eval|source|\.|find)$/.test(name);
+  [SHELLS, WRAPPERS, FORBIDDEN, RUNNERS, ZSH_ONLY].some((set) => set.has(name)) ||
+  /^(?:source|\.|find)$/.test(name);
 
 const XARGS = unreadable("xargs adds words the guard cannot read to a program that runs them");
 
-const checkCommand = (command: Command, context: Context): Denial | null => {
-  const unwrapped = unwrap(command.words);
-  const denial = checkPrefix(unwrapped, context);
-  if (denial !== null || unwrapped.split !== null) return denial;
+const checkCommand = ({ words }: Command, context: Context): Denial | null => {
+  const unwrapped = unwrap(words);
+  const denial = checkPrefix(unwrapped);
+  if (denial !== null) return denial;
   const [first, ...args] = unwrapped.words;
   if (first === undefined) return unwrapped.appended ? XARGS : null;
   if (first.text === null) return unreadable("it runs a command whose name the guard cannot read");
   const name = programOf(first.text);
+  // zsh runs `=name` as the program's path, and its precommand modifiers as wrappers.
+  if (first.text.startsWith("=") || ZSH_ONLY.has(name))
+    return unreadable(`${first.text} is a zsh form the guard does not read`);
   if (unwrapped.appended && runsArguments(name)) return XARGS;
-  return checkProgram(name, args, command, unwrapped.moved ? { ...context, folders: null } : context);
+  return checkProgram(name, args, unwrapped.moved ? { ...context, folders: null } : context);
 };
 
-const checkProgram = (name: string, args: Word[], command: Command, context: Context): Denial | null => {
+const checkProgram = (name: string, args: readonly Word[], context: Context): Denial | null => {
   if (name === "git") return checkGit(args, context);
   if (name === "gh") return checkGh(args, context);
   if (name === "curl") return checkCurl(args, context);
   if (name.startsWith("git-")) return checkGit([{ text: name.slice(4), start: name.slice(4) }, ...args], context);
   if (SETTERS.has(name)) return checkSetter(name, args);
-  if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args, command, context);
-  return checkRunner(name, args, context);
-};
-
-// find, eval and alias run words as commands; any other program is checked against the forbidden ones.
-const checkRunner = (name: string, args: Word[], context: Context): Denial | null => {
-  if (name === "find") return checkFind(args, context);
-  // An alias runs where a later line names it.
-  if (name === "alias") return GUARDED.test(context.text) ? unreadable("an alias names gh, git or curl") : null;
-  if (name !== "eval") return forbiddenProgram(name, args);
-  const text = literal(args[0]?.text === "--" ? args.slice(1) : args);
-  return text === null ? unreadable("eval runs words the guard cannot read") : nested(text.join(" "), context);
+  if (RUNNERS.has(name)) return unreadable(`${name} runs a command the guard does not read`);
+  if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args);
+  if (name === "find" && args.some(({ text }) => FIND_RUNS.test(text ?? ""))) {
+    return unreadable("find runs a command the guard does not read");
+  }
+  return forbiddenProgram(name, args);
 };
 
 // Programs the project rules forbid, with the argument that makes them so: an apply, or any for a sudo-like.
@@ -267,86 +322,54 @@ const forbiddenProgram = (name: string, args: readonly Word[]): Denial | null =>
   return args.some(({ text }) => text === verb) ? deny("forbidden", `${name} ${verb}`) : null;
 };
 
-// export, read, printf -v and the like: a word naming a protected variable refuses, as does a variable export or
-// declare name the guard cannot read.
-const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
-  for (const word of args) {
-    if (MENTIONED.test(word.start)) return deny("environment", `${name} names a protected variable`);
-    if (EXPORTS.has(name) && word.text === null && !word.start.includes("=")) {
-      return unreadable(`${name} names a variable the guard cannot read`);
-    }
-  }
-  return null;
+// The words that name variables: printf's -v value, read's words but its options' values, an export's words.
+const variableWords = (name: string, args: readonly Word[]): Word[] => {
+  if (name === "printf") return args.filter((_, i) => args[i - 1]?.text === "-v");
+  if (name !== "read") return args.filter(({ start }) => !start.startsWith("-"));
+  return args.filter(({ start }, i) => !start.startsWith("-") && !/^-\w*[dinNptu]$/.test(args[i - 1]?.start ?? ""));
 };
 
-// What a shell runs: its -c script, a file, its standard input, or null for a word the guard cannot read.
-type Source = { script: string } | "file" | "stdin" | null;
+// export, read, printf -v and the like: naming a protected variable refuses, as does a name the guard cannot read.
+const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
+  const names = variableWords(name, args);
+  if (names.some(({ start }) => MENTIONED.test(start)))
+    return deny("environment", `${name} names a protected variable`);
+  const unknown = names.some(({ text, start }) => text === null && !start.includes("="));
+  return unknown ? unreadable(`${name} names a variable the guard cannot read`) : null;
+};
 
-const textAt = (words: readonly Word[], i: number): string | null => words[i]?.text ?? null;
+// What a shell option does: makes the shell read its script from stdin (-s, `-`) or from a word (-c, fish's -C), takes
+// the next word (-o and the like), or nothing; null for a word that is no option.
+const shellOption = (name: string, text: string): "value" | "stdin" | "command" | "flag" | null => {
+  if (/^-(?:[A-Za-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
+  if (
+    /^--(?:command|init-command)(?:=|$)/.test(text) ||
+    (name === "fish" ? /^-[A-Za-z]*[cC]/ : /^-[A-Za-z]*c/).test(text)
+  ) {
+    return "command";
+  }
+  if (/^(?:[-+][A-Za-z]*[oO]|--rcfile|--init-file)$/.test(text)) return "value";
+  return /^(?:[-+][A-Za-z]+|--.*)$/.test(text) ? "flag" : null;
+};
 
-// The script of a shell: after its options, the -c script or a file; stdin with -s or without either.
-const shellScript = (args: readonly Word[]): Source => {
-  let command = false;
+// Whether a shell runs a script file: the first word after its options, with no -c or -s before it.
+const runsFile = (name: string, args: readonly Word[]): boolean => {
   for (let i = 0; i < args.length; i += 1) {
-    const text = textAt(args, i);
-    const option = text === null ? null : shellOption(text);
-    if (option === null && text !== "--") return scriptOf(text, command);
-    if (option === "stdin") return "stdin";
-    command ||= option === "command";
+    const text = args[i]?.text ?? null;
+    const option = text === null ? "stdin" : shellOption(name, text);
+    if (option === null) return !/^\/(?:dev\/(?:stdin|fd\/)|proc\/self\/fd\/)/.test(text ?? "");
+    if (option === "stdin" || option === "command") return false;
     if (option === "value") i += 1;
   }
-  return command ? null : "stdin";
+  return false;
 };
 
-// What a shell option does: takes the next word, reads the script from stdin (-s), makes the next word the script
-// (-c, --command), or nothing; null for a word that is no option.
-const shellOption = (text: string): "value" | "stdin" | "command" | "flag" | null => {
-  if (SHELL_VALUED.has(text)) return "value";
-  if (text === "-s") return "stdin";
-  if (!/^(?:[-+][A-Za-z]+|--[\w-]+)$/.test(text)) return null;
-  return /^(?:-[A-Za-z]*c|--command$)/.test(text) ? "command" : "flag";
+// A shell or source runs a script file, which the guard does not read; a script from -c, a pipe, a heredoc or a word it
+// cannot read refuses.
+const checkShell = (name: string, args: readonly Word[]): Denial | null => {
+  const file = name === "source" || name === "." ? runsFile(name, args.slice(0, 1)) : runsFile(name, args);
+  return file ? null : unreadable(`${name} runs a script the guard does not read`);
 };
-
-const scriptOf = (text: string | null, command: boolean): Source => {
-  if (text === null) return null;
-  if (text.startsWith("--command=")) return { script: text.slice("--command=".length) };
-  if (command) return { script: text };
-  return text === "-" || text === "/dev/stdin" || text.startsWith("/dev/fd/") ? "stdin" : "file";
-};
-
-// A shell runs its -c script or the heredoc or here-string fed to it; a script file is beyond the guard, and one from a
-// pipe or a word it cannot read refuses.
-const checkShell = (name: string, args: readonly Word[], command: Command, context: Context): Denial | null => {
-  const script = name === "source" || name === "." ? scriptOf(textAt(args, 0), false) : shellScript(args);
-  if (script === "file") return null;
-  if (script === null) return unreadable(`${name} runs a script the guard cannot read`);
-  if (script !== "stdin") return nested(script.script, context);
-  const stdin = literal(command.stdin);
-  return stdin === null || stdin.length === 0
-    ? unreadable(`${name} reads its script from a pipe or a file the guard cannot read`)
-    : nested(stdin.join("\n"), context);
-};
-
-// The commands find runs: the words after each -exec, -execdir, -ok or -okdir up to `;` or `+`, and whether they run
-// in the folders of the files it finds (-execdir, -okdir).
-const execSegments = (args: readonly Word[]): { words: Word[]; moved: boolean }[] => {
-  const segments: { words: Word[]; moved: boolean }[] = [];
-  let current: { words: Word[]; moved: boolean } | null = null;
-  for (const word of args) {
-    const exec = /^-(?:exec|execdir|ok|okdir)$/.exec(word.text ?? "")?.[0];
-    if (current === null) current = exec === undefined ? null : { words: [], moved: exec.endsWith("dir") };
-    else if (word.text === ";" || word.text === "+") {
-      segments.push(current);
-      current = null;
-    } else current.words.push(word);
-  }
-  return current === null ? segments : [...segments, current];
-};
-
-const checkFind = (args: readonly Word[], context: Context): Denial | null =>
-  execSegments(args)
-    .map(({ words, moved }) => checkCommand({ words, stdin: [] }, moved ? { ...context, folders: null } : context))
-    .find((denial) => denial !== null) ?? null;
 
 const checkGit = (args: readonly Word[], context: Context): Denial | null => {
   const at = globalOptions(args, context);
@@ -806,6 +829,23 @@ const checkTargets = (sub: string, words: readonly Word[], context: Context): De
   );
 };
 
+// A command's options, read as pflag and curl read them anywhere among its words, and its other words; null for an
+// option the guard does not know, which may take a word as its value.
+const interleaved = (args: readonly Word[], spec: Options): { options: Option[]; positionals: Word[] } | null => {
+  const options: Option[] = [];
+  const positionals: Word[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const word = args[i] ?? EMPTY;
+    if (word.text === "--") return { options, positionals: [...positionals, ...args.slice(i + 1)] };
+    const parsed = word.start.startsWith("-") && word.start !== "-" ? optionsOf(word, args[i + 1], spec) : [];
+    if (parsed === null) return null;
+    if (parsed.length === 0) positionals.push(word);
+    options.push(...parsed);
+    if (parsed.some(({ next }) => next === true)) i += 1;
+  }
+  return { options, positionals };
+};
+
 // owner/name of a github.com URL, whatever its path goes on with; null for another host.
 const urlRepoPath = (url: string): string | null => {
   try {
@@ -838,10 +878,7 @@ const checkRepos = (repos: readonly (string | null)[] | null, context: Context, 
   const outside = repos.find((repo) => !repositories.some((allowed) => sameRepo(allowed, repo)));
   return outside === undefined
     ? null
-    : deny(
-        "outside-profiles",
-        `${what} reaches ${outside ?? "a host other than github.com"}, outside this session's repositories`,
-      );
+    : deny("outside-profiles", `${what} reaches ${outside ?? "a repository it cannot tell"}, outside this session's`);
 };
 
 // Issues are worked on in the hub only (A3): a call on issues of any other repository, or of one the guard cannot tell.
@@ -851,58 +888,69 @@ const checkHub = (repos: readonly (string | null)[] | null, context: Context, wh
   return elsewhere ? deny("issue-outside-hub", `${what} works on issues outside the hub`) : null;
 };
 
-// gh's flags that take the next word as a value, across its commands.
+// gh's options that take the next word as a value in every command that has them, so a value is no positional.
 const GH_VALUED = new Set(
   (
-    "-R --repo --hostname -X --method -f --field -F --raw-field -H --header --input -q --jq -t --template -b --body " +
-    "--body-file -T --title -l --label -B --base --head -a --assignee -r --reviewer -m --milestone -p --project " +
-    "-L --limit -s --state -A --author -S --search -w --workflow -b --branch -e --env -o --org -u --user"
+    "-R --repo --hostname -q --jq -t --template --json -b --body -F --body-file -T --title -l --label -B --base --head " +
+    "--assignee --reviewer -m --milestone -p --project -L --limit -s --state -A --author -S --search -w --workflow " +
+    "--branch -e --env -o --org -u --user"
   ).split(" "),
 );
-
-// gh's subcommand: the first word after its command that is no flag, values of flags skipped; and the other words.
-const ghVerb = (args: readonly Word[]): { verb: Word | undefined; rest: Word[] } => {
-  for (let i = 0; i < args.length; i += 1) {
-    const start = args[i]?.start ?? "";
-    if (GH_VALUED.has(start)) i += 1;
-    else if (!start.startsWith("-")) return { verb: args[i], rest: args.filter((_, j) => j !== i) };
-  }
-  return { verb: undefined, rest: [...args] };
-};
-
-// What gh commands do that the guard refuses whatever the repository: a login or configuration change of gh itself, or
-// a write the owner keeps (a secret, a repository's creation or settings, a release, anything public; A13).
+// gh's own aliases of its verbs.
+const GH_ALIASES = new Map([
+  ["new", "create"],
+  ["ls", "list"],
+  ["rm", "delete"],
+  ["remove", "delete"],
+]);
+// Groups gh runs without a verb, or whose next word is no verb the guard checks.
+const GH_SINGLE = new Set(["browse", "status", "help", "version", "completion", "search"]);
+// A login or configuration change of gh itself, and the writes the owner keeps (secrets, repositories and their
+// settings, releases, anything public; A13).
 const GH_CONFIG =
-  /^(?:auth (?!status$)\S+|config (?:set|clear-cache)|alias (?:set|delete|import)|extension (?!list$|search$|browse$)\S+|(?:ssh|gpg)-key (?:add|delete))$/;
+  /^(?:auth (?!status$)\S+|config (?:set|clear-cache)|alias (?!list$)\S+|extension (?!list$|search$|browse$)\S+|(?:ssh|gpg)-key (?!list$)\S+)$/;
 const GH_OWNER =
-  /^(?:(?:secret|variable) (?!list$)\S+|repo (?:create|delete|edit|rename|archive|unarchive|fork|deploy-key|set-default)|release (?:create|edit|delete|upload|delete-asset)|gist (?:create|edit|delete|rename|clone)|codespace \S+|ruleset \S+)$/;
+  /^(?:(?:secret|variable) (?!list$|get$)\S+|repo (?!view$|clone$|list$)\S+|release (?!list$|view$|download$)\S+|gist (?!list$|view$)\S+|codespace \S+|ruleset (?!list$|view$|check$)\S+)$/;
 // Commands that work on no repository and write nothing.
 const GH_FREE =
-  /^(?:search|status|help|version|completion|org list|project (?:list|view)|attestation verify|auth status|config (?:get|list)|alias list|extension (?:list|search|browse)|gist (?:list|view)|(?:ssh|gpg)-key list|secret list|variable list)\b/;
-// Commands on one repository, its issues, pull requests, runs and so on.
-const GH_REPO_GROUPS = new Set([
-  "issue",
-  "pr",
-  "repo",
-  "run",
-  "workflow",
-  "release",
-  "label",
-  "cache",
-  "browse",
-  "ruleset",
-]);
+  /^(?:search|status|help|version|completion|org list|project (?:list|view)|auth status|config (?:get|list)|alias list|extension (?:list|search|browse)|gist (?:list|view)|(?:ssh|gpg)-key list|repo list)$/;
+// Commands on one repository the guard lets run there: reads, and the writes of everyday work.
+const GH_REPO_COMMANDS = new Set(
+  (
+    "issue list|issue view|issue status|issue create|issue comment|issue edit|issue close|issue reopen|issue lock|" +
+    "issue unlock|issue pin|issue unpin|pr list|pr view|pr status|pr create|pr checkout|pr diff|pr checks|pr comment|" +
+    "pr edit|pr close|pr reopen|pr ready|pr review|pr update-branch|repo view|repo clone|run list|run view|run watch|" +
+    "run rerun|run cancel|run download|workflow list|workflow view|workflow run|release list|release view|" +
+    "release download|label list|label create|label edit|cache list|browse|secret list|variable list|variable get|" +
+    "ruleset list|ruleset view|ruleset check"
+  ).split("|"),
+);
+
+// gh's command: its group and, for a group with verbs, the verb with gh's aliases resolved; null when the guard cannot
+// read it, or when a flag other than -R comes before the verb and may take it as its value.
+const ghCommand = (args: readonly Word[]): { group: string; command: string; rest: Word[] } | null => {
+  const group = args[0]?.text;
+  if (group === "--version") return { group: "version", command: "version", rest: [] };
+  if (typeof group !== "string" || group.startsWith("-")) return null;
+  if (GH_SINGLE.has(group)) return { group, command: group, rest: args.slice(1) };
+  let i = 1;
+  while (/^(?:-R|--repo)(?:=|$)|^-R./.test(args[i]?.start ?? ""))
+    i += /^(?:-R|--repo)$/.test(args[i]?.text ?? "") ? 2 : 1;
+  const verb = args[i]?.text;
+  if (typeof verb !== "string" || verb.startsWith("-")) return null;
+  return {
+    group,
+    command: `${group} ${GH_ALIASES.get(verb) ?? verb}`,
+    rest: [...args.slice(1, i), ...args.slice(i + 1)],
+  };
+};
 
 const checkGh = (args: readonly Word[], context: Context): Denial | null => {
-  const at = args.findIndex(({ start }) => !start.startsWith("-"));
-  const group = args[at];
-  if (group === undefined) return null;
-  if (group.text === null) return unreadable("gh runs a command the guard cannot read");
-  if (group.text === "api") return checkGhApi(args.slice(at + 1), context);
-  const { verb, rest } = ghVerb(args.slice(at + 1));
-  if (verb?.text === null) return unreadable("gh runs a command the guard cannot read");
-  const command = verb === undefined ? group.text : `${group.text} ${verb.text}`;
-  return ghRule(command, rest) ?? ghTargets(group.text, command, rest, context);
+  if (args[0]?.text === "api") return checkGhApi(args.slice(1), context);
+  const read = ghCommand(args);
+  if (read === null) return unreadable("gh runs a command the guard cannot read");
+  const { group, command, rest } = read;
+  return ghRule(command, rest) ?? ghTargets(group, command, rest, context);
 };
 
 // What the guard refuses in gh whatever the repository.
@@ -913,11 +961,11 @@ const ghRule = (command: string, rest: readonly Word[]): Denial | null => {
   return command === "pr review" && approves(rest) ? deny("approval", "gh pr review --approve") : null;
 };
 
-// The repository a gh command works on, and the hub for issue commands.
+// The repository a gh command works on, and the hub for issue commands; a command the guard does not know refuses.
 const ghTargets = (group: string, command: string, rest: readonly Word[], context: Context): Denial | null => {
   if (GH_FREE.test(command)) return null;
-  if (!GH_REPO_GROUPS.has(group)) return unreadable(`gh ${command} is a gh command the guard does not know`);
-  const repos = ghRepos(group, rest, context);
+  if (!GH_REPO_COMMANDS.has(command)) return unreadable(`gh ${command} is a gh command the guard does not know`);
+  const repos = ghRepos(command, rest, context);
   return (
     checkRepos(repos, context, `gh ${command}`) ??
     (group === "issue" ? checkHub(repos, context, `gh ${command}`) : null)
@@ -927,80 +975,146 @@ const ghTargets = (group: string, command: string, rest: readonly Word[], contex
 // gh pr review approves with --approve or -a, alone or in a cluster.
 const approves = (rest: readonly Word[]): boolean =>
   rest.some(({ text, start }) =>
-    text === null ? /^-[^-]/.test(start) : abbreviates({ text, start }, "--approve", 4) || /^-[^-]*a/.test(text),
+    text === null ? /^-[^-]/.test(start) : text === "--approve" || /^-[^-]*a/.test(text),
   );
 
-// The value of gh's -R or --repo, attached or as the next word: undefined without one, null when unknown.
-const repoOption = (rest: readonly Word[]): string | null | undefined => {
-  const index = rest.findIndex(({ start }) => /^(?:-R|--repo)(?:=|$)/.test(start));
-  if (index < 0) return undefined;
-  const word = rest[index];
-  if (word?.start.includes("=") !== true) return rest[index + 1]?.text ?? null;
-  return word.text?.replace(/^(?:-R|--repo)=/, "") ?? null;
+// The value of a -R or --repo word: attached, or the next word; null when unknown, undefined for another word. -R after
+// other flags in a cluster is unknown too.
+const repoValue = ({ text, start }: Word, next: Word | undefined): string | null | undefined => {
+  if (/^-[^-]+R/.test(start)) return null;
+  if (!/^(?:-R|--repo(?:=|$))/.test(start)) return undefined;
+  if (text === "-R" || text === "--repo") return next?.text ?? null;
+  return text?.replace(/^(?:-R|--repo=)/, "") ?? null;
 };
 
-// The repositories a gh command reaches: its --repo, the repository a `gh repo view|clone` names, a github.com URL among
-// its words, or those of the remotes where it runs.
-const ghRepos = (group: string, rest: readonly Word[], context: Context): (string | null)[] | null => {
-  const option = repoOption(rest);
-  const named = group === "repo" ? rest.find(({ start }) => !start.startsWith("-")) : undefined;
-  const url = rest.find(({ text }) => text !== null && /^https?:\/\/(?:www\.)?github\.com\//i.test(text));
-  const text = option !== undefined ? option : (named ?? url)?.text;
-  if (text === null) return null;
-  return text === undefined ? implicitRepos(context) : [ghRepo(text)];
-};
-
-// The fields of a gh api call (-f, -F, --field, --raw-field) by name, null for a value the guard cannot read or one read
-// from a file (@file); `input`: a body read from --input.
-const apiFields = (rest: readonly Word[]): { fields: Map<string, string | null>; input: boolean } => {
-  const fields = new Map<string, string | null>();
-  rest.forEach(({ start }, i) => {
-    const field = rest[i + 1];
-    if (!/^(?:-f|-F|--field|--raw-field)$/.test(start) || field === undefined) return;
-    const name = /^[^=]+/.exec(field.start)?.[0] ?? "";
-    const value = field.text === null ? null : field.text.slice(name.length + 1);
-    fields.set(name, value?.startsWith("@") === false ? value : null);
+// The repositories a gh command reaches, all of them checked: each -R or --repo, the repository `gh repo view|clone`
+// names, each github.com URL among its positionals; else those of the remotes where it runs.
+const ghRepos = (command: string, rest: readonly Word[], context: Context): (string | null)[] | null => {
+  const options = rest.flatMap((word, i) => {
+    const value = repoValue(word, rest[i + 1]);
+    return value === undefined ? [] : [value];
   });
-  return { fields, input: rest.some(({ start }) => start.startsWith("--input")) };
+  const positional = rest.filter(({ start }, i) => !start.startsWith("-") && !GH_VALUED.has(rest[i - 1]?.start ?? ""));
+  const named = /^repo (?:view|clone)$/.test(command)
+    ? positional.slice(0, 1).map(({ text }) => text)
+    : positional.flatMap(({ text }) =>
+        text !== null && /^https?:\/\/(?:www\.)?github\.com\//i.test(text) ? [text] : [],
+      );
+  const repos = [...options, ...named].map((text) => (text === null ? null : ghRepo(text)));
+  return repos.length === 0 ? implicitRepos(context) : repos;
 };
 
-// gh api's method: -X or --method, else POST when it sends fields or a body, else GET; undefined when unknown.
-const apiMethod = (rest: readonly Word[], sends: boolean): string | undefined => {
-  const at = rest.findIndex(({ start }) => start === "-X" || start === "--method");
-  if (at >= 0) return rest[at + 1]?.text?.toUpperCase();
-  return sends ? "POST" : "GET";
+const GH_API = options(
+  "-i --include --paginate --silent --slurp --verbose | -X --method -f --raw-field -F --field -H --header --input -q " +
+    "--jq -t --template --hostname --cache -p --preview",
+);
+
+// What a gh api call sends: its method, its fields by name (null for a value read from a file), and whether a field or
+// body the guard cannot read may hide one.
+interface ApiCall {
+  readonly method: string;
+  readonly fields: ReadonlyMap<string, string | null>;
+  readonly hidden: boolean;
+}
+
+// A field of gh api: false when the guard cannot read its name.
+const addField = (fields: Map<string, string | null>, { name, value }: Option): boolean => {
+  const text = value?.text ?? null;
+  if (text === null || !text.includes("=")) return false;
+  const [key = "", ...parts] = text.split("=");
+  const field = parts.join("=");
+  fields.set(key, (name === "-F" || name === "--field") && field.startsWith("@") ? null : field);
+  return true;
 };
 
-// The event of a review a call sends: "" without one, null when the guard cannot read it.
-const eventOf = (fields: ReadonlyMap<string, string | null>, input: boolean): string | null => {
-  if (input) return null;
-  return fields.has("event") ? (fields.get("event") ?? null) : "";
+// gh api's method (the last -X, else POST when it sends a body, else GET), fields and host; null when the guard cannot
+// read the method, or the host is not github.com.
+const apiCall = (options: readonly Option[]): ApiCall | null => {
+  const fields = new Map<string, string | null>();
+  let hidden = false;
+  for (const option of options) {
+    if (/^(?:-f|-F|--field|--raw-field)$/.test(option.name)) hidden ||= !addField(fields, option);
+    hidden ||= option.name === "--input";
+    if (option.name === "--hostname" && option.value?.text !== "github.com") return null;
+  }
+  const method = options.findLast(({ name }) => name === "-X" || name === "--method");
+  if (method !== undefined) {
+    const text = method.value?.text?.toUpperCase();
+    return text === undefined ? null : { method: text, fields, hidden };
+  }
+  return { method: fields.size > 0 || hidden ? "POST" : "GET", fields, hidden };
 };
 
 const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
-  const endpoint = rest.find(({ start }, i) => !start.startsWith("-") && !GH_VALUED.has(rest[i - 1]?.start ?? ""));
-  const { fields, input } = apiFields(rest);
-  const method = apiMethod(rest, fields.size > 0 || input);
-  const path = endpoint?.text;
-  if (typeof path !== "string" || method === undefined) {
-    return unreadable("gh api calls an endpoint or method the guard cannot read");
+  const read = interleaved(rest, GH_API);
+  const call = read === null ? null : apiCall(read.options);
+  const [endpoint, ...more] = read?.positionals ?? [];
+  if (call === null || typeof endpoint?.text !== "string" || more.length > 0) {
+    return unreadable("gh api calls an endpoint, method or host the guard cannot read");
   }
-  if (path === "graphql")
-    return checkGraphql(fields.has("query") ? (fields.get("query") ?? null) : null, input, context);
-  return checkApiPath(method, path.replace(/^https:\/\/api\.github\.com/i, ""), eventOf(fields, input), context);
+  if (endpoint.text === "graphql") return checkGraphql(call, context);
+  const event = call.hidden ? null : (call.fields.get("event") ?? (call.fields.has("event") ? null : ""));
+  return checkApiPath(call.method, endpoint.text, event, context);
+};
+
+// An endpoint's path as GitHub routes it: resolved against api.github.com (dot segments gone), percent-decoded and in
+// lower case; null for another host or a path the guard cannot decode.
+const apiPath = (endpoint: string): string | null => {
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(endpoint) ? endpoint : `/${endpoint.replace(/^\//, "")}`,
+      "https://api.github.com",
+    );
+    return /^(?:api|uploads)\.github\.com$/i.test(url.hostname) ? decodeURIComponent(url.pathname).toLowerCase() : null;
+  } catch {
+    return null;
+  }
+};
+
+// gh fills {owner} and :owner, {repo} and :repo from the repository where it runs.
+const placeholder = (part: string, which: string): boolean => part === `{${which}}` || part === `:${which}`;
+
+// The repositories owner/name names, each placeholder filled from the remotes where the call runs.
+const filled = (owner: string, name: string, context: Context): (string | null)[] | null => {
+  if (!placeholder(owner, "owner") && !placeholder(name, "repo")) return [ghRepo(`${owner}/${name}`)];
+  const implicit = implicitRepos(context);
+  return (
+    implicit?.map((repo) => {
+      const [own = "", repoName = ""] = repo?.split("/") ?? [];
+      const full = `${placeholder(owner, "owner") ? own : owner}/${placeholder(name, "repo") ? repoName : name}`;
+      return repo === null ? null : ghRepo(full);
+    }) ?? null
+  );
 };
 
 // A REST call on GitHub's API, from gh api or curl: the repository it reaches, issues on the hub only, no merge, no
-// approving review (`event`: the review's event, null when the guard cannot read it), no content written to the memory
-// repository; a write outside a repository's endpoints the guard does not know.
-const checkApiPath = (method: string, path: string, event: string | null, context: Context): Denial | null => {
-  const what = `${method} ${path}`;
-  const match = /^\/?repos\/([^/]+)\/([^/?#]+)(\/[^?#]*)?/.exec(path);
+// approving review (`event`: the review's event, null when the guard cannot read it), and of the writes only those of
+// everyday work.
+const checkApiPath = (method: string, endpoint: string, event: string | null, context: Context): Denial | null => {
+  const what = `${method} ${endpoint}`;
+  const path = apiPath(endpoint);
+  if (path === null || path.startsWith("/repositories/"))
+    return unreadable(`${what} reaches what the guard cannot tell`);
+  const match = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(path);
   if (match === null) return method === "GET" ? null : unreadable(`${what} is a GitHub write the guard does not know`);
   const [, owner = "", name = "", rest = ""] = match;
-  const repos = owner === "{owner}" || name === "{repo}" ? implicitRepos(context) : [ghRepo(`${owner}/${name}`)];
+  const repos = filled(owner, name, context);
   return checkRepos(repos, context, what) ?? checkRestPath(method, rest, { repos, event, what }, context);
 };
+
+// The writes a session may make in a repository: pull requests, their comments, reviews and reviewers, and runs.
+const WRITES = [
+  "POST /pulls",
+  "PATCH /pulls/\\d+",
+  "POST /pulls/\\d+/(?:comments|reviews|requested_reviewers)",
+  "DELETE /pulls/\\d+/requested_reviewers",
+  "POST /pulls/\\d+/comments/\\d+/replies",
+  "POST /pulls/\\d+/reviews/\\d+/events",
+  "PUT /pulls/\\d+/update-branch",
+  "(?:PATCH|DELETE) /pulls/comments/\\d+",
+  "POST /actions/runs/\\d+/(?:rerun|rerun-failed-jobs|cancel)",
+  "POST /actions/workflows/[^/]+/dispatches",
+].map((write) => new RegExp(`^${write}/?$`));
 
 const merges = (method: string, rest: string): boolean =>
   (method === "PUT" && /^\/pulls\/[^/]+\/merge\/?$/.test(rest)) || (method === "POST" && /^\/merges\/?$/.test(rest));
@@ -1011,13 +1125,6 @@ const approvesReview = (method: string, rest: string, event: string | null): boo
   /^\/pulls\/[^/]+\/reviews(?:\/[^/]+\/events)?\/?$/.test(rest) &&
   (event === null || /^approve$/i.test(event));
 
-// Contents or refs written in the memory repository, or in repositories the guard cannot tell, which commit to main.
-const writesMemory = (method: string, rest: string, repos: (string | null)[] | null, memory: string | null): boolean =>
-  memory !== null &&
-  method !== "GET" &&
-  /^\/(?:contents|git\/refs)(?:\/|$)/.test(rest) &&
-  repos?.some((repo) => sameRepo(repo, memory)) !== false;
-
 const checkRestPath = (
   method: string,
   rest: string,
@@ -1025,72 +1132,76 @@ const checkRestPath = (
   context: Context,
 ): Denial | null => {
   if (/^\/issues(?:\/|$)/.test(rest)) return checkHub(repos, context, what);
+  if (method === "GET" || method === "HEAD") return null;
   if (merges(method, rest)) return deny("merge", what);
   if (approvesReview(method, rest, event)) return deny("approval", what);
-  return writesMemory(method, rest, repos, context.policy.memory)
-    ? deny("memory-main", `${what} may write the memory repository's main`)
-    : null;
+  return WRITES.some((write) => write.test(`${method} ${rest}`))
+    ? null
+    : unreadable(`${what} is a GitHub write the guard does not know`);
 };
 
-// gh api graphql: a merge or an approving review refuses; so does any other mutation and any query while the session is
-// limited to repositories, as the guard cannot tell what a GraphQL document reaches.
-const checkGraphql = (query: string | null, input: boolean, context: Context): Denial | null => {
-  if (query === null || input) return unreadable("gh api graphql sends a document the guard cannot read");
-  if (/\b(?:mergePullRequest|enablePullRequestAutoMerge)\b/.test(query))
+// The GraphQL mutations a session may send: replies to review threads and their resolution.
+const GRAPHQL_WRITES = new Set(["resolveReviewThread", "unresolveReviewThread", "addPullRequestReviewThreadReply"]);
+
+// gh api graphql: a merge or a review refuses, as does any other mutation the guard does not know, and any document while
+// the session is limited to repositories, as the guard cannot tell what a document reaches.
+const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | null => {
+  const query = fields.get("query");
+  if (hidden || typeof query !== "string") return unreadable("gh api graphql sends a document the guard cannot read");
+  if (/\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch|enqueuePullRequest)\b/.test(query)) {
     return deny("merge", "a merge through GraphQL");
-  if (
-    /\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query) &&
-    !/\bevent\s*:\s*(?:COMMENT|REQUEST_CHANGES)\b/.test(query)
-  ) {
-    return deny("approval", "a review through GraphQL that may approve");
   }
-  if (
-    /\b(?:create|update|close|reopen|delete|transfer|pin|unpin)Issue\b|\b(?:addComment|addLabelsToLabelable|removeLabelsFromLabelable)\b/.test(
-      query,
-    )
-  ) {
-    return unreadable("a GraphQL write on issues whose repository the guard cannot tell");
+  if (/\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query)) {
+    return deny("approval", "a review through GraphQL, which may approve");
+  }
+  const body = query.replace(/\bmutation\b\s*\w*\s*(?:\([^)]*\))?/, "");
+  if (body !== query && [...body.matchAll(/(\w+)\s*\(/g)].some(([, name = ""]) => !GRAPHQL_WRITES.has(name))) {
+    return unreadable("gh api graphql sends a mutation the guard does not know");
   }
   return context.policy.repositories === null
     ? null
     : unreadable("gh api graphql reaches repositories the guard cannot tell");
 };
 
-// curl's options that take the next word, the ones that send a body, and the ones it reads more options from.
-const CURL_VALUED = new Set(
-  "-X --request -H --header -d --data --data-raw --data-binary --data-urlencode --data-ascii -F --form --json -T --upload-file -o --output -u --user -A --user-agent -e --referer -b --cookie -c --cookie-jar -w --write-out -m --max-time --connect-timeout --retry -x --proxy --url".split(
-    " ",
-  ),
+const CURL = options(
+  "-s --silent -S --show-error -f --fail --fail-with-body -L --location -i --include -I --head -v --verbose -k " +
+    "--insecure -g --globoff --compressed -N --no-buffer -G --get -O --remote-name -J --remote-header-name " +
+    "--create-dirs -# --progress-bar --http1.1 --http2 | -X --request -H --header -d --data --data-raw --data-binary " +
+    "--data-urlencode --data-ascii -F --form --form-string --json -T --upload-file -o --output --output-dir -u --user " +
+    "-A --user-agent -e --referer -b --cookie -c --cookie-jar -w --write-out -m --max-time --connect-timeout --retry " +
+    "--retry-delay --retry-max-time --max-redirs -x --proxy --url -r --range --cacert --capath -E --cert --key",
 );
-const CURL_BODY = /^(?:-d|--data(?:-raw|-binary|-urlencode|-ascii)?|-F|--form|--json|-T|--upload-file)$/;
+const CURL_BODY = /^(?:-d|--data(?:-raw|-binary|-urlencode|-ascii)?|-F|--form|--form-string|--json)$/;
 
-// curl's method: -X or --request, else POST when it sends a body, else GET; undefined when unknown.
-const curlMethod = (args: readonly Word[], body: boolean): string | undefined => {
-  const at = args.findIndex(({ start }) => start === "-X" || start === "--request");
-  if (at >= 0) return args[at + 1]?.text?.toUpperCase();
-  return body ? "POST" : "GET";
+// curl's method: the last -X, else PUT for an upload, HEAD for -I, GET for -G or no body, else POST; null when unknown.
+const curlMethod = (options: readonly Option[]): string | null => {
+  const has = (pattern: RegExp) => options.some(({ name }) => pattern.test(name));
+  const request = options.findLast(({ name }) => name === "-X" || name === "--request");
+  if (request !== undefined) return request.value?.text?.toUpperCase() ?? null;
+  if (has(/^(?:-T|--upload-file)$/)) return "PUT";
+  if (has(/^(?:-I|--head)$/)) return "HEAD";
+  return has(/^(?:-G|--get)$/) || !has(CURL_BODY) ? "GET" : "POST";
 };
 
-// curl's URLs: its words that are no option or option value, and the value of --url.
-const curlUrls = (args: readonly Word[]): Word[] =>
-  args.filter(({ start }, i) => {
-    const before = args[i - 1]?.start ?? "";
-    return !start.startsWith("-") && (!CURL_VALUED.has(before) || before === "--url");
-  });
-
-// curl to GitHub: each URL it reaches, checked as gh api or git would be; a URL or config file it cannot read refuses.
+// curl to GitHub: each URL it reaches, checked as gh api or git would be; an option, URL or method it cannot read
+// refuses, and so does a URL curl would expand as a glob.
 const checkCurl = (args: readonly Word[], context: Context): Denial | null => {
-  if (args.some(({ start }) => /^(?:-K|--config)/.test(start))) return unreadable("curl reads options from a file");
-  const body = args.some(({ start }) => CURL_BODY.test(start));
-  const method = curlMethod(args, body);
-  const urls = curlUrls(args);
-  if (method === undefined || urls.some(({ text }) => text === null)) {
-    return unreadable("curl reaches a URL or uses a method the guard cannot read");
+  const read = interleaved(args, CURL);
+  const method = read === null ? null : curlMethod(read.options);
+  if (read === null || method === null) return unreadable("curl gets an option or method the guard cannot read");
+  const globs = !read.options.some(({ name }) => name === "-g" || name === "--globoff");
+  const urls = [
+    ...read.positionals,
+    ...read.options.flatMap(({ name, value }) => (name === "--url" ? [value ?? { text: null, start: "" }] : [])),
+  ];
+  if (urls.some(({ text }) => text === null || (globs && /[{}[\]]/.test(text)))) {
+    return unreadable("curl reaches a URL the guard cannot read");
   }
-  return urls.map(({ text }) => curlUrl(text ?? "", method, body, context)).find((denial) => denial !== null) ?? null;
+  const event = read.options.some(({ name }) => CURL_BODY.test(name)) && method !== "GET" ? null : "";
+  return urls.map(({ text }) => curlUrl(text ?? "", method, event, context)).find((denial) => denial !== null) ?? null;
 };
 
-const curlUrl = (url: string, method: string, body: boolean, context: Context): Denial | null => {
+const curlUrl = (url: string, method: string, event: string | null, context: Context): Denial | null => {
   let parsed: URL;
   try {
     parsed = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `https://${url}`);
@@ -1098,9 +1209,8 @@ const curlUrl = (url: string, method: string, body: boolean, context: Context): 
     return unreadable(`curl reaches ${url}, which the guard cannot read`);
   }
   const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
-  if (host === "api.github.com" || host === "uploads.github.com") {
-    return checkApiPath(method, parsed.pathname, body ? null : "", context);
-  }
+  if (host === "api.github.com" || host === "uploads.github.com")
+    return checkApiPath(method, parsed.href, event, context);
   if (!/(?:^|\.)github(?:usercontent)?\.com$/.test(host)) return null;
   const [owner = "", name = ""] = parsed.pathname.split("/").filter(Boolean);
   return checkRepos([ghRepo(`${owner}/${name.replace(/\.git$/i, "")}`)], context, `curl ${host}`);

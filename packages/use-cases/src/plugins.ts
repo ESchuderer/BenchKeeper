@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import type { Finding, LaunchPlugins, Result } from "@cedarloom/contracts";
 import type { FetchOptions, Source, Tree } from "@cedarloom/git";
+import { writeTree } from "./staging.ts";
 
 /**
  * Where the workers' plugin comes from: the marketplace's `plugins` folder at the commit this release pins, which a pull
@@ -17,20 +18,12 @@ export const WORKFLOW_PLUGIN = {
 /** Reads a folder of a repository at a commit: the git package's `fetchTree`. */
 export type FetchTree = (source: Source, options: FetchOptions) => Promise<Result<Tree>>;
 
-// Writes the tree into a fresh folder, then moves that into place in one step; a checkout another launch placed first
-// stays, and this one is dropped.
+// Places the checkout; one another launch placed first stays, and a write that fails leaves none: no plugin.
 const place = (parent: string, checkout: string, tree: Tree): void => {
-  const staging = mkdtempSync(join(parent, "staging-"));
-  for (const file of tree.files) {
-    const path = join(staging, file.path);
-    mkdirSync(dirname(path), { recursive: true });
-    // Read-only, so no process changes the plugin for the next worker.
-    writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o555 : 0o444 });
-  }
   try {
-    renameSync(staging, checkout);
+    writeTree(parent, checkout, tree);
   } catch {
-    rmSync(staging, { recursive: true, force: true });
+    // The checkout's presence says which.
   }
 };
 

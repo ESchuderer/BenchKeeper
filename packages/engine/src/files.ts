@@ -18,6 +18,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import type { Result } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 
 export const errorCode = (error: unknown): string =>
@@ -234,4 +235,37 @@ export const remove = (path: string, before: string, aside: string, onSetAside: 
   onSetAside();
   unlinkSync(aside);
   flushFolder(dirname(path));
+};
+
+/** The document a file's text holds: `document.invalid` for text that is no JSON, else as `read` decides. */
+export const parseDocument = <T>(text: string, read: (json: unknown) => Result<T>): Result<T> => {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return {
+      ok: false,
+      finding: { code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } },
+    };
+  }
+  return read(json);
+};
+
+/** Reads a JSON file with its text: `document.unreadable` when it cannot be read, `document.invalid` when it is no JSON. */
+export const readJson = (path: string): Result<{ text: string; json: unknown }> => {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    return { ok: false, finding: { code: "document.unreadable", params: { path, error: errorCode(error) } } };
+  }
+  return parseDocument(text, (json) => ({ ok: true, value: { text, json } }));
+};
+
+/** `readJson` with a missing file as null: only a missing file is none, and one the process cannot read is reported. */
+export const readOptionalJson = (path: string): Result<{ text: string; json: unknown } | null> => {
+  const file = readJson(path);
+  if (file.ok) return file;
+  const missing = file.finding.code === "document.unreadable" && file.finding.params.error === "ENOENT";
+  return missing ? { ok: true, value: null } : file;
 };

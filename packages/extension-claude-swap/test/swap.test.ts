@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { doctor, install, status, targets } from "@cedarloom/extension-claude-swap";
+import { doctor, install, sessions, status, targets } from "@cedarloom/extension-claude-swap";
 import {
   type DoctorFinding,
   type ExecParams,
@@ -249,5 +249,19 @@ test("the status action says whether claude-swap is installed, its version, its 
   expect([await status({ exec: missing }), await status({ exec: cswap() })]).toEqual([
     { installed: false },
     { installed: true, version: "0.30.0", accounts: 3, active: 3 },
+  ]);
+});
+
+const line = (number: number, list?: string) =>
+  sessions["session/line"]?.({ provider: "claude", number }, on(cswap(list === undefined ? {} : { list }))).catch(
+    () => "failed",
+  );
+
+test("the session line runs claude-swap's session mode on a listed account; one it holds or does not list fails", async () => {
+  const dead = firstRow(({ usage: _usage, ...row }) => ({ ...row, usageStatus: "relogin_required", usage: null }));
+  expect([await line(2), await line(1, dead), await line(9)]).toEqual([
+    { argv: ["cswap", "run", "2", "--require-session", "--"] },
+    "failed",
+    "failed",
   ]);
 });

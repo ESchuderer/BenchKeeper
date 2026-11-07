@@ -62,7 +62,13 @@ const resolve = (manifest: ExtensionManifest, program: string, env: NodeJS.Proce
 
 /** Whether host/exec would find the program from the manifest's candidates for this platform. */
 export const programFound = (manifest: ExtensionManifest, program: string): boolean =>
-  !(resolve(manifest, program, cleanEnv(process.env, process.platform, KEPT)) instanceof ResponseError);
+  resolvedProgram(manifest, program) !== undefined;
+
+/** The file host/exec would run for the program, from the manifest's candidates for this platform; none when absent. */
+export const resolvedProgram = (manifest: ExtensionManifest, program: string): string | undefined => {
+  const file = resolve(manifest, program, cleanEnv(process.env, process.platform, KEPT));
+  return file instanceof ResponseError ? undefined : file;
+};
 
 type Run = { file: string; args: string[]; env: NodeJS.ProcessEnv; ms: number; bytes: number; stop: AbortSignal };
 

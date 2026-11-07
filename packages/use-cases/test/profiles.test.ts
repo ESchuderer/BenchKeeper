@@ -833,6 +833,9 @@ test("a project's record names each committed file CedarLoom wrote, and stays as
   const domain = join(realpathSync.native(project), "docs", "agents", "domain.md");
   const record = () => JSON.parse(readFileSync(join(project, ".cedarloom", "profile-files.json"), "utf8")).files;
   const [written, hash] = [record(), sha(readFileSync(domain))];
+  // Checked out with CRLF line endings, as Git's core.autocrlf does on Windows.
+  const path = join(project, ".cedarloom", "profile-files.json");
+  writeFileSync(path, readFileSync(path, "utf8").replaceAll("\n", "\r\n"));
   writeFileSync(domain, "- mine\n");
   const after = await projectPlan(box, project, ["project.dc-wrapper"]);
   const scripts = readdirSync(join(project, "scripts"));
@@ -845,7 +848,7 @@ test("a project's record names each committed file CedarLoom wrote, and stays as
   ]);
 });
 
-test("another clone takes a committed file as CedarLoom's by the project's record: its older text is outdated and updated", async () => {
+test("another clone takes a committed file as CedarLoom's by the project's record, CRLF or not: its older text is outdated", async () => {
   const project = projectWith();
   applied(machine().state, (await projectPlan(machine(), project)).plan);
   const [domain, path] = [
@@ -855,7 +858,7 @@ test("another clone takes a committed file as CedarLoom's by the project's recor
   const record = JSON.parse(readFileSync(path, "utf8"));
   record.files["docs/agents/domain.md"].sha256 = sha("- old\n");
   writeFileSync(path, JSON.stringify(record));
-  writeFileSync(domain, "- old\n");
+  writeFileSync(domain, "- old\r\n");
   // A machine with a run store of its own, as a teammate's clone has.
   const other = machine();
   const { plan, findings } = await projectPlan(other, project);
@@ -869,4 +872,12 @@ test("another clone takes a committed file as CedarLoom's by the project's recor
       ["missing", path],
     ],
   ]);
+});
+
+test("a committed skill another machine's profile wrote and recorded stays, and so does its record entry", async () => {
+  const project = projectWith();
+  const first = custom(packsPart(["acme.skills"]), SKILLS);
+  applied(first.state, ok(await planned(first, project, packs)).plan);
+  // A machine whose profile has no such pack, as the selection is each machine's own.
+  expect(ok(await planned(custom(packsPart([]), SKILLS), project, packs)).plan).toBe(null);
 });

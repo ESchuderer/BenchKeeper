@@ -234,9 +234,12 @@ const LEVELS = ["machine", "workspace", "project"] as const;
 // paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part.
 // The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
 const SEALED =
-  "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
+  "not a .claude/settings.json, .claude/settings.local.json, .mcp.json or .cedarloom/profile-files.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
 const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
-/** Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files. */
+/**
+ * Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files,
+ * CedarLoom's record of the files it wrote.
+ */
 export const sealedTarget = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
   if (folder === undefined && MANUAL.includes(file)) return true;

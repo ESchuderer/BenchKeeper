@@ -91,9 +91,11 @@ const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<F
   return entry.ok ? { ok: true, value: entryFiles(source, folder) } : entry;
 };
 
-// The pack a skill's files come from as `id@version`, for the project's record; none for a skill from Git.
-const packOf = (resolved: Resolved, source: Source, fetched: Fetched): { pack?: string } =>
-  "git" in source ? {} : { pack: packVersion(source.pack, packFolder(resolved, source.pack, fetched)) };
+// The pack a skill's files come from as `id@version`, for a project's record; none for a skill from Git or a machine.
+const packOf = (resolved: Resolved, source: Source, { fetched, level }: { fetched: Fetched; level: Level }) =>
+  "git" in source || level === "machine"
+    ? {}
+    : { pack: packVersion(source.pack, packFolder(resolved, source.pack, fetched)) };
 
 // How a finding names a skill: its pack entry, or its repository.
 const labelOf = (source: Source): string => ("git" in source ? source.git : `${source.pack}/${source.path}`);
@@ -130,7 +132,7 @@ export const skillFiles = (
     );
     if (plugin !== undefined)
       return { ok: false, finding: { code: "profile.skill-plugin", params: { skill: label, path: plugin.path } } };
-    const pack = packOf(resolved, source, fetched);
+    const pack = packOf(resolved, source, { fetched, level });
     for (const { path, mode, content } of files.value) {
       const target = join(folder, ...path.split("/"));
       if (!isUtf8(content)) return { ok: false, finding: { code: "apply.not-text", params: { path: target } } };

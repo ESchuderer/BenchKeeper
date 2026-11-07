@@ -9,11 +9,11 @@ import {
   sealedTarget,
   targetClass,
 } from "@cedarloom/contracts";
-import { errorCode, hashFile } from "@cedarloom/engine";
+import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
-import { type FilesRecord, recordOf, recordWrite, withRecord } from "./record.ts";
+import { type FilesRecord, hashOrNull, ownerChanged, recordOf, recordWrite, withRecord } from "./record.ts";
 import { type Folder, packVersion, type Resolved, textFile } from "./resolve.ts";
 import { type Fetched, packFolder, skillFiles } from "./skills.ts";
 
@@ -106,14 +106,6 @@ type Files = {
 type Found = { target: string; path: string; content: string; pack?: string };
 // Each target with its text, and the pack the text came from as `id@version`.
 type Texts = [target: string, content: string, pack?: string][];
-
-const hashOf = (path: string): string | null => {
-  try {
-    return hashFile(path);
-  } catch {
-    return null;
-  }
-};
 
 // Whether a path, through its links, leaves the project or lies in its Git folder.
 const outside = (project: string, path: string): boolean => {
@@ -261,7 +253,7 @@ const addTargets = (files: Files, keeping: Keeping, found: Found[], written: Wri
       const mode = targetClass(target, content) === "executable" ? { mode: 0o755 } : {};
       files.wanted.set(path, { content, ...mode, ...(pack === undefined ? {} : { pack }) });
     }
-    if (!keeping.commit && (!kept || hashOf(path) === written.get(path))) files.excluded.push(path);
+    if (!keeping.commit && (!kept || hashOrNull(path) === written.get(path))) files.excluded.push(path);
   }
 };
 
@@ -302,7 +294,7 @@ const filesOf = (given: Given, written: Written) => {
     const line = { part: `project.${id}`, title: part.title, project, source: sourceOf(given, part) };
     const waits = approval(line, found);
     // An approved part's files in place need no new approval.
-    const inPlace = found.every(({ path, content }) => hashOf(path) === sha256(content));
+    const inPlace = found.every(({ path, content }) => hashOrNull(path) === sha256(content));
     if (waits === undefined || approved.has(`project.${id}`) || inPlace) {
       addTargets(files, keeping, found, written);
       continue;
@@ -435,22 +427,22 @@ const settingsWrites = ({ resolved, project, claude, approved }: Given) => {
 
 // The owned files of a project's plan: the files parts' targets, and the packs' skills in `.claude/skills/`. A files
 // part's target wins over a pack's file at its path, and nothing either wants is stale.
-const ownedOf = ({ resolved, claude, fetched }: Given, files: Files, written: Written) => {
-  const skills = skillFiles(resolved, claude, { fetched, written, level: "project" });
+const ownedOf = (given: Given, files: Files, { written, record }: { written: Written; record: FilesRecord }) => {
+  const skills = skillFiles(given.resolved, given.claude, { fetched: given.fetched, written, level: "project" });
   if (!skills.ok) return skills;
   const wanted = new Map([...skills.value.wanted, ...files.wanted]);
   // A files target in the skills folder is the files part's stale path and the skills' too: it goes once.
   const stale = [...new Set([...files.stale, ...skills.value.stale])].filter((path) => !wanted.has(path));
-  const plan = ownedFiles(wanted, stale, written);
+  // The record vouches only for files this plan writes: one another clone's profile wants is never removed by it.
+  const known = withRecord(written, new Map([...record].filter(([path]) => wanted.has(path))));
+  const plan = ownedFiles(wanted, stale, known);
   return plan.ok ? { ok: true as const, value: { ...plan.value, wanted } } : plan;
 };
 
 // The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local
 // targets of the files parts CedarLoom writes or holds. A target the owner changed is theirs, so Git keeps showing it.
 const localPaths = (project: string, files: Files, owned: LevelPlan, local: { manual: boolean; settings: boolean }) => {
-  const theirs = new Set(
-    owned.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])),
-  );
+  const theirs = ownerChanged(owned);
   return [
     ...(local.manual ? [onDisk(join(project, "CLAUDE.local.md"))] : []),
     ...(local.settings ? [onDisk(join(project, ".claude", "settings.local.json"))] : []),
@@ -517,13 +509,6 @@ const heldOf = (given: Given, written: Written): Result<Given> => {
   return { ok: true, value: { ...given, resolved: unheld(given.resolved, held) } };
 };
 
-/**
- * The project level for one folder: the manual's marked blocks; each files, gates and dev container part's targets (an
- * executable or configuration one only when `approved` names its part, so CI files never come with `--yes` alone); the
- * settings and the approved plugins merged into the project's settings files; the packs' skills; and the Git exclude
- * block for the machine-local files. `templates` holds what each dev container part's Template wrote, and `written`
- * what CedarLoom last left at each path of the project (the run store's `written`).
- */
 // The project's committed record of the files CedarLoom wrote there; a link that leads it outside the project or into
 // its Git folder stops the plan, as the record would be read and written there.
 const recordAt = (project: string): Result<{ path: string; record: FilesRecord }> => {
@@ -540,6 +525,13 @@ export const projectWritten = (project: string, written: Written): Result<Writte
   return at.ok ? { ok: true, value: withRecord(written, at.value.record) } : at;
 };
 
+/**
+ * The project level for one folder: the manual's marked blocks; each files, gates and dev container part's targets (an
+ * executable or configuration one only when `approved` names its part, so CI files never come with `--yes` alone); the
+ * settings and the approved plugins merged into the project's settings files; the packs' skills; and the Git exclude
+ * block for the machine-local files. `templates` holds what each dev container part's Template wrote, and `written`
+ * what CedarLoom last left at each path of the project (the run store's `written`).
+ */
 export const planProject = (
   resolved: Resolved,
   project: string,
@@ -556,24 +548,24 @@ export const planProject = (
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
   const at = recordAt(project);
   if (!at.ok) return at;
-  const known = withRecord(written, at.value.record);
   const held = heldOf(
     { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
-    known,
+    written,
   );
   if (!held.ok) return held;
   const given = held.value;
-  const files = filesOf(given, known);
+  const files = filesOf(given, written);
   if (!files.ok) return files;
   const writes = settingsAndManual(given);
   if (!writes.ok) return writes;
   const { settings, manual } = writes.value;
-  const owned = ownedOf(given, files.value, known);
+  const owned = ownedOf(given, files.value, { written, record: at.value.record });
   if (!owned.ok) return owned;
   const local = { manual: manual.local, settings: settings.local };
   const blocks = blockWrites(project, manual, localPaths(project, files.value, owned.value, local));
   if (!blocks.ok) return blocks;
-  const committed = new Map([...owned.value.wanted].filter(([path]) => !files.value.excluded.includes(path)));
+  const excluded = new Set(files.value.excluded);
+  const committed = new Map([...owned.value.wanted].filter(([path]) => !excluded.has(path)));
   const record = recordWrite({ project, path: at.value.path }, at.value.record, { committed, plan: owned.value });
   const operations = [...blocks.value, ...settings.operations, ...owned.value.operations, ...record];
   const unbound = resolved.unbound

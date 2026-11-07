@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { FILES_SCHEMA_VERSION, type Operation, ProfileFiles, type Result, readDocument } from "@cedarloom/contracts";
 import { hashFile } from "@cedarloom/engine";
@@ -22,7 +23,8 @@ export const recordOf = (project: string, path: string): Result<FilesRecord> => 
   return { ok: true, value: new Map(files.map(([at, entry]) => [onDisk(join(project, ...at.split("/"))), entry])) };
 };
 
-const hashOf = (path: string): string | null => {
+/** A file's hash; null when it is absent or cannot be read. */
+export const hashOrNull = (path: string): string | null => {
   try {
     return hashFile(path);
   } catch {
@@ -30,42 +32,57 @@ const hashOf = (path: string): string | null => {
   }
 };
 
-/**
- * What CedarLoom last left at each path of a project: the run store's `written`, or the record's hash where the file
- * holds what the record names or the store knows nothing of it, as CedarLoom wrote it from another clone.
- */
-export const withRecord = (written: Written, record: FilesRecord): Written => {
-  const known = new Map(written);
-  for (const [path, entry] of record)
-    if (!known.has(path) || hashOf(path) === entry.sha256) known.set(path, entry.sha256);
-  return known;
+// A text file's hash with the line endings CedarLoom writes, so a checkout that turned them into CRLF (Git's
+// `core.autocrlf` on Windows) still matches the record.
+const textHash = (path: string): string | null => {
+  try {
+    return sha256(readFileSync(path, "utf8").replaceAll("\r\n", "\n"));
+  } catch {
+    return null;
+  }
 };
 
 /**
- * The record after a plan, written only when it changes: each committed file the plan leaves holding CedarLoom's text,
- * by its path from the project, and as recorded each file the owner changed.
+ * What CedarLoom last left at each path of a project: the run store's `written`, and the current hash of each file
+ * that holds what the record names, as CedarLoom wrote it there from another clone.
+ */
+export const withRecord = (written: Written, record: FilesRecord): Written => {
+  const known = new Map(written);
+  for (const [path, entry] of record) if (textHash(path) === entry.sha256) known.set(path, hashOrNull(path));
+  return known;
+};
+
+/** The paths of a plan's files the owner changed, which stay as they are. */
+export const ownerChanged = (plan: LevelPlan): Set<string> =>
+  new Set(plan.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])));
+
+// The record's entries by their paths from the project, sorted, as the file holds them.
+const entriesOf = (project: string, files: FilesRecord): [string, Entry][] =>
+  [...files]
+    .map(([at, entry]): [string, Entry] => [relative(project, at).split(sep).join("/"), entry])
+    .toSorted(([a], [b]) => (a < b ? -1 : 1));
+
+/**
+ * The record after a plan: each committed file the plan leaves holding CedarLoom's text set to it, each file it deletes
+ * taken out, any other entry kept (a part held back, a file left as it is, another clone's profile). Written only when
+ * its entries change, so a checkout's line endings never rewrite it.
  */
 export const recordWrite = (
   { project, path }: { project: string; path: string },
   record: FilesRecord,
   { committed, plan }: { committed: ReadonlyMap<string, Wanted>; plan: LevelPlan },
 ): Operation[] => {
-  const theirs = new Set(
-    plan.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])),
-  );
-  const files = new Map([...record].filter(([at]) => theirs.has(at)));
+  const theirs = ownerChanged(plan);
+  const files = new Map(record);
   for (const [at, { content, pack }] of committed)
     if (!theirs.has(at)) files.set(at, { sha256: sha256(content), ...(pack === undefined ? {} : { pack }) });
-  const before = hashOf(path);
-  if (files.size === 0 && before === null) return [];
-  const sorted = [...files]
-    .map(([at, entry]): [string, Entry] => [relative(project, at).split(sep).join("/"), entry])
-    .toSorted(([a], [b]) => (a < b ? -1 : 1));
+  for (const operation of plan.operations) if (operation.kind === "delete") files.delete(operation.path);
+  const entries = entriesOf(project, files);
+  if (JSON.stringify(entries) === JSON.stringify(entriesOf(project, record))) return [];
   const document = {
     schemaVersion: FILES_SCHEMA_VERSION,
     kind: "cedarloom.profile-files",
-    files: Object.fromEntries(sorted),
+    files: Object.fromEntries(entries),
   };
-  const content = `${JSON.stringify(document, null, 2)}\n`;
-  return sha256(content) === before ? [] : [{ kind: "write", path, before, content }];
+  return [{ kind: "write", path, before: hashOrNull(path), content: `${JSON.stringify(document, null, 2)}\n` }];
 };

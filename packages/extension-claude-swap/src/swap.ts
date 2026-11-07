@@ -204,7 +204,7 @@ export const status = async (context: Exec): Promise<Record<string, unknown>> =>
   };
 };
 
-// The claude-swap release an install pins, the one this extension reads (pending owner decision); on macOS with the
+// The claude-swap release an install pins, the one this extension reads (coordinator, 2026-11-07); on macOS with the
 // menu bar, which runs claude-swap's own auto mode as a service (switching plan 14.3).
 const specOf = (platform: string): string => `claude-swap${platform === "darwin" ? "[menubar]" : ""}==${OBSERVED}`;
 // The installers the host may run, in this order, and their install arguments. claude-swap needs Python 3.12 or newer,

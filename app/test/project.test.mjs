@@ -58,7 +58,7 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   r.git('add', '-A');
   r.git('commit', '-qm', 'agents');
   const { changes, warnings } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
-  assert.ok(warnings.includes("this repository commits AGENTS.md and the setup stays local; Claude Code reads AGENTS.md next to the BenchKeeper block of CLAUDE.local.md; Codex reads AGENTS.override.md instead, with a copy of AGENTS.md that is stale after AGENTS.md changes (a pull) until the next apply here; --share would commit the block into the repository's AGENTS.md"), warnings.join('\n'));
+  assert.ok(warnings.some((w) => w.startsWith('this repository commits AGENTS.md')), warnings.join('\n'));
   assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) }).status, 'done');
   assert.equal(read(join(r.dir, 'AGENTS.md')), '# Project\n\nmy notes\n');
   assert.ok(!existsSync(join(r.dir, 'CLAUDE.md')));

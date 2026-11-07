@@ -335,7 +335,6 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
       pid: 4242,
       startedAt: "2026-08-01T00:00:00.000Z",
       finishedAt: "2026-08-01T00:00:00.000Z",
-      sessionId: null,
     },
   ]);
   store.prune(90);

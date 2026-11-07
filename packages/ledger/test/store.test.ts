@@ -447,7 +447,6 @@ test("an account gives at most max leases; a finished lease frees one, another a
     finishedAt: "2026-11-06T08:10:00.000Z",
     verdict: "pass",
     plugins: null,
-    sessionId: null,
     totals: null,
   });
   expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
@@ -588,7 +587,7 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
 });
 
-test("a launch keeps its session and the totals its result reported, which a view reads", () => {
+test("a launch keeps the totals its result reported, which a view reads", () => {
   const dir = fresh();
   const store = opened(dir);
   store.leaseAccount({ ...launch, runId: runIdOf(1) }, 2)?.release();
@@ -597,22 +596,18 @@ test("a launch keeps its session and the totals its result reported, which a vie
     outputTokens: 70,
     cacheReadTokens: 11687,
     cacheCreationTokens: 12674,
-    costUsdMicros: 105137,
+    costUsd: 0.105,
   };
-  store.recordSession(runIdOf(1), "00000000-0000-4000-8000-000000000001");
   store.recordTotals(runIdOf(1), totals);
   const view = openRunView(dir);
   if (!view.ok || view.value === null) throw new Error("no view");
   try {
-    expect(view.value.launches().map((row) => [row.sessionId, row.totals])).toEqual([
-      ["00000000-0000-4000-8000-000000000001", totals],
-    ]);
+    expect(view.value.launches().map((row) => row.totals)).toEqual([totals]);
   } finally {
     view.value.close();
   }
   // Checked on write, so the launches stay readable.
   expect(() => store.recordTotals(runIdOf(1), { ...totals, outputTokens: -1 })).toThrow(/too_small|>=0/);
-  expect(() => store.recordSession(runIdOf(1), "")).toThrow(/too_small|>=1/);
 });
 
 const sample = {

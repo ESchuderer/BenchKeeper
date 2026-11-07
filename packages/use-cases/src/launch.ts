@@ -226,21 +226,13 @@ const keep = async (state: string, work: (store: RunStore) => void): Promise<voi
   }
 };
 
-// Keeps the plugins the run's init line names, with the skills of the ones the launch passed, and its session.
-const keepInit = async (state: string, lease: Lease, expected: readonly string[], event: AgentEvent) => {
-  if (event.type !== "init") return;
-  const { sessionId, plugins: named } = event;
-  await keep(state, (store) => {
-    store.recordSession(lease.runId, sessionId);
-    if (named === null) return;
-    const own = named.skills.filter((skill) => expected.some((name) => skill.startsWith(`${name}:`)));
-    store.recordPlugins(lease.runId, {
-      expected: [...expected],
-      loaded: [...named.loaded],
-      skills: own,
-      errors: [...named.errors],
-    });
-  });
+// Keeps the plugins the run's init line names, with the skills of the ones the launch passed, for the doctor.
+const keepPlugins = async (state: string, lease: Lease, expected: readonly string[], event: AgentEvent) => {
+  if (event.type !== "init" || event.plugins === null) return;
+  const { loaded, skills, errors } = event.plugins;
+  const own = skills.filter((skill) => expected.some((name) => skill.startsWith(`${name}:`)));
+  const plugins = { expected: [...expected], loaded: [...loaded], skills: own, errors: [...errors] };
+  await keep(state, (store) => store.recordPlugins(lease.runId, plugins));
 };
 
 // Keeps the totals the session's result reports.
@@ -267,7 +259,7 @@ const observe = async (
       return { exit, proved, unproven: event.agentVersion ?? lease.version };
     }
     if (event.type === "init") proved = true;
-    await keepInit(state, lease, expected, event);
+    await keepPlugins(state, lease, expected, event);
     await keepTotals(state, lease, event);
     if (event.type === "usage") await keepUsage(state, lease, event);
     if (event.type === "exit") exit = event;

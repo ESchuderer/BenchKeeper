@@ -34,7 +34,7 @@ import {
   ownHome,
   resumeRun,
   runWorkflow,
-  showGraphRun,
+  showLaunch,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -177,8 +177,7 @@ test("a worker runs end to end: account, version check, lease, readings, and the
     skills: ["workflow:workflow", "workflow:tier"],
     errors: ["extra: no plugin.json"],
   });
-  // The doctor names the run's totals and has nothing else to report.
-  expect(doctor(state).map((finding) => finding.code)).toEqual(["doctor.run-totals"]);
+  expect(doctor(state)).toEqual([]);
   expect(withLedger(state, (store) => store.readings().map((reading) => reading.window))).toEqual([
     "fiveHour",
     "sevenDay",
@@ -274,34 +273,16 @@ const fill = (state: string, account: string, from: number) =>
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
 
-test("a worker's run keeps its session and the totals its result reported, and the doctor names them", async () => {
+test("a worker's run keeps the totals its result reported, which its view shows", async () => {
   const { state, config, work } = setup();
   const outcome = await launchWorker(state, config, request(work, { result: passing }), host);
   if (!outcome.ok || outcome.value.kind !== "finished") throw new Error("no run");
-  const totals = { ...TOTALS, costUsdMicros: 105137 };
-  const kept = withLedger(state, (store) => store.launches().map((each) => [each.sessionId, each.totals]));
-  expect(kept).toEqual([["00000000-0000-4000-8000-000000000001", totals]]);
-  expect(doctor(state)).toEqual([{ code: "doctor.run-totals", params: { runId: outcome.value.runId, totals } }]);
-});
-
-test("a resumed session's run counts its own share: the session's spend less what its previous run reported", () => {
-  const { state } = setup();
-  const session = "00000000-0000-4000-8000-000000000001";
-  const spends = [
-    { ...TOTALS, costUsdMicros: 100 },
-    { inputTokens: 5, outputTokens: 100, cacheReadTokens: 20000, cacheCreationTokens: 12674, costUsdMicros: 250 },
-  ];
-  withLedger(state, (store) => {
-    spends.forEach((totals, n) => {
-      const startedAt = `2026-11-07T0${n}:00:00.000Z`;
-      store.leaseAccount({ ...lease(runIdOf(n), "work"), startedAt }, MAX_CONCURRENT.claude)?.release();
-      store.recordSession(runIdOf(n), session);
-      store.recordTotals(runIdOf(n), totals);
-      store.finishLaunch(runIdOf(n), "pass");
-    });
+  const totals = { ...TOTALS, costUsd: 0.10513739999999999 };
+  expect(showLaunch(state, outcome.value.runId)).toMatchObject({ ok: true, value: { totals } });
+  expect(showLaunch(state, runIdOf(9))).toEqual({
+    ok: false,
+    finding: { code: "run.not-found", params: { runId: runIdOf(9) } },
   });
-  const own = { inputTokens: 3, outputTokens: 30, cacheReadTokens: 8313, cacheCreationTokens: 0, costUsdMicros: 150 };
-  expect(doctor(state)).toEqual([{ code: "doctor.run-totals", params: { runId: runIdOf(1), totals: own } }]);
 });
 
 test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {
@@ -312,7 +293,6 @@ test("without the workflow plugin at the pinned commit a worker starts without o
   expect(withLedger(state, (store) => store.launches()[0]?.plugins?.expected)).toEqual([]);
   expect(doctor(state)).toEqual([
     { code: "doctor.plugin-none", params: { plugin: "workflow", commit: WORKFLOW_PLUGIN.commit } },
-    { code: "doctor.run-totals", params: { runId: expect.any(String), totals: expect.any(Object) } },
   ]);
 });
 
@@ -655,9 +635,6 @@ test("an agent node runs a worker in the run's worktree on its phase's settings,
       labels: { phase: "review", model: "claude-opus-5-5", review: true, level: "supervised", tier: null },
     },
   ]);
-  // The run's view names each attempt's worker totals, found by the session it started.
-  const totals = { ...TOTALS, costUsdMicros: 105137 };
-  expect(showGraphRun(state, runId)).toMatchObject({ ok: true, value: { attempts: [{ node: "a", totals }] } });
 }, 30_000);
 
 test("an agent that sends nothing for its stall time is stopped and times out; a cancel stops a running one", async () => {

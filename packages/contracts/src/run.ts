@@ -117,7 +117,5 @@ export const NodeAttempt = z.object({
   pid: z.int().positive().nullable(),
   startedAt: z.iso.datetime(),
   finishedAt: z.iso.datetime().nullable(),
-  // The agent session the attempt started, if it started one.
-  sessionId: z.string().nullable(),
 });
 export type NodeAttempt = z.infer<typeof NodeAttempt>;

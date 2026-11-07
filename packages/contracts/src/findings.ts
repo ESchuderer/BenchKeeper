@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { RunTotals } from "./launch.ts";
 import { GitOid, Sha256 } from "./plan.ts";
 import { contracts, SchemaVersion } from "./registry.ts";
 import { HandleType } from "./workflow.ts";
@@ -114,8 +113,6 @@ export const Finding = z
     finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
     finding("doctor.login-method", { account: z.string(), method: z.string() }),
     finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
-    // The latest finished worker run's own token and cost totals; null when its session reported none.
-    finding("doctor.run-totals", { runId: z.string(), totals: RunTotals.nullable() }),
     finding("doctor.login-skipped", { account: z.string() }),
     // A project's level is set for a folder that exists, by its real path.
     finding("automation.unknown-folder", { path: z.string() }),
@@ -283,7 +280,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },
   "doctor.login-unchecked": { severity: "warning", effort: "manual" },
-  "doctor.run-totals": { severity: "info", effort: "manual" },
   "doctor.login-skipped": { severity: "info", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "launch.agent-unavailable": { severity: "error", effort: "manual" },

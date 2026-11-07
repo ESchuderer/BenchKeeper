@@ -43,7 +43,7 @@ const SCHEMA = 14;
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
 /** A launch as its lease takes it, with the settings it runs with. */
-export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins" | "sessionId" | "totals">;
+export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins" | "totals">;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -262,8 +262,8 @@ export class RunView {
   launches(): LaunchRecord[] {
     return this.db
       .prepare(
-        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, sessionId,
-           totals FROM launches ORDER BY startedAt, rowid`,
+        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, totals
+         FROM launches ORDER BY startedAt, rowid`,
       )
       .all()
       .map((row) =>
@@ -528,7 +528,6 @@ export class RunStore extends RunView {
       finishedAt: null,
       verdict: null,
       plugins: null,
-      sessionId: null,
       totals: null,
     });
     const lock = newLease(this.dir, launch.runId);
@@ -576,12 +575,6 @@ export class RunStore extends RunView {
   recordPlugins(runId: string, input: LaunchPlugins): void {
     const plugins = LaunchPlugins.parse(input);
     this.db.prepare("UPDATE launches SET plugins = ? WHERE runId = ?").run(canonicalJson(plugins), runId);
-  }
-
-  /** Keeps the session the run's init line named. */
-  recordSession(runId: string, sessionId: string): void {
-    const { sessionId: id } = LaunchRecord.pick({ sessionId: true }).parse({ sessionId });
-    this.db.prepare("UPDATE launches SET sessionId = ? WHERE runId = ?").run(id, runId);
   }
 
   /** Keeps the totals the session's result reported; ones that are no RunTotals throw. */

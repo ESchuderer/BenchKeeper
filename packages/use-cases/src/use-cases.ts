@@ -18,7 +18,6 @@ import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/en
 import { openStore } from "@cedarloom/git";
 import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
 import { pluginProblems } from "./plugins.ts";
-import { ownTotals } from "./totals.ts";
 
 /** `yes` approves the plan as computed now, `approve` only the plan with that hash (it wins when both are given). */
 export interface Approval {
@@ -150,6 +149,13 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
     return { ok: true, value: { run, steps: detail.steps } };
   });
 
+/** A worker run as the ledger keeps it, with the totals its session reported. */
+export const showLaunch = (state: string, runId: string): Result<LaunchRecord> =>
+  withView(state, (view) => {
+    const launch = view?.launches().find((each) => each.runId === runId);
+    return launch === undefined ? notFound(runId) : { ok: true, value: launch };
+  });
+
 /** Plans the undo of a run and writes nothing. */
 export const previewUndo = (state: string, runId: string): Result<UndoPreview> =>
   withView(state, (view) => {
@@ -180,25 +186,14 @@ export const undoRun = (
     return { ok: true, value: settled(outcome, skipped, runId) };
   });
 
-// The latest finished worker run's own token and cost totals, or that they are unknown.
-const latestTotals = (launches: readonly LaunchRecord[]): Finding[] => {
-  const latest = launches.findLast((each) => each.finishedAt !== null);
-  if (latest === undefined) return [];
-  return [{ code: "doctor.run-totals", params: { runId: latest.runId, totals: ownTotals(latest, launches) } }];
-};
-
 /**
- * Interrupted and failed runs no undo has dealt with, what the latest run's init line shows about its plugins, the
- * latest finished worker run's totals, and a store this CedarLoom cannot read.
+ * Interrupted and failed runs no undo has dealt with, what the latest run's init line shows about its plugins, and a
+ * store this CedarLoom cannot read.
  */
 export const doctor = (state: string): Finding[] => {
   const problems = withView(state, (view) => ({
     ok: true,
-    value: [
-      ...(view?.problems() ?? []),
-      ...pluginProblems(view?.latestPlugins() ?? null),
-      ...latestTotals(view?.launches() ?? []),
-    ],
+    value: [...(view?.problems() ?? []), ...pluginProblems(view?.latestPlugins() ?? null)],
   }));
   return problems.ok ? problems.value : [problems.finding];
 };

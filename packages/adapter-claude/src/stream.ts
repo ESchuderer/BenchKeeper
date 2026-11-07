@@ -83,7 +83,7 @@ const totalsOf = (raw: Json): RunTotals | null => {
     outputTokens: sum("outputTokens"),
     cacheReadTokens: sum("cacheReadInputTokens"),
     cacheCreationTokens: sum("cacheCreationInputTokens"),
-    costUsdMicros: Math.round(spend.data.total_cost_usd * 1_000_000),
+    costUsd: spend.data.total_cost_usd,
   };
   return Object.values(totals).every((value) => value === 0) ? null : totals;
 };

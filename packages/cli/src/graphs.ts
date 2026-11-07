@@ -2,7 +2,6 @@ import { homedir } from "node:os";
 import { phaseLaunch } from "@cedarloom/adapter-claude";
 import type { Finding, Result } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
-import { spent } from "./messages.ts";
 import { type Context, EXIT, emit, fail } from "./output.ts";
 
 const exitOf = (finding: Finding): number => (finding.code === "document.unreadable" ? EXIT.noInput : EXIT.refused);
@@ -75,8 +74,7 @@ export const graphRunShow = (ctx: Context, runId: string): number => {
   const { run, attempts } = shown.value;
   const lines = attempts.map((each) => {
     const pid = each.pid === null ? "" : `  pid ${each.pid}`;
-    const totals = each.totals === null ? "" : `  ${spent(each.totals)}`;
-    return `  ${`${each.node}#${each.attempt}`.padEnd(16)} ${each.state.padEnd(11)}${pid}${totals}`;
+    return `  ${`${each.node}#${each.attempt}`.padEnd(16)} ${each.state.padEnd(11)}${pid}`;
   });
   const head = `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}, ${run.startedAt}`;
   emit(ctx, "run", { run, attempts }, [head, ...lines].join("\n"));

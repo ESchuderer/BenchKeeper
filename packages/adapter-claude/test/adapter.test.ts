@@ -198,9 +198,14 @@ test("maps the stream-json lines to events", async () => {
       { window: "seven_day", status: "allowed", percent: 32, resetsAt: "2026-11-06T18:00:00.000Z", quota: "sevenDay" },
     ],
   });
-  // The totals of the captured result: modelUsage over its one model, and total_cost_usd in millionths of a dollar.
+  // The totals of the captured result: modelUsage over its one model, and total_cost_usd as given.
   const totals = { inputTokens: 2, outputTokens: 70, cacheReadTokens: 11687, cacheCreationTokens: 12674 };
-  expect(all[5]).toMatchObject({ type: "result", ok: true, text: "OK", totals: { ...totals, costUsdMicros: 105137 } });
+  expect(all[5]).toMatchObject({
+    type: "result",
+    ok: true,
+    text: "OK",
+    totals: { ...totals, costUsd: 0.10513739999999999 },
+  });
   expect(all[6]).toEqual({ type: "exit", code: 0, signal: null, error: null, stderr: "fake stderr\n" });
 });
 
@@ -227,7 +232,7 @@ test("a result's totals sum every model's tokens with the cost; only zeros or an
   writeFileSync(file, `${spends.map(result).join("\n")}\n`);
   const all = await events(runtime.start(launch({ FAKE_STREAM: file })));
   expect(all.flatMap((event) => (event.type === "result" ? [[event.ok, event.totals]] : []))).toEqual([
-    [true, { inputTokens: 11, outputTokens: 22, cacheReadTokens: 33, cacheCreationTokens: 44, costUsdMicros: 250000 }],
+    [true, { inputTokens: 11, outputTokens: 22, cacheReadTokens: 33, cacheCreationTokens: 44, costUsd: 0.25 }],
     [true, null],
     [true, null],
   ]);

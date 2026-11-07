@@ -46,7 +46,7 @@ import { cleanEnv } from "@cedarloom/orchestration";
 import { stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
-import { readJson, retryBusy, withStore } from "./use-cases.ts";
+import { readJson, retryBusy, withStore, withView } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
 
@@ -250,9 +250,10 @@ const fileWrite =
  */
 const writeRecover =
   (state: string): Recovery =>
-  async ({ applyRun }) => {
+  ({ applyRun }) => {
     if (applyRun === null) return null;
-    const runs = await retryBusy(() => withStore(state, (store) => ({ ok: true, value: store.runs() })));
+    // `applied` is final once committed, so a view reads it without the store lock an apply holds for its length.
+    const runs = withView(state, (view) => ({ ok: true, value: view?.runs() ?? [] }));
     const applied = runs.ok && runs.value.some((each) => each.id === applyRun && each.status === "applied");
     return applied ? { pid: null, run: () => Promise.resolve({ ok: true }) } : null;
   };
@@ -515,7 +516,8 @@ export const cancelRun = (
       lease = store.takeOver(runId);
     }
     if (!lease.ok) return lease;
-    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted.
+    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted, but a
+    // write whose apply run applied ends cancelled, its file written.
     store.append(runId, lease.value.epoch, { type: "cancel" });
     return runOn(store, { run, lease: lease.value }, "", {
       ...options,

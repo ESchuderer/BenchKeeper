@@ -75,7 +75,9 @@ CREATE TABLE launches (
   finishedAt TEXT,
   verdict TEXT CHECK (verdict IN ('pass', 'findings', 'not-run', 'failed', 'interrupted')),
   labels TEXT NOT NULL,
-  plugins TEXT
+  plugins TEXT,
+  sessionId TEXT,
+  totals TEXT
 ) STRICT;
 CREATE INDEX launches_running ON launches (account) WHERE finishedAt IS NULL;
 `;

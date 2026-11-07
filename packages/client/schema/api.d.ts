@@ -1150,6 +1150,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "doctor.run-totals";
+            params: {
+                runId: string;
+                totals: {
+                    inputTokens: number;
+                    outputTokens: number;
+                    cacheReadTokens: number;
+                    cacheCreationTokens: number;
+                    costUsdMicros: number;
+                } | null;
+            };
+        } | {
+            /** @constant */
             code: "doctor.login-skipped";
             params: {
                 account: string;
@@ -2002,6 +2015,19 @@ export interface components {
             params: {
                 account: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "doctor.run-totals";
+            params: {
+                runId: string;
+                totals: {
+                    inputTokens: number;
+                    outputTokens: number;
+                    cacheReadTokens: number;
+                    cacheCreationTokens: number;
+                    costUsdMicros: number;
+                } | null;
             };
         } | {
             /** @constant */

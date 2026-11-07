@@ -188,7 +188,7 @@ export class GraphStore {
   attempts(runId: string): NodeAttempt[] {
     const rows = this.#db
       .prepare(
-        `SELECT nodeId AS node, attempt, state, pid, startedAt, finishedAt FROM node_attempts WHERE runId = ?
+        `SELECT nodeId AS node, attempt, state, pid, startedAt, finishedAt, sessionId FROM node_attempts WHERE runId = ?
          ORDER BY startedAt, rowid`,
       )
       .all(runId);

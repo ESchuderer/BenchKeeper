@@ -1,8 +1,15 @@
-import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
+import { type Finding, type FindingCode, type RunTotals, shown } from "@cedarloom/contracts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
+
+/** A worker's totals in a line: its tokens and Claude Code's cost estimate. */
+export const spent = (totals: RunTotals): string => {
+  const { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, costUsdMicros } = totals;
+  const tokens = inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
+  return `${tokens} tokens (${inputTokens} in, ${outputTokens} out, ${cacheReadTokens} cache read, ${cacheCreationTokens} cache written), about $${(costUsdMicros / 1_000_000).toFixed(2)}`;
+};
 // An undo run that stopped is not undone itself: planning the undo of its target again starts from the files as they are.
 const undoHint = (p: { runId: string; undoes: string | null }): string =>
   p.undoes === null
@@ -166,6 +173,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "doctor.login-method": (p) =>
     `Account ${p.account} is logged in with ${p.method}, not with a Claude subscription (claude.ai); log in again with: cedarloom accounts login ${p.account}`,
   "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
+  "doctor.run-totals": (p) =>
+    p.totals === null
+      ? `The latest worker run, ${p.runId}, reported no token or cost totals.`
+      : `The latest worker run, ${p.runId}, used ${spent(p.totals)}, as Claude Code estimates it.`,
   "doctor.login-skipped": (p) =>
     `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
   "launch.not-logged-in": (p) =>

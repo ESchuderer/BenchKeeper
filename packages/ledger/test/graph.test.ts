@@ -335,6 +335,7 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
       pid: 4242,
       startedAt: "2026-08-01T00:00:00.000Z",
       finishedAt: "2026-08-01T00:00:00.000Z",
+      sessionId: null,
     },
   ]);
   store.prune(90);
@@ -364,7 +365,7 @@ test("a view of graph runs is none without a store, and refuses a store from bef
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec("PRAGMA user_version = 10");
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 13 } } };
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 14 } } };
   expect([openGraphView(dir), openGraphStore(dir)]).toEqual([older, older]);
   db.exec("PRAGMA user_version = 99");
   db.close();

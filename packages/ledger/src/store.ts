@@ -17,6 +17,7 @@ import {
   Reading,
   type Result,
   Run,
+  RunTotals,
   readDocument,
   Step,
 } from "@cedarloom/contracts";
@@ -35,14 +36,14 @@ import {
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
 const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
-// Its number follows every schema before 0.1.0 (1 to 12), so a store from before it is never read as this one.
-const SCHEMA = 13;
+// Its number follows every schema before 0.1.0 (1 to 13), so a store from before it is never read as this one.
+const SCHEMA = 14;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
 /** A launch as its lease takes it, with the settings it runs with. */
-export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins">;
+export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins" | "sessionId" | "totals">;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -255,6 +256,24 @@ export class RunView {
       .prepare("SELECT at, level FROM mode_switches WHERE at >= ? ORDER BY rowid DESC LIMIT 1")
       .get(since ?? "");
     return row === undefined ? null : ModeSwitch.parse(row);
+  }
+
+  /** The launches, oldest first. */
+  launches(): LaunchRecord[] {
+    return this.db
+      .prepare(
+        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, sessionId,
+           totals FROM launches ORDER BY startedAt, rowid`,
+      )
+      .all()
+      .map((row) =>
+        LaunchRecord.parse({
+          ...row,
+          labels: column(row["labels"]),
+          plugins: column(row["plugins"]),
+          totals: column(row["totals"]),
+        }),
+      );
   }
 
   /** The plugins of the latest launch whose init line named them; null when none has. */
@@ -504,7 +523,14 @@ export class RunStore extends RunView {
    * the returned lock until it has finished the launch: a lease whose lock nobody holds counts as interrupted.
    */
   leaseAccount(input: Lease, max: number): LeaseLock | null {
-    const launch = LaunchRecord.parse({ ...input, finishedAt: null, verdict: null, plugins: null });
+    const launch = LaunchRecord.parse({
+      ...input,
+      finishedAt: null,
+      verdict: null,
+      plugins: null,
+      sessionId: null,
+      totals: null,
+    });
     const lock = newLease(this.dir, launch.runId);
     let taken: boolean;
     try {
@@ -552,15 +578,16 @@ export class RunStore extends RunView {
     this.db.prepare("UPDATE launches SET plugins = ? WHERE runId = ?").run(canonicalJson(plugins), runId);
   }
 
-  /** The launches, oldest first. */
-  launches(): LaunchRecord[] {
-    return this.db
-      .prepare(
-        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins
-         FROM launches ORDER BY startedAt, rowid`,
-      )
-      .all()
-      .map((row) => LaunchRecord.parse({ ...row, labels: column(row["labels"]), plugins: column(row["plugins"]) }));
+  /** Keeps the session the run's init line named. */
+  recordSession(runId: string, sessionId: string): void {
+    const { sessionId: id } = LaunchRecord.pick({ sessionId: true }).parse({ sessionId });
+    this.db.prepare("UPDATE launches SET sessionId = ? WHERE runId = ?").run(id, runId);
+  }
+
+  /** Keeps the totals the session's result reported; ones that are no RunTotals throw. */
+  recordTotals(runId: string, input: RunTotals): void {
+    const totals = RunTotals.parse(input);
+    this.db.prepare("UPDATE launches SET totals = ? WHERE runId = ?").run(canonicalJson(totals), runId);
   }
 
   /** The account choices in the order they were made. */

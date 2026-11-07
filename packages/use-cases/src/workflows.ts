@@ -11,6 +11,7 @@ import {
   JsonValue,
   type Result,
   type RunStatus,
+  type RunTotals,
   readDocument,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
@@ -28,7 +29,8 @@ import { type GraphStore, type GraphView, openGraphStore, openGraphView, type Ru
 import { cleanEnv } from "@cedarloom/orchestration";
 import { stopOrphans, stopTree } from "./orphans.ts";
 import { type AgentOptions, agentRun } from "./agent-node.ts";
-import { readJson } from "./use-cases.ts";
+import { attemptTotals } from "./totals.ts";
+import { readJson, withView } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
 
@@ -333,13 +335,25 @@ const withGraphView = <T>(state: string, read: (view: GraphView | null) => Resul
 export const listGraphRuns = (state: string): Result<GraphRun[]> =>
   withGraphView(state, (view) => ({ ok: true, value: view?.graphRuns() ?? [] }));
 
-/** A graph run with its attempts; the pid of an attempt that ended interrupted is what a user checks by hand. */
-export const showGraphRun = (state: string, runId: string): Result<{ run: GraphRun; attempts: NodeAttempt[] }> =>
-  withGraphView(state, (view) => {
+/** An attempt with the token and cost totals of the worker it started; null for none or unknown. */
+export type ShownAttempt = NodeAttempt & { readonly totals: RunTotals | null };
+
+/**
+ * A graph run with its attempts and their workers' totals; the pid of an attempt that ended interrupted is what a user
+ * checks by hand.
+ */
+export const showGraphRun = (state: string, runId: string): Result<{ run: GraphRun; attempts: ShownAttempt[] }> => {
+  const shown = withGraphView(state, (view) => {
     const run = view?.graphRun(runId);
     if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
     return { ok: true, value: { run, attempts: view.attempts(runId) } };
   });
+  if (!shown.ok) return shown;
+  const read = withView(state, (view) => ({ ok: true, value: view?.launches() ?? [] }));
+  const launches = read.ok ? read.value : [];
+  const attempts = shown.value.attempts.map((attempt) => ({ ...attempt, totals: attemptTotals(attempt, launches) }));
+  return { ok: true, value: { run: shown.value.run, attempts } };
+};
 
 /**
  * What a resume or cancel of a graph run would do, read without a write: the run, the folder its commands run in (or

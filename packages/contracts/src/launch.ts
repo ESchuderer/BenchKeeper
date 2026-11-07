@@ -50,6 +50,22 @@ const Names = z.array(z.string().min(1));
 export const LaunchPlugins = z.strictObject({ expected: Names, loaded: Names, skills: Names, errors: Names });
 export type LaunchPlugins = z.infer<typeof LaunchPlugins>;
 
+const Count = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
+
+/**
+ * A worker session's token and cost totals as its final result reports them, subagents included: the token counts
+ * summed over the models it used, and the cost in millionths of a dollar. Both are Claude Code's own estimates, not
+ * billing data (https://code.claude.com/docs/en/agent-sdk/cost-tracking).
+ */
+export const RunTotals = z.strictObject({
+  inputTokens: Count,
+  outputTokens: Count,
+  cacheReadTokens: Count,
+  cacheCreationTokens: Count,
+  costUsdMicros: Count,
+});
+export type RunTotals = z.infer<typeof RunTotals>;
+
 /**
  * One worker launch as the ledger keeps it; while it runs (finishedAt null) it holds a lease on its account. `failed`:
  * no valid result of this run; `interrupted`: its launcher ended before it did.
@@ -67,5 +83,9 @@ export const LaunchRecord = z.strictObject({
   labels: RunLabels,
   // Null until the run's init line names its plugins.
   plugins: LaunchPlugins.nullable(),
+  // Null until the run's init line names its session.
+  sessionId: z.string().min(1).max(200).nullable(),
+  // What the session's result reported, for a resumed session its whole spend; null while unknown.
+  totals: RunTotals.nullable(),
 });
 export type LaunchRecord = z.infer<typeof LaunchRecord>;

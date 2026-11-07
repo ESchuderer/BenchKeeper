@@ -2529,6 +2529,78 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "doctor.run-totals"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "totals": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "inputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "outputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheReadTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheCreationTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "costUsdMicros": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "inputTokens",
+                          "outputTokens",
+                          "cacheReadTokens",
+                          "cacheCreationTokens",
+                          "costUsdMicros"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "runId",
+                  "totals"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "doctor.login-skipped"
               },
               "params": {
@@ -6469,6 +6541,78 @@
                 "required": [
                   "account",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "doctor.run-totals"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "totals": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "inputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "outputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheReadTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheCreationTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "costUsdMicros": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "inputTokens",
+                          "outputTokens",
+                          "cacheReadTokens",
+                          "cacheCreationTokens",
+                          "costUsdMicros"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "runId",
+                  "totals"
                 ],
                 "additionalProperties": false
               }

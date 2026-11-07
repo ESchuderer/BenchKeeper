@@ -152,7 +152,7 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
 /** A worker run as the ledger keeps it, with the totals its session reported. */
 export const showLaunch = (state: string, runId: string): Result<LaunchRecord> =>
   withView(state, (view) => {
-    const launch = view?.launches().find((each) => each.runId === runId);
+    const launch = view?.launch(runId);
     return launch === undefined ? notFound(runId) : { ok: true, value: launch };
   });
 

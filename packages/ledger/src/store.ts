@@ -42,6 +42,18 @@ const SCHEMA = 14;
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
+const LAUNCH_COLUMNS =
+  "runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, totals";
+
+// A launch row with its JSON columns read.
+const launchOf = (row: Record<string, unknown>): LaunchRecord =>
+  LaunchRecord.parse({
+    ...row,
+    labels: column(row["labels"]),
+    plugins: column(row["plugins"]),
+    totals: column(row["totals"]),
+  });
+
 /** A launch as its lease takes it, with the settings it runs with. */
 export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins" | "totals">;
 
@@ -258,22 +270,10 @@ export class RunView {
     return row === undefined ? null : ModeSwitch.parse(row);
   }
 
-  /** The launches, oldest first. */
-  launches(): LaunchRecord[] {
-    return this.db
-      .prepare(
-        `SELECT runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, totals
-         FROM launches ORDER BY startedAt, rowid`,
-      )
-      .all()
-      .map((row) =>
-        LaunchRecord.parse({
-          ...row,
-          labels: column(row["labels"]),
-          plugins: column(row["plugins"]),
-          totals: column(row["totals"]),
-        }),
-      );
+  /** One launch by its run id; undefined for none. */
+  launch(runId: string): LaunchRecord | undefined {
+    const row = this.db.prepare(`SELECT ${LAUNCH_COLUMNS} FROM launches WHERE runId = ?`).get(runId);
+    return row === undefined ? undefined : launchOf(row);
   }
 
   /** The plugins of the latest launch whose init line named them; null when none has. */
@@ -575,6 +575,11 @@ export class RunStore extends RunView {
   recordPlugins(runId: string, input: LaunchPlugins): void {
     const plugins = LaunchPlugins.parse(input);
     this.db.prepare("UPDATE launches SET plugins = ? WHERE runId = ?").run(canonicalJson(plugins), runId);
+  }
+
+  /** The launches, oldest first. */
+  launches(): LaunchRecord[] {
+    return this.db.prepare(`SELECT ${LAUNCH_COLUMNS} FROM launches ORDER BY startedAt, rowid`).all().map(launchOf);
   }
 
   /** Keeps the totals the session's result reported; ones that are no RunTotals throw. */

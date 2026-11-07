@@ -1,8 +1,8 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { basename, delimiter, isAbsolute, join } from "node:path";
 
-// A file this user may run; on Windows an .exe or .com, since a .cmd or .bat would run through a shell.
-const runnable = (path: string): boolean => {
+/** Whether this user may run the file; on Windows an .exe or .com, since a .cmd or .bat would run through a shell. */
+export const runnable = (path: string): boolean => {
   try {
     if (!statSync(path).isFile()) return false;
     if (process.platform === "win32") return /\.(?:exe|com)$/i.test(path);

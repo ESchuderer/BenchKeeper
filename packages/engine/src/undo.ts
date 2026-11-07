@@ -4,9 +4,11 @@ import {
   PLAN_SCHEMA_VERSION,
   type Plan,
   type Result,
+  STORE_REF,
   type Step,
 } from "@cedarloom/contracts";
 import { type RunView, sha256 } from "@cedarloom/ledger";
+import { NO_BRANCH, type StoreBranch } from "./apply.ts";
 import { hashFile, readOrNull } from "./files.ts";
 
 export interface UndoPlan {
@@ -53,31 +55,43 @@ interface Walk {
   now: Map<string, string | null>;
   edited: Set<string>;
   operations: Operation[];
+  branch: StoreBranch;
 }
 
-const visit = (walk: Walk, step: Step): Finding | undefined => {
+// A store update's step names the branch as its path: it is at a commit, and its undo moves it back.
+const currentOf = (walk: Walk, step: Step, branch: boolean): string | null => {
+  if (walk.now.has(step.path)) return walk.now.get(step.path) ?? null;
+  return branch ? walk.branch.head() : hashFile(step.path);
+};
+
+const undoOf = (walk: Walk, step: Step, actual: string | null, branch: boolean): Result<Operation> =>
+  branch
+    ? { ok: true, value: { kind: "store.update", ref: STORE_REF, before: actual, after: step.before } }
+    : restore(walk.store, walk.runId, step, actual);
+
+const visit = (walk: Walk, step: Step, branch: boolean): Finding | undefined => {
   if (walk.edited.has(step.path)) return undefined;
-  const actual = walk.now.has(step.path) ? (walk.now.get(step.path) ?? null) : hashFile(step.path);
+  const actual = currentOf(walk, step, branch);
   const verdict = next(step, actual, walk.original.get(step.path));
   if (verdict === "edited") walk.edited.add(step.path);
   if (verdict !== "restore") return undefined;
-  const op = restore(walk.store, walk.runId, step, actual);
+  const op = undoOf(walk, step, actual, branch);
   if (!op.ok) return op.finding;
   walk.operations.push(op.value);
   walk.now.set(step.path, step.before);
   return undefined;
 };
 
-export const planUndo = (store: RunView, requested: string): Result<UndoPlan> => {
+export const planUndo = (store: RunView, requested: string, branch = NO_BRANCH): Result<UndoPlan> => {
   const detail = store.run(requested);
   if (detail === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId: requested } } };
   // Backup paths are built from the id the journal holds, never from the caller's text (an HTTP path parameter).
   const runId = detail.run.id;
   const started = detail.steps.filter((step) => step.state === "running" || step.state === "done");
-  const walk: Walk = { store, runId, original: new Map(), now: new Map(), edited: new Set(), operations: [] };
+  const walk: Walk = { store, runId, original: new Map(), now: new Map(), edited: new Set(), operations: [], branch };
   for (const step of started) if (!walk.original.has(step.path)) walk.original.set(step.path, step.before);
   for (const step of started.toReversed()) {
-    const refused = visit(walk, step);
+    const refused = visit(walk, step, detail.plan.operations[step.index]?.kind === "store.update");
     if (refused !== undefined) return { ok: false, finding: refused };
   }
   const skipped = [...walk.edited].map((path): Finding => ({ code: "undo.file-edited", params: { runId, path } }));

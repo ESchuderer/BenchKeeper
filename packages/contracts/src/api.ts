@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Finding } from "./findings.ts";
-import { DeleteFile, PLAN_SCHEMA_VERSION, Sha256, WriteFile } from "./plan.ts";
+import { DeleteFile, GitOid, PLAN_SCHEMA_VERSION, Sha256, StoreUpdate, WriteFile } from "./plan.ts";
 import { contracts } from "./registry.ts";
 import { WorkflowId } from "./workflow.ts";
 
@@ -21,13 +21,16 @@ export const Run = z
   .register(contracts, { id: "Run" });
 export type Run = z.infer<typeof Run>;
 
-/** One operation of a run as the journal records it; `after` is null for a delete. */
+/**
+ * One operation of a run as the journal records it; `after` is null for a delete. A store update journals its branch as
+ * the path and commits as before and after.
+ */
 export const Step = z
   .object({
     index: z.int(),
     path: z.string(),
-    before: Sha256.nullable(),
-    after: Sha256.nullable(),
+    before: z.union([Sha256, GitOid]).nullable(),
+    after: z.union([Sha256, GitOid]).nullable(),
     state: z.enum(["pending", "running", "done", "skipped"]),
     mode: z.int().nullable(),
   })
@@ -37,7 +40,11 @@ export type Step = z.infer<typeof Step>;
 const summary = z.strictObject({
   schemaVersion: z.literal(PLAN_SCHEMA_VERSION),
   operations: z.array(
-    z.union([DeleteFile, WriteFile.omit({ content: true }).extend({ after: Sha256, bytes: z.int().min(0) })]),
+    z.union([
+      DeleteFile,
+      WriteFile.omit({ content: true }).extend({ after: Sha256, bytes: z.int().min(0) }),
+      StoreUpdate,
+    ]),
   ),
 });
 

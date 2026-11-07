@@ -317,7 +317,9 @@ export class RunStore extends RunView {
         .run(id, kind, undoes, canonicalJson(plan), hash, approvedHash, this.epoch, now());
       const step = this.db.prepare("INSERT INTO steps VALUES (?, ?, ?, ?, ?, 'pending', NULL)");
       plan.operations.forEach((op, index) => {
-        step.run(id, index, op.path, op.before, op.kind === "write" ? sha256(op.content) : null);
+        // A store update journals its branch and commits where a file step has its path and hashes.
+        if (op.kind === "store.update") step.run(id, index, op.ref, op.before, op.after);
+        else step.run(id, index, op.path, op.before, op.kind === "write" ? sha256(op.content) : null);
       });
     });
     return { ok: true, value: id };

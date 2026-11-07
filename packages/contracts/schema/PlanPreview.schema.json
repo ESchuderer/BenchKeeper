@@ -66,6 +66,9 @@
                   "bytes"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "$ref": "StoreUpdate.schema.json"
               }
             ]
           }

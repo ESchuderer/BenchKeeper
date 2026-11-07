@@ -4,6 +4,7 @@ export {
   extensionChecks,
   extensionToStart,
   planSwitch,
+  runBundled,
   type Startable,
 } from "./bundled.ts";
 export { type From, type ImportPlan, planImport } from "./imports.ts";

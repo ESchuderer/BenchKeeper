@@ -252,12 +252,25 @@ export const ExtensionManifest = z
       doctor: sized(z.record(ActionId, z.strictObject({ title: PlainText.min(1).max(200) })), 20)
         .optional()
         .describe("The extension's own checks, which the doctor asks it for (doctor/run)"),
+      commands: distinct(ActionId)
+        .max(20)
+        .optional()
+        .describe(
+          "Its actions the CLI offers as verbs under its noun (the id after `cedarloom.`); bundled extensions only",
+        ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
       .describe("Translations of its texts by language; English is the manifest's own"),
   })
-  .superRefine((manifest, ctx) => credentialHosts(manifest.capabilities, ctx))
+  .superRefine((manifest, ctx) => {
+    credentialHosts(manifest.capabilities, ctx);
+    // A CLI verb runs one of the extension's own actions.
+    const { actions, commands = [] } = manifest.contributes;
+    if (commands.some((command) => !Object.hasOwn(actions, command))) {
+      ctx.addIssue({ code: "custom", path: ["contributes", "commands"], message: "each one of its actions" });
+    }
+  })
   .describe("A CedarLoom extension manifest; readers also refuse values nested over 32 levels deep")
   .register(fileFormats, { id: "ExtensionManifest" });
 export type ExtensionManifest = z.infer<typeof ExtensionManifest>;

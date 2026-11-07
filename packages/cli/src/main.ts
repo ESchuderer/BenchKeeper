@@ -28,6 +28,7 @@ import {
   workflowsOpen,
   workflowsSave,
 } from "./commands.ts";
+import { contributedGroups } from "./contributed.ts";
 import { runsCancel, runsDecide, runsResume, workflowsRun } from "./graphs.ts";
 import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
@@ -389,6 +390,8 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .command("ui")
     .description("serve the web UI on 127.0.0.1 and print the link that opens it; runs until stopped")
     .action(async () => done(await ui(ctx())));
+  // Last, so a noun of the app's own extensions never takes a built-in command's name.
+  contributedGroups(program, ctx, done);
   try {
     await program.parseAsync(argv, { from: "user" });
   } catch (error) {

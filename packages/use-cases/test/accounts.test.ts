@@ -20,6 +20,7 @@ import {
   applyPlan,
   checkLogins,
   chooseAccount,
+  keepSwapReadings,
   isConfirmed,
   loadRegistry,
   loginAccount,
@@ -67,6 +68,7 @@ const stateWithReadings = (workUsed = 90, spareUsed = 20): string => {
         usedPercent: used,
         resetsAt: "2026-11-05T17:00:00.000Z",
         readAt: AT,
+        source: "worker",
       });
     }
   }
@@ -105,46 +107,40 @@ test("a task's worker starts on the pool account with headroom, and the choice i
     },
   ]);
   expect(rows[0]?.readings).toHaveLength(4);
-  expect(rows[0]?.readings.map((reading) => reading.source)).toEqual(Array(4).fill("reported"));
+  expect(rows[0]?.readings.map((reading) => reading.source)).toEqual(Array(4).fill("worker"));
 });
 
-test("a window past its reset counts as 0 percent, the row records that as assumed, and the next reading replaces it", () => {
+test("a window past its reset is unknown and left out of the row until claude-swap reads it again", () => {
   const state = stateWithReadings(90, 20);
   const request = { task: "t4", agent: "claude", pool: "main", previous: "spare" } as const;
   const afterReset = Date.parse("2026-11-05T18:00:00.000Z");
-  const chosen = chooseAccount(state, registry, request, afterReset);
-  // Both accounts' windows reset at 17:00 after their readings, so both count as unused and the first one listed wins.
-  expect(chosen.ok && chosen.value.ok && chosen.value.account.name).toBe("work");
-  const [row] = switches(state);
-  expect(row?.candidates).toEqual([
-    { account: "work", margin: 92 },
-    { account: "spare", margin: 92 },
-  ]);
-  expect(row?.readings).toContainEqual({
-    account: "work",
-    window: "fiveHour",
-    usedPercent: 0,
-    resetsAt: "2026-11-05T17:00:00.000Z",
-    readAt: AT,
-    source: "assumed-after-reset",
-  });
-  const store = openRunStore(state);
-  if (!store.ok) throw new Error(store.finding.code);
+  chooseAccount(state, registry, request, afterReset);
+  // Both accounts' windows reset at 17:00, after their readings: nothing is known, so the task stays on spare.
+  expect(switches(state)).toMatchObject([{ to: "spare", reason: "no-readings", readings: [] }]);
+  // A window claude-swap has no usable read of is left out.
+  const read = { usedPercent: 70, resetsAt: "2026-11-05T23:00:00+00:00", readAt: "2026-11-05T18:00:00Z" };
+  const windows = [
+    { ...read, window: "fiveHour" },
+    { ...read, window: "sevenDay" },
+    { ...read, window: "sevenDay:opus", readAt: null },
+  ] as const;
+  expect(keepSwapReadings(state, "work", windows)).toEqual({ ok: true, value: 2 });
+  chooseAccount(state, registry, { ...request, task: "t5" }, afterReset);
   const next = {
     account: "work",
     usedPercent: 70,
     resetsAt: "2026-11-05T23:00:00.000Z",
     readAt: "2026-11-05T18:00:00.000Z",
+    source: "cswap",
   };
-  for (const window of ["fiveHour", "sevenDay"] as const) store.value.recordReading({ ...next, window });
-  store.value.close();
-  chooseAccount(state, registry, { ...request, task: "t5" }, afterReset);
-  const latest = switches(state)[1];
-  expect(latest?.to).toBe("spare");
-  expect(latest?.readings.filter((reading) => reading.account === "work")).toEqual([
-    { ...next, window: "fiveHour", source: "reported" },
-    { ...next, window: "sevenDay", source: "reported" },
-  ]);
+  expect(switches(state)[1]).toMatchObject({
+    to: "work",
+    reason: "most-headroom",
+    readings: [
+      { ...next, window: "fiveHour" },
+      { ...next, window: "sevenDay" },
+    ],
+  });
 });
 
 test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {

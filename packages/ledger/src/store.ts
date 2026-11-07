@@ -324,6 +324,19 @@ export class RunView {
     return row === undefined ? null : LaunchPlugins.parse(JSON.parse(String(row["plugins"])));
   }
 
+  /** The latest readings; a row the contract refuses, written before a bound or by hand, is left out. */
+  readings(): Reading[] {
+    return this.db
+      .prepare(
+        `SELECT account, "window", usedPercent, resetsAt, readAt, source FROM readings ORDER BY account, "window"`,
+      )
+      .all()
+      .flatMap((row) => {
+        const reading = Reading.safeParse(row);
+        return reading.success ? [reading.data] : [];
+      });
+  }
+
   close(): void {
     this.db.close();
   }
@@ -476,17 +489,6 @@ export class RunStore extends RunView {
         .all(account ?? null, since === undefined ? null : new Date(since).toISOString())
         .map((row) => UsageSample.parse(row))
     );
-  }
-
-  /** The latest readings; a row the contract refuses, written before a bound or by hand, is left out. */
-  readings(): Reading[] {
-    return this.db
-      .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt, source FROM readings ORDER BY account, "window"`)
-      .all()
-      .flatMap((row) => {
-        const reading = Reading.safeParse(row);
-        return reading.success ? [reading.data] : [];
-      });
   }
 
   /** Records a switch of the automation level for running work; it takes effect at each run's next gate. */

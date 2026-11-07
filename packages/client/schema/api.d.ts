@@ -940,6 +940,12 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.project-mismatch";
             params: {
                 runId: string;
@@ -2075,6 +2081,12 @@ export interface components {
             /** @constant */
             code: "run.shell-missing";
             params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
         } | {
             /** @constant */
             code: "run.project-mismatch";

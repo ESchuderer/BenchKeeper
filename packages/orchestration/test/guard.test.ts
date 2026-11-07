@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
 import { guardCommand, type Remotes } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
@@ -14,7 +14,8 @@ const Fixtures = z.object({
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
 const remotes: Remotes = (folder) => {
-  const found = fixtures.remotes[folder];
+  // git -C reaches its folder as the OS does; these fixture folders hold no links.
+  const found = fixtures.remotes[resolve(folder)];
   return found === undefined ? null : new Map(Object.entries(found));
 };
 const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {

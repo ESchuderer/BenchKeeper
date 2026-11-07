@@ -4,7 +4,7 @@ import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
 import { guardCommand, type Remotes } from "./guard.ts";
 
-/** The push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot read them. */
+/** The fetch and push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot read them. */
 export const gitRemotes: Remotes = (folder) => {
   try {
     const listed = execFileSync("git", ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
@@ -14,8 +14,8 @@ export const gitRemotes: Remotes = (folder) => {
       windowsHide: true,
     });
     const remotes = new Map<string, string[]>();
-    for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \(push\)$/gm)) {
-      remotes.set(name, [...(remotes.get(name) ?? []), url]);
+    for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
+      remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
     }
     return remotes;
   } catch {

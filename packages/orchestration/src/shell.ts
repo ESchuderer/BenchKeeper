@@ -1,7 +1,4 @@
-/**
- * A word as the shell passes it: its text when the guard can read all of it (null once an expansion makes it unknown),
- * and its literal start, which is all of it for a read word.
- */
+/** A word as the shell passes it: its text, null once an expansion makes it unknown, and its literal start. */
 export interface Word {
   readonly text: string | null;
   readonly start: string;
@@ -12,12 +9,7 @@ export interface Command {
   readonly words: Word[];
 }
 
-/**
- * The simple commands a text runs, those inside command substitutions too. `skipped`: the text holds a form outside the
- * guard's grammar, which may hide a command (A79): a subshell, a `{ ...; }` group, a function, `case`, `select` or
- * `coproc`, a process substitution, backquotes, arithmetic holding a command, zsh's `(` after a word or `${(` flags, or
- * text it cannot split (an unclosed quote, substitution or heredoc).
- */
+/** The simple commands a text runs, those in `$(...)` too; `skipped`: it holds a form outside the grammar (A79). */
 export interface Script {
   readonly commands: Command[];
   readonly skipped: boolean;
@@ -117,8 +109,7 @@ class Reader {
     this.#i = this.#text.length;
   }
 
-  // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word. A bare `{` or `}` opens
-  // or closes a group, in zsh after a condition too.
+  // Digits before a redirection name a file descriptor; a bare `{` or `}` is a group's, in zsh after a condition too.
   #push(command: Command): void {
     const built = this.#word();
     const word = built.word();
@@ -134,15 +125,14 @@ class Reader {
     if (command.words.length === 0) return;
     const first = command.words.find(({ text }) => !RESERVED.has(text ?? ""))?.text ?? "";
     const texts = command.words.map(({ text }) => text);
-    // bash's `for x do` needs no `;` before `do`, and zsh's short `if [[ ... ]] cmd` none before its body: both hide it.
+    // bash's `for x do` and zsh's short `if [[ ... ]] cmd` need no `;` before the body, which then hides in the words.
     if (OUTSIDE.has(first) || (first === "for" && texts.includes("do")) || texts.slice(0, -1).includes("]]")) {
       this.#outside();
     }
     this.commands.push(command);
   }
 
-  // A character that ends the command: a newline (then its heredocs follow), `;`, `&` or `|`. A `)` with no `(` is a
-  // case pattern's or a stray one.
+  // A newline (then its heredocs follow), `;`, `&` or `|` ends the command; a `)` with no `(` is a case pattern's.
   #separate(c: string): boolean {
     if (c === "\n") {
       this.#i += 1;
@@ -159,9 +149,7 @@ class Reader {
     return true;
   }
 
-  // Blanks, line continuations, comments and redirections: whatever is no word of the command. A `(` opens a subshell,
-  // a function's parameters, a case pattern or a zsh glob qualifier, all outside the grammar. True when it took the
-  // character.
+  // A blank, a comment or a redirection is no word; a `(` opens a subshell, function, case pattern or glob qualifier.
   #space(c: string): boolean {
     if (this.#blank(c)) return true;
     if (c === "#") {
@@ -181,8 +169,7 @@ class Reader {
     return blank;
   }
 
-  // A redirection: its target word is no argument, and a heredoc's body is read after the line ends. `<(` and `>(`
-  // start a process substitution, outside the grammar.
+  // A redirection's target is no argument; a heredoc's body follows the line; `<(` and `>(` substitute a process.
   #redirect(): void {
     const op = REDIRECT.exec(this.#text.slice(this.#i, this.#i + 3))?.[0] ?? "<";
     if (/^[<>]$/.test(op) && this.#peek(1) === "(") {
@@ -293,8 +280,7 @@ class Reader {
     word.add(special === null || special.includes(c) ? c : `\\${c}`);
   }
 
-  // `$`: a parameter, a command or arithmetic substitution, or (outside double quotes) `$'...'` and `$"..."`; each
-  // makes the word unknown.
+  // `$` starts an expansion, which makes the word unknown; outside double quotes also `$'...'` and `$"..."`.
   #dollar(word: Builder, inQuotes: boolean): void {
     const c = this.#peek();
     const name = this.#parameter(c);
@@ -308,8 +294,7 @@ class Reader {
     if (opens) this.#expansion(c);
   }
 
-  // The name of a parameter right after a `$`: a word, a digit or a special one such as `$?`; zsh's `$=`, `$~`, `$^`
-  // and `$+` expand the name after them.
+  // A parameter after `$`: a name, a digit or a special one such as `$?`, and zsh's `$=`, `$~`, `$^` and `$+`.
   #parameter(c: string): string {
     return NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!=~^+-]$/.test(c) ? c : "");
   }
@@ -323,8 +308,7 @@ class Reader {
     else if (c === '"') this.#doubleQuoted(new Builder(), '"');
   }
 
-  // `$((...))`: arithmetic, read when it holds no command. bash and zsh run `$((cmd) )`, whose inner `)` is not followed
-  // by the outer one, as a command substitution.
+  // Arithmetic holding no command; bash and zsh run `$((cmd) )`, its inner `)` not followed by `)`, as a substitution.
   #arithmetic(): void {
     const from = this.#i;
     let depth = 0;
@@ -338,8 +322,7 @@ class Reader {
     this.#i += 1;
   }
 
-  // `${...}`: unknown, but a substitution inside it still runs, and its quotes hold `}` and `{`. zsh's parameter flags,
-  // `${(e)...}` among them, can run what they expand.
+  // `${...}` holds substitutions and quotes; zsh's flags, `${(e)...}` among them, can run what they expand.
   #braced(): void {
     if (this.#peek() === "(") this.#outside();
     let depth = 1;

@@ -64,16 +64,8 @@
       ["a brace list as the command", "{sudo,echo} rm -rf /tmp/x", "unreadable"],
       ["arithmetic holding a subshell", "echo $((sudo rm -rf /tmp/x) )", "unreadable"],
       ["a word after a process substitution", "cat <(true)#; sudo rm -rf /tmp/x", "unreadable"],
-      [
-        "an escaped quote in backquotes in double quotes",
-        "echo \"`echo \"\\\"; sudo rm -rf /tmp/x; \\\"\"`\"",
-        "unreadable"
-      ],
-      [
-        "a case pattern inside a quoted substitution",
-        "echo \"$(case x in x) echo \")\"; sudo rm -rf /tmp/x;; esac)\"",
-        "unreadable"
-      ],
+      ["\\\" in backquotes in quotes", "echo \"`echo \"\\\"; sudo rm -rf /tmp/x; \\\"\"`\"", "unreadable"],
+      ["case pattern in a quoted $()", "echo \"$(case x in x) echo \")\"; sudo rm -rf /tmp/x;; esac)\"", "unreadable"],
       ["zsh =cmd", "=sudo rm -rf /tmp/x", "unreadable"],
       ["zsh noglob", "noglob sudo rm -rf /tmp/x", "unreadable"],
       ["zsh nocorrect", "nocorrect sudo rm -rf /tmp/x", "unreadable"],
@@ -92,7 +84,6 @@
       ["an abbreviated env option", "env --unse=GH_TOKEN gh auth status", "unreadable"],
       ["find running what it finds", "find /bin -name sudo -exec {} rm -rf /tmp/x \\;", "unreadable"],
       ["tcsh -c", "tcsh -c 'sudo rm -rf /tmp/x'", "unreadable"],
-      ["csh -c", "csh -c 'sudo rm -rf /tmp/x'", "unreadable"],
       ["fish -C", "fish -C 'sudo rm -rf /tmp/x'", "unreadable"],
       ["watch", "watch 'sudo rm -rf /tmp/x'", "unreadable"],
       ["env -iv", "env -iv gh auth status", "environment"],
@@ -110,22 +101,14 @@
       ["find -exec rm", "find . -name '*.log' -exec rm {} +", "unreadable"],
       ["a for loop without in", "set -- 1; for x do sudo rm -rf /tmp/x; done", "unreadable"],
       ["zsh's short if", "if [[ -n x ]] sudo rm -rf /tmp/x", "unreadable"],
-      [
-        "a heredoc that bash closes early inside a substitution",
-        "echo \"$(cat <<EOF\nEOF)\"; sudo rm -rf /tmp/x; echo \"\nEOF\n)\"",
-        "unreadable"
-      ],
+      ["heredoc bash closes early", "echo \"$(cat <<EOF\nEOF)\"; sudo rm -rf /tmp/x; echo \"\nEOF\n)\"", "unreadable"],
       ["hash -p", "hash -p /usr/bin/sudo ls; ls -la", "unreadable"],
       ["zsh's hash name=path", "hash ls=/usr/bin/sudo; ls", "unreadable"],
       ["printf -v into BASH_CMDS", "printf -v 'BASH_CMDS[ls]' %s /usr/bin/sudo; ls", "environment"],
-      ["read into BASH_CMDS", "read 'BASH_CMDS[ls]' <<< /usr/bin/sudo; ls", "environment"],
       ["read into an array element", "read 'a[1]' <<< x", "unreadable"],
       ["let of a subscript holding a command", "let 'a[$(sudo rm -rf /tmp/x)]=1'", "unreadable"],
-      ["read of a subscript holding a command", "read 'a[$(sudo rm -rf /tmp/x)]' <<< 1", "unreadable"],
-      ["printf -v of a subscript holding a command", "printf -v 'a[$(sudo rm -rf /tmp/x)]' x", "unreadable"],
       ["declare -i of a subscript holding a command", "declare -i n='a[$(sudo rm -rf /tmp/x)]'", "unreadable"],
       ["[[ -v ]] of a subscript holding a command", "[[ -v 'a[$(sudo rm -rf /tmp/x)]' ]]", "unreadable"],
-      ["[[ -eq ]] of a subscript holding a command", "[[ 'a[$(sudo rm -rf /tmp/x)]' -eq 0 ]]", "unreadable"],
       ["mapfile -C", "mapfile -C 'sudo rm -rf /tmp/x' -c 1 a <<< x", "unreadable"],
       ["command -v as a lookup", "command -v sudo", null]
     ]

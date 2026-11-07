@@ -69,7 +69,7 @@ const SETTERS = new Set([...EXPORTS, "read", "printf", "mapfile", "readarray"]);
 
 const EMPTY: Word = { text: "", start: "" };
 const known = (text: string): Word => ({ text, start: text });
-// A program by the name it runs under: its file name, folded as APFS and Windows fold names (NFKC, lower case), no .exe.
+// A program by the name it runs under: its file name, folded as APFS and Windows fold it (NFKC, lower case), no .exe.
 const programOf = (word: string): string => {
   const name = word.normalize("NFKC");
   return name
@@ -78,10 +78,7 @@ const programOf = (word: string): string => {
     .replace(/\.exe$/, "");
 };
 
-/**
- * Whether the guard refuses the shell command `text`, and why; null to let it run. It reads simple commands, pipelines,
- * lists, quotes, `$(...)`, heredocs and if, for, while and until, and refuses every other form (A79).
- */
+/** Whether the guard refuses the shell command `text`, and why; null to let it run. */
 export const guardCommand = (text: string): Denial | null => {
   const script = readShell(text);
   if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
@@ -98,8 +95,6 @@ export const guardCommand = (text: string): Denial | null => {
 interface Unwrapped {
   words: Word[];
   prefix: Word[];
-  // xargs adds words it reads; env -i or exec -c clears the environment; env -u unsets variables; command -v only looks
-  // the name up; an option the guard does not know may take the command word as its value.
   appended: boolean;
   lookup: boolean;
   cleared: boolean;
@@ -137,8 +132,7 @@ interface Option {
   readonly next?: boolean;
 }
 
-// The options an option word holds: a flag, an option that takes the next word, a long option with its =value, or a
-// cluster of short flags; null for one the guard does not know.
+// The options a word holds (a flag, a valued option, --name=value, a cluster); null for one the guard does not know.
 const optionsOf = ({ text: option }: Word, next: Word | undefined, spec: Options): Option[] | null => {
   if (option === null) return null;
   if (spec.flags.has(option)) return [{ name: option }];
@@ -200,8 +194,7 @@ const wrapperOptions = (
   return i;
 };
 
-// What an option of env, exec or command does: clearing the environment (env -i, exec -c), unsetting a variable
-// (env -u), or a lookup that runs nothing (command -v).
+// env -i and exec -c clear the environment, env -u unsets a variable, command -v only looks a name up.
 const noteOption = (wrapperName: string, { name, value }: Option, found: Unwrapped): void => {
   if (wrapperName === "exec" && name === "-c") found.cleared = true;
   if (wrapperName === "command" && (name === "-v" || name === "-V")) found.lookup = true;
@@ -282,8 +275,7 @@ const variableWords = (name: string, args: readonly Word[]): Word[] => {
   return args.filter(({ start }, i) => !start.startsWith("-") && !/^-\w*[dinNptu]$/.test(args[i - 1]?.start ?? ""));
 };
 
-// export, read, printf -v and the like: naming a protected variable refuses, as does a name the guard cannot read or an
-// array element, whose subscript bash may run; so does mapfile's callback (-C).
+// A setter refuses on a protected or unknown name, or an array element, whose subscript bash may run; mapfile on -C.
 const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
   if (/^(?:mapfile|readarray)$/.test(name) && args.some(({ start }) => /^-[^-]*C/.test(start))) {
     return unreadable(`${name} -C runs a command the guard does not read`);
@@ -297,8 +289,7 @@ const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
   return unknown ? unreadable(`${name} names a variable the guard cannot read`) : null;
 };
 
-// What a shell option does: makes the shell read its script from stdin (-s, `-`) or from a word (-c, fish's -C), takes
-// the next word (-o and the like), or nothing; null for a word that is no option.
+// A shell option: the script from stdin (-s) or a word (-c, fish's -C), a value next (-o), or a flag; null for none.
 const shellOption = (name: string, text: string): "value" | "stdin" | "command" | "flag" | null => {
   if (/^-(?:[A-Za-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
   if (
@@ -323,8 +314,7 @@ const runsFile = (name: string, args: readonly Word[]): boolean => {
   return false;
 };
 
-// A shell or source runs a script file, which the guard does not read; a script from -c, a pipe, a heredoc or a word it
-// cannot read refuses.
+// A shell or source may run a script file, which the guard does not read; any other script refuses.
 const checkShell = (name: string, args: readonly Word[]): Denial | null => {
   const file = name === "source" || name === "." ? runsFile(name, args.slice(0, 1)) : runsFile(name, args);
   return file ? null : unreadable(`${name} runs a script the guard does not read`);

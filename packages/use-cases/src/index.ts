@@ -1,9 +1,19 @@
+export { type Bundled, bundledExtensions, extensionToStart, planSwitch, type Startable } from "./bundled.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
-export { openVersion, planSave, type SavePlan, type StoredVersion, storeHistory } from "./store.ts";
+export {
+  type ExportPlan,
+  openVersion,
+  planExport,
+  planSave,
+  type SavePlan,
+  type StoredVersion,
+  storeHistory,
+} from "./store.ts";
 export {
   approvalOf,
   type Capabilities,
   type Fetch,
+  type Installed,
   type InstallPlan,
   installedExtensions,
   planInstall,
@@ -71,9 +81,3 @@ export {
   showGraphRun,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export {
-  startTelemetry,
-  type TelemetryReceiver,
-  type TelemetryRun,
-  tokenRowsOf,
-} from "./telemetry.ts";

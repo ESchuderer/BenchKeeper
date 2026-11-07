@@ -44,7 +44,7 @@ import { mask, maskStream, shown } from './redact.mjs';
 import { bundleEdits, editFor, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { containerProjects, levelFor } from './level.mjs';
 import { LEVELS, declineUnselected, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, commitsAgentsMd, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, tryState } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, tryState } from './steps/project.mjs';
 
 const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -438,7 +438,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
-      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), agentsMd: commitsAgentsMd(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
+      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
         packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), sources: sourceRows() };
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
@@ -449,7 +449,7 @@ export function api(ctx) {
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, level: levelFor(ctx, agents.map((a) => a.id)), advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
-        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : s.agentsMd ? 'commits AGENTS.md, so its setup is shared: set it up from its row, In the repository' : null);
+        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
         return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
       }) };
     },

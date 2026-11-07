@@ -52,11 +52,13 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community ski
   assert.match(prompts[0].prompt, /setting-up-projects/);
 });
 
-test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md carries it, git ignores it all; a committed AGENTS.md makes it shared', () => {
+test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md carries it, git ignores it all, a warning names the committed AGENTS.md; shared moves it back', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
-  appendFileSync(join(r.dir, '.git/info/exclude'), 'AGENTS.md\n');
-  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'agents');
+  const { changes, warnings } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
+  assert.ok(warnings.includes("this repository commits AGENTS.md and the setup stays local; Claude Code reads AGENTS.md next to the BenchKeeper block of CLAUDE.local.md; Codex reads AGENTS.override.md instead, with a copy of AGENTS.md that only projects apply in this checkout rebuilds; --share would commit the block into the repository's AGENTS.md"), warnings.join('\n'));
   assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) }).status, 'done');
   assert.equal(read(join(r.dir, 'AGENTS.md')), '# Project\n\nmy notes\n');
   assert.ok(!existsSync(join(r.dir, 'CLAUDE.md')));
@@ -69,9 +71,6 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   for (const p of ['/.benchkeeper/', '/CLAUDE.local.md', '/AGENTS.override.md', '/.claude/skills/designing-technical-uis/', '/.agents/skills/designing-technical-uis/']) assert.ok(exclude.includes(`\n${p}\n`), p);
   assert.equal(r.git('status', '--porcelain').toString(), '');
 
-  r.git('add', '-f', 'AGENTS.md');
-  r.git('commit', '-qm', 'agents');
-  assert.throws(() => plan(r, {}), /commits AGENTS\.md, so its setup is shared: benchkeeper projects apply --share/);
   apply(preview(plan(r, { share: true }).changes), r.ctx, { scope: r.dir });
   assert.match(read(join(r.dir, 'AGENTS.md')), /- Default tier: quick/);
   assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');

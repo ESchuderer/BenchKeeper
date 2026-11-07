@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, unshare, updateAll } from '../src/projects.mjs';
+import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -313,7 +313,7 @@ test('Update all pushes nothing and opens no pull request, also for a GitHub ori
   assert.deepEqual([again.status, again.push], ['current', r.push]);
 });
 
-test('an untracked local setup with a newer shared one on origin: Update all stops, since the repository commits AGENTS.md, and runs no gh', async () => {
+test('an untracked local setup with a newer shared one on origin: Update all applies it in the checkout and runs no gh', async () => {
   const h = home();
   const p = project(h);
   const other = cloneOrigin(p);
@@ -336,8 +336,7 @@ test('an untracked local setup with a newer shared one on origin: Update all sto
   const [listed] = await api(ctx)['GET /api/projects']();
   assert.equal(listed.share, true);
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'stopped');
-  assert.match(r.reason, /commits AGENTS\.md, so its setup is shared: benchkeeper projects apply --share/);
+  assert.ok(['applied', 'current'].includes(r.status), r.reason);
   assert.deepEqual(calls, []);
 });
 
@@ -542,22 +541,6 @@ test('projects unshare: a commit without the committed setup on a local branch; 
   // A local Update all run changed the checkout itself, so it can be undone.
   assert.equal(undo(r.run, context({ home: h, roots: [h, p.dir] })).status, 'done');
   assert.ok(!existsSync(join(p.dir, 'CLAUDE.local.md')));
-});
-
-test('projects unshare refuses a setup whose committed AGENTS.md has text of its own: the file stays, so the setup stays shared', () => {
-  const h = home();
-  const p = project(h);
-  writeFileSync(join(p.dir, 'AGENTS.md'), `## Commands\n\n- make test\n\n${readFileSync(join(p.dir, 'AGENTS.md'), 'utf8')}`);
-  oldSetup(p);
-  const ctx = context({ home: h });
-  addProject(ctx, p.dir);
-  const r = unshare(ctx, p.dir);
-  assert.equal(r.status, 'stopped');
-  assert.equal(r.reason, `${p.dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share moves the block from CLAUDE.local.md into AGENTS.md`);
-  // Update all starts the unshare of a local setup git still tracks, and stops with it; the doctor names --share too.
-  assert.equal(updateAll(ctx, { paths: [p.dir] })[0].reason, r.reason);
-  assert.equal(projectChecks(ctx, p.dir).find((i) => /still has it committed/.test(i.message)).fix, 'benchkeeper projects apply --share: the repository commits AGENTS.md, so the setup stays shared');
-  assert.equal(p.git('branch', '--list', 'chore/agent-setup-local'), '');
 });
 
 test('unshare keeps the answers first, and a run whose commit fails keeps them too', () => {

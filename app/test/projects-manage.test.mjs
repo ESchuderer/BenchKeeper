@@ -1,7 +1,7 @@
 // Managing the project list: duplicates, display name and notes, relocate, a missing folder, and Remove BenchKeeper setup.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -25,11 +25,9 @@ const repo = (name = 'bk-repo-') => {
 };
 const OWN = '# Mine\n\nRun the tests with make.\n';
 // A project with its own AGENTS.md text, docs/agents/, a dev container and an own skill, set up locally for two agents.
-// Local: git ignores AGENTS.md, since a committed one makes the setup shared.
 function localProject(h, answers = {}) {
   const p = repo();
   writeFileSync(join(p.dir, 'AGENTS.md'), OWN);
-  if (!answers.share) appendFileSync(join(p.dir, '.git/info/exclude'), '/AGENTS.md\n');
   mkdirSync(join(p.dir, 'docs/agents'), { recursive: true });
   writeFileSync(join(p.dir, 'docs/agents/issue-tracker.md'), 'tracker\n');
   mkdirSync(join(p.dir, '.devcontainer'));

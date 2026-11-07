@@ -253,7 +253,7 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
 // machine account's variables, or the user's own over them, in the local settings; Claude Code only), workflowLoad (default true: the
 // rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
-// repository; otherwise (the default) it stays on this machine, in files git ignores (refused when the repository commits AGENTS.md).
+// repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], fileOn = [], fileOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, machine: prev.machine ?? null, workflowLoad: prev.workflowLoad ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
@@ -322,12 +322,15 @@ export function suggest(dir) {
 
 // True when git tracks the state file: a setup committed in the repository.
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
-// True when git tracks AGENTS.md: the project's agent manual is committed, so its setup is shared.
-export const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md';
-// True when the setup can only be shared: AGENTS.md is committed with text of the project's own, which a removal of the
-// committed setup (projects unshare) keeps.
-export const staysShared = (ctx, dir) => commitsAgentsMd(ctx, dir) && handWritten(dir).trim() !== '';
-export const shareOnly = (dir) => `${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share moves the block from ${LOCAL_CLAUDE} into AGENTS.md`;
+// True when git tracks AGENTS.md: the repository commits an agent manual of its own (a third-party one, for example).
+const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md';
+// What a local setup beside a committed AGENTS.md means for the chosen agents; the setup goes on.
+const besideCommitted = (agents) => [
+  'this repository commits AGENTS.md and the setup stays local',
+  agents.includes('claude') && `Claude Code reads AGENTS.md next to the BenchKeeper block of ${LOCAL_CLAUDE}`,
+  agents.includes('codex') && `Codex reads ${OVERRIDE} instead, with a copy of AGENTS.md that only projects apply in this checkout rebuilds`,
+  '--share would commit the block into the repository\'s AGENTS.md',
+].filter(Boolean).join('; ');
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
@@ -415,7 +418,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const dc = offered[0];
 
   // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
-  // a CLAUDE.md that imports it. Local (only in a repository that commits no AGENTS.md): CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
+  // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so its
   // block carries AGENTS.md's text too and is rebuilt from it on every apply; the user's lines around it stay).
   const rules = readFileSync(join(contentDir, 'rules/project.md'), 'utf8').split('\n').filter((l) => a.workflowLoad || !l.includes('`benchkeeper:workflow`')).join('\n');
@@ -430,10 +433,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   } else {
     // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
     // the block twice and change tracked files.
-    // A committed AGENTS.md is the project's agent manual: the block belongs in it, not in files beside it on one machine.
-    if (staysShared(ctx, dir)) throw new Error(shareOnly(dir));
     if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
-    if (commitsAgentsMd(ctx, dir)) throw new Error(shareOnly(dir));
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();
@@ -743,7 +743,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev }), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev }), ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

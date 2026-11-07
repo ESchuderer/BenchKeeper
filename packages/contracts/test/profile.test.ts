@@ -156,7 +156,7 @@ test.for<[string, (string | number)[], unknown, unknown]>([
   expect(outcome(readProfile(set(defaults, path, value)))).toEqual(expected);
 });
 
-// Claude Code's settings, MCP lists and Git's folder in every spelling a file system would read as them.
+// Claude Code's settings, MCP lists, Git's folder and CedarLoom's record in every spelling a file system would read as them.
 test.for([
   ".claude/settings.json",
   "sub/.claude/settings.local.json",
@@ -168,6 +168,8 @@ test.for([
   ".git./hooks/pre-commit",
   "AGENTS.md",
   "claude.local.md",
+  ".cedarloom/profile-files.json",
+  "sub/.CedarLoom/profile-files.json",
 ])("a files part may not write %s", (target) => {
   const changed = set(defaults, ["project", "agent-docs", "files", target], { inline: "{}" });
   expect(outcome(readProfile(changed))).toEqual([`project.agent-docs.files.${target}`]);

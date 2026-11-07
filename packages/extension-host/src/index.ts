@@ -1,3 +1,4 @@
+export { programFound } from "./exec.ts";
 export type { Credentials, CredentialValue } from "./fetch.ts";
 export {
   type ExtensionLaunch,

@@ -111,8 +111,12 @@ export {
   skillFolder,
 } from "./pack.ts";
 export {
+  FILES_RECORD,
+  FILES_SCHEMA_VERSION,
+  PackRef,
   Profile,
   PROFILE_SCHEMA_VERSION,
+  ProfileFiles,
   ProfileFile,
   ProfileSelection,
   readProfile,

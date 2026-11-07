@@ -13,8 +13,9 @@ const issues = z.array(z.strictObject({ path: z.string(), code: z.string() }));
 export const Finding = z
   .discriminatedUnion("code", [
     finding("document.unreadable", { path: z.string(), error: z.string() }),
-    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
-    finding("document.invalid", { issues }),
+    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion, path: z.string().optional() }),
+    // `path`, here and above, names the file when the reader knows it.
+    finding("document.invalid", { issues, path: z.string().optional() }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
     finding("plan.path-not-absolute", { path: z.string() }),
     finding("plan.not-a-file", { path: z.string(), error: z.string() }),
@@ -236,8 +237,13 @@ export const Finding = z
     finding("profile.extra", { item: z.string() }),
     // An `apply --remove` item the plan does not offer.
     finding("profile.remove-unknown", { item: z.string() }),
+    // A `profiles init` target that holds a file, which may be a profile the owner edited, or is the selection file.
+    finding("profile.copy-exists", { path: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
+    // A part the selection switches on that stays off while its condition fails: for `orca`, the Orca extension is
+    // switched off or no orca program is found.
+    finding("profile.when-unmet", { part: z.string(), when: z.enum(["orca"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -422,8 +428,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.binding-waiting": { severity: "info", effort: "command" },
+  "profile.when-unmet": { severity: "warning", effort: "command" },
   "profile.drift": { severity: "warning", effort: "command" },
   "profile.remove-unknown": { severity: "error", effort: "manual" },
+  "profile.copy-exists": { severity: "error", effort: "manual" },
   "profile.extra": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },

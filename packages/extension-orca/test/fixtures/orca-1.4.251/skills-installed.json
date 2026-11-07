@@ -1,0 +1,43 @@
+{
+  "id": "local-skills",
+  "ok": true,
+  "result": {
+    "skills": [
+      {
+        "id": "39a1cfacbb1644e2",
+        "name": "orca-cli",
+        "description": "Operate Orca-managed worktrees, folder contexts, terminals, repos, automations, worktree comments, and Orca's embedded browser through the `orca` CLI. Use when the user says \"$orca-cli\", \"Orca worktree\", \"child worktree\", \"spawn codex/claude in a worktree\", \"read/wait/send Orca terminal\", \"handoff\" / \"handover\" / \"give this to another agent\", or \"Orca browser\". Prefer it over raw git worktree, ad hoc PTYs, or Computer Use when Orca state is involved. Use Computer Use only when a visible window needs GUI control that a CLI, filesystem, or API cannot do.",
+        "providers": ["agent-skills", "claude"],
+        "sourceKind": "home",
+        "sourceLabel": "Agent skills home"
+      },
+      {
+        "id": "2c281ff13441d4b2",
+        "name": "orchestration",
+        "description": "Run work in separate Orca worker agents and get their results back. Use when the user asks for Orca workers or supervision (monitor, task DAGs, ask/reply, decision gates), or when the work needs something your own subagents cannot give: a different agent (such as Codex from Claude) or its own Orca workspace. \"Have Codex (or Claude) review this and report back\" means an Orca worker of that agent, even when you have your own model subagents. Also use when you are a dispatched worker (a prompt with Task and Dispatch IDs: ask, worker_done). Otherwise prefer your own subagents, including for long or parallel work. Use `orca-cli` to hand work off with nothing expected back (\"hand off\", \"handover\", \"give this to another agent\", \"another worktree\"), and for terminal control, shell commands, worktree management, and reading or waiting on terminals.",
+        "providers": ["agent-skills", "claude"],
+        "sourceKind": "home",
+        "sourceLabel": "Agent skills home"
+      },
+      {
+        "id": "d416a2841cb78a86",
+        "name": "tdd",
+        "description": "Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions \"red-green-refactor\", or wants integration tests.",
+        "providers": ["claude"],
+        "sourceKind": "plugin",
+        "sourceLabel": "Claude plugin mattpocock-skills"
+      },
+      {
+        "id": "895dec94f358111a",
+        "name": "ask-matt",
+        "description": "Ask which skill or flow fits your situation. A router over the skills in this repo.",
+        "providers": ["codex", "agent-skills"],
+        "sourceKind": "plugin",
+        "sourceLabel": "Codex plugin cache"
+      }
+    ]
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000001"
+  }
+}

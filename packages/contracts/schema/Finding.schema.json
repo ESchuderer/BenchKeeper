@@ -47,6 +47,9 @@
             },
             "known": {
               "$ref": "SchemaVersion.schema.json"
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
@@ -90,6 +93,9 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
@@ -3891,6 +3897,32 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.copy-exists"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.binding-waiting"
         },
         "params": {
@@ -3909,6 +3941,39 @@
           "required": [
             "part",
             "binding"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.when-unmet"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "when": {
+              "type": "string",
+              "enum": [
+                "orca"
+              ]
+            }
+          },
+          "required": [
+            "part",
+            "when"
           ],
           "additionalProperties": false
         }

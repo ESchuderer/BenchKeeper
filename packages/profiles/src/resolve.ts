@@ -17,7 +17,7 @@ import { errorCode } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 
 type Ref = { pack: string; path: string };
-const LEVELS = ["machine", "workspace", "project"] as const;
+export const LEVELS = ["machine", "workspace", "project"] as const;
 
 /** The profile of a machine without a selection file: the default of the bundled core pack. */
 export const DEFAULT_PROFILE: Ref = { pack: "cedarloom.core", path: "profiles/default.json" };
@@ -84,6 +84,12 @@ const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManife
   return json.ok ? readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value) : json;
 };
 
+/** A pack as `id@version` by its manifest, the id alone for a pack without one here. */
+export const packVersion = (pack: string, folder: Folder | undefined): string => {
+  const manifest = manifestOf(pack, folder);
+  return manifest.ok && manifest.value !== null ? `${pack}@${manifest.value.version}` : pack;
+};
+
 /** The manifest's entry for a reference, only as an entry of that kind; a pack without a folder lists none. */
 export const entryOf = (ref: Ref, kind: EntryKind, folder?: Folder): Result<Entry> => {
   const manifest = manifestOf(ref.pack, folder);
@@ -142,26 +148,32 @@ const loadParent: LoadParent = (parent) => {
   return !json.ok && json.finding.code === "profile.entry-unknown" ? undefined : json;
 };
 
+// The JSON of the profile file a selection names: a pack's entry, or a file of the owner's.
+const profileJson = (profile: ProfileSelection["profile"]): Result<unknown> =>
+  "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
+
 // The selected profile file as JSON, and whether it ships in this release; the default without a selection.
 const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; bundled: boolean }> => {
-  const json = "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
+  const json = profileJson(profile);
   return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 
 /**
  * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, the `auto`
- * parts that wait for that source, and what keeps it from applying.
+ * parts that wait for that source, the parts selected on that stay off without Orca, and what keeps it from applying.
  */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
   readonly hub: string | undefined;
   readonly gates: string | undefined;
   readonly unbound: readonly string[];
+  readonly unmet: readonly string[];
   readonly problems: Finding[];
 }
 
 type Part = Profile["machine"][string] | Profile["workspace"][string] | Profile["project"][string];
-const partsOf = (profile: Profile): [string, Part][] =>
+/** Each part of a profile by its key `level.id`. */
+export const partsOf = (profile: Profile): [string, Part][] =>
   LEVELS.flatMap((level) =>
     Object.entries(profile[level]).map(([id, part]): [string, Part] => [`${level}.${id}`, part]),
   );
@@ -204,13 +216,26 @@ const composedOf = (selection: ProfileSelection | null, app: string): Result<Com
   return composed;
 };
 
+/** A profile file composed with its parents, only to read: a pack's entry or a file of the owner's, whatever its `minApp`. */
+export const composedProfile = (profile: ProfileSelection["profile"]): Result<Profile> => {
+  const json = profileJson(profile);
+  if (!json.ok) return json;
+  const composed = composeProfile(json.value, loadParent);
+  return composed.ok ? { ok: true, value: composed.value.profile } : composed;
+};
+
+// An Orca part is on only while Orca is here, also when selected: Orca material is there only while its extension is
+// on (hub issue 146). Selecting a dev container part on still adds a container.
 const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, probe: (when: Probe) => boolean) =>
-  new Set([...parts].filter(([key, part]) => select[key] ?? defaultOn(part, probe)).map(([key]) => key));
+  new Set(
+    [...parts]
+      .filter(([key, part]) => (select[key] ?? defaultOn(part, probe)) && (part.when !== "orca" || probe("orca")))
+      .map(([key]) => key),
+  );
 
 /**
  * The profile the selection names (the bundled default without one), composed with its parents, and its parts switched
- * on: the selection's choice, else the part's default, an `auto` part's by its probe. shortcut: no Orca probe runs, so
- * a part `auto` with Orca is on only when selected; upgrade once Orca names its worktrees in a documented way.
+ * on: the selection's choice, else the part's default, an `auto` part's by its probe; an Orca part only with Orca.
  */
 export const resolveProfile = (
   selection: ProfileSelection | null,
@@ -227,6 +252,7 @@ export const resolveProfile = (
   const unbound = [...parts]
     .filter(([key, part]) => part.when === "gates" && select[key] === undefined && !on.has(key))
     .map(([key]) => key);
+  const unmet = [...parts].filter(([key]) => select[key] === true && !on.has(key)).map(([key]) => key);
   const problems = problemsOf(parts, on, selection);
-  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, problems } };
+  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, unmet, problems } };
 };

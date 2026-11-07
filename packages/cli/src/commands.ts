@@ -6,6 +6,7 @@ import {
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
+  type PackRef,
   severityOf,
   type Plan,
   type PlanPreview,
@@ -166,7 +167,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
   const [logins, own, profile] = await Promise.all([
     useCases.checkLogins(ctx.state, ctx.config, host),
     useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
-    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch),
+    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), { app: ctx.app, fetch: ctx.io.fetch }),
   ]);
   const findings = [
     ...useCases.doctor(ctx.state),
@@ -183,7 +184,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // expected document 65, a rule 1.
 export const refused = (
   ctx: Context,
-  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
+  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "profile-diff" | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
@@ -629,7 +630,7 @@ export const profilesApply = async (
   ctx: Context,
   { yes, allow = [], project, remove = [] }: { yes?: true; allow?: string[]; project?: string; remove?: string[] },
 ): Promise<number> => {
-  const options = { allow, fetch: ctx.io.fetch, project, remove };
+  const options = { allow, app: ctx.app, fetch: ctx.io.fetch, project, remove };
   const profile = await useCases.planProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
@@ -653,7 +654,8 @@ export const profilesApply = async (
 
 /** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */
 export const profilesCheck = async (ctx: Context, { project }: { project?: string }): Promise<number> => {
-  const checked = await useCases.checkProfile(ctx.config, ctx.state, machineOf(ctx), { fetch: ctx.io.fetch, project });
+  const options = { app: ctx.app, fetch: ctx.io.fetch, project };
+  const checked = await useCases.checkProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!checked.ok) return refused(ctx, "plan", checked.finding);
   const drift = checked.value;
   const level = project === undefined ? "This machine" : "This project";
@@ -665,3 +667,23 @@ export const profilesCheck = async (ctx: Context, { project }: { project?: strin
 /** Shows a change of this machine's profile selection, or with --yes makes it as one run. */
 export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: { yes?: true }): number =>
   configChange(ctx, useCases.planChoice(ctx.config, choice), yes);
+
+/** Shows copying a pack's profile into a file that this machine's selection then names; with --yes, does it. */
+export const profilesInit = (ctx: Context, file: string, { from, yes }: { from: PackRef; yes?: true }): number =>
+  configChange(ctx, useCases.planProfileCopy(ctx.config, from, file), yes);
+
+const SIGNS = { added: "+", removed: "-", changed: "~" } as const;
+
+/** Lists how this machine's profile differs from a pack's, by field and by part. */
+export const profilesDiff = (ctx: Context, { against }: { against: PackRef }): number => {
+  const diff = useCases.diffProfile(ctx.config, against);
+  if (!diff.ok) return refused(ctx, "profile-diff", diff.finding);
+  const lines = diff.value.map((entry) => `${SIGNS[entry.change]} ${entry.key}`);
+  emit(
+    ctx,
+    "profile-diff",
+    { changes: diff.value },
+    lines.join("\n") || `The profile is the same as ${against.pack}/${against.path}.`,
+  );
+  return EXIT.ok;
+};

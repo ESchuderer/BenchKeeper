@@ -112,3 +112,4 @@ export {
   type ProfilePlan,
   profileDoctor,
 } from "./profiles.ts";
+export { diffProfile, planProfileCopy } from "./profile-copy.ts";

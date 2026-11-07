@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Agent, Commit, GitUrl, WorkflowId } from "@cedarloom/contracts";
+import { Agent, Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
@@ -24,6 +24,8 @@ import {
   profilesApply,
   profilesCheck,
   profilesChoose,
+  profilesDiff,
+  profilesInit,
   runsList,
   runsShow,
   runsUndo,
@@ -69,6 +71,15 @@ const input = (pair: string, inputs: Record<string, string>): Record<string, str
   const at = pair.indexOf("=");
   if (at < 1) throw new InvalidArgumentError("give an input as name=value");
   return { ...inputs, [pair.slice(0, at)]: pair.slice(at + 1) };
+};
+
+// A bundled pack's profile as `pack/path`, split at the first slash.
+const packProfile = (value: string): PackRef => {
+  const at = value.indexOf("/");
+  const ref = PackRef.safeParse({ pack: value.slice(0, at), path: value.slice(at + 1) });
+  if (at < 1 || !ref.success)
+    throw new InvalidArgumentError("give it as pack/path, such as cedarloom.core/profiles/default.json");
+  return ref.data;
 };
 
 const workflowId = (value: string): string => {
@@ -367,6 +378,25 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((binding, repository, options) =>
       done(profilesChoose(ctx(), binding === "hub" ? { hub: repository } : { gates: repository }, options)),
     );
+  profileFiles(profiles, ctx, done);
+};
+
+// The commands for a profile file of the owner's: a copy of a pack's to edit, and how it differs from the pack's.
+const profileFiles = (profiles: Command, ctx: Ctx, done: Done): void => {
+  profiles
+    .command("init")
+    .description("show copying a pack's profile into a file that this machine then applies; with --yes, copy it")
+    .argument("<file>", "the copy, a profile file of your own to edit")
+    .requiredOption("--from <profile>", "a bundled pack's profile as pack/path", packProfile)
+    .option("--yes", "copy the profile and select it as computed now")
+    .action((file, options) => done(profilesInit(ctx(), file, options)));
+  profiles
+    .command("diff")
+    .description(
+      "list how this machine's profile differs from a pack's, by field and part: + added, - removed, ~ changed",
+    )
+    .requiredOption("--against <profile>", "a bundled pack's profile as pack/path", packProfile)
+    .action((options) => done(profilesDiff(ctx(), options)));
 };
 
 const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {

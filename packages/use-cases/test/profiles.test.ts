@@ -551,6 +551,9 @@ test("a dev container part is approved before its Template runs, and writes only
       { home: box.home, user: box.home },
       { fetch: stock, project, allow, template: apply },
     );
+  // A project with a dev container runs no Template and asks for no approval of one.
+  const keptFindings = ok(await run(existing, [])).findings;
+  const keptPlan = ok(await run(existing, ["project.dc"])).plan;
   const waiting = ok(await run(fresh, []));
   const unasked = asked;
   const approved = ok(await run(fresh, ["project.dc"])).plan;
@@ -562,9 +565,10 @@ test("a dev container part is approved before its Template runs, and writes only
     [".devcontainer/devcontainer.json", ".github/dependabot.yml"].map((target) =>
       contentOf(approved, join(fresh, target)),
     ),
-    ok(await run(existing, ["project.dc"])).plan?.operations.some(
-      (op) => "path" in op && op.path.includes(".devcontainer"),
-    ),
+    [
+      keptFindings.some((finding) => "part" in finding.params && finding.params.part === "project.dc"),
+      keptPlan?.operations.some((op) => "path" in op && op.path.includes(".devcontainer")),
+    ],
     ok(await run(fresh, ["project.dc"], async () => "unauthorized")).findings,
   ]).toEqual([
     [
@@ -575,7 +579,7 @@ test("a dev container part is approved before its Template runs, and writes only
     ],
     [undefined, REQUEST],
     ['{ "image": "alpine" }\n', null],
-    false,
+    [false, false],
     [{ code: "profile.template-failed", params }],
   ]);
 });

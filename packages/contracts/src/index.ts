@@ -59,6 +59,7 @@ export {
   GatePoint,
   GraphRun,
   NodeAttempt,
+  PassedGate,
   JournalEvent,
   NodeRun,
   NodeState,
@@ -143,8 +144,11 @@ export {
   HandleType,
   JoinConfig,
   JsonValue,
+  MAX_WORKFLOW_EDGES,
+  MAX_WORKFLOW_NODES,
   semverAbove,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
   WorkflowId,
 } from "./workflow.ts";
+export { Intent, IssueLink, IssueRef, OutboxEntry, RemoteComment } from "./work-items.ts";

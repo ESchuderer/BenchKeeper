@@ -550,10 +550,13 @@ test("a handover stops the running session before it starts the next", async () 
   expect((await events(to)).at(-2)).toMatchObject({ type: "result", ok: true });
 });
 
+// A cancel of a running session that ends what calls it with its own error.
+const failingCancel = async (): Promise<void> => Promise.reject(new Error("the running session was cancelled"));
+
 test("a handover to a bad launch leaves the running session alone", async () => {
-  const from = { events: (async function* () {})(), cancel: vi.fn<() => Promise<void>>(async () => undefined) };
-  await expect(runtime.handover(from, launch({}, { model: "opus" }))).rejects.toThrow("opus");
-  expect(from.cancel).not.toHaveBeenCalled();
+  await expect(
+    runtime.handover({ events: (async function* () {})(), cancel: failingCancel }, launch({}, { model: "opus" })),
+  ).rejects.toThrow("opus");
 });
 
 test("a CLI that exits before it reads the prompt ends with its exit", async () => {

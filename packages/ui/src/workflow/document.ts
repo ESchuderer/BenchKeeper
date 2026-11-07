@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from "@cedarloom/contracts";
+import { MAX_WORKFLOW_EDGES, MAX_WORKFLOW_NODES, type WorkflowDefinition } from "@cedarloom/contracts";
 import { compatibility, endType, NODE_TYPES, own } from "@cedarloom/engine/graph";
 
 type Edge = WorkflowDefinition["edges"][number];
@@ -19,8 +19,6 @@ export type Change =
 
 // Undo steps kept; older ones are dropped.
 const LIMIT = 100;
-// The schema's bounds: an edit that would pass them, or leave no node, is refused.
-const [MAX_NODES, MAX_EDGES] = [1000, 5000];
 
 /** A new workflow: a manual trigger, placed, so that nodes added next to it never move it. */
 export const newWorkflow = (): WorkflowDefinition => ({
@@ -68,7 +66,7 @@ const leads = (workflow: WorkflowDefinition, start: string, goal: string): boole
 export const canConnect = (workflow: WorkflowDefinition, from: From, to: To): boolean => {
   const [source, target] = [endType(workflow, from, "from"), endType(workflow, to, "to")];
   if (source === undefined || target === undefined || compatibility(source, target) === "no") return false;
-  if (workflow.edges.length >= MAX_EDGES) return false;
+  if (workflow.edges.length >= MAX_WORKFLOW_EDGES) return false;
   if ("node" in from && "node" in to && leads(workflow, to.node, from.node)) return false;
   const into = workflow.edges.filter((edge) => sameEnd(edge.to, to));
   return target === "control" ? !into.some((edge) => sameEnd(edge.from, from)) : into.length === 0;
@@ -119,7 +117,8 @@ const remove = (workflow: WorkflowDefinition, nodes: Set<string>, edges: Set<str
 const finite = ({ x, y }: Position): boolean => Number.isFinite(x) && Number.isFinite(y);
 
 const addNode = (workflow: WorkflowDefinition, type: string, position: Position): WorkflowDefinition => {
-  if (workflow.nodes.length >= MAX_NODES || own(NODE_TYPES, type) === undefined || !finite(position)) return workflow;
+  if (workflow.nodes.length >= MAX_WORKFLOW_NODES || own(NODE_TYPES, type) === undefined || !finite(position))
+    return workflow;
   const id = freeId(workflow, `${type.replaceAll(/[./]/g, "-")}-`);
   return withPositions({ ...workflow, nodes: [...workflow.nodes, { id, type }] }, { [id]: position });
 };
@@ -143,8 +142,8 @@ const connect = (workflow: WorkflowDefinition, from: From, to: To): WorkflowDefi
 // A workflow the editor may hold: nodes within the schema's bounds and positions it can write.
 const fits = (workflow: WorkflowDefinition): boolean =>
   workflow.nodes.length > 0 &&
-  workflow.nodes.length <= MAX_NODES &&
-  workflow.edges.length <= MAX_EDGES &&
+  workflow.nodes.length <= MAX_WORKFLOW_NODES &&
+  workflow.edges.length <= MAX_WORKFLOW_EDGES &&
   Object.values(workflow.layout?.nodes ?? {}).every(finite);
 
 /** The workflow after a change; the same object when the change changes nothing (a refused connection, say). */

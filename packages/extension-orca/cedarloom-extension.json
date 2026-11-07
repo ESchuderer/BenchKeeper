@@ -4,7 +4,7 @@
   "id": "cedarloom.orca",
   "version": "0.0.0",
   "name": "Orca",
-  "description": "Whether Orca, the multi-agent IDE, is installed and running.",
+  "description": "Whether Orca, the multi-agent IDE, is installed and running, and supervised Orca workers on a given launch line.",
   "license": "MIT",
   "api": "1.0",
   "runtime": { "kind": "node", "entry": "main.mjs" },
@@ -28,6 +28,7 @@
       }
     },
     "doctor": { "orca": { "title": "Orca" } },
+    "workerRunners": { "claude": { "agent": "claude" } },
     "commands": ["status"]
   }
 }

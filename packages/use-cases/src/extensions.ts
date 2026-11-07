@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   canonicalJson,
   EXTENSION_SCHEMA_VERSION,
@@ -19,6 +19,7 @@ import { type FetchOptions, fetchTree, type Source, type Tree } from "@cedarloom
 import { errorCode } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import type { Approval } from "./use-cases.ts";
+import { writeTree } from "./staging.ts";
 import { parseDocument, readJson, readOptionalJson } from "./use-cases.ts";
 
 /** How a Git source is fetched: over https and ssh, unless a test names another way. */
@@ -138,19 +139,7 @@ const stage = (state: string, id: string, tree: Tree): Finding | undefined => {
   if (existsSync(folder)) return undefined;
   try {
     mkdirSync(parent, { recursive: true });
-    const staging = mkdtempSync(join(parent, "staging-"));
-    try {
-      for (const file of tree.files) {
-        // The git package passed only portable paths inside the folder: no "..", no absolute path, no link.
-        const path = join(staging, ...file.path.split("/"));
-        mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, file.content, { mode: file.mode === "100755" ? 0o555 : 0o444 });
-      }
-      renameSync(staging, folder);
-    } finally {
-      // Gone after the rename; after a failure, partly written.
-      rmSync(staging, { recursive: true, force: true, maxRetries: 3 });
-    }
+    writeTree(parent, folder, tree);
     return undefined;
   } catch (error) {
     // Another install of the same files may have staged them first.

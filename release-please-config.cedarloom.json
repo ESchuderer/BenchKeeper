@@ -10,6 +10,7 @@
       "components": [
         "accounts",
         "adapter-claude",
+        "adapter-github",
         "agent-contracts",
         "cli",
         "client",
@@ -25,13 +26,15 @@
         "profiles",
         "server",
         "ui",
-        "use-cases"
+        "use-cases",
+        "work-items"
       ]
     }
   ],
   "packages": {
     "packages/accounts": { "component": "accounts" },
     "packages/adapter-claude": { "component": "adapter-claude" },
+    "packages/adapter-github": { "component": "adapter-github" },
     "packages/agent-contracts": { "component": "agent-contracts" },
     "packages/cli": { "component": "cli" },
     "packages/client": { "component": "client" },
@@ -51,6 +54,7 @@
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
     },
     "packages/ui": { "component": "ui" },
-    "packages/use-cases": { "component": "use-cases" }
+    "packages/use-cases": { "component": "use-cases" },
+    "packages/work-items": { "component": "work-items" }
   }
 }

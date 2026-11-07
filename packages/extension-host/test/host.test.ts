@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
 import {
@@ -783,5 +783,76 @@ test("a call of an extension that is not the app's own, to a target the manifest
     failure("target", "settings its answer could not hold"),
     failure("target", "an answer the host refuses"),
     failure("target", "no answer within 200 ms"),
+  ]);
+});
+
+// The fixture as a worker runner for Claude Code, and a worker for it to start.
+const runners = (): ExtensionManifest => {
+  const plain = manifestOf(ACTIONS);
+  const workerRunners = { claude: { agent: "claude" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, workerRunners } });
+};
+const START = {
+  runner: "claude",
+  worktree: "path:/work/tree",
+  line: ["cswap", "run", "1", "--require-session", "--"],
+  spec: "Fix it.",
+  title: "fix",
+  repository: "/work/repo",
+};
+
+test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, answering or asked outside the contract fails", async () => {
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
+  const community = await extension({ manifest: runners(), trust: "community", platform: "darwin", sandbox: wraps });
+  const fixture = await extension({ manifest: runners() });
+  const bad = await extension({ manifest: runners(), locale: "x-bad-worker" });
+  const show = { runner: "claude", dispatch: "ctx_1" };
+  expect([
+    codeOf(await fixture.worker("worker/start", START)),
+    codeOf(await fixture.worker("worker/show", show)),
+    codeOf(await fixture.worker("worker/release", { runner: "claude", handles: ["term_1", "term_2"] })),
+    codeOf(await community.worker("worker/show", show)),
+    codeOf(await fixture.worker("worker/show", { ...show, runner: "elsewhere" })),
+    codeOf(await bad.worker("worker/start", START)),
+    codeOf(await fixture.worker("worker/start", { ...START, line: [] })),
+    codeOf(await fixture.worker("worker/start", { ...START, line: ["cswap", "run\u0007"] })),
+  ]).toEqual([
+    { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
+    { state: "succeeded", settled: true },
+    { released: true },
+    failure("worker", "worker runners are the app's own extensions' only"),
+    failure("worker", "no worker runner elsewhere"),
+    failure("worker", "an answer the host refuses"),
+    failure("worker", "a request outside its contract"),
+    failure("worker", "a request outside its contract"),
+  ]);
+});
+
+// The fixture as a session provider whose program `runtime` the host finds as `node` on PATH, so the line's first word
+// is the host's lookup, never the extension's own.
+const providing = (): ExtensionManifest => {
+  const plain = withPrograms({ runtime: ["node"] });
+  const sessionProviders = { claude: { agent: "claude", program: "runtime" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, sessionProviders } });
+};
+
+test("a session line is the provider's program as the host finds it, then exactly run <number> --require-session --; another shape, a bad number or an unnamed provider fails", async () => {
+  const fixture = await extension({ manifest: providing() });
+  const bad = await extension({ manifest: providing(), locale: "x-bad-session" });
+  const line = await fixture.session({ provider: "claude", number: 2 });
+  expect([
+    line.ok ? [basename(line.value[0] ?? "").replace(/\.exe$/, ""), ...line.value.slice(1)] : line.finding,
+    codeOf(await bad.session({ provider: "claude", number: 2 })),
+    codeOf(await fixture.session({ provider: "claude", number: 0 })),
+    codeOf(await fixture.session({ provider: "claude", number: 1e21 })),
+    codeOf(await fixture.session({ provider: "elsewhere", number: 2 })),
+  ]).toEqual([
+    ["node", "run", "2", "--require-session", "--"],
+    failure("session", "a line of another shape"),
+    failure("session", "a request outside its contract"),
+    failure("session", "a request outside its contract"),
+    failure("session", "no session provider elsewhere"),
   ]);
 });

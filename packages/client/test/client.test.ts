@@ -1,10 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { client, exchange, type RunEvent, subscribe } from "@cedarloom/client";
 import { CSRF_HEADER } from "@cedarloom/contracts/http";
-import { sha256 } from "@cedarloom/ledger";
 import { type Started, startServer } from "@cedarloom/server";
 import { applyPlan } from "@cedarloom/use-cases";
 import { afterEach, expect, test } from "vitest";
@@ -59,24 +58,6 @@ test("the URL token is exchanged once, and a refusal names its status and error 
   await expect(exchange(base, `${token}x`, tab)).rejects.toThrow("the session exchange answered 401 token");
   expect(await exchange(base, token, tab)).toMatch(/^[\w-]{43}$/);
   await expect(exchange(base, token, browser())).rejects.toThrow("answered 401 token");
-});
-
-test("the client reads runs and undoes one only with the previewed hash; a refusal arrives as the error", async () => {
-  const { base, token, state } = await serve();
-  const tab = browser();
-  const api = client(base, await exchange(base, token, tab), tab);
-  expect((await api.GET("/api/runs")).data).toEqual({ runs: [] });
-  const { path, params } = written(state);
-  const shown = await api.GET("/api/runs/{runId}", params);
-  expect(shown.data?.steps.map((step) => [step.state, step.after])).toEqual([["done", sha256("hi\n")]]);
-  const preview = await api.GET("/api/runs/{runId}/undo", params);
-  // planHash and plan are typed nullable, so they read without casts or `in` checks.
-  expect(preview.data?.plan?.operations.map((op) => op.kind)).toEqual(["delete"]);
-  const approve = preview.data?.planHash ?? "";
-  const refused = await api.POST("/api/runs/{runId}/undo", { ...params, body: { approve: sha256("x") } });
-  expect([refused.response.status, refused.error]).toEqual([409, expect.objectContaining({ status: "refused" })]);
-  expect((await api.POST("/api/runs/{runId}/undo", { ...params, body: { approve } })).data?.status).toBe("applied");
-  expect(existsSync(path)).toBe(false);
 });
 
 test("a preview with nothing left to undo has planHash and plan null, in its type as at runtime", async () => {

@@ -769,7 +769,7 @@ test("a part switched off is reported as present, and a check without its Git so
   const where = { home: box.home, user: box.user };
   applied(box.state, ok(planChoice(box.config, { part: "machine.rules.global", on: false })));
   // Offline is no problem of the machine: the doctor keeps the line and drops the error.
-  const doctor = driftLines(await profileDoctor(box.config, box.state, where, failing));
+  const doctor = driftLines(await profileDoctor(box.config, box.state, where, { fetch: failing }));
   expect([
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock }))),
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: failing }))),

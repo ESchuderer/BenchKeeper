@@ -164,7 +164,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
   const [logins, own, profile] = await Promise.all([
     useCases.checkLogins(ctx.state, ctx.config, host),
     useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
-    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch, ctx.app),
+    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), { app: ctx.app, fetch: ctx.io.fetch }),
   ]);
   const findings = [
     ...useCases.doctor(ctx.state),

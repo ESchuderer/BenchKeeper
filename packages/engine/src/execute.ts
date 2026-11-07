@@ -429,10 +429,10 @@ class Runner {
   async #precheck(node: string): Promise<void> {
     const command = this.#of(node).config["precheck"] ?? "";
     const going = await this.#prepare(node, 0, { config: { command }, data: {} }, this.#executor("command.run"));
-    await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, _, why) => {
+    await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, values, why) => {
       this.#live.delete(node);
       // A cancel ended the trigger already; a precheck that timed out found nothing to do.
-      if (why !== "cancelled") this.#post({ type: "precheck", passed: ok && why === undefined });
+      if (why !== "cancelled") this.#post({ type: "precheck", passed: ok && why === undefined, values });
     });
   }
 

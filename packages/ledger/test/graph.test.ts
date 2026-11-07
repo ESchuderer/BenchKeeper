@@ -323,6 +323,7 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
   const run = (at: string, end: boolean): string => {
     vi.setSystemTime(new Date(at));
     const { runId } = store.create(manual);
+    store.append(runId, 1, { type: "precheck", passed: true, values: { stdout: "secret", exitCode: 0 } });
     store.append(runId, 1, { type: "started", node: "lint", attempt: 1, pid: 4242 });
     store.append(runId, 1, { type: "ended", node: "lint", attempt: 1, outcome: "done", values: { stdout: "secret" } });
     if (end) store.append(runId, 1, { type: "finished", status: "succeeded", outputs: { out: "secret" } });
@@ -355,7 +356,7 @@ test("runs list newest first with their attempts; prune blanks the outputs of ol
   expect([kept(old), kept(running), kept(recent)]).toEqual([false, true, true]);
   expect(store.events(old)).toMatchObject({
     ok: true,
-    value: [{ type: "started" }, { type: "ended", outcome: "done" }, { outputs: {} }],
+    value: [{ passed: true }, { type: "started" }, { type: "ended", outcome: "done" }, { outputs: {} }],
   });
   expect(rows(dir, "SELECT outputs FROM node_attempts ORDER BY startedAt").map((row) => row["outputs"])).toEqual([
     "{}",

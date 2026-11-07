@@ -74,7 +74,9 @@ const actions = {
     send({ method: "host/log", params: { run: "another run", level: "info", message: "not this run's" } });
     return {};
   },
-  "call-host": async () => ({ code: (await ask("host/exec", { command: "id" })).error?.code }),
+  "call-host": async () => ({ code: (await ask("host/shell", { command: "id" })).error?.code }),
+  // Asks the host to run the programs its node's `with` lists, at once.
+  exec: async ({ config }) => ({ answers: await Promise.all(config.requests.map((r) => ask("host/exec", r))) }),
   // Sends the requests its node's `with` lists at once, and the host's grant.
   fetch: async ({ config }) => ({
     answers: await Promise.all(config.requests.map((r) => ask("host/fetch", r))),

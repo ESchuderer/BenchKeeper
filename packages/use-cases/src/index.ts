@@ -73,12 +73,14 @@ export {
   loadPlan,
   previewPlan,
   previewUndo,
+  showLaunch,
   showRun,
   undoRun,
 } from "./use-cases.ts";
 export type { AgentOptions, Phase } from "./agent-node.ts";
 export {
   cancelRun,
+  decideRun,
   type GraphOutcome,
   listGraphRuns,
   planGraphRun,
@@ -86,6 +88,8 @@ export {
   resumeRun,
   runWorkflow,
   showGraphRun,
+  type Waiting,
+  waitsOf,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export { type Choice, claudeHome, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";
+export { type Choice, claudeHome, type Machine, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";

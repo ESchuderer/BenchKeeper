@@ -905,6 +905,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.not-waiting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "runId",
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "run.report-only-apply"
               },
               "params": {
@@ -3172,7 +3202,8 @@
                       "actions",
                       "folder",
                       "runtime",
-                      "off"
+                      "off",
+                      "programs"
                     ]
                   }
                 },
@@ -3213,7 +3244,8 @@
                       "protocol",
                       "installed",
                       "id",
-                      "reserved"
+                      "reserved",
+                      "programs"
                     ]
                   }
                 },
@@ -3783,6 +3815,84 @@
                 "required": [
                   "part",
                   "binding"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.approval-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "autoUpdate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "part",
+                  "plugin",
+                  "source",
+                  "ref",
+                  "autoUpdate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.options-guarded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "path"
                 ],
                 "additionalProperties": false
               }
@@ -5255,6 +5365,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.not-waiting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "runId",
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "run.report-only-apply"
               },
               "params": {
@@ -7522,7 +7662,8 @@
                       "actions",
                       "folder",
                       "runtime",
-                      "off"
+                      "off",
+                      "programs"
                     ]
                   }
                 },
@@ -7563,7 +7704,8 @@
                       "protocol",
                       "installed",
                       "id",
-                      "reserved"
+                      "reserved",
+                      "programs"
                     ]
                   }
                 },
@@ -8133,6 +8275,84 @@
                 "required": [
                   "part",
                   "binding"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.approval-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "autoUpdate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "part",
+                  "plugin",
+                  "source",
+                  "ref",
+                  "autoUpdate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.options-guarded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "path"
                 ],
                 "additionalProperties": false
               }

@@ -100,11 +100,11 @@ export class GraphStore {
     return { runId, epoch: 1, release: lock.release };
   }
 
-  /** A run as it stands: one running or waiting while no process holds its lease is `interrupted`. */
+  /** A run as it stands: one running while no process holds its lease is `interrupted`; a waiting one needs none. */
   graphRun(id: string): GraphRun | undefined {
     const row = this.#db.prepare(`SELECT ${COLUMNS} FROM graph_runs WHERE id = ?`).get(id);
     if (row === undefined) return undefined;
-    const interrupted = ACTIVE.has(String(row["status"])) && !this.#probe(this.#dir, `${id}.${Number(row["epoch"])}`);
+    const interrupted = row["status"] === "running" && !this.#probe(this.#dir, `${id}.${Number(row["epoch"])}`);
     const status = interrupted ? "interrupted" : row["status"];
     const [definition, inputs] = [row["definition"], row["inputs"]].map((json) => JSON.parse(String(json)));
     return GraphRun.parse({ ...row, status, definition, inputs });
@@ -112,8 +112,9 @@ export class GraphStore {
 
   /**
    * Appends an event with its projection, in one transaction: a start or end of an attempt in `node_attempts`, an
-   * apply run linked to its attempt, the run's end in `graph_runs`. Refused when another runner took the run over
-   * after `epoch` or it has ended; an apply run is never linked under a report run. Returns the event's sequence number.
+   * apply run linked to its attempt, the run's status in `graph_runs` (waiting, running again once taken over, its end).
+   * Refused when another runner took the run over after `epoch` or it has ended; an apply run is never linked under a
+   * report run. Returns the event's sequence number.
    */
   append(runId: string, epoch: number, input: JournalEvent): Result<number> {
     const event = JournalEvent.parse(input);
@@ -278,6 +279,14 @@ export class GraphStore {
         .prepare(`UPDATE node_attempts SET ${column} = ? ${ofRunning}`)
         .run(value, runId, event.node, event.attempt);
       must(changes, `attempt ${event.attempt} of node ${event.node} is not running`);
+    } else this.#projectRun(runId, event, at);
+  }
+
+  // The run's own status: waiting, running again once taken over, or its end.
+  #projectRun(runId: string, event: JournalEvent, at: string): void {
+    if (event.type === "waiting" || event.type === "resumed") {
+      const status = event.type === "waiting" ? "waiting" : "running";
+      this.#db.prepare("UPDATE graph_runs SET status = ? WHERE id = ?").run(status, runId);
     } else if (event.type === "finished") {
       // A run ends after its attempts: one left running could never be ended once the run refuses events.
       if (this.#db.prepare("SELECT 1 FROM node_attempts WHERE runId = ? AND state = 'running'").get(runId)) {
@@ -298,7 +307,7 @@ export const openGraphStore = (dir: string, detect = filesystemType): Result<Gra
 };
 
 /** Graph runs as `runs list` and `runs show` read them: no lock, no write. */
-export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "close">;
+export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "events" | "close">;
 
 /** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */
 export const openGraphView = (dir: string): Result<GraphView | null> => {

@@ -268,6 +268,13 @@ const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
     if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
     return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
   });
+// A plugin's marketplace goes by the name its plugin id carries, as Claude Code resolves the id through it.
+const marketplaceIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
+  Object.entries(machine).flatMap(([id, each]): Issue[] =>
+    each.type === "plugin" && each.marketplace !== undefined && !each.plugin.endsWith(`@${each.marketplace.name}`)
+      ? [[["machine", id, "marketplace", "name"], "the marketplace its plugin id names"]]
+      : [],
+  );
 const probeIssues = (
   profile: Record<(typeof LEVELS)[number], Record<string, { default: string; when?: string | undefined }>>,
 ) =>
@@ -285,7 +292,9 @@ export const Profile = z
     packs: z.record(PackId, PackSource),
     ...whole,
   })
-  .superRefine((profile, ctx) => report(ctx, [...optionsIssues(profile.machine), ...probeIssues(profile)]));
+  .superRefine((profile, ctx) =>
+    report(ctx, [...optionsIssues(profile.machine), ...marketplaceIssues(profile.machine), ...probeIssues(profile)]),
+  );
 export type Profile = z.infer<typeof Profile>;
 
 /** This machine's choice: the profile it applies and the parts switched away from their default. */

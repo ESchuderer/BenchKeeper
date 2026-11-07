@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type Finding,
+  type LaunchRecord,
   PLAN_SCHEMA_VERSION,
   Plan,
   type PlanPreview,
@@ -146,6 +147,13 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
     if (view === null || detail === undefined) return notFound(runId);
     const run = view.current().find((current) => current.id === runId) ?? detail.run;
     return { ok: true, value: { run, steps: detail.steps } };
+  });
+
+/** A worker run as the ledger keeps it, with the totals its session reported. */
+export const showLaunch = (state: string, runId: string): Result<LaunchRecord> =>
+  withView(state, (view) => {
+    const launch = view?.launch(runId);
+    return launch === undefined ? notFound(runId) : { ok: true, value: launch };
   });
 
 /** Plans the undo of a run and writes nothing. */

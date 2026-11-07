@@ -35,6 +35,7 @@ import {
   ownHome,
   resumeRun,
   runWorkflow,
+  showLaunch,
   WORKFLOW_PLUGIN,
   type WorkerRequest,
 } from "@cedarloom/use-cases";
@@ -240,6 +241,9 @@ test("a run whose stream holds no init line proves nothing, so it failed whateve
   expect(withLedger(state, (store) => store.launches().map((row) => row.verdict))).toEqual(["failed"]);
 });
 
+// The tokens of the result in stream.jsonl, over its one model.
+const TOTALS = { inputTokens: 2, outputTokens: 70, cacheReadTokens: 11687, cacheCreationTokens: 12674 };
+
 const LABELS = {
   phase: "implement",
   model: "claude-sonnet-5-5",
@@ -269,6 +273,18 @@ const fill = (state: string, account: string, from: number) =>
   );
 const workerFolders = (state: string) =>
   existsSync(join(state, "workers")) ? readdirSync(join(state, "workers")) : [];
+
+test("a worker's run keeps the totals its result reported, which its view shows", async () => {
+  const { state, config, work } = setup();
+  const outcome = await launchWorker(state, config, request(work, { result: passing }), host);
+  if (!outcome.ok || outcome.value.kind !== "finished") throw new Error("no run");
+  const totals = { ...TOTALS, costUsd: 0.10513739999999999 };
+  expect(showLaunch(state, outcome.value.runId)).toMatchObject({ ok: true, value: { totals } });
+  expect(showLaunch(state, runIdOf(9))).toEqual({
+    ok: false,
+    finding: { code: "run.not-found", params: { runId: runIdOf(9) } },
+  });
+});
 
 test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {
   const { state, config, work } = setup();

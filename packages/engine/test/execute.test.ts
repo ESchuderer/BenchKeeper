@@ -241,8 +241,13 @@ test("an attempt records its agent's session while it runs, and one that went qu
   expect(events.slice(1, 3)).toMatchObject([{ sessionId: "s-a" }, { outcome: "timed-out" }]);
 });
 
-test("a precheck that fails skips the run; one that passes starts it; a cancel while it runs ends the run", async () => {
+test("a precheck that fails skips the run, recording what it said; one that passes starts it; a cancel while it runs ends the run", async () => {
   expect(trail((await start(workflow({}, "check"), { t: ["fail"] })).events)).toBe("precheck, finished");
+  // The skip keeps what the precheck said.
+  const said = { stdout: "nothing changed", exitCode: 1 };
+  const answer = { "command.run": () => ({ pid: null, run: () => Promise.resolve({ ok: false, values: said }) }) };
+  const skipped = await start(workflow({}, "check"), {}, { executors: answer });
+  expect(skipped.events[0]).toEqual({ type: "precheck", passed: false, values: said });
   expect((await start(workflow({}, "check"), { t: [{}] })).result).toEqual({ ok: true, value: "succeeded" });
   const stop = new AbortController();
   setImmediate(() => stop.abort());

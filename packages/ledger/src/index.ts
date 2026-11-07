@@ -17,3 +17,4 @@ export {
   type RunStore,
   type RunView,
 } from "./store.ts";
+export { intentHash, type OutboxClaim, openWorkItemStore, type Settled, type WorkItemStore } from "./work-items.ts";

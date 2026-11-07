@@ -209,16 +209,18 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: command -v rg || brew install ripgrep
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" --filter '!{.}' run test; fi
-      # The app's own Orca extension as the CLI package ships it: rolldown's one file starts under the host's permission
-      # flags and answers (no Orca on the runner: not installed), and the package's files hold it.
+      # The app's own extensions as the CLI package ships them: rolldown's one file starts under the host's permission
+      # flags and answers (no Orca or claude-swap on the runner: not installed), and the package's files hold it.
       - if: runner.os == 'Linux'
-        name: The bundled Orca extension
+        name: The bundled extensions
         env:
           CEDARLOOM_STATE_DIR: ${{ runner.temp }}/cedarloom-state
         run: |
-          pnpm --filter @cedarloom/extension-orca run build
+          pnpm --filter @cedarloom/extension-orca --filter @cedarloom/extension-claude-swap run build
           node packages/cli/src/bin.ts orca status --json | tee /dev/stderr | grep -q '"installed":false'
-          (cd packages/cli && npm pack --dry-run --json --ignore-scripts) | grep -q '"path": "extensions/cedarloom.orca/main.mjs"'
+          node packages/cli/src/bin.ts claude-swap status --json | tee /dev/stderr | grep -q '"installed":false'
+          files=$(cd packages/cli && npm pack --dry-run --json --ignore-scripts)
+          for id in cedarloom.orca cedarloom.claude-swap; do grep -q "\"path\": \"extensions/$id/main.mjs\"" <<< "$files"; done
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed
   # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.

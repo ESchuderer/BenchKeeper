@@ -4,6 +4,7 @@ import { existsSync, rmSync } from "node:fs";
 import { devNull } from "node:os";
 import { dirname, join } from "node:path";
 import { type Result, STORE_REF } from "@cedarloom/contracts";
+import { missing, programPath } from "@cedarloom/orchestration";
 import { environment, flags, hookNames, hooksOff, shown } from "./git.ts";
 
 /** A commit that changed a stored file: its id, when (ISO 8601) and by whom it was made, and its message. */
@@ -73,9 +74,11 @@ const hooklessEnv = (dir: string, program: string): NodeJS.ProcessEnv => {
 /** git on the repository `dir`, set up at its first call; `extra` joins the environment of one call. */
 const runner = (dir: string, program: string): Git => {
   let env: NodeJS.ProcessEnv | undefined;
+  const file = programPath(program, environment([]));
   return (args, input, extra = {}) => {
-    env ??= hooklessEnv(dir, program);
-    const ran = spawnSync(program, [...OFF, `--git-dir=${dir}`, ...args], {
+    if (file === undefined) return { ok: false, out: "", stdout: Buffer.alloc(0), error: missing(program) };
+    env ??= hooklessEnv(dir, file);
+    const ran = spawnSync(file, [...OFF, `--git-dir=${dir}`, ...args], {
       ...BASE,
       input,
       env: { ...env, ...extra },

@@ -230,10 +230,15 @@ const windowLines = (name: string, readings: readonly Reading[], now: number): s
       ];
 };
 
-export const accountsList = (ctx: Context): number => {
+// claude-swap's readings of the accounts, kept before they are shown; what keeps it from answering is reported.
+const readSwap = async (ctx: Context): Promise<void> =>
+  report(ctx, await useCases.readSwapAccounts({ state: ctx.state, app: ctx.app, config: ctx.config }));
+
+export const accountsList = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
+  await readSwap(ctx);
   const now = Date.now();
   const status = useCases.accountsStatus(ctx.state, registry, now);
   if (!status.ok) return refused(ctx, "accounts", status.finding);
@@ -254,9 +259,10 @@ export const accountsList = (ctx: Context): number => {
 };
 
 /** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
-export const accountsStatus = (ctx: Context): number => {
+export const accountsStatus = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  await readSwap(ctx);
   const now = Date.now();
   const status = useCases.accountsStatus(ctx.state, loaded.value, now);
   if (!status.ok) return refused(ctx, "accounts", status.finding);

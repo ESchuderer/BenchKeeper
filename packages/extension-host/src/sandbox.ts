@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { getDefaultWritePaths, SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { shellWord } from "@cedarloom/extension-sdk";
 
 /** How the host starts an extension's process. */
 export type Launch = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv };
@@ -24,8 +25,6 @@ export type Sandbox = { wrap: (launch: Launch, policy: SandboxPolicy) => Promise
 /** A sandbox that wraps nothing, so every community extension is refused. */
 export const unavailable: Sandbox = { wrap: () => Promise.resolve(undefined) };
 
-// A word the shell takes as it is: in single quotes, each single quote closed, escaped and opened again.
-const quoted = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;
 const run = promisify(execFile);
 
 // What Node needs to start besides its own binary. Linux: the system's programs and libraries, srt's shell and `env`
@@ -69,7 +68,9 @@ const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> 
   const filesystem = { denyRead: ["/"], allowRead, allowWrite: policy.write, denyWrite };
   const environment = Object.entries(launch.env).filter(([, value]) => value !== undefined);
   const assignments = environment.map(([name, value]) => `${name}=${String(value)}`);
-  const command = ["/usr/bin/env", "-i", ...assignments, launch.command, ...launch.args].map(quoted).join(" ");
+  const command = ["/usr/bin/env", "-i", ...assignments, launch.command, ...launch.args]
+    .map((word) => shellWord(word))
+    .join(" ");
   const { argv } = await SandboxManager.wrapWithSandboxArgv(command, undefined, { filesystem }, undefined, launch.cwd);
   const [wrapper = "", ...args] = argv;
   return { ...launch, command: wrapper, args };

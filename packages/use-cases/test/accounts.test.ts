@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   statSync,
   symlinkSync,
@@ -14,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
-import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
+import { type AccountRegistry, formatRegistry, type Plan, type Result } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
 import {
   applyPlan,
@@ -27,6 +28,8 @@ import {
   planAdd,
   planConfirm,
   planHome,
+  planMap,
+  planUnmap,
   undoRun,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
@@ -199,14 +202,41 @@ test("the registry reads as none when there is none, and one that is broken or c
   });
 });
 
-// Adds account `name` by its plan, applied; the run's id.
-const added = (config: string, state: string, name: string, pool: string | null) => {
-  const planned = planAdd(config, state, { name, agent: "claude", pool }, AT);
+// Applies a planned change; the run's id.
+const applied = (state: string, planned: Result<{ plan: Plan }>) => {
   if (!planned.ok) throw new Error(planned.finding.code);
   const run = applyPlan(state, planned.value.plan, { yes: true });
   if (!run.ok || run.value.runId === null) throw new Error("not applied");
   return run.value.runId;
 };
+
+// Adds account `name` by its plan, applied; the run's id.
+const added = (config: string, state: string, name: string, pool: string | null) =>
+  applied(state, planAdd(config, state, { name, agent: "claude", pool }, AT));
+
+// The refusal of accounts map or unmap for `reason`.
+const mapRefused = (reason: string, name: string) => ({
+  ok: false,
+  finding: { code: "accounts.map-refused", params: { reason, name } },
+});
+
+test("a folder is bound to an account or a pool by a plan with undo, kept by its real path, and unbound again", () => {
+  const { config, state } = freshConfig();
+  writeRegistry(config);
+  const project = mkdtempSync(join(tmpdir(), "cedarloom-project-"));
+  const real = realpathSync(project);
+  applied(state, planMap(config, "work", project));
+  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { account: "work" } } } });
+  applied(state, planMap(config, "main", project));
+  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
+  const unmapped = applied(state, planUnmap(config, project));
+  expect(loadRegistry(config).ok && loadRegistry(config)).not.toHaveProperty("value.folders");
+  undoRun(state, unmapped, { yes: true });
+  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
+  expect(planMap(config, "nobody", project)).toEqual(mapRefused("unknown-target", "nobody"));
+  expect(planMap(config, "work", join(real, "missing"))).toEqual(mapRefused("no-folder", join(real, "missing")));
+  expect(planUnmap(config, join(real, "missing"))).toEqual(mapRefused("not-mapped", join(real, "missing")));
+});
 
 test("an account is added by a plan with its own home: the first creates the registry, a new pool is unconfirmed", () => {
   const { config, state } = freshConfig();

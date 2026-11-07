@@ -2251,6 +2251,41 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "accounts.map-refused"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "unknown-target",
+                "no-folder",
+                "not-mapped"
+              ]
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "accounts.login-failed"
         },
         "params": {

@@ -25,6 +25,7 @@ import {
 } from "@cedarloom/contracts";
 import { openGraphStore, openRunStore, type RunStore } from "@cedarloom/ledger";
 import {
+  applyPlan,
   cancelRun,
   type Decided,
   doctor,
@@ -33,6 +34,7 @@ import {
   listGraphRuns,
   MAX_CONCURRENT,
   ownHome,
+  planMap,
   resumeRun,
   runWorkflow,
   showLaunch,
@@ -283,6 +285,18 @@ test("a worker's run keeps the totals its result reported, which its view shows"
     ok: false,
     finding: { code: "run.not-found", params: { runId: runIdOf(9) } },
   });
+});
+
+test("a worker launched in a folder bound by accounts map, or below it, runs on the bound account", async () => {
+  const { state, config, work } = setup(["work", "spare"]);
+  const project = realpathSync(work);
+  const planned = planMap(config, "spare", project);
+  if (!planned.ok) throw new Error(planned.finding.code);
+  applyPlan(state, planned.value.plan, { yes: true });
+  // Without readings the choice would stay on the pool's first account, work.
+  const below = { ...request(work, { result: passing }), project: join(project, "packages", "app") };
+  const outcome = await launchWorker(state, config, below, host);
+  expect(outcome).toMatchObject({ ok: true, value: { kind: "finished", account: "spare" } });
 });
 
 test("without the workflow plugin at the pinned commit a worker starts without one, and the doctor says so", async () => {

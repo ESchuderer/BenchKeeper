@@ -71,6 +71,10 @@ const folders = (account: z.infer<typeof Account>, index: number): [string, (str
   ]),
 ];
 
+/** What a project folder is bound to: an account, or a pool of the launching agent. */
+const FolderTarget = z.union([z.strictObject({ account: Name }), z.strictObject({ pool: Name })]);
+export type FolderTarget = z.infer<typeof FolderTarget>;
+
 /**
  * The accounts by config folder and their pools per agent: never a credential, as every object is strict.
  * Names and folders, homes and aliases alike, are unique, and an account's pool is one of its agent's pools.
@@ -80,6 +84,12 @@ export const AccountRegistry = z
     schemaVersion: z.literal(ACCOUNTS_SCHEMA_VERSION),
     accounts: z.array(Account),
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
+    folders: z
+      .record(AbsolutePath, FolderTarget)
+      .optional()
+      .describe(
+        "Project folders by real path, each bound to an account or a pool for workers launched in it or below it",
+      ),
   })
   .superRefine((registry, ctx) => {
     // shortcut: folders compare without trailing separators but otherwise as written, so another case of a folder passes;

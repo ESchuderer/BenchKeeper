@@ -105,6 +105,7 @@ const requestOf = (
     pool,
     previous: null,
     model: options.model?.(phase),
+    project: run.project,
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
     runtime: options.runtime,

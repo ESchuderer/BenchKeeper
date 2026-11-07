@@ -1,5 +1,5 @@
-import { chmodSync, lstatSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
@@ -9,6 +9,7 @@ import {
   AccountRegistry,
   type Agent,
   type Finding,
+  type FolderTarget,
   formatRegistry,
   type Plan,
   type Result,
@@ -226,6 +227,68 @@ export const planAdd = (
   return { ok: true, value: { plan: { schemaVersion: 1, operations: [write] }, home } };
 };
 
+const mapRefused = (reason: "unknown-target" | "no-folder" | "not-mapped", name: string): Result<never> => ({
+  ok: false,
+  finding: { code: "accounts.map-refused", params: { reason, name } },
+});
+
+// A folder's real path, as graph runs keep their project folder; null when it does not exist.
+const realFolder = (folder: string): string | null => {
+  try {
+    return realpathSync.native(folder);
+  } catch {
+    return null;
+  }
+};
+
+// The plan that writes the registry with `folders`, left out when empty.
+const withFolders = (path: string, text: string, registry: AccountRegistry, folders: Record<string, FolderTarget>) => {
+  const { folders: _, ...rest } = registry;
+  const content = formatRegistry(Object.keys(folders).length > 0 ? { ...rest, folders } : rest);
+  const plan: Plan = { schemaVersion: 1, operations: [{ kind: "write", path, before: sha256(text), content }] };
+  return plan;
+};
+
+/**
+ * Plans binding `folder` to the account or Claude Code pool `name`: a worker launched in that folder or below it runs
+ * on that account, or on the pool's choice. The folder is kept by its real path.
+ */
+export const planMap = (config: string, name: string, folder: string): Result<{ plan: Plan; folder: string }> => {
+  const real = realFolder(folder);
+  if (real === null) return mapRefused("no-folder", resolve(folder));
+  const path = registryPath(config);
+  const read = readRegistry(path);
+  if (!read.ok) return read;
+  const { text, registry } = read.value;
+  const isPool = Object.hasOwn(registry.pools.claude ?? {}, name);
+  const target = registry.accounts.some((each) => each.name === name) ? { account: name } : { pool: name };
+  if (!("account" in target) && !isPool) return mapRefused("unknown-target", name);
+  const plan = withFolders(path, text, registry, { ...registry.folders, [real]: target });
+  return { ok: true, value: { plan, folder: real } };
+};
+
+/** Plans removing the binding of `folder`, by its real path, or as written when it no longer exists. */
+export const planUnmap = (config: string, folder: string): Result<{ plan: Plan; folder: string }> => {
+  const real = realFolder(folder) ?? resolve(folder);
+  const path = registryPath(config);
+  const read = readRegistry(path);
+  if (!read.ok) return read;
+  const { text, registry } = read.value;
+  const { [real]: bound, ...kept } = registry.folders ?? {};
+  if (bound === undefined) return mapRefused("not-mapped", real);
+  return { ok: true, value: { plan: withFolders(path, text, registry, kept), folder: real } };
+};
+
+/** What the deepest bound folder that holds `project` is bound to; null when none holds it. */
+export const boundTarget = (registry: AccountRegistry, project: string): FolderTarget | null => {
+  const holding = Object.keys(registry.folders ?? {}).filter((folder) => {
+    const below = relative(folder, project);
+    return below === "" || (!below.startsWith("..") && !isAbsolute(below));
+  });
+  const [deepest] = holding.toSorted((a, b) => b.length - a.length);
+  return deepest === undefined ? null : (registry.folders?.[deepest] ?? null);
+};
+
 /** How the agent's login ended: its exit code, or null with the error when it did not start. */
 export interface LoginRun {
   readonly code: number | null;
@@ -334,6 +397,8 @@ export interface AccountRequest {
   readonly previous: string | null;
   /** The model the worker runs: its own weekly window counts too, once read. */
   readonly model?: string | undefined;
+  /** The project folder the worker works in, by its real path: a folder `accounts map` bound decides its account. */
+  readonly project?: string | undefined;
 }
 
 /**

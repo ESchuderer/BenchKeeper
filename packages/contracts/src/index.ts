@@ -7,6 +7,7 @@ export {
   Agent,
   AgentVersion,
   ContractCheckRecord,
+  type FolderTarget,
   formatRegistry,
   modelWindow,
   Quota,

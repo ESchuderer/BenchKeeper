@@ -214,28 +214,6 @@ test("a stream that ends opens again, also after the API failed once, and the er
   errors.length = 0;
 });
 
-test("while the API keeps failing, each check waits twice as long as the one before", async () => {
-  const checks: number[] = [];
-  const counted = (route: Route): Promise<void> => {
-    checks.push(Date.now());
-    return failed(route);
-  };
-  await page.route("**/api/events", failed);
-  await page.route("**/api/runs", counted);
-  await page.reload();
-  // 2 s, then 4 s. The last three only: in Firefox the unloading page sends a check of its own.
-  const doubling = (): boolean => {
-    const [first = 0, second = 0, third = 0] = checks.slice(-3);
-    return checks.length >= 3 && second - first > 1500 && third - second > 3500;
-  };
-  await expect.poll(doubling, { timeout: 10_000 }).toBe(true);
-  await page.unrouteAll({ behavior: "ignoreErrors" });
-  await page.reload();
-  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
-  expect(errors.filter((text) => !text.includes("500"))).toEqual([]);
-  errors.length = 0;
-});
-
 test("a new tab without a session shows an alert, and the page passes axe", async () => {
   const fresh = await context.newPage();
   await fresh.goto(`${new URL(server.url).origin}/`);

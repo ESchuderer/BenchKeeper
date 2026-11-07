@@ -586,8 +586,9 @@ test('AGENTS.override.md when Codex goes: the user\'s own text stays, an older v
   assert.deepEqual([pristine.kind, pristine.selected, pristine.destructive], ['remove', true, true]);
   const path = join(dir, 'AGENTS.override.md'), written = readFileSync(path, 'utf8');
   writeFileSync(path, `my own notes\n\n${written}`);
-  const [edited] = share();
-  assert.deepEqual([edited.kind, edited.selected, edited.title], ['write', true, "AGENTS.override.md without BenchKeeper's part (now in AGENTS.md)"]);
+  // Codex still chosen: it reads this file instead of AGENTS.md, so the file keeps its copy of AGENTS.md above the user's
+  // lines, which is current already.
+  assert.deepEqual(share(), []);
   // An older version's file: the copy before the rules block is no longer AGENTS.md's text (here: a line of the user's).
   writeFileSync(path, `my own notes\n\n${written.replace(/<!-- benchkeeper:override (start|end) -->\n/g, '')}`);
   const [legacy] = share();

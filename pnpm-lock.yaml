@@ -210,6 +210,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/packs:
+    devDependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/server:
     dependencies:
       '@cedarloom/contracts':

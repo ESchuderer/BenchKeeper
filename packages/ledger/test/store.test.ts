@@ -112,15 +112,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 11 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 12 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  const dir = storeAt(10);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 11 } } };
+  // 11 is the last schema before the token rows.
+  const dir = storeAt(11);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 11, known: 12 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 10 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 11 });
   after.close();
 });
 
@@ -583,6 +584,39 @@ test("a launch keeps the plugins its init line named, and a view reads the lates
   expect(latest()).toEqual({ ...plugins, loaded: [], errors: ["workflow: no plugin.json"] });
   // Checked on write, so the launches stay readable.
   expect(() => store.recordPlugins(runIdOf(2), { ...plugins, loaded: [""] })).toThrow(/too_small|>=1/);
+});
+
+// One API request of a worker's session, as the telemetry receiver keeps it.
+const tokenRow = {
+  runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e61",
+  account: "work",
+  sessionId: "s1",
+  model: "claude-haiku-5-5",
+  querySource: "sdk",
+  effort: "low",
+  inputTokens: 2,
+  outputTokens: 4,
+  cacheReadTokens: 0,
+  cacheCreationTokens: 21226,
+  cacheCreation5mTokens: 0,
+  cacheCreation1hTokens: 21226,
+  costUsdMicros: 4247,
+  durationMs: 1126,
+  requestId: "req_1",
+  agentVersion: "2.1.316",
+  at: "2026-11-06T21:24:15.848Z",
+} as const;
+
+test("a run's token rows are kept once as the receiver passes them, read per run, and refused when they are no token row", () => {
+  const store = opened(fresh());
+  const other = { ...tokenRow, runId: "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62", requestId: "req_2", effort: null };
+  store.recordTokenRows([tokenRow, other]);
+  // A request kept already, sent again, is skipped: OTLP delivers at least once.
+  store.recordTokenRows([{ ...tokenRow, inputTokens: 9 }]);
+  expect(store.tokenRows()).toEqual([tokenRow, other]);
+  expect(store.tokenRows(tokenRow.runId)).toEqual([tokenRow]);
+  expect(() => store.recordTokenRows([{ ...tokenRow, inputTokens: -1 }])).toThrow(/too_small|>=0/);
+  expect(store.tokenRows()).toHaveLength(2);
 });
 
 const sample = {

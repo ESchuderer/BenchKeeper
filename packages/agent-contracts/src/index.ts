@@ -40,6 +40,11 @@ export interface Launch {
   readonly verifiedVersions: readonly string[];
   /** Plugin folders the session loads, on every start and resume; none when empty. */
   readonly pluginDirs: readonly string[];
+  /**
+   * Where the session's OpenTelemetry logs go: the launcher's loopback receiver and the run's bearer token. Null keeps
+   * telemetry off.
+   */
+  readonly telemetry: { readonly endpoint: string; readonly token: string } | null;
 }
 
 /** What a session's init line says of its plugins: the ones loaded, every skill offered, and each plugin's error. */

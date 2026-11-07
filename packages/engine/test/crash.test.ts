@@ -14,7 +14,7 @@ import {
 import { asidePath, recover, tempPath } from "@cedarloom/engine";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { hash, interruptedRun, plan, read, storeAt, undo, workspace } from "./helpers.ts";
+import { hash, interruptedRun, plan, read, storeAt, undo, workspace } from "./plan-runs.ts";
 
 const OPERATIONS = 3;
 const PHASES = 5;

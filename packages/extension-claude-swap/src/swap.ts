@@ -12,8 +12,10 @@ import {
 
 /** The claude-swap version whose JSON this extension and its recorded test outputs were checked with; older is not read. */
 export const OBSERVED = "0.30.0";
-// Below the doctor's 10 s for its three calls: claude-swap answers list and status from its usage cache.
+// `--version` answers at once. list, status and switch may fetch usage with claude-swap's own 10 s timeouts and refresh
+// a login, whose grant the server consumes: stopped mid-refresh, the new token can be lost, so they get more time.
 const MS = 3000;
+const FETCH_MS = 30_000;
 
 type Exec = Pick<ActionContext, "exec">;
 // Rows claude-swap cannot use until the user logs in again (`relogin_required`) or adds a login (`no_credentials`).
@@ -36,7 +38,14 @@ const probeOf = async ({ exec }: Exec): Promise<ProgramVersion> => {
 };
 
 /** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
-const cswap = async ({ exec }: Exec, args: string[], timeoutMs = MS): Promise<unknown> => {
+// claude-swap's messages can name an account's email; no identity leaves the extension (switching plan 1.5).
+const withoutEmails = (text: string): string =>
+  text
+    .split(" ")
+    .map((word) => (word.includes("@") ? "<email>" : word))
+    .join(" ");
+
+const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
   const command = `cswap ${args.join(" ")}`;
   const { code, stdout } = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
   let answer: unknown;
@@ -47,7 +56,7 @@ const cswap = async ({ exec }: Exec, args: string[], timeoutMs = MS): Promise<un
     throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
   }
   const message = at(answer, "error", "message");
-  if (typeof message === "string") throw new Error(`${command}: ${message}`);
+  if (typeof message === "string") throw new Error(`${command}: ${withoutEmails(message)}`);
   if (code !== 0) throw new Error(`${command} exited with ${code}`);
   const version = at(answer, "schemaVersion");
   if (version !== 1) throw new Error(`${command} answered schemaVersion ${String(version)}, not 1`);
@@ -112,15 +121,18 @@ const rowsOf = async (context: Exec): Promise<unknown[]> => {
   return rows;
 };
 
+// Why a version is not one this extension reads; none when it is.
+const versionProblem = (version: string): string | undefined => {
+  const release = releaseOf(version);
+  if (release === undefined) return `claude-swap's version ${version} does not read`;
+  return older(release, releaseOf(OBSERVED) ?? []) ? `claude-swap ${version} is older than ${OBSERVED}` : undefined;
+};
+
 /** Whether the claude-swap found is a version whose JSON this extension reads, and why not. */
 const judged = async (context: Exec, found: ProgramVersion): Promise<TargetProbe> => {
   if (!found.installed) return { status: "unsupported", detail: `claude-swap is not installed: ${found.reason}` };
-  const release = releaseOf(found.version);
-  if (release === undefined)
-    return { status: "unsupported", detail: `claude-swap's version ${found.version} does not read` };
-  if (older(release, releaseOf(OBSERVED) ?? [])) {
-    return { status: "unsupported", detail: `claude-swap ${found.version} is older than ${OBSERVED}` };
-  }
+  const problem = versionProblem(found.version);
+  if (problem !== undefined) return { status: "unsupported", detail: problem };
   try {
     await cswap(context, ["status"]);
   } catch (error) {
@@ -171,8 +183,9 @@ const reloginOf = (row: unknown): DoctorFinding => {
 };
 
 /**
- * The doctor's check: without claude-swap, or with one whose JSON this extension does not read, multi-account switching
- * is off and workers run on one account; an account whose login died is named with its fix.
+ * The doctor's check, with two calls (`--version` and `list`, whose JSON schema it checks): without claude-swap, or with
+ * one whose JSON this extension does not read, multi-account switching is off and workers run on one account; an
+ * account whose login died is named with its fix.
  */
 export const doctor = async (context: Exec): Promise<DoctorFinding[]> => {
   const off = "multi-account switching is off, and workers run on one account";
@@ -180,10 +193,10 @@ export const doctor = async (context: Exec): Promise<DoctorFinding[]> => {
   try {
     const found = await probeOf(context);
     if (!found.installed) return [finding("info", "claude-swap.missing", `claude-swap is not installed here: ${off}.`)];
-    const probed = await judged(context, found);
-    if (probed.status !== "supported") return unsupported(probed.detail);
+    const problem = versionProblem(found.version);
+    if (problem !== undefined) return unsupported(problem);
     const rows = await rowsOf(context);
-    const ready = finding("info", "claude-swap.ready", `${probed.detail} manages ${rows.length} accounts.`);
+    const ready = finding("info", "claude-swap.ready", `claude-swap ${found.version} manages ${rows.length} accounts.`);
     return [ready, ...rows.filter((row) => HELD.has(String(at(row, "usageStatus")))).map(reloginOf)];
   } catch (error) {
     return unsupported(messageOf(error));
@@ -208,9 +221,10 @@ export const status = async (context: Exec): Promise<Record<string, unknown>> =>
 // menu bar, which runs claude-swap's own auto mode as a service (switching plan 14.3).
 const specOf = (platform: string): string => `claude-swap${platform === "darwin" ? "[menubar]" : ""}==${OBSERVED}`;
 // The installers the host may run, in this order, and their install arguments. claude-swap needs Python 3.12 or newer,
-// which uv finds or downloads when asked; the first python3 on the path can be older (macOS ships 3.9).
+// which uv finds or downloads when asked (the first python3 on the path can be older: macOS ships 3.9), and uv takes
+// its dependencies as they were the day after the pin's release; pipx has no such option.
 const INSTALLERS: [string, string[]][] = [
-  ["uv", ["tool", "install", "--python", ">=3.12"]],
+  ["uv", ["tool", "install", "--python", ">=3.12", "--exclude-newer", "2026-11-07T00:00:00Z"]],
   ["pipx", ["install"]],
 ];
 // Below the minute a CLI verb's action has; claude-swap and the menu bar's packages download once.
@@ -219,6 +233,8 @@ const INSTALL_MS = 55_000;
 /**
  * The install action: nothing to do while claude-swap is here; otherwise the command it runs, which it runs only once
  * the user names its program with `--allow` (an approval line; nothing installs unnamed).
+ * shortcut: the approval rides in the action's config, which only a CLI verb sets today; a workflow node's `with` could
+ * set it too, so a host-owned grant (as `initialize` carries `granted`) must carry it before workflows run actions.
  */
 export const install = async (
   { exec, config }: Pick<ActionContext, "exec" | "config">,

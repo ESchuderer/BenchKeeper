@@ -151,15 +151,23 @@ const SWITCHED = JSON.stringify({
   reason: "switched",
   warnings: [],
 });
-const refusal = JSON.stringify({ schemaVersion: 1, error: { type: "ClaudeSwitchError", message: "no account 1" } });
+const namesEmail = (error: unknown) => String(Reflect.get(Object(error), "message")).includes("@");
+// Its refusal of a switch onto an account a session-mode instance runs on, which names the email (switcher.py).
+const refusal = JSON.stringify({
+  schemaVersion: 1,
+  error: {
+    type: "ClaudeSwitchError",
+    message: "Account-1 (user1@example.com) has a live session-mode Claude instance",
+  },
+});
 
 const select = (answer: string) =>
   targets["target/select"]?.({ ...INTERACTIVE, number: 1 }, on(cswap({ switch: answer })));
 
-test("select switches claude-swap to the account by its number and answers from and to by number; a refusal fails", async () => {
-  expect([await select(SWITCHED), await select(refusal)?.catch(() => "failed")]).toEqual([
+test("select switches claude-swap to the account by its number and answers from and to by number; a refusal fails without the email", async () => {
+  expect([await select(SWITCHED), await select(refusal)?.catch(namesEmail)]).toEqual([
     { switched: true, from: 3, to: 1, reason: "switched" },
-    "failed",
+    false,
   ]);
 });
 
@@ -187,7 +195,7 @@ test("install shows what it runs and runs it only with its program allowed, with
   ]).toEqual([
     {
       installed: false,
-      runs: "uv tool install --python '>=3.12' 'claude-swap[menubar]==0.30.0'",
+      runs: "uv tool install --python '>=3.12' --exclude-newer 2026-11-07T00:00:00Z 'claude-swap[menubar]==0.30.0'",
       approve: "cedarloom claude-swap install --allow uv",
     },
     [],

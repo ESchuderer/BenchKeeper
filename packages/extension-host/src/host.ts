@@ -75,7 +75,8 @@ export const HOST_LIMITS: HostLimits = {
   execMs: 120_000,
   execBytes: 1024 * 1024,
   execs: 4,
-  doctorMs: 10_000,
+  // claude-swap's check may fetch usage with its own 10 s timeouts and refresh a login, which a stop can break.
+  doctorMs: 40_000,
   // A target's tick runs a claude-swap tick, which host/exec allows 120 s: the call has a margin beyond its exec.
   targetMs: 130_000,
 };

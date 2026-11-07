@@ -7,6 +7,7 @@ import {
   GraphRun,
   JournalEvent,
   NodeAttempt,
+  PassedGate,
   type Result,
 } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
@@ -219,6 +220,17 @@ export class GraphStore {
     return ids.flatMap((row) => this.graphRun(String(row["id"])) ?? []);
   }
 
+  /** The gates a level passed without the owner in a run, as Auto approves and records, in the order they passed. */
+  passedGates(runId: string): PassedGate[] {
+    const rows = this.#db
+      .prepare(
+        `SELECT nodeId AS node, point, level, decidedAt AS at FROM gates WHERE runId = ? AND "by" = 'level'
+         ORDER BY decidedAt, rowid`,
+      )
+      .all(runId);
+    return rows.map((row) => PassedGate.parse(row));
+  }
+
   /** A run's attempts in the order they started. */
   attempts(runId: string): NodeAttempt[] {
     const rows = this.#db
@@ -353,7 +365,10 @@ export const openGraphStore = (dir: string, detect = filesystemType): Result<Gra
 };
 
 /** Graph runs as `runs list` and `runs show` read them: no lock, no write. */
-export type GraphView = Pick<GraphStore, "graphRun" | "graphRuns" | "attempts" | "events" | "ownerApproved" | "close">;
+export type GraphView = Pick<
+  GraphStore,
+  "graphRun" | "graphRuns" | "attempts" | "events" | "ownerApproved" | "passedGates" | "close"
+>;
 
 /** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */
 export const openGraphView = (dir: string): Result<GraphView | null> => {

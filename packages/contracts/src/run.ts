@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AutomationLevel } from "./automation.ts";
 import type { Json } from "./json.ts";
 import { Sha256 } from "./plan.ts";
 import { HandleName, JsonValue, WorkflowDefinition, WorkflowId } from "./workflow.ts";
@@ -134,3 +135,12 @@ export const NodeAttempt = z.object({
   finishedAt: z.iso.datetime().nullable(),
 });
 export type NodeAttempt = z.infer<typeof NodeAttempt>;
+
+/** A gate a level passed without the owner, as Auto approves and records: the node, the point, the level and when. */
+export const PassedGate = z.object({
+  node: WorkflowId,
+  point: GatePoint,
+  level: AutomationLevel,
+  at: z.iso.datetime(),
+});
+export type PassedGate = z.infer<typeof PassedGate>;

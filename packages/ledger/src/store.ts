@@ -205,6 +205,17 @@ export class RunView {
     };
   }
 
+  /** Each file under `folder` that a run wrote or deleted, with the hash its last done step left (null: deleted). */
+  written(folder: string): Map<string, string | null> {
+    const rows = this.db
+      .prepare(
+        `SELECT s.path, s.after FROM steps s JOIN runs r ON r.id = s.runId
+         WHERE s.state = 'done' AND substr(s.path, 1, length(?1)) = ?1 ORDER BY r.startedAt, r.rowid, s."index"`,
+      )
+      .all(folder);
+    return new Map(rows.map((row) => [String(row["path"]), row["after"] === null ? null : String(row["after"])]));
+  }
+
   /** Where the backup of a step's file goes: inside this store's folder only, never a path from the journal. */
   backupPath(runId: string, index: number): string {
     return join(backupsOf(this.dir, runId), String(index));

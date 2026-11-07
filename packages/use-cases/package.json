@@ -34,7 +34,8 @@
     "@cedarloom/extension-host": "workspace:*",
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
-    "@cedarloom/orchestration": "workspace:*"
+    "@cedarloom/orchestration": "workspace:*",
+    "@cedarloom/profiles": "workspace:*"
   },
   "devDependencies": {
     "@cedarloom/adapter-claude": "workspace:*",

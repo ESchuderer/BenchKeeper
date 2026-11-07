@@ -20,6 +20,8 @@
     { "path": "packages/git/test" },
     { "path": "packages/packs" },
     { "path": "packages/packs/test" },
+    { "path": "packages/profiles" },
+    { "path": "packages/profiles/test" },
     { "path": "packages/extension-host" },
     { "path": "packages/extension-host/test" },
     { "path": "packages/extension-sdk" },

@@ -77,9 +77,11 @@ const notLoggedIn = (reason: string) => ({
 
 test("a home the agent's own login check does not show logged in is not probed, so no failure stands for the version", async () => {
   const dir = state();
-  // A probe of a launch that was refused would take the passing check, and leave the failing one for the next.
+  // Each launch that probed a home without a login would take a check, so the launch that may probe would get a failing
+  // one, not the fake's passing default.
   const checks: ContractCheck[] = [
     { version: "2.1.316", missing: [] },
+    { version: "2.1.316", missing: ["usage"] },
     { version: "2.1.316", missing: ["usage"] },
   ];
   const cli = runtime(Array(4).fill("2.1.316"), checks);

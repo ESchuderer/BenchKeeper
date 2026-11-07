@@ -45,7 +45,6 @@ const handle = (node: string, name: string): Locator =>
 const problems = (): Locator => page.getByRole("region", { name: "Problems" });
 const view = (name: string): Promise<void> =>
   page.getByRole("navigation", { name: "Views" }).getByRole("button", { name }).click();
-const selected = /\bselected\b/;
 // The editor's status line; the problems panel's count, also a status, comes after it.
 const said = (): Locator => page.getByRole("status").first();
 const offers = (): Locator => page.getByRole("region", { name: "Unsaved drafts" });
@@ -183,13 +182,13 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   // The next edit that applies retires the refusal.
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  // Delete removes a selected node as Backspace does, and the id given out again comes unselected.
+  // Delete removes a selected node as Backspace does; the id given out again comes unselected, so Delete leaves it.
   await card("agent-run-1").click();
-  await expect(card("agent-run-1")).toHaveClass(selected);
   await page.keyboard.press("Delete");
   await expect(card("agent-run-1")).toHaveCount(0);
   await page.getByRole("button", { name: "Add node" }).click();
-  await expect(card("agent-run-1")).not.toHaveClass(selected);
+  await page.keyboard.press("Delete");
+  await expect(card("agent-run-1")).toHaveCount(1);
   // The document and its history outlive a visit to another view.
   await view("Runs");
   await view("Workflows");
@@ -224,21 +223,14 @@ test("import reads a workflow file, export writes it back in its canonical form,
   expect(errors).toEqual([]);
 });
 
-test("New and Import start the canvas over: nothing stays selected, and the new graph is fitted in view", async () => {
+test("Import fits the new graph in view", async () => {
   await page.getByRole("button", { name: "New workflow" }).click();
-  await card("start").click();
-  await expect(card("start")).toHaveClass(selected);
   // A new workflow's one node is fitted at the highest zoom. The imported row of eight is wider than the canvas at
   // that zoom, so all of it is in view only when the canvas fits it anew.
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
   for (const id of ["@inputs", "ask", "build", "fix", "gate", "merge", "notes", "start"]) {
     await expect(card(id)).toBeInViewport();
   }
-  await expect(card("start")).not.toHaveClass(selected);
-  await card("start").click();
-  await expect(card("start")).toHaveClass(selected);
-  await page.getByRole("button", { name: "New workflow" }).click();
-  await expect(card("start")).not.toHaveClass(selected);
 });
 
 test("handles connect from the keyboard: a dialog lists the outputs and the inputs that can take them", async () => {

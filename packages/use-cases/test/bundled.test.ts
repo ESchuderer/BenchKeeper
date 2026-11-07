@@ -15,20 +15,21 @@ const ok = <T>(result: Result<T>): T => {
   return result.value;
 };
 const ID = "cedarloom.example";
-const manifest = JSON.stringify({
-  schemaVersion: 1,
-  kind: "cedarloom.extension",
-  id: ID,
-  version: "1.0.0",
-  name: "Example",
-  api: "1.0",
-  runtime: { kind: "node", entry: "main.mjs" },
-  contributes: { actions: { status: { title: "Status" } } },
-});
+const manifest = (id: string): string =>
+  JSON.stringify({
+    schemaVersion: 1,
+    kind: "cedarloom.extension",
+    id,
+    version: "1.0.0",
+    name: "Example",
+    api: "1.0",
+    runtime: { kind: "node", entry: "main.mjs" },
+    contributes: { actions: { status: { title: "Status" } } },
+  });
 // An extension's folder: its manifest and an entry nothing here runs.
-const extensionIn = (folder: string): string => {
+const extensionIn = (folder: string, id = ID): string => {
   mkdirSync(folder, { recursive: true });
-  writeFileSync(join(folder, "cedarloom-extension.json"), manifest);
+  writeFileSync(join(folder, "cedarloom-extension.json"), manifest(id));
   writeFileSync(join(folder, "main.mjs"), "");
   return folder;
 };
@@ -84,7 +85,15 @@ test("a components map CedarLoom cannot read refuses the start, and an app folde
   const unreadable = extensionToStart(paths, ID);
   const renamed = machine();
   extensionIn(join(renamed.app, "renamed"));
-  expect([unreadable, bundledExtensions(renamed.app, renamed.config)]).toEqual([
+  // Named by its id, but not of the cedarloom publisher: it would hide an extension installed from Git.
+  const foreign = machine();
+  extensionIn(join(foreign.app, "acme.example"), "acme.example");
+  const listings = [renamed, foreign].map(({ app, config }) => bundledExtensions(app, config));
+  const invalidId = {
+    ok: false,
+    finding: { code: "document.invalid", params: { issues: [{ path: "id", code: "custom" }] } },
+  };
+  expect([unreadable, ...listings]).toEqual([
     {
       ok: false,
       finding: {
@@ -92,6 +101,7 @@ test("a components map CedarLoom cannot read refuses the start, and an app folde
         params: { issues: [expect.objectContaining({ path: "components.cedarloom.example" })] },
       },
     },
-    { ok: false, finding: { code: "document.invalid", params: { issues: [{ path: "id", code: "custom" }] } } },
+    invalidId,
+    invalidId,
   ]);
 });

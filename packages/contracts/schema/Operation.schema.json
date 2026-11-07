@@ -7,6 +7,9 @@
     },
     {
       "$ref": "DeleteFile.schema.json"
+    },
+    {
+      "$ref": "StoreUpdate.schema.json"
     }
   ]
 }

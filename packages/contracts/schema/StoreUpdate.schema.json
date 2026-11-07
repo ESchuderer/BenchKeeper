@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "StoreUpdate.schema.json",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "store.update"
+    },
+    "ref": {
+      "type": "string",
+      "const": "refs/heads/main"
+    },
+    "before": {
+      "anyOf": [
+        {
+          "$ref": "GitOid.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Commit the branch must have when the plan applies; null: it must not exist"
+    },
+    "after": {
+      "anyOf": [
+        {
+          "$ref": "GitOid.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Commit the branch moves to; null: it is removed, the undo of its creation"
+    }
+  },
+  "required": [
+    "kind",
+    "ref",
+    "before",
+    "after"
+  ],
+  "additionalProperties": false
+}

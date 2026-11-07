@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { Agent } from "@cedarloom/contracts";
+import { Agent, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
@@ -19,6 +19,9 @@ import {
   runsList,
   runsShow,
   runsUndo,
+  workflowsHistory,
+  workflowsOpen,
+  workflowsSave,
 } from "./commands.ts";
 import { runsCancel, runsResume, workflowsRun } from "./graphs.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
@@ -54,10 +57,37 @@ const input = (pair: string, inputs: Record<string, string>): Record<string, str
   return { ...inputs, [pair.slice(0, at)]: pair.slice(at + 1) };
 };
 
+const workflowId = (value: string): string => {
+  if (!WorkflowId.safeParse(value).success) throw new InvalidArgumentError("not a workflow id");
+  return value;
+};
+const ID = "the workflow's id";
+
+const storeCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
+  workflows
+    .command("save")
+    .description("show storing a workflow's draft as a new version; with --yes, store it as one run")
+    .addArgument(new Argument("<id>", ID).argParser(workflowId))
+    .option("--on-top", "store a draft opened from an older stored version on top of the newer one")
+    .option("--yes", "store the version as computed now")
+    .action((id, options) => done(workflowsSave(ctx(), id, options)));
+  workflows
+    .command("history")
+    .description("list a workflow's stored versions, newest first")
+    .addArgument(new Argument("<id>", ID).argParser(workflowId))
+    .action((id) => done(workflowsHistory(ctx(), id)));
+  workflows
+    .command("open")
+    .description("open a stored version as the workflow's draft; never over a draft")
+    .addArgument(new Argument("<id>", ID).argParser(workflowId))
+    .option("--at <commit>", "the version's commit from the history (default: the latest)")
+    .action((id, options) => done(workflowsOpen(ctx(), id, options)));
+};
+
 const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
-  program
-    .command("workflows")
-    .description("workflow files")
+  const workflows = program.command("workflows").description("workflow files and the workflow store");
+  storeCommands(workflows, ctx, done);
+  workflows
     .command("run")
     .description("run a workflow file in this process to its end; Ctrl+C cancels it")
     .argument("<file>")

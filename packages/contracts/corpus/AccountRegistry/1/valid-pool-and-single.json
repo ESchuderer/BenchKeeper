@@ -1,9 +1,5 @@
 {
   "schemaVersion": 1,
-  "minimum": {
-    "fiveHour": 8,
-    "sevenDay": 3
-  },
   "accounts": [
     {
       "name": "work",
@@ -18,9 +14,6 @@
       "agent": "claude",
       "home": "/home/dev/.local/share/cedarloom/accounts/spare",
       "pool": "main",
-      "minimum": {
-        "fiveHour": 15
-      },
       "added": "2026-11-03T09:00:00.000Z"
     },
     {

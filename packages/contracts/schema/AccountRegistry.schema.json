@@ -7,26 +7,6 @@
       "type": "number",
       "const": 1
     },
-    "minimum": {
-      "type": "object",
-      "properties": {
-        "fiveHour": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100
-        },
-        "sevenDay": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "fiveHour",
-        "sevenDay"
-      ],
-      "additionalProperties": false
-    },
     "accounts": {
       "type": "array",
       "items": {
@@ -53,7 +33,7 @@
             "description": "The account's config folder (CLAUDE_CONFIG_DIR or CODEX_HOME); its login stays there"
           },
           "aliases": {
-            "description": "Other tools' config folders of the same account, for readings only: nothing is written into them",
+            "description": "Earlier and other config folders of the same account; workers may not read them, and nothing reads or writes them",
             "type": "array",
             "items": {
               "type": "string",
@@ -70,23 +50,6 @@
                 "type": "null"
               }
             ]
-          },
-          "minimum": {
-            "description": "The account's own minimums, in place of the registry's",
-            "type": "object",
-            "properties": {
-              "fiveHour": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 100
-              },
-              "sevenDay": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 100
-              }
-            },
-            "additionalProperties": false
           },
           "added": {
             "type": "string",
@@ -155,7 +118,6 @@
   },
   "required": [
     "schemaVersion",
-    "minimum",
     "accounts",
     "pools"
   ],

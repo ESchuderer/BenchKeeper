@@ -36,7 +36,6 @@ const AT = "2026-11-05T11:00:00.000Z";
 
 const registry: AccountRegistry = {
   schemaVersion: 1,
-  minimum: { fiveHour: 8, sevenDay: 3 },
   accounts: ["work", "spare", "solo"].map((name) => ({
     name,
     agent: "claude",
@@ -178,7 +177,6 @@ const writeRegistry = (config: string) => {
     join(config, "accounts.json"),
     formatRegistry({
       schemaVersion: 1,
-      minimum: { fiveHour: 8, sevenDay: 3 },
       accounts,
       pools: { claude: unconfirmed, codex: unconfirmed },
     }),
@@ -223,7 +221,6 @@ test("an account is added by a plan with its own home: the first creates the reg
     ok: true,
     value: {
       schemaVersion: 1,
-      minimum: { fiveHour: 8, sevenDay: 3 },
       accounts: [{ name: "work", agent: "claude", home: ownHome(state, "work"), pool: "main", added: AT }],
       pools: { claude: { main: unconfirmed } },
     },

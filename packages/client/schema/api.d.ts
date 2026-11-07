@@ -781,6 +781,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.not-waiting";
+            params: {
+                runId: string;
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.report-only-apply";
             params: {
                 runId: string;
@@ -1776,6 +1783,13 @@ export interface components {
             params: {
                 runId: string;
                 status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.not-waiting";
+            params: {
+                runId: string;
+                node: string;
             };
         } | {
             /** @constant */

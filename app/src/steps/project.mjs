@@ -327,7 +327,7 @@ export const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'A
 // True when the setup can only be shared: AGENTS.md is committed with text of the project's own, which a removal of the
 // committed setup (projects unshare) keeps.
 export const staysShared = (ctx, dir) => commitsAgentsMd(ctx, dir) && handWritten(dir).trim() !== '';
-export const shareOnly = (dir) => `${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`;
+export const shareOnly = (dir) => `${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share moves the block from ${LOCAL_CLAUDE} into AGENTS.md`;
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
@@ -460,7 +460,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const codexOverride = a.share && a.agents.includes('codex') && override != null && overrideOwn(override).trim() !== '';
   if (codexOverride) {
     const ours = overrideOurs(override);
-    add('local-codex', `${OVERRIDE}: AGENTS.md with the block above your own lines (Codex reads this file instead of AGENTS.md)${ours ? '' : ' (above your own text)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
+    add('local-codex', `${OVERRIDE}: AGENTS.md with the block above your own lines (Codex reads this file instead of AGENTS.md)`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
       edit: (t, run) => overrideWith(t, setBlock(handWritten(dir), 'project', blockText(run))) });
   } else if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
   if (a.agents.includes('gemini')) {

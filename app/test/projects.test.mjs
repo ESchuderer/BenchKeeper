@@ -553,7 +553,7 @@ test('projects unshare refuses a setup whose committed AGENTS.md has text of its
   addProject(ctx, p.dir);
   const r = unshare(ctx, p.dir);
   assert.equal(r.status, 'stopped');
-  assert.equal(r.reason, `${p.dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of CLAUDE.local.md and AGENTS.override.md`);
+  assert.equal(r.reason, `${p.dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share moves the block from CLAUDE.local.md into AGENTS.md`);
   // Update all starts the unshare of a local setup git still tracks, and stops with it; the doctor names --share too.
   assert.equal(updateAll(ctx, { paths: [p.dir] })[0].reason, r.reason);
   assert.equal(projectChecks(ctx, p.dir).find((i) => /still has it committed/.test(i.message)).fix, 'benchkeeper projects apply --share: the repository commits AGENTS.md, so the setup stays shared');

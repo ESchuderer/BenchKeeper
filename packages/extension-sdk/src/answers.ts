@@ -1,5 +1,16 @@
 import { type ExecParams, type ExecResult, HOST_MISSING } from "./protocol.ts";
 
+/** A program's JSON answer on its standard output; one that does not parse throws, by its exit code when it failed. */
+export const jsonAnswer = (command: string, { code, stdout }: ExecResult): unknown => {
+  try {
+    const answer: unknown = JSON.parse(stdout);
+    return answer;
+  } catch (error) {
+    // A failing run's exit code says more than its empty output.
+    throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
+  }
+};
+
 /** The value at a path of keys in a parsed answer; undefined where the path leads nowhere. */
 export const valueAt = (value: unknown, ...keys: string[]): unknown =>
   keys.reduce((inner, key) => Reflect.get(Object(inner), key), value);
@@ -23,3 +34,6 @@ export const programVersion = async (
   if (answer.code !== 0) throw new Error(`${program} --version exited with ${answer.code}`);
   return { installed: true, version: answer.stdout.trim() };
 };
+
+/** A word as a POSIX shell takes it unchanged: in single quotes, each single quote closed, escaped and opened again. */
+export const shellWord = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;

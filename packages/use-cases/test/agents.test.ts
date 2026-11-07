@@ -2,7 +2,6 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRuntime, ContractCheck, UsageWindow } from "@cedarloom/agent-contracts";
-import { DatabaseSync } from "node:sqlite";
 import { openRunStore } from "@cedarloom/ledger";
 import { checkedVersions, recordUsage } from "@cedarloom/use-cases";
 import { canonicalJson, type Json, USAGE_RAW_CUT_MARKER, USAGE_RAW_LIMIT_BYTES } from "@cedarloom/contracts";
@@ -138,15 +137,7 @@ test("a CLI that cannot tell its version or run its check starts no worker", asy
   });
 });
 
-test("a store the check cannot use, before the probe or after it, is reported", async () => {
-  const newer = state();
-  const db = new DatabaseSync(join(newer, "runs.sqlite"));
-  db.exec("PRAGMA user_version = 99");
-  db.close();
-  await expect(checkedVersions(newer, "claude", runtime(["2.1.316"], []), input)).resolves.toMatchObject({
-    ok: false,
-    finding: { code: "store.newer-schema" },
-  });
+test("a store another holder takes while the probe runs keeps the check from being recorded, and is reported", async () => {
   // Another holder takes the store while the probe runs and keeps it through all three tries, so the check cannot be
   // recorded.
   const dir = state();

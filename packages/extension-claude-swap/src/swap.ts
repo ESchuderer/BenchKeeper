@@ -1,8 +1,10 @@
 import {
   type ActionContext,
   type DoctorFinding,
+  jsonAnswer,
   type ProgramVersion,
   programVersion,
+  type SessionHandlers,
   type TargetAccount,
   type TargetHandlers,
   type TargetProbe,
@@ -20,6 +22,7 @@ const FETCH_MS = 30_000;
 type Exec = Pick<ActionContext, "exec">;
 // Rows claude-swap cannot use until the user logs in again (`relogin_required`) or adds a login (`no_credentials`).
 const HELD = new Set(["relogin_required", "no_credentials"]);
+const held = (row: unknown): boolean => HELD.has(String(at(row, "usageStatus")));
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const textOr = (value: unknown, otherwise: string | null): string | null =>
@@ -47,17 +50,11 @@ const withoutEmails = (text: string): string =>
 
 const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
   const command = `cswap ${args.join(" ")}`;
-  const { code, stdout } = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
-  let answer: unknown;
-  try {
-    answer = JSON.parse(stdout);
-  } catch (error) {
-    // A failing run's exit code says more than its empty output.
-    throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
-  }
+  const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
+  const answer = jsonAnswer(command, ran);
   const message = at(answer, "error", "message");
   if (typeof message === "string") throw new Error(`${command}: ${withoutEmails(message)}`);
-  if (code !== 0) throw new Error(`${command} exited with ${code}`);
+  if (ran.code !== 0) throw new Error(`${command} exited with ${ran.code}`);
   const version = at(answer, "schemaVersion");
   if (version !== 1) throw new Error(`${command} answered schemaVersion ${String(version)}, not 1`);
   return answer;
@@ -108,7 +105,7 @@ const accountOf = (row: unknown): TargetAccount[] => {
       ...(typeof alias === "string" && ALIAS.test(alias) ? { alias } : {}),
       active: at(row, "active") === true,
       disabled: at(row, "disabled") === true,
-      held: HELD.has(String(at(row, "usageStatus"))),
+      held: held(row),
       threshold: typeof threshold === "number" && threshold >= 0 && threshold <= 100 ? threshold : null,
       windows: windowsOf(row),
     },
@@ -167,6 +164,16 @@ export const targets: TargetHandlers = {
   },
 };
 
+/** The session provider `claude`: claude-swap's session mode runs Claude Code as one of its accounts, by number. */
+export const sessions: SessionHandlers = {
+  "session/line": async ({ number }, context) => {
+    const row = (await rowsOf(context)).find((each) => at(each, "number") === number);
+    if (row === undefined) throw new Error(`claude-swap has no account ${number}`);
+    if (held(row)) throw new Error(`claude-swap holds account ${number} until a new login`);
+    return { argv: ["cswap", "run", String(number), "--require-session", "--"] };
+  },
+};
+
 const finding = (severity: DoctorFinding["severity"], code: string, message: string): DoctorFinding => ({
   check: "claude-swap",
   severity,
@@ -197,7 +204,7 @@ export const doctor = async (context: Exec): Promise<DoctorFinding[]> => {
     if (problem !== undefined) return unsupported(problem);
     const rows = await rowsOf(context);
     const ready = finding("info", "claude-swap.ready", `claude-swap ${found.version} manages ${rows.length} accounts.`);
-    return [ready, ...rows.filter((row) => HELD.has(String(at(row, "usageStatus")))).map(reloginOf)];
+    return [ready, ...rows.filter((row) => held(row)).map(reloginOf)];
   } catch (error) {
     return unsupported(messageOf(error));
   }

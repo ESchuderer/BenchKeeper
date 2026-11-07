@@ -13,7 +13,7 @@ import {
   readDocument,
   semverAbove,
 } from "@cedarloom/contracts";
-import { errorCode } from "@cedarloom/engine";
+import { errorCode, parseDocument, readJson } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 
 type Ref = { pack: string; path: string };
@@ -35,14 +35,6 @@ export type EntryKind = "rules" | "template" | "profile" | "skill";
 /** A fetched folder: each file with its path inside the folder, its Git mode and its bytes. */
 export type Folder = { readonly files: readonly { path: string; mode: string; content: Buffer }[] };
 
-const parseJson = (text: string): Result<unknown> => {
-  try {
-    return { ok: true, value: JSON.parse(text) };
-  } catch {
-    return refuse({ code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } });
-  }
-};
-
 /** A file's text, null when it is missing; `document.unreadable` when it cannot be read. */
 export const textFile = (path: string): Result<string | null> => {
   try {
@@ -51,14 +43,6 @@ export const textFile = (path: string): Result<string | null> => {
     if (errorCode(error) === "ENOENT") return { ok: true, value: null };
     return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
   }
-};
-
-/** A JSON file's text and value, null when it is missing: `document.unreadable` or `document.invalid` otherwise. */
-export const jsonFile = (path: string): Result<{ text: string; json: unknown } | null> => {
-  const text = textFile(path);
-  if (!text.ok || text.value === null) return text.ok ? { ok: true, value: null } : text;
-  const json = parseJson(text.value);
-  return json.ok ? { ok: true, value: { text: text.value, json: json.value } } : json;
 };
 
 // A pack's file from its fetched folder, or from this release's bundled packs without one; null when it is absent.
@@ -80,8 +64,7 @@ type Entry = PackManifest["entries"][string];
 const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManifest | null> => {
   const bytes = packFile(pack, "cedarloom-pack.json", folder);
   if (!bytes.ok || bytes.value === null) return bytes.ok ? { ok: true, value: null } : bytes;
-  const json = parseJson(bytes.value.toString("utf8"));
-  return json.ok ? readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value) : json;
+  return parseDocument(bytes.value.toString("utf8"), (json) => readDocument(PackManifest, PACK_SCHEMA_VERSION, json));
 };
 
 /** A pack as `id@version` by its manifest, the id alone for a pack without one here. */
@@ -132,15 +115,13 @@ export const entryFiles = (ref: Ref, folder: Folder): Folder["files"] => {
 
 // A file's JSON; a missing one is unreadable.
 const jsonAt = (path: string): Result<unknown> => {
-  const file = jsonFile(path);
-  if (!file.ok) return file;
-  if (file.value === null) return refuse({ code: "document.unreadable", params: { path, error: "ENOENT" } });
-  return { ok: true, value: file.value.json };
+  const file = readJson(path);
+  return file.ok ? { ok: true, value: file.value.json } : file;
 };
 
 const profileEntry = (ref: Ref): Result<unknown> => {
   const text = readEntry(ref, "profile");
-  return text.ok ? parseJson(text.value) : text;
+  return text.ok ? parseDocument(text.value, (json) => ({ ok: true, value: json })) : text;
 };
 
 const loadParent: LoadParent = (parent) => {

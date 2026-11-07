@@ -38,6 +38,8 @@ const EXTENSION_STEPS = {
   run: "run an action",
   doctor: "answer the doctor's checks",
   target: "answer as a switch target",
+  worker: "answer as a worker runner",
+  session: "answer as a session provider",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
@@ -318,6 +320,29 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
+  "outbox.not-approved": (p) =>
+    `The approval names intent ${short(p.approvedHash)}, not ${short(p.hash)}; nothing was queued under ${p.key}.`,
+  "outbox.not-found": (p) => `No outbox entry ${p.id} in this state folder.`,
+  "outbox.key-taken": (p) => `Outbox entry ${p.id} holds another intent under ${p.key}; nothing was queued.`,
+  "outbox.not-hub": (p) =>
+    `Outbox entry ${p.id} writes to ${p.repo}, which is not the hub; CedarLoom writes to hub issues only, so it failed.`,
+  "outbox.status": (p) =>
+    p.status === "sending"
+      ? `Another CedarLoom process is sending outbox entry ${p.id}.`
+      : `Outbox entry ${p.id} is ${p.status}, so this step does not apply to it.`,
+  "outbox.not-undoable": (p) =>
+    p.reason === "unchanged"
+      ? `Outbox entry ${p.id} changed nothing on its issue, so there is nothing to undo.`
+      : `Outbox entry ${p.id} deleted a comment, which cannot be brought back.`,
+  "tracker.unavailable": (p) => {
+    const after = p.retryAfter === null ? "" : ` GitHub asks to wait ${shown(p.retryAfter, 20)} s.`;
+    const reset =
+      p.rateLimitReset === null ? "" : ` The rate limit resets at ${shown(p.rateLimitReset, 20)} (epoch seconds).`;
+    return `The tracker did not take the write now (${shown(p.error, 300)}); the entry stays queued for the next send.${after}${reset}`;
+  },
+  "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
+  "tracker.invalid-answer": (p) =>
+    `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

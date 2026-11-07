@@ -262,6 +262,16 @@ export const ExtensionManifest = z
       switchTargets: sized(z.record(ActionId, z.strictObject({ agent: Agent })), 8)
         .optional()
         .describe("Where it switches an agent's account (the target/* calls); bundled extensions only"),
+      workerRunners: sized(z.record(ActionId, z.strictObject({ agent: Agent })), 8)
+        .optional()
+        .describe(
+          "Where it starts a supervised worker on a given launch line (the worker/* calls); bundled extensions only",
+        ),
+      sessionProviders: sized(z.record(ActionId, z.strictObject({ agent: Agent, program: ProgramId })), 8)
+        .optional()
+        .describe(
+          "Where it runs an agent as a given account, by a launch line's prefix (session/line); bundled extensions only",
+        ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
@@ -273,6 +283,13 @@ export const ExtensionManifest = z
     const { actions, commands = [] } = manifest.contributes;
     if (commands.some((command) => !Object.hasOwn(actions, command))) {
       ctx.addIssue({ code: "custom", path: ["contributes", "commands"], message: "each one of its actions" });
+    }
+    // A session line starts with a program the host finds from the manifest's own candidates.
+    const programs = manifest.capabilities?.programs ?? {};
+    for (const [id, { program }] of Object.entries(manifest.contributes.sessionProviders ?? {})) {
+      if (!Object.hasOwn(programs, program)) {
+        ctx.addIssue({ code: "custom", path: ["contributes", "sessionProviders", id], message: "one of its programs" });
+      }
     }
   })
   .describe("A CedarLoom extension manifest; readers also refuse values nested over 32 levels deep")

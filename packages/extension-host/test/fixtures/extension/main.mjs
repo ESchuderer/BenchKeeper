@@ -217,6 +217,27 @@ Object.assign(requests, {
   "target/policy": target(({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } })),
 });
 
+// Its worker runner: x-bad-worker answers a dispatch the host cannot hold.
+Object.assign(requests, {
+  "worker/start": () =>
+    mode === "x-bad-worker"
+      ? { dispatch: "two words", handles: [] }
+      : { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
+  "worker/show": () => ({ state: "succeeded", settled: true }),
+  "worker/release": ({ handles }) => ({ released: handles.length === 2 }),
+  // Its session provider, on the program `runtime`: x-bad-session adds a flag the host refuses.
+  "session/line": ({ number }) => ({
+    argv: [
+      "runtime",
+      "run",
+      String(number),
+      "--require-session",
+      "--",
+      ...(mode === "x-bad-session" ? ["--no-share"] : []),
+    ],
+  }),
+});
+
 // An error whose message is an array nested 200,000 deep: the reader cannot build its answer.
 const DEEP = Symbol("deep");
 const answerDeep = (id) => {

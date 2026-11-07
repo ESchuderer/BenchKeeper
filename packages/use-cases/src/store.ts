@@ -31,13 +31,13 @@ import { parseDocument, storeOf } from "./use-cases.ts";
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 // A workflow's file in the store, as the export layout names it.
-const fileOf = (id: string): string => {
+export const fileOf = (id: string): string => {
   if (!WorkflowId.safeParse(id).success) throw new Error(`not a workflow id: ${id}`);
   return `workflows/workflow-${id.toLowerCase()}.json`;
 };
 
 // A stored workflow: its file's text, which an export writes byte for byte, and the workflow.
-const readStored = (store: Store, blob: string): Result<{ text: string; workflow: WorkflowDefinition }> => {
+export const readStored = (store: Store, blob: string): Result<{ text: string; workflow: WorkflowDefinition }> => {
   const bytes = store.read(blob);
   if (!bytes.ok) return bytes;
   const text = bytes.value.toString("utf8");
@@ -93,12 +93,12 @@ export const planSave = (state: string, id: string, { onTop = false } = {}): Res
   const was = risen(store, stored, draft.value.id, version);
   if (!was.ok) return was;
   // One line per stored workflow, which the history reads.
-  const made = store.commit(head, fileOf(id), formatWorkflow(workflow), `${draft.value.id} ${version}\n`);
+  const made = store.commit(head, [[fileOf(id), formatWorkflow(workflow)]], `${draft.value.id} ${version}\n`);
   if (!made.ok) return made;
   const base = basePathOf(state, id);
   const operations: Plan["operations"] = [
     { kind: "store.update", ref: STORE_REF, before: head, after: made.value.commit },
-    { kind: "write", path: base, before: hashFile(base), content: `${made.value.blob}\n`, mode: 0o600 },
+    { kind: "write", path: base, before: hashFile(base), content: `${made.value.blobs[0]}\n`, mode: 0o600 },
   ];
   return { ok: true, value: { plan: { schemaVersion: PLAN_SCHEMA_VERSION, operations }, version, stored: was.value } };
 };
@@ -176,7 +176,7 @@ const storedFiles = (state: string, ids: string[]): Result<Stored> => {
 
 // A link anywhere inside the folder, which a shared clone can hold, would redirect the write: from `workflows` into
 // the state folder's drafts, say. Apply refuses a link at the file itself; this refuses one on the way to it too.
-const linkIn = (folder: string, path: string): string | undefined => {
+export const linkIn = (folder: string, path: string): string | undefined => {
   const parts = path.split("/");
   return parts
     .map((_, depth) => join(folder, ...parts.slice(0, depth + 1)))

@@ -148,7 +148,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
 // expected document 65, a rule 1.
-const refused = (
+export const refused = (
   ctx: Context,
   format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
   finding: Finding,
@@ -161,7 +161,7 @@ const refused = (
  * Shows a planned change with `note` below it and its findings, or with --yes applies it as one run; `data` joins the
  * plan's JSON, and the findings join the plan's and the run's, so every output form carries them.
  */
-const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
+export const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
   if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
   const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;

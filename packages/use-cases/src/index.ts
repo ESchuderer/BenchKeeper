@@ -1,4 +1,5 @@
 export { type Bundled, bundledExtensions, extensionToStart, planSwitch, type Startable } from "./bundled.ts";
+export { type From, type ImportPlan, planImport } from "./imports.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export {
   type ExportPlan,

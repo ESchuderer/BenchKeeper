@@ -29,6 +29,7 @@ import {
   workflowsSave,
 } from "./commands.ts";
 import { runsCancel, runsResume, workflowsRun } from "./graphs.ts";
+import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
@@ -115,6 +116,16 @@ const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action(async (file, options) =>
       done(await workflowsRun(ctx(), file, options.input, resolve(options.project ?? "."))),
     );
+};
+
+const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("import")
+    .description("show what importing workflows from an export folder or a Git URL would do; with --yes, store them")
+    .argument("<source>", "an export folder, or an https or ssh Git URL")
+    .option("--ref <ref>", "the branch, tag or commit of a Git source (default: its default branch)")
+    .option("--yes", "store the new and updated workflows as reviewed now")
+    .action(async (source, options) => done(await importCommand(ctx(), source, options)));
 };
 
 const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -329,15 +340,8 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     const app = io.bundled ?? BUNDLED;
     return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
   };
-  plansGroup(program, ctx, done);
-  runsGroup(program, ctx, done);
-  workflowsGroup(program, ctx, done);
-  accountsGroup(program, ctx, done);
-  extensionsGroup(program, ctx, done);
-  componentsGroup(program, ctx, done);
-  modeGroup(program, ctx, done);
-  levelGroup(program, ctx, done);
-  profilesGroup(program, ctx, done);
+  const groups = [plansGroup, runsGroup, workflowsGroup, importGroup, accountsGroup, extensionsGroup];
+  for (const group of [...groups, componentsGroup, modeGroup, levelGroup, profilesGroup]) group(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs, store problems, and each account's login in its own home")

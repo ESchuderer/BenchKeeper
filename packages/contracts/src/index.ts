@@ -93,6 +93,7 @@ export {
   PortablePath,
   UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";
+export { ImportReview } from "./imports.ts";
 export { PACK_SCHEMA_VERSION, PackManifest } from "./pack.ts";
 export {
   Profile,

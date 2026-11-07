@@ -20,15 +20,15 @@ export interface Store {
   blob: (commit: string, path: string) => string | null;
   read: (blob: string) => Result<Buffer>;
   /**
-   * A commit on `parent` (null: the first) with `path` set to `content`, which nothing references yet, so it is inert
-   * until the branch moves to it. Its author is the user's Git identity; the store is made at the first commit.
+   * A commit on `parent` (null: the first) with each of `files` (path, content) set, which nothing references yet, so
+   * it is inert until the branch moves to it; the blobs in the order of `files`. Its author is the user's Git identity;
+   * the store is made at the first commit.
    */
   commit: (
     parent: string | null,
-    path: string,
-    content: string,
+    files: [path: string, content: string][],
     message: string,
-  ) => Result<{ blob: string; commit: string }>;
+  ) => Result<{ blobs: string[]; commit: string }>;
   /** The commits on the branch that changed `path`, newest first. */
   log: (path: string) => Result<Commit[]>;
   /**
@@ -100,30 +100,38 @@ const identity = (git: Git): Result<null> => {
   return { ok: true, value: null };
 };
 
-// The tree of `parent` with `path` set to `blob`, built by `git` in an index that only this call uses.
-const treeOf = (git: Git, parent: string | null, path: string, blob: string): Ran => {
+// The tree of `parent` with each path set to its blob, built by `git` in an index that only this call uses.
+const treeOf = (git: Git, parent: string | null, entries: [path: string, blob: string][]): Ran => {
   const read = git(parent === null ? ["read-tree", "--empty"] : ["read-tree", parent]);
-  const added = read.ok ? git(["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`]) : read;
+  const lines = entries.map(([path, blob]) => `100644 ${blob}\t${path}\n`).join("");
+  const added = read.ok ? git(["update-index", "--add", "--index-info"], lines) : read;
   return added.ok ? git(["write-tree"]) : added;
 };
 
 const committer =
   (dir: string, git: Git): Store["commit"] =>
-  (parent, path, content, message) => {
+  (parent, files, message) => {
     const known = identity(git);
     if (!known.ok) return known;
     // SHA-1 and main whatever the user's init.defaultObjectFormat and init.defaultBranch say.
     const init = ["init", "--bare", "--quiet", "--template=", "--object-format=sha1", "--initial-branch=main", dir];
     const made = existsSync(join(dir, "HEAD")) ? undefined : git(init);
     if (made !== undefined && !made.ok) return failed("start", made);
-    const blob = git(["hash-object", "-w", "--stdin"], content);
+    const blobs = files.map(([, content]) => git(["hash-object", "-w", "--stdin"], content));
+    const missed = blobs.find((blob) => !blob.ok);
+    if (missed !== undefined) return failed("commit", missed);
     const index = join(dir, `index-${randomUUID()}`);
     const indexed: Git = (args, input) => git(args, input, { GIT_INDEX_FILE: index });
     try {
-      const tree = blob.ok ? treeOf(indexed, parent, path, blob.out) : blob;
+      const tree = treeOf(
+        indexed,
+        parent,
+        files.map(([path], at) => [path, blobs[at]?.out ?? ""]),
+      );
       const parents = parent === null ? [] : ["-p", parent];
       const commit = tree.ok ? git(["commit-tree", tree.out, ...parents, "-F", "-"], message) : tree;
-      return commit.ok ? { ok: true, value: { blob: blob.out, commit: commit.out } } : failed("commit", commit);
+      if (!commit.ok) return failed("commit", commit);
+      return { ok: true, value: { blobs: blobs.map((blob) => blob.out), commit: commit.out } };
     } finally {
       rmSync(index, { force: true });
     }

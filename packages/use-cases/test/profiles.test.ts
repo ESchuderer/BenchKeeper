@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -9,15 +10,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { delimiter, join } from "node:path";
-import type { Plan } from "@cedarloom/contracts";
+import type { Finding, Plan } from "@cedarloom/contracts";
+import { createHash } from "node:crypto";
 import {
   applyPlan,
+  checkProfile,
   claudeHome,
   type Fetch,
   type PlanOptions,
   planChoice,
   planProfile,
   planSwitch,
+  profileDoctor,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
@@ -708,4 +712,153 @@ test("a files target in the skills folder goes when its part is switched off", a
   applied(box.state, ok(planChoice(box.config, { part: "project.notes", on: false })));
   applied(box.state, (await projectPlan(box, project)).plan);
   expect(existsSync(join(project, ".claude", "skills", "foo", "SKILL.md"))).toBe(false);
+});
+
+// The drift lines as [status, subject], an extra as ["extra", item], other findings by their code.
+const driftLines = (findings: Finding[]) =>
+  findings.map((finding) => {
+    if (finding.code === "profile.drift") return [finding.params.status, finding.params.subject];
+    return finding.code === "profile.extra" ? ["extra", finding.params.item] : [finding.code];
+  });
+
+test("a check reports each drift of an applied home and reads only, and an applied home has none", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const check = async () => driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock })));
+  const clean = await check();
+  const [global, hub, skill] = [
+    join(box.home, "rules", "00-global.md"),
+    join(box.home, "rules", "cedarloom-hub.md"),
+    join(box.home, "skills", "find-skills", "SKILL.md"),
+  ];
+  // CedarLoom's own older text, a file deleted, an owner's change, the owner's own rules and plugin, a part switched off.
+  const before = createHash("sha256").update(readFileSync(global)).digest("hex");
+  applied(box.state, { schemaVersion: 1, operations: [{ kind: "write", path: global, before, content: "- old\n" }] });
+  rmSync(hub);
+  writeFileSync(skill, "# Mine\n");
+  writeFileSync(join(box.home, "rules", "mine.md"), "- mine\n");
+  const settings = JSON.parse(readFileSync(join(box.home, "settings.json"), "utf8"));
+  writeFileSync(
+    join(box.home, "settings.json"),
+    JSON.stringify({ ...settings, enabledPlugins: { ...settings.enabledPlugins, "x@y": true } }),
+  );
+  applied(box.state, ok(planChoice(box.config, { part: "machine.plugin.ponytail", on: false })));
+  const settingsText = readFileSync(join(box.home, "settings.json"), "utf8");
+  expect([clean, await check(), readFileSync(join(box.home, "settings.json"), "utf8")]).toEqual([
+    [],
+    [
+      ["outdated", global],
+      ["missing", hub],
+      ["profile.owner-changed"],
+      ["deselected-present", "plugin:ponytail@ponytail"],
+      ["extra", "plugin:x@y"],
+      ["extra", "rules:mine.md"],
+    ],
+    settingsText,
+  ]);
+});
+
+// Every Git source as unreachable.
+const failing: Fetch = async () => ({
+  ok: false,
+  finding: { code: "git.failed", params: { step: "fetch", error: "offline" } },
+});
+
+test("a part switched off is reported as present, and a check without its Git sources did not run", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  applied(box.state, ok(planChoice(box.config, { part: "machine.rules.global", on: false })));
+  // Offline is no problem of the machine: the doctor keeps the line and drops the error.
+  const doctor = driftLines(await profileDoctor(box.config, box.state, where, failing));
+  expect([
+    driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock }))),
+    driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: failing }))),
+  ]).toEqual([
+    [["deselected-present", join(box.home, "rules", "00-global.md")]],
+    [["not-run", box.home], ["git.failed"]],
+  ]);
+  expect(doctor).toEqual([["not-run", box.home]]);
+});
+
+test("an offered removal is taken only when named, once however often, and offered again when it comes back", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const mine = join(box.home, "rules", "mine.md");
+  writeFileSync(mine, "- mine\n");
+  const plan = (remove: string[]) =>
+    planProfile(box.config, box.state, where, { allow: PLUGINS, fetch: stock, remove });
+  applied(box.state, ok(await plan(["rules:mine.md", "rules:mine.md"])).plan);
+  const removed = readdirSync(join(box.home, "rules")).includes("mine.md");
+  writeFileSync(mine, "- mine again\n");
+  expect([removed, ok(await plan([])).findings, await plan(["rules:other.md"])]).toEqual([
+    false,
+    [{ code: "profile.extra", params: { item: "rules:mine.md" } }],
+    { ok: false, finding: { code: "profile.remove-unknown", params: { item: "rules:other.md" } } },
+  ]);
+});
+
+test("a check writes nothing, not even the record of the followed sources", async () => {
+  const box = machine();
+  ok(await checkProfile(box.config, box.state, { home: box.home, user: box.user }, { fetch: stock }));
+  expect(existsSync(join(box.state, "pack-sources.json"))).toBe(false);
+});
+
+test("an owner's plugin and its marketplace go in one run, the marketplace only along with the plugin", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const path = join(box.home, "settings.json");
+  const settings = JSON.parse(readFileSync(path, "utf8"));
+  const enabledPlugins = { ...settings.enabledPlugins, "x@y": true };
+  const extraKnownMarketplaces = {
+    ...settings.extraKnownMarketplaces,
+    y: { source: { source: "github", repo: "a/y" } },
+  };
+  writeFileSync(path, JSON.stringify({ ...settings, enabledPlugins, extraKnownMarketplaces }));
+  const plan = (remove: string[]) =>
+    planProfile(box.config, box.state, where, { allow: PLUGINS, fetch: stock, remove });
+  const offered = driftLines(ok(await plan([])).findings);
+  applied(box.state, ok(await plan(["plugin:x@y", "marketplace:y"])).plan);
+  const after = JSON.parse(readFileSync(path, "utf8"));
+  expect([offered, "x@y" in after.enabledPlugins, "y" in after.extraKnownMarketplaces]).toEqual([
+    [["extra", "plugin:x@y"]],
+    false,
+    false,
+  ]);
+});
+
+test("an owner's skill folder goes when named and is offered again when it comes back; a binary file stops it", async () => {
+  const box = await setUp();
+  const where = { home: box.home, user: box.user };
+  const folder = join(box.home, "skills", "mine");
+  mkdirSync(join(folder, "assets"), { recursive: true });
+  writeFileSync(join(folder, "SKILL.md"), "# Mine\n");
+  const plan = (remove: string[]) =>
+    planProfile(box.config, box.state, where, { allow: PLUGINS, fetch: stock, remove });
+  applied(box.state, ok(await plan(["skill:mine"])).plan);
+  const left = readdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "SKILL.md"), "# Mine again\n");
+  const offered = ok(await plan([])).findings;
+  writeFileSync(join(folder, "assets", "logo.png"), Buffer.from([0xff, 0xfe, 0x00]));
+  expect([left, offered, await plan(["skill:mine"])]).toEqual([
+    ["assets"],
+    [{ code: "profile.extra", params: { item: "skill:mine" } }],
+    { ok: false, finding: { code: "apply.not-text", params: { path: join(folder, "assets", "logo.png") } } },
+  ]);
+});
+
+test("a project's check tells CedarLoom's older text there from a deleted file by the project's own record", async () => {
+  const box = machine();
+  const project = projectWith();
+  applied(box.state, (await projectPlan(box, project)).plan);
+  const docs = join(realpathSync.native(project), "docs", "agents");
+  const labels = join(docs, "triage-labels.md");
+  const domain = join(docs, "domain.md");
+  const before = createHash("sha256").update(readFileSync(domain)).digest("hex");
+  applied(box.state, { schemaVersion: 1, operations: [{ kind: "write", path: domain, before, content: "- old\n" }] });
+  rmSync(labels);
+  const where = { home: box.home, user: box.home };
+  expect(driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock, project })))).toEqual([
+    ["missing", labels],
+    ["outdated", domain],
+  ]);
 });

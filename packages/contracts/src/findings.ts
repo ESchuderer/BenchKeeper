@@ -220,6 +220,17 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
+    // A drift line of `profiles check`, its plans and the doctor (plan section 2.9): what differs from the profile, the
+    // path, part, source or item it is about, and the item `apply --remove` takes when its removal is offered.
+    finding("profile.drift", {
+      status: z.enum(["missing", "outdated", "deselected-present", "not-run"]),
+      subject: z.string(),
+      remove: z.string().nullable(),
+    }),
+    // What a home holds that the profile does not name, reported only, with the item `apply --remove` takes (PF4).
+    finding("profile.extra", { item: z.string() }),
+    // An `apply --remove` item the plan does not offer.
+    finding("profile.remove-unknown", { item: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
     // A part the selection switches on that stays off while its condition fails: for `orca`, the Orca extension is
@@ -409,6 +420,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.binding-waiting": { severity: "info", effort: "command" },
   "profile.when-unmet": { severity: "warning", effort: "command" },
+  "profile.drift": { severity: "warning", effort: "command" },
+  "profile.remove-unknown": { severity: "error", effort: "manual" },
+  "profile.extra": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },

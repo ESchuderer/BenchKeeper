@@ -73,7 +73,7 @@ const actions: Record<string, Action> = {
 type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
 
 /** The host's end of a connection to an extension on in-memory streams, the log lines it got, and its exit. */
-const connect = (more: Pick<ExtensionOptions, "doctor"> = {}): Connected => {
+const connect = (more: Pick<ExtensionOptions, "doctor" | "targets"> = {}): Connected => {
   const [toExtension, toHost] = [new PassThrough(), new PassThrough()];
   const exited = Promise.withResolvers<number>();
   defineExtension(actions, { input: toExtension, output: toHost, onExit: exited.resolve, ...more });
@@ -252,4 +252,24 @@ test("the doctor's checks run in the language initialize named and run programs 
     { findings: [{ check: "setup", severity: "info", code: "example.language", message: "de tool --version" }] },
     { findings: [] },
   ]);
+});
+
+const failed = (error: unknown) => Reflect.get(Object(error), "code");
+// A switch target whose current account is the exit code of a program the host runs, and whose select fails.
+const targets: ExtensionOptions["targets"] = {
+  "target/current": async ({ target }, { exec }) => ({
+    number: (await exec({ program: "tool", args: [target] })).code,
+  }),
+  "target/select": () => Promise.reject(new Error("no account 2")),
+};
+
+test("a switch target's calls reach their handlers, which run programs through the host; a failing call answers its reason, a call left out MethodNotFound", async () => {
+  const { host } = connect({ targets });
+  host.onRequest(hostExec, ({ args }) => ({ code: args?.[0] === "interactive" ? 3 : 0, stdout: "", stderr: "" }));
+  await host.sendRequest(initialize, hello);
+  expect([
+    await host.sendRequest("target/current", { target: "interactive" }),
+    await host.sendRequest("target/select", { target: "interactive", number: 2 }).then(String, failed),
+    await host.sendRequest("target/probe", { target: "interactive" }).then(String, failed),
+  ]).toEqual([{ number: 3 }, ACTION_FAILED, ErrorCodes.MethodNotFound]);
 });

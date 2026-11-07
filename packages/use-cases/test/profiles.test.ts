@@ -19,6 +19,7 @@ import {
   type PlanOptions,
   planChoice,
   planProfile,
+  profileDoctor,
 } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 import { ok, testRoot } from "./harness.ts";
@@ -655,11 +656,12 @@ test("a files target in the skills folder goes when its part is switched off", a
   expect(existsSync(join(project, ".claude", "skills", "foo", "SKILL.md"))).toBe(false);
 });
 
-// The drift lines as [status, subject], other findings by their code.
+// The drift lines as [status, subject], an extra as ["extra", item], other findings by their code.
 const driftLines = (findings: Finding[]) =>
-  findings.map((finding) =>
-    finding.code === "profile.drift" ? [finding.params.status, finding.params.subject] : [finding.code],
-  );
+  findings.map((finding) => {
+    if (finding.code === "profile.drift") return [finding.params.status, finding.params.subject];
+    return finding.code === "profile.extra" ? ["extra", finding.params.item] : [finding.code];
+  });
 
 test("a check reports each drift of an applied home and reads only, and an applied home has none", async () => {
   const box = await setUp();
@@ -692,7 +694,6 @@ test("a check reports each drift of an applied home and reads only, and an appli
       ["profile.owner-changed"],
       ["deselected-present", "plugin:ponytail@ponytail"],
       ["extra", "plugin:x@y"],
-      ["deselected-present", "marketplace:ponytail"],
       ["extra", "rules:mine.md"],
     ],
     settingsText,
@@ -709,6 +710,8 @@ test("a part switched off is reported as present, and a check without its Git so
   const box = await setUp();
   const where = { home: box.home, user: box.user };
   applied(box.state, ok(planChoice(box.config, { part: "machine.rules.global", on: false })));
+  // Offline is no problem of the machine: the doctor keeps the line and drops the error.
+  const doctor = driftLines(await profileDoctor(box.config, box.state, where, failing));
   expect([
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock }))),
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: failing }))),
@@ -716,18 +719,22 @@ test("a part switched off is reported as present, and a check without its Git so
     [["deselected-present", join(box.home, "rules", "00-global.md")]],
     [["not-run", "the profile's Git sources"], ["git.failed"]],
   ]);
+  expect(doctor).toEqual([["not-run", "the profile's Git sources"]]);
 });
 
-test("an offered removal is taken only when named, and an item not offered stops the plan", async () => {
+test("an offered removal is taken only when named, once however often, and offered again when it comes back", async () => {
   const box = await setUp();
   const where = { home: box.home, user: box.user };
   const mine = join(box.home, "rules", "mine.md");
   writeFileSync(mine, "- mine\n");
   const plan = (remove: string[]) =>
     planProfile(box.config, box.state, where, { allow: PLUGINS, fetch: stock, remove });
-  applied(box.state, ok(await plan(["rules:mine.md"])).plan);
-  expect([existsSync(mine), await plan(["rules:other.md"])]).toEqual([
+  applied(box.state, ok(await plan(["rules:mine.md", "rules:mine.md"])).plan);
+  const removed = existsSync(mine);
+  writeFileSync(mine, "- mine again\n");
+  expect([removed, ok(await plan([])).findings, await plan(["rules:other.md"])]).toEqual([
     false,
+    [{ code: "profile.extra", params: { item: "rules:mine.md" } }],
     { ok: false, finding: { code: "profile.remove-unknown", params: { item: "rules:other.md" } } },
   ]);
 });

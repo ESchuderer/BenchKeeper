@@ -96,7 +96,7 @@ test("an install pins the commit and digest, stages the files read-only by diges
   const [write] = plan.operations;
   const folder = join(at, "extensions", "acme.jira", pin.digest);
   const staged = readdirSync(folder).toSorted();
-  expect([plan.operations.length, write?.kind, write?.path, write?.before]).toEqual([
+  expect([plan.operations.length, write?.kind, write?.kind === "write" && write.path, write?.before]).toEqual([
     1,
     "write",
     join(at, "extensions.json"),

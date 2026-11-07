@@ -36,8 +36,10 @@ const settleAside = (step: Step, aside: string): void => {
  */
 export const recover = (store: RunStore): void => {
   for (const run of store.runs().filter((r) => r.status === "interrupted")) {
-    for (const step of store.run(run.id)?.steps ?? []) {
-      if (step.state !== "running") continue;
+    const detail = store.run(run.id);
+    for (const step of detail?.steps ?? []) {
+      // A store update moved its branch in one step or not at all: there is nothing of it to clean up.
+      if (step.state !== "running" || detail?.plan.operations[step.index]?.kind === "store.update") continue;
       rmSync(tempPath(step.path, run.id, step.index), { force: true });
       settleAside(step, asidePath(step.path, run.id, step.index));
     }

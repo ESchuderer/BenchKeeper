@@ -8,6 +8,7 @@ import {
   type Plan,
   type PlanPreview,
   type RunResult,
+  shown as printable,
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
@@ -147,7 +148,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // expected document 65, a rule 1.
 const refused = (
   ctx: Context,
-  format: "accounts" | "extensions" | "levels" | "login" | "mode" | "plan",
+  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
@@ -450,5 +451,32 @@ export const modeCommand = (
   const switched = useCases.switchMode(ctx.state, next);
   if (!switched.ok) return fail(ctx, "mode", [switched.finding], EXIT.refused);
   emit(ctx, "mode", switched.value, `${what}, at each run's next gate; the switch is in the ledger.`);
+  return EXIT.ok;
+};
+
+/** Shows storing a workflow's draft as a new version, or with --yes stores it as one run; runs undo takes it back. */
+export const workflowsSave = (ctx: Context, id: string, { onTop, yes }: { onTop?: true; yes?: true }): number => {
+  const planned = useCases.planSave(ctx.state, id, { onTop: onTop === true });
+  if (!planned.ok) return refused(ctx, "plan", planned.finding);
+  const { plan, version, stored } = planned.value;
+  const note = `\n  ${id} ${stored ?? "(new)"} -> ${version} in the workflow store`;
+  return change(ctx, plan, { note, data: { workflow: id, version, stored }, findings: [] }, yes);
+};
+
+export const workflowsHistory = (ctx: Context, id: string): number => {
+  const history = useCases.storeHistory(ctx.state, id);
+  if (!history.ok) return refused(ctx, "versions", history.finding);
+  const lines = history.value.map(({ commit, version, savedAt, author }) => {
+    return `${commit.slice(0, 12)}  ${version ?? "?"}  ${savedAt}  ${printable(author)}`;
+  });
+  const none = `No stored version of ${id}. Store its draft with: cedarloom workflows save ${id}`;
+  emit(ctx, "versions", { workflow: id, versions: history.value }, lines.length > 0 ? lines.join("\n") : none);
+  return EXIT.ok;
+};
+
+export const workflowsOpen = (ctx: Context, id: string, { at }: { at?: string }): number => {
+  const opened = useCases.openVersion(ctx.state, id, at);
+  if (!opened.ok) return refused(ctx, "draft", opened.finding);
+  emit(ctx, "draft", { ...opened.value }, `Opened the stored ${id} as its draft.`);
   return EXIT.ok;
 };

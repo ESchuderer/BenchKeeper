@@ -57,7 +57,17 @@ export {
   RunState,
   RunStatus,
 } from "./run.ts";
-export { DeleteFile, Operation, PLAN_SCHEMA_VERSION, Plan, Sha256, WriteFile } from "./plan.ts";
+export {
+  DeleteFile,
+  GitOid,
+  Operation,
+  PLAN_SCHEMA_VERSION,
+  Plan,
+  STORE_REF,
+  Sha256,
+  StoreUpdate,
+  WriteFile,
+} from "./plan.ts";
 export { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "./catalog.ts";
 export { isPlainText, PlainText, shown } from "./text.ts";
 export { CSRF_HEADER } from "./http.ts";

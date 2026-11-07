@@ -116,6 +116,9 @@ const nodePolicy = z.strictObject({
   retries: z.int().min(0).max(10).optional(),
 });
 
+/** A workflow's most nodes and edges, which the editor keeps to as well. */
+export const [MAX_WORKFLOW_NODES, MAX_WORKFLOW_EDGES] = [1000, 5000];
+
 /**
  * A workflow: metadata, typed inputs and outputs, the graph (nodes and edges), then the execution policy and the
  * editor's layout, each in a section of its own, so moving a node or changing a policy leaves the graph untouched.
@@ -140,8 +143,8 @@ export const WorkflowDefinition = z
     inputs: z.record(HandleName, WorkflowInput).optional(),
     outputs: z.record(HandleName, z.strictObject({ type: DataType, description })).optional(),
     // Bounds for files from elsewhere: the editor and the validator stay quick, and recursion over paths shallow.
-    nodes: z.array(WorkflowNode).min(1).max(1000),
-    edges: z.array(WorkflowEdge).max(5000),
+    nodes: z.array(WorkflowNode).min(1).max(MAX_WORKFLOW_NODES),
+    edges: z.array(WorkflowEdge).max(MAX_WORKFLOW_EDGES),
     execution: z
       .strictObject({
         maxConcurrency: z.int().min(1).max(64).optional(),

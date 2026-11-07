@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
 import type { Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared, Recovery } from "@cedarloom/engine";
-import { worktreeOf } from "@cedarloom/git";
+import { commonDir, worktreeOf } from "@cedarloom/git";
 import { readResult } from "@cedarloom/orchestration";
 import { boundTarget, loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
@@ -29,8 +29,11 @@ export interface AgentOptions<L extends Launch = Launch> {
   readonly config: string;
   readonly host: LaunchHost;
   readonly runtime: AgentRuntime<L>;
-  /** The adapter's launch options of a worker: the decided values with the phase's model and settings, in `cwd`. */
-  readonly launch: (decided: Decided, phase: Phase, cwd: string) => L;
+  /**
+   * The adapter's launch options of a worker: the decided values with the phase's model and settings, in `cwd`; with
+   * `readOnly`, `cwd` and those folders are closed to its writes.
+   */
+  readonly launch: (decided: Decided, phase: Phase, cwd: string, readOnly?: readonly string[]) => L;
   /** The model a worker of the phase runs, whose own weekly window counts in its account's choice. */
   readonly model?: (phase: Phase) => string;
   /** How long an agent may send nothing before it counts as stalled: 15 minutes when unset. */
@@ -39,11 +42,12 @@ export interface AgentOptions<L extends Launch = Launch> {
   readonly retryMs?: number;
 }
 
-/** The run an agent works for: its state folder, id and project folder. */
+/** The run an agent works for: its state folder, id and project folder, and whether it only reports. */
 export interface AgentRun {
   readonly state: string;
   readonly runId: string;
   readonly project: string;
+  readonly report?: boolean;
 }
 
 const STALL_MS = 15 * 60_000;
@@ -65,6 +69,8 @@ const folderOf = (run: AgentRun): string => join(run.state, "worktrees", run.run
 // The run's worktree, made by the first attempt that goes and found again by a later one or a later runner. Only a
 // success is kept: the next attempt tries an add that failed again.
 const worktrees = (run: AgentRun) => {
+  // A report run's agent works in the project itself, which its launch closes to writes.
+  if (run.report === true) return () => Promise.resolve<Result<string>>({ ok: true, value: run.project });
   let made: Promise<Result<string>> | undefined;
   return async (): Promise<Result<string>> => {
     made ??= worktreeOf(run.project, folderOf(run), `cedarloom/${run.runId}`);
@@ -95,7 +101,7 @@ const requestOf = (
   attempt: Attempt,
   run: AgentRun,
   options: AgentOptions,
-  resume: Resume | null,
+  { resume, readOnly }: { resume: Resume | null; readOnly: readonly string[] | undefined },
 ): WorkerRequest<Launch> | string => {
   const pool = poolOf(options.config, run.project);
   if (pool === null) return "no-single-pool";
@@ -103,7 +109,7 @@ const requestOf = (
   if (!level.ok) return level.finding.code;
   const phase = PHASES.find((each) => each === attempt.config["phase"]) ?? "implement";
   const task = attempt.config["task"];
-  const cwd = folderOf(run);
+  const cwd = readOnly === undefined ? folderOf(run) : run.project;
   return {
     task: taskOf(run, attempt),
     agent: "claude",
@@ -116,7 +122,7 @@ const requestOf = (
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
     // The version check's probe comes before the worktree is made: it runs in the worker's own temporary folder.
-    launch: (decided) => options.launch(decided, phase, existsSync(cwd) ? cwd : decided.tmpDir),
+    launch: (decided) => options.launch(decided, phase, existsSync(cwd) ? cwd : decided.tmpDir, readOnly),
   };
 };
 
@@ -189,6 +195,14 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
 
 type Worktree = () => Promise<Result<string>>;
 
+// The folders a report run's agent may not write besides the project: its repository's git folder, which a linked
+// worktree shares from outside. None for an act run, whose agent works in its own worktree.
+const closedOf = async (run: AgentRun): Promise<Result<readonly string[] | undefined>> => {
+  if (run.report !== true) return { ok: true, value: undefined };
+  const shared = await commonDir(run.project);
+  return shared.ok ? { ok: true, value: [shared.value] } : shared;
+};
+
 // A worker of the attempt, or of the session it resumes, as an attempt that goes in the run's worktree.
 const attempted = async (
   attempt: Attempt,
@@ -196,7 +210,9 @@ const attempted = async (
   options: AgentOptions,
   { worktree, resume }: { worktree: Worktree; resume: Resume | null },
 ): Promise<Prepared> => {
-  const request = requestOf(attempt, run, options, resume);
+  const readOnly = await closedOf(run);
+  if (!readOnly.ok) return failed(readOnly.finding.code);
+  const request = requestOf(attempt, run, options, { resume, readOnly: readOnly.value });
   if (typeof request === "string") return failed(request);
   const lease = () => leaseWorker(run.state, options.config, request, options.host);
   const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);

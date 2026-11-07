@@ -764,6 +764,40 @@ test("an agent waits for a free lease of its account before it starts, and a can
   for (const lock of again) lock?.release();
 }, 30_000);
 
+test.skipIf(process.platform === "win32")(
+  "a report run's agent works in its project, closed to writes with the git folder a linked worktree shares, and makes no worktree",
+  async () => {
+    const { state, config, work } = setup();
+    const file = agentWorkflow(work, REVIEW);
+    const linked = join(work, "..", "linked");
+    execFileSync("git", ["worktree", "add", "--quiet", "--detach", linked], { cwd: work });
+    const closed: [string, readonly string[] | undefined][] = [];
+    const launch = (...args: Parameters<typeof phaseLaunch>) => {
+      closed.push([args[2], args[3]]);
+      return phaseLaunch(...args);
+    };
+    const agents = { config, host, runtime: agentRuntime(), launch };
+    const ran = await runWorkflow(state, file, {}, { project: linked, agents, report: true });
+    expect(ran).toMatchObject({ ok: true, value: { status: "succeeded" } });
+    expect(closed.at(-1)).toEqual([realpathSync(linked), [join(realpathSync(work), ".git")]]);
+    expect(existsSync(join(state, "worktrees"))).toBe(false);
+  },
+  30_000,
+);
+
+test.runIf(process.platform === "win32")(
+  "a report run with an agent is refused on native Windows, which has no sandbox (Q7)",
+  async () => {
+    const { state, config, work } = setup();
+    const file = agentWorkflow(work, REVIEW);
+    const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+    expect(await runWorkflow(state, file, {}, { project: work, agents, report: true })).toEqual({
+      ok: false,
+      finding: { code: "run.sandbox-unavailable", params: { node: "a" } },
+    });
+  },
+);
+
 test("an agent fails, saying why, before it makes a worktree or a branch; one stopped first lets its lease go", async () => {
   const { state, config, work } = setup();
   const file = agentWorkflow(work, REVIEW);

@@ -14,8 +14,8 @@ export interface ClaudeLaunch extends Launch {
   readonly permissionMode: PermissionMode;
   /** The permission rules the worker's profile allows, such as `Bash(pnpm test *)`; in dontAsk the only approvals. */
   readonly allow: readonly string[];
-  /** A report run's worker, read-only in its working folder (the overlay's `readOnly`). */
-  readonly readOnly?: boolean;
+  /** A report run's worker, read-only in its working folder and these others (the overlay's `readOnly`). */
+  readonly readOnly?: readonly string[];
 }
 
 type Phase = Pick<ClaudeLaunch, "model" | "subagentModel" | "effort" | "permissionMode">;
@@ -39,10 +39,17 @@ export const FRESH_INSTALL_PHASES = {
 
 /** A worker's launch in a workflow phase: `base` with the phase's fresh-install settings, in `cwd`, allowing nothing more. */
 export const phaseLaunch = (
-  base: Omit<ClaudeLaunch, keyof Phase | "cwd" | "allow">,
+  base: Omit<ClaudeLaunch, keyof Phase | "cwd" | "allow" | "readOnly">,
   phase: keyof typeof FRESH_INSTALL_PHASES,
   cwd: string,
-): ClaudeLaunch => ({ ...base, ...FRESH_INSTALL_PHASES[phase], cwd, allow: [] });
+  readOnly?: readonly string[],
+): ClaudeLaunch => ({
+  ...base,
+  ...FRESH_INSTALL_PHASES[phase],
+  cwd,
+  allow: [],
+  ...(readOnly === undefined ? {} : { readOnly }),
+});
 
 const FULL_MODEL_ID = /^claude-[a-z0-9-]+$/;
 

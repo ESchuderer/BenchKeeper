@@ -749,7 +749,12 @@ test("workflows run runs a graph run; runs list and show show it with its attemp
   expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
   expect((await cli("runs", "show", runId)).out).toMatch(
     /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
-  );
+  ); // A report run runs no command outside an OS sandbox.
+  const report = await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root, "--report");
+  expect([report.code, json(report.out)]).toMatchObject([
+    EXIT.refused,
+    { findings: [{ code: "run.sandbox-unavailable", params: { node: "a" } }] },
+  ]);
 });
 
 test("runs approve shows what a waiting node waits for, and with --yes approves it and runs the run on", async () => {

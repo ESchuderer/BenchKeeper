@@ -17,7 +17,14 @@ afterEach(async () => {
 /** A server on a fresh state folder, with the base URL and token a page reads from the printed link. */
 const serve = async (): Promise<{ base: string; token: string; state: string }> => {
   const state = join(mkdtempSync(join(tmpdir(), "cedarloom-client-")), "state");
-  const server = await startServer({ state, every: 25, log: () => undefined });
+  const machine = { home: join(state, "..", ".claude"), user: join(state, "..") };
+  const server = await startServer({
+    state,
+    config: join(state, "..", "config"),
+    machine,
+    every: 25,
+    log: () => undefined,
+  });
   servers.push(server);
   const url = new URL(server.url);
   return { base: url.origin, token: url.hash.slice("#t=".length), state };

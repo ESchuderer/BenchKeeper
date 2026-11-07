@@ -1,6 +1,7 @@
-import { type Dirent, readdirSync } from "node:fs";
+import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
-import { type Finding, isTree, type Json, type Operation } from "@cedarloom/contracts";
+import { isUtf8 } from "node:buffer";
+import { type Finding, isTree, type Json, type Operation, type Result } from "@cedarloom/contracts";
 import { hashFile } from "@cedarloom/engine";
 
 /** What a home holds that no part that is on names, as `apply --remove` takes it: `plugin:<id>`, `rules:<file>`… */
@@ -20,11 +21,13 @@ const offer = (kind: string, name: string, named: Named): Offer[] => {
 
 /**
  * The plugins a settings value enables and the marketplaces it declares that no part that is on names; a marketplace
- * an enabled plugin comes from is not offered, as the plugin would no longer resolve.
+ * an enabled plugin comes from is offered only along with that plugin's removal, as the plugin would no longer resolve.
  */
-export const settingsOffers = (settings: Json, plugins: Named, marketplaces: Named): Offer[] => {
+export const settingsOffers = (settings: Json, named: { plugins: Named; marketplaces: Named }, removing: string[]) => {
+  const { plugins, marketplaces } = named;
   const enabled = keysOf(settings, "enabledPlugins").flatMap(([id, on]) => (on === true ? [id] : []));
-  const used = new Set(enabled.map((id) => id.slice(id.indexOf("@") + 1)));
+  const kept = enabled.filter((id) => !removing.includes(`plugin:${id}`));
+  const used = new Set(kept.map((id) => id.slice(id.indexOf("@") + 1)));
   return [
     ...enabled.flatMap((id) => offer("plugin", id, plugins)),
     ...keysOf(settings, "extraKnownMarketplaces")
@@ -68,21 +71,24 @@ export const offerLine = ({ item, status }: Offer): Finding =>
     ? { code: "profile.extra", params: { item } }
     : { code: "profile.drift", params: { status, subject: item, remove: item } };
 
-// A file's delete, with the hash it must still have; none when it cannot be read.
-const deleteOf = (path: string): Operation[] => {
+// A file's delete, with the hash it must still have; none when it cannot be read. The apply backs up text only, so a
+// file that is not UTF-8 stops the plan before anything is deleted.
+const deleteOf = (path: string): Result<Operation[]> => {
   try {
+    if (!isUtf8(readFileSync(path))) return { ok: false, finding: { code: "apply.not-text", params: { path } } };
     const before = hashFile(path);
-    return before === null ? [] : [{ kind: "delete", path, before }];
+    return { ok: true, value: before === null ? [] : [{ kind: "delete", path, before }] };
   } catch {
-    return [];
+    return { ok: true, value: [] };
   }
 };
 
+type Removals = { files: Operation[]; plugins: string[]; marketplaces: string[] };
 /**
  * What removing the named offers takes: the plugin and marketplace keys to drop from the settings, and a delete of a
  * rules file or of each file in a skill folder.
  */
-export const removalsOf = (home: string, items: readonly string[]) => {
+export const removalsOf = (home: string, items: readonly string[]): Result<Removals> => {
   const named = (kind: string) =>
     items.filter((item) => item.startsWith(`${kind}:`)).map((item) => item.slice(kind.length + 1));
   const skillFiles = named("skill").flatMap((name) =>
@@ -91,6 +97,11 @@ export const removalsOf = (home: string, items: readonly string[]) => {
       .map((entry) => join(entry.parentPath, entry.name)),
   );
   const rules = named("rules").map((name) => join(home, "rules", name));
-  const files = [...rules, ...skillFiles].flatMap((path) => deleteOf(path));
-  return { files, plugins: named("plugin"), marketplaces: named("marketplace") };
+  const files: Operation[] = [];
+  for (const path of [...rules, ...skillFiles]) {
+    const deletes = deleteOf(path);
+    if (!deletes.ok) return deletes;
+    files.push(...deletes.value);
+  }
+  return { ok: true, value: { files, plugins: named("plugin"), marketplaces: named("marketplace") } };
 };

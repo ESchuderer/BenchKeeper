@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { Result } from "@cedarloom/contracts";
+import { programPath } from "./program.ts";
 
 type Command = readonly [string, ...string[]];
 
@@ -9,15 +10,17 @@ const NO_TOKEN = new Set<number | string>([1, "ENOENT"]);
 /**
  * ARW1-8: refuses a launch while gh still finds a token without GH_TOKEN, such as the keyring login of `gh auth login`.
  * gh runs with the worker's environment minus GH_TOKEN and no output, so a token it prints never reaches the launcher.
- * Any outcome but gh's "no token" refuses: the probe fails closed. A gh not found on the worker's PATH counts as none.
+ * Any outcome but gh's "no token" refuses: the probe fails closed. A gh not found in an absolute folder of the worker's PATH counts as none.
  */
 export const ghProbe = async (
   env: Readonly<Record<string, string>>,
   command: Command = ["gh"],
   timeoutMs = 10_000,
 ): Promise<Result<null>> => {
-  const [file, ...prefix] = command;
-  const without = Object.fromEntries(Object.entries(env).filter(([name]) => name.toUpperCase() !== "GH_TOKEN"));
+  const [name, ...prefix] = command;
+  const without = Object.fromEntries(Object.entries(env).filter(([key]) => key.toUpperCase() !== "GH_TOKEN"));
+  const file = programPath(name, without);
+  if (file === undefined) return { ok: true, value: null };
   // An exit code (0: gh has a token), a spawn error code such as EACCES, or "killed" when it ended by a signal.
   const outcome = await new Promise<number | string>((resolve) => {
     const failed = (error: unknown) => resolve(String(Reflect.get(Object(error), "code")));

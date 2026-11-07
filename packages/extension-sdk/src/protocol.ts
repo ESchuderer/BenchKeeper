@@ -142,6 +142,40 @@ export type TargetAnswers = {
   "target/policy": TargetPolicy;
 };
 
+/**
+ * The calls of a worker runner (its manifest's `contributes.workerRunners`, bundled extensions only): where it starts a
+ * supervised worker of an agent on a launch line the host gives, such as an Orca worker in a worktree. Each names the
+ * runner; the host bounds the time and checks each answer.
+ */
+export const WORKER_CALLS = ["worker/start", "worker/show", "worker/release"] as const;
+export type WorkerCall = (typeof WORKER_CALLS)[number];
+/**
+ * A worker to start: in which worktree, on which launch line (the program and its arguments), with which spec and
+ * title, and the repository the worktree must come from for the runner to answer an agent's folder-trust prompt.
+ */
+export type WorkerStartParams = {
+  runner: string;
+  worktree: string;
+  line: string[];
+  spec: string;
+  title: string;
+  repository: string;
+};
+/** A started worker: its dispatch, and the runner's handles it releases afterwards. */
+export type WorkerStart = { dispatch: string; handles: string[] };
+/** A worker's state as its runner reports it, and whether it has settled. */
+export type WorkerShow = { state: string; settled: boolean };
+export type WorkerCallParams = {
+  "worker/start": WorkerStartParams;
+  "worker/show": { runner: string; dispatch: string };
+  "worker/release": { runner: string; handles: string[] };
+};
+export type WorkerAnswers = {
+  "worker/start": WorkerStart;
+  "worker/show": WorkerShow;
+  "worker/release": { released: boolean };
+};
+
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");

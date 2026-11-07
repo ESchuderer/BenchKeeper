@@ -414,6 +414,31 @@
             "additionalProperties": false
           },
           "maxProperties": 8
+        },
+        "workerRunners": {
+          "description": "Where it starts a supervised worker on a given launch line (the worker/* calls); bundled extensions only",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "agent": {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "codex"
+                ]
+              }
+            },
+            "required": [
+              "agent"
+            ],
+            "additionalProperties": false
+          },
+          "maxProperties": 8
         }
       },
       "required": [

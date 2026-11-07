@@ -3996,6 +3996,114 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.target-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "programs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "configs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "programs",
+                  "configs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.target-linked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "target",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.agents-unread"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.pack-unpinned"
               },
               "params": {
@@ -9144,6 +9252,114 @@
                 },
                 "required": [
                   "part",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.target-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "programs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "configs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "programs",
+                  "configs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.target-linked"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "target",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.agents-unread"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
                   "path"
                 ],
                 "additionalProperties": false

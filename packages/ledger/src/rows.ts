@@ -42,7 +42,7 @@ CREATE TABLE switches (
   task TEXT NOT NULL,
   fromAccount TEXT,
   toAccount TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('most-headroom', 'no-readings')),
+  reason TEXT NOT NULL CHECK (reason IN ('most-headroom', 'soonest-weekly-reset', 'highest-tier', 'no-readings')),
   readings TEXT NOT NULL,
   candidates TEXT NOT NULL
 ) STRICT;

@@ -65,6 +65,64 @@ test("a new worker gets the pool account with the most headroom above both minim
   expect(tie.ok && tie.account.name).toBe("one");
 });
 
+// Each account's windows, the 7-day one resetting at `weekly`; two days out unless given.
+const week = (name: string, fiveHour: number, sevenDay: number, weekly = "2026-11-07T12:00:00.000Z"): Reading[] => [
+  { account: name, window: "fiveHour", usedPercent: fiveHour, resetsAt: LATER },
+  { account: name, window: "sevenDay", usedPercent: sevenDay, resetsAt: weekly },
+];
+
+test("claude-swap's weekly-first and consume-first take the qualifying account whose 7-day window resets soonest", () => {
+  // One has the most headroom; two resets sooner; three's 7-day window reset already, so its next reset is unknown.
+  const readings = [
+    ...week("one", 10, 10),
+    ...week("two", 50, 50, "2026-11-06T12:00:00.000Z"),
+    ...week("three", 0, 99, EARLIER),
+  ];
+  for (const strategy of ["weekly-first", "consume-first"] as const) {
+    expect(selectAccount(registry, { ...main, swap: { strategy } }, readings, NOW)).toMatchObject({
+      account: { name: "two" },
+      reason: "soonest-weekly-reset",
+    });
+  }
+  // Without claude-swap's strategy, the most headroom: three's reset window counts as unused.
+  expect(selectAccount(registry, main, readings, NOW)).toMatchObject({
+    account: { name: "three" },
+    reason: "most-headroom",
+  });
+});
+
+test("priority-consume-first takes the highest tier first, then the soonest weekly reset; tiers default to 0", () => {
+  const readings = [...week("one", 10, 10), ...week("two", 50, 50, "2026-11-06T12:00:00.000Z"), ...week("three", 0, 0)];
+  const priority = (tiers: Record<string, number>) => {
+    const swap = { strategy: "priority-consume-first", tiers: new Map(Object.entries(tiers)) } as const;
+    return selectAccount(registry, { ...main, swap }, readings, NOW);
+  };
+  expect(priority({ three: 500 })).toMatchObject({ account: { name: "three" }, reason: "highest-tier" });
+  expect(priority({})).toMatchObject({ account: { name: "two" }, reason: "highest-tier" });
+  // A name an object inherits, such as constructor, has no tier unless claude-swap gives it one.
+  const named = {
+    ...registry,
+    accounts: [account("constructor"), account("one")],
+    pools: { claude: { main: { confirmedAt: CONFIRMED, confirmedFor: ["constructor", "one"] } } },
+  };
+  const tied = [...week("constructor", 10, 10, "2026-11-06T12:00:00.000Z"), ...week("one", 10, 10)];
+  const swap = { strategy: "priority-consume-first", tiers: new Map([["one", 500]]) } as const;
+  expect(selectAccount(named, { ...main, swap }, tied, NOW)).toMatchObject({ account: { name: "one" } });
+});
+
+test("an account claude-swap disabled is skipped, and its active one is passed over while another qualifies", () => {
+  const readings = [...week("one", 10, 10), ...week("two", 50, 50)];
+  const chosen = (swap: { disabled?: ReadonlySet<string>; active?: string }) =>
+    selectAccount(registry, { ...main, swap }, readings, NOW);
+  expect(chosen({ disabled: new Set(["one"]) })).toMatchObject({
+    account: { name: "two" },
+    candidates: [{ account: "two" }, { account: "three" }],
+  });
+  expect(chosen({ active: "one" })).toMatchObject({ account: { name: "two" } });
+  // The active account still serves when no other qualifies.
+  expect(chosen({ active: "one", disabled: new Set(["two"]) })).toMatchObject({ account: { name: "one" } });
+});
+
 test("the worker model's own weekly window counts once read, against the 7-day minimum; another model's does not", () => {
   const opus = { account: "one", window: "sevenDay:opus", usedPercent: 98, resetsAt: LATER };
   const readings = [...used("one", 50, 20), opus, ...used("two", 30, 60)];

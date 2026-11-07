@@ -1,6 +1,6 @@
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
 import {
@@ -137,12 +137,12 @@ test("an extension is refused for another protocol, other actions, an old Node, 
   ]);
 });
 
-// A copy of the fixture's folder under `name` in the scratch folder, with a link inside to `target` when given.
-const copyOf = (name: string, target?: string): string => {
+// A copy of the fixture's folder under `name` in the scratch folder, with a link to `target` at `at` when given.
+const copyOf = (name: string, target?: string, at = "outside"): string => {
   const copy = join(scratch, name);
-  mkdirSync(copy);
+  mkdirSync(join(copy, dirname(at)), { recursive: true });
   copyFileSync(join(folder, "main.mjs"), join(copy, "main.mjs"));
-  if (target !== undefined) symlinkSync(target, join(copy, "outside"));
+  if (target !== undefined) symlinkSync(target, join(copy, at));
   return copy;
 };
 
@@ -156,7 +156,8 @@ test.skipIf(process.platform === "win32")(
       start({ folder: copyOf("with*star") }),
       start({ folder: copyOf("with?mark") }),
       start({ folder: copyOf("with-link", scratch) }),
-      start({ folder: copyOf("with-closed-link", closed) }),
+      // One folder down: the check reads every folder, not only the top one.
+      start({ folder: copyOf("with-closed-link", closed, "lib/outside") }),
       start({ folder: copyOf("plain") }),
     ]);
     // Readable again, so the scratch folder can be removed.

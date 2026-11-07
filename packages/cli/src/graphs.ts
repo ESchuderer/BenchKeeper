@@ -92,12 +92,13 @@ const escaped = (content: string): string =>
     .join("\n");
 
 // What a node waits for: an approval's question, or a gate with the plan it would apply.
-const waitText = (run: GraphRun, { node, point, planHash }: useCases.Waiting): string => {
+const waitText = (run: GraphRun, { node, point, planHash, firstRun }: useCases.Waiting): string => {
   const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
   if (point === "human.approval") return `${node} asks: ${said(config["message"])}`;
-  return planHash === null
-    ? `${node} waits to start`
-    : `${node} waits to write ${said(config["path"])} (plan ${planHash})`;
+  if (planHash !== null) return `${node} waits to write ${said(config["path"])} (plan ${planHash})`;
+  return firstRun
+    ? `${node} waits to start: you have not approved this command in this version of the workflow here yet`
+    : `${node} waits to start`;
 };
 
 /** Approves or rejects what a graph run's node waits for; without --yes, shows what that is and changes nothing. */
@@ -116,8 +117,12 @@ export const runsDecide = async (
   if (wait === undefined) return fail(ctx, "run", [{ code: "run.not-waiting", params: { runId, node } }], EXIT.refused);
   const verb = approved ? "approve" : "reject";
   const writes = wait.content === null ? [] : ["It writes:", escaped(wait.content)];
+  // An approval of a first run admits the command for every later run of this version, so the owner reads it here.
+  const command = shown.value.run.definition.nodes.find((each) => each.id === node)?.with?.["command"];
+  const runs = wait.firstRun ? ["It runs:", escaped(said(command))] : [];
   const lines = [
     `Run ${runId}: ${waitText(shown.value.run, wait)}.`,
+    ...runs,
     ...writes,
     `Nothing changed. Run it again with --yes to ${verb} it.`,
   ];

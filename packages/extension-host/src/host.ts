@@ -448,21 +448,26 @@ const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: Ho
 };
 
 const Line = z.strictObject({ argv: z.array(z.string().max(4096)).max(16) });
+// What the host asks a session provider: an account by the number claude-swap gives it.
+const LineParams = z.strictObject({ provider: z.string().max(64), number: z.int().min(1).max(9999) });
 
 const sessionOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
   const ask = askOf(manifest, trust, session, limits);
   return async (params: SessionCallParams["session/line"]): Promise<Result<string[]>> => {
-    const { provider, number } = params;
-    if (!Number.isInteger(number) || number < 1)
-      return failed(manifest.id, "session", "a request outside its contract");
+    if (!LineParams.safeParse(params).success) return failed(manifest.id, "session", "a request outside its contract");
     const names = manifest.contributes.sessionProviders;
     const what = "session provider";
-    const asked = await ask("session/line", params, { step: "session", what, names, name: provider, answer: Line });
-    const program = names?.[provider]?.program;
-    if (!asked.ok || program === undefined)
-      return asked.ok ? failed(manifest.id, "session", `no ${what} ${provider}`) : asked;
+    const asked = await ask("session/line", params, {
+      step: "session",
+      what,
+      names,
+      name: params.provider,
+      answer: Line,
+    });
+    if (!asked.ok) return asked;
     // claude-swap's session mode as decided: no sharing flags, no profile path (switching plan 14.6, S9b).
-    const expected = ["run", String(number), "--require-session", "--"];
+    const program = names?.[params.provider]?.program ?? "";
+    const expected = ["run", String(params.number), "--require-session", "--"];
     if (!isDeepStrictEqual(asked.value.argv, [program, ...expected])) {
       return failed(manifest.id, "session", "a line of another shape");
     }

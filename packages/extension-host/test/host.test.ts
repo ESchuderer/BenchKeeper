@@ -845,10 +845,12 @@ test("a session line is the provider's program as the host finds it, then exactl
     line.ok ? [basename(line.value[0] ?? "").replace(/\.exe$/, ""), ...line.value.slice(1)] : line.finding,
     codeOf(await bad.session({ provider: "claude", number: 2 })),
     codeOf(await fixture.session({ provider: "claude", number: 0 })),
+    codeOf(await fixture.session({ provider: "claude", number: 1e21 })),
     codeOf(await fixture.session({ provider: "elsewhere", number: 2 })),
   ]).toEqual([
     ["node", "run", "2", "--require-session", "--"],
     failure("session", "a line of another shape"),
+    failure("session", "a request outside its contract"),
     failure("session", "a request outside its contract"),
     failure("session", "no session provider elsewhere"),
   ]);

@@ -885,7 +885,7 @@ test("extensions: one without capabilities asks for none; a source the CLI never
   const shown = await cli("extensions", "add", SOURCE);
   await cli("extensions", "add", SOURCE, "--yes");
   const listed = await cli("extensions", "list");
-  const local = await setup().cli("extensions", "add", "file:///srv/jira.git");
+  const local = await setup().cli("--json", "extensions", "add", "file:///srv/jira.git");
   writeFileSync(join(state, "extensions.json"), '{"schemaVersion":2}');
   const newer = await cli("extensions", "list");
   expect([shown.out.includes("license none stated"), shown.out.includes("  asks for no capabilities\n")]).toEqual([
@@ -893,9 +893,9 @@ test("extensions: one without capabilities asks for none; a source the CLI never
     true,
   ]);
   expect([listed.out, newer.code]).toEqual([`acme.jira  1.0.0  community  ${SOURCE}  ${"c".repeat(12)}\n`, EXIT.data]);
-  expect([local.code, local.err]).toEqual([
+  expect([local.code, json(local.out)["findings"]]).toEqual([
     EXIT.refused,
-    `error: ${text({ code: "git.refused-source", params: { field: "url" } })}\n`,
+    [{ code: "git.refused-source", params: { field: "url" } }],
   ]);
 });
 

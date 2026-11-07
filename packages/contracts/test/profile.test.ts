@@ -154,6 +154,8 @@ test.for([
   ".mcp.json.",
   ".git/hooks/pre-commit",
   ".git./hooks/pre-commit",
+  "AGENTS.md",
+  "claude.local.md",
 ])("a files part may not write %s", (target) => {
   const changed = set(defaults, ["project", "agent-docs", "files", target], { inline: "{}" });
   expect(outcome(readProfile(changed))).toEqual([`project.agent-docs.files.${target}`]);

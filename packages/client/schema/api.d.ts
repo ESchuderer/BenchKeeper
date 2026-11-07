@@ -1609,6 +1609,30 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.pack-unpinned";
             params: {
                 source: string;
@@ -2709,6 +2733,30 @@ export interface components {
             code: "profile.options-guarded";
             params: {
                 part: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
                 path: string;
             };
         } | {

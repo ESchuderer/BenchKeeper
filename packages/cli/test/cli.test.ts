@@ -537,11 +537,21 @@ test("every finding code has an English sentence", () => {
   ]);
 });
 
+test("a project folder with shell syntax in its name is one quoted argument, so pasting the command runs none of it", () => {
+  const project = "/work/it's $(id) `x`;";
+  const approval = Finding.parse({
+    code: "profile.target-approval",
+    params: { part: "project.dc", title: "dc", project, programs: ["scripts/dc"], configs: [] },
+  });
+  expect(text(approval)).toContain(`--project '/work/it'\\''s $(id) \`x\`;' --allow project.dc`);
+});
+
 // An enum's first option, a count for found and known, else a string.
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
   if (schema instanceof z.ZodBoolean) return true;
   if (schema instanceof z.ZodString) return sha256(key);
+  if (schema instanceof z.ZodArray) return [sha256(key)];
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {

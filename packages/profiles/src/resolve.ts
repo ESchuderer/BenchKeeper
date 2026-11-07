@@ -43,17 +43,22 @@ const parseJson = (text: string): Result<unknown> => {
   }
 };
 
-/** A JSON file's text and value, null when it is missing: `document.unreadable` or `document.invalid` otherwise. */
-export const jsonFile = (path: string): Result<{ text: string; json: unknown } | null> => {
-  let text: string;
+/** A file's text, null when it is missing; `document.unreadable` when it cannot be read. */
+export const textFile = (path: string): Result<string | null> => {
   try {
-    text = readFileSync(path, "utf8");
+    return { ok: true, value: readFileSync(path, "utf8") };
   } catch (error) {
     if (errorCode(error) === "ENOENT") return { ok: true, value: null };
     return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
   }
-  const json = parseJson(text);
-  return json.ok ? { ok: true, value: { text, json: json.value } } : json;
+};
+
+/** A JSON file's text and value, null when it is missing: `document.unreadable` or `document.invalid` otherwise. */
+export const jsonFile = (path: string): Result<{ text: string; json: unknown } | null> => {
+  const text = textFile(path);
+  if (!text.ok || text.value === null) return text.ok ? { ok: true, value: null } : text;
+  const json = parseJson(text.value);
+  return json.ok ? { ok: true, value: { text: text.value, json: json.value } } : json;
 };
 
 // A pack's file from its fetched folder, or from this release's bundled packs without one; null when it is absent.
@@ -168,24 +173,41 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
     .map((part): Finding => ({ code: "profile.binding-missing", params: { part, binding: "hub" } })),
 ];
 
-/**
- * The profile the selection names (the bundled default without one), composed with its parents, and its parts switched
- * on: the selection's choice, else the part's default. shortcut: no probe runs yet, so an `auto` part is on only when
- * selected; each probe lands with the first parts that need it (Orca with skills, the dev container with projects).
- */
-export const resolveProfile = (selection: ProfileSelection | null, app = APP_VERSION): Result<Resolved> => {
+/** What an `auto` part is on by. */
+export type Probe = "orca" | "devcontainer" | "no-devcontainer";
+const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
+  part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
+
+// The selected profile composed with its parents. A bundled profile ships with this release, so only another file can
+// need a newer one.
+const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
   const composed = composeProfile(root.value.json, loadParent);
   if (!composed.ok) return composed;
   const { minApp } = composed.value.profile;
-  // A bundled profile ships with this release, so only another file can need a newer one.
   if (!root.value.bundled && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
+  return composed;
+};
+
+const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, probe: (when: Probe) => boolean) =>
+  new Set([...parts].filter(([key, part]) => select[key] ?? defaultOn(part, probe)).map(([key]) => key));
+
+/**
+ * The profile the selection names (the bundled default without one), composed with its parents, and its parts switched
+ * on: the selection's choice, else the part's default, an `auto` part's by its probe. shortcut: no Orca probe runs, so
+ * a part `auto` with Orca is on only when selected; upgrade once Orca names its worktrees in a documented way.
+ */
+export const resolveProfile = (
+  selection: ProfileSelection | null,
+  app = APP_VERSION,
+  probe: (when: Probe) => boolean = () => false,
+): Result<Resolved> => {
+  const composed = composedOf(selection, app);
+  if (!composed.ok) return composed;
   const parts = new Map(partsOf(composed.value.profile));
-  const on = new Set(
-    [...parts].filter(([key, part]) => selection?.select[key] ?? part.default === "on").map(([key]) => key),
-  );
+  const on = switchedOn(parts, selection?.select ?? {}, probe);
   const hub = selection?.bindings?.hub;
   return { ok: true, value: { ...composed.value, on, hub, problems: problemsOf(parts, on, selection) } };
 };

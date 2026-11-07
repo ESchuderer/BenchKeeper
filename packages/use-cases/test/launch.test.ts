@@ -324,6 +324,7 @@ test("a worker launched below folders bound by accounts map runs on the deepest 
     window: "fiveHour",
     usedPercent: 95,
     resetsAt: "2099-01-01T00:00:00.000Z",
+    source: "worker",
   } as const;
   withLedger(state, (store) => store.recordReading({ ...reading, readAt: new Date().toISOString() }));
   expect(await launchWorker(state, config, below, host)).toEqual({

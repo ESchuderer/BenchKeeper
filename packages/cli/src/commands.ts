@@ -5,7 +5,7 @@ import {
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
-  findingInfo,
+  severityOf,
   type Plan,
   type PlanPreview,
   type Result,
@@ -158,10 +158,11 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
   const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
-  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding])];
+  const own = await useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config });
+  const findings = [...useCases.doctor(ctx.state), ...(logins.ok ? logins.value : [logins.finding]), ...own];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
-  return findings.some((finding) => findingInfo[finding.code].severity === "error") ? EXIT.refused : EXIT.ok;
+  return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;
 };
 
 // A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
@@ -544,7 +545,7 @@ export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => 
   const profile = useCases.planProfile(ctx.config, ctx.state, useCases.claudeHome(ctx.io.env));
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
-  if (findings.some((finding) => findingInfo[finding.code].severity === "error")) {
+  if (findings.some((finding) => severityOf(finding) === "error")) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
   if (plan === null) {

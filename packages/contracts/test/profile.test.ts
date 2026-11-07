@@ -126,7 +126,7 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     "a project plugin that would be committed",
     ["project", "plugin"],
     { type: "plugin", commit: true },
-    ["project.plugin.type"],
+    ["project.plugin.commit"],
   ],
   [
     "an unknown key shaped like a token, reported at its object",

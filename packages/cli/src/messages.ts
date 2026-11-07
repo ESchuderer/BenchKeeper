@@ -265,7 +265,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
         ? "a marketplace Claude Code already knows"
         : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
     const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
-    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+    const where = p.project === null ? "" : ` --project ${folderArgument(p.project)}`;
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply${where} --allow ${p.part}`;
   },
   "profile.options-guarded": (p) =>
     `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
@@ -286,6 +287,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.skill-plugin": (p) =>
+    `The skill ${p.skill} holds ${p.path}, so Claude Code would load it as a plugin with its hooks and servers. Add it as a plugin part instead, which waits for your approval by name.`,
+  "profile.skill-twice": (p) =>
+    `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>

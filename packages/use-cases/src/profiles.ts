@@ -18,6 +18,7 @@ import {
   APP_VERSION,
   DEFAULT_PROFILE,
   type Fetched,
+  type Level,
   onDisk,
   planMachine,
   planProject,
@@ -98,10 +99,11 @@ const selectedProfile = (config: string, project: string | undefined): Result<Re
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
-// Fetches the Git sources the profile needs: its packs and, for the machine, the skills' own sources, then each pack's
-// skill entry's source once that pack's folder is here; then keeps the record of the followed ones. A project's plan
-// fetches no skill, so it keeps their record as it is.
+// Fetches the Git sources the level needs: the profile's packs and the level's skills' own sources, then each pack's
+// skill entry's source once that pack's folder is here; then keeps the record of the followed ones, and of the other
+// level's, so neither level's wait starts over.
 const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project: boolean) => {
+  const level: Level = project ? "project" : "machine";
   const record = readRecord(state);
   if (!record.ok) return record;
   const fetched = new Map<string, Tree>();
@@ -109,14 +111,20 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch, project
   const findings: Finding[] = [];
   // Two passes reach every source: a pack's skill entry names its own source, never another pack.
   for (let pass = 0; pass < 2; pass += 1) {
-    const missing = sourcesOf(resolved, fetched, !project).filter(({ source }) => !fetched.has(sourceKey(source)));
+    const missing = sourcesOf(resolved, fetched, level).filter(({ source }) => !fetched.has(sourceKey(source)));
     const got = await fetchSources(state, missing, fetch, record.value);
     if (!got.ok) return got;
     for (const [key, tree] of got.value.trees) fetched.set(key, tree);
     Object.assign(entries, got.value.entries);
     findings.push(...got.value.findings);
   }
-  const next = project ? { ...record.value, ...entries } : entries;
+  // A project's skills are kept on or off, as another project's probes may switch them on.
+  const other = [
+    ...sourcesOf(resolved, fetched, "project", true),
+    ...(project ? sourcesOf(resolved, fetched, "machine") : []),
+  ];
+  const keys = new Set(other.map(({ source }) => sourceKey(source)));
+  const next = { ...Object.fromEntries(Object.entries(record.value).filter(([key]) => keys.has(key))), ...entries };
   if (canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);
   return { ok: true as const, value: { fetched, findings } };
 };

@@ -34,9 +34,9 @@ export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, m
 
 /** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
 // Publishers no extension takes: the first parts of the built-in node types (trigger, agent, command, file, human,
-// workflow, condition, join), so `trigger.acme/go` never counts as a trigger, and `cedarloom`, so no extension passes
-// for first-party.
-const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0])), "cedarloom"];
+// workflow, condition, join), so `trigger.acme/go` never counts as a trigger. `cedarloom` is first-party: the app ships
+// its extensions, and a Git install refuses the publisher, since trust comes from where the files are.
+const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
 export const ExtensionId = z
   .string()
   .regex(new RegExp(`^(?!(?:${RESERVED.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))
@@ -417,3 +417,9 @@ export const ExportIndex = z
   })
   .register(fileFormats, { id: "ExportIndex" });
 export type ExportIndex = z.infer<typeof ExportIndex>;
+
+/** The file texts of an export's index and lock: keys sorted, two spaces, a final line break. */
+export const formatExport = (index: ExportIndex): string =>
+  `${JSON.stringify(ExportIndex.parse(sortKeys(index)), null, 2)}\n`;
+export const formatLock = (lock: ExtensionLock): string =>
+  `${JSON.stringify(ExtensionLock.parse(sortKeys(lock)), null, 2)}\n`;

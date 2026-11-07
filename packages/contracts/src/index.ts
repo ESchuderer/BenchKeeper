@@ -13,7 +13,6 @@ export {
   sameFolder,
   USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
-  TokenRow,
   UsageSample,
 } from "./accounts.ts";
 export {
@@ -23,6 +22,7 @@ export {
   ModeScope,
   ModeSwitch,
 } from "./automation.ts";
+export { COMPONENTS_SCHEMA_VERSION, Components, formatComponents, Switch } from "./components.ts";
 export {
   Draft,
   DraftInfo,
@@ -81,7 +81,9 @@ export {
   ExtensionManifest,
   ExtensionUpdates,
   FORBIDDEN_HEADERS,
+  formatExport,
   formatInstalled,
+  formatLock,
   GitRef,
   GitUrl,
   INSTALLED_SCHEMA_VERSION,

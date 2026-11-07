@@ -167,35 +167,6 @@ export const UsageSample = z.strictObject({
 });
 export type UsageSample = z.infer<typeof UsageSample>;
 
-const Count = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
-// An identifier the agent reported, bounded so it cannot fill the ledger.
-const Reported = z.string().min(1).max(200);
-
-/**
- * One API request of a worker's session, from Claude Code's OpenTelemetry `api_request` event (A84): the run and account
- * the receiver's token names, the model, the token counts, the cost and the time. No identity of the user is kept.
- */
-export const TokenRow = z.strictObject({
-  runId: z.uuid(),
-  account: Name,
-  sessionId: Reported.nullable(),
-  model: Reported,
-  querySource: Reported.nullable(),
-  effort: Reported.nullable(),
-  inputTokens: Count,
-  outputTokens: Count,
-  cacheReadTokens: Count,
-  cacheCreationTokens: Count,
-  cacheCreation5mTokens: Count,
-  cacheCreation1hTokens: Count,
-  costUsdMicros: Count.nullable(),
-  durationMs: Count.nullable(),
-  requestId: Reported.nullable(),
-  agentVersion: AgentVersion.nullable(),
-  at: z.iso.datetime({ precision: 3 }),
-});
-export type TokenRow = z.infer<typeof TokenRow>;
-
 /**
  * A reading as a launch-time choice counted it. `assumed-after-reset`: the window had reset since it was read, so it
  * counted as 0 percent used.

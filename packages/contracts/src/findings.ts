@@ -222,6 +222,8 @@ export const Finding = z
       source: z.string().nullable(),
       ref: z.string().nullable(),
       autoUpdate: z.boolean(),
+      // The project folder of a project's plugin part; null for the machine's.
+      project: z.string().nullable(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     // A files part that writes targets that run as programs or configure tools, which wait for an approval by name (hub
@@ -233,6 +235,8 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    // Two skills of one name, which would install into one folder: the later one's part, and the folder.
+    finding("profile.skill-twice", { part: z.string(), folder: z.string() }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
@@ -383,6 +387,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
+  "profile.skill-twice": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

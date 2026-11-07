@@ -3702,6 +3702,12 @@
             },
             "autoUpdate": {
               "type": "boolean"
+            },
+            "project": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
@@ -3709,7 +3715,8 @@
             "plugin",
             "source",
             "ref",
-            "autoUpdate"
+            "autoUpdate",
+            "project"
           ],
           "additionalProperties": false
         }
@@ -3788,6 +3795,36 @@
             "project",
             "programs",
             "configs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.skill-twice"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "folder": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "folder"
           ],
           "additionalProperties": false
         }

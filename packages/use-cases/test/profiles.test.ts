@@ -304,3 +304,137 @@ test("a project's plan keeps the record of the machine's skills", async () => {
   await projectPlan(box, projectWith());
   expect(record()).toBe(before);
 });
+
+test("the project's deny list grows by the profile's rules and keeps the owner's own, first", async () => {
+  const box = machine();
+  const mine = { model: "opus", permissions: { deny: ["Bash(rm -rf *)"] } };
+  const project = projectWith({ ".claude/settings.json": JSON.stringify(mine) });
+  applied(box.state, (await projectPlan(box, project)).plan);
+  const settings = JSON.parse(readFileSync(join(project, ".claude", "settings.json"), "utf8"));
+  expect([settings.model, settings.permissions.deny.slice(0, 2), settings.permissions.deny.length]).toEqual([
+    "opus",
+    ["Bash(rm -rf *)", "Bash(git commit *--no-verify*)"],
+    13,
+  ]);
+});
+
+test("a .claude folder a link leads outside the project stops the plan, as its settings would land there", async () => {
+  const box = machine();
+  const project = projectWith();
+  const elsewhere = mkdtempSync(join(root, "claude-"));
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(elsewhere, join(project, ".claude"), "junction");
+  const params = { part: "project", target: ".claude", path: realpathSync.native(elsewhere) };
+  expect(
+    await planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: stock, project }),
+  ).toEqual({ ok: false, finding: { code: "profile.target-linked", params } });
+});
+
+// A machine whose selection names a profile file: the default with these project parts and packs added.
+const custom = (project: Record<string, unknown>, packs: Record<string, unknown> = {}) => {
+  const box = machine();
+  const file = join(box.config, "mine.json");
+  const profile = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
+  const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
+  writeFileSync(
+    file,
+    JSON.stringify({ ...profile, ...extend, packs: { "cedarloom.core": { bundled: true }, ...packs }, project }),
+  );
+  const selection = JSON.parse(readFileSync(join(box.config, "profile.json"), "utf8"));
+  writeFileSync(join(box.config, "profile.json"), JSON.stringify({ ...selection, profile: { file } }));
+  return box;
+};
+
+test("a project's plugin waits for its approval, then goes into the local settings, which Git ignores", async () => {
+  const marketplace = { name: "acme", github: "acme/plugins", ref: "v2" };
+  const lsp = { type: "plugin", title: "LSP", default: "on", commit: false, plugin: "lsp@acme", marketplace };
+  const box = custom({ lsp });
+  const project = projectWith();
+  const waiting = await projectPlan(box, project);
+  applied(box.state, (await projectPlan(box, project, ["project.lsp"])).plan);
+  const local = JSON.parse(readFileSync(join(project, ".claude", "settings.local.json"), "utf8"));
+  expect([
+    waiting.findings,
+    local,
+    readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
+    await projectPlan(box, project),
+  ]).toEqual([
+    [
+      {
+        code: "profile.approval-needed",
+        params: {
+          part: "project.lsp",
+          plugin: "lsp@acme",
+          source: "acme/plugins",
+          ref: "v2",
+          autoUpdate: false,
+          project,
+        },
+      },
+    ],
+    {
+      extraKnownMarketplaces: { acme: { source: { source: "github", repo: "acme/plugins", ref: "v2" } } },
+      enabledPlugins: { "lsp@acme": true },
+    },
+    "# cedarloom start /\n/CLAUDE.local.md\n/.claude/settings.local.json\n# cedarloom end /\n",
+    { plan: null, findings: [] },
+  ]);
+});
+
+// The test's packs (`a.git`, `b.git`) as one commit with a manifest that lists these entries and a skill's folder,
+// `skills/review`; any other source as `stock`'s.
+const packWith =
+  (entries: Record<string, unknown>): Fetch =>
+  async (source, options) => {
+    if (!/\/[ab]\.git$/.test(source.url)) return stock(source, options);
+    const manifest = { schemaVersion: 1, kind: "cedarloom.pack", id: "acme.skills", version: "1.0.0", name: "Skills" };
+    const text = JSON.stringify({ ...manifest, minApp: "0.1.0", entries });
+    const file = (path: string, content: string) => ({
+      path,
+      mode: "100644" as const,
+      sha256: "3".repeat(64),
+      content: Buffer.from(content),
+    });
+    const files = [file("cedarloom-pack.json", text), file("skills/review/SKILL.md", "# Review\n")];
+    return { ok: true, value: { commit: "1".repeat(40), digest: "2".repeat(64), files } };
+  };
+const packs = packWith({ "skills/review": { kind: "skill" } });
+const packed = (box: ReturnType<typeof machine>, project: string) =>
+  planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: packs, project });
+
+test("a project's packs install their skills in the project, and two skills of one name refuse the plan", async () => {
+  const sources = { "acme.skills": { git: "https://x.example/a.git", ref: "main" } };
+  const one = custom({ packs: { type: "packs", title: "Packs", default: "on", packs: ["acme.skills"] } }, sources);
+  const project = projectWith();
+  const two = custom(
+    { packs: { type: "packs", title: "Packs", default: "on", packs: ["acme.skills", "acme.more"] } },
+    { ...sources, "acme.more": { git: "https://x.example/b.git", ref: "main" } },
+  );
+  const folder = join(project, ".claude", "skills", "review");
+  expect([
+    contentOf(ok(await packed(one, project)).plan, join(folder, "SKILL.md")),
+    await packed(two, project),
+  ]).toEqual([
+    "# Review\n",
+    { ok: false, finding: { code: "profile.skill-twice", params: { part: "project.packs", folder } } },
+  ]);
+});
+
+test("a machine's plan keeps the record of a project's skill sources, so their wait does not start over", async () => {
+  const source = { git: "https://x.example/skill.git", ref: "main" };
+  const fetch = packWith({ "skills/review": { kind: "skill", source } });
+  const box = custom(
+    { packs: { type: "packs", title: "Packs", default: "on", packs: ["acme.skills"] } },
+    { "acme.skills": { git: "https://x.example/a.git", ref: "main" } },
+  );
+  const where = { home: box.home, user: box.user };
+  ok(await planProfile(box.config, box.state, where, { fetch, project: projectWith() }));
+  // The record's entry for the skill's source, by its `sourceKey`.
+  const entry = () =>
+    JSON.parse(readFileSync(join(box.state, "pack-sources.json"), "utf8")).sources[
+      JSON.stringify([source.git, source.ref, ""])
+    ];
+  const before = entry();
+  ok(await planProfile(box.config, box.state, where, { fetch, allow: PLUGINS }));
+  expect([entry(), before?.commit]).toEqual([before, "1".repeat(40)]);
+});

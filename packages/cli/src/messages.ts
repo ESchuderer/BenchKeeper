@@ -3,6 +3,8 @@ import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
+// A folder as a command's argument, quoted when it has a space.
+const folderArgument = (path: string): string => (/\s/.test(path) ? `"${path}"` : path);
 // An undo run that stopped is not undone itself: planning the undo of its target again starts from the files as they are.
 const undoHint = (p: { runId: string; undoes: string | null }): string =>
   p.undoes === null
@@ -248,7 +250,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
         ? "a marketplace Claude Code already knows"
         : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
     const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
-    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+    const where = p.project === null ? "" : ` --project ${folderArgument(p.project)}`;
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply${where} --allow ${p.part}`;
   },
   "profile.options-guarded": (p) =>
     `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
@@ -265,11 +268,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
       ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
     ];
-    const folder = /\s/.test(p.project) ? `"${p.project}"` : p.project;
-    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folder} --allow ${p.part}`;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.skill-twice": (p) =>
+    `${p.part} installs a skill into ${p.folder}, which another skill of the same name takes; switch one of their parts off.`,
   "profile.agents-unread": (p) =>
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>

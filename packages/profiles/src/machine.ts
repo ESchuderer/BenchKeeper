@@ -208,17 +208,19 @@ const repository = (marketplace: NonNullable<Plugin["marketplace"]>): string =>
  * Each plugin part of a level not approved by name whose declaration would change the settings: a named approval
  * line, never preselected (owner, hub issue 130), as its plugin's hooks, MCP servers and commands run in every session.
  */
-export const waiting = (
-  level: "machine" | "project",
-  plugins: readonly [string, Declared][],
+export const waiting = <P extends Declared>(
+  { level, project }: { level: "machine" | "project"; project: string | null },
+  plugins: readonly [string, P][],
   settings: Json,
-  changes: (plugin: Declared) => boolean = () => false,
+  changes: (plugin: P) => boolean = () => false,
 ): Finding[] =>
   plugins
-    .filter(([, plugin]) => canonicalJson(withPlugins(settings, [plugin])) !== canonicalJson(settings) || changes(plugin))
+    .filter(
+      ([, plugin]) => canonicalJson(withPlugins(settings, [plugin])) !== canonicalJson(settings) || changes(plugin),
+    )
     .map(([id, { plugin, marketplace }]): Finding => {
       const source = marketplace === undefined ? null : repository(marketplace);
-      const params = { ref: marketplace?.ref ?? null, autoUpdate: marketplace?.autoUpdate === true };
+      const params = { ref: marketplace?.ref ?? null, autoUpdate: marketplace?.autoUpdate === true, project };
       return { code: "profile.approval-needed", params: { part: `${level}.${id}`, plugin, source, ...params } };
     });
 
@@ -253,8 +255,7 @@ const settingsPlan = ({ profile, on }: Resolved, target: Target, approved: Reado
   if (!options.ok) return options;
   const others = plugins.filter(([id]) => !approved.has(`machine.${id}`));
   const operations = [...settings.value.operations, ...options.value];
-  const changes = optionsChange(target);
-  const findings = waiting("machine", others, settings.value.merged, (plugin) => changes(plugin as Plugin));
+  const findings = waiting({ level: "machine", project: null }, others, settings.value.merged, optionsChange(target));
   return { ok: true, value: { operations, findings } };
 };
 
@@ -291,7 +292,7 @@ export const planMachine = (
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
   const rules = rulesFiles(resolved, target.home, fetched);
   if (!rules.ok) return rules;
-  const skills = skillFiles(resolved, target.home, fetched, written);
+  const skills = skillFiles(resolved, target.home, { fetched, written, level: "machine" });
   if (!skills.ok) return skills;
   const wanted = new Map([...rules.value.wanted, ...skills.value.wanted]);
   const files = ownedFiles(wanted, [...rules.value.off, ...skills.value.stale], written);

@@ -3,10 +3,10 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { type Finding, type Operation, type Result, sealedTarget, targetClass } from "@cedarloom/contracts";
 import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { onDisk, textOf, unknownApprovals, within } from "./machine.ts";
+import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
 import { type Resolved, textFile } from "./resolve.ts";
-import type { Fetched } from "./skills.ts";
+import { type Fetched, skillFiles } from "./skills.ts";
 
 type Part = Resolved["profile"]["project"][string];
 type Of<T extends Part["type"]> = Extract<Part, { type: T }>;
@@ -271,39 +271,105 @@ const manualWrites = (context: Context, project: string) => {
   return { ok: true as const, value: { writes, created, findings, local: local.value !== null } };
 };
 
+// The settings parts merged into the committed `.claude/settings.json` or the local `.claude/settings.local.json` by
+// `commit`, and the plugin parts `approved` names into the local one, the only one Claude Code downloads a plugin from;
+// each other plugin part that would change it waits for its approval by name. Git ignores the local file while a part
+// that writes it is on, also once its plugins are in place and need no new approval.
+const settingsWrites = ({ resolved, project, approved }: Given) => {
+  const sets = (commit: boolean) =>
+    partsOn(resolved, "settings").flatMap(([, part]) => (part.commit === commit ? [part.set] : []));
+  const plugins = partsOn(resolved, "plugin");
+  const allowed = plugins.filter(([id]) => approved.has(`project.${id}`)).map(([, plugin]) => plugin);
+  const [shared, local] = [sets(true), sets(false)];
+  const operations: Operation[] = [];
+  if (shared.length > 0) {
+    const write = fileWrite(join(project, ".claude", "settings.json"), (json) => mergeSets(json, shared));
+    if (!write.ok) return write;
+    operations.push(...write.value.operations);
+  }
+  const none = { operations, findings: [], local: false };
+  if (local.length + plugins.length === 0) return { ok: true as const, value: none };
+  const path = join(project, ".claude", "settings.local.json");
+  const write = fileWrite(path, (json) => withPlugins(mergeSets(json, local), allowed));
+  if (!write.ok) return write;
+  const others = plugins.filter(([id]) => !approved.has(`project.${id}`));
+  const findings = waiting({ level: "project", project }, others, write.value.merged);
+  return {
+    ok: true as const,
+    value: { operations: [...operations, ...write.value.operations], findings, local: true },
+  };
+};
+
+// The owned files of a project's plan: the files parts' targets, and the packs' skills in `.claude/skills/`.
+const ownedOf = (given: Given, files: Files, written: Written) => {
+  const { resolved, project, fetched } = given;
+  const skills = skillFiles(resolved, join(project, ".claude"), { fetched, written, level: "project" });
+  if (!skills.ok) return skills;
+  const wanted = new Map([...files.wanted, ...skills.value.wanted]);
+  return ownedFiles(wanted, [...files.stale, ...skills.value.stale], written);
+};
+
+// The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local
+// targets of the files parts CedarLoom writes or holds. A target the owner changed is theirs, so Git keeps showing it.
+const localPaths = (project: string, files: Files, owned: LevelPlan, local: { manual: boolean; settings: boolean }) => {
+  const theirs = new Set(
+    owned.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])),
+  );
+  return [
+    ...(local.manual ? [onDisk(join(project, "CLAUDE.local.md"))] : []),
+    ...(local.settings ? [onDisk(join(project, ".claude", "settings.local.json"))] : []),
+    ...files.excluded.filter((path) => !theirs.has(path)),
+  ];
+};
+
+// The plan, unless a link leads the `.claude` folder it writes into outside the project, where its settings or skills
+// would land elsewhere, such as in a user's own Claude Code home.
+const unlinked = (project: string, plan: LevelPlan): Result<LevelPlan> => {
+  const folder = join(project, ".claude");
+  const into = plan.operations.some((operation) => "path" in operation && operation.path.startsWith(folder + sep));
+  if (!into || within(folder, project)) return { ok: true, value: plan };
+  return refuse({
+    code: "profile.target-linked",
+    params: { part: "project", target: ".claude", path: onDisk(folder) },
+  });
+};
+
 /**
  * The project level for one folder: the manual's marked blocks, each files part's targets (an executable or
- * configuration one only when `approved` names its part), and the Git exclude block for the machine-local files.
- * `written` holds what CedarLoom last left at each path of the project (the run store's `written`).
+ * configuration one only when `approved` names its part), the settings and the approved plugins merged into the
+ * project's settings files, the packs' skills, and the Git exclude block for the machine-local files. `written` holds
+ * what CedarLoom last left at each path of the project (the run store's `written`).
  */
 export const planProject = (
   resolved: Resolved,
   project: string,
-  written: ReadonlyMap<string, string | null>,
+  written: Written,
   { approved = new Set<string>(), fetched = new Map() }: { approved?: ReadonlySet<string>; fetched?: Fetched } = {},
 ): Result<LevelPlan> => {
-  const unknown = unknownApprovals(resolved, approved, "project", "files");
+  const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
-  const files = filesOf({ resolved, project, fetched, approved }, written);
+  const given = { resolved, project, fetched, approved };
+  const files = filesOf(given, written);
   if (!files.ok) return files;
   const manual = manualWrites({ resolved, fetched, held: files.value.held }, project);
   if (!manual.ok) return manual;
-  const owned = ownedFiles(files.value.wanted, files.value.stale, written);
+  const settings = settingsWrites(given);
+  if (!settings.ok) return settings;
+  const owned = ownedOf(given, files.value, written);
   if (!owned.ok) return owned;
-  // A target the owner changed is theirs, so Git keeps showing it.
-  const theirs = new Set(
-    owned.value.findings.flatMap((finding) => (finding.code === "profile.owner-changed" ? [finding.params.path] : [])),
-  );
-  const local = manual.value.local ? [onDisk(join(project, "CLAUDE.local.md"))] : [];
-  const lines = [...local, ...files.value.excluded.filter((path) => !theirs.has(path))];
-  const writes = [...manual.value.writes, ...excludeWrites(project, lines)];
+  const local = { manual: manual.value.local, settings: settings.value.local };
+  const writes = [
+    ...manual.value.writes,
+    ...excludeWrites(project, localPaths(project, files.value, owned.value, local)),
+  ];
   const failed = writes.find((write) => !write.ok);
   if (failed !== undefined) return failed;
   const operations = [
     ...writes.flatMap((write) => (write.ok ? write.value : [])),
     ...manual.value.created,
+    ...settings.value.operations,
     ...owned.value.operations,
   ];
-  const findings = [...files.value.findings, ...manual.value.findings, ...owned.value.findings];
-  return { ok: true, value: { operations, findings } };
+  const findings = [files.value, manual.value, settings.value, owned.value].flatMap((each) => each.findings);
+  return unlinked(project, { operations, findings });
 };

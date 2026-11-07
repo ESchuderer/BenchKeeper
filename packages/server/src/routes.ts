@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
 import {
   Draft,
   DraftInfo,
   DraftSaved,
   type Finding,
   Finding as FindingSchema,
+  ImportPreview,
+  type Plan,
   Refusal,
   Run,
   RunResult,
@@ -154,6 +157,60 @@ export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app,
     async (req, reply) => {
       const deleted = useCases.deleteDraft(state, req.params.id);
       return deleted.ok ? reply.code(204).send(null) : reply.code(404).send(refusal(deleted.finding));
+    },
+  );
+};
+
+// The plans of the latest reviews, so an apply stores what a review showed; an older one is planned again.
+const KEPT = 16;
+
+/**
+ * Imports (P6 a): the review of a Git ref, fetched as data, with its plan kept under an id, and that plan applied only
+ * with the hash of the preview the user approved, once. An export folder is imported through its Git URL, or with the
+ * CLI: the API reads no folder a request names.
+ */
+export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCases.Fetch | undefined }> = async (
+  app,
+  { state, fetch },
+) => {
+  const planned = new Map<string, Plan>();
+  // The fetch refuses a Git URL or ref it does not take, with its finding (409): their rules are no request schema's.
+  const source = z.strictObject({ git: z.string().max(2048), ref: z.string().max(255) });
+  app.post(
+    "/api/imports",
+    { schema: { body: source, response: answers({ 200: ImportPreview, 409: Refusal }) } },
+    async (req, reply) => {
+      // Only the URL and the ref go on: the use case's folder branch takes nothing from a request.
+      const read = await useCases.planImport(state, { git: req.body.git, ref: req.body.ref }, fetch);
+      if (!read.ok) return reply.code(409).send(refusal(read.finding));
+      const { review, plan } = read.value;
+      if (plan === null) return { id: null, review, planHash: null, plan: null };
+      const id = randomUUID();
+      planned.set(id, plan);
+      for (const old of [...planned.keys()].slice(0, -KEPT)) planned.delete(old);
+      return { id, review, ...useCases.previewPlan(plan) };
+    },
+  );
+  app.post(
+    "/api/imports/:importId/apply",
+    {
+      schema: {
+        params: z.strictObject({ importId: z.uuid() }),
+        body: z.strictObject({ approve: Sha256.describe("The planHash of the import preview the user approved") }),
+        // 404: no plan under this id (applied, or older than the latest reviews); 409 with a run result: refused.
+        response: answers({ 200: RunResult, 404: Refusal, 409: z.union([RunResult, Refusal]) }),
+      },
+    },
+    async (req, reply) => {
+      const plan = planned.get(req.params.importId);
+      if (plan === undefined) {
+        return reply.code(404).send(refusal({ code: "import.not-found", params: { id: req.params.importId } }));
+      }
+      const applied = useCases.applyPlan(state, plan, { approve: req.body.approve });
+      if (!applied.ok) return reply.code(409).send(refusal(applied.finding));
+      if (applied.value.status !== "applied") return reply.code(409).send(applied.value);
+      planned.delete(req.params.importId);
+      return applied.value;
     },
   );
 };

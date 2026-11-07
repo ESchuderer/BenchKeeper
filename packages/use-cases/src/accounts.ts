@@ -332,6 +332,8 @@ export interface AccountRequest {
   readonly pool: string;
   /** The account the task last ran on; null on its first launch. */
   readonly previous: string | null;
+  /** The model the worker runs: its own weekly window counts too, once read. */
+  readonly model?: string | undefined;
 }
 
 /**

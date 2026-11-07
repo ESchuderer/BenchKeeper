@@ -9,6 +9,7 @@ import {
   type ExtensionOptions,
   exit,
   HOST_FAILED,
+  hostExec,
   hostFetch,
   initialize,
   type LogParams,
@@ -232,17 +233,23 @@ test("an extension on its real stdio keeps every other write off standard output
 }, 30_000);
 
 // A check whose text is the language it was asked in.
-const doctor: ExtensionOptions["doctor"] = ({ locale }) => [
-  { check: "setup", severity: "info", code: "example.language", message: locale },
-];
+const doctor: ExtensionOptions["doctor"] = async ({ locale, exec }) => {
+  const { stdout } = await exec({ program: "tool", args: ["--version"] });
+  return [{ check: "setup", severity: "info", code: "example.language", message: `${locale} ${stdout}` }];
+};
 
-test("the doctor's checks run in the language initialize named, and an extension without checks has none", async () => {
+test("the doctor's checks run in the language initialize named and run programs through the host, and an extension without checks has none", async () => {
   const { host } = connect({ doctor });
+  host.onRequest(hostExec, ({ program, args }) => ({
+    code: 0,
+    stdout: [program, ...(args ?? [])].join(" "),
+    stderr: "",
+  }));
   await host.sendRequest(initialize, hello);
   const plain = connect().host;
   await plain.sendRequest(initialize, hello);
   expect([await host.sendRequest(doctorRun), await plain.sendRequest(doctorRun)]).toEqual([
-    { findings: [{ check: "setup", severity: "info", code: "example.language", message: "de" }] },
+    { findings: [{ check: "setup", severity: "info", code: "example.language", message: "de tool --version" }] },
     { findings: [] },
   ]);
 });

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -79,6 +79,34 @@ test("a killed process releases the store, and its running run is marked interru
   const store = opened(dir);
   expect(store.interrupted).toHaveLength(1);
   expect(store.runs()).toMatchObject([{ id: store.interrupted[0], status: "interrupted" }]);
+  // Its plan keeps no file content.
+  expect(store.run(store.interrupted[0] ?? "")?.plan.operations).toEqual([
+    { kind: "write", path: "/x", before: null, content: "" },
+  ]);
+});
+
+test("a finished run's file content is in no file of the store once it closes, while another connection stays", () => {
+  const dir = fresh();
+  const store = opened(dir);
+  // A connection that keeps the log from leaving with the store, as a graph run's does.
+  const other = new DatabaseSync(join(dir, "runs.sqlite"));
+  other.prepare("SELECT count(*) FROM runs").get();
+  // About 3 KB, a size that stayed on a freed page without secure_delete.
+  const marker = "secret-0b9f4c1e8d2a4c6b";
+  const written: Plan = {
+    schemaVersion: 1,
+    operations: [{ kind: "write", path: "/a", before: null, content: `${marker}${"-".repeat(3000)}` }],
+  };
+  const id = store.begin("apply", written, planHash(written));
+  store.finish(id.ok ? id.value : "", "applied");
+  store.close();
+  open.length = 0;
+  const files = readdirSync(dir, { recursive: true, encoding: "utf8" }).filter((name) =>
+    statSync(join(dir, name)).isFile(),
+  );
+  expect(files).toContain("runs.sqlite-wal");
+  expect(files.filter((name) => readFileSync(join(dir, name)).includes(marker))).toEqual([]);
+  other.close();
 });
 
 test("reads and another process's runs, side by side, wait out each other's brief locks instead of failing", async () => {
@@ -112,16 +140,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 14 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 15 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 13 is the last schema before 0.1.0, whose launches kept no totals.
-  const dir = storeAt(13);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 13, known: 14 } } };
+  // 14 is the last schema before 0.1.0, whose readings held no model windows.
+  const dir = storeAt(14);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 14, known: 15 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 13 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 14 });
   after.close();
 });
 

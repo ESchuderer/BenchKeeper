@@ -551,6 +551,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        git: string;
+                        ref: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportPreview"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/imports/{importId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    importId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        approve: components["schemas"]["Sha256Input"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"];
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"] | components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -855,6 +989,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };
@@ -1318,6 +1458,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -1520,6 +1666,76 @@ export interface components {
                 unit: "files" | "bytes";
             };
         };
+        ImportReviewInput: {
+            source: {
+                folder: string;
+            } | {
+                git: string;
+                ref: string;
+                commit: string;
+            };
+            units: {
+                id: string;
+                /** @enum {string} */
+                status: "new" | "same" | "update" | "conflict";
+                version: string;
+                stored: string | null;
+                license: string | null;
+                changes: {
+                    added: string[];
+                    removed: string[];
+                    changed: string[];
+                };
+            }[];
+            risks: {
+                workflow: string;
+                node: string;
+                /** @enum {string} */
+                kind: "schedule" | "precheck" | "command" | "agent" | "write" | "workflow" | "extension";
+                text: string;
+            }[];
+            extensions: {
+                id: string;
+                version: string;
+                git: string;
+                commit: string;
+                path?: string;
+                digest: components["schemas"]["Sha256Input"];
+                /** @enum {string} */
+                status: "verified" | "mismatch" | "unreachable";
+                installed: boolean;
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                } | null;
+            }[];
+        };
         RunInput: {
             id: string;
             /** @enum {string} */
@@ -1574,6 +1790,24 @@ export interface components {
                 } | components["schemas"]["StoreUpdateInput"])[];
             } | null;
             findings: components["schemas"]["FindingInput"][];
+        };
+        ImportPreviewInput: {
+            id: string | null;
+            review: components["schemas"]["ImportReviewInput"];
+            planHash: components["schemas"]["Sha256Input"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdateInput"])[];
+            } | null;
         };
         RunResultInput: {
             runId: string | null;
@@ -1877,6 +2111,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };
@@ -2340,6 +2580,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -2542,6 +2788,76 @@ export interface components {
                 unit: "files" | "bytes";
             };
         };
+        ImportReview: {
+            source: {
+                folder: string;
+            } | {
+                git: string;
+                ref: string;
+                commit: string;
+            };
+            units: {
+                id: string;
+                /** @enum {string} */
+                status: "new" | "same" | "update" | "conflict";
+                version: string;
+                stored: string | null;
+                license: string | null;
+                changes: {
+                    added: string[];
+                    removed: string[];
+                    changed: string[];
+                };
+            }[];
+            risks: {
+                workflow: string;
+                node: string;
+                /** @enum {string} */
+                kind: "schedule" | "precheck" | "command" | "agent" | "write" | "workflow" | "extension";
+                text: string;
+            }[];
+            extensions: {
+                id: string;
+                version: string;
+                git: string;
+                commit: string;
+                path?: string;
+                digest: components["schemas"]["Sha256"];
+                /** @enum {string} */
+                status: "verified" | "mismatch" | "unreachable";
+                installed: boolean;
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                } | null;
+            }[];
+        };
         Run: {
             id: string;
             /** @enum {string} */
@@ -2596,6 +2912,24 @@ export interface components {
                 } | components["schemas"]["StoreUpdate"])[];
             } | null;
             findings: components["schemas"]["Finding"][];
+        };
+        ImportPreview: {
+            id: string | null;
+            review: components["schemas"]["ImportReview"];
+            planHash: components["schemas"]["Sha256"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFile"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdate"])[];
+            } | null;
         };
         RunResult: {
             runId: string | null;

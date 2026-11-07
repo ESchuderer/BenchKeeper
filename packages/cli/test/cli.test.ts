@@ -564,7 +564,7 @@ test("a project folder with shell syntax in its name is one quoted argument, so 
   const project = "/work/it's $(id) `x`;";
   const approval = Finding.parse({
     code: "profile.target-approval",
-    params: { part: "project.dc", title: "dc", project, programs: ["scripts/dc"], configs: [] },
+    params: { part: "project.dc", title: "dc", project, source: null, programs: ["scripts/dc"], configs: [] },
   });
   expect(text(approval)).toContain(`--project '/work/it'\\''s $(id) \`x\`;' --allow project.dc`);
 });

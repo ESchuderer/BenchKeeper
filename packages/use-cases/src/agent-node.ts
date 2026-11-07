@@ -3,11 +3,21 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
 import type { Result } from "@cedarloom/contracts";
-import type { Attempt, Prepared } from "@cedarloom/engine";
+import type { Attempt, Prepared, Recovery } from "@cedarloom/engine";
 import { worktreeOf } from "@cedarloom/git";
+import { readResult } from "@cedarloom/orchestration";
 import { loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
-import { type Decided, type LaunchHost, type LeasedWorker, leaseWorker, type WorkerRequest } from "./launch.ts";
+import {
+  type Decided,
+  type LaunchHost,
+  type LeasedWorker,
+  leaseWorker,
+  type Resume,
+  resultFileOf,
+  type WorkerRequest,
+} from "./launch.ts";
+import { retryBusy, withStore } from "./use-cases.ts";
 
 const PHASES = ["plan", "implement", "review"] as const;
 /** The workflow phase an agent node works in; `implement` when the node names none. */
@@ -38,6 +48,8 @@ const STALL_MS = 15 * 60_000;
 const RETRY_MS = 5000;
 // A worker that did its task: one that found problems in a review did too.
 const DONE = new Set(["pass", "findings"]);
+// What a resumed session is told; the launcher adds where its result goes now.
+const RESUMED = "Your run was stopped before it finished. Continue the task from where you left off.";
 
 const failed = (why: string): Prepared => ({
   pid: null,
@@ -67,12 +79,16 @@ const onlyPool = (config: string): string | null => {
   return pools.length === 1 ? (pools[0] ?? null) : null;
 };
 
-// The worker of an attempt, the node's task in the worktree with its phase's model and settings; or why there is none.
+// The launcher's task of an attempt: a later runner finds the attempt's launches by it.
+const taskOf = (run: AgentRun, attempt: Attempt): string => `${run.runId}:${attempt.node}#${attempt.attempt}`;
+
+// The worker of an attempt, the node's task in the worktree with its phase's model and settings, or the session it
+// resumes; or why there is none.
 const requestOf = (
   attempt: Attempt,
   run: AgentRun,
   options: AgentOptions,
-  cwd: string,
+  resume: Resume | null,
 ): WorkerRequest<Launch> | string => {
   const pool = onlyPool(options.config);
   if (pool === null) return "no-single-pool";
@@ -80,12 +96,13 @@ const requestOf = (
   if (!level.ok) return level.finding.code;
   const phase = PHASES.find((each) => each === attempt.config["phase"]) ?? "implement";
   const task = attempt.config["task"];
+  const cwd = folderOf(run);
   return {
-    task: `${run.runId}:${attempt.node}`,
+    task: taskOf(run, attempt),
     agent: "claude",
     pool,
     previous: null,
-    prompt: typeof task === "string" ? task : "",
+    ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
@@ -117,14 +134,18 @@ const leased = async (attempt: Attempt, lease: Lease, retryMs: number): ReturnTy
   }
 };
 
+const ended = (verdict: string, summary: string | null) => ({
+  ok: DONE.has(verdict),
+  values: { result: summary ?? "", verdict },
+});
+
 const outcomeOf = (ran: Awaited<ReturnType<LeasedWorker["run"]>>, stalled: boolean) => {
   if (!ran.ok) return { ok: false, stalled, values: { error: ran.finding.code } };
-  const { verdict, summary } = ran.value;
-  return { ok: DONE.has(verdict), stalled, values: { result: summary ?? "", verdict } };
+  return { ...ended(ran.value.verdict, ran.value.summary), stalled };
 };
 
-// Runs the leased worker: its session id is committed at init, and a session that sends nothing for `stallMs` is
-// stopped and counts as stalled.
+// Runs the leased worker: its session id is committed at an init line that proves the worker settings, so only such a
+// session is resumed; a session that sends nothing for `stallMs` is stopped and counts as stalled.
 const watched = async (attempt: Attempt, worker: LeasedWorker, stallMs: number) => {
   const quiet = new AbortController();
   const arm = () => setTimeout(() => quiet.abort(), stallMs);
@@ -132,7 +153,7 @@ const watched = async (attempt: Attempt, worker: LeasedWorker, stallMs: number) 
   const onEvent = (event: AgentEvent): void => {
     clearTimeout(timer);
     timer = arm();
-    if (event.type === "init") attempt.session(event.sessionId);
+    if (event.type === "init" && event.settingsApplied) attempt.session(event.sessionId);
   };
   try {
     const ran = await worker.run({ onEvent, signal: AbortSignal.any([attempt.signal, quiet.signal]) });
@@ -157,6 +178,24 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
   },
 });
 
+type Worktree = () => Promise<Result<string>>;
+
+// A worker of the attempt, or of the session it resumes, as an attempt that goes in the run's worktree.
+const attempted = async (
+  attempt: Attempt,
+  run: AgentRun,
+  options: AgentOptions,
+  { worktree, resume }: { worktree: Worktree; resume: Resume | null },
+): Promise<Prepared> => {
+  const request = requestOf(attempt, run, options, resume);
+  if (typeof request === "string") return failed(request);
+  const lease = () => leaseWorker(run.state, options.config, request, options.host);
+  const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
+  if (!got.ok) return failed(got.finding.code);
+  if (got.value.kind === "no-account") return failed(got.value.reason);
+  return going(attempt, got.value, { stallMs: options.stallMs ?? STALL_MS, worktree });
+};
+
 /**
  * The executor of `agent.run` for one run: each attempt is a worker of the M3 launcher on the registry's Claude Code
  * pool, in the run's worktree. Every check that can refuse it comes first; it then waits for a free account lease
@@ -164,13 +203,37 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
  */
 export const agentRun = (run: AgentRun, options: AgentOptions) => {
   const worktree = worktrees(run);
-  return async (attempt: Attempt): Promise<Prepared> => {
-    const request = requestOf(attempt, run, options, folderOf(run));
-    if (typeof request === "string") return failed(request);
-    const lease = () => leaseWorker(run.state, options.config, request, options.host);
-    const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
-    if (!got.ok) return failed(got.finding.code);
-    if (got.value.kind === "no-account") return failed(got.value.reason);
-    return going(attempt, got.value, { stallMs: options.stallMs ?? STALL_MS, worktree });
+  return (attempt: Attempt): Promise<Prepared> => attempted(attempt, run, options, { worktree, resume: null });
+};
+
+// An attempt whose worker ended with a verdict: it ends with that.
+const finished = (verdict: string, summary: string | null): Prepared => ({
+  pid: null,
+  run: () => Promise.resolve(ended(verdict, summary)),
+});
+
+/**
+ * The recovery of `agent.run` attempts a dead runner left, for a run taken over. An attempt with a recorded session
+ * ends with the verdict the launcher gave its latest launch, else with the result that launch wrote, without a relaunch.
+ * With neither, it resumes the session on the account it ran on, in the run's worktree. An attempt without a session, or whose runtime cannot resume, ends
+ * interrupted (Q4).
+ */
+export const agentRecover = (run: AgentRun, options: AgentOptions): Recovery => {
+  const worktree = worktrees(run);
+  return async (left) => {
+    const { sessionId } = left;
+    if (sessionId === null) return null;
+    const task = taskOf(run, left);
+    const launches = await retryBusy(() => withStore(run.state, (store) => ({ ok: true, value: store.launches() })));
+    const launch = launches.ok ? launches.value.findLast((each) => each.task === task) : undefined;
+    if (launch === undefined) return null;
+    const result = readResult(resultFileOf(run.state, launch.runId), launch.runId);
+    // A launch the launcher ended is decided: its verdict holds, which judged the CLI's exit too.
+    if (launch.verdict !== null && launch.verdict !== "interrupted") {
+      return finished(launch.verdict, result?.summary ?? null);
+    }
+    if (result !== null) return finished(result.verdict, result.summary);
+    if (options.runtime.capabilities.resume !== "supported") return null;
+    return attempted(left, run, options, { worktree, resume: { sessionId, account: launch.account } });
   };
 };

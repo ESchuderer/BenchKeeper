@@ -280,8 +280,16 @@ export const accountsStatus = (ctx: Context): number => {
   return EXIT.ok;
 };
 
-export const accountsConfirm = (ctx: Context, pool: string, { agent, yes }: { agent: Agent; yes?: true }): number => {
-  const planned = useCases.planConfirm(ctx.config, { agent, pool });
+export const accountsConfirm = (
+  ctx: Context,
+  pool: string,
+  { agent, yes, moveRunning }: { agent: Agent; yes?: true; moveRunning?: boolean },
+): number => {
+  const planned = useCases.planConfirm(ctx.config, {
+    agent,
+    pool,
+    ...(moveRunning === undefined ? {} : { moveRunning }),
+  });
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
   return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
 };

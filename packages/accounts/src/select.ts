@@ -73,15 +73,18 @@ export const headroom = (account: Account, readings: readonly Current[], model: 
   margin(account, counted(readings, now), model);
 
 /**
- * What claude-swap says of the pool's accounts, which a new worker's choice honors (owner decision, 2026-11-07): its
- * `autoswitch.strategy`, each account's priority tier (0 when it has none), the accounts it has disabled, and the one
- * it has active for interactive sessions. Without it: `best`, no tiers, none disabled, none active.
+ * What claude-swap says of the pool's accounts, which a worker's choice honors (owner decision, 2026-11-07): its
+ * `autoswitch.strategy`, each account's priority tier (0 when it has none), the accounts it has disabled, the one it
+ * has active for interactive sessions, and for running workers its `autoswitch.cooldownSeconds` and
+ * `autoswitch.hysteresisPct`. Without it: `best`, no tiers, none disabled, none active, 300 seconds and 10 points.
  */
 interface Swap {
   readonly strategy?: "best" | "weekly-first" | "consume-first" | "priority-consume-first";
   readonly tiers?: ReadonlyMap<string, number>;
   readonly disabled?: ReadonlySet<string>;
   readonly active?: string | null;
+  readonly cooldownSeconds?: number;
+  readonly hysteresisPct?: number;
 }
 
 const REASONS = {
@@ -98,14 +101,15 @@ const weeklyReset = (account: Account, readings: readonly Current[]): number => 
   return reading === undefined || reading.resetsAt === null ? Number.POSITIVE_INFINITY : Date.parse(reading.resetsAt);
 };
 
-// The candidate with a margin of at least 0 the strategy ranks first, the first one listed on a tie: `best` by the
-// most headroom; the others by the soonest weekly reset, then headroom, `priority-consume-first` within the highest
+// The candidate with a margin of at least `floor` the strategy ranks first, the first one listed on a tie: `best` by
+// the most headroom; the others by the soonest weekly reset, then headroom, `priority-consume-first` within the highest
 // tier first. claude-swap's active account is passed over while another account qualifies.
 const ranked = <T extends { readonly account: Account; readonly margin: number | null; readonly reset: number }>(
   scored: readonly T[],
   { strategy = "best", tiers = new Map(), active = null }: Swap,
+  floor = 0,
 ): (T & { readonly reason: (typeof REASONS)[keyof typeof REASONS] }) | undefined => {
-  const qualifying = scored.filter((each) => each.margin !== null && each.margin >= 0);
+  const qualifying = scored.filter((each) => each.margin !== null && each.margin >= floor);
   const others = qualifying.filter((each) => each.account.name !== active);
   const tier = (each: T): number => (strategy === "priority-consume-first" ? (tiers.get(each.account.name) ?? 0) : 0);
   const reset = (each: T): number => (strategy === "best" ? 0 : each.reset);
@@ -192,14 +196,104 @@ export const selectAccount = (
   if (free === null) return { ok: false, reason: "all-leased", candidates: [] };
   const disabled = swap.disabled ?? new Set();
   const members = free.filter((account) => !disabled.has(account.name));
-  const current = counted(readings, now);
+  const { scored, candidates } = scoredOf(members, counted(readings, now), model);
+  const best = ranked(scored, swap);
+  if (best !== undefined) return { ok: true, account: best.account, reason: best.reason, candidates };
+  return unread(members, candidates, previous);
+};
+
+// Each account's margin and next weekly reset by the counted readings, and the candidates as a choice reports them.
+const scoredOf = (members: readonly Account[], current: readonly Current[], model: string | undefined) => {
   const scored = members.map((account) => ({
     account,
     margin: margin(account, current, model),
     reset: weeklyReset(account, current),
   }));
-  const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
-  const best = ranked(scored, swap);
-  if (best !== undefined) return { ok: true, account: best.account, reason: best.reason, candidates };
-  return unread(members, candidates, previous);
+  return { scored, candidates: scored.map(({ account, margin: value }) => ({ account: account.name, margin: value })) };
+};
+
+export type Move =
+  | {
+      readonly move: true;
+      readonly account: Account;
+      readonly reason: (typeof REASONS)[keyof typeof REASONS];
+      readonly candidates: readonly Candidate[];
+    }
+  | {
+      readonly move: false;
+      /**
+       * `off`: the pool is unconfirmed, does not move running workers, or no longer holds the worker's account.
+       * `no-target`: no account clears the bar. `bound`: `accounts map` bound the worker's folder to its account.
+       */
+      readonly reason: "off" | "within-line" | "cooldown" | "no-target" | "bound";
+      readonly candidates: readonly Candidate[];
+    };
+
+const stay = (reason: Extract<Move, { move: false }>["reason"], candidates: readonly Candidate[] = []): Move => ({
+  move: false,
+  reason,
+  candidates,
+});
+
+type MoveRequest = PoolRef & {
+  readonly from: string;
+  readonly trigger: "line" | "at-limit";
+  readonly since: number | null;
+  readonly held?: ReadonlySet<string>;
+  readonly busy?: ReadonlySet<string>;
+  readonly model?: string | undefined;
+  readonly swap?: Swap;
+};
+
+// Why a worker at its line stays: its margin is unknown or not below 0, or claude-swap's cooldown still runs.
+const lineStay = (left: number | null, since: number | null, now: number, cooldownSeconds = 300) => {
+  if (left === null || left >= 0) return "within-line";
+  return since !== null && now - since < cooldownSeconds * 1000 ? "cooldown" : null;
+};
+
+// The margin a target needs: at the worker's line, its own plus claude-swap's hysteresis; at its limit, any headroom.
+const floorOf = (trigger: MoveRequest["trigger"], left: number | null, hysteresisPct = 10): number =>
+  trigger === "line" ? Math.max(0, (left ?? 0) + hysteresisPct) : 0;
+
+// The strategy's first account with a margin of at least `floor` among the pool's others not busy, held or disabled.
+const target = (
+  members: readonly Account[],
+  { from, held = new Set(), busy = new Set(), model, swap = {} }: MoveRequest,
+  { current, floor }: { current: readonly Current[]; floor: number },
+): Move => {
+  const out = new Set([from, ...held, ...busy, ...(swap.disabled ?? [])]);
+  const { scored, candidates } = scoredOf(
+    members.filter((each) => !out.has(each.name)),
+    current,
+    model,
+  );
+  const best = ranked(scored, swap, floor);
+  if (best === undefined) return stay("no-target", candidates);
+  return { move: true, account: best.account, reason: best.reason, candidates };
+};
+
+/**
+ * Whether a running worker on `from` moves to another account of its pool now, and to which (A41 a): only in a
+ * confirmed pool with `moveRunning`. At its line (`line`: its margin below 0) it moves once claude-swap's cooldown has
+ * passed since `since` (its start or last move, milliseconds), to an account whose margin beats its own by claude-swap's
+ * hysteresis. At its limit (`at-limit`, the agent's own report) it moves at once to any account with headroom. The
+ * target is the strategy's first among the other pool accounts; one in `busy`, `held` (its login check failed) or
+ * disabled by claude-swap is passed over.
+ */
+export const selectMove = (
+  registry: AccountRegistry,
+  request: MoveRequest,
+  readings: readonly Current[],
+  now: number,
+): Move => {
+  const { from, trigger, model, swap = {} } = request;
+  if (settingsOf(registry, request)?.moveRunning !== true || !isConfirmed(registry, request)) return stay("off");
+  const current = counted(readings, now);
+  const members = membersOf(registry, request);
+  const own = members.find((account) => account.name === from);
+  if (own === undefined) return stay("off");
+  const left = margin(own, current, model);
+  const why = trigger === "line" ? lineStay(left, request.since, now, swap.cooldownSeconds) : null;
+  if (why !== null) return stay(why);
+  return target(members, request, { current, floor: floorOf(trigger, left, swap.hysteresisPct) });
 };

@@ -1,4 +1,4 @@
-import { type Selection, selectAccount } from "@cedarloom/accounts";
+import { type Selection, selectAccount, selectMove } from "@cedarloom/accounts";
 import type { Account, AccountRegistry, Reading as Stored } from "@cedarloom/contracts";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
@@ -255,6 +255,68 @@ test("no account comes from a pool that is not the agent's, unconfirmed, or chan
       candidates: [],
     });
   }
+});
+
+// The registry with running moves on for the main pool.
+const moving: AccountRegistry = {
+  ...registry,
+  pools: {
+    claude: { ...registry.pools.claude, main: { confirmedAt: CONFIRMED, confirmedFor: POOL, moveRunning: true } },
+  },
+};
+const TEN_MINUTES_AGO = NOW - 600_000;
+
+test("a running worker past its line moves after claude-swap's cooldown to an account that beats it by the hysteresis", () => {
+  // One is 3 points past its 5-hour line; two has 2 points of headroom, three 42.
+  const readings = [...used("one", 95, 0), ...used("two", 90, 0), ...used("three", 50, 0)];
+  const line = { ...main, from: "one", trigger: "line", since: TEN_MINUTES_AGO } as const;
+  expect(selectMove(registry, line, readings, NOW)).toEqual({ move: false, reason: "off", candidates: [] });
+  expect(selectMove(moving, line, readings, NOW)).toEqual({
+    move: true,
+    account: registry.accounts[2],
+    reason: "most-headroom",
+    candidates: [
+      { account: "two", margin: 2 },
+      { account: "three", margin: 42 },
+    ],
+  });
+  // claude-swap's cooldown, 300 seconds unless its config says otherwise, counts from the worker's start or last move.
+  const lately = { ...line, since: NOW - 60_000 };
+  expect(selectMove(moving, lately, readings, NOW)).toMatchObject({ move: false, reason: "cooldown" });
+  expect(selectMove(moving, { ...lately, swap: { cooldownSeconds: 30 } }, readings, NOW)).toMatchObject({ move: true });
+  // Two's 2 points do not beat one's -3 by the 10-point hysteresis; with a hysteresis of 0 they do.
+  const busy = { ...line, busy: new Set(["three"]) };
+  expect(selectMove(moving, busy, readings, NOW)).toEqual({
+    move: false,
+    reason: "no-target",
+    candidates: [{ account: "two", margin: 2 }],
+  });
+  expect(selectMove(moving, { ...busy, swap: { hysteresisPct: 0 } }, readings, NOW)).toMatchObject({
+    account: { name: "two" },
+  });
+  const within = [...used("one", 50, 0), ...used("three", 0, 0)];
+  expect(selectMove(moving, line, within, NOW)).toMatchObject({ move: false, reason: "within-line" });
+});
+
+test("at its limit a worker moves at once to any account with headroom; an account whose login failed is held", () => {
+  const readings = [...used("one", 50, 0), ...used("two", 90, 0), ...used("three", 50, 0)];
+  const limit = { ...main, from: "one", trigger: "at-limit", since: NOW } as const;
+  expect(selectMove(moving, limit, readings, NOW)).toMatchObject({ move: true, account: { name: "three" } });
+  // A worker whose account the pool no longer holds does not move into it.
+  expect(selectMove(moving, { ...limit, from: "gone" }, readings, NOW)).toEqual({
+    move: false,
+    reason: "off",
+    candidates: [],
+  });
+  expect(selectMove(moving, { ...limit, held: new Set(["three"]) }, readings, NOW)).toMatchObject({
+    move: true,
+    account: { name: "two" },
+  });
+  expect(selectMove(moving, { ...limit, held: new Set(["two", "three"]) }, readings, NOW)).toEqual({
+    move: false,
+    reason: "no-target",
+    candidates: [],
+  });
 });
 
 // Per account, each window read or not, from few values and mostly before the reset: ties and fully read pools come up

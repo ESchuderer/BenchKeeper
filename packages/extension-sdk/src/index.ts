@@ -124,7 +124,10 @@ const serveTarget = <C extends TargetCall>(
   // The answer is typed by the handler: the host checks it against its contract.
   connection.onRequest(new RequestType<TargetCallParams[C], unknown, void>(call), (params, token) => {
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
-    return handle(params, { locale: locale(), exec }).catch(failure);
+    // Also a handler that throws before it returns a promise answers ACTION_FAILED with its reason.
+    return Promise.resolve()
+      .then(() => handle(params, { locale: locale(), exec }))
+      .catch(failure);
   });
 };
 

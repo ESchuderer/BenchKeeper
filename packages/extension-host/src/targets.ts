@@ -1,5 +1,5 @@
 import { PlainText, Quota } from "@cedarloom/contracts";
-import type { SwitchEvent, TargetAnswers, TargetCall, TargetCallParams } from "@cedarloom/extension-sdk";
+import type { SwitchEvent, TargetAnswers } from "@cedarloom/extension-sdk";
 import { z } from "zod";
 
 // What a switch target answers reaches the ledger and the screens: bounded, and text without control characters.
@@ -54,5 +54,3 @@ export const ANSWERS: { [C in keyof TargetAnswers]: z.ZodType<TargetAnswers[C]> 
     values: z.record(Key, Setting).refine(few),
   }),
 };
-export type TargetAnswer<C extends TargetCall> = TargetAnswers[C];
-export type { TargetCall, TargetCallParams };

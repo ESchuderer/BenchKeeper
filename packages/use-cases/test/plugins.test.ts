@@ -27,14 +27,20 @@ const fetching = (files: TreeFile[], answer?: Result<Tree>) =>
   );
 
 const state = () => mkdtempSync(join(tmpdir(), "cedarloom-plugins-"));
+const OFFLINE: Result<Tree> = {
+  ok: false,
+  finding: { code: "git.failed", params: { step: "fetch", error: "offline" } },
+};
+const PINNED: Result<Tree> = { ok: true, value: { commit: WORKFLOW_PLUGIN.commit, files: WITH_WORKFLOW, digest: "d" } };
 
 test("the workflow plugin is checked out once per pinned commit, from the marketplace's plugins folder", async () => {
   const dir = state();
   const fetch = fetching(WITH_WORKFLOW);
   const plugin = join(dir, "plugins", WORKFLOW_PLUGIN.commit, "workflow");
   expect(await workflowPlugin(dir, fetch)).toBe(plugin);
+  // Fetched again, it would find nothing.
+  fetch.mockResolvedValueOnce(OFFLINE);
   expect(await workflowPlugin(dir, fetch)).toBe(plugin);
-  expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch.mock.calls[0]?.[0]).toEqual({ url: WORKFLOW_PLUGIN.url, ref: WORKFLOW_PLUGIN.commit, path: "plugins" });
   expect(readFileSync(join(plugin, "skills", "tier", "SKILL.md"), "utf8")).toBe("# Tier");
   // Read-only, so no process changes the plugin for the next worker; Windows keeps no POSIX mode.
@@ -48,23 +54,22 @@ test("a commit without the workflow plugin gives none, and that is kept; a faile
   const dir = state();
   const without = fetching([file("benchkeeper/.claude-plugin/plugin.json", "{}")]);
   expect(await workflowPlugin(dir, without)).toBeNull();
+  // Fetched again, it would find the plugin.
+  without.mockResolvedValueOnce(PINNED);
   expect(await workflowPlugin(dir, without)).toBeNull();
-  expect(without).toHaveBeenCalledTimes(1);
   const other = state();
-  const failing = fetching([], {
-    ok: false,
-    finding: { code: "git.failed", params: { step: "fetch", error: "offline" } },
-  });
+  const failing = fetching([], OFFLINE);
   expect(await workflowPlugin(other, failing)).toBeNull();
-  expect(await workflowPlugin(other, failing)).toBeNull();
-  expect(failing).toHaveBeenCalledTimes(2);
+  failing.mockResolvedValueOnce(PINNED);
+  expect(await workflowPlugin(other, failing)).toBe(join(other, "plugins", WORKFLOW_PLUGIN.commit, "workflow"));
   // A tree of another commit than the pinned one is not taken.
   const moved = vi.fn<(source: Source, options: FetchOptions) => Promise<Result<Tree>>>(async () => ({
     ok: true,
     value: { commit: "0".repeat(40), files: WITH_WORKFLOW, digest: "d" },
   }));
-  expect(await workflowPlugin(other, moved)).toBeNull();
-  expect(existsSync(join(other, "plugins", WORKFLOW_PLUGIN.commit))).toBe(false);
+  const third = state();
+  expect(await workflowPlugin(third, moved)).toBeNull();
+  expect(existsSync(join(third, "plugins", WORKFLOW_PLUGIN.commit))).toBe(false);
 });
 
 test("a workflow plugin that holds a .claude folder is refused, as --add-dir would load that folder too", async () => {

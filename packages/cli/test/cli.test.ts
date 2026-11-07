@@ -51,6 +51,8 @@ const setup = (
         },
       // No test starts an agent.
       agent: claudeRuntime(["false"]),
+      // The app's own extensions: none unless a test puts one there.
+      bundled: join(root, "app"),
       ...(fetch === undefined ? {} : { fetch }),
     };
     return { code: await main(argv, io), out, err };
@@ -934,6 +936,21 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.usage,
     EXIT.ok,
     ["w"],
+    EXIT.usage,
+  ]);
+});
+
+test("components switch turns the app's own extension off as one run, which extensions list shows", async () => {
+  const { root, cli } = setup();
+  const folder = join(root, "app", "cedarloom.example");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify({ ...MANIFEST, id: "cedarloom.example" }));
+  const switched = await cli("components", "switch", "cedarloom.example", "off", "--yes", "--json");
+  const listed = json((await cli("extensions", "list", "--json")).out);
+  const wrong = await cli("components", "switch", "cedarloom.example", "on");
+  expect([switched.code, listed["extensions"], wrong.code]).toEqual([
+    EXIT.ok,
+    [{ id: "cedarloom.example", version: "1.0.0", trust: "bundled", state: "off" }],
     EXIT.usage,
   ]);
 });

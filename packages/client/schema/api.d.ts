@@ -1293,7 +1293,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
             };
         } | {
             /** @constant */
@@ -1301,7 +1301,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
             };
         } | {
             /** @constant */
@@ -2226,7 +2226,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
             };
         } | {
             /** @constant */
@@ -2234,7 +2234,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
             };
         } | {
             /** @constant */

@@ -87,7 +87,7 @@ export const planSwitch = (app: string, config: string, id: string, state: Switc
 };
 
 /** The state folder, the app's folder of its own extensions, and the config folder. */
-type Paths = { state: string; app: string; config: string };
+export type Paths = { state: string; app: string; config: string };
 
 /** Where an extension starts from, and the trust that follows from there. */
 export type Startable = { manifest: ExtensionManifest; folder: string; trust: Trust };
@@ -113,36 +113,37 @@ export const extensionToStart = (paths: Paths, id: string): Result<Startable> =>
   return manifest.ok ? { ok: true, value: { manifest: manifest.value, folder, trust: "community" } } : manifest;
 };
 
-/**
- * The doctor's checks of the app's own extensions: each one switched on that names checks is started through
- * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
- * Their texts are in English, the CLI's language for now.
- */
-// The app's own extension `id` started in English, the CLI's language for now.
-const startBundled = async (paths: Paths, id: string) => {
+/** The app's own extension `id` started in English, the CLI's language for now. */
+export const startBundled = async (paths: Paths, id: string) => {
   const startable = extensionToStart(paths, id);
   return startable.ok ? startExtension({ ...startable.value, locale: "en" }) : startable;
 };
 
 /**
- * Runs the action `action` of the app's own extension `id` once, as a CLI verb of its noun: without config or inputs,
- * within a minute, and stops it.
+ * Runs the action `action` of the app's own extension `id` once, as a CLI verb of its noun: with the programs the user
+ * allowed it to run (`allow`, its config), without inputs, within a minute, and stops it.
  */
 export const runBundled = async (
   paths: Paths,
   id: string,
   action: string,
+  allow: readonly string[] = [],
 ): Promise<Result<Record<string, unknown>>> => {
   const started = await startBundled(paths, id);
   if (!started.ok) return started;
   try {
-    const request = { action, config: {}, inputs: {}, run: randomUUID() };
+    const request = { action, config: { allow }, inputs: {}, run: randomUUID() };
     return await started.value.run(request, AbortSignal.timeout(60_000));
   } finally {
     await started.value.stop();
   }
 };
 
+/**
+ * The doctor's checks of the app's own extensions: each one switched on that names checks is started through
+ * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
+ * Their texts are in English, the CLI's language for now.
+ */
 export const extensionChecks = async (paths: Paths): Promise<Finding[]> => {
   const bundled = bundledExtensions(paths.app, paths.config);
   if (!bundled.ok) return [bundled.finding];

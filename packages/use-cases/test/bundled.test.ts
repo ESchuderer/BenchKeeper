@@ -1,8 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { formatInstalled, type Result } from "@cedarloom/contracts";
-import { applyPlan, bundledExtensions, extensionToStart, planSwitch, undoRun } from "@cedarloom/use-cases";
+import {
+  applyPlan,
+  bundledExtensions,
+  extensionChecks,
+  extensionToStart,
+  planSwitch,
+  undoRun,
+} from "@cedarloom/use-cases";
 import { afterAll, expect, test } from "vitest";
 
 const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-bundled-"));
@@ -103,5 +110,27 @@ test("a components map CedarLoom cannot read refuses the start, and an app folde
     },
     invalidId,
     invalidId,
+  ]);
+});
+
+test("the doctor asks the app's own extensions that are on for their checks, and starts none switched off", async () => {
+  const paths = machine();
+  const folder = join(paths.app, ID);
+  const checked = {
+    ...JSON.parse(manifest(ID)),
+    contributes: { actions: { status: { title: "Status" } }, doctor: { setup: { title: "Setup" } } },
+  };
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(checked));
+  copyFileSync(join(import.meta.dirname, "fixtures", "doctor", "main.mjs"), join(folder, "main.mjs"));
+  const on = await extensionChecks(paths);
+  ok(applyPlan(paths.state, ok(planSwitch(paths.app, paths.config, ID, "off")), { yes: true }));
+  expect([on, await extensionChecks(paths)]).toEqual([
+    [
+      {
+        code: "extension.finding",
+        params: { extension: ID, check: "setup", severity: "info", code: "example.ready", message: "ready" },
+      },
+    ],
+    [],
   ]);
 });

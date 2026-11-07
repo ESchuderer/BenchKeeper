@@ -480,9 +480,11 @@ test("every finding code has an English sentence", () => {
   ]);
 });
 
+// A severity parameter (an extension's own finding) takes one of its values.
+const sampleParam = (key: string): unknown => (key === "severity" ? "info" : sha256(key));
 const sampleParams = (code: string): Record<string, unknown> => {
   const shape = Finding.options.find((option) => option.shape.code.value === code)?.shape.params.shape ?? {};
-  return Object.fromEntries(Object.keys(shape).map((key) => [key, /found|known/.test(key) ? 2 : sha256(key)]));
+  return Object.fromEntries(Object.keys(shape).map((key) => [key, /found|known/.test(key) ? 2 : sampleParam(key)]));
 };
 
 test("the installed command runs the same program and sets the process exit code", () => {

@@ -176,8 +176,16 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor"]),
       error: z.string(),
+    }),
+    // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
+    finding("extension.finding", {
+      extension: z.string(),
+      check: z.string(),
+      severity: z.enum(["error", "warning", "info"]),
+      code: z.string(),
+      message: z.string(),
     }),
     // A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33).
     finding("profile.foreign-kind", { kind: z.string() }),
@@ -294,6 +302,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "doctor.plugin-not-loaded": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
+  // Its severity is the extension's: see severityOf.
+  "extension.finding": { severity: "warning", effort: "manual" },
   "extension.install-refused": { severity: "error", effort: "manual" },
   "extension.unknown": { severity: "error", effort: "manual" },
   "extension.consent-needed": { severity: "error", effort: "command" },
@@ -315,3 +325,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.parent-limit": { severity: "error", effort: "manual" },
   "profile.pack-sources": { severity: "error", effort: "manual" },
 };
+
+/** A finding's severity: an extension's own finding carries its own, every other code has one. */
+export const severityOf = (found: Finding): FindingInfo["severity"] =>
+  found.code === "extension.finding" ? found.params.severity : findingInfo[found.code].severity;

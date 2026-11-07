@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ProfilePart.schema.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "machine",
+        "workspace",
+        "project"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "on": {
+      "type": "boolean"
+    },
+    "when": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "orca",
+            "devcontainer",
+            "no-devcontainer",
+            "gates"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "level",
+    "title",
+    "description",
+    "on",
+    "when"
+  ],
+  "additionalProperties": false
+}

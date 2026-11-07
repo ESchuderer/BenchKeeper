@@ -22,7 +22,9 @@ const runOptions = (ctx: Context, project: string | undefined): useCases.RunOpti
   const stop = new AbortController();
   void ctx.io.untilStopped().then(() => stop.abort());
   const host = { parent: ctx.io.env, platform: process.platform, home: homedir() };
-  const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch, model: phaseModel };
+  // What keeps claude-swap from answering is the doctor's to say: a worker's choice goes on with the readings kept.
+  const readings = useCases.swapReader({ state: ctx.state, app: ctx.app, config: ctx.config });
+  const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch, model: phaseModel, readings };
   return { project, signal: stop.signal, agents, config: ctx.config };
 };
 

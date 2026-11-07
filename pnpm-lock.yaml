@@ -164,6 +164,12 @@ importers:
         specifier: 'catalog:'
         version: 4.10.2
 
+  packages/extension-claude-swap:
+    dependencies:
+      '@cedarloom/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
+
   packages/extension-host:
     dependencies:
       '@anthropic-ai/sandbox-runtime':
@@ -175,6 +181,9 @@ importers:
       '@cedarloom/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
       vscode-jsonrpc:
         specifier: 10.0.0
         version: 10.0.0
@@ -207,6 +216,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
 
   packages/ledger:
     dependencies:
@@ -387,6 +399,15 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
+
+  packages/work-items:
+    dependencies:
+      '@cedarloom/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@cedarloom/ledger':
+        specifier: workspace:*
+        version: link:../ledger
 
 packages:
 

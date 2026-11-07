@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "activeAccountNumber": 3,
+  "accounts": [
+    {
+      "number": 1,
+      "email": "user1@example.com",
+      "organizationName": "Example",
+      "organizationUuid": "00000000-0000-4000-8000-000000000001",
+      "isOrganization": true,
+      "active": false,
+      "usageStatus": "ok",
+      "usage": {
+        "fiveHour": {
+          "pct": 0.0,
+          "resetsAt": "2026-11-07T12:50:00.157763+00:00"
+        },
+        "sevenDay": {
+          "pct": 63.0,
+          "resetsAt": "2026-11-07T15:00:00.157784+00:00"
+        },
+        "scoped": [
+          {
+            "pct": 3.0,
+            "resetsAt": "2026-11-07T15:00:00.157924+00:00",
+            "name": "Fable"
+          }
+        ]
+      },
+      "alias": "work",
+      "usageFetchedAt": "2026-11-07T11:14:00Z",
+      "usageAgeSeconds": 94.1
+    },
+    {
+      "number": 2,
+      "email": "user2@example.com",
+      "organizationName": "Example",
+      "organizationUuid": "00000000-0000-4000-8000-000000000002",
+      "isOrganization": true,
+      "active": false,
+      "usageStatus": "ok",
+      "usage": {
+        "fiveHour": {
+          "pct": 90.0,
+          "resetsAt": "2026-11-07T12:09:59.515471+00:00"
+        },
+        "sevenDay": {
+          "pct": 48.0,
+          "resetsAt": "2026-11-13T17:59:59.515492+00:00"
+        },
+        "scoped": [
+          {
+            "pct": 0.0,
+            "resetsAt": "2026-11-13T18:00:00+00:00",
+            "name": "Fable"
+          }
+        ]
+      },
+      "alias": "home",
+      "usageFetchedAt": "2026-11-07T11:07:21Z",
+      "usageAgeSeconds": 492.7
+    },
+    {
+      "number": 3,
+      "email": "user3@example.com",
+      "organizationName": "Example",
+      "organizationUuid": "00000000-0000-4000-8000-000000000003",
+      "isOrganization": true,
+      "active": true,
+      "usageStatus": "ok",
+      "usage": {
+        "fiveHour": {
+          "pct": 45.0,
+          "resetsAt": "2026-11-07T14:20:00.166900+00:00"
+        },
+        "sevenDay": {
+          "pct": 58.0,
+          "resetsAt": "2026-11-12T12:00:00.166922+00:00"
+        },
+        "scoped": [
+          {
+            "pct": 0.0,
+            "resetsAt": "2026-11-12T12:00:00+00:00",
+            "name": "Fable"
+          }
+        ]
+      },
+      "alias": "spare",
+      "usageFetchedAt": "2026-11-07T11:08:21Z",
+      "usageAgeSeconds": 433.1
+    }
+  ]
+}

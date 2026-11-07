@@ -33,6 +33,8 @@ export {
   GraphRunSummary,
   ImportPreview,
   PlanPreview,
+  ProfilePart,
+  ProfileView,
   Refusal,
   Run,
   RunResult,
@@ -114,8 +116,10 @@ export {
   FILES_RECORD,
   FILES_SCHEMA_VERSION,
   PackRef,
+  PartProbe,
   Profile,
   PROFILE_SCHEMA_VERSION,
+  ProfileLevel,
   ProfileFiles,
   ProfileFile,
   ProfileSelection,
@@ -145,3 +149,4 @@ export {
   WorkflowDefinition,
   WorkflowId,
 } from "./workflow.ts";
+export { Intent, IssueLink, IssueRef, OutboxEntry, RemoteComment } from "./work-items.ts";

@@ -1,0 +1,22 @@
+{
+  "name": "@cedarloom/extension-claude-swap",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CedarLoom's own claude-swap extension, cedarloom.claude-swap: every Claude Code account's usage and the account interactive sessions use, from the user's claude-swap, for the workers' choice, the doctor and cedarloom claude-swap status.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/swap.ts"
+  },
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "node ../extension-sdk/scripts/build-extension.ts",
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/extension-sdk": "workspace:*"
+  }
+}

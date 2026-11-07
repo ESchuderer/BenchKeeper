@@ -1,0 +1,4 @@
+/* An unchecked switch's track at 3.3:1 against the page and its white thumb (WCAG 1.4.11); Mantine's gray.3 is 1.3:1. */
+[data-mantine-color-scheme="light"] .mantine-Switch-track {
+  --switch-bg: var(--mantine-color-gray-6);
+}

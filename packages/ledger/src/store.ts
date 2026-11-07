@@ -29,18 +29,28 @@ import {
   GRAPH_TABLES,
   LAUNCH_TABLES,
   MODE_TABLES,
+  OUTBOX_TABLES,
   TABLES,
   USAGE_TABLES,
 } from "./rows.ts";
 
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
-const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
-// Its number follows every schema before 0.1.0 (1 to 17), so a store from before it is never read as this one.
-const SCHEMA = 18;
+const BASELINE = [
+  TABLES,
+  ACCOUNT_TABLES,
+  CHECK_TABLES,
+  LAUNCH_TABLES,
+  MODE_TABLES,
+  USAGE_TABLES,
+  GRAPH_TABLES,
+  OUTBOX_TABLES,
+];
+// Its number follows every schema before 0.1.0 (1 to 18), so a store from before it is never read as this one.
+const SCHEMA = 19;
 
 // A JSON column's value; null for SQL NULL.
-const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
+export const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
 // A stored plan with every file content blanked; kinds, paths and hashes remain. The store's SQL calls it as blanked().
 const blanked = (plan: unknown): string =>

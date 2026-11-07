@@ -437,18 +437,35 @@ const pointsOf = (state: string, runId: string) => {
   return waits.ok ? waits.value.waits.map((wait) => [wait.node, wait.point]) : waits.finding.code;
 };
 
-test("each level waits where Q10 has it: Supervised before a command and a plan, Checkpoint before a plan, Auto at neither", async () => {
+// The gates a level passed, as the ledger records them.
+const passesOf = (state: string) => {
+  const db = new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true });
+  const rows = db.prepare('SELECT nodeId, point, level, decision, "by" FROM gates ORDER BY rowid').all();
+  db.close();
+  return rows.map((row) => Object.values(row));
+};
+
+test("each level waits where Q10 has it: Supervised before a command and a plan, Checkpoint before a plan, Auto at neither, and Auto records its passes", async () => {
   const waited = await Promise.all(
     ["supervised", "checkpoint", "auto"].map(async (level) => {
       const at = writing();
       const ran = await runWorkflow(at.state, at.file, {}, { ...at.options, config: configAt(at.root, level) });
-      return [level, idOf(ran) === "" ? ran : pointsOf(at.state, idOf(ran)), at.text()];
+      return [level, idOf(ran) === "" ? ran : pointsOf(at.state, idOf(ran)), at.text(), passesOf(at.state)];
     }),
   );
   expect(waited).toEqual([
-    ["supervised", [["say", "before-node"]], "old"],
-    ["checkpoint", [["out", "before-apply"]], "old"],
-    ["auto", [], "new"],
+    ["supervised", [["say", "before-node"]], "old", []],
+    ["checkpoint", [["out", "before-apply"]], "old", []],
+    [
+      "auto",
+      [],
+      "new",
+      [
+        ["say", "before-node", "auto", "approved", "level"],
+        ["out", "before-node", "auto", "approved", "level"],
+        ["out", "before-apply", "auto", "approved", "level"],
+      ],
+    ],
   ]);
 });
 

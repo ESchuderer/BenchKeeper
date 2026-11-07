@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { canonicalJson, GraphRun, JournalEvent, NodeAttempt, type Result } from "@cedarloom/contracts";
+import {
+  type AutomationLevel,
+  canonicalJson,
+  type GatePoint,
+  GraphRun,
+  JournalEvent,
+  NodeAttempt,
+  type Result,
+} from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
 import {
@@ -126,6 +134,30 @@ export class GraphStore {
         return { ok: false, finding: { code: "run.report-only-apply", params: { runId, applyRun: event.applyRun } } };
       }
       return { ok: true, value: this.#append(runId, event) };
+    });
+  }
+
+  /**
+   * Records a gate that a level passed without the owner, as Auto approves and records, under the runner's epoch.
+   * Returns the gate's id.
+   */
+  passGate(
+    runId: string,
+    epoch: number,
+    gate: { node: string; point: GatePoint; level: AutomationLevel },
+  ): Result<string> {
+    return transaction(this.#db, () => {
+      const run = this.#active(runId);
+      if (!run.ok) return run;
+      if (run.value.epoch !== epoch) return leaseHeldBy(runId, run.value.pid);
+      const [id, at] = [randomUUID(), now()];
+      this.#db
+        .prepare(
+          `INSERT INTO gates (id, runId, nodeId, point, level, requestedAt, decidedAt, decision, "by")
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', 'level')`,
+        )
+        .run(id, runId, gate.node, gate.point, gate.level, at, at);
+      return { ok: true, value: id };
     });
   }
 

@@ -36,6 +36,7 @@ import {
   replay,
   reportOnly,
   startRun,
+  waitsAtGraphGate,
 } from "@cedarloom/engine";
 import {
   type GraphStore,
@@ -296,22 +297,19 @@ const refusing = (code: string) => (): Prepared => ({
   run: () => Promise.resolve({ ok: false, values: { error: code } }),
 });
 
-// Where each level waits for the owner (Q10 a): Supervised before every node with effects and before a plan a run built
-// applies, Checkpoint only before such a plan, Auto at neither. A human.approval node waits at every level.
-const LEVEL_WAITS: Readonly<Record<AutomationLevel, readonly GatePoint[]>> = {
-  supervised: ["before-node", "before-apply"],
-  checkpoint: ["before-apply"],
-  auto: [],
-};
+type Passed = (node: string, point: GatePoint, level: AutomationLevel) => void;
 
 // The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
-// reaches none, having no effects; settings that cannot be read wait as Supervised does.
+// reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records.
 const levelGates =
-  (config: string, state: string, run: GateRun, report: boolean): Gates =>
-  (point) => {
-    if (report) return "pass";
-    const level = levelAtGate(state, config, run);
-    return LEVEL_WAITS[level.ok ? level.value : "supervised"].includes(point) ? "wait" : "pass";
+  (config: string, state: string, run: GateRun & { readonly report: boolean }, passed: Passed): Gates =>
+  (point, node) => {
+    if (run.report) return "pass";
+    const read = levelAtGate(state, config, run);
+    const level = read.ok ? read.value : "supervised";
+    if (waitsAtGraphGate(level, point)) return "wait";
+    if (level === "auto") passed(node, point, level);
+    return "pass";
   };
 
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.
@@ -353,7 +351,10 @@ const runHeld = async (
   };
   const startedAt = store.graphRun(lease.runId)?.startedAt ?? new Date().toISOString();
   const { config } = options;
-  const gates = config === undefined ? undefined : levelGates(config, state, { project, startedAt }, run.report);
+  // A record that fails comes from a lost lease, which the run's next event reports.
+  const passed: Passed = (node, point, level) => void store.passGate(lease.runId, lease.epoch, { node, point, level });
+  const gates =
+    config === undefined ? undefined : levelGates(config, state, { project, startedAt, report: run.report }, passed);
   try {
     const { signal, onEvent, sleep } = options;
     const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover, gates });

@@ -727,6 +727,13 @@ const workflow = WorkflowDefinition.parse({
   edges: [{ id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } }],
 });
 
+test("on a fresh install, Supervised, workflows run waits before its command for the owner", async () => {
+  const { root, cli } = setup();
+  const file = planFile(root, workflow, "greet.json");
+  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  expect(ran).toMatchObject({ format: "cedarloom.run", status: "waiting" });
+});
+
 test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
   const { root, cli } = atCheckpoint();
   const file = planFile(root, workflow, "greet.json");

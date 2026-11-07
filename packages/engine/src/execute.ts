@@ -200,6 +200,16 @@ const decisionsOf = (journal: readonly JournalEvent[]): Map<string, Map<string, 
   return open;
 };
 
+// The gates the journal holds that no start has passed yet, per node, by plan ("" for none).
+const gatesOf = (journal: readonly JournalEvent[]): Map<string, Set<string>> => {
+  const open = new Map<string, Set<string>>();
+  for (const event of journal) {
+    if (event.type === "gate") open.set(event.node, new Set(open.get(event.node)).add(event.planHash ?? ""));
+    else if (event.type === "started") open.delete(event.node);
+  }
+  return open;
+};
+
 // What a runner works with: the store and lease it writes with, and the run as its journal left it.
 interface Held {
   readonly store: GraphStore;
@@ -207,6 +217,7 @@ interface Held {
   readonly workflow: WorkflowDefinition;
   readonly state: RunState;
   readonly decisions: Map<string, Map<string, Decided>>;
+  readonly gates: Map<string, Set<string>>;
 }
 
 // One run's moves: events go through the inbox one at a time, each committed, then handed to the reducer.
@@ -393,21 +404,27 @@ class Runner {
   }
 
   /**
-   * Whether an attempt goes on at a gate: the policy lets it, or the owner approved it, for the plan it applies if it has
-   * one. A rejection fails the attempt; without a decision, the gate is recorded and the attempt waits.
+   * Whether an attempt goes on at a gate: the owner approved it, for the plan it applies if it has one, or the policy lets
+   * it. The owner's decision outranks the policy, and a gate the journal holds waits for that decision whatever the policy
+   * says now, as after a switch to Auto (review of #1167). A rejection fails the attempt; without a decision, the gate is
+   * recorded and the attempt waits.
    */
   #cleared(node: string, attempt: number, point: GatePoint, planHash: string | null): boolean {
-    if ((this.#options.gates ?? DEFAULT_GATES)(point, node) === "pass") return true;
     const decisions = this.#held.decisions.get(node);
     const decision = decisions?.get(planHash ?? "");
-    if (decision === undefined) {
-      this.#commit({ type: "gate", node, attempt, point, planHash });
-      return false;
-    }
+    if (decision === undefined) return this.#undecided(node, attempt, point, planHash);
     decisions?.delete(planHash ?? "");
     if (decision.approved) return true;
     this.#commit({ type: "started", node, attempt, pid: null });
     this.#post({ type: "ended", node, attempt, outcome: "failed", values: { error: "rejected" } });
+    return false;
+  }
+
+  // A gate without the owner's decision: one the journal holds waits, else the policy decides; a wait is recorded.
+  #undecided(node: string, attempt: number, point: GatePoint, planHash: string | null): boolean {
+    const held = this.#held.gates.get(node)?.has(planHash ?? "") === true;
+    if (!held && (this.#options.gates ?? DEFAULT_GATES)(point, node) === "pass") return true;
+    this.#commit({ type: "gate", node, attempt, point, planHash });
     return false;
   }
 
@@ -480,7 +497,7 @@ export const execute = async (
   const from = resumed(run.workflow, run.inputs, [...run.journal, ...ends]);
   if (!from.ok) return from;
   const { state } = from.value;
-  const decisions = decisionsOf(run.journal);
-  const runner = new Runner({ store, lease, workflow: run.workflow, state, decisions }, options);
+  const [decisions, gates] = [decisionsOf(run.journal), gatesOf(run.journal)];
+  const runner = new Runner({ store, lease, workflow: run.workflow, state, decisions, gates }, options);
   return runner.run(from.value.actions, kept);
 };

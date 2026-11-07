@@ -1,3 +1,4 @@
+import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -10,7 +11,7 @@ import {
   SELECTION_SCHEMA_VERSION,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
-import { type Change, DEFAULT_PROFILE, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
+import { DEFAULT_PROFILE, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
@@ -18,8 +19,11 @@ import { readOptionalJson, withView } from "./use-cases.ts";
  * (https://code.claude.com/docs/en/env-vars). The accounts' homes are CedarLoom's worker homes, which get their
  * settings per launch, and their aliases are only read.
  */
-export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
-  resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"));
+export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string => {
+  const home = resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"));
+  // The home as the disk names it, through links and in its stored case, so CedarLoom's records of it always match.
+  return existsSync(home) ? realpathSync.native(home) : home;
+};
 
 const selectionPath = (config: string): string => join(config, "profile.json");
 
@@ -31,10 +35,9 @@ const readSelection = (config: string): Result<{ selection: ProfileSelection | n
   return read.ok ? { ok: true, value: { selection: read.value, before: sha256(file.value.text) } } : read;
 };
 
-/** The profile's plan for this machine (null: it matches), who set each change, and what keeps parts from applying. */
+/** The profile's plan for this machine (null: it matches), and what keeps parts from applying. */
 export interface ProfilePlan {
   readonly plan: Plan | null;
-  readonly changes: Change[];
   readonly findings: Finding[];
 }
 
@@ -45,7 +48,7 @@ export const planProfile = (config: string, state: string, home: string): Result
   const resolved = resolveProfile(read.value.selection);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
-    return { ok: true, value: { plan: null, changes: [], findings: resolved.value.problems } };
+    return { ok: true, value: { plan: null, findings: resolved.value.problems } };
   }
   const written = withView(state, (view) => ({
     ok: true,
@@ -54,15 +57,9 @@ export const planProfile = (config: string, state: string, home: string): Result
   if (!written.ok) return written;
   const level = planMachine(resolved.value, home, written.value);
   if (!level.ok) return level;
-  const { operations, changes, findings } = level.value;
-  return {
-    ok: true,
-    value: {
-      plan: operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations },
-      changes,
-      findings,
-    },
-  };
+  const { operations, findings } = level.value;
+  const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };
+  return { ok: true, value: { plan, findings } };
 };
 
 /** One change of the selection: a part on, off or back to its default (null), or this machine's hub repository. */

@@ -499,20 +499,11 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
   return change(ctx, plan, { note, data: { folder, workflows: ids, extensions }, findings: [] }, yes);
 };
 
-// One line per change under the plan: the file, the settings value, and the profile file that set it.
-const changeLines = (planned: useCases.ProfilePlan["changes"]): string =>
-  planned
-    .map(
-      ({ path, key, setBy }) =>
-        `\n  ${path}${key === null ? "" : ` ${key}`}: ${setBy === null ? "removed, its part is off" : `set by ${setBy}`}`,
-    )
-    .join("");
-
-/** Shows the profile's plan for this machine with who set each change, or with --yes applies it as one run. */
+/** Shows the profile's plan for this machine, or with --yes applies it as one run. */
 export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => {
   const profile = useCases.planProfile(ctx.config, ctx.state, useCases.claudeHome(ctx.io.env));
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
-  const { plan, changes: setters, findings } = profile.value;
+  const { plan, findings } = profile.value;
   if (findings.some((finding) => findingInfo[finding.code].severity === "error")) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
@@ -520,14 +511,13 @@ export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => 
     emit(
       ctx,
       "plan",
-      { planHash: null, plan: null, changes: setters, findings },
+      { planHash: null, plan: null, findings },
       "Nothing to change in this machine's rules and settings.",
     );
     report(ctx, findings);
     return EXIT.ok;
   }
-  const note = setters.length === 0 ? "" : `\nChanges:${changeLines(setters)}`;
-  return change(ctx, plan, { note, data: { changes: setters }, findings }, yes);
+  return change(ctx, plan, { note: "", data: {}, findings }, yes);
 };
 
 /** Shows a change of this machine's profile selection, or with --yes makes it as one run. */

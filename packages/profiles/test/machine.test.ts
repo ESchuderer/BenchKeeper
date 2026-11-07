@@ -7,10 +7,10 @@ import { expect, test } from "vitest";
 
 const folder = () => mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-machine-"));
 
-// The machine plan of the default profile with the global rules part's text replaced, for a home of its own.
-const planWith = (text: object, home = folder()) => {
+// The machine plan of the default profile, changed by `edit`, as a local profile, for a home of its own.
+const planOf = (edit: (profile: { machine: Record<string, Record<string, unknown>> }) => void, home = folder()) => {
   const profile = JSON.parse(readFileSync(join(BUNDLED, DEFAULT_PROFILE.pack, DEFAULT_PROFILE.path), "utf8"));
-  profile.machine["rules.global"].text = text;
+  edit(profile);
   const file = join(folder(), "mine.json");
   writeFileSync(file, JSON.stringify(profile));
   const selection = {
@@ -25,6 +25,11 @@ const planWith = (text: object, home = folder()) => {
   const plan = planMachine(resolved.value, home, new Map());
   return plan.ok ? plan.value : plan.finding;
 };
+// The plan with the global rules part's text replaced.
+const planWith = (text: object, home = folder()) =>
+  planOf((profile) => {
+    if (profile.machine["rules.global"] !== undefined) profile.machine["rules.global"]["text"] = text;
+  }, home);
 
 test.for<[string, object, unknown]>([
   [
@@ -48,5 +53,33 @@ test("a rules file the plan cannot read stops it, by name", () => {
   expect(planWith({ inline: "- mine\n" }, home)).toEqual({
     code: "document.unreadable",
     params: { path, error: "EISDIR" },
+  });
+});
+
+test("a rules text may quote a GitHub Actions expression", () => {
+  expect(planWith({ inline: "- Pin actions by commit, never by ${{ github.ref }}.\n" })).toMatchObject({
+    findings: [],
+  });
+});
+
+test("the settings merge into the owner's file and keep every key of theirs", () => {
+  const home = folder();
+  writeFileSync(join(home, "settings.json"), JSON.stringify({ model: "opus", env: { FOO: "x" } }));
+  const planned = planOf((profile) => {
+    if (profile.machine["settings.claude-code"] !== undefined) {
+      profile.machine["settings.claude-code"]["set"] = {
+        autoUpdatesChannel: "latest",
+        env: { BASH_DEFAULT_TIMEOUT_MS: "1000" },
+      };
+    }
+  }, home);
+  const write =
+    "operations" in planned
+      ? planned.operations.find((op) => op.kind === "write" && op.path.endsWith(".json"))
+      : undefined;
+  expect(write?.kind === "write" ? JSON.parse(write.content) : null).toEqual({
+    model: "opus",
+    env: { FOO: "x", BASH_DEFAULT_TIMEOUT_MS: "1000" },
+    autoUpdatesChannel: "latest",
   });
 });

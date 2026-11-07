@@ -35,10 +35,7 @@ const setUp = () => {
 test("a second apply has nothing left to do, and the question rule names the hub", () => {
   const { home, plan } = setUp();
   const rule = readFileSync(join(home, "rules", "cedarloom-hub.md"), "utf8");
-  expect([plan(), rule.includes("hub repository `acme/hub`")]).toEqual([
-    { plan: null, changes: [], findings: [] },
-    true,
-  ]);
+  expect([plan(), rule.includes("hub repository `acme/hub`")]).toEqual([{ plan: null, findings: [] }, true]);
 });
 
 test("a part switched off takes away the file CedarLoom wrote for it, never another file in the folder", () => {
@@ -55,7 +52,7 @@ test("a rules file the owner changed is left as it is and reported", () => {
   const { home, plan } = setUp();
   const path = join(home, "rules", "00-global.md");
   writeFileSync(path, "- my own rules\n");
-  expect(plan()).toEqual({ plan: null, changes: [], findings: [{ code: "profile.owner-changed", params: { path } }] });
+  expect(plan()).toEqual({ plan: null, findings: [{ code: "profile.owner-changed", params: { path } }] });
 });
 
 test("a rules file the owner deleted is written again", () => {
@@ -65,44 +62,12 @@ test("a rules file the owner deleted is written again", () => {
   expect(plan().plan?.operations.map((op) => [op.kind, "path" in op ? op.path : null])).toEqual([["write", path]]);
 });
 
-const DISABLED = "1";
-test("settings merge into the owner's file, each change named with the profile file that set it", () => {
-  const { home, plan } = machine();
-  const path = join(home, "settings.json");
-  writeFileSync(path, JSON.stringify({ model: "opus", autoUpdatesChannel: "latest", env: { FOO: "x" } }));
-  const planned = plan();
-  const write = planned.plan?.operations.find((op) => op.kind === "write" && op.path === path);
-  expect([
-    write?.kind === "write" ? JSON.parse(write.content) : null,
-    planned.changes.filter((change) => change.path === path).map(({ key, setBy }) => `${key} ${setBy}`),
-  ]).toEqual([
-    {
-      model: "opus",
-      autoUpdatesChannel: "stable",
-      env: {
-        FOO: "x",
-        CLAUDE_CODE_DISABLE_AUTO_MEMORY: DISABLED,
-        DISABLE_ERROR_REPORTING: DISABLED,
-        DISABLE_FEEDBACK_COMMAND: DISABLED,
-        CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: DISABLED,
-      },
-      showClearContextOnPlanAccept: true,
-      attribution: { commit: "", pr: "" },
-      autoMemoryEnabled: false,
-      feedbackDrafts: "off",
-    },
-    [
-      "/autoUpdatesChannel cedarloom.default",
-      "/showClearContextOnPlanAccept cedarloom.default",
-      "/attribution cedarloom.default",
-      "/autoMemoryEnabled cedarloom.default",
-      "/feedbackDrafts cedarloom.default",
-      "/env/CLAUDE_CODE_DISABLE_AUTO_MEMORY cedarloom.default",
-      "/env/DISABLE_ERROR_REPORTING cedarloom.default",
-      "/env/DISABLE_FEEDBACK_COMMAND cedarloom.default",
-      "/env/CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY cedarloom.default",
-    ],
-  ]);
+test("a part switched off leaves its file when the owner changed it, and reports it", () => {
+  const { config, state, home, plan } = setUp();
+  const path = join(home, "rules", "00-global.md");
+  writeFileSync(path, "- my own rules\n");
+  applied(state, ok(planChoice(config, { part: "machine.rules.global", on: false })));
+  expect(plan()).toEqual({ plan: null, findings: [{ code: "profile.owner-changed", params: { path } }] });
 });
 
 test("a settings file that is no JSON is never rewritten", () => {

@@ -106,7 +106,6 @@ export {
   type Composed,
   composeProfile,
   type LoadParent,
-  type Mark,
   MAX_PROFILE_FILES,
   mergeJson,
   type ParentRef,

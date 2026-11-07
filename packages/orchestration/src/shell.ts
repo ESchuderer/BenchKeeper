@@ -133,7 +133,11 @@ class Reader {
   #end(command: Command): void {
     if (command.words.length === 0) return;
     const first = command.words.find(({ text }) => !RESERVED.has(text ?? ""))?.text ?? "";
-    if (OUTSIDE.has(first)) this.#outside();
+    const texts = command.words.map(({ text }) => text);
+    // bash's `for x do` needs no `;` before `do`, and zsh's short `if [[ ... ]] cmd` none before its body: both hide it.
+    if (OUTSIDE.has(first) || (first === "for" && texts.includes("do")) || texts.slice(0, -1).includes("]]")) {
+      this.#outside();
+    }
     this.commands.push(command);
   }
 
@@ -200,18 +204,26 @@ class Reader {
   // Heredoc bodies after a newline: one under an unquoted delimiter is read as in double quotes, its substitutions run.
   #readHeredocs(): void {
     for (const doc of this.#heredocs.splice(0)) {
-      const lines: string[] = [];
-      let closed = false;
-      while (!this.done && !closed) {
-        const end = this.#text.indexOf("\n", this.#i);
-        const line = this.#text.slice(this.#i, end < 0 ? undefined : end);
-        this.#i = end < 0 ? this.#text.length : end + 1;
-        closed = (doc.strip ? line.replace(/^\t+/, "") : line) === doc.delimiter;
-        if (!closed) lines.push(line);
-      }
-      if (!closed) this.skipped = true;
+      const lines = this.#heredocLines(doc);
       if (!doc.quoted) this.#body(lines.join("\n"));
     }
+  }
+
+  // A heredoc's body lines up to its delimiter; one never closed, or a line bash may take as its end, was skipped.
+  #heredocLines(doc: Heredoc): string[] {
+    const lines: string[] = [];
+    while (!this.done) {
+      const end = this.#text.indexOf("\n", this.#i);
+      const line = this.#text.slice(this.#i, end < 0 ? undefined : end);
+      this.#i = end < 0 ? this.#text.length : end + 1;
+      const text = doc.strip ? line.replace(/^\t+/, "") : line;
+      if (text === doc.delimiter) return lines;
+      // Inside `$(...)` bash may end the body at a line that only starts with the delimiter, such as `EOF)`.
+      if (text.startsWith(doc.delimiter)) this.skipped = true;
+      lines.push(line);
+    }
+    this.skipped = true;
+    return lines;
   }
 
   #body(body: string): void {

@@ -107,7 +107,27 @@
       ["a subshell", "(cd packages && npm test)", "unreadable"],
       ["a group", "{ echo a; echo b; } > out.txt", "unreadable"],
       ["backquotes in double quotes", "git commit -m \"fix `date`\"", "unreadable"],
-      ["find -exec rm", "find . -name '*.log' -exec rm {} +", "unreadable"]
+      ["find -exec rm", "find . -name '*.log' -exec rm {} +", "unreadable"],
+      ["a for loop without in", "set -- 1; for x do sudo rm -rf /tmp/x; done", "unreadable"],
+      ["zsh's short if", "if [[ -n x ]] sudo rm -rf /tmp/x", "unreadable"],
+      [
+        "a heredoc that bash closes early inside a substitution",
+        "echo \"$(cat <<EOF\nEOF)\"; sudo rm -rf /tmp/x; echo \"\nEOF\n)\"",
+        "unreadable"
+      ],
+      ["hash -p", "hash -p /usr/bin/sudo ls; ls -la", "unreadable"],
+      ["zsh's hash name=path", "hash ls=/usr/bin/sudo; ls", "unreadable"],
+      ["printf -v into BASH_CMDS", "printf -v 'BASH_CMDS[ls]' %s /usr/bin/sudo; ls", "environment"],
+      ["read into BASH_CMDS", "read 'BASH_CMDS[ls]' <<< /usr/bin/sudo; ls", "environment"],
+      ["read into an array element", "read 'a[1]' <<< x", "unreadable"],
+      ["let of a subscript holding a command", "let 'a[$(sudo rm -rf /tmp/x)]=1'", "unreadable"],
+      ["read of a subscript holding a command", "read 'a[$(sudo rm -rf /tmp/x)]' <<< 1", "unreadable"],
+      ["printf -v of a subscript holding a command", "printf -v 'a[$(sudo rm -rf /tmp/x)]' x", "unreadable"],
+      ["declare -i of a subscript holding a command", "declare -i n='a[$(sudo rm -rf /tmp/x)]'", "unreadable"],
+      ["[[ -v ]] of a subscript holding a command", "[[ -v 'a[$(sudo rm -rf /tmp/x)]' ]]", "unreadable"],
+      ["[[ -eq ]] of a subscript holding a command", "[[ 'a[$(sudo rm -rf /tmp/x)]' -eq 0 ]]", "unreadable"],
+      ["mapfile -C", "mapfile -C 'sudo rm -rf /tmp/x' -c 1 a <<< x", "unreadable"],
+      ["command -v as a lookup", "command -v sudo", null]
     ]
   }
 }

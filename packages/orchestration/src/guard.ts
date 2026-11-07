@@ -16,13 +16,17 @@ const GUARDED = /(?:^|[^\w.-])(?:gh|git|curl)\b/i;
 // Variables that choose the token, gh's or git's configuration, the home both read it from, or git's repository (A13).
 const PROTECTED_NAMES =
   "GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_CONFIG_DIR|GH_HOST|GIT_CONFIG\\w*|GIT_DIR|" +
-  "GIT_WORK_TREE|GIT_SSH|GIT_SSH_COMMAND|GIT_ASKPASS|SSH_ASKPASS|HOME|XDG_CONFIG_HOME";
+  "GIT_WORK_TREE|GIT_SSH|GIT_SSH_COMMAND|GIT_ASKPASS|SSH_ASKPASS|HOME|XDG_CONFIG_HOME|" +
+  // The tables of programs, aliases and functions bash and zsh look a command name up in.
+  "BASH_CMDS|BASH_ALIASES|commands|aliases|galiases|saliases|functions";
 const PROTECTED = new RegExp(`^(?:${PROTECTED_NAMES})$`);
 const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
 // Programs that run a command from their words or later, and shells the guard does not read.
-const RUNNERS = new Set(["eval", "trap", "alias", "watch", "pwsh", "powershell"]);
+const RUNNERS = new Set(["eval", "trap", "alias", "hash", "watch", "pwsh", "powershell"]);
+// A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
+const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
 const ZSH_ONLY = new Set(["noglob", "nocorrect", "-"]);
 // find's actions that run a command.
@@ -81,6 +85,9 @@ const programOf = (word: string): string => {
 export const guardCommand = (text: string): Denial | null => {
   const script = readShell(text);
   if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
+  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? "")))) {
+    return unreadable("a subscript holds a command, which bash may run");
+  }
   for (const command of script.commands) {
     const denial = checkCommand(command);
     if (denial !== null) return denial;
@@ -91,9 +98,10 @@ export const guardCommand = (text: string): Denial | null => {
 interface Unwrapped {
   words: Word[];
   prefix: Word[];
-  // xargs adds words it reads; env -i or exec -c clears the environment; env -u unsets variables; an option the guard
-  // does not know may take the command word as its value.
+  // xargs adds words it reads; env -i or exec -c clears the environment; env -u unsets variables; command -v only looks
+  // the name up; an option the guard does not know may take the command word as its value.
   appended: boolean;
+  lookup: boolean;
   cleared: boolean;
   unset: (Word | undefined)[];
   unknown: string | null;
@@ -101,9 +109,17 @@ interface Unwrapped {
 
 // The command's own words: assignments, reserved words and wrappers skipped, with the words before them (`prefix`).
 const unwrap = (words: readonly Word[]): Unwrapped => {
-  const found: Unwrapped = { words: [], prefix: [], appended: false, cleared: false, unset: [], unknown: null };
+  const found: Unwrapped = {
+    words: [],
+    prefix: [],
+    appended: false,
+    lookup: false,
+    cleared: false,
+    unset: [],
+    unknown: null,
+  };
   let i = 0;
-  while (i < words.length && found.unknown === null) {
+  while (i < words.length && found.unknown === null && !found.lookup) {
     const { text, start } = words[i] ?? EMPTY;
     const name = programOf(text ?? "");
     const spec = WRAPPERS.get(name);
@@ -184,9 +200,11 @@ const wrapperOptions = (
   return i;
 };
 
-// What an option of env or exec does: clearing the environment (env -i, exec -c) or unsetting a variable (env -u).
+// What an option of env, exec or command does: clearing the environment (env -i, exec -c), unsetting a variable
+// (env -u), or a lookup that runs nothing (command -v).
 const noteOption = (wrapperName: string, { name, value }: Option, found: Unwrapped): void => {
   if (wrapperName === "exec" && name === "-c") found.cleared = true;
+  if (wrapperName === "command" && (name === "-v" || name === "-V")) found.lookup = true;
   if (wrapperName !== "env") return;
   if (/^(?:-i|-|--ignore-environment)$/.test(name)) found.cleared = true;
   if (name === "-u" || name === "--unset") found.unset.push(value);
@@ -216,7 +234,7 @@ const XARGS = unreadable("xargs adds words the guard cannot read to a program th
 const checkCommand = ({ words }: Command): Denial | null => {
   const unwrapped = unwrap(words);
   const denial = checkPrefix(unwrapped);
-  if (denial !== null) return denial;
+  if (denial !== null || unwrapped.lookup) return denial;
   const [first, ...args] = unwrapped.words;
   if (first === undefined) return unwrapped.appended ? XARGS : null;
   if (first.text === null) return unreadable("it runs a command whose name the guard cannot read");
@@ -264,12 +282,18 @@ const variableWords = (name: string, args: readonly Word[]): Word[] => {
   return args.filter(({ start }, i) => !start.startsWith("-") && !/^-\w*[dinNptu]$/.test(args[i - 1]?.start ?? ""));
 };
 
-// export, read, printf -v and the like: naming a protected variable refuses, as does a name the guard cannot read.
+// export, read, printf -v and the like: naming a protected variable refuses, as does a name the guard cannot read or an
+// array element, whose subscript bash may run; so does mapfile's callback (-C).
 const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
+  if (/^(?:mapfile|readarray)$/.test(name) && args.some(({ start }) => /^-[^-]*C/.test(start))) {
+    return unreadable(`${name} -C runs a command the guard does not read`);
+  }
   const names = variableWords(name, args);
   if (names.some(({ start }) => MENTIONED.test(start)))
     return deny("environment", `${name} names a protected variable`);
-  const unknown = names.some(({ text, start }) => text === null && !start.includes("="));
+  const unknown = names.some(
+    ({ text, start }) => (text === null && !start.includes("=")) || (text ?? start).split("=")[0]?.includes("["),
+  );
   return unknown ? unreadable(`${name} names a variable the guard cannot read`) : null;
 };
 

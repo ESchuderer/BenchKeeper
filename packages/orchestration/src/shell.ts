@@ -51,7 +51,8 @@ class Builder {
     this.split ||= bare;
   }
   word(): Word {
-    if (this.start === null && expands(this.bare)) this.expand();
+    // A glob or brace list may expand to any word, an option among them.
+    if (this.start === null && expands(this.bare)) return { text: null, start: "" };
     if (this.start === null) return { text: this.text, start: this.text };
     // An assignment is not split, so its name stays known.
     return { text: null, start: this.split && !ASSIGNED.test(this.start) ? "" : this.start };

@@ -57,6 +57,24 @@
     "error.failed": ["The server answered ", ["status"], ": ", ["error"]],
     "error.unreachable": ["The server cannot be reached. Run cedarloom ui again and open the link it prints."],
     "error.unreadable": ["The server cannot read the runs: ", ["codes"]],
+    "graphRun.status": [
+      [
+        "status",
+        "select",
+        {
+          "running": ["Running"],
+          "waiting": ["Waiting"],
+          "succeeded": ["Succeeded"],
+          "failed": ["Failed"],
+          "cancelled": ["Cancelled"],
+          "skipped": ["Skipped"],
+          "interrupted": ["Interrupted"],
+          "other": [["status"]]
+        }
+      ]
+    ],
+    "graphRuns.caption": ["Workflow runs, newest first"],
+    "graphRuns.workflow": ["Workflow"],
     "nav.accounts": ["Accounts"],
     "nav.label": ["Views"],
     "nav.memory": ["Memory"],

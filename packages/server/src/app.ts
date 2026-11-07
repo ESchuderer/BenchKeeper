@@ -16,7 +16,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { eventRoutes } from "./events.ts";
-import { draftRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
+import { draftRoutes, graphRunRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
@@ -142,6 +142,7 @@ export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOpt
   await app.register(runRoutes, { state });
   await app.register(undoRoutes, { state });
   await app.register(draftRoutes, { state });
+  await app.register(graphRunRoutes, { state });
   // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
   // as its own module.exports, which shares reply.sse with the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));

@@ -4,6 +4,9 @@ import {
   DraftSaved,
   type Finding,
   Finding as FindingSchema,
+  type GraphRun,
+  GraphRunSummary,
+  NodeAttempt,
   Refusal,
   Run,
   RunResult,
@@ -154,6 +157,44 @@ export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app,
     async (req, reply) => {
       const deleted = useCases.deleteDraft(state, req.params.id);
       return deleted.ok ? reply.code(204).send(null) : reply.code(404).send(refusal(deleted.finding));
+    },
+  );
+};
+
+/** A graph run as the API shows it: its summary, without its definition, inputs or project folder. */
+export const summaryOf = (run: GraphRun): GraphRunSummary => ({
+  id: run.id,
+  workflow: run.definition.metadata.id,
+  trigger: run.trigger,
+  mode: run.mode,
+  status: run.status,
+  startedAt: run.startedAt,
+  finishedAt: run.finishedAt,
+});
+
+/** The graph runs and one graph run with its node attempts, as `runs list` and `runs show` read them; reads never write. */
+export const graphRunRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
+  app.get(
+    "/api/graph-runs",
+    { schema: { response: answers({ 200: z.strictObject({ graphRuns: z.array(GraphRunSummary) }), 409: Refusal }) } },
+    async (_req, reply) => {
+      const runs = useCases.listGraphRuns(state);
+      return runs.ok ? { graphRuns: runs.value.map(summaryOf) } : reply.code(409).send(refusal(runs.finding));
+    },
+  );
+  const GraphRunDetail = z.strictObject({ run: GraphRunSummary, attempts: z.array(NodeAttempt) });
+  app.get(
+    "/api/graph-runs/:graphRunId",
+    {
+      schema: {
+        params: z.strictObject({ graphRunId: z.uuid() }),
+        response: answers({ 200: GraphRunDetail, 404: Refusal, 409: Refusal }),
+      },
+    },
+    async (req, reply) => {
+      const shown = useCases.showGraphRun(state, req.params.graphRunId);
+      if (!shown.ok) return reply.code(status(shown.finding)).send(refusal(shown.finding));
+      return { run: summaryOf(shown.value.run), attempts: shown.value.attempts };
     },
   );
 };

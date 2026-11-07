@@ -29,6 +29,7 @@ export {
   Draft,
   DraftInfo,
   DraftSaved,
+  GraphRunSummary,
   PlanPreview,
   Refusal,
   Run,

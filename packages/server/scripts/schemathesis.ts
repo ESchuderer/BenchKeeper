@@ -5,7 +5,8 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CSRF_HEADER } from "@cedarloom/contracts";
+import { CSRF_HEADER, WorkflowDefinition } from "@cedarloom/contracts";
+import { openGraphStore } from "@cedarloom/ledger";
 import { startServer } from "@cedarloom/server";
 import { applyPlan, saveDraft } from "@cedarloom/use-cases";
 import { z } from "zod";
@@ -21,8 +22,22 @@ if (!run.ok || run.value.runId === null) throw new Error("the seed run did not a
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const workflow: unknown = JSON.parse(readFileSync(join(corpus, "valid-minimal.json"), "utf8"));
 if (!saveDraft(state, "minimal", workflow, null).ok) throw new Error("the seed draft was not saved");
+// One graph run of that workflow, whose id every {graphRunId} parameter gets.
+const graphs = openGraphStore(state);
+if (!graphs.ok) throw new Error("the graph store did not open");
+const graphRun = graphs.value.create({
+  definition: WorkflowDefinition.parse(workflow),
+  inputs: {},
+  trigger: "manual",
+  mode: "act",
+  parentRun: null,
+  parentNode: null,
+  project: root,
+});
+graphRun.release();
 const config = join(root, "schemathesis.toml");
-writeFileSync(config, `[parameters]\n"path.runId" = "${run.value.runId}"\n"path.id" = "minimal"\n`);
+const ids = `"path.runId" = "${run.value.runId}"\n"path.graphRunId" = "${graphRun.runId}"\n`;
+writeFileSync(config, `[parameters]\n${ids}"path.id" = "minimal"\n`);
 
 const server = await startServer({ state, log: (text) => process.stderr.write(text) });
 const { origin, hash } = new URL(server.url);

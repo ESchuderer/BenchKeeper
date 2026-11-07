@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Agent, WorkflowId } from "@cedarloom/contracts";
+import { Agent, Commit, GitUrl, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
@@ -124,8 +124,19 @@ const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .description("show what importing workflows from an export folder or a Git URL would do; with --yes, store them")
     .argument("<source>", "an export folder, or an https or ssh Git URL")
     .option("--ref <ref>", "the branch, tag or commit of a Git source (default: its default branch)")
-    .option("--yes", "store the new and updated workflows as reviewed now")
-    .action(async (source, options) => done(await importCommand(ctx(), source, options)));
+    .option("--yes", "store the new and updated workflows; from Git only at the full commit id its review showed")
+    .action(async (source, { ref, yes }, command) => {
+      const git = GitUrl.safeParse(source).success;
+      if (!git && ref !== undefined)
+        return command.error("error: --ref is for a Git source; a folder is read as it is");
+      // A commit names its files, so the ones stored are the ones reviewed; a branch or tag can move in between.
+      if (git && yes === true && !Commit.safeParse(ref).success) {
+        return command.error("error: --yes imports from Git only at a full commit id; run again with --ref <commit>");
+      }
+      return done(
+        await importCommand(ctx(), git ? { git: source, ref: ref ?? "HEAD" } : { folder: resolve(source) }, yes),
+      );
+    });
 };
 
 const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -319,6 +330,19 @@ const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {
     });
 };
 
+const GROUPS = [
+  plansGroup,
+  runsGroup,
+  workflowsGroup,
+  importGroup,
+  accountsGroup,
+  extensionsGroup,
+  componentsGroup,
+  modeGroup,
+  levelGroup,
+  profilesGroup,
+];
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -340,8 +364,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     const app = io.bundled ?? BUNDLED;
     return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
   };
-  const groups = [plansGroup, runsGroup, workflowsGroup, importGroup, accountsGroup, extensionsGroup];
-  for (const group of [...groups, componentsGroup, modeGroup, levelGroup, profilesGroup]) group(program, ctx, done);
+  for (const group of GROUPS) group(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs, store problems, and each account's login in its own home")

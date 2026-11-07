@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatInstalled } from "@cedarloom/contracts";
+import { formatInstalled, type Result } from "@cedarloom/contracts";
 import { openStore } from "@cedarloom/git";
 import { applyPlan, planExport, planImport, planSave, saveDraft } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -22,6 +22,7 @@ const exported = (state: string, folder: string): string => {
   ok(applyPlan(state, ok(planExport(state, ["w"], folder, { name: "Team flows" })).plan, { yes: true }));
   return folder;
 };
+const refusal = <T>(result: Result<T>): unknown => (result.ok ? "planned" : result.finding);
 const stored = (state: string): string => {
   const at = openStore(join(state, "store.git"));
   return ok(at.read(String(at.blob(String(at.head()), "workflows/workflow-w.json")))).toString("utf8");
@@ -82,7 +83,15 @@ test("an import updates a workflow stored as its last import left it, and keeps 
   store(to, "1.2.0", [], true);
   store(from, "1.3.0");
   const conflict = ok(await planImport(to, { folder: exported(from, join(from, "v3")) }));
-  expect([update.review.units[0], conflict.review.units.map(({ status }) => status), conflict.plan]).toEqual([
+  // Saved on another machine and never imported there: its own work, kept as well.
+  const own = machine();
+  store(own, "0.9.0");
+  const never = ok(await planImport(own, { folder: join(from, "v3") }));
+  expect([
+    update.review.units[0],
+    [...conflict.review.units, ...never.review.units].map(({ status }) => status),
+    conflict.plan,
+  ]).toEqual([
     {
       id: "w",
       status: "update",
@@ -91,10 +100,47 @@ test("an import updates a workflow stored as its last import left it, and keeps 
       license: null,
       changes: { added: ["notify"], removed: [], changed: [] },
     },
-    ["conflict"],
+    ["conflict", "conflict"],
     null,
   ]);
 });
+
+test("an import refuses a workflow a save would refuse, such as one with an edge to no node", async () => {
+  const from = machine();
+  store(from, "1.0.0");
+  const folder = exported(from, join(from, "shared"));
+  const file = join(folder, "workflows", "workflow-w.json");
+  const workflow = JSON.parse(readFileSync(file, "utf8"));
+  workflow.edges.push({ id: "gone", from: { node: "start", handle: "start" }, to: { node: "nowhere", handle: "run" } });
+  writeFileSync(file, JSON.stringify(workflow));
+  expect(refusal(await planImport(machine(), { folder }))).toEqual({
+    code: "workflow.dangling-edge",
+    params: { edge: "gone", end: "to", ref: "nowhere" },
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "an import refuses a link on the way to a workflow, which could lead anywhere on this machine",
+  async () => {
+    const from = machine();
+    store(from, "1.0.0");
+    const folder = exported(from, join(from, "shared"));
+    // A shared clone's `workflows` pointing at a folder of the attacker's choosing.
+    const elsewhere = join(from, "elsewhere");
+    mkdirSync(elsewhere);
+    writeFileSync(join(elsewhere, "workflow-w.json"), readFileSync(join(folder, "workflows", "workflow-w.json")));
+    const linked = join(from, "linked");
+    mkdirSync(linked);
+    for (const name of ["cedarloom-export.json", "cedarloom.lock.json"]) {
+      writeFileSync(join(linked, name), readFileSync(join(folder, name)));
+    }
+    symlinkSync(elsewhere, join(linked, "workflows"));
+    expect(refusal(await planImport(machine(), { folder: linked }))).toEqual({
+      code: "apply.symlink",
+      params: { path: join(linked, "workflows") },
+    });
+  },
+);
 
 const { fetchLocal, publish } = gitFixtures(root);
 
@@ -111,7 +157,7 @@ const JIRA = {
   contributes: { actions: { search: { title: "Search" } } },
 };
 
-test("an import from Git fetches each extension at its pinned commit and checks its digest, installing none", async () => {
+test("an import from Git fetches each extension it uses at its pinned commit, installs none, and refuses one whose files are not its digest's", async () => {
   const [from, to] = [machine(), machine()];
   const jira = publish("jira", { "cedarloom-extension.json": JSON.stringify(JIRA), "main.mjs": "" });
   const tree = ok(await fetchLocal({ url: jira, ref: "main" }, { parent: mkdtempSync(join(root, "fetch-")) }));
@@ -134,10 +180,10 @@ test("an import from Git fetches each extension at its pinned commit and checks 
     ...Object.fromEntries(files.map((path) => [path, read(path)])),
     "cedarloom.lock.json": JSON.stringify(lock),
   });
-  const mismatch = ok(await planImport(to, { git: tampered, ref: "main" }, fetchLocal));
+  const mismatch = await planImport(to, { git: tampered, ref: "main" }, fetchLocal);
   expect([
     verified.review.extensions,
-    mismatch.review.extensions.map(({ status }) => status),
+    refusal(mismatch),
     verified.review.risks.find(({ kind }) => kind === "extension"),
   ]).toEqual([
     [
@@ -149,11 +195,10 @@ test("an import from Git fetches each extension at its pinned commit and checks 
         digest: tree.digest,
         status: "verified",
         installed: false,
-        net: ["https://acme.atlassian.net"],
-        credentials: [],
+        capabilities: { net: ["https://acme.atlassian.net"] },
       },
     ],
-    ["mismatch"],
+    { code: "extension.digest-mismatch", params: { extension: "acme.jira" } },
     { workflow: "w", node: "search", kind: "extension", text: "acme.jira/search" },
   ]);
 });

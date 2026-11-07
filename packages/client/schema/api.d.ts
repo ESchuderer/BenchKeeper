@@ -1311,6 +1311,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -1571,8 +1577,36 @@ export interface components {
                 /** @enum {string} */
                 status: "verified" | "mismatch" | "unreachable";
                 installed: boolean;
-                net: string[];
-                credentials: string[];
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                };
             }[];
         };
         SchemaVersion: number;
@@ -2297,6 +2331,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "extension.digest-mismatch";
+            params: {
+                extension: string;
+            };
+        } | {
+            /** @constant */
             code: "extension.consent-needed";
             params: {
                 extension: string;
@@ -2555,8 +2595,36 @@ export interface components {
                 /** @enum {string} */
                 status: "verified" | "mismatch" | "unreachable";
                 installed: boolean;
-                net: string[];
-                credentials: string[];
+                capabilities: {
+                    net?: string[];
+                    credentials?: {
+                        [key: string]: {
+                            description?: string;
+                            scheme: {
+                                /** @constant */
+                                type: "http";
+                                /** @enum {string} */
+                                scheme: "bearer" | "basic";
+                            } | {
+                                /** @constant */
+                                type: "apiKey";
+                                /** @constant */
+                                in: "header";
+                                name: string;
+                            };
+                            hosts: string[];
+                        };
+                    };
+                    projectRead?: boolean;
+                    planWrite?: boolean;
+                    programs?: {
+                        [key: string]: {
+                            darwin?: string[];
+                            linux?: string[];
+                            win32?: string[];
+                        };
+                    };
+                };
             }[];
         };
     };

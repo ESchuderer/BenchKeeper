@@ -125,7 +125,7 @@ const Program = z
   .strictObject({ darwin: candidates.optional(), linux: candidates.optional(), win32: candidates.optional() })
   .describe("Where the host looks for the program on each platform; none listed: not on that platform");
 
-const Capabilities = z.strictObject({
+export const Capabilities = z.strictObject({
   net: distinct(Origin)
     .max(32)
     .optional()

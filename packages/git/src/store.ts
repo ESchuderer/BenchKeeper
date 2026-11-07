@@ -117,21 +117,21 @@ const committer =
     const init = ["init", "--bare", "--quiet", "--template=", "--object-format=sha1", "--initial-branch=main", dir];
     const made = existsSync(join(dir, "HEAD")) ? undefined : git(init);
     if (made !== undefined && !made.ok) return failed("start", made);
-    const blobs = files.map(([, content]) => git(["hash-object", "-w", "--stdin"], content));
-    const missed = blobs.find((blob) => !blob.ok);
-    if (missed !== undefined) return failed("commit", missed);
+    const blobs = files.map(([path, content]) => ({ path, blob: git(["hash-object", "-w", "--stdin"], content) }));
+    const missed = blobs.find(({ blob }) => !blob.ok);
+    if (missed !== undefined) return failed("commit", missed.blob);
     const index = join(dir, `index-${randomUUID()}`);
     const indexed: Git = (args, input) => git(args, input, { GIT_INDEX_FILE: index });
     try {
       const tree = treeOf(
         indexed,
         parent,
-        files.map(([path], at) => [path, blobs[at]?.out ?? ""]),
+        blobs.map(({ path, blob }) => [path, blob.out]),
       );
       const parents = parent === null ? [] : ["-p", parent];
       const commit = tree.ok ? git(["commit-tree", tree.out, ...parents, "-F", "-"], message) : tree;
       if (!commit.ok) return failed("commit", commit);
-      return { ok: true, value: { blobs: blobs.map((blob) => blob.out), commit: commit.out } };
+      return { ok: true, value: { blobs: blobs.map(({ blob }) => blob.out), commit: commit.out } };
     } finally {
       rmSync(index, { force: true });
     }

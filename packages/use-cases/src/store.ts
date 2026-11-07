@@ -67,6 +67,15 @@ const baseOf = (state: string, id: string): string | null => {
   }
 };
 
+/**
+ * The validator's first error that keeps a workflow out of the store, for a save and an import alike. An extension not
+ * installed here yet is none: the stored workflow runs once it is.
+ */
+export const unstorable = (workflow: WorkflowDefinition): Finding | undefined =>
+  validateWorkflow(workflow).find(
+    (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
+  );
+
 /** A planned save: the plan, the version it stores, and the stored version it follows (null: the first). */
 export type SavePlan = { plan: Plan; version: string; stored: string | null };
 
@@ -80,10 +89,7 @@ export const planSave = (state: string, id: string, { onTop = false } = {}): Res
   if (!draft.ok) return draft;
   // A draft read is a workflow already; the contract types its JSON form.
   const workflow = WorkflowDefinition.parse(draft.value.workflow);
-  // An extension not installed here yet does not stop a save: the stored workflow runs once it is.
-  const error = validateWorkflow(workflow).find(
-    (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
-  );
+  const error = unstorable(workflow);
   if (error !== undefined) return refuse(error);
   const store = storeOf(state);
   const head = store.head();
@@ -139,7 +145,7 @@ export const openVersion = (state: string, id: string, commit?: string): Result<
 };
 
 // The extensions a workflow's nodes use: the id before an extension action's `/`.
-const extensionsOf = (workflow: WorkflowDefinition): string[] =>
+export const extensionsOf = (workflow: WorkflowDefinition): string[] =>
   workflow.nodes.flatMap(({ type }) => (isExtensionType(type) ? [type.slice(0, type.indexOf("/"))] : []));
 
 /** The lock of `ids`, each pinned as it is installed here; an extension not installed cannot be pinned. */

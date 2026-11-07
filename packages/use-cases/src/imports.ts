@@ -1,12 +1,10 @@
-import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   canonicalJson,
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   ExtensionLock,
-  type ExtensionManifest,
   type Finding,
   formatLock,
   type ImportReview,
@@ -22,39 +20,45 @@ import {
 } from "@cedarloom/contracts";
 import { errorCode } from "@cedarloom/engine";
 import { fetchTree, type Store, type Tree } from "@cedarloom/git";
-import { DRAFT_LIMIT } from "./drafts.ts";
-import { type Fetch, installedExtensions, manifestOf } from "./extensions.ts";
-import { fileOf, linkIn, readStored } from "./store.ts";
+import { sha256 } from "@cedarloom/ledger";
+import { load } from "./drafts.ts";
+import { type Fetch, type Installed, installedExtensions, manifestOf } from "./extensions.ts";
+import { extensionsOf, fileOf, linkIn, readStored, unstorable } from "./store.ts";
 import { parseDocument, storeOf } from "./use-cases.ts";
 
 const INDEX = "cedarloom-export.json";
 const LOCK = "cedarloom.lock.json";
-// Where the store keeps the blob each workflow had when it was last imported: an update replaces only that one.
+// Where the store keeps the SHA-256 of each workflow's text as it was last imported: an update replaces only that.
 const IMPORTED = "cedarloom-imports.json";
 const NO_LOCK: ExtensionLock = { schemaVersion: LOCK_SCHEMA_VERSION, kind: "cedarloom.lock", extensions: {} };
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 type Read = (path: string) => Result<string>;
 type Source = ImportReview["source"];
-type Incoming = { source: Source; index: ExportIndex; lock: ExtensionLock; texts: Map<string, string> };
+type Workflow = { text: string; workflow: WorkflowDefinition };
+type Incoming = { source: Source; index: ExportIndex; lock: ExtensionLock; workflows: Workflow[] };
 
 /** Where to import from: an export folder, or a Git URL at a ref. */
 export type From = { folder: string } | { git: string; ref: string };
 
-// A file of an export folder, read within the draft limit and never through a link on the way: a clone's link could
-// lead anywhere on this machine.
+const unreadable = (path: string, error: string): Result<never> =>
+  refuse({ code: "document.unreadable", params: { path, error } });
+
+// A file of an export folder, read within the draft limit from one open file that follows no link, and never through
+// a linked folder on the way: a clone's link could lead anywhere on this machine.
 const inFolder =
   (folder: string): Read =>
   (path) => {
     const file = join(folder, ...path.split("/"));
     try {
-      const link = linkIn(folder, path);
+      const link = path.includes("/") ? linkIn(folder, path.slice(0, path.lastIndexOf("/"))) : undefined;
       if (link !== undefined) return refuse({ code: "apply.symlink", params: { path: link } });
-      if (statSync(file).size > DRAFT_LIMIT)
-        return refuse({ code: "document.unreadable", params: { path: file, error: "EFBIG" } });
-      return { ok: true, value: readFileSync(file, "utf8") };
+      const found = load(file);
+      if (found === undefined) return unreadable(file, "ENOENT");
+      if (found === null) return unreadable(file, "not a file");
+      return found.bytes === null ? unreadable(file, "EFBIG") : { ok: true, value: found.bytes.toString("utf8") };
     } catch (error) {
-      return refuse({ code: "document.unreadable", params: { path: file, error: errorCode(error) } });
+      return unreadable(file, errorCode(error));
     }
   };
 
@@ -63,36 +67,40 @@ const inTree =
   (tree: Tree): Read =>
   (path) => {
     const file = tree.files.find((each) => each.path === path);
-    return file === undefined
-      ? refuse({ code: "document.unreadable", params: { path, error: "ENOENT" } })
-      : { ok: true, value: file.content.toString("utf8") };
+    return file === undefined ? unreadable(path, "ENOENT") : { ok: true, value: file.content.toString("utf8") };
   };
 
-/** The index, the lock and each workflow's text the index names, refused when a workflow is not of its file's id. */
-const incomingOf = (read: Read, source: Source): Result<Incoming> => {
-  const indexText = read(INDEX);
-  const index = indexText.ok
-    ? parseDocument(indexText.value, (json) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, json))
-    : indexText;
-  if (!index.ok) return index;
-  const lockText = read(LOCK);
-  const lock = lockText.ok
-    ? parseDocument(lockText.value, (json) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, json))
-    : lockText;
-  if (!lock.ok) return lock;
-  const texts = new Map<string, string>();
-  for (const id of index.value.workflows) {
-    const text = read(fileOf(id));
-    const workflow = text.ok
-      ? parseDocument(text.value, (json) => readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, json))
-      : text;
-    if (!workflow.ok) return workflow;
-    if (workflow.value.metadata.id.toLowerCase() !== id.toLowerCase()) {
-      return refuse({ code: "document.invalid", params: { issues: [{ path: "metadata.id", code: "custom" }] } });
-    }
-    texts.set(workflow.value.metadata.id, text.ok ? text.value : "");
+const documentIn = <T>(read: Read, path: string, as: (json: unknown) => Result<T>): Result<T> => {
+  const text = read(path);
+  return text.ok ? parseDocument(text.value, as) : text;
+};
+
+// A workflow the index names: of its file's id, and none a save would refuse.
+const workflowIn = (read: Read, id: string): Result<Workflow> => {
+  const text = read(fileOf(id));
+  if (!text.ok) return text;
+  const workflow = parseDocument(text.value, (json) => readDocument(WorkflowDefinition, WORKFLOW_SCHEMA_VERSION, json));
+  if (!workflow.ok) return workflow;
+  if (workflow.value.metadata.id.toLowerCase() !== id.toLowerCase()) {
+    return refuse({ code: "document.invalid", params: { issues: [{ path: "metadata.id", code: "custom" }] } });
   }
-  return { ok: true, value: { source, index: index.value, lock: lock.value, texts } };
+  const error = unstorable(workflow.value);
+  return error === undefined ? { ok: true, value: { text: text.value, workflow: workflow.value } } : refuse(error);
+};
+
+/** The index, the lock and each workflow the index names. */
+const incomingOf = (read: Read, source: Source): Result<Incoming> => {
+  const index = documentIn(read, INDEX, (json) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, json));
+  if (!index.ok) return index;
+  const lock = documentIn(read, LOCK, (json) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, json));
+  if (!lock.ok) return lock;
+  const workflows: Workflow[] = [];
+  for (const id of index.value.workflows) {
+    const workflow = workflowIn(read, id);
+    if (!workflow.ok) return workflow;
+    workflows.push(workflow.value);
+  }
+  return { ok: true, value: { source, index: index.value, lock: lock.value, workflows } };
 };
 
 const fetched = async (state: string, source: { url: string; ref: string; path?: string }, fetch: Fetch) => {
@@ -108,13 +116,6 @@ const readIncoming = async (state: string, from: From, fetch: Fetch): Promise<Re
   return incomingOf(inTree(tree.value), { git: from.git, ref: from.ref, commit: tree.value.commit });
 };
 
-// Git's blob id of a text: what the store would hold for it (a SHA-1 store, P3 a).
-const blobOf = (text: string): string =>
-  createHash("sha1")
-    .update(`blob ${Buffer.byteLength(text)}\0`)
-    .update(text)
-    .digest("hex");
-
 type Stored = { store: Store; head: string | null; imported: Record<string, string>; lock: ExtensionLock };
 
 const storedJson = <T>(
@@ -129,13 +130,13 @@ const storedJson = <T>(
   return bytes.ok ? parseDocument(bytes.value.toString("utf8"), read) : bytes;
 };
 
-// The record of the last imports: workflow ids to blob ids, nothing else.
+// The record of the last imports: workflow ids to the SHA-256 of their texts, nothing else.
 const asImported = (json: unknown): Result<Record<string, string>> => {
   const entries = typeof json === "object" && json !== null && !Array.isArray(json) ? Object.entries(json) : null;
-  const valid = entries?.every(([, blob]) => typeof blob === "string" && /^[0-9a-f]{40}$/.test(blob)) === true;
+  const valid = entries?.every(([, hash]) => typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash)) === true;
   if (entries === null || !valid)
     return refuse({ code: "document.invalid", params: { issues: [{ path: IMPORTED, code: "custom" }] } });
-  return { ok: true, value: Object.fromEntries(entries.map(([id, blob]) => [id, String(blob)])) };
+  return { ok: true, value: Object.fromEntries(entries.map(([id, hash]) => [id, String(hash)])) };
 };
 
 const storedOf = (state: string): Result<Stored> => {
@@ -168,46 +169,51 @@ const changesOf = (before: Node[], after: Node[]): Unit["changes"] => {
 const statusOf = (stored: string | null, incoming: string, imported: string | undefined): Unit["status"] => {
   if (stored === null) return "new";
   if (stored === incoming) return "same";
-  return stored === imported ? "update" : "conflict";
+  return sha256(stored) === imported ? "update" : "conflict";
 };
 
-const storedWorkflow = (store: Store, blob: string | null): WorkflowDefinition | null => {
-  const read = blob === null ? null : readStored(store, blob);
-  return read?.ok === true ? read.value.workflow : null;
+// What the store holds for `id`: no text when nothing; a file that does not read is no import's, so a conflict.
+const storedAt = (stored: Stored, id: string): { text: string | null; version: string | null; nodes: Node[] } => {
+  const blob = stored.head === null ? null : stored.store.blob(stored.head, fileOf(id));
+  if (blob === null) return { text: null, version: null, nodes: [] };
+  const read = readStored(stored.store, blob);
+  if (!read.ok) return { text: "", version: null, nodes: [] };
+  return { text: read.value.text, version: read.value.workflow.metadata.version, nodes: read.value.workflow.nodes };
 };
 
 /** A workflow's status against the store: never replaced when edited here since its last import, or never imported. */
-const unitOf = (stored: Stored, index: ExportIndex, text: string): Unit => {
-  const workflow = WorkflowDefinition.parse(JSON.parse(text));
+const unitOf = (stored: Stored, index: ExportIndex, { text, workflow }: Workflow): Unit => {
   const { id, version, license } = workflow.metadata;
-  const blob = stored.head === null ? null : stored.store.blob(stored.head, fileOf(id));
-  const before = storedWorkflow(stored.store, blob);
+  const before = storedAt(stored, id);
   return {
     id,
-    status: statusOf(blob, blobOf(text), stored.imported[id.toLowerCase()]),
+    status: statusOf(before.text, text, stored.imported[id.toLowerCase()]),
     version,
-    stored: before?.metadata.version ?? null,
+    stored: before.version,
     license: license ?? index.license ?? null,
-    changes: changesOf(before?.nodes ?? [], workflow.nodes),
+    changes: changesOf(before.nodes, workflow.nodes),
   };
 };
 
 type Risk = ImportReview["risks"][number];
-const text = (node: Node, key: string): string | undefined => {
+const textOf = (node: Node, key: string): string | undefined => {
   const value: unknown = Reflect.get(Object(node.with), key);
   return typeof value === "string" ? value : undefined;
 };
 // Each line a node runs or writes, by its type: every command and task in full (a workflow is code in effect).
 const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]> = {
   "trigger.schedule": (node) => [
-    ["schedule", `${text(node, "cron")}${text(node, "timezone") === undefined ? "" : ` (${text(node, "timezone")})`}`],
-    ["precheck", text(node, "precheck")],
+    [
+      "schedule",
+      `${textOf(node, "cron")}${textOf(node, "timezone") === undefined ? "" : ` (${textOf(node, "timezone")})`}`,
+    ],
+    ["precheck", textOf(node, "precheck")],
   ],
-  "trigger.manual": (node) => [["precheck", text(node, "precheck")]],
-  "command.run": (node) => [["command", text(node, "command")]],
-  "agent.run": (node) => [["agent", text(node, "task")]],
-  "file.write": (node) => [["write", text(node, "path")]],
-  "workflow.run": (node) => [["workflow", text(node, "workflow")]],
+  "trigger.manual": (node) => [["precheck", textOf(node, "precheck")]],
+  "command.run": (node) => [["command", textOf(node, "command")]],
+  "agent.run": (node) => [["agent", textOf(node, "task")]],
+  "file.write": (node) => [["write", textOf(node, "path")]],
+  "workflow.run": (node) => [["workflow", textOf(node, "workflow")]],
 };
 const risksOf = (workflow: WorkflowDefinition): Risk[] =>
   workflow.nodes.flatMap((node) => {
@@ -219,68 +225,64 @@ const risksOf = (workflow: WorkflowDefinition): Risk[] =>
   });
 
 type Extension = ImportReview["extensions"][number];
+type Pin = ExtensionLock["extensions"][string];
 
 const treeStatus = (tree: Result<Tree>, digest: string): Extension["status"] => {
   if (!tree.ok) return "unreachable";
   return tree.value.digest === digest ? "verified" : "mismatch";
 };
-// What an extension may reach, from its manifest at the pinned commit; nothing when unread.
-const reach = (manifest: Result<ExtensionManifest> | undefined): Pick<Extension, "net" | "credentials"> => {
-  const read = manifest?.ok === true ? manifest.value : undefined;
-  return {
-    net: read?.capabilities?.net ?? [],
-    credentials: Object.keys(read?.capabilities?.credentials ?? {}),
-  };
+
+/** An extension the lock pins, fetched at its commit as data only (nothing runs) and checked against its digest. */
+const checkedPin = async (
+  state: string,
+  [id, pin]: [string, Pin],
+  here: Installed[],
+  fetch: Fetch,
+): Promise<Extension> => {
+  const at = pin.source.path === undefined ? {} : { path: pin.source.path };
+  const tree = await fetched(state, { url: pin.source.git, ref: pin.source.commit, ...at }, fetch);
+  const status = treeStatus(tree, pin.digest);
+  const manifest = tree.ok && status === "verified" ? manifestOf(tree.value) : undefined;
+  const { git, commit } = pin.source;
+  const installed = here.some((each) => each.id === id && each.source.commit === commit && each.digest === pin.digest);
+  const capabilities = manifest?.ok === true ? (manifest.value.capabilities ?? {}) : {};
+  return { id, version: pin.version, git, commit, ...at, digest: pin.digest, status, installed, capabilities };
 };
 
-/** Each extension the lock pins, fetched at its commit as data only (nothing runs) and checked against its digest. */
-const extensionsOf = async (state: string, lock: ExtensionLock, fetch: Fetch): Promise<Extension[]> => {
+/** The pins of the extensions `used`, one fetch at a time: a lock may hold many, and only those used matter. */
+const pinsOf = async (state: string, lock: ExtensionLock, used: string[], fetch: Fetch): Promise<Extension[]> => {
   const installed = installedExtensions(state);
-  const pins = installed.ok ? installed.value : [];
-  return Promise.all(
-    Object.entries(lock.extensions).map(async ([id, pin]): Promise<Extension> => {
-      const at = pin.source.path === undefined ? {} : { path: pin.source.path };
-      const tree = await fetched(state, { url: pin.source.git, ref: pin.source.commit, ...at }, fetch);
-      const status = treeStatus(tree, pin.digest);
-      const manifest = tree.ok && status === "verified" ? manifestOf(tree.value) : undefined;
-      const here = pins.some(
-        (each) => each.id === id && each.source.commit === pin.source.commit && each.digest === pin.digest,
-      );
-      const { git, commit } = pin.source;
-      return {
-        id,
-        version: pin.version,
-        git,
-        commit,
-        ...at,
-        digest: pin.digest,
-        status,
-        installed: here,
-        ...reach(manifest),
-      };
-    }),
-  );
+  const here = installed.ok ? installed.value : [];
+  const pinned = new Map(Object.entries(lock.extensions));
+  const checked: Extension[] = [];
+  for (const id of used) {
+    const pin = pinned.get(id);
+    if (pin !== undefined) checked.push(await checkedPin(state, [id, pin], here, fetch));
+  }
+  return checked;
 };
+
+const usedBy = (workflows: Workflow[]): string[] => [
+  ...new Set(workflows.flatMap(({ workflow }) => extensionsOf(workflow))),
+];
 
 /**
- * The plan of an import: one store.update to a commit with the new and updated workflows byte for byte, the store's
- * lock with the import's entries, and the blob each was imported as. Null when nothing is new or updated.
+ * The plan of an import: one store.update to a commit with the chosen workflows byte for byte, the store's lock with
+ * the import's pins of the extensions they use, and the hash of each as imported. Null when none is chosen.
  */
-const planOf = (stored: Stored, from: Incoming, units: Unit[]): Result<Plan | null> => {
-  const chosen = units.filter((unit) => unit.status === "new" || unit.status === "update");
+const planOf = (stored: Stored, lock: ExtensionLock, chosen: Workflow[]): Result<Plan | null> => {
   if (chosen.length === 0) return { ok: true, value: null };
-  const textOf = (id: string): string => from.texts.get(id) ?? "";
-  const imported = {
-    ...stored.imported,
-    ...Object.fromEntries(chosen.map(({ id }) => [id.toLowerCase(), blobOf(textOf(id))])),
-  };
-  const lock = { ...stored.lock, extensions: { ...stored.lock.extensions, ...from.lock.extensions } };
+  const hashes = chosen.map(({ text, workflow }) => [workflow.metadata.id.toLowerCase(), sha256(text)]);
+  const imported = { ...stored.imported, ...Object.fromEntries(hashes) };
+  const used = new Set(usedBy(chosen));
+  const pins = Object.entries(lock.extensions).filter(([id]) => used.has(id));
+  const merged = { ...stored.lock, extensions: { ...stored.lock.extensions, ...Object.fromEntries(pins) } };
   const files: [string, string][] = [
-    ...chosen.map(({ id }): [string, string] => [fileOf(id), textOf(id)]),
-    [LOCK, formatLock(lock)],
+    ...chosen.map(({ text, workflow }): [string, string] => [fileOf(workflow.metadata.id), text]),
+    [LOCK, formatLock(merged)],
     [IMPORTED, `${JSON.stringify(JSON.parse(canonicalJson(imported)), null, 2)}\n`],
   ];
-  const message = chosen.map(({ id, version }) => `${id} ${version}\n`).join("");
+  const message = chosen.map(({ workflow }) => `${workflow.metadata.id} ${workflow.metadata.version}\n`).join("");
   const made = stored.store.commit(stored.head, files, message);
   if (!made.ok) return made;
   const operations: Plan["operations"] = [
@@ -295,18 +297,21 @@ export type ImportPlan = { review: ImportReview; plan: Plan | null };
 /**
  * Plans an import (P6 a): reads the export folder or fetches the Git ref as data, nothing checked out or run, and builds
  * the review. Its plan stores the new and updated workflows as one store.update; a workflow in conflict is never
- * replaced, and no extension is installed.
+ * replaced, no extension is installed, and a pin whose files are not its digest's refuses the import.
  */
 export const planImport = async (state: string, from: From, fetch: Fetch = fetchTree): Promise<Result<ImportPlan>> => {
   const read = await readIncoming(state, from, fetch);
   if (!read.ok) return read;
   const stored = storedOf(state);
   if (!stored.ok) return stored;
-  const texts = [...read.value.texts.values()];
-  const units = texts.map((each) => unitOf(stored.value, read.value.index, each));
-  const risks = texts.flatMap((each) => risksOf(WorkflowDefinition.parse(JSON.parse(each))));
-  const extensions = await extensionsOf(state, read.value.lock, fetch);
-  const plan = planOf(stored.value, read.value, units);
+  const { workflows, lock, index, source } = read.value;
+  const units = workflows.map((each) => unitOf(stored.value, index, each));
+  const risks = workflows.flatMap(({ workflow }) => risksOf(workflow));
+  const extensions = await pinsOf(state, lock, usedBy(workflows), fetch);
+  const mismatch = extensions.find(({ status }) => status === "mismatch");
+  if (mismatch !== undefined) return refuse({ code: "extension.digest-mismatch", params: { extension: mismatch.id } });
+  const chosen = workflows.filter((_, at) => ["new", "update"].includes(units[at]?.status ?? "same"));
+  const plan = planOf(stored.value, lock, chosen);
   if (!plan.ok) return plan;
-  return { ok: true, value: { review: { source: read.value.source, units, risks, extensions }, plan: plan.value } };
+  return { ok: true, value: { review: { source, units, risks, extensions }, plan: plan.value } };
 };

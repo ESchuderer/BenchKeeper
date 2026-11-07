@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Commit, ExtensionId, FolderDigest, GitRef, GitUrl, PortablePath } from "./extension.ts";
+import { Capabilities, Commit, ExtensionId, FolderDigest, GitRef, GitUrl, PortablePath } from "./extension.ts";
 import { AbsolutePath } from "./plan.ts";
 import { contracts } from "./registry.ts";
 import { semver, WorkflowId } from "./workflow.ts";
@@ -47,11 +47,11 @@ export const ImportReview = z
         commit: Commit,
         path: PortablePath.optional(),
         digest: FolderDigest,
-        // verified: the files at the commit have the lock's digest; mismatch: other files; unreachable: not fetched.
+        // verified: the files at the commit have the lock's digest; mismatch: other files, which refuses the import;
+        // unreachable: not fetched.
         status: z.enum(["verified", "mismatch", "unreachable"]),
         installed: z.boolean().describe("Installed here at this commit and digest; the import installs none"),
-        net: z.array(z.string()),
-        credentials: z.array(z.string()),
+        capabilities: Capabilities.describe("What its manifest at the commit asks for; none when it was not verified"),
       }),
     ),
   })

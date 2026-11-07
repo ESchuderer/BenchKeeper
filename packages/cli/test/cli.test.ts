@@ -901,7 +901,7 @@ test("extensions: a manifest's unknown key reaches the terminal escaped, never a
   expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
 });
 
-test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none exits 64", async () => {
+test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {
   const { root, state, cli } = setup();
   // Store commits carry the user's Git identity, from a home folder of the test's own.
   writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
@@ -922,8 +922,11 @@ test("workflows save stores a draft as a version, history lists it, export write
   const other = setup();
   const imported = await other.cli("import", join(root, "shared"), "--yes", "--json");
   const there = json((await other.cli("workflows", "history", "w", "--json")).out);
+  // --yes stores only what the review showed: from Git that is a commit, never a ref that can move.
+  const unpinned = await other.cli("import", "https://example.org/flows.git", "--ref", "main", "--yes");
+  const folderRef = await other.cli("import", join(root, "shared"), "--ref", "main");
   vi.unstubAllEnvs();
-  const stored = [imported.code, Reflect.get(Object(there["versions"]), "length")];
+  const stored = [imported.code, Reflect.get(Object(there["versions"]), "length"), unpinned.code, folderRef.code];
   expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code, stored]).toEqual([
     EXIT.ok,
     [
@@ -938,7 +941,7 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.ok,
     ["w"],
     EXIT.usage,
-    [EXIT.ok, 1],
+    [EXIT.ok, 1, EXIT.usage, EXIT.usage],
   ]);
 });
 

@@ -3263,6 +3263,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.digest-mismatch"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.consent-needed"
               },
               "params": {
@@ -4561,17 +4587,146 @@
                 "installed": {
                   "type": "boolean"
                 },
-                "net": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "credentials": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                "capabilities": {
+                  "type": "object",
+                  "properties": {
+                    "net": {
+                      "maxItems": 32,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 300,
+                        "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                      }
+                    },
+                    "credentials": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                          },
+                          "scheme": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "http"
+                                  },
+                                  "scheme": {
+                                    "type": "string",
+                                    "enum": [
+                                      "bearer",
+                                      "basic"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "scheme"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "apiKey"
+                                  },
+                                  "in": {
+                                    "type": "string",
+                                    "const": "header"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "in",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "hosts": {
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 300,
+                              "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "hosts"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "projectRead": {
+                      "type": "boolean"
+                    },
+                    "planWrite": {
+                      "type": "boolean"
+                    },
+                    "programs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "darwin": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          },
+                          "linux": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          },
+                          "win32": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -4582,8 +4737,7 @@
                 "digest",
                 "status",
                 "installed",
-                "net",
-                "credentials"
+                "capabilities"
               ],
               "additionalProperties": false
             }
@@ -7853,6 +8007,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "extension.digest-mismatch"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "extension.consent-needed"
               },
               "params": {
@@ -9118,17 +9298,146 @@
                 "installed": {
                   "type": "boolean"
                 },
-                "net": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "credentials": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                "capabilities": {
+                  "type": "object",
+                  "properties": {
+                    "net": {
+                      "maxItems": 32,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 300,
+                        "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                      }
+                    },
+                    "credentials": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                          },
+                          "scheme": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "http"
+                                  },
+                                  "scheme": {
+                                    "type": "string",
+                                    "enum": [
+                                      "bearer",
+                                      "basic"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "scheme"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "apiKey"
+                                  },
+                                  "in": {
+                                    "type": "string",
+                                    "const": "header"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "in",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "hosts": {
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 300,
+                              "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                            }
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "hosts"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "projectRead": {
+                      "type": "boolean"
+                    },
+                    "planWrite": {
+                      "type": "boolean"
+                    },
+                    "programs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "darwin": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          },
+                          "linux": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          },
+                          "win32": {
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -9139,8 +9448,7 @@
                 "digest",
                 "status",
                 "installed",
-                "net",
-                "credentials"
+                "capabilities"
               ],
               "additionalProperties": false
             }

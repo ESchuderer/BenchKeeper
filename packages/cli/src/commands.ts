@@ -248,7 +248,7 @@ export const accountsLogin = (ctx: Context, name: string): number => {
 type Pin = useCases.InstallPlan["pin"];
 
 // What the extension may do, in plain words.
-const mayDo = (capabilities: useCases.Capabilities): string[] => [
+export const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
   ...Object.entries(capabilities.credentials ?? {}).map(
     ([id, { hosts }]) =>

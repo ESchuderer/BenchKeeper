@@ -73,6 +73,7 @@ export { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "./catalog.
 export { isPlainText, PlainText, shown } from "./text.ts";
 export { CSRF_HEADER } from "./http.ts";
 export {
+  Commit,
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   EXTENSION_SCHEMA_VERSION,

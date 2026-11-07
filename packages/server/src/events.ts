@@ -20,8 +20,9 @@ const readRuns = (state: string): Result<RunsEvent> => {
 /**
  * A reader of the run store that returns the event to send when the runs, or the findings that say why they cannot be
  * read, differ from what it returned last time; otherwise nothing.
- * shortcut: every change sends the whole run list (527 KB at 2,000 runs); page it or send only the changed runs when
- * stores grow that large.
+ * shortcut: every change sends the whole run list (527 KB at 2,000 runs), and every tick reads each graph run in full
+ * for its summary (about 11 ms per tick per tab at 200 graph runs, 115 ms at 2,000); page it, or read and send only the
+ * changed runs, when stores grow that large.
  */
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";

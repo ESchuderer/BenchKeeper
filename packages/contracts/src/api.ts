@@ -93,7 +93,6 @@ export type RunResult = z.infer<typeof RunResult>;
 /** Why a request was refused: the findings, codes and parameters only. */
 export const Refusal = z.strictObject({ findings }).register(contracts, { id: "Refusal" });
 
-/** A `runs` event of the event stream (GET /api/events): the runs as they stand, sent whenever they change. */
 /**
  * A workflow's run as a list shows it: which workflow, how it started, and where it stands. Its definition, inputs and
  * project folder stay out of the API.
@@ -111,6 +110,7 @@ export const GraphRunSummary = z
   .register(contracts, { id: "GraphRunSummary" });
 export type GraphRunSummary = z.infer<typeof GraphRunSummary>;
 
+/** A `runs` event of the event stream (GET /api/events): the runs as they stand, sent whenever they change. */
 export const RunsEvent = z
   .strictObject({ runs: z.array(Run), graphRuns: z.array(GraphRunSummary) })
   .register(contracts, { id: "RunsEvent" });

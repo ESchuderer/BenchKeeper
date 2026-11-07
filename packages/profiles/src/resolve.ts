@@ -17,7 +17,7 @@ import { errorCode } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 
 type Ref = { pack: string; path: string };
-const LEVELS = ["machine", "workspace", "project"] as const;
+export const LEVELS = ["machine", "workspace", "project"] as const;
 
 /** The profile of a machine without a selection file: the default of the bundled core pack. */
 export const DEFAULT_PROFILE: Ref = { pack: "cedarloom.core", path: "profiles/default.json" };
@@ -142,8 +142,8 @@ const loadParent: LoadParent = (parent) => {
   return !json.ok && json.finding.code === "profile.entry-unknown" ? undefined : json;
 };
 
-/** The JSON of the profile file a selection names: a pack's entry, or a file of the owner's. */
-export const profileJson = (profile: ProfileSelection["profile"]): Result<unknown> =>
+// The JSON of the profile file a selection names: a pack's entry, or a file of the owner's.
+const profileJson = (profile: ProfileSelection["profile"]): Result<unknown> =>
   "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
 
 // The selected profile file as JSON, and whether it ships in this release; the default without a selection.
@@ -165,7 +165,8 @@ export interface Resolved extends Composed {
 }
 
 type Part = Profile["machine"][string] | Profile["workspace"][string] | Profile["project"][string];
-const partsOf = (profile: Profile): [string, Part][] =>
+/** Each part of a profile by its key `level.id`. */
+export const partsOf = (profile: Profile): [string, Part][] =>
   LEVELS.flatMap((level) =>
     Object.entries(profile[level]).map(([id, part]): [string, Part] => [`${level}.${id}`, part]),
   );
@@ -206,6 +207,14 @@ const composedOf = (selection: ProfileSelection | null, app: string): Result<Com
   if (!root.value.bundled && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
   return composed;
+};
+
+/** A profile file composed with its parents, only to read: a pack's entry or a file of the owner's, whatever its `minApp`. */
+export const composedProfile = (profile: ProfileSelection["profile"]): Result<Profile> => {
+  const json = profileJson(profile);
+  if (!json.ok) return json;
+  const composed = composeProfile(json.value, loadParent);
+  return composed.ok ? { ok: true, value: composed.value.profile } : composed;
 };
 
 const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, probe: (when: Probe) => boolean) =>

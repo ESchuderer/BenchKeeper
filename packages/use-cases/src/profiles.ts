@@ -44,7 +44,7 @@ import { readOptionalJson, withView } from "./use-cases.ts";
 export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
   onDisk(resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude")));
 
-const selectionPath = (config: string): string => join(config, "profile.json");
+export const selectionPath = (config: string): string => join(config, "profile.json");
 
 export const readSelection = (
   config: string,

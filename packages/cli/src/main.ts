@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Agent, Commit, GitUrl, WorkflowId } from "@cedarloom/contracts";
+import { Agent, Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
@@ -70,11 +70,13 @@ const input = (pair: string, inputs: Record<string, string>): Record<string, str
   return { ...inputs, [pair.slice(0, at)]: pair.slice(at + 1) };
 };
 
-// A pack's profile as `pack/path`, which the use case splits at the first slash.
-const packProfile = (value: string): string => {
-  if (value.indexOf("/") < 1)
+// A bundled pack's profile as `pack/path`, split at the first slash.
+const packProfile = (value: string): PackRef => {
+  const at = value.indexOf("/");
+  const ref = PackRef.safeParse({ pack: value.slice(0, at), path: value.slice(at + 1) });
+  if (at < 1 || !ref.success)
     throw new InvalidArgumentError("give it as pack/path, such as cedarloom.core/profiles/default.json");
-  return value;
+  return ref.data;
 };
 
 const workflowId = (value: string): string => {
@@ -354,7 +356,7 @@ const profileFiles = (profiles: Command, ctx: Ctx, done: Done): void => {
     .command("init")
     .description("show copying a pack's profile into a file that this machine then applies; with --yes, copy it")
     .argument("<file>", "the copy, a profile file of your own to edit")
-    .requiredOption("--from <profile>", "the pack's profile as pack/path", packProfile)
+    .requiredOption("--from <profile>", "a bundled pack's profile as pack/path", packProfile)
     .option("--yes", "copy the profile and select it as computed now")
     .action((file, options) => done(profilesInit(ctx(), file, options)));
   profiles
@@ -362,7 +364,7 @@ const profileFiles = (profiles: Command, ctx: Ctx, done: Done): void => {
     .description(
       "list how this machine's profile differs from a pack's, by field and part: + added, - removed, ~ changed",
     )
-    .requiredOption("--against <profile>", "the pack's profile as pack/path", packProfile)
+    .requiredOption("--against <profile>", "a bundled pack's profile as pack/path", packProfile)
     .action((options) => done(profilesDiff(ctx(), options)));
 };
 

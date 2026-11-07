@@ -1,12 +1,13 @@
 export { HUB_RULES, onDisk, planMachine, type Target } from "./machine.ts";
 export type { LevelPlan } from "./owned.ts";
 export { hasContainer, planProject } from "./project.ts";
+export { type ProfileChange, profileChanges } from "./changes.ts";
 export {
   APP_VERSION,
+  composedProfile,
   DEFAULT_PROFILE,
   type Folder,
   type Probe,
-  profileJson,
   type Resolved,
   readEntry,
   resolveProfile,

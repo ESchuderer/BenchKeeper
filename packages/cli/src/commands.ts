@@ -596,16 +596,16 @@ export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: {
   configChange(ctx, useCases.planChoice(ctx.config, choice), yes);
 
 /** Shows copying a pack's profile into a file that this machine's selection then names; with --yes, does it. */
-export const profilesInit = (ctx: Context, file: string, { from, yes }: { from: string; yes?: true }): number =>
+export const profilesInit = (ctx: Context, file: string, { from, yes }: { from: PackRef; yes?: true }): number =>
   configChange(ctx, useCases.planProfileCopy(ctx.config, from, file), yes);
 
 const SIGNS = { added: "+", removed: "-", changed: "~" } as const;
 
 /** Lists how this machine's profile differs from a pack's, by field and by part. */
-export const profilesDiff = (ctx: Context, { against }: { against: string }): number => {
+export const profilesDiff = (ctx: Context, { against }: { against: PackRef }): number => {
   const diff = useCases.diffProfile(ctx.config, against);
   if (!diff.ok) return refused(ctx, "profile-diff", diff.finding);
   const lines = diff.value.map((entry) => `${SIGNS[entry.change]} ${entry.key}`);
-  emit(ctx, "profile-diff", { changes: diff.value }, lines.join("\n") || `The profile is the same as ${against}.`);
+  emit(ctx, "profile-diff", { changes: diff.value }, lines.join("\n") || `The profile is the same as ${against.pack}/${against.path}.`);
   return EXIT.ok;
 };

@@ -110,6 +110,7 @@ export {
   skillFolder,
 } from "./pack.ts";
 export {
+  PackRef,
   Profile,
   PROFILE_SCHEMA_VERSION,
   ProfileFile,

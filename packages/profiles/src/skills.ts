@@ -133,6 +133,9 @@ export const skillFiles = (
     }
   }
   const root = join(home, "skills") + sep;
-  const stale = [...written.keys()].filter((path) => !wanted.has(path) && path.startsWith(root));
+  // A path whose last write was a delete is no longer CedarLoom's: a file there again is the owner's.
+  const stale = [...written]
+    .filter(([path, hash]) => hash !== null && !wanted.has(path) && path.startsWith(root))
+    .map(([path]) => path);
   return { ok: true, value: { wanted, stale } };
 };

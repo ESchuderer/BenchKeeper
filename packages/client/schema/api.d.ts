@@ -1326,6 +1326,51 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.foreign-kind";
+            params: {
+                kind: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.secret-like";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.forbidden-setting";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2160,6 +2205,51 @@ export interface components {
                 /** @enum {string} */
                 step: "stage" | "start" | "initialize" | "run";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.foreign-kind";
+            params: {
+                kind: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.secret-like";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.forbidden-setting";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-unknown";
+            params: {
+                pack: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-cycle";
+            params: {
+                chain: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.parent-limit";
+            params: {
+                chain: string[];
+                limit: number;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-sources";
+            params: {
+                pack: string;
+                files: string[];
             };
         } | {
             /** @constant */

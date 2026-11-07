@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ProfileSelection.schema.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this JSON Schema; readers ignore it",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.profile-selection"
+    },
+    "profile": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "pack": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 1024,
+              "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+              "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+            }
+          },
+          "required": [
+            "pack",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "select": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "maxProperties": 500,
+      "description": "On or off against the part's default"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "profile",
+    "select"
+  ],
+  "additionalProperties": false
+}

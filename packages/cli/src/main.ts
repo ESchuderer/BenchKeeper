@@ -209,6 +209,9 @@ const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .argument("<id>", "the extension's id, publisher.name")
     .option("--yes", "remove as planned now")
     .action((id, options) => done(extensionsRemove(ctx(), id, options)));
+};
+
+const componentsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   program
     .command("components")
     .description("the app's own parts, each auto (on when it can run) or off")
@@ -292,6 +295,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   workflowsGroup(program, ctx, done);
   accountsGroup(program, ctx, done);
   extensionsGroup(program, ctx, done);
+  componentsGroup(program, ctx, done);
   modeGroup(program, ctx, done);
   levelGroup(program, ctx, done);
   program

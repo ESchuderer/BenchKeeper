@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sized } from "./extension.ts";
 import { sortKeys } from "./json.ts";
 import { fileFormats } from "./registry.ts";
 
@@ -19,10 +20,7 @@ export const Components = z
   .strictObject({
     schemaVersion: z.literal(COMPONENTS_SCHEMA_VERSION),
     kind: z.literal("cedarloom.components"),
-    components: z
-      .record(ComponentId, Switch)
-      .refine((parts) => Object.keys(parts).length <= 100, "at most 100 parts")
-      .meta({ maxProperties: 100 }),
+    components: sized(z.record(ComponentId, Switch), 100),
   })
   .register(fileFormats, { id: "Components" });
 export type Components = z.infer<typeof Components>;

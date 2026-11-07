@@ -75,3 +75,23 @@ test("an extension switched off starts nothing, and runs undo switches it back",
     { ok: false, finding: { code: "extension.unknown", params: { extension: "acme.other" } } },
   ]);
 });
+
+test("a components map CedarLoom cannot read refuses the start, and an app folder not named by its cedarloom id is refused", () => {
+  const paths = machine();
+  mkdirSync(paths.config, { recursive: true });
+  const map = { schemaVersion: 1, kind: "cedarloom.components", components: { [ID]: "on" } };
+  writeFileSync(join(paths.config, "components.json"), JSON.stringify(map));
+  const unreadable = extensionToStart(paths, ID);
+  const renamed = machine();
+  extensionIn(join(renamed.app, "renamed"));
+  expect([unreadable, bundledExtensions(renamed.app, renamed.config)]).toEqual([
+    {
+      ok: false,
+      finding: {
+        code: "document.invalid",
+        params: { issues: [expect.objectContaining({ path: "components.cedarloom.example" })] },
+      },
+    },
+    { ok: false, finding: { code: "document.invalid", params: { issues: [{ path: "id", code: "custom" }] } } },
+  ]);
+});

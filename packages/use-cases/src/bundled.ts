@@ -12,12 +12,11 @@ import {
   readDocument,
   type Switch,
 } from "@cedarloom/contracts";
-import { errorCode, hashFile } from "@cedarloom/engine";
+import { errorCode } from "@cedarloom/engine";
 import type { Trust } from "@cedarloom/extension-host";
-import { installedExtensions } from "./extensions.ts";
+import { sha256 } from "@cedarloom/ledger";
+import { installedExtensions, MANIFEST } from "./extensions.ts";
 import { readJson, readOptionalJson } from "./use-cases.ts";
-
-const MANIFEST = "cedarloom-extension.json";
 const componentsPath = (config: string): string => join(config, "components.json");
 const NONE: Components = { schemaVersion: COMPONENTS_SCHEMA_VERSION, kind: "cedarloom.components", components: {} };
 
@@ -26,6 +25,11 @@ const readComponents = (config: string): Result<{ text: string | null; component
   if (!file.ok || file.value === null) return file.ok ? { ok: true, value: { text: null, components: NONE } } : file;
   const read = readDocument(Components, COMPONENTS_SCHEMA_VERSION, file.value.json);
   return read.ok ? { ok: true, value: { text: file.value.text, components: read.value } } : read;
+};
+
+const manifestAt = (folder: string): Result<ExtensionManifest> => {
+  const file = readJson(join(folder, MANIFEST));
+  return file.ok ? readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, file.value.json) : file;
 };
 
 /** An extension the app ships: its id, its manifest, its folder in the app and its switch. */
@@ -51,10 +55,13 @@ export const bundledExtensions = (app: string, config: string): Result<Bundled[]
   const found: Bundled[] = [];
   for (const name of folders(app)) {
     const folder = join(app, name);
-    const file = readJson(join(folder, MANIFEST));
-    const manifest = file.ok ? readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, file.value.json) : file;
+    const manifest = manifestAt(folder);
     if (!manifest.ok) return manifest;
     const { id } = manifest.value;
+    // The release's layout, <app>/<id>/, of the cedarloom publisher only, so no app folder can hide an installed id.
+    if (id !== name || !id.startsWith("cedarloom.")) {
+      return { ok: false, finding: { code: "document.invalid", params: { issues: [{ path: "id", code: "custom" }] } } };
+    }
     found.push({ id, manifest: manifest.value, folder, state: switches.value.components.components[id] ?? "auto" });
   }
   return { ok: true, value: found };
@@ -69,16 +76,12 @@ export const planSwitch = (app: string, config: string, id: string, state: Switc
   }
   const read = readComponents(config);
   if (!read.ok) return read;
-  const { components } = read.value;
+  const { text, components } = read.value;
   const content = formatComponents({ ...components, components: { ...components.components, [id]: state } });
-  const path = componentsPath(config);
-  return {
-    ok: true,
-    value: {
-      schemaVersion: PLAN_SCHEMA_VERSION,
-      operations: [{ kind: "write", path, before: hashFile(path), content }],
-    },
-  };
+  // The hash of the text read here, so a change made since is found at apply, not written over.
+  const before = text === null ? null : sha256(text);
+  const write = { kind: "write" as const, path: componentsPath(config), before, content };
+  return { ok: true, value: { schemaVersion: PLAN_SCHEMA_VERSION, operations: [write] } };
 };
 
 /** Where an extension starts from, and the trust that follows from there. */
@@ -104,7 +107,6 @@ export const extensionToStart = (
   const pin = installed.value.find((each) => each.id === id);
   if (pin === undefined) return { ok: false, finding: { code: "extension.unknown", params: { extension: id } } };
   const folder = join(paths.state, "extensions", id, pin.digest);
-  const file = readJson(join(folder, MANIFEST));
-  const manifest = file.ok ? readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, file.value.json) : file;
+  const manifest = manifestAt(folder);
   return manifest.ok ? { ok: true, value: { manifest: manifest.value, folder, trust: "community" } } : manifest;
 };

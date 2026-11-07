@@ -246,8 +246,9 @@ export const accountsAdd = (
 export const accountsMap = (ctx: Context, name: string, folder: string, { yes }: { yes?: true }): number => {
   const planned = useCases.planMap(ctx.config, name, folder);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, folder: real } = planned.value;
-  const note = `\nWorkers launched in ${real} or below it run on ${name}.`;
+  const { plan, folder: real, target } = planned.value;
+  const on = "account" in target ? `account ${target.account}` : `pool ${target.pool}`;
+  const note = `\nWorkers launched in ${real} or below it run on ${on}.`;
   return change(ctx, plan, { note, data: { folder: real }, findings: [] }, yes);
 };
 

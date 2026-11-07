@@ -245,7 +245,11 @@ const withFolders = (path: string, text: string, registry: AccountRegistry, fold
  * Plans binding `folder` to the account or Claude Code pool `name`: a worker launched in that folder or below it runs
  * on that account, or on the pool's choice. The folder is kept by its real path.
  */
-export const planMap = (config: string, name: string, folder: string): Result<{ plan: Plan; folder: string }> => {
+export const planMap = (
+  config: string,
+  name: string,
+  folder: string,
+): Result<{ plan: Plan; folder: string; target: FolderTarget }> => {
   const real = projectFolder(folder);
   if (real === null) return mapRefused("no-folder", resolve(folder));
   const path = registryPath(config);
@@ -256,7 +260,7 @@ export const planMap = (config: string, name: string, folder: string): Result<{ 
   const target = registry.accounts.some((each) => each.name === name) ? { account: name } : { pool: name };
   if (!("account" in target) && !isPool) return mapRefused("unknown-target", name);
   const plan = withFolders(path, text, registry, { ...registry.folders, [real]: target });
-  return { ok: true, value: { plan, folder: real } };
+  return { ok: true, value: { plan, folder: real, target } };
 };
 
 /** Plans removing the binding of `folder`, by its real path, or as written when it no longer exists. */
@@ -277,7 +281,8 @@ export const boundTarget = (registry: AccountRegistry, project: string): FolderT
     const below = relative(folder, project);
     return below === "" || (below.split(sep)[0] !== ".." && !isAbsolute(below));
   });
-  const [deepest] = holding.toSorted((a, b) => b.length - a.length);
+  // Resolved, so a folder written with trailing separators does not outrank a deeper one.
+  const [deepest] = holding.toSorted((a, b) => resolve(b).length - resolve(a).length);
   return deepest === undefined ? null : (registry.folders?.[deepest] ?? null);
 };
 

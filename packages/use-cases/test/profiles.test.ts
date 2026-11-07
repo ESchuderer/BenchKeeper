@@ -348,23 +348,32 @@ const orcaApp = () => {
   return { app: join(at, "app"), bin };
 };
 
-test("Orca's worktree files are planned while its extension is not switched off and its program is found", async () => {
+test("Orca's worktree files are planned only while its extension is not switched off and its program is found, also when selected", async () => {
   const box = machine();
   const { app, bin } = orcaApp();
   const project = projectWith();
-  // The orca part, on, waits for its approval: its files configure a tool.
-  const waits = async () => {
+  // The findings about the orca part; on, it waits for its approval, as its files configure a tool.
+  const orcaFindings = async () => {
     const result = ok(
       await planProfile(box.config, box.state, { home: box.home, user: box.home }, { app, fetch: stock, project }),
     );
-    return result.findings.some((finding) => "part" in finding.params && finding.params.part === "project.orca");
+    return result.findings
+      .filter((finding) => "part" in finding.params && finding.params.part === "project.orca")
+      .map(({ code }) => code);
   };
-  const missing = await waits();
+  const missing = await orcaFindings();
   vi.stubEnv("PATH", `${bin}${delimiter}${process.env["PATH"] ?? ""}`);
   try {
-    const found = await waits();
+    const found = await orcaFindings();
     applied(box.state, ok(planSwitch(app, box.config, "cedarloom.orca", "off")));
-    expect([missing, found, await waits()]).toEqual([false, true, false]);
+    const off = await orcaFindings();
+    applied(box.state, ok(planChoice(box.config, { part: "project.orca", on: true })));
+    expect([missing, found, off, await orcaFindings()]).toEqual([
+      [],
+      ["profile.target-approval"],
+      [],
+      ["profile.when-unmet"],
+    ]);
   } finally {
     vi.unstubAllEnvs();
   }

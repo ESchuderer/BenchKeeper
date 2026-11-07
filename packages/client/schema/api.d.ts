@@ -1736,6 +1736,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.when-unmet";
+            params: {
+                part: string;
+                /** @enum {string} */
+                when: "orca";
+            };
+        } | {
+            /** @constant */
             code: "profile.approval-needed";
             params: {
                 part: string;
@@ -2916,6 +2924,14 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.when-unmet";
+            params: {
+                part: string;
+                /** @enum {string} */
+                when: "orca";
             };
         } | {
             /** @constant */

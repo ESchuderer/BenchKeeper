@@ -253,6 +253,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
   "profile.binding-waiting": (p) =>
     `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
+  "profile.when-unmet": (p) =>
+    `${p.part} is switched on but stays off while Orca is not here: install Orca, switch its extension back on with cedarloom components switch cedarloom.orca auto, or cedarloom profiles select ${p.part} default`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {

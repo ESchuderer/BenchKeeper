@@ -150,13 +150,14 @@ const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; b
 
 /**
  * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, the `auto`
- * parts that wait for that source, and what keeps it from applying.
+ * parts that wait for that source, the parts selected on that stay off without Orca, and what keeps it from applying.
  */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
   readonly hub: string | undefined;
   readonly gates: string | undefined;
   readonly unbound: readonly string[];
+  readonly unmet: readonly string[];
   readonly problems: Finding[];
 }
 
@@ -204,12 +205,18 @@ const composedOf = (selection: ProfileSelection | null, app: string): Result<Com
   return composed;
 };
 
+// An Orca part is on only while Orca is here, also when selected: Orca material is there only while its extension is
+// on (hub issue 146). Selecting a dev container part on still adds a container.
 const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, probe: (when: Probe) => boolean) =>
-  new Set([...parts].filter(([key, part]) => select[key] ?? defaultOn(part, probe)).map(([key]) => key));
+  new Set(
+    [...parts]
+      .filter(([key, part]) => (select[key] ?? defaultOn(part, probe)) && (part.when !== "orca" || probe("orca")))
+      .map(([key]) => key),
+  );
 
 /**
  * The profile the selection names (the bundled default without one), composed with its parents, and its parts switched
- * on: the selection's choice, else the part's default, an `auto` part's by its probe.
+ * on: the selection's choice, else the part's default, an `auto` part's by its probe; an Orca part only with Orca.
  */
 export const resolveProfile = (
   selection: ProfileSelection | null,
@@ -226,6 +233,7 @@ export const resolveProfile = (
   const unbound = [...parts]
     .filter(([key, part]) => part.when === "gates" && select[key] === undefined && !on.has(key))
     .map(([key]) => key);
+  const unmet = [...parts].filter(([key]) => select[key] === true && !on.has(key)).map(([key]) => key);
   const problems = problemsOf(parts, on, selection);
-  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, problems } };
+  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, unmet, problems } };
 };

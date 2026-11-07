@@ -93,11 +93,13 @@ const orcaHere = (app: string | undefined, config: string): boolean => {
   return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-// The probes: whether Orca is here, asked only by a part that needs it, and whether the project has a dev container.
+// The probes: whether Orca is here, asked once and only by a part that needs it, and whether the project has a dev
+// container.
 const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
   const container = project !== undefined && hasContainer(project);
+  let orca: boolean | undefined;
   return (when: Probe): boolean => {
-    if (when === "orca") return orcaHere(app, config);
+    if (when === "orca") return (orca ??= orcaHere(app, config));
     return project !== undefined && (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
   };
 };
@@ -223,8 +225,12 @@ export const planProfile = async (
   });
   if (!level.ok) return level;
   const { operations, findings } = level.value;
+  // A part of this level selected on that stays off without Orca.
+  const unmet = resolved.value.unmet
+    .filter((part) => part.startsWith("project.") === (folder !== undefined))
+    .map((part): Finding => ({ code: "profile.when-unmet", params: { part, when: "orca" } }));
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };
-  return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings] } };
+  return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings, ...unmet] } };
 };
 
 /** One change of the selection: a part on, off or back to its default (null), or one of this machine's bindings. */

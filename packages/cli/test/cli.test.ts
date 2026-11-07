@@ -433,6 +433,38 @@ test("accounts: a pool's confirmation carries the terms warning in every output 
   });
 });
 
+test("accounts: list shows the windows a choice counts now, status the account a confirmed pool's new worker gets", async () => {
+  const { state, cli } = withRegistry();
+  expect(json((await cli("accounts", "status", "--json")).out)).toMatchObject({ pools: [], readings: [] });
+  await cli("accounts", "pool", "confirm", "main", "--yes");
+  const store = openRunStore(state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const fiveHour = {
+    account: "work",
+    window: "fiveHour",
+    usedPercent: 42,
+    resetsAt: "2099-01-01T00:00:00.000Z",
+    readAt: new Date().toISOString(),
+    source: "cswap",
+  } as const;
+  store.value.recordReading(fiveHour);
+  // Past its reset, so unknown.
+  store.value.recordReading({
+    ...fiveHour,
+    window: "sevenDay",
+    resetsAt: "2026-01-01T00:00:00.000Z",
+    source: "worker",
+  });
+  store.value.close();
+  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ readings: [fiveHour] });
+  expect(json((await cli("accounts", "status", "--json")).out)).toEqual({
+    format: "cedarloom.accounts-status",
+    schemaVersion: 1,
+    pools: [{ agent: "claude", pool: "main", account: "work", reason: "no-readings" }],
+    readings: [fiveHour],
+  });
+});
+
 test("mode shows the level of running work and switches it with --yes, at each run's next gate", async () => {
   const { root, state, cli } = setup();
   expect((await cli("mode")).out).toContain("follows each project's level; the default is supervised");

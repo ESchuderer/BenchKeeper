@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { delimiter, isAbsolute, join, relative, sep } from "node:path";
 import type { Finding } from "@cedarloom/contracts";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
 import { type Folder, hasContainer, type Resolved } from "@cedarloom/profiles";
@@ -14,19 +14,30 @@ type TemplateRequest = {
 /** Applies a Template into an empty folder; why it failed, or null. */
 export type ApplyTemplate = (folder: string, request: TemplateRequest) => Promise<string | null>;
 
+// The CLI's file in an absolute folder of PATH, as a relative one would follow the current folder.
+const cliFile = (env: Record<string, string>): string | undefined =>
+  (env["PATH"] ?? "")
+    .split(delimiter)
+    .filter((folder) => isAbsolute(folder))
+    .map((folder) => join(folder, "devcontainer"))
+    .find((file) => existsSync(file));
+
 /**
- * `devcontainer templates apply` of the Dev Containers CLI, without a shell, with the network settings and Docker's
- * registry logins (DOCKER_CONFIG) and nothing else of the environment, stopped after 2 minutes. shortcut: on Windows npm installs the CLI as a .cmd, which runs only
- * through a shell, so a dev container part fails there; due once CedarLoom runs the CLI's own script with Node.
+ * `devcontainer templates apply` of the Dev Containers CLI, run by its file without a shell, with the network settings
+ * and Docker's registry logins (DOCKER_CONFIG) and nothing else of the environment, stopped after 2 minutes.
+ * shortcut: on Windows npm installs the CLI as a .cmd, which runs only through a shell, so a dev container part reports
+ * the CLI missing there; due once CedarLoom runs the CLI's own script with Node.
  */
 export const devcontainerCli: ApplyTemplate = (folder, { template, args, features }) =>
   new Promise((done) => {
+    const env = cleanEnv(process.env, process.platform, [...NETWORK_SETTINGS, "DOCKER_CONFIG"]);
+    const file = cliFile(env);
+    if (file === undefined) return done("ENOENT: no devcontainer program in the absolute folders of PATH");
     const list = Object.entries(features).map(([id, options]) => ({ id, options }));
     const argv = ["templates", "apply", "--workspace-folder", folder, "--template-id", template];
     argv.push("--template-args", JSON.stringify(args), "--features", JSON.stringify(list));
-    const env = cleanEnv(process.env, process.platform, [...NETWORK_SETTINGS, "DOCKER_CONFIG"]);
     const options = { cwd: folder, env, windowsHide: true, timeout: 120_000, killSignal: "SIGKILL" as const };
-    execFile("devcontainer", argv, options, (error, _stdout, stderr) =>
+    execFile(file, argv, options, (error, _stdout, stderr) =>
       done(error === null ? null : stderr.trim().split("\n").at(-1) || error.message),
     );
   });

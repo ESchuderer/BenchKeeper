@@ -386,23 +386,34 @@ const reportRefusal = async (
 };
 
 type Passed = (node: string, point: GatePoint, level: AutomationLevel) => void;
-type GatedRun = GateRun & { readonly report: boolean; readonly firstRun: (node: string) => boolean };
+type GatedRun = GateRun & {
+  readonly report: boolean;
+  readonly trigger: string | undefined;
+  readonly firstRun: (node: string) => boolean;
+};
 
 /**
- * Whether `node` of a run is a command the owner has not approved in the run's workflow version and project yet, as on
- * the version's first run there: it waits at every level, so a pack's or teammate's workflow runs no command unseen.
+ * Whether `node` of a run is a command, or a trigger with a precheck, that the owner has not approved in the run's
+ * workflow version and project yet, as on the version's first run there: it waits at every level, so a pack's or
+ * teammate's workflow runs no command unseen.
  */
 const firstRun = (view: Pick<GraphView, "ownerApproved">, run: GraphRun, node: string): boolean =>
-  run.definition.nodes.some((each) => each.id === node && each.type === "command.run") &&
-  !view.ownerApproved(run.project, run.definitionHash, node);
+  run.definition.nodes.some(
+    (each) => each.id === node && (each.type === "command.run" || typeof each.with?.["precheck"] === "string"),
+  ) && !view.ownerApproved(run.project, run.definitionHash, node);
+
+// The id of a workflow's trigger, whose gate holds its precheck.
+const triggerOf = (workflow: WorkflowDefinition): string | undefined =>
+  workflow.nodes.find((each) => each.type.startsWith("trigger."))?.id;
 
 // The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
 // reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records. A
-// first run's command waits at every level.
+// first run's command waits at every level, and so does its precheck, which no level holds otherwise.
 const levelGates =
   (config: string, state: string, run: GatedRun, passed: Passed): Gates =>
   (point, node) => {
     if (run.report) return "pass";
+    if (node === run.trigger) return run.firstRun(node) ? "wait" : "pass";
     const read = levelAtGate(state, config, run);
     const level = read.ok ? read.value : "supervised";
     if (waitsAtGraphGate(level, point, run.firstRun(node) ? ["first-run"] : [])) return "wait";
@@ -455,7 +466,7 @@ const runHeld = async (
   // A record that fails comes from a lost lease, which the run's next event reports.
   const passed: Passed = (node, point, level) => void store.passGate(lease.runId, lease.epoch, { node, point, level });
   const unseen = (node: string): boolean => stored === undefined || firstRun(store, stored, node);
-  const gated = { project, startedAt, report: run.report, firstRun: unseen };
+  const gated = { project, startedAt, report: run.report, trigger: triggerOf(held.workflow), firstRun: unseen };
   const gates = config === undefined ? undefined : levelGates(config, state, gated, passed);
   try {
     const { signal, onEvent, sleep } = options;

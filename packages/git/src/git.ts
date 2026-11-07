@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
@@ -366,13 +366,16 @@ const listed = (listing: Buffer, path: string): boolean =>
     .some((line) => real(line.slice("worktree ".length)) === real(path));
 
 /**
- * The git folder a checkout shares with its main checkout, as an absolute path (`git rev-parse --git-common-dir`): a
- * linked worktree's own `.git` is a file, and its objects and refs live in the main checkout's folder.
+ * The git folder a checkout shares with its main checkout, as an absolute path (`git rev-parse --git-common-dir`, which
+ * gives it relative to `folder` or absolute): a linked worktree's own `.git` is a file, and its objects and refs live in
+ * the main checkout's folder.
  */
 export const commonDir = async (folder: string, program = "git"): Promise<Result<string>> => {
   const base = { program, cwd: folder, env: environment([]), timeoutMs: 60_000, maxBytes: 64 * 1024 };
-  const found = await run(["rev-parse", "--path-format=absolute", "--git-common-dir"], base);
-  return succeeded(found) ? { ok: true, value: found.stdout.toString("utf8").trim() } : failed("worktree", why(found));
+  const found = await run(["rev-parse", "--git-common-dir"], base);
+  return succeeded(found)
+    ? { ok: true, value: resolvePath(folder, found.stdout.toString("utf8").trim()) }
+    : failed("worktree", why(found));
 };
 
 /**

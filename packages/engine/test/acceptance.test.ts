@@ -6,7 +6,6 @@ import {
   existsSync,
   mkdirSync,
   openSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -16,7 +15,6 @@ import {
   writeFileSync,
   writeSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Operation } from "@cedarloom/contracts";
@@ -289,8 +287,10 @@ test.each(["create", "replace", "delete"])(
 test.skipIf(!posix)("a folder on the way swapped for a link after the plan is refused at the write", () => {
   const { store, root } = fresh();
   const real = realpathSync(root);
-  const [sub, outside] = [join(real, "sub"), mkdtempSync(join(tmpdir(), "cedarloom-outside-"))];
+  // The check compares real paths, so a folder beside the one it replaces stands for one outside the project.
+  const [sub, outside] = [join(real, "sub"), join(real, "outside")];
   mkdirSync(sub);
+  mkdirSync(outside);
   const op = { kind: "write", path: join(sub, "new", "file.md"), before: null, content: "x\n" } as const;
   const swap = (_: number, phase: string) => {
     if (phase !== "journaled") return;

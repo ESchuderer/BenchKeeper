@@ -283,10 +283,12 @@ const reportRefusal = (workflow: WorkflowDefinition): Finding | null => {
   return node === undefined ? null : { code: "run.sandbox-unavailable", params: { node: node.id } };
 };
 
-// A report run's command or precheck, as a stored run's that its start did not check: none runs outside an OS sandbox.
-const unsandboxed = (): Prepared => ({
+// What a report run's executors refuse, as a stored run's that its start did not check: a command or precheck outside an
+// OS sandbox, and a write, which the ledger also refuses to record. A refused precheck counts as not passed: the run ends
+// skipped.
+const refusing = (code: string) => (): Prepared => ({
   pid: null,
-  run: () => Promise.resolve({ ok: false, values: { error: "run.sandbox-unavailable" } }),
+  run: () => Promise.resolve({ ok: false, values: { error: code } }),
 });
 
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.
@@ -315,9 +317,9 @@ const runHeld = async (
   const { project, state, agents } = options;
   const run = { state, runId: lease.runId, project, report: options.report === true };
   const executors: Executors = {
-    "command.run": run.report ? unsandboxed : command(shell, project),
+    "command.run": run.report ? refusing("run.sandbox-unavailable") : command(shell, project),
     "file.read": fileRead(project),
-    "file.write": fileWrite(project, state),
+    "file.write": run.report ? refusing("run.report-only-apply") : fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
   };
   // An agent attempt a dead runner left ends with its result or resumes its session, and a write ends with its apply

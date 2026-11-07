@@ -509,7 +509,7 @@ test("a write into folders that are not there yet makes them, below the project"
   ]);
 });
 
-test("a write that cannot record its apply run on its attempt writes nothing, as under a report run", async () => {
+test("a stored report run's write that its start did not check writes nothing and asks for no approval", async () => {
   // Without a command, which a report run runs none of.
   const at = project([{ id: "out", type: "file.write", with: { path: "out.txt" } }], "t.start>out.run");
   writeFileSync(join(at.root, "out.txt"), "old");
@@ -520,13 +520,14 @@ test("a write that cannot record its apply run on its attempt writes nothing, as
   const created = graphs.value.create({ ...base, definition, mode: "report", project: realpathSync(at.root) });
   created.release();
   graphs.value.close();
-  // The ledger refuses an apply run under a report run, so the attempt's record of it is refused.
-  expect(await resumeRun(at.state, created.runId, at.options)).toMatchObject({ value: { status: "waiting" } });
-  const decided = await decideRun(at.state, created.runId, { node: "out", approved: true }, at.options);
-  expect([decided, readFileSync(join(at.root, "out.txt"), "utf8")]).toMatchObject([
-    { ok: false, finding: { code: "run.report-only-apply" } },
-    "old",
-  ]);
+  // The executor refuses before it plans, so no gate waits; the ledger would refuse the apply run's record too.
+  expect(await resumeRun(at.state, created.runId, at.options)).toMatchObject({ value: { status: "failed" } });
+  expect(eventsOf(at.state, created.runId).find((event) => event.type === "ended")).toMatchObject({
+    node: "out",
+    outcome: "failed",
+    values: { error: "run.report-only-apply" },
+  });
+  expect(readFileSync(join(at.root, "out.txt"), "utf8")).toBe("old");
 });
 
 // A run of the write workflow whose runner died in the write: its journal ends with the record of the apply run

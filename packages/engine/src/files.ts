@@ -207,6 +207,8 @@ export const writeStep = (
 ): void => {
   const { path, before, temp, aside } = target;
   // Checked before the missing folders are made, which would follow a link, and again right before the write.
+  // shortcut: a swap between the second check and the temp file's open still redirects the write, and Node has no openat
+  // to close that window; open each folder on the way by its handle once Node has one.
   const way = (): void => {
     if (target.real && !realWay(path))
       throw Object.assign(new Error(`a link on the way to ${path}`), { code: "ELOOP" });

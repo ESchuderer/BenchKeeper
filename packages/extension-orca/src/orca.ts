@@ -97,9 +97,9 @@ const SELECTS = "1.4.252";
 const ACCOUNT_MS = 5000;
 
 /**
- * Orca's Claude accounts: the saved one new panes launch with (none: the System default, the default home's own login,
- * which follows claude-swap's switches) and the saved one signed in as the default home, matched by email and
- * organization inside this process, so no email leaves it (switching plan 3).
+ * Orca's Claude accounts: the saved one new panes on this host launch with (none: the System default, the default
+ * home's own login, which follows claude-swap's switches) and the host's saved one signed in as the default home,
+ * matched by email and organization inside this process, so no email leaves it (switching plan 3).
  */
 type ClaudeAccounts = { selected: string | null; home: string | null };
 
@@ -111,28 +111,38 @@ const claudeAccountsOf = async (context: Exec): Promise<ClaudeAccounts> => {
   const homes = accounts.filter(
     (each) =>
       typeof email === "string" &&
+      at(each, "managedAuthRuntime") === "host" &&
       String(at(each, "email")).toLowerCase() === email.toLowerCase() &&
       at(each, "organizationUuid") === organization,
   );
   const [selected, home] = [selectedOf(claude), homes.length === 1 ? at(homes[0], "id") : null];
   return { selected, home: typeof home === "string" ? home : null };
 };
-// The saved Claude account new panes on this host launch with, as Orca's account state names it.
+// The saved Claude account new panes on this host launch with, read as Orca's own account list reads it.
 const selectedOf = (claude: unknown): string | null => {
   const selected = at(claude, "activeAccountIdsByRuntime", "host") ?? at(claude, "activeAccountId");
   return typeof selected === "string" ? selected : null;
 };
 
-const SYSTEM = "system default";
+// How Orca's Claude panes pick their account, as status and follow name it.
 const modeOf = ({ selected, home }: ClaudeAccounts): string => {
-  if (selected === null) return SYSTEM;
-  return selected === home ? "managed, the default home's account" : "managed, another account";
+  if (selected === null) return "system";
+  return selected === home ? "managed-home" : "managed-other";
 };
 const FOLLOWS =
   "System default in Orca's Settings, AI Provider Accounts, follows claude-swap's auto mode without CedarLoom";
 
+// Why Orca cannot select the default home's saved account for its panes; none when it can.
+const unfollowable = ({ home }: ClaudeAccounts, version: string): string | undefined => {
+  if (home === null)
+    return `no saved Orca account signs in as the default home's account: add it in Orca, or ${FOLLOWS}`;
+  if (olderRelease(version, SELECTS) !== false)
+    return `managed mode cannot follow before Orca ${SELECTS}: update Orca, or ${FOLLOWS}`;
+  return undefined;
+};
+
 // While Orca runs: how its Claude panes pick their account; a warning when claude-swap's switches cannot reach them.
-const accountFindings = async (context: Exec): Promise<DoctorFinding[]> => {
+const accountFindings = async (context: Exec, version: string): Promise<DoctorFinding[]> => {
   let accounts: ClaudeAccounts;
   try {
     accounts = await claudeAccountsOf(context);
@@ -154,7 +164,8 @@ const accountFindings = async (context: Exec): Promise<DoctorFinding[]> => {
     const later = `Orca's Claude panes use the saved account signed in as the default home; claude-swap's own later switches reach them only through cedarloom orca follow. ${FOLLOWS}.`;
     return [finding("info", "orca.accounts-managed", later)];
   }
-  const other = `Orca's Claude panes use a saved account other than the default home's, so claude-swap's switches do not reach them: run cedarloom orca follow. ${FOLLOWS}.`;
+  const fix = unfollowable(accounts, version) ?? `run cedarloom orca follow, or ${FOLLOWS}`;
+  const other = `Orca's Claude panes use a saved account other than the default home's, so claude-swap's switches do not reach them: ${fix}.`;
   return [finding("warning", "orca.accounts-elsewhere", other)];
 };
 
@@ -175,7 +186,9 @@ export const doctor = async (context: Exec, platform: string = process.platform)
   const state = found.running
     ? finding("info", "orca.running", `Orca ${found.version} is running.`)
     : finding("info", "orca.not-running", `Orca ${found.version} is installed and not running.`);
-  const running = found.running ? [...(await skillFindings(context)), ...(await accountFindings(context))] : [];
+  const running = found.running
+    ? (await Promise.all([skillFindings(context), accountFindings(context, found.version)])).flat()
+    : [];
   return [state, ...versionWarnings(found.version), ...running];
 };
 
@@ -186,7 +199,9 @@ export const doctor = async (context: Exec, platform: string = process.platform)
 export const status = async (context: Exec): Promise<Record<string, unknown>> => {
   const found = await probe(context);
   if (!found.installed) return { installed: false, running: false };
-  return found.running ? { ...found, claudeAccounts: modeOf(await claudeAccountsOf(context)) } : { ...found };
+  // The doctor says why an account list does not read; status keeps what it knows.
+  const accounts = found.running ? await claudeAccountsOf(context).catch(() => null) : null;
+  return accounts === null ? { ...found } : { ...found, claudeAccounts: modeOf(accounts) };
 };
 
 /**
@@ -203,17 +218,8 @@ export const follow = async ({
   const accounts = await claudeAccountsOf({ exec });
   const mode = modeOf(accounts);
   if (accounts.selected === null || accounts.selected === accounts.home) return { mode, followed: true };
-  if (accounts.home === null) {
-    const hint = `no saved Orca account signs in as the default home's account: add it in Orca, or ${FOLLOWS}`;
-    return { mode, followed: false, hint };
-  }
-  if (olderRelease(found.version, SELECTS) !== false) {
-    return {
-      mode,
-      followed: false,
-      hint: `managed mode cannot follow before Orca ${SELECTS}: update Orca, or ${FOLLOWS}`,
-    };
-  }
+  const hint = unfollowable(accounts, found.version);
+  if (hint !== undefined || accounts.home === null) return { mode, followed: false, hint };
   const args = ["account", "select", "--agent", "claude", "--account", accounts.home];
   if (!allowed(config, "orca"))
     return { mode, followed: false, runs: `orca ${args.join(" ")}`, approve: "cedarloom orca follow --allow orca" };

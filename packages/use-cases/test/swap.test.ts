@@ -106,7 +106,7 @@ const code = (result: { ok: boolean }) =>
   result.ok ? Reflect.get(result, "value") : Reflect.get(result, "finding").code;
 
 // Orca's managed Claude account as the switch left it.
-const MANAGED = { mode: "managed, another account" };
+const MANAGED = { mode: "managed-other" };
 const orca = (followed: boolean) => ({ ok: true, value: { ...MANAGED, followed } });
 
 test("interactive sessions switch to an account by its claude-swap alias, never onto one CedarLoom workers run on, and Orca's managed account follows under the same approval; the policy is claude-swap's auto mode's", async () => {

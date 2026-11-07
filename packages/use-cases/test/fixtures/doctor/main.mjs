@@ -15,7 +15,7 @@ const answers = {
   }),
   "action/run": ({ config }) =>
     orca
-      ? { outputs: { mode: "managed, another account", followed: config.allow.includes("orca") } }
+      ? { outputs: { mode: "managed-other", followed: config.allow.includes("orca") } }
       : { outputs: { ready: true } },
   // claude-swap's three accounts, read just now: one by the alias work, one by another alias, one without.
   "target/probe": () => ({ status: "supported", detail: "fixture" }),

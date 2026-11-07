@@ -15,7 +15,7 @@ const [HOME, OTHER] = ["00000000-0000-4000-8000-000000000001", "00000000-0000-40
 const selecting = (id: string, email = "Home@example.com"): string =>
   SYSTEM.replace('"host": null', `"host": "${id}"`).replace('"Home@example.com"', `"${email}"`);
 const orca =
-  (version: string, answer: string, code = 0, skills = recorded("skills-installed.json"), accounts = SYSTEM) =>
+  (version: string, answer: string, { code = 0, skills = recorded("skills-installed.json"), accounts = SYSTEM } = {}) =>
   async ({ args }: ExecParams): Promise<ExecResult> => {
     const own: Record<string, string> = { "--version": version, skills, account: accounts };
     const stdout = own[args?.[0] ?? ""];
@@ -39,7 +39,7 @@ test("each probe outcome gives its finding, a major version not checked with or 
     await doctor({ exec: orca("1.5.0\n", running) }, "darwin"),
     await doctor({ exec: orca("2.0.1\n", running) }, "darwin"),
     await doctor({ exec: orca("Orca 2.0.0\n", running) }, "darwin"),
-    await doctor({ exec: orca(version, "", 1) }, "darwin"),
+    await doctor({ exec: orca(version, "", { code: 1 }) }, "darwin"),
     await doctor({ exec: orca(version, running) }, "win32"),
   ];
   expect(findings.map(codes)).toEqual([
@@ -76,7 +76,7 @@ test("while Orca runs, the doctor finds the Orca skills Claude Code lacks, and w
   );
   const neither = listed({ name: "tdd", providers: ["claude"] });
   const findings = await Promise.all(
-    [codexOnly, neither, "{}"].map((skills) => doctor({ exec: orca(version, running, 0, skills) }, "darwin")),
+    [codexOnly, neither, "{}"].map((skills) => doctor({ exec: orca(version, running, { skills }) }, "darwin")),
   );
   expect(findings.map(codes)).toEqual([
     [
@@ -103,12 +103,14 @@ test("the status action says whether Orca is installed, its version, whether it 
     await status({ exec: missing }),
     await status({ exec: orca(version, recorded("status-not-running.json")) }),
     await status({ exec: orca(version, running) }),
-    (await status({ exec: orca(version, running, 0, undefined, selecting(OTHER)) }))["claudeAccounts"],
+    (await status({ exec: orca(version, running, { accounts: selecting(OTHER) }) }))["claudeAccounts"],
+    await status({ exec: orca(version, running, { accounts: "{}" }) }),
   ]).toEqual([
     { installed: false, running: false },
     { installed: true, version: "1.4.251", running: false },
-    { installed: true, version: "1.4.251", running: true, claudeAccounts: "system default" },
-    "managed, another account",
+    { installed: true, version: "1.4.251", running: true, claudeAccounts: "system" },
+    "managed-other",
+    { installed: true, version: "1.4.251", running: true },
   ]);
 });
 
@@ -116,7 +118,7 @@ test("while Orca runs, the doctor says how its Claude panes pick their account, 
   const [version, running] = [recorded("version.txt"), recorded("status-running.json")];
   const findings = await Promise.all(
     [selecting(HOME), selecting(OTHER), selecting(HOME, "nobody@example.com"), "{}"].map((accounts) =>
-      doctor({ exec: orca(version, running, 0, undefined, accounts) }, "darwin"),
+      doctor({ exec: orca(version, running, { accounts }) }, "darwin"),
     ),
   );
   expect(findings.map((each) => codes(each).at(-1))).toEqual([
@@ -165,26 +167,38 @@ test("follow selects the saved account signed in as the default home for new Cla
     [system, home, shown].map(({ selects }) => selects().length),
     other.selects(),
   ]).toEqual([
-    { mode: "system default", followed: true },
-    { mode: "managed, the default home's account", followed: true },
+    { mode: "system", followed: true },
+    { mode: "managed-home", followed: true },
     { runs: `orca account select --agent claude --account ${HOME}`, approve: "cedarloom orca follow --allow orca" },
-    { mode: "managed, the default home's account", followed: true },
+    { mode: "managed-home", followed: true },
     [0, 0, 0],
     [["account", "select", "--agent", "claude", "--account", HOME, "--json"]],
   ]);
 });
 
-test("follow selects nothing before Orca 1.4.252, without a saved account signed in as the default home, or while Orca is not running; a select that leaves another account fails", async () => {
+test("follow selects nothing before Orca 1.4.252, without a host account signed in as the default home, or while Orca is not running; a select that leaves another account fails", async () => {
   const allow = { allow: ["orca"] };
   const older = accountsOrca("1.4.251", selecting(OTHER));
   const unknown = accountsOrca("1.4.252", selecting(OTHER, "nobody@example.com"));
+  // The default home's account saved for a WSL distro, not for this host's panes.
+  const wsl = accountsOrca(
+    "1.4.252",
+    selecting(OTHER).replace('"managedAuthRuntime": "host"', '"managedAuthRuntime": "wsl"'),
+  );
   const stuck = accountsOrca("1.4.252", selecting(OTHER), OTHER);
   const stopped = orca(recorded("version.txt"), recorded("status-not-running.json"));
   expect([
     Object.keys(await follow({ exec: older.exec, config: allow })).toSorted(),
     Object.keys(await follow({ exec: unknown.exec, config: allow })).toSorted(),
+    Object.keys(await follow({ exec: wsl.exec, config: allow })).toSorted(),
     (await follow({ exec: stopped, config: allow }))["followed"],
-    [older, unknown].map(({ selects }) => selects().length),
-  ]).toEqual([["followed", "hint", "mode"], ["followed", "hint", "mode"], false, [0, 0]]);
+    [older, unknown, wsl].map(({ selects }) => selects().length),
+  ]).toEqual([
+    ["followed", "hint", "mode"],
+    ["followed", "hint", "mode"],
+    ["followed", "hint", "mode"],
+    false,
+    [0, 0, 0],
+  ]);
   await expect(follow({ exec: stuck.exec, config: allow })).rejects.toThrow(HOME);
 });

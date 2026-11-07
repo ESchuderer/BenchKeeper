@@ -311,14 +311,10 @@ export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?
     done === null
       ? `Switches interactive sessions to ${name}: cswap switch ${number}${orcaLine}\nNothing changed. Run the command again with --yes.`
       : `Interactive sessions ${outcome} ${name} (claude-swap account ${number}).${orcaLine}`;
-  const data = {
-    account: name,
-    number,
-    switched: done,
-    orca: orca?.ok === true ? orca.value : (orca?.finding ?? null),
-  };
-  emit(ctx, "accounts-switch", data, human);
-  return EXIT.ok;
+  const followed = orca?.ok === false ? { finding: orca.finding } : orca && { outputs: orca.value };
+  emit(ctx, "accounts-switch", { account: name, number, switched: done, orca: followed }, human);
+  // The approval covered both: Orca's failed follow fails the command, though claude-swap's switch stays.
+  return orca?.ok === false ? EXIT.refused : EXIT.ok;
 };
 
 // What Orca's managed Claude account did, or does with --yes; nothing while its panes use the System default or Orca
@@ -327,8 +323,8 @@ const orcaFollowed = (orca: Result<Record<string, unknown>> | null, preview: boo
   if (orca === null) return "";
   if (!orca.ok) return `\nOrca's Claude account did not follow: ${describe(orca.finding)}`;
   const { mode, followed, hint } = orca.value;
-  if (typeof mode !== "string" || mode === "system default") return "";
-  if (preview) return "\nOrca uses managed accounts: its Claude account follows (orca account select).";
+  if (typeof mode !== "string" || mode === "system") return "";
+  if (preview) return "\nOrca uses managed accounts: with --yes, cedarloom orca follow runs too.";
   if (followed === true) return "\nOrca's new Claude panes use it too.";
   return `\nOrca's Claude account did not follow: ${String(hint)}`;
 };

@@ -26,14 +26,17 @@
           "running": { "type": "boolean", "description": "Its app runs and its runtime answers" },
           "claudeAccounts": {
             "type": "string",
-            "description": "How its Claude panes pick their account: system default, or managed; absent while it is not running"
+            "description": "How its Claude panes pick their account: system, managed-home or managed-other; absent while it is not running or its list does not read"
           }
         }
       },
       "follow": {
         "title": "Orca's Claude account follows the default home's",
         "outputs": {
-          "mode": { "type": "string", "description": "How Orca's Claude panes pick their account" },
+          "mode": {
+            "type": "string",
+            "description": "How Orca's Claude panes pick their account: system, managed-home or managed-other"
+          },
           "followed": { "type": "boolean", "description": "New Claude panes use the default home's account" },
           "runs": { "type": "string", "description": "The command it runs once allowed" },
           "approve": { "type": "string", "description": "The command line that allows it" },

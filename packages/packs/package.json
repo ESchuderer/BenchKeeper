@@ -1,0 +1,33 @@
+{
+  "name": "@cedarloom/packs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CedarLoom's packs: the bundled cedarloom.core pack with its rules, templates and the default profile.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "bundled"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "devDependencies": {
+    "@cedarloom/contracts": "workspace:*"
+  }
+}

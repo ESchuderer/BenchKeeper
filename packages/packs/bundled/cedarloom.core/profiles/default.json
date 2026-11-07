@@ -5,25 +5,42 @@
   "version": "0.1.0",
   "name": "The CedarLoom way",
   "description": "Claude Code with the CedarLoom, Ponytail and Matt Pocock plugins and CedarLoom's rules; a hub repository for issues and owner questions; a memory repository; project rules, gates and the dev container command.",
-  "license": "ISC",
+  "license": "MIT",
   "minApp": "0.1.0",
   "agents": ["claude-code"],
-  "packs": { "cedarloom.core": { "bundled": true } },
+  "packs": {
+    "cedarloom.core": {
+      "bundled": true
+    }
+  },
   "machine": {
     "plugin.cedarloom": {
       "type": "plugin",
       "title": "CedarLoom workflow plugin",
       "default": "on",
       "plugin": "cedarloom@cedarloom",
-      "marketplace": { "name": "cedarloom", "git": "https://github.com/cedarloom/cedarloom.git", "ref": "stable" }
+      "marketplace": {
+        "name": "cedarloom",
+        "git": "https://github.com/cedarloom/cedarloom.git",
+        "ref": "stable"
+      }
     },
     "plugin.ponytail": {
       "type": "plugin",
       "title": "Ponytail, level full",
       "default": "on",
       "plugin": "ponytail@ponytail",
-      "marketplace": { "name": "ponytail", "github": "DietrichGebert/ponytail", "autoUpdate": false },
-      "options": { "file": ".config/ponytail/config.json", "set": { "defaultMode": "full" } }
+      "marketplace": {
+        "name": "ponytail",
+        "github": "DietrichGebert/ponytail",
+        "autoUpdate": false
+      },
+      "options": {
+        "file": ".config/ponytail/config.json",
+        "set": {
+          "defaultMode": "full"
+        }
+      }
     },
     "plugin.matt-pocock": {
       "type": "plugin",
@@ -35,21 +52,43 @@
       "type": "skill",
       "title": "find-skills",
       "default": "on",
-      "source": { "git": "https://github.com/vercel-labs/skills.git", "ref": "main", "path": "skills/find-skills" }
+      "source": {
+        "git": "https://github.com/vercel-labs/skills.git",
+        "ref": "main",
+        "path": "skills/find-skills"
+      }
     },
-    "skill.orca": {
+    "skill.orca-cli": {
+      "type": "skill",
+      "title": "Orca CLI skill",
+      "default": "auto",
+      "when": "orca",
+      "source": {
+        "git": "https://github.com/stablyai/orca.git",
+        "ref": "main",
+        "path": "skills/orca-cli"
+      }
+    },
+    "skill.orchestration": {
       "type": "skill",
       "title": "Orca orchestration skill",
       "default": "auto",
       "when": "orca",
-      "source": { "git": "https://github.com/stablyai/orca.git", "ref": "main", "path": "skills/orchestration" }
+      "source": {
+        "git": "https://github.com/stablyai/orca.git",
+        "ref": "main",
+        "path": "skills/orchestration"
+      }
     },
     "rules.global": {
       "type": "rules",
       "title": "Global rules",
       "default": "on",
       "file": "00-global.md",
-      "text": { "pack": "cedarloom.core", "path": "rules/global.md" }
+      "text": {
+        "pack": "cedarloom.core",
+        "path": "rules/global.md"
+      }
     },
     "settings.claude-code": {
       "type": "settings",
@@ -58,7 +97,10 @@
       "set": {
         "autoUpdatesChannel": "stable",
         "showClearContextOnPlanAccept": true,
-        "attribution": { "commit": "", "pr": "" },
+        "attribution": {
+          "commit": "",
+          "pr": ""
+        },
         "autoMemoryEnabled": false,
         "feedbackDrafts": "off",
         "env": {
@@ -76,24 +118,44 @@
       "title": "Hub repository: issues, triage labels and owner questions",
       "default": "on",
       "labels": {
-        "needs-triage": { "color": "f9d0c4" },
-        "needs-info": { "color": "b60205" },
-        "ready-for-agent": { "color": "fef2c0" },
-        "ready-for-human": { "color": "1d76db" },
-        "wontfix": { "color": "ffffff", "description": "This will not be worked on" },
+        "needs-triage": {
+          "color": "f9d0c4"
+        },
+        "needs-info": {
+          "color": "b60205"
+        },
+        "ready-for-agent": {
+          "color": "fef2c0"
+        },
+        "ready-for-human": {
+          "color": "1d76db"
+        },
+        "wontfix": {
+          "color": "ffffff",
+          "description": "This will not be worked on"
+        },
         "question": {
           "color": "d876e3",
           "description": "Owner decision needed: tick an option or comment, then set ready-for-agent"
         }
       },
-      "projectLabel": { "prefix": "project:", "color": "1d76db" },
-      "rules": { "pack": "cedarloom.core", "path": "rules/questions.md" }
+      "projectLabel": {
+        "prefix": "project:",
+        "color": "1d76db"
+      },
+      "rules": {
+        "pack": "cedarloom.core",
+        "path": "rules/questions.md"
+      }
     },
     "memory": {
       "type": "memory",
       "title": "Memory repository and its loader",
       "default": "on",
-      "scaffold": { "pack": "cedarloom.core", "path": "templates/memory" },
+      "scaffold": {
+        "pack": "cedarloom.core",
+        "path": "templates/memory"
+      },
       "loader": true
     }
   },
@@ -104,16 +166,31 @@
       "default": "on",
       "claudeImport": true,
       "rules": [
-        { "pack": "cedarloom.core", "path": "rules/project.md" },
-        { "pack": "cedarloom.core", "path": "rules/family.md" },
-        { "pack": "cedarloom.core", "path": "rules/tests.md" }
+        {
+          "pack": "cedarloom.core",
+          "path": "rules/project.md"
+        },
+        {
+          "pack": "cedarloom.core",
+          "path": "rules/family.md"
+        },
+        {
+          "pack": "cedarloom.core",
+          "path": "rules/tests.md"
+        }
       ]
     },
     "local-manual": {
       "type": "local-manual",
-      "title": "Machine-local lines: tracker and dev container command",
+      "title": "Machine-local line: where issues and owner questions go",
       "default": "on",
-      "rules": [{ "pack": "cedarloom.core", "path": "rules/local.md" }]
+      "requires": ["workspace.hub"],
+      "rules": [
+        {
+          "pack": "cedarloom.core",
+          "path": "rules/local.md"
+        }
+      ]
     },
     "agent-docs": {
       "type": "files",
@@ -122,9 +199,18 @@
       "commit": true,
       "requires": ["workspace.hub"],
       "files": {
-        "docs/agents/issue-tracker.md": { "pack": "cedarloom.core", "path": "templates/issue-tracker.md" },
-        "docs/agents/triage-labels.md": { "pack": "cedarloom.core", "path": "templates/triage-labels.md" },
-        "docs/agents/domain.md": { "pack": "cedarloom.core", "path": "templates/domain.md" }
+        "docs/agents/issue-tracker.md": {
+          "pack": "cedarloom.core",
+          "path": "templates/issue-tracker.md"
+        },
+        "docs/agents/triage-labels.md": {
+          "pack": "cedarloom.core",
+          "path": "templates/triage-labels.md"
+        },
+        "docs/agents/domain.md": {
+          "pack": "cedarloom.core",
+          "path": "templates/domain.md"
+        }
       }
     },
     "dc-wrapper": {
@@ -133,7 +219,25 @@
       "default": "auto",
       "when": "devcontainer",
       "commit": false,
-      "files": { "scripts/dc": { "pack": "cedarloom.core", "path": "templates/dc.sh" } }
+      "files": {
+        "scripts/dc": {
+          "pack": "cedarloom.core",
+          "path": "templates/dc.sh"
+        }
+      }
+    },
+    "dc-line": {
+      "type": "local-manual",
+      "title": "Machine-local line: the dev container command",
+      "default": "auto",
+      "when": "devcontainer",
+      "rules": [
+        {
+          "pack": "cedarloom.core",
+          "path": "rules/dc.md"
+        }
+      ],
+      "requires": ["project.dc-wrapper"]
     },
     "guards": {
       "type": "settings",
@@ -147,11 +251,10 @@
             "Bash(git commit -n*)",
             "Bash(git commit * -n*)",
             "Bash(git push *--no-verify*)",
-            "Bash(git push -n*)",
-            "Bash(git push * -n*)",
             "Bash(git push *--force*)",
             "Bash(git push -f*)",
             "Bash(git push * -f*)",
+            "Bash(git push * +*)",
             "Bash(sudo *)",
             "Bash(terraform apply *)",
             "Bash(kubectl apply *)",
@@ -160,7 +263,12 @@
         }
       }
     },
-    "tier": { "type": "tier", "title": "Default tier: the agent picks per request", "default": "on", "tier": null },
+    "tier": {
+      "type": "tier",
+      "title": "Default tier: the agent picks per request",
+      "default": "on",
+      "tier": null
+    },
     "gates": {
       "type": "gates",
       "title": "CI gates from your reusable workflows, Dependabot with a 3-day cooldown",
@@ -175,10 +283,21 @@
       "when": "orca",
       "commit": false,
       "files": {
-        "orca.yaml": { "pack": "cedarloom.core", "path": "templates/orca.yaml" },
-        ".worktreeinclude": { "pack": "cedarloom.core", "path": "templates/worktreeinclude" }
+        "orca.yaml": {
+          "pack": "cedarloom.core",
+          "path": "templates/orca.yaml"
+        },
+        ".worktreeinclude": {
+          "pack": "cedarloom.core",
+          "path": "templates/worktreeinclude"
+        }
       }
     },
-    "packs": { "type": "packs", "title": "Skill packs for this project", "default": "on", "packs": [] }
+    "packs": {
+      "type": "packs",
+      "title": "Skill packs for this project",
+      "default": "on",
+      "packs": []
+    }
   }
 }

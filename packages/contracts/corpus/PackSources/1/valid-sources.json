@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.pack-sources",
+  "sources": {
+    "[\"https://github.com/acme/skills.git\",\"main\",\"skills/review\"]": {
+      "commit": "9b2e4c1f0a8d7e6b5c4a3f2e1d0c9b8a7f6e5d4c",
+      "digest": "4f5e6d7c8b9a0f1e2d3c4b5a69788796a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0",
+      "seen": { "commit": "0123456789abcdef0123456789abcdef01234567", "at": "2026-11-06T12:00:00.000Z" }
+    }
+  }
+}

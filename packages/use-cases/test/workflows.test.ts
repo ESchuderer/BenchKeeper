@@ -13,10 +13,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { type Json, WorkflowDefinition } from "@cedarloom/contracts";
+import { type Json, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { OUTPUT_CAP } from "@cedarloom/engine";
-import { openGraphStore } from "@cedarloom/ledger";
+import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import {
+  applyPlan,
   cancelRun,
   decideRun,
   listGraphRuns,
@@ -486,4 +487,59 @@ test("a write that cannot record its apply run on its attempt writes nothing, as
   expect(await resumeRun(at.state, created.runId, at.options)).toMatchObject({ value: { status: "waiting" } });
   const decided = await decideRun(at.state, created.runId, { node: "out", approved: true }, at.options);
   expect([decided, at.text()]).toMatchObject([{ ok: false, finding: { code: "run.report-only-apply" } }, "old"]);
+});
+
+// A run of the write workflow whose runner died in the write: its journal ends with the record of the apply run
+// `applyRun`.
+const diedInWrite = (at: ReturnType<typeof writing>, applyRun: string): string => {
+  const graphs = openGraphStore(at.state);
+  if (!graphs.ok) throw new Error(graphs.finding.code);
+  const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
+  const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const created = graphs.value.create({ ...base, definition, project: realpathSync(at.root) });
+  for (const event of [
+    { type: "started", node: "say", attempt: 1, pid: null },
+    { type: "ended", node: "say", attempt: 1, outcome: "done", values: { stdout: "new" } },
+    { type: "started", node: "out", attempt: 1, pid: null },
+    { type: "applying", node: "out", attempt: 1, applyRun },
+  ] as const) {
+    graphs.value.append(created.runId, created.epoch, event);
+  }
+  created.release();
+  graphs.value.close();
+  return created.runId;
+};
+const newOut = (at: ReturnType<typeof writing>): Plan => {
+  const path = join(realpathSync(at.root), "out.txt");
+  return { schemaVersion: 1, operations: [{ kind: "write", path, before: sha256("old"), content: "new" }] };
+};
+
+test("a write whose runner died after its apply run applied ends done on a takeover, and applies nothing again", async () => {
+  const at = writing();
+  const applied = applyPlan(at.state, newOut(at), { yes: true });
+  const applyRun = applied.ok ? (applied.value.runId ?? "") : "";
+  const resumed = await resumeRun(at.state, diedInWrite(at, applyRun), at.options);
+  expect([resumed, at.text(), listRuns(at.state)]).toMatchObject([
+    { value: { status: "succeeded" } },
+    "new",
+    { value: [{ id: applyRun, status: "applied" }] },
+  ]);
+});
+
+test("a write whose runner died before its apply run applied ends interrupted on a takeover (Q4)", async () => {
+  const at = writing();
+  // An apply run that began and never finished: the next open of the store marks it interrupted.
+  const store = openRunStore(at.state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const plan = newOut(at);
+  const begun = store.value.begin("apply", plan, planHash(plan));
+  store.value.close();
+  const runId = diedInWrite(at, begun.ok ? begun.value : "");
+  const resumed = await resumeRun(at.state, runId, at.options);
+  const ended = eventsOf(at.state, runId).find((event) => event.type === "ended" && event.node === "out");
+  expect([resumed, ended, at.text()]).toMatchObject([
+    { value: { status: "failed" } },
+    { outcome: "interrupted" },
+    "old",
+  ]);
 });

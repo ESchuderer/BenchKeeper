@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -592,15 +594,35 @@ test("cancel after the CLI has exited stops nothing, as its process ID may belon
 
 // Windows has no SIGTERM to ignore: taskkill /F ends the CLI at once.
 test.skipIf(process.platform === "win32")(
-  "cancel kills a CLI that ignores SIGTERM after the grace period",
+  "cancel kills a CLI that ignores SIGTERM after the grace period, with the commands of its process group",
   async () => {
     const stuck = claudeRuntime([process.execPath, join(fixtures, "fake-claude.ts")], 50);
-    const session = stuck.start(launch({ FAKE_STUCK: "1", FAKE_HANG: "1" }));
-    // Its first line comes after it set SIGTERM aside.
-    for await (const event of session.events) if (event.type === "other") break;
+    const session = stuck.start(launch({ FAKE_STUCK: "1", FAKE_HANG: "1", FAKE_GROUPED: "1" }));
+    // The grouped command's line comes after the fake set SIGTERM aside.
+    let pid: number | undefined;
+    for await (const event of session.events) {
+      pid = Grouped.safeParse(event.type === "other" ? event.raw : null).data?.pid;
+      if (pid !== undefined) break;
+    }
     await expect(session.cancel()).resolves.toBeUndefined();
+    await vi.waitFor(() => expect(() => process.kill(pid ?? -1, 0)).toThrow("ESRCH"), { timeout: 3000 });
   },
 );
+
+const Grouped = z.object({ type: z.literal("grouped"), pid: z.int() });
+
+// On Windows a dead host's job object ends the CLI only, not its commands (hub issue 142): this holds for POSIX.
+test.skipIf(process.platform === "win32")("a host that dies leaves none of its CLI's processes running", async () => {
+  const host = spawn(process.execPath, [join(fixtures, "host.ts")], { stdio: ["ignore", "pipe", "inherit"] });
+  const [line] = await once(host.stdout, "data");
+  const pids = z.object({ cli: z.int(), command: z.int(), grouped: z.int() }).parse(JSON.parse(String(line)));
+  host.kill("SIGKILL");
+  await once(host, "exit");
+  // The command in a group of its own goes as the CLI stops it on SIGTERM, the grouped one with the group.
+  for (const pid of [pids.cli, pids.command, pids.grouped]) {
+    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow("ESRCH"), { timeout: 3000 });
+  }
+});
 
 test("stops a CLI that writes a line past the cap, before the host runs out of string length", async () => {
   const all = await events(runtime.start(launch({ FAKE_LONG: String(65 * 1024 * 1024), FAKE_HANG: "1" })));

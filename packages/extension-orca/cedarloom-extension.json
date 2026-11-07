@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.extension",
+  "id": "cedarloom.orca",
+  "version": "0.0.0",
+  "name": "Orca",
+  "description": "Whether Orca, the multi-agent IDE, is installed and running.",
+  "license": "MIT",
+  "api": "1.0",
+  "runtime": { "kind": "node", "entry": "main.mjs" },
+  "capabilities": {
+    "programs": {
+      "orca": {
+        "darwin": ["orca", "~/.local/bin/orca"],
+        "linux": ["orca-ide", "~/.local/bin/orca-ide", "~/.config/orca/linux-orca-cli-shim/orca"]
+      }
+    }
+  },
+  "contributes": {
+    "actions": {
+      "status": {
+        "title": "Orca status",
+        "outputs": {
+          "installed": { "type": "boolean" },
+          "version": { "type": "string", "description": "Absent when Orca is not installed" },
+          "running": { "type": "boolean", "description": "Its app runs and its runtime answers" }
+        }
+      }
+    },
+    "doctor": { "orca": { "title": "Orca" } },
+    "commands": ["status"]
+  }
+}

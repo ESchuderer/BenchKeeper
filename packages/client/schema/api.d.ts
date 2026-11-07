@@ -1293,7 +1293,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -1301,7 +1301,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */
@@ -1321,8 +1321,19 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.finding";
+            params: {
+                extension: string;
+                check: string;
+                /** @enum {string} */
+                severity: "error" | "warning" | "info";
+                code: string;
+                message: string;
             };
         } | {
             /** @constant */
@@ -1368,6 +1379,74 @@ export interface components {
             params: {
                 pack: string;
                 files: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.entry-unknown";
+            params: {
+                pack: string;
+                path: string;
+                /** @enum {string} */
+                kind: "rules" | "template" | "profile";
+            };
+        } | {
+            /** @constant */
+            code: "profile.app-too-old";
+            params: {
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-unknown";
+            params: {
+                part: string;
+                by: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-requires";
+            params: {
+                part: string;
+                requires: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.owner-changed";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.placeholder-unknown";
+            params: {
+                at: string;
+                placeholder: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-missing";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */
@@ -2175,7 +2254,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off";
+                reason: "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "off" | "programs";
             };
         } | {
             /** @constant */
@@ -2183,7 +2262,7 @@ export interface components {
             params: {
                 extension: string | null;
                 /** @enum {string} */
-                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved";
+                reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved" | "programs";
             };
         } | {
             /** @constant */
@@ -2203,8 +2282,19 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "extension.finding";
+            params: {
+                extension: string;
+                check: string;
+                /** @enum {string} */
+                severity: "error" | "warning" | "info";
+                code: string;
+                message: string;
             };
         } | {
             /** @constant */
@@ -2250,6 +2340,74 @@ export interface components {
             params: {
                 pack: string;
                 files: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.entry-unknown";
+            params: {
+                pack: string;
+                path: string;
+                /** @enum {string} */
+                kind: "rules" | "template" | "profile";
+            };
+        } | {
+            /** @constant */
+            code: "profile.app-too-old";
+            params: {
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-unknown";
+            params: {
+                part: string;
+                by: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.part-requires";
+            params: {
+                part: string;
+                requires: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.owner-changed";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.placeholder-unknown";
+            params: {
+                at: string;
+                placeholder: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-missing";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */

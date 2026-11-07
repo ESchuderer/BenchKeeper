@@ -74,7 +74,9 @@ const actions = {
     send({ method: "host/log", params: { run: "another run", level: "info", message: "not this run's" } });
     return {};
   },
-  "call-host": async () => ({ code: (await ask("host/exec", { command: "id" })).error?.code }),
+  "call-host": async () => ({ code: (await ask("host/shell", { command: "id" })).error?.code }),
+  // Asks the host to run the programs its node's `with` lists, at once.
+  exec: async ({ config }) => ({ answers: await Promise.all(config.requests.map((r) => ask("host/exec", r))) }),
   // Sends the requests its node's `with` lists at once, and the host's grant.
   fetch: async ({ config }) => ({
     answers: await Promise.all(config.requests.map((r) => ask("host/fetch", r))),
@@ -164,6 +166,12 @@ const requests = {
     return { protocol, actions: { "x-noactions": "all", "x-deep": [deep] }[mode] ?? names };
   },
   "action/run": async (params) => ({ outputs: await actions[params.action](params) }),
+  // Its own check: x-slow-doctor never answers, x-other-check names a check its manifest does not.
+  "doctor/run": () => {
+    if (mode === "x-slow-doctor") return new Promise(() => undefined);
+    const check = mode === "x-other-check" ? "elsewhere" : "fixture";
+    return { findings: [{ check, severity: "warning", code: "fixture.checked", message: "checked\u001b[2K" }] };
+  },
   shutdown: () => null,
 };
 

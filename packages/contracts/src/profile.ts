@@ -43,8 +43,10 @@ const Text = z.union([
 // sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const followed = { name: Name, ref: GitRef.optional(), autoUpdate: z.boolean().optional() };
+// A GitHub repository as `owner/repo`.
+const GitHubRepo = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/);
 const Marketplace = z.union([
-  z.strictObject({ ...followed, github: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/) }),
+  z.strictObject({ ...followed, github: GitHubRepo }),
   z.strictObject({ ...followed, git: GitUrl }),
 ]);
 
@@ -266,6 +268,13 @@ const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
     if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
     return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
   });
+// A plugin's marketplace goes by the name its plugin id carries, as Claude Code resolves the id through it.
+const marketplaceIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
+  Object.entries(machine).flatMap(([id, each]): Issue[] =>
+    each.type === "plugin" && each.marketplace !== undefined && !each.plugin.endsWith(`@${each.marketplace.name}`)
+      ? [[["machine", id, "marketplace", "name"], "the marketplace its plugin id names"]]
+      : [],
+  );
 const probeIssues = (
   profile: Record<(typeof LEVELS)[number], Record<string, { default: string; when?: string | undefined }>>,
 ) =>
@@ -283,7 +292,9 @@ export const Profile = z
     packs: z.record(PackId, PackSource),
     ...whole,
   })
-  .superRefine((profile, ctx) => report(ctx, [...optionsIssues(profile.machine), ...probeIssues(profile)]));
+  .superRefine((profile, ctx) =>
+    report(ctx, [...optionsIssues(profile.machine), ...marketplaceIssues(profile.machine), ...probeIssues(profile)]),
+  );
 export type Profile = z.infer<typeof Profile>;
 
 /** This machine's choice: the profile it applies and the parts switched away from their default. */
@@ -302,6 +313,10 @@ export const ProfileSelection = z
       }),
     ]),
     select: sized(z.record(QualifiedPartId, z.boolean()), 500).describe("On or off against the part's default"),
+    bindings: z
+      .strictObject({ hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts") })
+      .optional()
+      .describe("This machine's repositories the profile's parts name"),
   })
   .register(fileFormats, { id: "ProfileSelection" });
 export type ProfileSelection = z.infer<typeof ProfileSelection>;

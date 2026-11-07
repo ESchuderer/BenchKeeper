@@ -1,31 +1,7 @@
-import { type ChildProcess, execFileSync } from "node:child_process";
-import { win32 } from "node:path";
+import { execFileSync } from "node:child_process";
 import type { NodeAttempt } from "@cedarloom/contracts";
+import { stopTree } from "@cedarloom/extension-host";
 import { cleanEnv } from "@cedarloom/orchestration";
-
-/**
- * Ends the process `pid` with its whole tree: its process group, or on Windows taskkill /T and then `child`'s own kill
- * (the shell, should taskkill have missed it).
- */
-export const stopTree = (pid: number, child?: Pick<ChildProcess, "kill">): void => {
-  /* v8 ignore start -- Windows only; the Windows CI leg runs it */
-  if (process.platform === "win32") {
-    const taskkill = win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
-    try {
-      execFileSync(taskkill, ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore", timeout: 5000 });
-    } catch {
-      // The tree has ended meanwhile, or taskkill failed or timed out.
-    }
-    child?.kill();
-    return;
-  }
-  /* v8 ignore stop */
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    // It has ended meanwhile.
-  }
-};
 
 // When the process `pid` started, in milliseconds, to the second (`ps` gives no zone, so local time); NaN when there
 // is no such process. By its path: a `ps` found on PATH could be any program.

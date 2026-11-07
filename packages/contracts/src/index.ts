@@ -41,12 +41,13 @@ export { canonicalJson, type Json } from "./json.ts";
 export {
   LaunchPlugins,
   LaunchRecord,
+  RunTotals,
   RunLabels,
   Verdict,
   WORKER_RESULT_SCHEMA_VERSION,
   WorkerResult,
 } from "./launch.ts";
-export { Finding, type FindingCode, findingInfo } from "./findings.ts";
+export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {
   AttemptOutcome,
   GraphRun,
@@ -103,7 +104,14 @@ export {
   SELECTION_SCHEMA_VERSION,
   targetClass,
 } from "./profile.ts";
-export { type Composed, composeProfile, type LoadParent, MAX_PROFILE_FILES, type ParentRef } from "./compose.ts";
+export {
+  type Composed,
+  composeProfile,
+  type LoadParent,
+  MAX_PROFILE_FILES,
+  mergeJson,
+  type ParentRef,
+} from "./compose.ts";
 export { contracts, fileFormats, SchemaVersion } from "./registry.ts";
 export { isCron, NODE_CONFIGS } from "./nodes.ts";
 export {
@@ -111,6 +119,7 @@ export {
   HandleType,
   JoinConfig,
   JsonValue,
+  semverAbove,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
   WorkflowId,

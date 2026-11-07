@@ -18,6 +18,8 @@ import {
   modeCommand,
   plansApply,
   plansShow,
+  profilesApply,
+  profilesChoose,
   runsList,
   runsShow,
   runsUndo,
@@ -251,6 +253,32 @@ const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {
 
 const LEVELS = ["supervised", "checkpoint", "auto"] as const;
 
+const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  const profiles = program.command("profiles").description("this machine's CedarLoom profile");
+  profiles
+    .command("apply")
+    .description("show the profile's plan for this machine's Claude Code home; with --yes, apply it as one run")
+    .option("--allow <part...>", "include a plugin part, which --yes alone never does, such as machine.plugin.ponytail")
+    .option("--yes", "apply the plan as computed now")
+    .action((options) => done(profilesApply(ctx(), options)));
+  profiles
+    .command("select")
+    .description("switch a part on or off, or back to its default; with --yes, save it as one run")
+    .argument("<part>", "the part as level.id, such as workspace.memory")
+    .addArgument(new Argument("<state>").choices(["on", "off", "default"] as const))
+    .option("--yes", "save the choice as computed now")
+    .action((part, state, options) =>
+      done(profilesChoose(ctx(), { part, on: state === "default" ? null : state === "on" }, options)),
+    );
+  profiles
+    .command("bind")
+    .description("name this machine's hub repository; with --yes, save it as one run")
+    .addArgument(new Argument("<binding>").choices(["hub"] as const))
+    .argument("<repository>", "the repository as owner/repo")
+    .option("--yes", "save the binding as computed now")
+    .action((_binding, repository, options) => done(profilesChoose(ctx(), { hub: repository }, options)));
+};
+
 const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {
   program
     .command("level")
@@ -308,6 +336,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   componentsGroup(program, ctx, done);
   modeGroup(program, ctx, done);
   levelGroup(program, ctx, done);
+  profilesGroup(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs, store problems, and each account's login in its own home")

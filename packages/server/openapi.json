@@ -3172,7 +3172,8 @@
                       "actions",
                       "folder",
                       "runtime",
-                      "off"
+                      "off",
+                      "programs"
                     ]
                   }
                 },
@@ -3213,7 +3214,8 @@
                       "protocol",
                       "installed",
                       "id",
-                      "reserved"
+                      "reserved",
+                      "programs"
                     ]
                   }
                 },
@@ -3301,7 +3303,8 @@
                       "stage",
                       "start",
                       "initialize",
-                      "run"
+                      "run",
+                      "doctor"
                     ]
                   },
                   "error": {
@@ -3312,6 +3315,53 @@
                   "extension",
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.finding"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "error",
+                      "warning",
+                      "info"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension",
+                  "check",
+                  "severity",
+                  "code",
+                  "message"
                 ],
                 "additionalProperties": false
               }
@@ -3517,6 +3567,302 @@
                 "required": [
                   "pack",
                   "files"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.entry-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "pack": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "rules",
+                      "template",
+                      "profile"
+                    ]
+                  }
+                },
+                "required": [
+                  "pack",
+                  "path",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.app-too-old"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "minApp": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "minApp",
+                  "app"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.part-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "by"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.part-requires"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "requires": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "requires"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.owner-changed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.placeholder-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "placeholder"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.binding-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "binding": {
+                    "type": "string",
+                    "enum": [
+                      "hub"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "binding"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.approval-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "autoUpdate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "part",
+                  "plugin",
+                  "source",
+                  "ref",
+                  "autoUpdate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.options-guarded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "path"
                 ],
                 "additionalProperties": false
               }
@@ -7256,7 +7602,8 @@
                       "actions",
                       "folder",
                       "runtime",
-                      "off"
+                      "off",
+                      "programs"
                     ]
                   }
                 },
@@ -7297,7 +7644,8 @@
                       "protocol",
                       "installed",
                       "id",
-                      "reserved"
+                      "reserved",
+                      "programs"
                     ]
                   }
                 },
@@ -7385,7 +7733,8 @@
                       "stage",
                       "start",
                       "initialize",
-                      "run"
+                      "run",
+                      "doctor"
                     ]
                   },
                   "error": {
@@ -7396,6 +7745,53 @@
                   "extension",
                   "step",
                   "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "extension.finding"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "extension": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "error",
+                      "warning",
+                      "info"
+                    ]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "extension",
+                  "check",
+                  "severity",
+                  "code",
+                  "message"
                 ],
                 "additionalProperties": false
               }
@@ -7601,6 +7997,302 @@
                 "required": [
                   "pack",
                   "files"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.entry-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "pack": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "rules",
+                      "template",
+                      "profile"
+                    ]
+                  }
+                },
+                "required": [
+                  "pack",
+                  "path",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.app-too-old"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "minApp": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "minApp",
+                  "app"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.part-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "by"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.part-requires"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "requires": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "requires"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.owner-changed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.placeholder-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "placeholder"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.binding-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "binding": {
+                    "type": "string",
+                    "enum": [
+                      "hub"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "binding"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.approval-needed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ref": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "autoUpdate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "part",
+                  "plugin",
+                  "source",
+                  "ref",
+                  "autoUpdate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.options-guarded"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "path"
                 ],
                 "additionalProperties": false
               }

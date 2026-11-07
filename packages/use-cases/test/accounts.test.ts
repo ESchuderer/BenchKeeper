@@ -5,7 +5,6 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   renameSync,
   statSync,
   symlinkSync,
@@ -15,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
-import { type AccountRegistry, formatRegistry, type Plan, type Result } from "@cedarloom/contracts";
+import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
 import {
   applyPlan,
@@ -30,8 +29,6 @@ import {
   planAdd,
   planConfirm,
   planHome,
-  planMap,
-  planUnmap,
   undoRun,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
@@ -153,23 +150,6 @@ test("a window past its reset is unknown until claude-swap reads it again, and a
   expect(switches(state)[2]).toMatchObject({ to: "spare", reason: "no-readings" });
 });
 
-test("a running worker in a folder bound to its account stays on it, and nothing is recorded", () => {
-  const state = stateWithReadings(95, 20);
-  const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };
-  const project = join(tmpdir(), "bound-project");
-  const bound = {
-    ...registry,
-    pools: { claude: { ...registry.pools.claude, main } },
-    folders: { [project]: { account: "work" } },
-  };
-  const request = { task: "t8", agent: "claude", pool: "main", from: "work", trigger: "line" } as const;
-  expect(chooseMove(state, bound, { ...request, project: join(project, "app") }, NOW)).toEqual({
-    ok: true,
-    value: { move: false, reason: "bound", candidates: [] },
-  });
-  expect(switches(state)).toEqual([]);
-});
-
 test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row or a later start", () => {
   const state = stateWithReadings(95, 20);
   const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };
@@ -269,44 +249,14 @@ test("the registry reads as none when there is none, and one that is broken or c
   });
 });
 
-// Applies a planned change; the run's id.
-const applied = (state: string, planned: Result<{ plan: Plan }>) => {
+// Adds account `name` by its plan, applied; the run's id.
+const added = (config: string, state: string, name: string, pool: string | null) => {
+  const planned = planAdd(config, state, { name, agent: "claude", pool }, AT);
   if (!planned.ok) throw new Error(planned.finding.code);
   const run = applyPlan(state, planned.value.plan, { yes: true });
   if (!run.ok || run.value.runId === null) throw new Error("not applied");
   return run.value.runId;
 };
-
-// Adds account `name` by its plan, applied; the run's id.
-const added = (config: string, state: string, name: string, pool: string | null) =>
-  applied(state, planAdd(config, state, { name, agent: "claude", pool }, AT));
-
-// The refusal of accounts map or unmap for `reason`.
-const mapRefused = (reason: string, name: string) => ({
-  ok: false,
-  finding: { code: "accounts.map-refused", params: { reason, name } },
-});
-
-test("a folder is bound to an account or a pool by a plan with undo, kept by its real path, and unbound again", () => {
-  const { config, state } = freshConfig();
-  writeRegistry(config);
-  const project = mkdtempSync(join(tmpdir(), "cedarloom-project-"));
-  const real = realpathSync(project);
-  applied(state, planMap(config, "work", project));
-  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { account: "work" } } } });
-  applied(state, planMap(config, "main", project));
-  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
-  const unmapped = applied(state, planUnmap(config, project));
-  const after = loadRegistry(config);
-  expect([after.ok, after.ok && after.value !== null && "folders" in after.value]).toEqual([true, false]);
-  undoRun(state, unmapped, { yes: true });
-  expect(loadRegistry(config)).toMatchObject({ ok: true, value: { folders: { [real]: { pool: "main" } } } });
-  expect(planMap(config, "nobody", project)).toEqual(mapRefused("unknown-target", "nobody"));
-  expect(planMap(config, "work", join(real, "missing"))).toEqual(mapRefused("no-folder", join(real, "missing")));
-  writeFileSync(join(real, "README.md"), "");
-  expect(planMap(config, "work", join(real, "README.md"))).toEqual(mapRefused("no-folder", join(real, "README.md")));
-  expect(planUnmap(config, join(real, "missing"))).toEqual(mapRefused("not-mapped", join(real, "missing")));
-});
 
 test("an account is added by a plan with its own home: the first creates the registry, a new pool is unconfirmed", () => {
   const { config, state } = freshConfig();

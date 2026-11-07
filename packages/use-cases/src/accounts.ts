@@ -1,14 +1,6 @@
 import { chmodSync, lstatSync, mkdirSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import {
-  counted,
-  headroom,
-  isConfirmed,
-  type Move,
-  type Selection,
-  selectAccount,
-  selectMove,
-} from "@cedarloom/accounts";
+import { join } from "node:path";
+import { counted, isConfirmed, type Move, type Selection, selectAccount, selectMove } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
@@ -18,7 +10,6 @@ import {
   type AccountSwitch,
   Agent,
   type Finding,
-  type FolderTarget,
   formatRegistry,
   type Plan,
   type Quota,
@@ -29,7 +20,6 @@ import {
 } from "@cedarloom/contracts";
 import { openRunStore, type RunStore, sha256 } from "@cedarloom/ledger";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
-import { projectFolder } from "./automation.ts";
 import { readJson, readOptionalJson, withStore, withView } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
@@ -246,64 +236,6 @@ export const planAdd = (
   return { ok: true, value: { plan: { schemaVersion: 1, operations: [write] }, home } };
 };
 
-const mapRefused = (reason: "unknown-target" | "no-folder" | "not-mapped", name: string): Result<never> => ({
-  ok: false,
-  finding: { code: "accounts.map-refused", params: { reason, name } },
-});
-
-// The plan that writes the registry with `folders`, left out when empty.
-const withFolders = (path: string, text: string, registry: AccountRegistry, folders: Record<string, FolderTarget>) => {
-  const { folders: _, ...rest } = registry;
-  const content = formatRegistry(Object.keys(folders).length > 0 ? { ...rest, folders } : rest);
-  const plan: Plan = { schemaVersion: 1, operations: [{ kind: "write", path, before: sha256(text), content }] };
-  return plan;
-};
-
-/**
- * Plans binding `folder` to the account or Claude Code pool `name`: a worker launched in that folder or below it runs
- * on that account, or on the pool's choice. The folder is kept by its real path.
- */
-export const planMap = (
-  config: string,
-  name: string,
-  folder: string,
-): Result<{ plan: Plan; folder: string; target: FolderTarget }> => {
-  const real = projectFolder(folder);
-  if (real === null) return mapRefused("no-folder", resolve(folder));
-  const path = registryPath(config);
-  const read = readRegistry(path);
-  if (!read.ok) return read;
-  const { text, registry } = read.value;
-  const isPool = Object.hasOwn(registry.pools.claude ?? {}, name);
-  const target = registry.accounts.some((each) => each.name === name) ? { account: name } : { pool: name };
-  if (!("account" in target) && !isPool) return mapRefused("unknown-target", name);
-  const plan = withFolders(path, text, registry, { ...registry.folders, [real]: target });
-  return { ok: true, value: { plan, folder: real, target } };
-};
-
-/** Plans removing the binding of `folder`, by its real path, or as written when it no longer exists. */
-export const planUnmap = (config: string, folder: string): Result<{ plan: Plan; folder: string }> => {
-  const real = projectFolder(folder) ?? resolve(folder);
-  const path = registryPath(config);
-  const read = readRegistry(path);
-  if (!read.ok) return read;
-  const { text, registry } = read.value;
-  const { [real]: bound, ...kept } = registry.folders ?? {};
-  if (bound === undefined) return mapRefused("not-mapped", real);
-  return { ok: true, value: { plan: withFolders(path, text, registry, kept), folder: real } };
-};
-
-/** What the deepest bound folder that holds `project` is bound to; null when none holds it. */
-export const boundTarget = (registry: AccountRegistry, project: string): FolderTarget | null => {
-  const holding = Object.keys(registry.folders ?? {}).filter((folder) => {
-    const below = relative(folder, project);
-    return below === "" || (below.split(sep)[0] !== ".." && !isAbsolute(below));
-  });
-  // Resolved, so a folder written with trailing separators does not outrank a deeper one.
-  const [deepest] = holding.toSorted((a, b) => resolve(b).length - resolve(a).length);
-  return deepest === undefined ? null : (registry.folders?.[deepest] ?? null);
-};
-
 /** How the agent's login ended: its exit code, or null with the error when it did not start. */
 export interface LoginRun {
   readonly code: number | null;
@@ -412,8 +344,6 @@ export interface AccountRequest {
   readonly previous: string | null;
   /** The model the worker runs: its own weekly window counts too, once read. */
   readonly model?: string | undefined;
-  /** The project folder the worker works in, by its real path: a folder `accounts map` bound decides its account. */
-  readonly project?: string | undefined;
 }
 
 // Accounts whose leases are all taken: they start or take over no worker now.
@@ -498,26 +428,20 @@ export interface MoveRequest {
   /** Accounts whose login check failed: held, so no worker moves onto them. */
   readonly held?: ReadonlySet<string>;
   readonly model?: string | undefined;
-  /** The project folder the worker works in, by its real path: a folder `accounts map` bound to its account keeps it. */
-  readonly project?: string | undefined;
 }
 
 /**
  * Decides under the store's lock whether a running worker of the task moves to another account of its pool now
  * (`selectMove`), and records a move in the ledger with its trigger. claude-swap's cooldown counts from the task's latest
- * row or worker start: a resumed worker starts without a row. A worker in a folder bound to an account stays on it, as a
- * new worker there takes no other account.
+ * row or worker start: a resumed worker starts without a row.
  */
 export const chooseMove = (
   state: string,
   registry: AccountRegistry,
   request: MoveRequest,
   now?: number,
-): Result<Move> => {
-  const bound = request.project === undefined ? null : boundTarget(registry, request.project);
-  if (bound !== null && "account" in bound)
-    return { ok: true, value: { move: false, reason: "bound", candidates: [] } };
-  return withStore(state, (store) => {
+): Result<Move> =>
+  withStore(state, (store) => {
     const readings = store.readings();
     const judged = now ?? Date.now();
     const last = store.lastSwitchOrLaunch(request.task);
@@ -535,7 +459,6 @@ export const chooseMove = (
     }
     return { ok: true, value: move };
   });
-};
 
 /**
  * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases and the
@@ -558,15 +481,3 @@ export const accountsStatus = (
     );
     return { ok: true, value: { readings, pools } };
   });
-
-/**
- * The margin above the minimums of the account a folder is bound to, by the store's readings at `now`: null when a
- * window is unknown. The launch refuses a bound account below 0 instead of taking another one.
- */
-export const boundHeadroom = (
-  state: string,
-  account: Account,
-  model: string | undefined,
-  now?: number,
-): Result<number | null> =>
-  withStore(state, (store) => ({ ok: true, value: headroom(account, store.readings(), model, now ?? Date.now()) }));

@@ -6,13 +6,14 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
-  comments: z.array(z.unknown()).min(1),
+  comments: z.array(z.looseObject({})).min(1),
   labels: z.array(z.unknown()),
   notFound: z.unknown(),
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "github.json"), "utf8")));
 const issue: IssueRef = { repo: "acme/tracker", number: 7 };
 const API = "https://api.github.com/repos/acme/tracker";
+const HTML = "https://github.com/acme/tracker/issues/7";
 
 /** A recorded answer: its status, headers and body, or an error for a request that got none. */
 type Answer = { status: number; headers?: Record<string, string>; body?: unknown } | Error;
@@ -47,18 +48,22 @@ test("a comment is posted to the issue with the token in its header, and GitHub'
   ]);
 });
 
-test("a comment is found by text in its body, and none holds a marker that was never posted", async () => {
+test("a comment is found by text in its body on any page, and none holds a marker that was never posted", async () => {
+  const marked = { ...fixtures.comments[0], id: 2, html_url: `${HTML}#issuecomment-2`, body: "Done.\n\n<!-- m -->" };
+  const next = { link: `<${API}/issues/7/comments?per_page=100&page=2>; rel="next"` };
   const { requests, tracker } = replay([
-    { status: 200, body: fixtures.comments },
+    { status: 200, headers: next, body: fixtures.comments },
+    { status: 200, body: [marked] },
     { status: 200, body: fixtures.comments },
   ]);
-  expect(await tracker.findComment(issue, "Me too")).toEqual({
+  expect(await tracker.findComment(issue, "<!-- m -->")).toEqual({
     ok: true,
-    value: { id: 1, url: "https://github.com/octocat/Hello-World/issues/1347#issuecomment-1" },
+    value: { id: 2, url: `${HTML}#issuecomment-2` },
   });
   expect(await tracker.findComment(issue, "<!-- cedarloom-outbox:never -->")).toEqual({ ok: true, value: null });
   expect(requests.map(({ url }) => url)).toEqual([
     `${API}/issues/7/comments?per_page=100`,
+    `${API}/issues/7/comments?per_page=100&page=2`,
     `${API}/issues/7/comments?per_page=100`,
   ]);
 });
@@ -79,33 +84,50 @@ test("a label is found in any case, added by name, and removed by its name in th
   ]);
 });
 
-test("a deletion of what is gone is done, and a missing issue refuses the write", async () => {
-  const { tracker } = replay([
+test("a deletion of what is gone is done while the issue answers; one the token cannot see refuses", async () => {
+  const { requests, tracker } = replay([
     { status: 404, body: fixtures.notFound },
+    { status: 200, body: { number: 7 } },
+    { status: 404, body: fixtures.notFound },
+    { status: 200, body: { number: 7 } },
     { status: 404, body: fixtures.notFound },
     { status: 404, body: fixtures.notFound },
   ]);
   expect(await tracker.deleteComment(issue, 1)).toEqual({ ok: true, value: null });
   expect(await tracker.setLabel(issue, "agent:review", false)).toEqual({ ok: true, value: null });
-  expect(await tracker.comment(issue, "Run ended.")).toMatchObject({
+  expect(await tracker.deleteComment(issue, 1)).toMatchObject({
     ok: false,
     finding: { code: "tracker.refused", params: { status: 404 } },
   });
+  expect(requests.map(({ method, url }) => [method, url])).toEqual([
+    ["DELETE", `${API}/issues/comments/1`],
+    ["GET", `${API}/issues/7`],
+    ["DELETE", `${API}/issues/7/labels/agent%3Areview`],
+    ["GET", `${API}/issues/7`],
+    ["DELETE", `${API}/issues/comments/1`],
+    ["GET", `${API}/issues/7`],
+  ]);
 });
 
 test("a rate limit, a refused token, a server error and no answer keep the write waiting; a forbidden write or an answer that is no comment fails", async () => {
   const forbidden = { message: "Resource not accessible by personal access token" };
+  const secondary = {
+    message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
+  };
   const { tracker } = replay([
     { status: 403, headers: { "x-ratelimit-remaining": "0" }, body: { message: "API rate limit exceeded" } },
-    { status: 429, headers: { "retry-after": "60" }, body: { message: "secondary rate limit" } },
+    { status: 403, headers: { "retry-after": "60" }, body: secondary },
+    { status: 403, body: secondary },
+    { status: 429, body: secondary },
     { status: 401, body: { message: "Bad credentials" } },
     { status: 502, body: { message: "Server Error" } },
     new TypeError("fetch failed"),
     { status: 403, body: forbidden },
     { status: 201, body: { id: 1, html_url: "javascript:alert(1)" } },
+    { status: 200, body: [{ id: 1 }] },
   ]);
   const codes: string[] = [];
-  for (let i = 0; i < 7; i += 1) {
+  for (let i = 0; i < 9; i += 1) {
     const sent = await tracker.comment(issue, "Run ended.");
     codes.push(sent.ok ? "sent" : sent.finding.code);
   }
@@ -115,7 +137,19 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     "tracker.unavailable",
     "tracker.unavailable",
     "tracker.unavailable",
+    "tracker.unavailable",
+    "tracker.unavailable",
     "tracker.refused",
     "tracker.invalid-answer",
   ]);
+  expect(await tracker.hasLabel(issue, "bug")).toMatchObject({
+    ok: false,
+    finding: { code: "tracker.invalid-answer" },
+  });
+});
+
+test("a token that an HTTP header cannot carry is refused before any request, without repeating it", () => {
+  expect(() => githubTracker("acme/tracker", "github_pat_secret\nrest")).toThrow(
+    "the GitHub token holds characters an HTTP header cannot carry",
+  );
 });

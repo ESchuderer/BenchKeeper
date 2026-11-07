@@ -1,5 +1,5 @@
 {
-  "source": "Answers: the examples of GitHub's REST API description, github/rest-api-description at 2f8f80e47ea4d3292cf4e37ba9d9b25475e06140 (components/examples). notFound: an unauthenticated GET of a missing issue's comments on api.github.com, 2026-11-07. The live test with a hub-issues token replaces them with recorded answers.",
+  "source": "Answers: the examples of GitHub's REST API description, github/rest-api-description at 2f8f80e47ea4d3292cf4e37ba9d9b25475e06140 (components/examples). notFound: an unauthenticated GET of a missing issue's comments on api.github.com, 2026-11-07. To be replaced by answers recorded from the hub once a hub-issues token exists.",
   "comments": [
     {
       "id": 1,

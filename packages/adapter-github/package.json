@@ -31,7 +31,6 @@
     "@cedarloom/work-items": "workspace:*",
     "@octokit/core": "7.0.8",
     "@octokit/plugin-paginate-rest": "16.0.0",
-    "@octokit/request-error": "7.1.2",
     "zod": "catalog:"
   }
 }

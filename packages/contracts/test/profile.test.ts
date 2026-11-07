@@ -384,15 +384,21 @@ test(`more than ${MAX_PROFILE_FILES} profile files through parents are refused, 
   });
 });
 
-test("a part replaced whole forgets who set its fields", () => {
-  const files = loader({ "acme.x/c": tier("acme.c", "quick"), "acme.x/a": tier("acme.a", "full", ["c"]) });
-  const project = { tier: { type: "packs", title: "p", default: "on", packs: [] } };
+const deny = (rule: string) => ({
+  guards: { type: "settings", title: "g", default: "on", commit: true, set: { permissions: { deny: [rule] } } },
+});
+test("a part replaced whole forgets who set its values, however deep they sit", () => {
+  const files = loader({
+    "acme.x/c": file({ ...own, id: "acme.c", project: deny("Bash(sudo *)") }),
+    "acme.x/a": file({ ...own, id: "acme.a", extends: [{ pack: "acme.x", path: "c" }], project: deny("Bash(curl *)") }),
+  });
+  const project = { guards: { type: "packs", title: "p", default: "on", packs: [] } };
   const composed = composeProfile(
     file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "a" }], project }),
     files,
   );
   const setters = composed.ok && Object.entries(composed.value.setBy).filter(([at]) => at.startsWith("/project/"));
-  expect(setters).toEqual([["/project/tier", "acme.root"]]);
+  expect(setters).toEqual([["/project/guards", "acme.root"]]);
 });
 
 const hub = (id: string, label: string) => ({

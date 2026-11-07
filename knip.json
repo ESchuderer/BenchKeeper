@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/knip/schema.json",
   "github-actions": { "config": [".github/workflows/cedarloom.yml"] },
-  "ignoreBinaries": ["mkfifo"],
+  "ignoreBinaries": ["mkfifo", "devcontainer"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.test.ts"],

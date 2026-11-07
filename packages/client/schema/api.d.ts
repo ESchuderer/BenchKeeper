@@ -1582,7 +1582,7 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
             };
         } | {
             /** @constant */
@@ -1611,6 +1611,14 @@ export interface components {
                 project: string;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
             };
         } | {
             /** @constant */
@@ -2712,7 +2720,7 @@ export interface components {
             params: {
                 part: string;
                 /** @enum {string} */
-                binding: "hub";
+                binding: "hub" | "gates";
             };
         } | {
             /** @constant */
@@ -2741,6 +2749,14 @@ export interface components {
                 project: string;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.template-failed";
+            params: {
+                part: string;
+                template: string;
+                error: string;
             };
         } | {
             /** @constant */

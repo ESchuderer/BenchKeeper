@@ -216,7 +216,7 @@ export const Finding = z
     finding("profile.owner-changed", { path: z.string() }),
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
-    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -239,6 +239,8 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    // The Dev Containers CLI did not apply a devcontainer part's Template: the part, the Template and why.
+    finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
     // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
     finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
@@ -394,6 +396,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },
+  "profile.template-failed": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

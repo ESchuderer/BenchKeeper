@@ -3707,7 +3707,8 @@
             "binding": {
               "type": "string",
               "enum": [
-                "hub"
+                "hub",
+                "gates"
               ]
             }
           },
@@ -3847,6 +3848,40 @@
             "project",
             "programs",
             "configs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.template-failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "template": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "template",
+            "error"
           ],
           "additionalProperties": false
         }

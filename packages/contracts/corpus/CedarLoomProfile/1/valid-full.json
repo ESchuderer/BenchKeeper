@@ -111,6 +111,15 @@
       "commit": false,
       "plugin": "acme-lsp@acme",
       "marketplace": { "name": "acme", "github": "acme/plugins", "ref": "v2" }
+    },
+    "container": {
+      "type": "devcontainer",
+      "title": "Node on Debian",
+      "default": "auto",
+      "when": "no-devcontainer",
+      "template": "ghcr.io/devcontainers/templates/typescript-node:1",
+      "args": { "imageVariant": "22-bookworm" },
+      "features": { "ghcr.io/devcontainers/features/github-cli:1": { "version": "latest" } }
     }
   }
 }

@@ -247,7 +247,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.part-requires": (p) =>
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
-    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
+    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {
@@ -278,6 +278,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.template-failed": (p) =>
+    `${p.part} could not apply the Dev Container Template ${p.template}: ${shown(p.error, 300)}. It needs the Dev Containers CLI: npm install -g @devcontainers/cli`,
   "profile.skill-twice": (p) =>
     `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>

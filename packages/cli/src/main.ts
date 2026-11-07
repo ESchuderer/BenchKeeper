@@ -127,6 +127,10 @@ const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--yes", "store the new and updated workflows; from Git only at the full commit id its review showed")
     .action(async (source, { ref, yes }, command) => {
       const git = GitUrl.safeParse(source).success;
+      // A URL CedarLoom does not fetch (one with a password, say) is neither shown nor read as a folder.
+      if (!git && /^[a-z][a-z0-9+.-]*:\/\//i.test(source)) {
+        return command.error("error: a Git source is an https or ssh URL without a password; for a folder, use ./");
+      }
       if (!git && ref !== undefined)
         return command.error("error: --ref is for a Git source; a folder is read as it is");
       // A commit names its files, so the ones stored are the ones reviewed; a branch or tag can move in between.

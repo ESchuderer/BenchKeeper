@@ -18,13 +18,11 @@ const unitLine = ({ id, status, stored, version, changes }: ImportReview["units"
 
 const extensionLines = (extension: ImportReview["extensions"][number]): string[] => {
   const { id, version, status, installed, capabilities } = extension;
-  const may = mayDo(capabilities);
-  const what = may.length > 0 ? may : ["asks for no capabilities"];
+  const may =
+    capabilities === null ? ["what it may do is unknown: not fetched, or no manifest of its own"] : mayDo(capabilities);
   return [
     `  ${id} ${version}  ${status}  ${installed ? "installed" : "not installed"}`,
-    ...(status === "verified" ? what : ["what it may do is unknown: its files were not fetched"]).map(
-      (line) => `    ${line}`,
-    ),
+    ...(may.length > 0 ? may : ["asks for no capabilities"]).map((line) => `    ${line}`),
   ];
 };
 

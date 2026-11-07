@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   canonicalJson,
   EXPORT_SCHEMA_VERSION,
@@ -21,7 +21,7 @@ import {
 import { errorCode } from "@cedarloom/engine";
 import { fetchTree, type Store, type Tree } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
-import { load } from "./drafts.ts";
+import { DRAFT_LIMIT, load } from "./drafts.ts";
 import { type Fetch, type Installed, installedExtensions, manifestOf } from "./extensions.ts";
 import { extensionsOf, fileOf, linkIn, readStored, unstorable } from "./store.ts";
 import { parseDocument, storeOf } from "./use-cases.ts";
@@ -44,6 +44,16 @@ export type From = { folder: string } | { git: string; ref: string };
 const unreadable = (path: string, error: string): Result<never> =>
   refuse({ code: "document.unreadable", params: { path, error } });
 
+// Text only as valid UTF-8: a replaced byte would store other bytes than the source's.
+const UTF8 = new TextDecoder("utf-8", { fatal: true });
+const decoded = (path: string, bytes: Buffer): Result<string> => {
+  try {
+    return { ok: true, value: UTF8.decode(bytes) };
+  } catch (error) {
+    return unreadable(path, errorCode(error));
+  }
+};
+
 // A file of an export folder, read within the draft limit from one open file that follows no link, and never through
 // a linked folder on the way: a clone's link could lead anywhere on this machine.
 const inFolder =
@@ -56,18 +66,19 @@ const inFolder =
       const found = load(file);
       if (found === undefined) return unreadable(file, "ENOENT");
       if (found === null) return unreadable(file, "not a file");
-      return found.bytes === null ? unreadable(file, "EFBIG") : { ok: true, value: found.bytes.toString("utf8") };
+      return found.bytes === null ? unreadable(file, "EFBIG") : decoded(file, found.bytes);
     } catch (error) {
       return unreadable(file, errorCode(error));
     }
   };
 
-// A file of a fetched tree, which the git package read within its limits.
+// A file of a fetched tree, which the git package read within its limits, and within the draft limit.
 const inTree =
   (tree: Tree): Read =>
   (path) => {
     const file = tree.files.find((each) => each.path === path);
-    return file === undefined ? unreadable(path, "ENOENT") : { ok: true, value: file.content.toString("utf8") };
+    if (file === undefined) return unreadable(path, "ENOENT");
+    return file.content.length > DRAFT_LIMIT ? unreadable(path, "EFBIG") : decoded(path, file.content);
   };
 
 const documentIn = <T>(read: Read, path: string, as: (json: unknown) => Result<T>): Result<T> => {
@@ -110,7 +121,7 @@ const fetched = async (state: string, source: { url: string; ref: string; path?:
 };
 
 const readIncoming = async (state: string, from: From, fetch: Fetch): Promise<Result<Incoming>> => {
-  if ("folder" in from) return incomingOf(inFolder(from.folder), { folder: from.folder });
+  if ("folder" in from) return incomingOf(inFolder(resolve(from.folder)), { folder: resolve(from.folder) });
   const tree = await fetched(state, { url: from.git, ref: from.ref }, fetch);
   if (!tree.ok) return tree;
   return incomingOf(inTree(tree.value), { git: from.git, ref: from.ref, commit: tree.value.commit });
@@ -245,21 +256,34 @@ const checkedPin = async (
   const manifest = tree.ok && status === "verified" ? manifestOf(tree.value) : undefined;
   const { git, commit } = pin.source;
   const installed = here.some((each) => each.id === id && each.source.commit === commit && each.digest === pin.digest);
-  const capabilities = manifest?.ok === true ? (manifest.value.capabilities ?? {}) : {};
+  // Only the manifest of the extension the lock names counts; another one's capabilities are unknown here.
+  const own = manifest?.ok === true && manifest.value.id === id && manifest.value.version === pin.version;
+  const capabilities = own ? (manifest.value.capabilities ?? {}) : null;
   return { id, version: pin.version, git, commit, ...at, digest: pin.digest, status, installed, capabilities };
 };
 
-/** The pins of the extensions `used`, one fetch at a time: a lock may hold many, and only those used matter. */
-const pinsOf = async (state: string, lock: ExtensionLock, used: string[], fetch: Fetch): Promise<Extension[]> => {
+/**
+ * The pins of the extensions `used`, one fetch at a time: a lock may hold many, and only those used matter. An export
+ * pins each extension its workflows use, so a lock without one is refused.
+ */
+const pinsOf = async (
+  state: string,
+  lock: ExtensionLock,
+  used: string[],
+  fetch: Fetch,
+): Promise<Result<Extension[]>> => {
   const installed = installedExtensions(state);
-  const here = installed.ok ? installed.value : [];
+  if (!installed.ok) return installed;
   const pinned = new Map(Object.entries(lock.extensions));
   const checked: Extension[] = [];
   for (const id of used) {
     const pin = pinned.get(id);
-    if (pin !== undefined) checked.push(await checkedPin(state, [id, pin], here, fetch));
+    if (pin === undefined) {
+      return refuse({ code: "document.invalid", params: { issues: [{ path: `extensions.${id}`, code: "custom" }] } });
+    }
+    checked.push(await checkedPin(state, [id, pin], installed.value, fetch));
   }
-  return checked;
+  return { ok: true, value: checked };
 };
 
 const usedBy = (workflows: Workflow[]): string[] => [
@@ -307,7 +331,9 @@ export const planImport = async (state: string, from: From, fetch: Fetch = fetch
   const { workflows, lock, index, source } = read.value;
   const units = workflows.map((each) => unitOf(stored.value, index, each));
   const risks = workflows.flatMap(({ workflow }) => risksOf(workflow));
-  const extensions = await pinsOf(state, lock, usedBy(workflows), fetch);
+  const pins = await pinsOf(state, lock, usedBy(workflows), fetch);
+  if (!pins.ok) return pins;
+  const extensions = pins.value;
   const mismatch = extensions.find(({ status }) => status === "mismatch");
   if (mismatch !== undefined) return refuse({ code: "extension.digest-mismatch", params: { extension: mismatch.id } });
   const chosen = workflows.filter((_, at) => ["new", "update"].includes(units[at]?.status ?? "same"));

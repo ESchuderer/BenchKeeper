@@ -1011,8 +1011,11 @@ test("workflows save stores a draft as a version, history lists it, export write
   // --yes stores only what the review showed: from Git that is a commit, never a ref that can move.
   const unpinned = await other.cli("import", "https://example.org/flows.git", "--ref", "main", "--yes");
   const folderRef = await other.cli("import", join(root, "shared"), "--ref", "main");
+  // A URL with a password is no Git source and no folder, and the password is not shown.
+  const secret = await other.cli("import", "https://ada:hunter2@example.org/flows.git");
   vi.unstubAllEnvs();
-  const stored = [imported.code, Reflect.get(Object(there["versions"]), "length"), unpinned.code, folderRef.code];
+  const refusals = [unpinned.code, folderRef.code, secret.code, `${secret.out}${secret.err}`.includes("hunter2")];
+  const stored = [imported.code, Reflect.get(Object(there["versions"]), "length"), ...refusals];
   expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code, stored]).toEqual([
     EXIT.ok,
     [
@@ -1027,7 +1030,7 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.ok,
     ["w"],
     EXIT.usage,
-    [EXIT.ok, 1, EXIT.usage, EXIT.usage],
+    [EXIT.ok, 1, EXIT.usage, EXIT.usage, EXIT.usage, false],
   ]);
 });
 

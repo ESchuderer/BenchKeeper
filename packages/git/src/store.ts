@@ -103,8 +103,9 @@ const identity = (git: Git): Result<null> => {
 // The tree of `parent` with each path set to its blob, built by `git` in an index that only this call uses.
 const treeOf = (git: Git, parent: string | null, entries: [path: string, blob: string][]): Ran => {
   const read = git(parent === null ? ["read-tree", "--empty"] : ["read-tree", parent]);
-  const lines = entries.map(([path, blob]) => `100644 ${blob}\t${path}\n`).join("");
-  const added = read.ok ? git(["update-index", "--add", "--index-info"], lines) : read;
+  // NUL-ended records, so no path can end one early.
+  const lines = entries.map(([path, blob]) => `100644 ${blob}\t${path}\0`).join("");
+  const added = read.ok ? git(["update-index", "--add", "-z", "--index-info"], lines) : read;
   return added.ok ? git(["write-tree"]) : added;
 };
 

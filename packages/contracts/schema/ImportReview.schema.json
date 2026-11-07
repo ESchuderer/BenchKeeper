@@ -214,158 +214,165 @@
             "description": "Installed here at this commit and digest; the import installs none"
           },
           "capabilities": {
-            "type": "object",
-            "properties": {
-              "net": {
-                "description": "Hosts the extension may call through the host's fetch, and no others",
-                "maxItems": 32,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "maxLength": 300,
-                  "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
-                },
-                "uniqueItems": true
-              },
-              "credentials": {
-                "description": "Credential types the extension uses; it never receives their values",
+            "anyOf": [
+              {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "description": {
+                "properties": {
+                  "net": {
+                    "description": "Hosts the extension may call through the host's fetch, and no others",
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
                       "type": "string",
-                      "maxLength": 2000,
-                      "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                      "maxLength": 300,
+                      "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
                     },
-                    "scheme": {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "const": "http"
-                            },
-                            "scheme": {
-                              "type": "string",
-                              "enum": [
-                                "bearer",
-                                "basic"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "scheme"
-                          ],
-                          "additionalProperties": false
+                    "uniqueItems": true
+                  },
+                  "credentials": {
+                    "description": "Credential types the extension uses; it never receives their values",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "maxLength": 2000,
+                          "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
                         },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "const": "apiKey"
+                        "scheme": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "http"
+                                },
+                                "scheme": {
+                                  "type": "string",
+                                  "enum": [
+                                    "bearer",
+                                    "basic"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "scheme"
+                              ],
+                              "additionalProperties": false
                             },
-                            "in": {
-                              "type": "string",
-                              "const": "header"
-                            },
-                            "name": {
-                              "type": "string",
-                              "pattern": "^[A-Za-z0-9-]{1,64}$"
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "apiKey"
+                                },
+                                "in": {
+                                  "type": "string",
+                                  "const": "header"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9-]{1,64}$"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "in",
+                                "name"
+                              ],
+                              "additionalProperties": false
                             }
-                          },
-                          "required": [
-                            "type",
-                            "in",
-                            "name"
                           ],
-                          "additionalProperties": false
+                          "description": "The host refuses a request in which the extension sets this header itself"
+                        },
+                        "hosts": {
+                          "minItems": 1,
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 300,
+                            "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                          },
+                          "uniqueItems": true,
+                          "description": "The host adds the credential to requests to these hosts only; each is in `net`"
                         }
-                      ],
-                      "description": "The host refuses a request in which the extension sets this header itself"
-                    },
-                    "hosts": {
-                      "minItems": 1,
-                      "maxItems": 32,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "maxLength": 300,
-                        "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
                       },
-                      "uniqueItems": true,
-                      "description": "The host adds the credential to requests to these hosts only; each is in `net`"
-                    }
-                  },
-                  "required": [
-                    "scheme",
-                    "hosts"
-                  ],
-                  "additionalProperties": false
-                },
-                "maxProperties": 16
-              },
-              "projectRead": {
-                "description": "Reads project files through the host",
-                "type": "boolean"
-              },
-              "planWrite": {
-                "description": "Proposes file writes, which apply only through a plan the user approves",
-                "type": "boolean"
-              },
-              "programs": {
-                "description": "Programs the host runs for the extension (host/exec), found from these candidates; bundled extensions only",
-                "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "darwin": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
-                      }
+                      "required": [
+                        "scheme",
+                        "hosts"
+                      ],
+                      "additionalProperties": false
                     },
-                    "linux": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
-                      }
-                    },
-                    "win32": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
-                      }
-                    }
+                    "maxProperties": 16
                   },
-                  "additionalProperties": false,
-                  "description": "Where the host looks for the program on each platform; none listed: not on that platform"
+                  "projectRead": {
+                    "description": "Reads project files through the host",
+                    "type": "boolean"
+                  },
+                  "planWrite": {
+                    "description": "Proposes file writes, which apply only through a plan the user approves",
+                    "type": "boolean"
+                  },
+                  "programs": {
+                    "description": "Programs the host runs for the extension (host/exec), found from these candidates; bundled extensions only",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "darwin": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        },
+                        "linux": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        },
+                        "win32": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Where the host looks for the program on each platform; none listed: not on that platform"
+                    },
+                    "maxProperties": 8
+                  }
                 },
-                "maxProperties": 8
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
               }
-            },
-            "additionalProperties": false,
-            "description": "What its manifest at the commit asks for; none when it was not verified"
+            ],
+            "description": "What its manifest at the commit asks for; null when not verified, or its manifest does not read or names another id or version"
           }
         },
         "required": [

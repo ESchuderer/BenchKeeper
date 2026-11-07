@@ -1630,7 +1630,7 @@ export interface components {
                             win32?: string[];
                         };
                     };
-                };
+                } | null;
             }[];
         };
         SchemaVersion: number;
@@ -2672,7 +2672,7 @@ export interface components {
                             win32?: string[];
                         };
                     };
-                };
+                } | null;
             }[];
         };
     };

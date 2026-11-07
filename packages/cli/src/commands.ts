@@ -275,6 +275,7 @@ export const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ),
   ...(capabilities.projectRead === true ? ["reads files of your projects"] : []),
   ...(capabilities.planWrite === true ? ["proposes file changes, applied only through a plan you approve"] : []),
+  ...Object.keys(capabilities.programs ?? {}).map((id) => `runs the program ${id} on this machine`),
 ];
 
 // What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what

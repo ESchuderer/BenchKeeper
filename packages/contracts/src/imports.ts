@@ -51,7 +51,9 @@ export const ImportReview = z
         // unreachable: not fetched.
         status: z.enum(["verified", "mismatch", "unreachable"]),
         installed: z.boolean().describe("Installed here at this commit and digest; the import installs none"),
-        capabilities: Capabilities.describe("What its manifest at the commit asks for; none when it was not verified"),
+        capabilities: Capabilities.nullable().describe(
+          "What its manifest at the commit asks for; null when not verified, or its manifest does not read or names another id or version",
+        ),
       }),
     ),
   })

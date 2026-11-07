@@ -333,7 +333,8 @@ const DoctorAnswer = (checks: string[]) =>
           check: z.string().refine((check) => checks.includes(check)),
           severity: z.enum(["error", "warning", "info"]),
           code: z.string().regex(/^[a-z][a-z0-9.-]{0,63}$/),
-          message: z.string().max(10_000),
+          // As much as a finding shows (shown's 2000 characters): a longer text is refused, not cut.
+          message: z.string().max(2000),
         }),
       )
       .max(50),

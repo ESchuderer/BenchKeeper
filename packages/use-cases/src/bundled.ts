@@ -114,12 +114,10 @@ export const extensionToStart = (
 
 /**
  * The doctor's checks of the app's own extensions: each one switched on that names checks is started through
- * extensionToStart, asked once (doctor/run, within the host's limit) and stopped. Their texts are in `locale`.
+ * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
+ * Their texts are in English, the CLI's language for now.
  */
-export const extensionChecks = async (
-  paths: { state: string; app: string; config: string },
-  locale = "en",
-): Promise<Finding[]> => {
+export const extensionChecks = async (paths: { state: string; app: string; config: string }): Promise<Finding[]> => {
   const bundled = bundledExtensions(paths.app, paths.config);
   if (!bundled.ok) return [bundled.finding];
   const findings: Finding[] = [];
@@ -127,7 +125,7 @@ export const extensionChecks = async (
     (each) => each.state !== "off" && each.manifest.contributes.doctor !== undefined,
   )) {
     const startable = extensionToStart(paths, id);
-    const started = startable.ok ? await startExtension({ ...startable.value, locale }) : startable;
+    const started = startable.ok ? await startExtension({ ...startable.value, locale: "en" }) : startable;
     if (!started.ok) {
       findings.push(started.finding);
       continue;

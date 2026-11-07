@@ -7,7 +7,10 @@ const send = (message) => {
 };
 const answers = {
   initialize: () => ({ protocol: "1.0", actions: ["status"] }),
-  "doctor/run": () => ({ findings: [{ check: "setup", severity: "info", code: "example.ready", message: "ready" }] }),
+  // Its process id in the text, so a test can tell the process ended.
+  "doctor/run": () => ({
+    findings: [{ check: "setup", severity: "info", code: "example.ready", message: `ready ${process.pid}` }],
+  }),
   shutdown: () => null,
 };
 process.stdin.on("data", (chunk) => {

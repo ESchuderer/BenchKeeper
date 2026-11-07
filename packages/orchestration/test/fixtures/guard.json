@@ -129,7 +129,9 @@
       ["cd into a repository outside the profiles", "cd /work/notes && git pull", "outside-profiles"],
       ["clone outside the profiles", "git clone --depth 1 https://github.com/other/thing", "outside-profiles"],
       ["-C into a folder in a variable", "git -C \"$DIR\" push origin main", "unreadable"],
-      ["--git-dir naming another repository", "git --git-dir=/elsewhere/.git push origin feature", "unreadable"]
+      ["--git-dir naming another repository", "git --git-dir=/elsewhere/.git push origin feature", "unreadable"],
+      ["a glob as the command", "/usr/bin/su?o rm -rf /tmp/x", "unreadable"],
+      ["a brace list as the command", "{sudo,echo} rm -rf /tmp/x", "unreadable"]
     ],
     "worker /work/fork": [["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"]],
     "interactive /work/notes": [

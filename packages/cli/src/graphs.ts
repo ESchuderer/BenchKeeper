@@ -97,8 +97,10 @@ export const runsDecide = async (
   const wait = shown.value.waits.find((each) => each.node === node);
   if (wait === undefined) return fail(ctx, "run", [{ code: "run.not-waiting", params: { runId, node } }], EXIT.refused);
   const verb = approved ? "approve" : "reject";
+  const writes = wait.content === null ? [] : ["It writes:", wait.content];
   const lines = [
     `Run ${runId}: ${waitText(shown.value.run, wait)}.`,
+    ...writes,
     `Nothing changed. Run it again with --yes to ${verb} it.`,
   ];
   emit(ctx, "run", { run: shown.value.run, wait }, lines.join("\n"));

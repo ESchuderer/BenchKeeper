@@ -390,6 +390,17 @@ test("a plan waits at its gate until the owner approves that very plan; a reject
     { ok: true, value: "cancelled" },
     "started a#1, ended a#1, finished",
   ]);
+  // A node waiting at both gates passes each with its own decision (Q10 a, Supervised).
+  const both = [
+    { type: "gate", node: "a", attempt: 1, point: "before-node", planHash: null },
+    { type: "decided", node: "a", approved: true },
+    { ...gate },
+    decision(true, HASH),
+  ] satisfies JournalEvent[];
+  expect(await resume(workflow(), both, { executors, gates: () => "wait" })).toEqual([
+    { ok: true, value: "waiting" },
+    "started a#1, ended a#1, gate b#1, waiting",
+  ]);
   const before = await start(workflow(), {}, { gates: beforeNode });
   expect([before.result, before.events[0]]).toMatchObject([
     { value: "waiting" },

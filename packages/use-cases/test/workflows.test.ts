@@ -395,7 +395,7 @@ test("a write waits without a runner for its plan's approval, then goes through 
   expect([showGraphRun(at.state, runId), at.text(), waits.ok && waits.value.waits]).toMatchObject([
     { value: { run: { status: "waiting" } } },
     "old",
-    [{ node: "out", point: "before-apply", planHash: expect.any(String) }],
+    [{ node: "out", point: "before-apply", planHash: expect.any(String), content: "new" }],
   ]);
   // Another process decides, as after a restart: nothing of the run waited in memory.
   const decided = await decideRun(at.state, runId, { node: "out", approved: true }, at.options);
@@ -417,7 +417,9 @@ test("an approval's answer picks its branch; a cancel ends a waiting write; a no
   const asking = project([ask, command("ship", "printf shipped")], "t.start>ask.run ask.approved>ship.run");
   const asked = idOf(await runWorkflow(asking.state, asking.file, {}, asking.options));
   const waits = waitsOf(asking.state, asked);
-  expect(waits.ok && waits.value.waits).toEqual([{ node: "ask", point: "human.approval", planHash: null }]);
+  expect(waits.ok && waits.value.waits).toEqual([
+    { node: "ask", point: "human.approval", planHash: null, content: null },
+  ]);
   expect(await decideRun(asking.state, asked, { node: "ask", approved: false }, asking.options)).toMatchObject({
     value: { status: "succeeded" },
   });
@@ -431,28 +433,57 @@ test("an approval's answer picks its branch; a cancel ends a waiting write; a no
 });
 
 test.skipIf(process.platform === "win32")(
-  "a folder linked to outside the project is no way out for a read or a write",
+  "a folder or a file linked to outside the project is no way out",
   async () => {
     const outside = mkdtempSync(join(tmpdir(), "cedarloom-outside-"));
     writeFileSync(join(outside, "secret.txt"), "secret");
     const nodes = [
       { id: "read", type: "file.read", with: { path: "linked/secret.txt" } },
       { id: "out", type: "file.write", with: { path: "linked/new.txt" } },
+      { id: "link", type: "file.read", with: { path: "secret.txt" } },
     ] as const;
-    const at = project([...nodes], "t.start>read.run t.start>out.run", {
+    const at = project([...nodes], "t.start>read.run t.start>out.run t.start>link.run", {
       execution: { failurePolicy: "continue_independent" },
     });
     symlinkSync(outside, join(at.root, "linked"));
+    symlinkSync(join(outside, "secret.txt"), join(at.root, "secret.txt"));
     const runId = idOf(await runWorkflow(at.state, at.file, {}, at.options));
     const ends = eventsOf(at.state, runId).flatMap((event) =>
-      event.type === "ended" ? [[event.node, event.values]] : [],
+      event.type === "ended" ? [{ node: event.node, outcome: event.outcome, values: event.values }] : [],
     );
-    expect([ends, existsSync(join(outside, "new.txt"))]).toEqual([
+    expect([ends.toSorted((a, b) => a.node.localeCompare(b.node)), existsSync(join(outside, "new.txt"))]).toEqual([
       [
-        ["read", { error: "file.outside-project" }],
-        ["out", { error: "file.outside-project" }],
+        { node: "link", outcome: "failed", values: {} },
+        { node: "out", outcome: "failed", values: { error: "file.outside-project" } },
+        { node: "read", outcome: "failed", values: { error: "file.outside-project" } },
       ],
       false,
     ]);
   },
 );
+
+test("a write into folders that are not there yet makes them, below the project", async () => {
+  const out = { id: "out", type: "file.write", with: { path: "reports/2026/today.md" } } as const;
+  const at = project([command("say", "printf new"), out], "t.start>say.run say.done>out.run say.stdout>out.content");
+  const runId = idOf(await runWorkflow(at.state, at.file, {}, at.options));
+  const decided = await decideRun(at.state, runId, { node: "out", approved: true }, at.options);
+  expect([decided, readFileSync(join(at.root, "reports", "2026", "today.md"), "utf8")]).toMatchObject([
+    { value: { status: "succeeded" } },
+    "new",
+  ]);
+});
+
+test("a write that cannot record its apply run on its attempt writes nothing, as under a report run", async () => {
+  const at = writing();
+  const graphs = openGraphStore(at.state);
+  if (!graphs.ok) throw new Error(graphs.finding.code);
+  const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
+  const base = { inputs: {}, trigger: "manual", parentRun: null, parentNode: null } as const;
+  const created = graphs.value.create({ ...base, definition, mode: "report", project: realpathSync(at.root) });
+  created.release();
+  graphs.value.close();
+  // The ledger refuses an apply run under a report run, so the attempt's record of it is refused.
+  expect(await resumeRun(at.state, created.runId, at.options)).toMatchObject({ value: { status: "waiting" } });
+  const decided = await decideRun(at.state, created.runId, { node: "out", approved: true }, at.options);
+  expect([decided, at.text()]).toMatchObject([{ ok: false, finding: { code: "run.report-only-apply" } }, "old"]);
+});

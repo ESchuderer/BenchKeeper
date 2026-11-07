@@ -186,11 +186,12 @@ const resumed = (
 
 type Decided = Extract<JournalEvent, { type: "decided" }>;
 
-// The owner's decisions per node that no start has used yet: the last one counts.
-const decisionsOf = (journal: readonly JournalEvent[]): Map<string, Decided> => {
-  const open = new Map<string, Decided>();
+// The owner's decisions that no start has used yet, per node and the plan each approves ("" for none): one node may
+// wait at both gates, before it starts and before its plan applies. The last decision for a gate counts.
+const decisionsOf = (journal: readonly JournalEvent[]): Map<string, Map<string, Decided>> => {
+  const open = new Map<string, Map<string, Decided>>();
   for (const event of journal) {
-    if (event.type === "decided") open.set(event.node, event);
+    if (event.type === "decided") open.set(event.node, new Map(open.get(event.node)).set(event.planHash ?? "", event));
     else if (event.type === "started") open.delete(event.node);
   }
   return open;
@@ -202,7 +203,7 @@ interface Held {
   readonly lease: RunLease;
   readonly workflow: WorkflowDefinition;
   readonly state: RunState;
-  readonly decisions: Map<string, Decided>;
+  readonly decisions: Map<string, Map<string, Decided>>;
 }
 
 // One run's moves: events go through the inbox one at a time, each committed, then handed to the reducer.
@@ -389,12 +390,13 @@ class Runner {
    */
   #cleared(node: string, attempt: number, point: GatePoint, planHash: string | null): boolean {
     if ((this.#options.gates ?? DEFAULT_GATES)(point, node) === "pass") return true;
-    const decision = this.#held.decisions.get(node);
-    if (decision === undefined || (decision.planHash ?? null) !== planHash) {
+    const decisions = this.#held.decisions.get(node);
+    const decision = decisions?.get(planHash ?? "");
+    if (decision === undefined) {
       this.#commit({ type: "gate", node, attempt, point, planHash });
       return false;
     }
-    this.#held.decisions.delete(node);
+    decisions?.delete(planHash ?? "");
     if (decision.approved) return true;
     this.#commit({ type: "started", node, attempt, pid: null });
     this.#post({ type: "ended", node, attempt, outcome: "failed", values: { error: "rejected" } });

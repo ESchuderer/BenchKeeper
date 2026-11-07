@@ -1,6 +1,6 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { closeSync, constants, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve as absolute, sep, win32 } from "node:path";
+import { closeSync, constants, existsSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve as absolute, sep, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
   type Finding,
@@ -14,6 +14,7 @@ import {
   type Plan,
   type Result,
   RunEvent,
+  type RunState,
   type RunStatus,
   readDocument,
   WORKFLOW_SCHEMA_VERSION,
@@ -164,12 +165,16 @@ const command =
     };
   };
 
-// The file a node names, in the real path of the folder that holds it; null when that folder is outside the project's
-// real path, as through a link (review of #1076). Throws when the folder is not there. `project` is a real path.
+// The file a node names, below the real path of its nearest folder that is there (a write makes the ones missing); null
+// when that folder is outside the project's real path, as through a link (review of #1076). A link counts as there,
+// also a dangling one, whose real path then throws. `project` is a real path.
 const inProject = (project: string, path: string): string | null => {
-  const folder = realpathSync.native(dirname(join(project, path)));
-  const below = relative(project, folder);
-  return below.split(sep)[0] === ".." || isAbsolute(below) ? null : join(folder, basename(path));
+  const full = join(project, path);
+  let folder = dirname(full);
+  while (lstatSync(folder, { throwIfNoEntry: false }) === undefined) folder = dirname(folder);
+  const real = realpathSync.native(folder);
+  const below = relative(project, real);
+  return below.split(sep)[0] === ".." || isAbsolute(below) ? null : join(real, relative(folder, full));
 };
 const OUTSIDE = { ok: false, values: { error: "file.outside-project" } } as const;
 
@@ -197,7 +202,7 @@ const fileRead =
 
 // The plan of a `file.write`: the node's content (text as it is, any other value as its JSON) at its path, replacing
 // what is there now.
-const planOf = (project: string, { config, data }: Attempt): Plan | string => {
+const planOf = (project: string, { config, data }: Pick<Attempt, "config" | "data">): Plan | string => {
   let path: string | null;
   try {
     path = inProject(project, text(config["path"]));
@@ -220,8 +225,9 @@ const fileWrite =
     if (typeof plan === "string")
       return { pid: null, run: () => Promise.resolve({ ok: false, values: { error: plan } }) };
     const hash = planHash(plan);
+    // A stopped attempt, or one whose run another runner took over, writes nothing.
     const onBegun = (applyRun: string): void => {
-      if (!attempt.applying(applyRun)) throw new Error("another runner took the run over");
+      if (attempt.signal.aborted || !attempt.applying(applyRun)) throw new Error("the attempt may not write");
     };
     return {
       pid: null,
@@ -505,7 +511,26 @@ export interface Waiting {
   readonly node: string;
   readonly point: GatePoint | "human.approval";
   readonly planHash: string | null;
+  /** What a write at its gate writes, when the plan built now is the one the gate recorded; null for anything else. */
+  readonly content: string | null;
 }
+
+// The value a node's data input `handle` gets, as the journal left the node before it, or from a workflow input.
+const valueInto = (run: GraphRun, state: RunState | null, node: string, handle: string): Json | undefined => {
+  const edge = run.definition.edges.find(({ to }) => "node" in to && to.node === node && to.handle === handle);
+  if (edge === undefined) return undefined;
+  const { from } = edge;
+  return "node" in from ? state?.nodes[from.node]?.values[from.handle] : run.inputs[from.input];
+};
+
+// The content of a write waiting at its gate, when the plan its data input gives now is the one the gate recorded.
+const contentOf = (run: GraphRun, state: RunState | null, { node, planHash: hash }: Omit<Waiting, "content">) => {
+  const value = valueInto(run, state, node, "content");
+  const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
+  const plan = planOf(run.project, { config, data: value === undefined ? {} : { content: value } });
+  const [write] = typeof plan === "string" || planHash(plan) !== hash ? [] : plan.operations;
+  return write?.kind === "write" ? write.content : null;
+};
 
 // What waits in a run: approvals its replay leaves waiting, and attempts whose last record is a gate.
 const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Waiting[] => {
@@ -514,17 +539,17 @@ const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Waiting[] => 
     return parsed.success ? [parsed.data] : [];
   });
   const replayed = replay(run.definition, run.inputs, events);
-  const nodes = replayed.ok ? Object.entries(replayed.value.nodes) : [];
-  const approvals = nodes.flatMap(([node, { state }]) =>
-    state === "waiting" ? [{ node, point: "human.approval" as const, planHash: null }] : [],
+  const state = replayed.ok ? replayed.value : null;
+  const approvals = Object.entries(state?.nodes ?? {}).flatMap(([node, { state: at }]) =>
+    at === "waiting" ? [{ node, point: "human.approval" as const, planHash: null, content: null }] : [],
   );
-  const gates = new Map<string, Waiting>();
+  const gates = new Map<string, Omit<Waiting, "content">>();
   for (const event of journal) {
     if (event.type === "gate")
       gates.set(event.node, { node: event.node, point: event.point, planHash: event.planHash });
     else if ("node" in event) gates.delete(event.node);
   }
-  return [...approvals, ...gates.values()];
+  return [...approvals, ...[...gates.values()].map((gate) => ({ ...gate, content: contentOf(run, state, gate) }))];
 };
 
 /** What a graph run waits for, read without a write. */

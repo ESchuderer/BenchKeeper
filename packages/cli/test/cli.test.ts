@@ -687,7 +687,7 @@ test("runs approve shows what a waiting node waits for, and with --yes approves 
   const approved = json((await cli("--json", "runs", "approve", runId, "go", "--yes", "--project", root)).out);
   expect([ran["status"], shown["wait"], other.code, approved["status"]]).toEqual([
     "waiting",
-    { node: "go", point: "human.approval", planHash: null },
+    { node: "go", point: "human.approval", planHash: null, content: null },
     EXIT.refused,
     "succeeded",
   ]);

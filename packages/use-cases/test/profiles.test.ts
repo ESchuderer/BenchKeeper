@@ -22,6 +22,7 @@ import {
   planProfile,
   planSwitch,
   profileDoctor,
+  showProfile,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
@@ -40,13 +41,18 @@ const applied = (state: string, plan: Plan | null): void => {
 
 // The default profile's plugin parts, approved by name.
 const PLUGINS = ["machine.plugin.cedarloom", "machine.plugin.ponytail", "machine.plugin.matt-pocock"];
-// A machine with its hub named: config, state, Claude Code home and user home folders of its own.
-const machine = () => {
+// A fresh machine: config, state, Claude Code home and user home folders of its own.
+const folders = () => {
   const [config, state, home, user] = ["config-", "state-", "home-", "user-"].map((name) =>
     mkdtempSync(join(root, name)),
   );
   if (config === undefined || state === undefined || home === undefined || user === undefined)
     throw new Error("no folders");
+  return { config, state, home, user };
+};
+// A machine with its hub named.
+const machine = () => {
+  const { config, state, home, user } = folders();
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
   // The gates, off here so a plan carries no line about their source, are switched back by the tests of them.
   applied(state, ok(planChoice(config, { part: "project.gates", on: false })));
@@ -129,6 +135,29 @@ test("the selection names only the profile's parts, and a part goes back to its 
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },
     },
   ]);
+});
+
+test("the view names the probe of an auto part the selection leaves to it, and none once the selection names it", async () => {
+  const { config, state, home, user } = machine();
+  const { parts } = ok(await showProfile(config, state, { home, user }, { fetch: stock }));
+  const shown = parts.filter((part) =>
+    ["project.dc-wrapper", "project.gates", "machine.rules.global"].includes(part.id),
+  );
+  expect(shown.map(({ id, on, when }) => ({ id, on, when }))).toEqual([
+    { id: "machine.rules.global", on: true, when: null },
+    { id: "project.dc-wrapper", on: false, when: "devcontainer" },
+    { id: "project.gates", on: false, when: null },
+  ]);
+});
+
+test("a machine without its hub's binding gets a view held back, as profiles apply refuses its plan", async () => {
+  const { config, state, home, user } = folders();
+  const { held, plan, findings } = ok(await showProfile(config, state, { home, user }, { fetch: stock }));
+  expect({ held, plan, codes: findings.map(({ code }) => code) }).toEqual({
+    held: true,
+    plan: null,
+    codes: ["profile.binding-missing"],
+  });
 });
 
 test("a Claude Code home not made yet is named as the disk will name it, through a linked folder", () => {

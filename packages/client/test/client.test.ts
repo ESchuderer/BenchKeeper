@@ -17,7 +17,14 @@ afterEach(async () => {
 /** A server on a fresh state folder, with the base URL and token a page reads from the printed link. */
 const serve = async (): Promise<{ base: string; token: string; state: string }> => {
   const state = join(mkdtempSync(join(tmpdir(), "cedarloom-client-")), "state");
-  const server = await startServer({ state, every: 25, log: () => undefined });
+  const machine = { home: join(state, "..", ".claude"), user: join(state, "..") };
+  const server = await startServer({
+    state,
+    config: join(state, "..", "config"),
+    machine,
+    every: 25,
+    log: () => undefined,
+  });
   servers.push(server);
   const url = new URL(server.url);
   return { base: url.origin, token: url.hash.slice("#t=".length), state };
@@ -178,9 +185,10 @@ test("with the platform's fetch the session needs a cookie store: Node's fetch k
   expect((await api.GET("/api/runs")).error).toEqual({ error: "no-session" });
 });
 
+// The check starts Node, which loads openapi-typescript and generates every type: past 5 s on a loaded machine.
 test("the committed types are the ones openapi-typescript generates from the server's document (pnpm --filter @cedarloom/client generate)", async () => {
   const check = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "generate.ts"), "--check"], {
     encoding: "utf8",
   });
   expect([check.status, check.stderr]).toEqual([0, ""]);
-});
+}, 30_000);

@@ -78,6 +78,8 @@ const serve = async (
   const log: string[] = [];
   const server = await startServer({
     state,
+    config: join(state, "..", "config"),
+    machine: { home: join(state, "..", ".claude"), user: join(state, "..") },
     ui,
     fetch,
     every: 25,

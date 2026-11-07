@@ -2,10 +2,10 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { type Started, startServer } from "@cedarloom/server";
+import type { Started } from "@cedarloom/server";
 import { applyPlan, runWorkflow } from "@cedarloom/use-cases";
 import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
-import { accessible as check, openPage } from "./browser.ts";
+import { accessible as check, openPage, serve } from "./browser.ts";
 
 // One server per file, started inside the worker: its URL token works once.
 test.describe.configure({ mode: "serial" });
@@ -26,12 +26,7 @@ test.beforeAll(async ({ browser }) => {
     { yes: true },
   );
   stateDir = state;
-  server = await startServer({
-    state,
-    ui: join(import.meta.dirname, "..", "dist"),
-    every: 100,
-    log: (text) => errors.push(text),
-  });
+  server = await serve(state, errors, { every: 100 });
   ({ context, page } = await openPage(browser, errors));
 });
 

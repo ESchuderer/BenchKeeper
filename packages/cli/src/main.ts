@@ -215,13 +215,13 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   accounts
     .command("list")
     .description("list the accounts and their pools")
-    .action(() => done(accountsList(ctx())));
+    .action(async () => done(await accountsList(ctx())));
   accounts
     .command("status")
     .description(
       "show the account a new worker of each confirmed pool would start on now (leases and the worker's model aside), and its windows",
     )
-    .action(() => done(accountsStatus(ctx())));
+    .action(async () => done(await accountsStatus(ctx())));
   accounts
     .command("pool")
     .description("account pools")

@@ -583,13 +583,14 @@ const sampleParams = (code: string): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(shape).map(([key, schema]) => [key, sampleValue(key, schema)]));
 };
 
+// Two Node processes each strip and load the whole CLI: together past 5 s under full-suite load.
 test("the installed command runs the same program and sets the process exit code", () => {
   const { state } = setup();
   const bin = join(import.meta.dirname, "..", "src", "bin.ts");
   const listed = spawnSync(process.execPath, [bin, "--state", state, "runs", "list"], { encoding: "utf8" });
   expect([listed.status, listed.stdout]).toEqual([EXIT.ok, "No runs yet.\n"]);
   expect(spawnSync(process.execPath, [bin, "nope"], { encoding: "utf8" }).status).toBe(EXIT.usage);
-});
+}, 30_000);
 
 test("a replaced file shows as a replace, and an unreadable store is an internal error (exit 70)", async () => {
   const { root, state, cli } = setup();

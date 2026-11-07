@@ -3761,6 +3761,39 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "profile.binding-waiting"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "binding": {
+              "type": "string",
+              "enum": [
+                "gates"
+              ]
+            }
+          },
+          "required": [
+            "part",
+            "binding"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "profile.approval-needed"
         },
         "params": {

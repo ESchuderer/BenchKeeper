@@ -251,6 +251,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.binding-waiting": (p) =>
+    `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {

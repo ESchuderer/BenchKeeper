@@ -36,7 +36,7 @@ const machine = () => {
   if (config === undefined || state === undefined || home === undefined || user === undefined)
     throw new Error("no folders");
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
-  // The gates, which need a workflow source of their own, are switched on by the tests of them.
+  // The gates, off here so a plan carries no line about their source, are switched back by the tests of them.
   applied(state, ok(planChoice(config, { part: "project.gates", on: false })));
   return {
     config,
@@ -518,6 +518,22 @@ test("gates wait for their approval by name, so --yes alone never writes a CI fi
     ],
   ]);
 });
+test("the default gates stay off with one line until this machine binds their source, then wait for approval", async () => {
+  const box = machine();
+  applied(box.state, ok(planChoice(box.config, { part: "project.gates", on: null })));
+  const project = projectWith();
+  const unbound = await projectPlan(box, project);
+  applied(box.state, ok(planChoice(box.config, { gates: `acme/workflows@${"a".repeat(40)}` })));
+  const bound = (await projectPlan(box, project)).findings.map(({ code, params }) => [
+    code,
+    "part" in params && params.part,
+  ]);
+  expect([unbound.findings, bound]).toEqual([
+    [{ code: "profile.binding-waiting", params: { part: "project.gates", binding: "gates" } }],
+    [["profile.target-approval", "project.gates"]],
+  ]);
+});
+
 test("two parts that write one file stop the plan", async () => {
   const gate = { type: "gates", title: "CI", default: "on", dependabotCooldownDays: 5 };
   const box = custom({ ci: { ...gate, callers: ["lint"] }, more: { ...gate, callers: ["test"] } });

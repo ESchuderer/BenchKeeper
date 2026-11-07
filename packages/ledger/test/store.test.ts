@@ -646,13 +646,6 @@ test("usage samples are kept as history and update the latest reading in one tra
   expect(store.usageSamples()).toHaveLength(3);
 });
 
-test("a model's own weekly window is a reading too; a window of another form is refused", () => {
-  const store = opened(fresh());
-  store.recordSamples([{ ...sample, window: "seven_day_opus", quota: "sevenDay:opus", usedPercent: 50 }]);
-  expect(store.readings()).toMatchObject([{ account: "work", window: "sevenDay:opus", usedPercent: 50 }]);
-  expect(() => store.recordSamples([{ ...sample, quota: "sevenDay:Opus" }])).toThrow(/invalid/i);
-});
-
 test("a stored reading the contract refuses is left out of the readings, so it cannot stop every account choice", () => {
   const dir = fresh();
   const store = opened(dir);

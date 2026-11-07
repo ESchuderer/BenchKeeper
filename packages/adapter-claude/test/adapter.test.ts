@@ -209,10 +209,15 @@ test("maps the stream-json lines to events", async () => {
   expect(all[6]).toEqual({ type: "exit", code: 0, signal: null, error: null, stderr: "fake stderr\n" });
 });
 
-test("a model's own weekly window, seven_day_<family>, is that family's 7-day window; another window is none", async () => {
+test("the Fable limit and the models' weekly windows are those models' 7-day windows; another window is none", async () => {
   const [init] = readFileSync(join(fixtures, "stream.jsonl"), "utf8").split("\n");
   const window = { utilization: 0.5, resetsAt: 1793988000, status: "allowed" };
-  const unifiedWindows = { seven_day: window, seven_day_opus: window, overage: window };
+  const unifiedWindows = {
+    seven_day: window,
+    seven_day_overage_included: window,
+    seven_day_opus: window,
+    overage: window,
+  };
   const limit = {
     type: "rate_limit_event",
     rate_limit_info: { ...window, rateLimitType: "seven_day_opus", unifiedWindows },
@@ -223,6 +228,7 @@ test("a model's own weekly window, seven_day_<family>, is that family's 7-day wi
   expect(all.find((event) => event.type === "usage")).toMatchObject({
     windows: [
       { window: "seven_day", quota: "sevenDay" },
+      { window: "seven_day_overage_included", quota: "sevenDay:fable" },
       { window: "seven_day_opus", quota: "sevenDay:opus" },
       { window: "overage", quota: null },
     ],

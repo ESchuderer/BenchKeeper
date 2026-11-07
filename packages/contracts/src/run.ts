@@ -45,6 +45,10 @@ export const RunState = z.strictObject({
 });
 export type RunState = z.infer<typeof RunState>;
 
+/** Where a run waits for the owner: before a node with effects starts, before a plan a run built applies. */
+export const GatePoint = z.enum(["before-node", "before-apply"]);
+export type GatePoint = z.infer<typeof GatePoint>;
+
 /** How an attempt of a node the executor runs ended; an interrupted attempt counts as a failed one. */
 export const AttemptOutcome = z.enum(["done", "failed", "timed-out", "interrupted", "cancelled"]);
 export type AttemptOutcome = z.infer<typeof AttemptOutcome>;
@@ -59,7 +63,8 @@ export const RunEvent = z.discriminatedUnion("type", [
     outcome: AttemptOutcome,
     values: Values.optional(),
   }),
-  z.strictObject({ type: z.literal("decided"), node: WorkflowId, approved: z.boolean() }),
+  // An approval's answer, or the owner's decision at a gate; `planHash`: the plan a decision before an apply approves.
+  z.strictObject({ type: z.literal("decided"), node: WorkflowId, approved: z.boolean(), planHash: Sha256.optional() }),
   z.strictObject({ type: z.literal("cancel") }),
 ]);
 export type RunEvent = z.infer<typeof RunEvent>;
@@ -67,7 +72,8 @@ export type RunEvent = z.infer<typeof RunEvent>;
 /**
  * An entry of a run's event log: the reducer's events, and the executor's records around them, which a replay skips.
  * `started` is committed before its attempt is spawned, `applying` before its apply run writes anything, `session` as
- * soon as an agent's session names its id, so a later runner can resume it.
+ * soon as an agent's session names its id, so a later runner can resume it. `gate`: an attempt waits there for the
+ * owner's decision; `waiting`: its runner let go of the run, as nothing runs and every node left waits for the owner.
  */
 export const JournalEvent = z.discriminatedUnion("type", [
   ...RunEvent.options,
@@ -81,6 +87,14 @@ export const JournalEvent = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("session"), node: WorkflowId, attempt: Attempt, sessionId: z.string().min(1) }),
   z.strictObject({ type: z.literal("finished"), status: RunStatus.exclude(["running"]), outputs: Values }),
   z.strictObject({ type: z.literal("resumed") }),
+  z.strictObject({
+    type: z.literal("gate"),
+    node: WorkflowId,
+    attempt: Attempt,
+    point: GatePoint,
+    planHash: Sha256.nullable(),
+  }),
+  z.strictObject({ type: z.literal("waiting") }),
 ]);
 export type JournalEvent = z.infer<typeof JournalEvent>;
 

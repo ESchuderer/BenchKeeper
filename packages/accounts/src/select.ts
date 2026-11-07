@@ -13,11 +13,11 @@ type Current = Omit<Reading, "readAt">;
 
 /**
  * The headroom a new worker needs in each window, in percent, the same for every account: claude-swap's lines replace
- * it once they reach the choice (owner decision, 2026-11-07).
+ * it for pool accounts once they reach the choice (owner decision, 2026-11-07).
  */
-export const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
+const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
 
-/** A pool account as the choice saw it: its smallest margin above its minimums, null when a window is unknown. */
+/** A pool account as the choice saw it: its smallest margin above the minimums, null when a window is unknown. */
 export interface Candidate {
   readonly account: string;
   readonly margin: number | null;
@@ -116,7 +116,7 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
 };
 
 /**
- * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
+ * Chooses the account a new worker starts on: the pool account with the most headroom above both minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
  * or on the pool's first account (owner decision, 2026-11-06). An account in `busy` runs its most workers at
  * once and is passed over. `model` is the worker's, whose own weekly window counts too. `readings` holds the latest

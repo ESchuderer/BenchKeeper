@@ -105,6 +105,7 @@ export {
   type Choice,
   checkProfile,
   claudeHome,
+  heldBack,
   type Machine,
   type PlanOptions,
   planChoice,

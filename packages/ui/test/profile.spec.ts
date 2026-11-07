@@ -47,9 +47,12 @@ test("switching a part off takes its file out of this machine's plan, and the vi
   await expect(line).toHaveCount(1);
   const before = await main.getByRole("status").textContent();
   await accessible(page);
-  await rules.click();
-  await expect(rules).not.toBeChecked();
+  // By keyboard: the focus stays on the switch through its run and the new preview.
+  await rules.focus();
+  await page.keyboard.press("Space");
   await expect(line).toHaveCount(0);
+  await expect(rules).not.toBeChecked();
+  await expect(rules).toBeFocused();
   await expect(main.getByRole("status")).not.toHaveText(before ?? "");
   await accessible(page);
   expect(errors).toEqual([]);

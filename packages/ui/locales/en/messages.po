@@ -506,3 +506,15 @@ msgstr "{part} adds or changes the plugin {plugin}, whose hooks, MCP servers and
 #. js-lingui-explicit-id
 msgid "problem.whenUnmet"
 msgstr "{part} is switched on but stays off while Orca is not here: install Orca, or switch its extension back on with cedarloom components switch cedarloom.orca auto."
+
+#. js-lingui-explicit-id
+msgid "profile.held"
+msgstr "The plan waits for the lines below."
+
+#. js-lingui-explicit-id
+msgid "problem.gitFailed"
+msgstr "Git failed to {step} ({error})."
+
+#. js-lingui-explicit-id
+msgid "problem.sourceWaiting"
+msgstr "{source} has a new commit {commit}; it is taken from {offered}, 3 days after this machine first saw it."

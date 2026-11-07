@@ -2186,6 +2186,7 @@ export interface components {
                 } | components["schemas"]["StoreUpdateInput"])[];
             } | null;
             findings: components["schemas"]["FindingInput"][];
+            held: boolean;
         };
         RunResultInput: {
             runId: string | null;
@@ -3448,6 +3449,7 @@ export interface components {
                 } | components["schemas"]["StoreUpdate"])[];
             } | null;
             findings: components["schemas"]["Finding"][];
+            held: boolean;
         };
         RunResult: {
             runId: string | null;

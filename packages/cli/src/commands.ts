@@ -634,7 +634,7 @@ export const profilesApply = async (
   const profile = await useCases.planProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
-  if (findings.some((finding) => severityOf(finding) === "error")) {
+  if (useCases.heldBack(findings)) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
   if (plan === null) {

@@ -13,6 +13,7 @@ import {
   readDocument,
   type Result,
   SELECTION_SCHEMA_VERSION,
+  severityOf,
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 import { fetchTree, type Tree } from "@cedarloom/git";
@@ -320,16 +321,21 @@ export const checkProfile = async (
   return checked.ok ? { ok: true, value: checked.value.findings } : checked;
 };
 
+/** Whether a plan's lines hold it back: any error, which `profiles apply` refuses. */
+export const heldBack = (findings: readonly Finding[]): boolean =>
+  findings.some((finding) => severityOf(finding) === "error");
+
 /**
  * The Profile view, read only: the selected profile's parts, each on or off at this machine's level, with the probe of
- * an auto part the selection leaves to it; and the machine level's plan with its drift lines.
+ * an auto part the selection leaves to it; and the machine level's plan with its drift lines, and whether they hold it
+ * back.
  */
 export const showProfile = async (
   config: string,
   state: string,
   machine: Machine,
   options: Pick<PlanOptions, "app" | "fetch"> = {},
-): Promise<Result<ProfilePlan & { parts: ProfilePart[] }>> => {
+): Promise<Result<ProfilePlan & { parts: ProfilePart[]; held: boolean }>> => {
   const read = readSelection(config);
   if (!read.ok) return read;
   const resolved = resolveProfile(read.value.selection, APP_VERSION, probeOf(options.app, config, undefined));
@@ -345,7 +351,8 @@ export const showProfile = async (
     }),
   );
   const planned = await driftPlan(config, state, machine, options);
-  return planned.ok ? { ok: true, value: { ...planned.value, parts } } : planned;
+  if (!planned.ok) return planned;
+  return { ok: true, value: { ...planned.value, parts, held: heldBack(planned.value.findings) } };
 };
 
 /**

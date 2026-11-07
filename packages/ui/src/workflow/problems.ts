@@ -1,5 +1,5 @@
 import type { Finding } from "@cedarloom/contracts";
-import { t } from "../i18n.ts";
+import { t, when } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
 /** The findings the UI shows: the validator's, why an imported file or a draft was refused, and the profile's lines. */
@@ -9,6 +9,8 @@ type Shown = Extract<
   | `draft.${string}`
   | `document.${string}`
   | "run.node-unsupported"
+  | "git.failed"
+  | "profile.source-waiting"
   | "profile.part-unknown"
   | "profile.part-requires"
   | "profile.binding-missing"
@@ -63,6 +65,9 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.unreachable": (p) => t("problem.unreachable", p),
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
   "run.node-unsupported": (p) => t("problem.nodeUnsupported", p),
+  "git.failed": (p) => t("problem.gitFailed", p),
+  "profile.source-waiting": (p) =>
+    t("problem.sourceWaiting", { source: p.source, commit: p.commit.slice(0, 12), offered: when(p.offered) }),
   "profile.part-unknown": (p) => t("problem.partUnknown", p),
   "profile.part-requires": (p) => t("problem.partRequires", p),
   "profile.binding-missing": (p) => t("problem.bindingMissing", p),

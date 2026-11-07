@@ -90,6 +90,7 @@ export interface MessageValues {
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
   "problem.extensionMissing": { node: string | number; type: string | number };
   "problem.extra": { item: string | number };
+  "problem.gitFailed": { step: string | number; error: string | number };
   "problem.incompatibleHandles": { edge: string | number; from: string | number; to: string | number };
   "problem.invalidConfig": { node: string | number; issues: string | number };
   "problem.joinBranches": { node: string | number; count: string | number };
@@ -106,6 +107,7 @@ export interface MessageValues {
   "problem.reportOnlyWrite": { node: string | number };
   "problem.scheduleInput": { input: string | number };
   "problem.severity": { severity: string };
+  "problem.sourceWaiting": { source: string | number; commit: string | number; offered: string | number };
   "problem.strayEntry": { section: string | number; node: string | number };
   "problem.triggerCount": { count: string | number };
   "problem.uncheckedHandles": { edge: string | number; from: string | number; to: string | number };
@@ -114,6 +116,7 @@ export interface MessageValues {
   "problem.unreachable": { node: string | number };
   "problem.whenUnmet": { part: string | number };
   "problem.workflowOutput": { handle: string | number };
+  "profile.held": Record<never, never>;
   "profile.level": { level: string };
   "profile.plan": { count: number };
   "profile.when": { when: string };

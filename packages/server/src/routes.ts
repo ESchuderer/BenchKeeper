@@ -221,8 +221,8 @@ export const profileRoutes: FastifyPluginAsyncZod<{
     async (_req, reply) => {
       const shown = await useCases.showProfile(config, state, machine, { app, fetch });
       if (!shown.ok) return reply.code(409).send(refusal(shown.finding));
-      const { parts, plan, findings } = shown.value;
-      return { parts, plan: plan === null ? null : useCases.previewPlan(plan).plan, findings };
+      const { parts, plan, findings, held } = shown.value;
+      return { parts, plan: plan === null ? null : useCases.previewPlan(plan).plan, findings, held };
     },
   );
   server.put(

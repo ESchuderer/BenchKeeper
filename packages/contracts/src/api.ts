@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Finding } from "./findings.ts";
 import { ImportReview } from "./imports.ts";
 import { DeleteFile, GitOid, PLAN_SCHEMA_VERSION, Sha256, StoreUpdate, WriteFile } from "./plan.ts";
+import { PartProbe, ProfileLevel } from "./profile.ts";
 import { contracts } from "./registry.ts";
 import { GraphRun } from "./run.ts";
 import { WorkflowId } from "./workflow.ts";
@@ -87,21 +88,21 @@ export const ImportPreview = z
 export const ProfilePart = z
   .strictObject({
     id: z.string(),
-    level: z.enum(["machine", "workspace", "project"]),
+    level: ProfileLevel,
     title: z.string(),
     description: z.string().nullable(),
     on: z.boolean(),
-    when: z.enum(["orca", "devcontainer", "no-devcontainer", "gates"]).nullable(),
+    when: PartProbe.nullable(),
   })
   .register(contracts, { id: "ProfilePart" });
 export type ProfilePart = z.infer<typeof ProfilePart>;
 
 /**
  * The selected profile's parts, and this machine's plan (null: no file to change) with its drift lines and what keeps
- * parts from applying.
+ * parts from applying; `held`: a line holds the plan back, so `profiles apply` refuses it.
  */
 export const ProfileView = z
-  .strictObject({ parts: z.array(ProfilePart), plan: summary.nullable(), findings })
+  .strictObject({ parts: z.array(ProfilePart), plan: summary.nullable(), findings, held: z.boolean() })
   .register(contracts, { id: "ProfileView" });
 
 /** How a change ended; a run that stopped midway carries a `run.failed` finding that names it and its undo. */

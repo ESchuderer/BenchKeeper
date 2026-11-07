@@ -95,12 +95,16 @@
       "items": {
         "$ref": "Finding.schema.json"
       }
+    },
+    "held": {
+      "type": "boolean"
     }
   },
   "required": [
     "parts",
     "plan",
-    "findings"
+    "findings",
+    "held"
   ],
   "additionalProperties": false
 }

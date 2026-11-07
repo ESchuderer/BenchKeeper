@@ -5641,12 +5641,16 @@
             "items": {
               "$ref": "#/components/schemas/FindingInput"
             }
+          },
+          "held": {
+            "type": "boolean"
           }
         },
         "required": [
           "parts",
           "plan",
-          "findings"
+          "findings",
+          "held"
         ],
         "additionalProperties": false
       },
@@ -11543,12 +11547,16 @@
             "items": {
               "$ref": "#/components/schemas/Finding"
             }
+          },
+          "held": {
+            "type": "boolean"
           }
         },
         "required": [
           "parts",
           "plan",
-          "findings"
+          "findings",
+          "held"
         ],
         "additionalProperties": false
       },

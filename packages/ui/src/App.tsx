@@ -258,7 +258,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
 };
 
 /** A part's switch; its description names its id, which the lines use, and the probe it is left to. */
-const PartSwitch = ({ part, busy, onSwitch }: { part: Part; busy: boolean; onSwitch: (on: boolean) => void }) => (
+const PartSwitch = ({ part, onSwitch }: { part: Part; onSwitch: (on: boolean) => void }) => (
   <Switch
     label={part.title}
     description={
@@ -273,7 +273,6 @@ const PartSwitch = ({ part, busy, onSwitch }: { part: Part; busy: boolean; onSwi
     // The theme's dimmed description falls below 4.5:1 on white.
     styles={{ description: { color: "var(--mantine-color-text)" } }}
     checked={part.on}
-    disabled={busy}
     onChange={(event) => onSwitch(event.currentTarget.checked)}
   />
 );
@@ -281,12 +280,12 @@ const PartSwitch = ({ part, busy, onSwitch }: { part: Part; busy: boolean; onSwi
 type OnSwitch = (part: string, on: boolean) => void;
 
 /** The parts in a group per level, in the order the profile gives them. */
-const Levels = ({ parts, busy, onSwitch }: { parts: Part[]; busy: boolean; onSwitch: OnSwitch }) =>
+const Levels = ({ parts, onSwitch }: { parts: Part[]; onSwitch: OnSwitch }) =>
   [...Map.groupBy(parts, (part) => part.level)].map(([level, inLevel]) => (
     <Fieldset key={level} legend={t("profile.level", { level })}>
       <Stack gap="sm">
         {inLevel.map((part) => (
-          <PartSwitch key={part.id} part={part} busy={busy} onSwitch={(on) => onSwitch(part.id, on)} />
+          <PartSwitch key={part.id} part={part} onSwitch={(on) => onSwitch(part.id, on)} />
         ))}
       </Stack>
     </Fieldset>
@@ -294,12 +293,13 @@ const Levels = ({ parts, busy, onSwitch }: { parts: Part[]; busy: boolean; onSwi
 
 /**
  * The selected profile's parts per level, each switch a run that changes this machine's selection, and this machine's
- * plan with its lines; the plan's sentence is a live region, so what a switch changed is announced.
+ * plan with its lines; the plan's sentence is a live region, so what a switch changed is announced. A switch made while
+ * the last one is still applied or read is ignored rather than disabled, which would drop the keyboard focus.
  */
 const Profile = ({ api }: { api: Api }): ReactNode => {
   const [view, setView] = useState<ProfileView | null>(null);
   const [problem, setProblem] = useState("");
-  const [busy, setBusy] = useState(true);
+  const busy = useRef(false);
   const [version, setVersion] = useState(0);
   useEffect(() => {
     let current = true;
@@ -308,24 +308,27 @@ const Profile = ({ api }: { api: Api }): ReactNode => {
       if (!current) return;
       setProblem("problem" in answer ? answer.problem : "");
       if ("data" in answer) setView(answer.data);
-      setBusy(false);
+      busy.current = false;
     };
     void show();
     return () => void (current = false);
   }, [api, version]);
   const choose = async (part: string, on: boolean): Promise<void> => {
-    setBusy(true);
+    if (busy.current) return;
+    busy.current = true;
     const answer = await call(() => api.PUT("/api/profile/parts/{part}", { params: { path: { part } }, body: { on } }));
     if ("data" in answer) return setVersion((value) => value + 1);
     setProblem(answer.problem);
-    setBusy(false);
+    busy.current = false;
   };
   return (
     <Stack>
       {problem !== "" && <Alert color="red">{problem}</Alert>}
       {view && (
         <>
-          <Text role="status">{t("profile.plan", { count: view.plan?.operations.length ?? 0 })}</Text>
+          <Text role="status">
+            {view.held ? t("profile.held") : t("profile.plan", { count: view.plan?.operations.length ?? 0 })}
+          </Text>
           {view.findings.length > 0 && (
             <List>
               {view.findings.map((finding) => (
@@ -333,7 +336,7 @@ const Profile = ({ api }: { api: Api }): ReactNode => {
               ))}
             </List>
           )}
-          <Levels parts={view.parts} busy={busy} onSwitch={(part, on) => void choose(part, on)} />
+          <Levels parts={view.parts} onSwitch={(part, on) => void choose(part, on)} />
         </>
       )}
     </Stack>

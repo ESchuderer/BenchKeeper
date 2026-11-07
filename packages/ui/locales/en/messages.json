@@ -173,6 +173,7 @@
       " is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ",
       ["item"]
     ],
+    "problem.gitFailed": ["Git failed to ", ["step"], " (", ["error"], ")."],
     "problem.incompatibleHandles": [
       "Edge ",
       ["edge"],
@@ -220,6 +221,14 @@
       " needs a default."
     ],
     "problem.severity": [["severity", "select", { "error": ["Error"], "warning": ["Warning"], "other": ["Note"] }]],
+    "problem.sourceWaiting": [
+      ["source"],
+      " has a new commit ",
+      ["commit"],
+      "; it is taken from ",
+      ["offered"],
+      ", 3 days after this machine first saw it."
+    ],
     "problem.strayEntry": [
       "The ",
       ["section"],
@@ -245,6 +254,7 @@
       " is switched on but stays off while Orca is not here: install Orca, or switch its extension back on with cedarloom components switch cedarloom.orca auto."
     ],
     "problem.workflowOutput": ["The workflow output ", ["handle"]],
+    "profile.held": ["The plan waits for the lines below."],
     "profile.level": [
       ["level", "select", { "machine": ["Machine"], "workspace": ["Workspace"], "other": ["Project"] }]
     ],

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
-import type { Result, WorkerResult } from "@cedarloom/contracts";
+import type { Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared, Recovery } from "@cedarloom/engine";
 import { worktreeOf } from "@cedarloom/git";
 import { readResult } from "@cedarloom/orchestration";
@@ -206,16 +206,16 @@ export const agentRun = (run: AgentRun, options: AgentOptions) => {
   return (attempt: Attempt): Promise<Prepared> => attempted(attempt, run, options, { worktree, resume: null });
 };
 
-// An attempt whose worker wrote its result: it ends with that result.
-const finished = ({ verdict, summary }: WorkerResult): Prepared => ({
+// An attempt whose worker ended with a verdict: it ends with that.
+const finished = (verdict: string, summary: string | null): Prepared => ({
   pid: null,
   run: () => Promise.resolve(ended(verdict, summary)),
 });
 
 /**
  * The recovery of `agent.run` attempts a dead runner left, for a run taken over. An attempt with a recorded session
- * ends with the result its latest launch wrote, without a relaunch. With no result, it resumes the session on the
- * account it ran on, in the run's worktree. An attempt without a session, or whose runtime cannot resume, ends
+ * ends with the verdict the launcher gave its latest launch, else with the result that launch wrote, without a relaunch.
+ * With neither, it resumes the session on the account it ran on, in the run's worktree. An attempt without a session, or whose runtime cannot resume, ends
  * interrupted (Q4).
  */
 export const agentRecover = (run: AgentRun, options: AgentOptions): Recovery => {
@@ -227,8 +227,10 @@ export const agentRecover = (run: AgentRun, options: AgentOptions): Recovery => 
     const launches = await retryBusy(() => withStore(run.state, (store) => ({ ok: true, value: store.launches() })));
     const launch = launches.ok ? launches.value.findLast((each) => each.task === task) : undefined;
     if (launch === undefined) return null;
+    // A launch the launcher ended is decided: its verdict holds, which judged the CLI's exit too.
+    if (launch.verdict !== null && launch.verdict !== "interrupted") return finished(launch.verdict, null);
     const result = readResult(resultFileOf(run.state, launch.runId), launch.runId);
-    if (result !== null) return finished(result);
+    if (result !== null) return finished(result.verdict, result.summary);
     if (options.runtime.capabilities.resume !== "supported") return null;
     return attempted(left, run, options, { worktree, resume: { sessionId, account: launch.account } });
   };

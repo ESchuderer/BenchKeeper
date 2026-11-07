@@ -881,6 +881,18 @@ test("an agent attempt a dead runner left without a result resumes its session o
   );
 }, 30_000);
 
+test("an agent attempt whose launch the launcher ended before its runner died ends with that verdict", async () => {
+  const { state, config, work } = setup();
+  const runId = died(state, work, "work");
+  withLedger(state, (store) => store.finishLaunch(LAUNCH, "not-run"));
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await resumeRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "failed" } });
+  expect([attemptsOf(state), withLedger(state, (store) => store.launches().length)]).toEqual([
+    [{ state: "failed", outputs: { result: "", verdict: "not-run" }, sessionId: SESSION }],
+    1,
+  ]);
+}, 30_000);
+
 test("a cancel of a run a dead runner left resumes no agent: its attempt ends interrupted", async () => {
   const { state, config, work } = setup();
   const runId = died(state, work, "work");

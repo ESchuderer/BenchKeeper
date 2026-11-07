@@ -1,5 +1,23 @@
+import { join } from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Browser, type BrowserContext, expect, type Page, type ViewportSize } from "@playwright/test";
+import { type Started, startServer } from "@cedarloom/server";
+
+type Options = Parameters<typeof startServer>[0];
+
+/**
+ * A server on `state` that serves the built UI, with a config folder, a Claude Code home and a user home of its own
+ * beside it; its errors land in `errors`.
+ */
+export const serve = (state: string, errors: string[], options: Partial<Options> = {}): Promise<Started> =>
+  startServer({
+    state,
+    config: join(state, "..", "config"),
+    machine: { home: join(state, "..", ".claude"), user: join(state, "..") },
+    ui: join(import.meta.dirname, "..", "dist"),
+    log: (text) => errors.push(text),
+    ...options,
+  });
 
 /** A page of a context the test made (axe needs one), whose console errors, a CSP violation included, land in `errors`. */
 export const openPage = async (

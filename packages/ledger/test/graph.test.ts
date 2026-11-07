@@ -240,6 +240,18 @@ test("an apply run is linked to its attempt under an act run, never under a repo
   expect(store.events(report)).toMatchObject({ ok: true, value: [{ type: "started" }] });
 });
 
+test("an attempt keeps the id of its agent's session, which a later runner resumes", () => {
+  const dir = fresh();
+  const store = graphs(dir);
+  const { runId } = store.create(manual);
+  store.append(runId, 1, { type: "started", node: "lint", attempt: 1, pid: null });
+  expect(store.append(runId, 1, { type: "session", node: "lint", attempt: 1, sessionId: "s-1" })).toEqual({
+    ok: true,
+    value: 2,
+  });
+  expect(rows(dir, "SELECT sessionId FROM node_attempts")).toEqual([{ sessionId: "s-1" }]);
+});
+
 test("one process applies under the store lock while another appends events, and both succeed", async () => {
   const dir = fresh();
   const store = graphs(dir);

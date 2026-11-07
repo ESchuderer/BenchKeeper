@@ -1,46 +1,4 @@
 {
-  "coverage": {
-    "core": {
-      "lines": 98,
-      "branches": 93,
-      "functions": 96
-    },
-    "agents": {
-      "lines": 95,
-      "branches": 90,
-      "functions": 99
-    },
-    "content": {
-      "lines": 99,
-      "branches": 91,
-      "functions": 99
-    },
-    "orca": {
-      "lines": 99,
-      "branches": 99,
-      "functions": 99
-    },
-    "engine": {
-      "lines": 99,
-      "branches": 93,
-      "functions": 97
-    },
-    "server": {
-      "lines": 97,
-      "branches": 87,
-      "functions": 93
-    },
-    "cli": {
-      "lines": 97,
-      "branches": 87,
-      "functions": 91
-    },
-    "ui": {
-      "lines": 99,
-      "branches": 89,
-      "functions": 99
-    }
-  },
   "baselines": {
     "knip": [],
     "duplicatedLines": {

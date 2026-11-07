@@ -132,7 +132,7 @@ const folderIsPlain = (folder: string): boolean =>
  * files past the flags), and for an extension from elsewhere in a sandbox. Node denies the network under
  * `--permission` only from version 25 (`--allow-net`, v25.0.0), so an older Node is refused.
  */
-const launchOf = (launch: ExtensionLaunch, folder: string): Launch | Finding => {
+const launchOf = async (launch: ExtensionLaunch, folder: string): Promise<Launch | Finding> => {
   const { id, api, runtime } = launch.manifest;
   const flags = ["--permission", "--no-experimental-sqlite", `--allow-fs-read=${folder}`, join(folder, runtime.entry)];
   const plain = { command: process.execPath, args: flags, cwd: folder, env: cleanEnv() };
@@ -142,7 +142,7 @@ const launchOf = (launch: ExtensionLaunch, folder: string): Launch | Finding => 
   if (launch.trust === "bundled") return plain;
   if ((launch.platform ?? process.platform) === "win32") return refused(id, "windows");
   const policy: SandboxPolicy = { read: [folder], write: [], network: "none" };
-  return (launch.sandbox ?? unavailable).wrap(plain, policy) ?? refused(id, "sandbox-unavailable");
+  return (await (launch.sandbox ?? unavailable).wrap(plain, policy)) ?? refused(id, "sandbox-unavailable");
 };
 
 // Rejects after `ms` with `why`, so an extension that never answers cannot hold the host.
@@ -276,7 +276,7 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
   const limits = { ...HOST_LIMITS, ...launch.limits };
   let session: Session | undefined;
   try {
-    const how = launchOf(launch, realpathSync(launch.folder));
+    const how = await launchOf(launch, realpathSync(launch.folder));
     if ("code" in how) return { ok: false, finding: how };
     session = connect(how, limits);
     const logs = logBook(limits);

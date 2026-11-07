@@ -125,7 +125,7 @@ const actions = {
     for (let index = 0; index < 20_000; index += 1) send({ method: "host/log", params: { run: "x", message: "." } });
     return {};
   },
-  abuse: async () => ({
+  abuse: async ({ config }) => ({
     write: await attempt(() => writeFileSync(join(import.meta.dirname, "written.txt"), "x")),
     writeOutside: await attempt(() => writeFileSync(join(import.meta.dirname, "..", "written.txt"), "x")),
     readOutside: await attempt(() => readFileSync(join(import.meta.dirname, "..", "..", "tsconfig.json"))),
@@ -144,7 +144,7 @@ const actions = {
       const { DatabaseSync } = await import("node:sqlite");
       return new DatabaseSync(join(import.meta.dirname, "..", "written.db"));
     }),
-    signal: await attempt(() => process.kill(process.ppid, 0)),
+    signal: await attempt(() => process.kill(config.host, 0)),
     environment: Object.keys(process.env).filter((name) => !["LANG", "LC_ALL", "TZ"].includes(name)),
   }),
 };

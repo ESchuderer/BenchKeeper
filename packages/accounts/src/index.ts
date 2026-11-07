@@ -1,1 +1,8 @@
-export { type Candidate, counted, isConfirmed, type Selection, selectAccount } from "./select.ts";
+export {
+  type Candidate,
+  counted,
+  DEFAULT_MINIMUM,
+  isConfirmed,
+  type Selection,
+  selectAccount,
+} from "./select.ts";

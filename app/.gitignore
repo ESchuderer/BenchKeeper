@@ -3,5 +3,4 @@ dist/
 content/
 test-results/
 playwright-report/
-lcov.info
 reports/

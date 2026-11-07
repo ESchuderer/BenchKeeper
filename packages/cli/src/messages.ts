@@ -37,6 +37,7 @@ const EXTENSION_STEPS = {
   initialize: "answer its handshake",
   run: "run an action",
   doctor: "answer the doctor's checks",
+  target: "answer as a switch target",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
@@ -95,6 +96,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.project-missing": (p) =>
     `The project folder ${p.project} is not there, so no command of the run could run there.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
+  "run.sandbox-unavailable": (p) =>
+    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here; run the workflow without --report.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,

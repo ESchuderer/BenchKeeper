@@ -940,6 +940,12 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.project-mismatch";
             params: {
                 runId: string;
@@ -1474,7 +1480,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {
@@ -2062,6 +2068,12 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.project-mismatch";
             params: {
                 runId: string;
@@ -2596,7 +2608,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {

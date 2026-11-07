@@ -1014,6 +1014,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.sandbox-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "run.project-mismatch"
               },
               "params": {
@@ -3386,7 +3412,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {
@@ -6251,6 +6278,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "run.sandbox-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "run.project-mismatch"
               },
               "params": {
@@ -8623,7 +8676,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {

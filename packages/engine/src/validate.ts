@@ -203,19 +203,31 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
     .map((node): Finding => ({ code: "workflow.unreachable", params: { node: node.id } }));
 };
 
+// The node types that write no file of their own in a report run: agents and commands run read-only there.
+const REPORTING = new Set([
+  "trigger.manual",
+  "trigger.schedule",
+  "file.read",
+  "condition",
+  "join",
+  "human.approval",
+  "agent.run",
+  "command.run",
+]);
+
 /**
- * A28: a run a schedule starts only reports, so its workflow has no node that may write a file: no file.write,
- * and no workflow.run, whose child the validator cannot see. No extension action either, which may write through the
- * host or change other systems (P9 b).
+ * A28: a report run, as a schedule starts, has only nodes of a type known not to write, so a type added later is
+ * refused until it is listed: no file.write, and no workflow.run, whose child the validator cannot see. No extension
+ * action either, which may write through the host or change other systems (P9 b).
  */
-const reportOnly = ({ nodes }: Graph): Finding[] =>
-  nodes.some((node) => node.type === "trigger.schedule")
-    ? nodes.flatMap((node): Finding[] => {
-        if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
-        const writes = node.type === "file.write" || node.type === "workflow.run";
-        return writes ? [{ code: "workflow.report-only-write", params: { node: node.id } }] : [];
-      })
-    : [];
+export const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
+  nodes.flatMap((node): Finding[] => {
+    if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
+    return REPORTING.has(node.type) ? [] : [{ code: "workflow.report-only-write", params: { node: node.id } }];
+  });
+
+const scheduledReports = ({ nodes }: Graph): Finding[] =>
+  nodes.some((node) => node.type === "trigger.schedule") ? reportOnly(nodes) : [];
 
 const strays = ({ workflow, types }: Graph): Finding[] =>
   (["execution", "layout"] as const).flatMap((section) =>
@@ -328,7 +340,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCa
     cycle,
     unreachable,
     strays,
-    reportOnly,
+    scheduledReports,
   ];
   return checks.flatMap((check) => check(graph));
 };

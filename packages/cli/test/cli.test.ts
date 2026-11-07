@@ -889,7 +889,7 @@ test("extensions: a manifest's unknown key reaches the terminal escaped, never a
   expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
 });
 
-test("workflows save stores a draft as a version, history lists it, and an id that is none exits 64", async () => {
+test("workflows save stores a draft as a version, history lists it, export writes it, and an id that is none exits 64", async () => {
   const { root, state, cli } = setup();
   // Store commits carry the user's Git identity, from a home folder of the test's own.
   writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
@@ -903,8 +903,11 @@ test("workflows save stores a draft as a version, history lists it, and an id th
   const saved = await cli("workflows", "save", "w", "--yes", "--json");
   const history = json((await cli("workflows", "history", "w", "--json")).out);
   const none = await cli("workflows", "history", "9w");
+  const exported = await cli("workflows", "export", "w", "--to", join(root, "shared"), "--yes", "--json");
+  const index = JSON.parse(readFileSync(join(root, "shared", "cedarloom-export.json"), "utf8"));
+  const badId = await cli("workflows", "export", "9w", "--to", join(root, "other"));
   vi.unstubAllEnvs();
-  expect([saved.code, history["versions"], none.code]).toEqual([
+  expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code]).toEqual([
     EXIT.ok,
     [
       {
@@ -914,6 +917,9 @@ test("workflows save stores a draft as a version, history lists it, and an id th
         version: draft.metadata.version,
       },
     ],
+    EXIT.usage,
+    EXIT.ok,
+    ["w"],
     EXIT.usage,
   ]);
 });

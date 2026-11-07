@@ -13,7 +13,6 @@ export {
   sameFolder,
   USAGE_RAW_CUT_MARKER,
   USAGE_RAW_LIMIT_BYTES,
-  TokenRow,
   UsageSample,
 } from "./accounts.ts";
 export {

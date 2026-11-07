@@ -4,8 +4,8 @@ import { existsSync, rmSync } from "node:fs";
 import { devNull } from "node:os";
 import { dirname, join } from "node:path";
 import { type Result, STORE_REF } from "@cedarloom/contracts";
-import { programPath } from "@cedarloom/orchestration";
-import { environment, flags, hookNames, hooksOff, missing, shown } from "./git.ts";
+import { missing, programPath } from "@cedarloom/orchestration";
+import { environment, flags, hookNames, hooksOff, shown } from "./git.ts";
 
 /** A commit that changed a stored file: its id, when (ISO 8601) and by whom it was made, and its message. */
 export type Commit = { commit: string; at: string; author: string; message: string };

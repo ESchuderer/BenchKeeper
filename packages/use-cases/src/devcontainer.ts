@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import type { Finding } from "@cedarloom/contracts";
-import { cleanEnv, NETWORK_SETTINGS, programPath } from "@cedarloom/orchestration";
+import { cleanEnv, missing, NETWORK_SETTINGS, programPath } from "@cedarloom/orchestration";
 import { type Folder, hasContainer, type Resolved } from "@cedarloom/profiles";
 
 /** A dev container part's Template with its options and Features. */
@@ -26,7 +26,7 @@ export const devcontainerCli: ApplyTemplate = (folder, { template, args, feature
     if (process.platform === "win32") return done("on Windows CedarLoom cannot run the Dev Containers CLI yet");
     const env = cleanEnv(process.env, process.platform, [...NETWORK_SETTINGS, "DOCKER_CONFIG"]);
     const file = programPath("devcontainer", env);
-    if (file === undefined) return done("ENOENT: no devcontainer program in the absolute folders of PATH");
+    if (file === undefined) return done(missing("devcontainer"));
     const list = Object.entries(features).map(([id, options]) => ({ id, options }));
     const argv = ["templates", "apply", "--workspace-folder", folder, "--template-id", template];
     argv.push("--template-args", JSON.stringify(args), "--features", JSON.stringify(list));

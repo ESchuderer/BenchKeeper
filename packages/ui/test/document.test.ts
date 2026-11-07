@@ -320,6 +320,8 @@ test("canConnect allows an edge between handles that exist and fit, that closes 
     from: node("command-run-1", "stdout"),
     to: node("agent-run-1", "context"),
   });
+  // A second text output, which the data input that already has an edge cannot take.
+  const read = edit(fed, { kind: "add-node", type: "file.read", position: at(0, 300) });
   type End = ReturnType<typeof node>;
   const cases: [WorkflowDefinition, End, End, boolean][] = [
     [plain, node("start", "start"), node("agent-run-1", "run"), true],
@@ -328,6 +330,7 @@ test("canConnect allows an edge between handles that exist and fit, that closes 
     // The same source into a control input once only; a data input takes one edge.
     [plain, node("start", "start"), node("command-run-1", "run"), false],
     [fed, node("command-run-1", "stdout"), node("agent-run-1", "context"), false],
+    [read, node("file-read-1", "content"), node("agent-run-1", "context"), false],
     // A number into text, data into control, a handle or node that is not there, an edge that closes a cycle.
     [plain, node("command-run-1", "exitCode"), node("agent-run-1", "context"), false],
     [plain, node("command-run-1", "stdout"), node("agent-run-1", "run"), false],

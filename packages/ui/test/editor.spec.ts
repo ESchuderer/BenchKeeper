@@ -183,11 +183,13 @@ test("added nodes connect by a drag between compatible handles only, and undo an
   // The next edit that applies retires the refusal.
   await page.getByRole("button", { name: "Add node" }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  // Delete removes a selected node as Backspace does.
+  // Delete removes a selected node as Backspace does; the id given out again comes unselected, so Delete leaves it.
   await card("agent-run-1").click();
   await page.keyboard.press("Delete");
   await expect(card("agent-run-1")).toHaveCount(0);
   await page.getByRole("button", { name: "Add node" }).click();
+  await page.keyboard.press("Delete");
+  await expect(card("agent-run-1")).toHaveCount(1);
   // The document and its history outlive a visit to another view.
   await view("Runs");
   await view("Workflows");

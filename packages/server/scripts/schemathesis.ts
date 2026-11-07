@@ -42,7 +42,13 @@ writeFileSync(join(root, "git", "config"), "[user]\n\tname = Schemathesis\n\tema
 process.env["XDG_CONFIG_HOME"] = root;
 
 // Only the export at FLOWS is fetched, as data; any other Git URL fetches nothing, so the run never reaches the network.
-const server = await startServer({ state, fetch: await flowsExport(), log: (text) => process.stderr.write(text) });
+const server = await startServer({
+  state,
+  config: join(root, "config"),
+  machine: { home: join(root, ".claude"), user: root },
+  fetch: await flowsExport(),
+  log: (text) => process.stderr.write(text),
+});
 const { origin, hash } = new URL(server.url);
 const exchanged = await fetch(`${origin}/api/session`, {
   method: "POST",

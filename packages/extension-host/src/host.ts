@@ -14,6 +14,9 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
+  type TargetAnswers,
+  type TargetCall,
+  type TargetCallParams,
 } from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
@@ -27,7 +30,7 @@ import { z } from "zod";
 import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import { ANSWERS, PolicySet, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
+import { ANSWERS, PolicySet } from "./targets.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -75,7 +78,8 @@ export const HOST_LIMITS: HostLimits = {
   execMs: 120_000,
   execBytes: 1024 * 1024,
   execs: 4,
-  doctorMs: 10_000,
+  // claude-swap's check may fetch usage with its own 10 s timeouts and refresh a login, which a stop can break.
+  doctorMs: 40_000,
   // A target's tick runs a claude-swap tick, which host/exec allows 120 s: the call has a margin beyond its exec.
   targetMs: 130_000,
 };
@@ -120,7 +124,7 @@ export type RunningExtension = {
    * that is not bundled, a target its manifest does not name, no answer within `targetMs`, or an answer outside the
    * call's contract.
    */
-  target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswer<C>>>;
+  target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswers[C]>>;
 };
 
 type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
@@ -375,7 +379,7 @@ const DoctorAnswer = (checks: string[]) =>
 
 const targetOf =
   (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) =>
-  async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswer<C>>> => {
+  async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswers[C]>> => {
     // Switching an agent's account is the app's own extensions' work.
     if (trust !== "bundled") return failed(manifest.id, "target", "switch targets are the app's own extensions' only");
     if (!Object.hasOwn(manifest.contributes.switchTargets ?? {}, params.target)) {

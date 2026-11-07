@@ -47,6 +47,9 @@
             },
             "known": {
               "$ref": "SchemaVersion.schema.json"
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
@@ -90,6 +93,9 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [

@@ -84,6 +84,12 @@ const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManife
   return json.ok ? readDocument(PackManifest, PACK_SCHEMA_VERSION, json.value) : json;
 };
 
+/** A pack as `id@version` by its manifest, the id alone for a pack without one here. */
+export const packVersion = (pack: string, folder: Folder | undefined): string => {
+  const manifest = manifestOf(pack, folder);
+  return manifest.ok && manifest.value !== null ? `${pack}@${manifest.value.version}` : pack;
+};
+
 /** The manifest's entry for a reference, only as an entry of that kind; a pack without a folder lists none. */
 export const entryOf = (ref: Ref, kind: EntryKind, folder?: Folder): Result<Entry> => {
   const manifest = manifestOf(ref.pack, folder);

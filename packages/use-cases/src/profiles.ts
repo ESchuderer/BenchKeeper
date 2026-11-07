@@ -25,6 +25,7 @@ import {
   onDisk,
   planMachine,
   planProject,
+  projectWritten,
   type Probe,
   type Resolved,
   resolveProfile,
@@ -264,6 +265,12 @@ export const planProfile = async (
   return { ok: true, value: { plan, findings: [...sources.value.findings, ...findings, ...unmet] } };
 };
 
+// What CedarLoom last left in a level's folder: the run store's record, with a project's committed one.
+const writtenAt = (state: string, level: string, project: boolean): Result<ReadonlyMap<string, string | null>> => {
+  const stored = writtenIn(state, level);
+  return stored.ok && project ? projectWritten(level, stored.value) : stored;
+};
+
 // A drift line about an operation the next apply would run: a write where the file lacks the profile's text, or over
 // CedarLoom's own last text (outdated), or a delete of a file whose part is off.
 const driftOf = (operation: Operation, written: ReadonlyMap<string, string | null>): Finding[] => {
@@ -293,7 +300,7 @@ export const checkProfile = async (
     return { ok: true, value: [{ code: "profile.drift", params }, planned.finding] };
   }
   if (!planned.ok) return planned;
-  const written = writtenIn(state, level);
+  const written = writtenAt(state, level, project !== undefined);
   if (!written.ok) return written;
   const lines = (planned.value.plan?.operations ?? []).flatMap((operation) => driftOf(operation, written.value));
   return { ok: true, value: [...lines, ...planned.value.findings] };

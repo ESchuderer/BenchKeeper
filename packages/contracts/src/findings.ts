@@ -13,8 +13,9 @@ const issues = z.array(z.strictObject({ path: z.string(), code: z.string() }));
 export const Finding = z
   .discriminatedUnion("code", [
     finding("document.unreadable", { path: z.string(), error: z.string() }),
-    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion }),
-    finding("document.invalid", { issues }),
+    finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion, path: z.string().optional() }),
+    // `path`, here and above, names the file when the reader knows it.
+    finding("document.invalid", { issues, path: z.string().optional() }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
     finding("plan.path-not-absolute", { path: z.string() }),
     finding("plan.not-a-file", { path: z.string(), error: z.string() }),

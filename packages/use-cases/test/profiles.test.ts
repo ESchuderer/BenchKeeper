@@ -423,6 +423,14 @@ test("a project's deny list grows by the profile's rules, the owner's own kept f
   });
 });
 
+test("a .cedarloom folder a link leads outside the project stops the plan, as the record of its files would land there", async () => {
+  const box = machine();
+  const project = projectWith();
+  const path = join(linkedAt(project, ".cedarloom"), "profile-files.json");
+  const params = { part: "project", target: ".cedarloom/profile-files.json", path };
+  expect(await planned(box, project)).toEqual({ ok: false, finding: { code: "profile.target-linked", params } });
+});
+
 test("a .claude folder a link leads outside the project stops the plan, as its settings would land there", async () => {
   const box = machine();
   const project = projectWith();
@@ -507,7 +515,16 @@ test("a project's packs install their skills in the project, and a pack taken ou
   profileFile(box.file, packsPart([]), SKILLS);
   const path = join(project, ".claude", "skills", "review", "SKILL.md");
   const after = ok(await planned(box, project, packs)).plan?.operations.map((op) => [op.kind, "path" in op && op.path]);
-  expect([contentOf(plan, path), after]).toEqual(["# Review\n", [["delete", path]]]);
+  const record = join(project, ".cedarloom", "profile-files.json");
+  const pack = JSON.parse(contentOf(plan, record) ?? "{}").files[".claude/skills/review/SKILL.md"].pack;
+  expect([contentOf(plan, path), pack, after]).toEqual([
+    "# Review\n",
+    "acme.skills@1.0.0",
+    [
+      ["delete", path],
+      ["write", record],
+    ],
+  ]);
 });
 
 test("two skills of one name, or a skills folder a link leads elsewhere, stop the plan", async () => {
@@ -861,4 +878,110 @@ test("a project's check tells CedarLoom's older text there from a deleted file b
     ["missing", labels],
     ["outdated", domain],
   ]);
+});
+
+const sha = (text: string | Buffer): string => createHash("sha256").update(text).digest("hex");
+
+test("a project's record names each committed file CedarLoom wrote, and stays as it is when the owner changes one", async () => {
+  const box = machine();
+  // The dev container's wrapper, a file Git ignores, is no file of the record.
+  const project = projectWith({ ".devcontainer.json": "{}" });
+  applied(box.state, (await projectPlan(box, project, ["project.dc-wrapper"])).plan);
+  const domain = join(realpathSync.native(project), "docs", "agents", "domain.md");
+  const record = () => JSON.parse(readFileSync(join(project, ".cedarloom", "profile-files.json"), "utf8")).files;
+  const [written, hash] = [record(), sha(readFileSync(domain))];
+  // Checked out with CRLF line endings, as Git's core.autocrlf does on Windows.
+  const path = join(project, ".cedarloom", "profile-files.json");
+  writeFileSync(path, readFileSync(path, "utf8").replaceAll("\n", "\r\n"));
+  writeFileSync(domain, "- mine\n");
+  const after = await projectPlan(box, project, ["project.dc-wrapper"]);
+  const scripts = readdirSync(join(project, "scripts"));
+  expect([scripts, Object.keys(written), written["docs/agents/domain.md"], after.plan, record()]).toEqual([
+    ["dc"],
+    ["docs/agents/domain.md", "docs/agents/issue-tracker.md", "docs/agents/triage-labels.md"],
+    { sha256: hash, pack: expect.stringMatching(/^cedarloom\.core@\d/) },
+    null,
+    written,
+  ]);
+});
+
+test("another clone takes a committed file as CedarLoom's by the project's record, CRLF or not: its older text is outdated", async () => {
+  const project = projectWith();
+  applied(machine().state, (await projectPlan(machine(), project)).plan);
+  const [domain, path] = [
+    join(realpathSync.native(project), "docs", "agents", "domain.md"),
+    join(realpathSync.native(project), ".cedarloom", "profile-files.json"),
+  ];
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  record.files["docs/agents/domain.md"].sha256 = sha("- old\n");
+  writeFileSync(path, JSON.stringify(record));
+  writeFileSync(domain, "- old\r\n");
+  // A machine with a run store of its own, as a teammate's clone has.
+  const other = machine();
+  const { plan, findings } = await projectPlan(other, project);
+  const where = { home: other.home, user: other.home };
+  const drift = driftLines(ok(await checkProfile(other.config, other.state, where, { fetch: stock, project })));
+  expect([plan?.operations.map((op) => "path" in op && op.path), findings, drift]).toEqual([
+    [domain, path],
+    [],
+    [
+      ["outdated", domain],
+      ["missing", path],
+    ],
+  ]);
+});
+
+const deletes = (plan: Plan | null) => (plan?.operations ?? []).filter((op) => op.kind === "delete");
+
+test("committed files another machine's profile wrote and recorded stay where a profile lacks them", async () => {
+  const project = projectWith();
+  const first = custom(packsPart(["acme.skills"]), SKILLS);
+  applied(first.state, ok(await planned(first, project, packs)).plan);
+  // Machines whose profile has no such pack, or the agent docs switched off, as each machine selects its own.
+  const off = machine();
+  applied(off.state, ok(planChoice(off.config, { part: "project.agent-docs", on: false })));
+  expect([
+    ok(await planned(custom(packsPart([]), SKILLS), project, packs)).plan,
+    deletes((await projectPlan(off, project)).plan),
+  ]).toEqual([null, []]);
+});
+
+// The test's packs with the review skill's text as given, in CRLF line endings, as a pack written on Windows may have.
+const crlf =
+  (text: string): Fetch =>
+  async (source, options) => {
+    const fetched = await packs(source, options);
+    if (!fetched.ok) return fetched;
+    const files = fetched.value.files.map((file) =>
+      file.path === "skills/review/SKILL.md" ? treeFile(file.path, text.replaceAll("\n", "\r\n")) : file,
+    );
+    return { ok: true, value: { ...fetched.value, files } };
+  };
+
+test("a CedarLoom text with CRLF line endings is CedarLoom's on another machine by the record, so it is updated", async () => {
+  const project = projectWith();
+  const first = custom(packsPart(["acme.skills"]), SKILLS);
+  applied(first.state, ok(await planned(first, project, crlf("# Review\n"))).plan);
+  const other = custom(packsPart(["acme.skills"]), SKILLS);
+  const { plan, findings } = ok(await planned(other, project, crlf("# Review, newer\n")));
+  const [skill, record] = [
+    join(realpathSync.native(project), ".claude", "skills", "review", "SKILL.md"),
+    join(realpathSync.native(project), ".cedarloom", "profile-files.json"),
+  ];
+  expect([plan?.operations.map((op) => "path" in op && op.path), findings]).toEqual([[skill, record], []]);
+});
+
+test("a record a Git conflict left unreadable, one that does not fit its schema or a newer one stops the plan, named", async () => {
+  const box = machine();
+  const refusal = async (text: string, code: string, params: Record<string, unknown>) => {
+    const project = projectWith({ ".cedarloom/profile-files.json": text });
+    const path = join(realpathSync.native(project), ".cedarloom", "profile-files.json");
+    return [await planned(box, project), { ok: false, finding: { code, params: { ...params, path } } }];
+  };
+  const results = [
+    await refusal("<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n", "document.invalid", { issues: expect.any(Array) }),
+    await refusal("{}\n", "document.invalid", { issues: expect.any(Array) }),
+    await refusal('{ "schemaVersion": 2 }\n', "document.newer-schema", { found: 2, known: 1 }),
+  ];
+  expect(results.map(([actual]) => actual)).toEqual(results.map(([, expected]) => expected));
 });

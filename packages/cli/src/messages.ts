@@ -319,6 +319,20 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
+  "outbox.not-approved": (p) =>
+    `The approval names intent ${short(p.approvedHash)}, not ${short(p.hash)}; nothing was queued under ${p.key}.`,
+  "outbox.not-found": (p) => `No outbox entry ${p.id} in this state folder.`,
+  "outbox.status": (p) =>
+    p.status === "sending"
+      ? `Another CedarLoom process is sending outbox entry ${p.id}.`
+      : `Outbox entry ${p.id} is ${p.status}, so this step does not apply to it.`,
+  "outbox.not-undoable": (p) =>
+    p.reason === "unchanged"
+      ? `Outbox entry ${p.id} changed nothing on its issue, so there is nothing to undo.`
+      : `Outbox entry ${p.id} deleted a comment, which cannot be brought back.`,
+  "tracker.unavailable": (p) =>
+    `The tracker could not be reached (${shown(p.error, 300)}); the entry stays queued for the next send.`,
+  "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

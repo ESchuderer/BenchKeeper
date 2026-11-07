@@ -1881,6 +1881,48 @@ export interface components {
                 /** @enum {string} */
                 unit: "files" | "bytes";
             };
+        } | {
+            /** @constant */
+            code: "outbox.not-approved";
+            params: {
+                key: string;
+                hash: components["schemas"]["Sha256Input"];
+                approvedHash: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.status";
+            params: {
+                id: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-undoable";
+            params: {
+                id: string;
+                /** @enum {string} */
+                reason: "unchanged" | "no-inverse";
+            };
+        } | {
+            /** @constant */
+            code: "tracker.unavailable";
+            params: {
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.refused";
+            params: {
+                status: number;
+                error: string;
+            };
         };
         ImportReviewInput: {
             source: {
@@ -3098,6 +3140,48 @@ export interface components {
                 limit: number;
                 /** @enum {string} */
                 unit: "files" | "bytes";
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-approved";
+            params: {
+                key: string;
+                hash: components["schemas"]["Sha256"];
+                approvedHash: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.status";
+            params: {
+                id: string;
+                status: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-undoable";
+            params: {
+                id: string;
+                /** @enum {string} */
+                reason: "unchanged" | "no-inverse";
+            };
+        } | {
+            /** @constant */
+            code: "tracker.unavailable";
+            params: {
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.refused";
+            params: {
+                status: number;
+                error: string;
             };
         };
         ImportReview: {

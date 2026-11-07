@@ -167,3 +167,32 @@ CREATE TABLE gates (
   "by" TEXT
 ) STRICT;
 `;
+
+/**
+ * The outbox of writes to hub issues that the file ledger cannot undo (section 6.4), each approved by its intent's hash
+ * and queued once per idempotency key, and the runs linked to hub issues, which stay local (ARW1-2).
+ */
+export const OUTBOX_TABLES = `
+CREATE TABLE outbox (
+  id TEXT PRIMARY KEY,
+  "key" TEXT NOT NULL UNIQUE,
+  intent TEXT NOT NULL,
+  intentHash TEXT NOT NULL,
+  approvedHash TEXT NOT NULL CHECK (approvedHash = intentHash),
+  approvedBy TEXT NOT NULL CHECK (approvedBy IN ('owner', 'mirroring')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'cancelled')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  unchanged INTEGER CHECK (unchanged IN (0, 1)),
+  remote TEXT,
+  finding TEXT,
+  createdAt TEXT NOT NULL,
+  settledAt TEXT
+) STRICT;
+CREATE TABLE issue_links (
+  runId TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  linkedAt TEXT NOT NULL,
+  PRIMARY KEY (runId, repo, number)
+) STRICT;
+`;

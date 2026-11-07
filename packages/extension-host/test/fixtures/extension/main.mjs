@@ -175,10 +175,9 @@ const requests = {
   shutdown: () => null,
 };
 
-// Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. A tick also sends a
-// reading and a switch record, each once as the contract has them and once not.
+// Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. Accounts go by number;
+// the second has no alias.
 const AT = "2026-11-07T10:00:00.000Z";
-const EVENT = { at: AT, from: "work", to: "home", reason: "threshold", trigger: "auto" };
 const target = (answer) => (params) => {
   if (mode === "x-slow-target") return new Promise(() => undefined);
   return mode === "x-bad-target" ? { status: "maybe" } : answer(params);
@@ -187,20 +186,23 @@ Object.assign(requests, {
   "target/probe": target(() => ({ status: "supported", detail: "cswap 1.2.3" })),
   "target/accounts": target(() => ({
     accounts: [
-      { alias: "work", number: 1, active: true, disabled: false, threshold: 90, windows: [] },
-      { alias: "home", number: 2, active: false, disabled: false, threshold: null, windows: [] },
+      {
+        number: 1,
+        alias: "work",
+        active: true,
+        disabled: false,
+        threshold: 90,
+        windows: [{ window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT }],
+      },
+      { number: 2, active: false, disabled: false, threshold: null, windows: [] },
     ],
   })),
-  "target/current": target(() => ({ alias: "work" })),
-  "target/select": target(({ alias }) => ({ switched: true, from: "work", to: alias, reason: "asked" })),
-  "target/tick": target(({ target: name }) => {
-    const reading = { target: name, alias: "work", window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT };
-    send({ method: "accounts/reading", params: reading });
-    send({ method: "accounts/reading", params: { ...reading, usedPercent: 101 } });
-    send({ method: "switch/record", params: { target: name, event: EVENT } });
-    send({ method: "switch/record", params: { target: "elsewhere", event: EVENT } });
-    return { code: 0, events: [EVENT] };
-  }),
+  "target/current": target(() => ({ number: 1 })),
+  "target/select": target(({ number }) => ({ switched: true, from: 1, to: number, reason: "asked" })),
+  "target/tick": target(() => ({
+    code: 0,
+    events: [{ at: AT, from: 1, to: 2, reason: "over the line", trigger: "proactive" }],
+  })),
   "target/policy": target(({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } })),
 });
 

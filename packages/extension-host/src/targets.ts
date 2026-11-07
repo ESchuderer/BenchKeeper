@@ -12,22 +12,27 @@ import type {
 } from "@cedarloom/extension-sdk";
 import { z } from "zod";
 
-// What a switch target sends reaches the ledger and the screens: bounded, an alias without control characters.
-const Alias = PlainText.min(1).max(64);
+// What a switch target answers reaches the ledger and the screens: bounded, and text without control characters.
+const AccountNumber = z.int().min(1);
 const When = z.iso.datetime({ offset: true });
-const Text = z.string().max(200);
+const Text = PlainText.max(200);
 const Percent = z.number().min(0).max(100);
 const Event: z.ZodType<SwitchEvent> = z.strictObject({
   at: When,
-  from: Alias.nullable(),
-  to: Alias,
+  from: AccountNumber.nullable(),
+  to: AccountNumber,
   reason: Text,
-  trigger: Text,
+  trigger: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
 });
-const Window = z.strictObject({ window: Quota, usedPercent: Percent, resetsAt: When.nullable() });
+const Window = z.strictObject({
+  window: Quota,
+  usedPercent: Percent,
+  resetsAt: When.nullable(),
+  readAt: When.nullable(),
+});
 const Account = z.strictObject({
-  alias: Alias,
-  number: z.int().min(1),
+  number: AccountNumber,
+  alias: PlainText.min(1).max(64).optional(),
   active: z.boolean(),
   disabled: z.boolean(),
   threshold: Percent.nullable(),
@@ -38,7 +43,7 @@ const Setting = z.union([Text, z.number(), z.boolean()]);
 type Answers = {
   "target/probe": TargetProbe;
   "target/accounts": { accounts: TargetAccount[] };
-  "target/current": { alias: string | null };
+  "target/current": { number: number | null };
   "target/select": TargetSelect;
   "target/tick": TargetTick;
   "target/policy": TargetPolicy;
@@ -47,11 +52,16 @@ type Answers = {
 export const ANSWERS: { [C in keyof Answers]: z.ZodType<Answers[C]> } = {
   "target/probe": z.strictObject({
     status: z.enum(["supported", "partial", "unsupported"]),
-    detail: z.string().max(2000),
+    detail: PlainText.max(2000),
   }),
   "target/accounts": z.strictObject({ accounts: z.array(Account).max(64) }),
-  "target/current": z.strictObject({ alias: Alias.nullable() }),
-  "target/select": z.strictObject({ switched: z.boolean(), from: Alias.nullable(), to: Alias, reason: Text }),
+  "target/current": z.strictObject({ number: AccountNumber.nullable() }),
+  "target/select": z.strictObject({
+    switched: z.boolean(),
+    from: AccountNumber.nullable(),
+    to: AccountNumber,
+    reason: Text,
+  }),
   "target/tick": z.strictObject({ code: z.int().nullable(), events: z.array(Event).max(100) }),
   "target/policy": z.strictObject({
     values: z
@@ -61,7 +71,7 @@ export const ANSWERS: { [C in keyof Answers]: z.ZodType<Answers[C]> } = {
 };
 export type TargetCall = keyof Answers;
 export type TargetAnswer<C extends TargetCall> = Answers[C];
-/** What each call sends: the target, and for a select the alias, for a policy the settings to change. */
+/** What each call sends: the target, and for a select the account's number, for a policy the settings to change. */
 export type TargetCallParams = {
   "target/probe": TargetParams;
   "target/accounts": TargetParams;
@@ -70,18 +80,3 @@ export type TargetCallParams = {
   "target/tick": TargetParams;
   "target/policy": TargetPolicyParams;
 };
-
-const Target = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
-/** A reading of an account's window, from a switch target (`accounts/reading`). */
-export const TargetReading = z.strictObject({
-  target: Target,
-  alias: Alias,
-  window: Quota,
-  usedPercent: Percent,
-  resetsAt: When,
-  readAt: When,
-});
-export type TargetReading = z.infer<typeof TargetReading>;
-/** A switch a target made, for the ledger (`switch/record`). */
-export const TargetRecord = z.strictObject({ target: Target, event: Event });
-export type TargetRecord = z.infer<typeof TargetRecord>;

@@ -3,7 +3,6 @@ import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
 import {
-  accountsReading,
   doctorRun,
   exit,
   type Granted,
@@ -15,7 +14,6 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
-  switchRecord,
 } from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
@@ -29,14 +27,7 @@ import { z } from "zod";
 import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import {
-  ANSWERS,
-  type TargetAnswer,
-  type TargetCall,
-  type TargetCallParams,
-  TargetReading,
-  TargetRecord,
-} from "./targets.ts";
+import { ANSWERS, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -85,8 +76,8 @@ export const HOST_LIMITS: HostLimits = {
   execBytes: 1024 * 1024,
   execs: 4,
   doctorMs: 10_000,
-  // A target's tick runs a claude-swap tick, which host/exec allows 120 s.
-  targetMs: 120_000,
+  // A target's tick runs a claude-swap tick, which host/exec allows 120 s: the call has a margin beyond its exec.
+  targetMs: 130_000,
 };
 
 export type ExtensionLaunch = {
@@ -104,8 +95,6 @@ export type ExtensionLaunch = {
   credentials?: Credentials;
   /** How the host sends the extension's requests: over the network to public addresses, unless a test says otherwise. */
   transport?: Transport;
-  /** Where the readings and switch records of the extension's switch targets go; the host drops any it refuses. */
-  onTarget?: { reading: (reading: TargetReading) => void; record: (record: TargetRecord) => void };
 };
 
 export type RunRequest = { action: string; config: unknown; inputs: Record<string, unknown>; run: string };
@@ -127,8 +116,9 @@ export type RunningExtension = {
    */
   doctor: () => Promise<Finding[]>;
   /**
-   * Asks one of its switch targets (`contributes.switchTargets`): `extension.failed` (step target) for a target its
-   * manifest does not name, no answer within `targetMs`, or an answer outside the call's contract.
+   * Asks one of its switch targets (`contributes.switchTargets`): `extension.failed` (step target) for an extension
+   * that is not bundled, a target its manifest does not name, no answer within `targetMs`, or an answer outside the
+   * call's contract.
    */
   target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswer<C>>>;
 };
@@ -334,7 +324,6 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     session = connect(how, limits);
     const logs = logBook(limits);
     session.connection.onNotification(log, logs.write);
-    targetNotes(launch, session);
     const broker = { manifest: launch.manifest, credentials: launch.credentials, limits, ended: session.ended };
     const fetch = fetcher({ ...broker, transport: launch.transport ?? transport() });
     const { consumed } = session;
@@ -352,7 +341,7 @@ export const startExtension = async (launch: ExtensionLaunch): Promise<Result<Ru
     });
     session.connection.listen();
     const problem = await greet(launch, session, limits);
-    if (problem === undefined) return { ok: true, value: running(launch.manifest, session, logs, limits) };
+    if (problem === undefined) return { ok: true, value: running(launch, session, logs, limits) };
     session.kill();
     return "code" in problem ? { ok: false, finding: problem } : problem;
   } catch (error) {
@@ -384,22 +373,11 @@ const DoctorAnswer = (checks: string[]) =>
       .max(50),
   });
 
-// A target's readings and switch records, each of a target the manifest names and within its contract.
-const targetNotes = (launch: ExtensionLaunch, session: Session): void => {
-  const named = (target: string): boolean => Object.hasOwn(launch.manifest.contributes.switchTargets ?? {}, target);
-  session.connection.onNotification(accountsReading, (params) => {
-    const read = TargetReading.safeParse(params);
-    if (read.success && named(read.data.target)) launch.onTarget?.reading(read.data);
-  });
-  session.connection.onNotification(switchRecord, (params) => {
-    const read = TargetRecord.safeParse(params);
-    if (read.success && named(read.data.target)) launch.onTarget?.record(read.data);
-  });
-};
-
 const targetOf =
-  (manifest: Manifest, session: Session, limits: HostLimits) =>
+  (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) =>
   async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswer<C>>> => {
+    // Switching an agent's account is the app's own extensions' work.
+    if (trust !== "bundled") return failed(manifest.id, "target", "switch targets are the app's own extensions' only");
     if (!Object.hasOwn(manifest.contributes.switchTargets ?? {}, params.target)) {
       return failed(manifest.id, "target", `no switch target ${params.target}`);
     }
@@ -434,13 +412,13 @@ const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits
 };
 
 const running = (
-  manifest: Manifest,
+  { manifest, trust }: Pick<ExtensionLaunch, "manifest" | "trust">,
   session: Session,
   logs: ReturnType<typeof logBook>,
   limits: HostLimits,
 ): RunningExtension => ({
   doctor: () => doctorOf(manifest, session, limits),
-  target: targetOf(manifest, session, limits),
+  target: targetOf(manifest, trust, session, limits),
   run: async (request, signal) => {
     const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");

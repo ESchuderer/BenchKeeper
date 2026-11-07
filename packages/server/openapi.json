@@ -11247,7 +11247,7 @@
                 "properties": {
                   "git": {
                     "type": "string",
-                    "maxLength": 2048
+                    "maxLength": 1024
                   },
                   "ref": {
                     "type": "string",

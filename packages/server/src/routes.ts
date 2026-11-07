@@ -216,7 +216,8 @@ export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCase
 ) => {
   const planned = new Map<string, Plan>();
   // The fetch refuses a Git URL or ref it does not take, with its finding (409): their rules are no request schema's.
-  const source = z.strictObject({ git: z.string().max(2048), ref: z.string().max(255) });
+  // 1024 characters: one more, each escaped as a 12-byte surrogate pair, still fits the 16 KiB body, so it gets its 400.
+  const source = z.strictObject({ git: z.string().max(1024), ref: z.string().max(255) });
   app.post(
     "/api/imports",
     { schema: { body: source, response: answers({ 200: ImportPreview, 409: Refusal }) } },

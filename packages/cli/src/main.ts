@@ -4,8 +4,6 @@ import { Agent, Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
-  accountsMap,
-  accountsUnmap,
   accountsConfirm,
   accountsHome,
   accountsList,
@@ -212,25 +210,6 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
-// The folder bindings of worker launches: `accounts map` and `accounts unmap`.
-const foldersCommands = (accounts: Command, ctx: Ctx, done: Done): void => {
-  accounts
-    .command("map")
-    .description(
-      "show the binding of a folder to an account or pool for the workers launched in it; with --yes, make it",
-    )
-    .argument("<account-or-pool>")
-    .argument("[folder]", "the project folder; the current one when unset")
-    .option("--yes", "bind as planned now")
-    .action((name, folder, options) => done(accountsMap(ctx(), name, folder ?? process.cwd(), options)));
-  accounts
-    .command("unmap")
-    .description("show the removal of a folder's binding; with --yes, remove it")
-    .argument("[folder]", "the project folder; the current one when unset")
-    .option("--yes", "remove as planned now")
-    .action((folder, options) => done(accountsUnmap(ctx(), folder ?? process.cwd(), options)));
-};
-
 const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
   accounts
@@ -264,7 +243,6 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--pool <pool>", "the pool it joins; none when unset")
     .option("--yes", "add as planned now")
     .action((name, options) => done(accountsAdd(ctx(), name, options)));
-  foldersCommands(accounts, ctx, done);
   accounts
     .command("home")
     .description(

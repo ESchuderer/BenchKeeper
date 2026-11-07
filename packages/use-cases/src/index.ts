@@ -68,8 +68,6 @@ export {
   ownHome,
   type NewAccount,
   planAdd,
-  planMap,
-  planUnmap,
   planConfirm,
   planHome,
   type StatusHost,

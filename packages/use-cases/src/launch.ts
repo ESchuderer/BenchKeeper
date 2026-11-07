@@ -16,15 +16,7 @@ import {
   resultPrompt,
   workerEnv,
 } from "@cedarloom/orchestration";
-import {
-  type AccountRequest,
-  boundHeadroom,
-  boundTarget,
-  chooseAccount,
-  loadRegistry,
-  MAX_CONCURRENT,
-  ownFolder,
-} from "./accounts.ts";
+import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { type FetchTree, workflowPlugin } from "./plugins.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
@@ -352,25 +344,6 @@ const pinned = (accounts: AccountRegistry, agent: Agent, name: string): NoAccoun
     : { kind: "account", accounts, account };
 };
 
-// The account a folder bound by `accounts map` names, or the pool to choose from: the request's when none is bound.
-const boundTo = (accounts: AccountRegistry, request: AccountRequest): NoAccount | Chosen | string => {
-  const bound = request.project === undefined ? null : boundTarget(accounts, request.project);
-  if (bound === null) return request.pool;
-  return "account" in bound ? pinned(accounts, request.agent, bound.account) : bound.pool;
-};
-
-// A bound account below its line starts no worker: the binding stays, so no other account is taken silently.
-const withinLine = async (
-  state: string,
-  chosen: Chosen,
-  model: string | undefined,
-): Promise<Result<NoAccount | Chosen>> => {
-  const margin = await retryBusy(() => boundHeadroom(state, chosen.account, model));
-  if (!margin.ok) return margin;
-  const below = margin.value !== null && margin.value < 0;
-  return { ok: true, value: below ? { kind: "no-account", reason: "no-headroom" } : chosen };
-};
-
 // The account a new worker of the task takes, or the one a resumed session ran on; refused under managed settings that
 // loosen the sandbox.
 const accountFor = async (
@@ -386,10 +359,7 @@ const accountFor = async (
   const accounts = registry.value;
   if (accounts === null) return { ok: true, value: { kind: "no-account", reason: "unknown-pool" } };
   if (request.resume !== undefined) return { ok: true, value: pinned(accounts, request.agent, request.resume.account) };
-  const pool = boundTo(accounts, request);
-  if (typeof pool !== "string")
-    return pool.kind === "account" ? withinLine(state, pool, request.model) : { ok: true, value: pool };
-  const selection = await retryBusy(() => chooseAccount(state, accounts, { ...request, pool }));
+  const selection = await retryBusy(() => chooseAccount(state, accounts, request));
   if (!selection.ok) return selection;
   if (!selection.value.ok) return { ok: true, value: { kind: "no-account", reason: selection.value.reason } };
   return { ok: true, value: { kind: "account", accounts, account: selection.value.account } };

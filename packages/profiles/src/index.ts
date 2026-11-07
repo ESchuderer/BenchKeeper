@@ -7,6 +7,7 @@ export {
   composedProfile,
   DEFAULT_PROFILE,
   type Folder,
+  LEVELS,
   type Probe,
   type Resolved,
   readEntry,

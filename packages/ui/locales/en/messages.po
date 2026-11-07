@@ -88,6 +88,18 @@ msgid "runs.started"
 msgstr "Started"
 
 #. js-lingui-explicit-id
+msgid "graphRuns.caption"
+msgstr "Workflow runs, newest first"
+
+#. js-lingui-explicit-id
+msgid "graphRuns.workflow"
+msgstr "Workflow"
+
+#. js-lingui-explicit-id
+msgid "graphRun.status"
+msgstr "{status, select, running {Running} waiting {Waiting} succeeded {Succeeded} failed {Failed} cancelled {Cancelled} skipped {Skipped} interrupted {Interrupted} other {{status}}}"
+
+#. js-lingui-explicit-id
 msgid "run.undoPlan"
 msgstr "Undoing it changes {count, plural, one {# file} other {# files}}."
 

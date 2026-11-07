@@ -544,10 +544,10 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
 /** Shows the profile's plan for this machine, or with --yes applies it as one run. */
 export const profilesApply = async (
   ctx: Context,
-  { yes, allow = [] }: { yes?: true; allow?: string[] },
+  { yes, allow = [], project }: { yes?: true; allow?: string[]; project?: string },
 ): Promise<number> => {
   const machine = { home: useCases.claudeHome(ctx.io.env), user: homedir() };
-  const profile = await useCases.planProfile(ctx.config, ctx.state, machine, { allow, fetch: ctx.io.fetch });
+  const profile = await useCases.planProfile(ctx.config, ctx.state, machine, { allow, fetch: ctx.io.fetch, project });
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
   if (findings.some((finding) => severityOf(finding) === "error")) {
@@ -558,7 +558,9 @@ export const profilesApply = async (
       ctx,
       "plan",
       { planHash: null, plan: null, findings },
-      "Nothing to change in this machine's rules and settings.",
+      project === undefined
+        ? "Nothing to change in this machine's rules and settings."
+        : "Nothing to change in this project.",
     );
     report(ctx, findings);
     return EXIT.ok;

@@ -34,18 +34,27 @@ export const onDisk = (path: string): string => {
 // The rules folder of a Claude Code home.
 const rulesFolder = (home: string): string => join(home, "rules") + sep;
 
-type Text = { pack: string; path: string } | { inline: string };
+/** A text a part names: a pack's entry, or inline text. */
+export type Text = { pack: string; path: string } | { inline: string };
 type Rules = { file: string; text: Text; pointer: string; on: boolean };
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
-// The text with this machine's values filled in; a placeholder left without one stops the plan.
-const textOf = ({ text, pointer }: Rules, resolved: Resolved, fetched: Fetched): Result<string> => {
+/**
+ * A text with this machine's values filled in, read as an entry of `kind` when it comes from a pack; a placeholder left
+ * without a value stops the plan, named by the text's JSON Pointer in the composed profile.
+ */
+export const textOf = (
+  text: Text,
+  { kind, pointer }: { kind: "rules" | "template"; pointer: string },
+  resolved: Resolved,
+  fetched: Fetched,
+): Result<string> => {
   const { hub } = resolved;
   const read: Result<string> =
     "inline" in text
       ? { ok: true, value: text.inline }
-      : readEntry(text, "rules", packFolder(resolved, text.pack, fetched));
+      : readEntry(text, kind, packFolder(resolved, text.pack, fetched));
   if (!read.ok) return read;
   const filled = hub === undefined ? read.value : read.value.replaceAll("{{hub}}", hub);
   // A placeholder's name form only, so a quoted GitHub Actions expression such as `${{ github.sha }}` stays text.
@@ -75,7 +84,7 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   const files = rulesOf(resolved).map((each): [string, Rules] => [join(folder, each.file), each]);
   const wanted = new Map<string, Wanted>();
   for (const [path, each] of files.filter(([, rule]) => rule.on)) {
-    const content = textOf(each, resolved, fetched);
+    const content = textOf(each.text, { kind: "rules", pointer: each.pointer }, resolved, fetched);
     if (!content.ok) return content;
     wanted.set(path, { content: content.value });
   }

@@ -127,3 +127,61 @@ test("a plugin's options never land in CedarLoom's state, where the worker homes
     finding: { code: "profile.options-guarded", params: { part: "machine.plugin.ponytail", path } },
   });
 });
+
+// A project folder in Git, as `git init` leaves it for the exclude file, with files of the owner's.
+const projectWith = (files: Record<string, string> = {}): string => {
+  const project = mkdtempSync(join(root, "project-"));
+  mkdirSync(join(project, ".git", "info"), { recursive: true });
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(join(project, path, ".."), { recursive: true });
+    writeFileSync(join(project, path), text);
+  }
+  return project;
+};
+const projectPlan = async (box: ReturnType<typeof machine>, project: string, allow: string[] = []) =>
+  ok(await planProfile(box.config, box.state, { home: box.home, user: box.home }, { fetch: stock, project, allow }));
+
+test("a project gets the manual's block, a CLAUDE.md that only imports AGENTS.md, and its local file ignored by Git", async () => {
+  const box = machine();
+  const project = projectWith();
+  applied(box.state, (await projectPlan(box, project)).plan);
+  const read = (path: string) => readFileSync(join(project, path), "utf8");
+  expect([
+    read("CLAUDE.md"),
+    read("AGENTS.md").startsWith("<!-- cedarloom start -->\n"),
+    read("CLAUDE.local.md").includes("@AGENTS.md"),
+    readFileSync(join(project, ".git", "info", "exclude"), "utf8"),
+    (await projectPlan(box, project)).plan,
+  ]).toEqual(["@AGENTS.md\n", true, false, "# cedarloom start\nCLAUDE.local.md\n# cedarloom end\n", null]);
+});
+
+test("the block goes into the owner's AGENTS.md, which keeps its own lines, and imports it where CLAUDE.md does not", async () => {
+  const box = machine();
+  const project = projectWith({ "AGENTS.md": "# Mine\n\n- My rule.\n", "CLAUDE.md": "# Notes\n" });
+  applied(box.state, (await projectPlan(box, project)).plan);
+  const agents = readFileSync(join(project, "AGENTS.md"), "utf8");
+  expect([
+    agents.startsWith("# Mine\n\n- My rule.\n\n<!-- cedarloom start -->\n") &&
+      agents.endsWith("<!-- cedarloom end -->\n"),
+    readFileSync(join(project, "CLAUDE.md"), "utf8"),
+    readFileSync(join(project, "CLAUDE.local.md"), "utf8").includes("@AGENTS.md\n<!-- cedarloom end -->"),
+  ]).toEqual([true, "# Notes\n", true]);
+});
+
+test("with a dev container, scripts/dc waits for approval by name; approved, it is made executable and ignored by Git", async () => {
+  const box = machine();
+  const project = projectWith({ ".devcontainer/devcontainer.json": "{}" });
+  const waiting = (await projectPlan(box, project)).findings;
+  const approved = (await projectPlan(box, project, ["project.dc-wrapper"])).plan;
+  const script = approved?.operations.find((op) => "path" in op && op.path === join(project, "scripts", "dc"));
+  const exclude = approved?.operations.find((op) => "path" in op && op.path.endsWith("exclude"));
+  expect([
+    waiting,
+    script?.kind === "write" ? script.mode : null,
+    exclude?.kind === "write" ? exclude.content : null,
+  ]).toEqual([
+    [{ code: "profile.target-approval", params: { part: "project.dc-wrapper", targets: ["scripts/dc"] } }],
+    0o755,
+    "# cedarloom start\nCLAUDE.local.md\nscripts/dc\n# cedarloom end\n",
+  ]);
+});

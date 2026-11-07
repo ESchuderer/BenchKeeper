@@ -222,6 +222,8 @@ export const Finding = z
       autoUpdate: z.boolean(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
+    // A files part that writes executable or configuration targets, which wait for an approval by name (hub issue 130).
+    finding("profile.target-approval", { part: z.string(), targets: z.array(z.string()) }),
     // A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644).
     finding("profile.pack-unpinned", { source: z.string(), path: z.string() }),
     finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
@@ -363,6 +365,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
+  "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },
   "profile.source-waiting": { severity: "info", effort: "manual" },

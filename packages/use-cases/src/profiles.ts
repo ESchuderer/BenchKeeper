@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
@@ -14,9 +15,13 @@ import {
 import { sha256 } from "@cedarloom/ledger";
 import { fetchTree, type Tree } from "@cedarloom/git";
 import {
+  APP_VERSION,
   DEFAULT_PROFILE,
+  type Fetched,
   onDisk,
   planMachine,
+  planProject,
+  type Probe,
   type Resolved,
   resolveProfile,
   sourceKey,
@@ -76,12 +81,19 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
 };
 
 // The profile this machine's selection names, resolved.
-const selectedProfile = (config: string): Result<Resolved> => {
-  const read = readSelection(config);
-  return read.ok ? resolveProfile(read.value.selection) : read;
+// A project's probes: whether it has a dev container. No Orca probe runs (see resolveProfile).
+const projectProbe = (project: string) => {
+  const container = existsSync(join(project, ".devcontainer"));
+  return (when: Probe): boolean => (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
 };
 
-// What CedarLoom last left at each path of the Claude Code home, from the run store.
+const selectedProfile = (config: string, project: string | undefined): Result<Resolved> => {
+  const read = readSelection(config);
+  const probe = project === undefined ? undefined : projectProbe(project);
+  return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probe) : read;
+};
+
+// What CedarLoom last left at each path of a folder, the Claude Code home or a project, from the run store.
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
@@ -112,23 +124,45 @@ const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch) => {
  * Plans the selected profile's machine level; a profile with problems gets no plan, only its findings. A plugin part
  * is planned only when `allow` names it. Git sources are fetched first, through `fetch`.
  */
+/** How a profile plan runs: the parts approved by name, how Git sources are fetched, and the project, if any. */
+export type PlanOptions = { allow?: readonly string[]; fetch?: Fetch | undefined; project?: string | undefined };
+
+// The plan of the machine level, or of the project's level when there is one.
+const levelOf = (
+  config: string,
+  state: string,
+  machine: Machine,
+  given: {
+    resolved: Resolved;
+    project?: string | undefined;
+    options: { approved: ReadonlySet<string>; fetched: Fetched };
+  },
+) => {
+  const { resolved, project, options } = given;
+  if (project !== undefined) {
+    const written = writtenIn(state, project);
+    return written.ok ? planProject(resolved, project, written.value, options) : written;
+  }
+  const where = targetOf(config, state, machine);
+  return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
+};
+
 export const planProfile = async (
   config: string,
   state: string,
-  { home, user }: Machine,
-  { allow = [], fetch = fetchTree }: { allow?: readonly string[]; fetch?: Fetch | undefined } = {},
+  machine: Machine,
+  { allow = [], fetch = fetchTree, project }: PlanOptions = {},
 ): Promise<Result<ProfilePlan>> => {
-  const resolved = selectedProfile(config);
+  const folder = project === undefined ? undefined : onDisk(resolve(project));
+  const resolved = selectedProfile(config, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {
     return { ok: true, value: { plan: null, findings: resolved.value.problems } };
   }
-  const where = targetOf(config, state, { home, user });
-  if (!where.ok) return where;
   const sources = await fetchAll(state, resolved.value, fetch);
   if (!sources.ok) return sources;
   const options = { approved: new Set(allow), fetched: sources.value.fetched };
-  const level = planMachine(resolved.value, where.value.target, where.value.written, options);
+  const level = levelOf(config, state, machine, { resolved: resolved.value, project: folder, options });
   if (!level.ok) return level;
   const { operations, findings } = level.value;
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };

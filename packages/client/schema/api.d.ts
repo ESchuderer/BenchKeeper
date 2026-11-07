@@ -1450,6 +1450,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                targets: string[];
+            };
+        } | {
+            /** @constant */
             code: "profile.pack-unpinned";
             params: {
                 source: string;
@@ -2431,6 +2438,13 @@ export interface components {
             params: {
                 part: string;
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                targets: string[];
             };
         } | {
             /** @constant */

@@ -60,6 +60,8 @@ class Reader {
   skipped = false;
   unmodeled = false;
   #i = 0;
+  // Open `case` commands, whose patterns end in a `)` without its `(`.
+  #cases = 0;
   readonly #text: string;
   readonly #heredocs: Heredoc[] = [];
 
@@ -98,6 +100,8 @@ class Reader {
   // Digits right before a redirection name its file descriptor, as 2 in 2>&1, and are no word.
   #push(command: Command): void {
     const word = this.#word().word();
+    if (command.words.length === 0 && word.text === "case") this.#cases += 1;
+    if (command.words.length === 0 && word.text === "esac") this.#cases -= 1;
     if (!(/^\d+$/.test(word.text ?? "") && /^[<>]$/.test(this.#peek()))) command.words.push(word);
   }
 
@@ -119,7 +123,7 @@ class Reader {
       return true;
     }
     if (c === "&" && this.#peek(1) === ">") return false;
-    if (c === ")") this.skipped = true;
+    if (c === ")" && this.#cases === 0) this.skipped = true;
     if (!";&|)".includes(c)) return false;
     this.#i += this.#peek(1) === c || (c === "|" && this.#peek(1) === "&") ? 2 : 1;
     return true;
@@ -265,7 +269,7 @@ class Reader {
   // makes the word unknown.
   #dollar(word: Builder, inQuotes: boolean): void {
     const c = this.#peek();
-    const name = NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]$/.test(c) ? c : "");
+    const name = this.#parameter(c);
     const opens = OPENERS.has(c) && !(inQuotes && (c === "'" || c === '"'));
     if (!opens && name === "") {
       word.add("$");
@@ -274,6 +278,11 @@ class Reader {
     word.expand();
     this.#i += opens ? 1 : name.length;
     if (opens) this.#expansion(c);
+  }
+
+  // The name of a parameter right after a `$`: a word, a digit or a special one such as `$?`.
+  #parameter(c: string): string {
+    return NAME.exec(this.#text.slice(this.#i))?.[0] ?? (/^[\d?#@*$!-]$/.test(c) ? c : "");
   }
 
   // What follows a `$`: a substitution runs, the rest only makes the word unknown.

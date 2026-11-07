@@ -119,13 +119,21 @@ const wrapper = (
   let i = from;
   for (; (words[i]?.start ?? "").startsWith("-"); i += 1) {
     const option = words[i]?.start ?? "";
-    found.cleared ||= name === "env" ? /^(?:-i|--ignore-environment|-)$/.test(option) : name === "exec" && option === "-c";
-    if (name === "env" && /^(?:-S|--split-string)/.test(option)) found.split = splitString(option, words[i + 1]);
-    if (valued.includes(option) || (name === "env" && /^(?:-S|--split-string)$/.test(option))) i += 1;
+    if (noteOption(name, option, words[i + 1], found) || valued.includes(option)) i += 1;
   }
   found.appended ||= name === "xargs";
   // timeout's duration comes before its command.
   return i + (name === "timeout" ? 1 : 0);
+};
+
+// What an option of env or exec does to the command, noted in `found`; true when it takes the next word.
+const noteOption = (name: string, option: string, next: Word | undefined, found: Unwrapped): boolean => {
+  if (name === "exec") found.cleared ||= option === "-c";
+  if (name !== "env") return false;
+  found.cleared ||= /^(?:-i|--ignore-environment|-)$/.test(option);
+  if (!/^(?:-S|--split-string)/.test(option)) return false;
+  found.split = splitString(option, next);
+  return /^(?:-S|--split-string)$/.test(option);
 };
 
 // The command line of env -S: attached to the option, or the next word.
@@ -150,19 +158,23 @@ const checkPrefix = ({ prefix, cleared, split }: Unwrapped, context: Context): D
 
 // Programs that run their arguments, which xargs would hand words the guard cannot read.
 const runsArguments = (name: string): boolean =>
-  GUARDED.test(` ${name} `) || SHELLS.has(name) || WRAPPERS.has(name) || FORBIDDEN.has(name) || /^(?:eval|source|\.|find)$/.test(name);
+  GUARDED.test(` ${name} `) ||
+  SHELLS.has(name) ||
+  WRAPPERS.has(name) ||
+  FORBIDDEN.has(name) ||
+  /^(?:eval|source|\.|find)$/.test(name);
+
+const XARGS = unreadable("xargs adds words the guard cannot read to a program that runs them");
 
 const checkCommand = (command: Command, context: Context): Denial | null => {
   const unwrapped = unwrap(command.words);
   const denial = checkPrefix(unwrapped, context);
   if (denial !== null || unwrapped.split !== null) return denial;
   const [first, ...args] = unwrapped.words;
-  const name = first?.text === null || first === undefined ? null : programOf(first.text);
-  if (unwrapped.appended && (name === null || runsArguments(name))) {
-    return unreadable("xargs adds words the guard cannot read to a program that runs them");
-  }
-  if (first === undefined) return null;
-  if (name === null) return unreadable("it runs a command whose name the guard cannot read");
+  if (first === undefined) return unwrapped.appended ? XARGS : null;
+  if (first.text === null) return unreadable("it runs a command whose name the guard cannot read");
+  const name = programOf(first.text);
+  if (unwrapped.appended && runsArguments(name)) return XARGS;
   return checkProgram(name, args, command, context);
 };
 
@@ -171,7 +183,14 @@ const checkProgram = (name: string, args: Word[], command: Command, context: Con
   if (name.startsWith("git-")) return checkGit([{ text: name.slice(4), start: name.slice(4) }, ...args]);
   if (SETTERS.has(name)) return checkSetter(name, args);
   if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args, command, context);
+  return checkRunner(name, args, context);
+};
+
+// find, eval and alias run words as commands; any other program is checked against the forbidden ones.
+const checkRunner = (name: string, args: Word[], context: Context): Denial | null => {
   if (name === "find") return checkFind(args, context);
+  // An alias runs where a later line names it.
+  if (name === "alias") return GUARDED.test(context.text) ? unreadable("an alias names gh, git or curl") : null;
   if (name !== "eval") return forbiddenProgram(name, args);
   const text = literal(args[0]?.text === "--" ? args.slice(1) : args);
   return text === null ? unreadable("eval runs words the guard cannot read") : nested(text.join(" "), context);
@@ -208,51 +227,72 @@ const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
   return null;
 };
 
-// What a shell runs: the text of its -c script, a file, its standard input, or null for a word it cannot read.
-const shellScript = (name: string, args: readonly Word[]): string | "file" | "stdin" | null => {
-  const sourced = name === "source" || name === ".";
+// What a shell runs: its -c script, a file, its standard input, or null for a word the guard cannot read.
+type Source = { script: string } | "file" | "stdin" | null;
+
+const textAt = (words: readonly Word[], i: number): string | null => words[i]?.text ?? null;
+
+// The script of a shell: after its options, the -c script or a file; stdin with -s or without either.
+const shellScript = (args: readonly Word[]): Source => {
   let command = false;
   for (let i = 0; i < args.length; i += 1) {
-    const text = args[i]?.text ?? null;
-    if (text === null) return null;
-    if (SHELL_VALUED.has(text)) i += 1;
-    else if (text === "-s" && !sourced) return "stdin";
-    else if (/^(?:[-+][A-Za-z]+|--[\w-]+)$/.test(text) && !sourced) command ||= /^-[A-Za-z]*c/.test(text);
-    else if (text !== "--") return command ? text : fileScript(text);
+    const text = textAt(args, i);
+    const option = text === null ? null : shellOption(text);
+    if (option === null && text !== "--") return scriptOf(text, command);
+    if (option === "stdin") return "stdin";
+    command ||= option === "command";
+    if (option === "value") i += 1;
   }
   return command ? null : "stdin";
 };
 
-const fileScript = (path: string): "file" | "stdin" =>
-  path === "-" || path === "/dev/stdin" || path.startsWith("/dev/fd/") ? "stdin" : "file";
+// What a shell option does: takes the next word, reads the script from stdin (-s), makes the next word the script
+// (-c, --command), or nothing; null for a word that is no option.
+const shellOption = (text: string): "value" | "stdin" | "command" | "flag" | null => {
+  if (SHELL_VALUED.has(text)) return "value";
+  if (text === "-s") return "stdin";
+  if (!/^(?:[-+][A-Za-z]+|--[\w-]+)$/.test(text)) return null;
+  return /^(?:-[A-Za-z]*c|--command$)/.test(text) ? "command" : "flag";
+};
+
+const scriptOf = (text: string | null, command: boolean): Source => {
+  if (text === null) return null;
+  if (text.startsWith("--command=")) return { script: text.slice("--command=".length) };
+  if (command) return { script: text };
+  return text === "-" || text === "/dev/stdin" || text.startsWith("/dev/fd/") ? "stdin" : "file";
+};
 
 // A shell runs its -c script or the heredoc or here-string fed to it; a script file is beyond the guard, and one from a
 // pipe or a word it cannot read refuses.
 const checkShell = (name: string, args: readonly Word[], command: Command, context: Context): Denial | null => {
-  const script = shellScript(name, args);
+  const script = name === "source" || name === "." ? scriptOf(textAt(args, 0), false) : shellScript(args);
   if (script === "file") return null;
   if (script === null) return unreadable(`${name} runs a script the guard cannot read`);
-  if (script !== "stdin") return nested(script, context);
+  if (script !== "stdin") return nested(script.script, context);
   const stdin = literal(command.stdin);
   return stdin === null || stdin.length === 0
     ? unreadable(`${name} reads its script from a pipe or a file the guard cannot read`)
     : nested(stdin.join("\n"), context);
 };
 
-// find runs the words after -exec, -execdir, -ok and -okdir up to `;` or `+` as a command.
-const checkFind = (args: readonly Word[], context: Context): Denial | null => {
-  let from = -1;
-  for (let i = 0; i < args.length; i += 1) {
-    const text = args[i]?.text ?? "";
-    if (from < 0 && /^-(?:exec|execdir|ok|okdir)$/.test(text)) from = i + 1;
-    else if (from >= 0 && (text === ";" || text === "+")) {
-      const denial = checkCommand({ words: args.slice(from, i), stdin: [] }, context);
-      if (denial !== null) return denial;
-      from = -1;
-    }
+// The commands find runs: the words after each -exec, -execdir, -ok or -okdir up to `;` or `+`.
+const execSegments = (args: readonly Word[]): Word[][] => {
+  const segments: Word[][] = [];
+  let current: Word[] | null = null;
+  for (const word of args) {
+    if (current === null) current = /^-(?:exec|execdir|ok|okdir)$/.test(word.text ?? "") ? [] : null;
+    else if (word.text === ";" || word.text === "+") {
+      segments.push(current);
+      current = null;
+    } else current.push(word);
   }
-  return from < 0 ? null : checkCommand({ words: args.slice(from), stdin: [] }, context);
+  return current === null ? segments : [...segments, current];
 };
+
+const checkFind = (args: readonly Word[], context: Context): Denial | null =>
+  execSegments(args)
+    .map((words) => checkCommand({ words, stdin: [] }, context))
+    .find((denial) => denial !== null) ?? null;
 
 const checkGit = (args: readonly Word[]): Denial | null => {
   const at = globalOptions(args);
@@ -292,14 +332,20 @@ const abbreviates = (word: string | null, option: string, min: number): boolean 
   return name.length >= min && option.startsWith(name);
 };
 
+interface Valued {
+  readonly short: string;
+  readonly long: readonly string[];
+}
+const NONE: Valued = { short: "", long: [] };
+
 // The git commands whose options the guard checks, and the options of theirs that take the next word as a value.
-const CHECKED: ReadonlyMap<string, { short: string; long: readonly string[] }> = new Map([
+const CHECKED = new Map<string, Valued>([
   ["commit", { short: "mFCct", long: ["--message", "--file", "--author", "--date", "--template", "--trailer"] }],
   ["merge", { short: "mFsX", long: ["--message", "--file", "--strategy", "--strategy-option"] }],
   ["pull", { short: "sX", long: ["--strategy", "--strategy-option"] }],
   ["push", { short: "o", long: ["--push-option", "--repo"] }],
   ...["config", "clone", "remote", "fetch", "rebase", "am", "cherry-pick", "revert", "submodule", "bisect"].map(
-    (name) => [name, { short: "", long: [] as readonly string[] }] as const,
+    (name): [string, Valued] => [name, NONE],
   ),
 ]);
 
@@ -310,10 +356,13 @@ const unknownWord = (sub: string, rest: readonly Word[]): Denial | null => {
   if (valued === undefined) return null;
   const hidden = rest.find(({ text, start }, i) => {
     const before = rest[i - 1]?.text ?? "";
-    const value = valued.long.includes(before) || (/^-[A-Za-z]+$/.test(before) && valued.short.includes(before.at(-1) ?? " "));
+    const value =
+      valued.long.includes(before) || (/^-[A-Za-z]+$/.test(before) && valued.short.includes(before.at(-1) ?? " "));
     return text === null && /^[-+]?$/.test(start.charAt(0)) && !value;
   });
-  return hidden === undefined ? null : unreadable(`git ${sub} gets a word the guard cannot read, which may be an option`);
+  return hidden === undefined
+    ? null
+    : unreadable(`git ${sub} gets a word the guard cannot read, which may be an option`);
 };
 
 // The git commands the guard knows; any other word may be an alias, which could hide a push.
@@ -368,16 +417,18 @@ const skippedChecks = (sub: string, rest: readonly Word[]): Denial | null => {
   return sub === "commit" && hasShortFlag(rest, "n", "mFCct", "uS") ? deny("forbidden", "git commit -n") : null;
 };
 
+const RUNNER_OPTIONS = ["--upload-pack", "--receive-pack", "--exec", "--extcmd"];
 // Options and commands with which git runs a command or program of its own choosing, which the guard does not read.
-const ranCommand = (sub: string, rest: readonly Word[]): Denial | null => {
-  const runs =
-    rest.some(({ text }) => ["--upload-pack", "--receive-pack", "--exec", "--extcmd"].some((o) => abbreviates(text, o, 5))) ||
-    (["rebase", "difftool", "mergetool"].includes(sub) && hasShortFlag(rest, "x", "", "")) ||
-    (["clone", "ls-remote"].includes(sub) && hasShortFlag(rest, "u", "objc", "")) ||
-    (sub === "submodule" && rest.some(({ text }) => text === "foreach")) ||
-    (sub === "bisect" && rest[0]?.text === "run");
-  return runs ? unreadable(`git ${sub} runs a command the guard does not read`) : null;
-};
+const RUNS: readonly ((sub: string, rest: readonly Word[]) => boolean)[] = [
+  (_, rest) => rest.some(({ text }) => RUNNER_OPTIONS.some((option) => abbreviates(text, option, 5))),
+  (sub, rest) => ["rebase", "difftool", "mergetool"].includes(sub) && hasShortFlag(rest, "x", "", ""),
+  (sub, rest) => ["clone", "ls-remote"].includes(sub) && hasShortFlag(rest, "u", "objc", ""),
+  (sub, rest) => sub === "submodule" && rest.some(({ text }) => text === "foreach"),
+  (sub, rest) => sub === "bisect" && rest[0]?.text === "run",
+];
+
+const ranCommand = (sub: string, rest: readonly Word[]): Denial | null =>
+  RUNS.some((runs) => runs(sub, rest)) ? unreadable(`git ${sub} runs a command the guard does not read`) : null;
 
 // What a short-option cluster such as -am does with `letter`: holds it, takes the next word as a value, or neither.
 const inCluster = (text: string, letter: string, valued: string, attached: string): "found" | "value" | "none" => {

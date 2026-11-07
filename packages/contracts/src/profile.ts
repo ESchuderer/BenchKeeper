@@ -43,8 +43,10 @@ const Text = z.union([
 // sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const followed = { name: Name, ref: GitRef.optional(), autoUpdate: z.boolean().optional() };
+// A GitHub repository as `owner/repo`.
+const GitHubRepo = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/);
 const Marketplace = z.union([
-  z.strictObject({ ...followed, github: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/) }),
+  z.strictObject({ ...followed, github: GitHubRepo }),
   z.strictObject({ ...followed, git: GitUrl }),
 ]);
 
@@ -302,6 +304,10 @@ export const ProfileSelection = z
       }),
     ]),
     select: sized(z.record(QualifiedPartId, z.boolean()), 500).describe("On or off against the part's default"),
+    bindings: z
+      .strictObject({ hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts") })
+      .optional()
+      .describe("This machine's repositories the profile's parts name"),
   })
   .register(fileFormats, { id: "ProfileSelection" });
 export type ProfileSelection = z.infer<typeof ProfileSelection>;

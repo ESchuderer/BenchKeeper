@@ -1433,6 +1433,23 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2374,6 +2391,23 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */

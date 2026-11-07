@@ -241,6 +241,16 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
+  "profile.approval-needed": (p) => {
+    const from =
+      p.source === null
+        ? "a marketplace Claude Code already knows"
+        : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
+    const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+  },
+  "profile.options-guarded": (p) =>
+    `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };

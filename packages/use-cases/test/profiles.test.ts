@@ -845,7 +845,7 @@ test("a project's record names each committed file CedarLoom wrote, and stays as
   ]);
 });
 
-test("another clone takes a committed file as CedarLoom's by the project's record, so its older text is updated", async () => {
+test("another clone takes a committed file as CedarLoom's by the project's record: its older text is outdated and updated", async () => {
   const project = projectWith();
   applied(machine().state, (await projectPlan(machine(), project)).plan);
   const [domain, path] = [
@@ -857,6 +857,16 @@ test("another clone takes a committed file as CedarLoom's by the project's recor
   writeFileSync(path, JSON.stringify(record));
   writeFileSync(domain, "- old\n");
   // A machine with a run store of its own, as a teammate's clone has.
-  const { plan, findings } = await projectPlan(machine(), project);
-  expect([plan?.operations.map((op) => "path" in op && op.path), findings]).toEqual([[domain, path], []]);
+  const other = machine();
+  const { plan, findings } = await projectPlan(other, project);
+  const where = { home: other.home, user: other.home };
+  const drift = driftLines(ok(await checkProfile(other.config, other.state, where, { fetch: stock, project })));
+  expect([plan?.operations.map((op) => "path" in op && op.path), findings, drift]).toEqual([
+    [domain, path],
+    [],
+    [
+      ["outdated", domain],
+      ["missing", path],
+    ],
+  ]);
 });

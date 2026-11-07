@@ -1400,7 +1400,7 @@ export interface components {
                 pack: string;
                 path: string;
                 /** @enum {string} */
-                kind: "rules" | "template" | "profile";
+                kind: "rules" | "template" | "profile" | "skill";
             };
         } | {
             /** @constant */
@@ -1460,6 +1460,36 @@ export interface components {
             params: {
                 part: string;
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-unpinned";
+            params: {
+                source: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-digest";
+            params: {
+                source: string;
+                expected: string;
+                found: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-waiting";
+            params: {
+                source: string;
+                commit: string;
+                offered: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-unavailable";
+            params: {
+                source: string;
+                commit: string;
             };
         } | {
             /** @constant */
@@ -2444,7 +2474,7 @@ export interface components {
                 pack: string;
                 path: string;
                 /** @enum {string} */
-                kind: "rules" | "template" | "profile";
+                kind: "rules" | "template" | "profile" | "skill";
             };
         } | {
             /** @constant */
@@ -2504,6 +2534,36 @@ export interface components {
             params: {
                 part: string;
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.pack-unpinned";
+            params: {
+                source: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-digest";
+            params: {
+                source: string;
+                expected: string;
+                found: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-waiting";
+            params: {
+                source: string;
+                commit: string;
+                offered: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.source-unavailable";
+            params: {
+                source: string;
+                commit: string;
             };
         } | {
             /** @constant */

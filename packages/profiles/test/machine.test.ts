@@ -27,7 +27,7 @@ const planOf = (
   };
   const resolved = resolveProfile(selection, "0.1.0");
   if (!resolved.ok) throw new Error(resolved.finding.code);
-  const plan = planMachine(resolved.value, { home, user, guarded }, new Map(), new Set(allow));
+  const plan = planMachine(resolved.value, { home, user, guarded }, new Map(), { approved: new Set(allow) });
   return plan.ok ? plan.value : plan.finding;
 };
 // The plan with the global rules part's text replaced.

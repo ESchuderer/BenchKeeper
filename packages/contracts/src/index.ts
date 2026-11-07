@@ -97,7 +97,14 @@ export {
   UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";
 export { ImportReview } from "./imports.ts";
-export { PACK_SCHEMA_VERSION, PackManifest } from "./pack.ts";
+export {
+  GitSource,
+  PACK_SCHEMA_VERSION,
+  PackManifest,
+  PackSources,
+  SOURCES_SCHEMA_VERSION,
+  skillFolder,
+} from "./pack.ts";
 export {
   Profile,
   PROFILE_SCHEMA_VERSION,

@@ -25,9 +25,6 @@ export const AccountName = Name;
 // A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary.
 const Percent = z.number().min(0).max(100);
 
-/** The headroom a launch needs in each usage window, in percent of the window. */
-const Minimums = z.strictObject({ fiveHour: Percent, sevenDay: Percent });
-
 const Account = z.strictObject({
   name: Name,
   agent: Agent,
@@ -36,9 +33,10 @@ const Account = z.strictObject({
   aliases: z
     .array(AbsolutePath)
     .optional()
-    .describe("Other tools' config folders of the same account, for readings only: nothing is written into them"),
+    .describe(
+      "Earlier and other config folders of the same account; workers may not read them, and nothing reads or writes them",
+    ),
   pool: Name.nullable(),
-  minimum: Minimums.partial().optional().describe("The account's own minimums, in place of the registry's"),
   added: z.iso.datetime(),
 });
 
@@ -74,13 +72,12 @@ const folders = (account: z.infer<typeof Account>, index: number): [string, (str
 ];
 
 /**
- * The accounts by config folder, their pools per agent and the minimums: never a credential, as every object is strict.
+ * The accounts by config folder and their pools per agent: never a credential, as every object is strict.
  * Names and folders, homes and aliases alike, are unique, and an account's pool is one of its agent's pools.
  */
 export const AccountRegistry = z
   .strictObject({
     schemaVersion: z.literal(ACCOUNTS_SCHEMA_VERSION),
-    minimum: Minimums,
     accounts: z.array(Account),
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
   })

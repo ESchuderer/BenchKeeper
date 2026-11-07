@@ -3654,7 +3654,8 @@
                     "enum": [
                       "rules",
                       "template",
-                      "profile"
+                      "profile",
+                      "skill"
                     ]
                   }
                 },
@@ -3919,6 +3920,134 @@
                 "required": [
                   "part",
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.pack-unpinned"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-digest"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "expected",
+                  "found"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-waiting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  },
+                  "offered": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit",
+                  "offered"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit"
                 ],
                 "additionalProperties": false
               }
@@ -8513,7 +8642,8 @@
                     "enum": [
                       "rules",
                       "template",
-                      "profile"
+                      "profile",
+                      "skill"
                     ]
                   }
                 },
@@ -8778,6 +8908,134 @@
                 "required": [
                   "part",
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.pack-unpinned"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-digest"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "string"
+                  },
+                  "found": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "expected",
+                  "found"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-waiting"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  },
+                  "offered": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit",
+                  "offered"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit"
                 ],
                 "additionalProperties": false
               }

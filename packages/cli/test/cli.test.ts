@@ -285,7 +285,6 @@ const withRegistry = () => {
     join(root, "config", "accounts.json"),
     formatRegistry({
       schemaVersion: 1,
-      minimum: { fiveHour: 8, sevenDay: 3 },
       accounts: [account("work", "main"), account("solo", null)],
       pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
     }),
@@ -533,6 +532,7 @@ test("every finding code has an English sentence", () => {
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
   if (schema instanceof z.ZodBoolean) return true;
+  if (schema instanceof z.ZodString) return sha256(key);
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {

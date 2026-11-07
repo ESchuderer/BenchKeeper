@@ -254,6 +254,14 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   },
   "profile.options-guarded": (p) =>
     `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
+  "profile.pack-unpinned": (p) =>
+    `${p.source} follows a branch or tag, but ${p.path} may run; pin the source by commit and digest.`,
+  "profile.source-digest": (p) =>
+    `${p.source} has the digest ${p.found} at its commit, not the pinned ${p.expected}; nothing of it is used.`,
+  "profile.source-waiting": (p) =>
+    `${p.source} has a new commit ${p.commit.slice(0, 12)}; it is taken from ${p.offered}, 3 days after this machine first saw it.`,
+  "profile.source-unavailable": (p) =>
+    `${p.source} no longer has the commit in use, ${p.commit.slice(0, 12)}, while its new commit waits its 3 days; pin the source by commit and digest.`,
   "profile.owner-changed": (p) =>
     `${p.path} was changed or made outside CedarLoom since its last write, so the plan leaves it as it is.`,
 };

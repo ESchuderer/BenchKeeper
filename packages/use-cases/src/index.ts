@@ -1,9 +1,11 @@
+export { type Bundled, bundledExtensions, extensionToStart, planSwitch, type Startable } from "./bundled.ts";
 export { DRAFT_LIMIT, deleteDraft, listDrafts, readDraft, saveDraft, sweepDrafts } from "./drafts.ts";
 export { openVersion, planSave, type SavePlan, type StoredVersion, storeHistory } from "./store.ts";
 export {
   approvalOf,
   type Capabilities,
   type Fetch,
+  type Installed,
   type InstallPlan,
   installedExtensions,
   planInstall,

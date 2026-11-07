@@ -23,6 +23,7 @@ export {
   ModeScope,
   ModeSwitch,
 } from "./automation.ts";
+export { COMPONENTS_SCHEMA_VERSION, Components, formatComponents, Switch } from "./components.ts";
 export {
   Draft,
   DraftInfo,

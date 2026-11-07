@@ -18,6 +18,8 @@ export interface Io {
   fetch?: Fetch;
   /** The agent CLI that `agent.run` nodes start. */
   agent: AgentOptions<ClaudeLaunch>["runtime"];
+  /** Where the app's own extensions are: the `extensions` folder of the CLI package unless a test names another. */
+  bundled?: string;
 }
 
 export interface Context {
@@ -25,6 +27,8 @@ export interface Context {
   json: boolean;
   state: string;
   config: string;
+  /** The folder of the app's own (bundled) extensions. */
+  app: string;
 }
 
 /** sysexits: 64 usage, 65 data, 66 missing input, 70 internal; 1 when a rule refused the change. */

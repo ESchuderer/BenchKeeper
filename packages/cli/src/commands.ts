@@ -6,6 +6,7 @@ import {
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
+  type PackRef,
   severityOf,
   type Plan,
   type PlanPreview,
@@ -606,6 +607,11 @@ export const profilesDiff = (ctx: Context, { against }: { against: PackRef }): n
   const diff = useCases.diffProfile(ctx.config, against);
   if (!diff.ok) return refused(ctx, "profile-diff", diff.finding);
   const lines = diff.value.map((entry) => `${SIGNS[entry.change]} ${entry.key}`);
-  emit(ctx, "profile-diff", { changes: diff.value }, lines.join("\n") || `The profile is the same as ${against.pack}/${against.path}.`);
+  emit(
+    ctx,
+    "profile-diff",
+    { changes: diff.value },
+    lines.join("\n") || `The profile is the same as ${against.pack}/${against.path}.`,
+  );
   return EXIT.ok;
 };

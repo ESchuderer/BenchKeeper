@@ -1748,6 +1748,12 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.copy-exists";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.binding-waiting";
             params: {
                 part: string;
@@ -2948,6 +2954,12 @@ export interface components {
             code: "profile.remove-unknown";
             params: {
                 item: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.copy-exists";
+            params: {
+                path: string;
             };
         } | {
             /** @constant */

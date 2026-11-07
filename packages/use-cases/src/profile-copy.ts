@@ -1,13 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PackRef, Plan, Result } from "@cedarloom/contracts";
-import {
-  composedProfile,
-  DEFAULT_PROFILE,
-  type ProfileChange,
-  profileChanges,
-  readEntry,
-} from "@cedarloom/profiles";
+import { composedProfile, DEFAULT_PROFILE, type ProfileChange, profileChanges, readEntry } from "@cedarloom/profiles";
 import { planChoice, readSelection, selectionPath } from "./profiles.ts";
 
 /**

@@ -812,13 +812,17 @@ const died = (state: string, work: string, account: string): string => {
   return runId;
 };
 
+// The result file of the staged launch, as its worker wrote it.
+const written = (state: string, result: { verdict: string; summary: string }): void => {
+  const out = join(state, "workers", LAUNCH.slice(0, 8), "out");
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "result.json"), JSON.stringify({ schemaVersion: 1, runId: LAUNCH, ...result }));
+};
+
 test("an agent attempt a dead runner left ends with the result its worker wrote, without a relaunch", async () => {
   const { state, config, work } = setup();
   const runId = died(state, work, "work");
-  const out = join(state, "workers", LAUNCH.slice(0, 8), "out");
-  mkdirSync(out, { recursive: true });
-  const result = { schemaVersion: 1, runId: LAUNCH, verdict: "pass", summary: "Done before the crash." };
-  writeFileSync(join(out, "result.json"), JSON.stringify(result));
+  written(state, { verdict: "pass", summary: "Done before the crash." });
   const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
   expect(await resumeRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "succeeded" } });
   expect([attemptsOf(state), withLedger(state, (store) => store.launches().length)]).toEqual([
@@ -851,10 +855,12 @@ test("an agent attempt whose launch the launcher ended before its runner died en
   const { state, config, work } = setup();
   const runId = died(state, work, "work");
   withLedger(state, (store) => store.finishLaunch(LAUNCH, "not-run"));
+  // The launcher judged this result, of a CLI that exited with an error: its verdict holds, its summary is kept.
+  written(state, { verdict: "pass", summary: "Done, then it failed." });
   const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
   expect(await resumeRun(state, runId, { project: work, agents })).toMatchObject({ value: { status: "failed" } });
   expect([attemptsOf(state), withLedger(state, (store) => store.launches().length)]).toEqual([
-    [{ state: "failed", outputs: { result: "", verdict: "not-run" }, sessionId: SESSION }],
+    [{ state: "failed", outputs: { result: "Done, then it failed.", verdict: "not-run" }, sessionId: SESSION }],
     1,
   ]);
 }, 30_000);

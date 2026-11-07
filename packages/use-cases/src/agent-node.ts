@@ -227,9 +227,11 @@ export const agentRecover = (run: AgentRun, options: AgentOptions): Recovery => 
     const launches = await retryBusy(() => withStore(run.state, (store) => ({ ok: true, value: store.launches() })));
     const launch = launches.ok ? launches.value.findLast((each) => each.task === task) : undefined;
     if (launch === undefined) return null;
-    // A launch the launcher ended is decided: its verdict holds, which judged the CLI's exit too.
-    if (launch.verdict !== null && launch.verdict !== "interrupted") return finished(launch.verdict, null);
     const result = readResult(resultFileOf(run.state, launch.runId), launch.runId);
+    // A launch the launcher ended is decided: its verdict holds, which judged the CLI's exit too.
+    if (launch.verdict !== null && launch.verdict !== "interrupted") {
+      return finished(launch.verdict, result?.summary ?? null);
+    }
     if (result !== null) return finished(result.verdict, result.summary);
     if (options.runtime.capabilities.resume !== "supported") return null;
     return attempted(left, run, options, { worktree, resume: { sessionId, account: launch.account } });

@@ -19,7 +19,7 @@
       "type": "object",
       "propertyNames": {
         "type": "string",
-        "maxLength": 2048
+        "maxLength": 8192
       },
       "additionalProperties": {
         "type": "object",

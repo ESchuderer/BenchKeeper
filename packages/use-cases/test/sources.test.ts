@@ -86,6 +86,50 @@ test("a source that follows a branch and holds a file that may run is refused", 
   });
 });
 
+test("a skill entry that may run, reached through a pack that follows a branch, is refused", async () => {
+  const url = "https://git.example.org/acme/tools.git";
+  const manifest = { schemaVersion: 1, kind: "cedarloom.pack", id: "acme.tools", version: "1.0.0", name: "Tools" };
+  publish(url, {
+    "cedarloom-pack.json": JSON.stringify({
+      ...manifest,
+      minApp: "0.0.0",
+      entries: { "skills/tool": { kind: "skill" } },
+    }),
+    "skills/tool/SKILL.md": "x\n",
+    "skills/tool/run.sh": "echo hi\n",
+  });
+  const part = { type: "skill", title: "Tool", default: "on", source: { pack: "acme.tools", path: "skills/tool" } };
+  expect(await machineWith({ "skill.tool": part }, { "acme.tools": { git: url, ref: "main" } }).plan()).toEqual({
+    ok: false,
+    finding: { code: "profile.pack-unpinned", params: { source: url, path: "skills/tool/run.sh" } },
+  });
+});
+
+test("while a new commit waits and the one in use cannot be fetched, the installed skill stays", async () => {
+  const url = "https://git.example.org/acme/gone.git";
+  publish(url, { "SKILL.md": "first\n" });
+  const { state, plan } = machineWith(skill({ git: url, ref: "main" }));
+  const first = ok(await plan()).plan;
+  if (first === null) throw new Error("no plan");
+  expect(ok(applyPlan(state, first, { yes: true })).status).toBe("applied");
+  const second = publish(url, { "SKILL.md": "second\n" });
+  commits.set(url, [second]);
+  const waiting = ok(await plan());
+  expect([waiting.plan, waiting.findings.map(({ code }) => code)]).toEqual([null, ["profile.source-waiting"]]);
+});
+
+test("a record of the followed sources CedarLoom cannot read stops the plan", async () => {
+  const { state, plan } = machineWith(skill({ git: "https://git.example.org/acme/any.git", ref: "main" }));
+  writeFileSync(join(state, "pack-sources.json"), JSON.stringify({ sources: {} }));
+  expect(await plan()).toEqual({
+    ok: false,
+    finding: {
+      code: "document.unreadable",
+      params: { path: join(state, "pack-sources.json"), error: "not a pack-sources record" },
+    },
+  });
+});
+
 test("a pinned source whose folder has another digest is refused", async () => {
   const url = "https://git.example.org/acme/pinned.git";
   const tree = publish(url, { "SKILL.md": "x\n", "run.sh": "echo hi\n" });

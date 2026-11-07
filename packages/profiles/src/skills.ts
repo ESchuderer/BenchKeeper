@@ -1,6 +1,6 @@
 import { isUtf8 } from "node:buffer";
 import { join, sep } from "node:path";
-import type { GitSource, Result } from "@cedarloom/contracts";
+import { type GitSource, type Result, skillFolder } from "@cedarloom/contracts";
 import type { Wanted } from "./owned.ts";
 import { entryFiles, entryOf, type Folder, type Resolved } from "./resolve.ts";
 
@@ -19,11 +19,9 @@ export const packFolder = ({ profile }: Resolved, pack: string, fetched: Fetched
 
 type Skill = Extract<Resolved["profile"]["machine"][string], { type: "skill" }>;
 
-// A skill installs into a folder of its name: the last part of its path, or of its repository's name.
-const nameOf = ({ source }: Skill): string => {
-  const path = "git" in source ? (source.path ?? source.git.replace(/\.git$/, "")) : source.path;
-  return path.slice(path.lastIndexOf("/") + 1);
-};
+// A skill installs into a folder of its name: its pack entry's last part, or its Git source's (checked by the profile).
+const nameOf = ({ source }: Skill): string =>
+  "git" in source ? skillFolder(source) : source.path.slice(source.path.lastIndexOf("/") + 1);
 
 const skills = ({ profile }: Resolved): [string, Skill][] =>
   Object.entries(profile.machine).flatMap(([id, part]): [string, Skill][] =>
@@ -48,12 +46,13 @@ export const sourcesOf = (resolved: Resolved, fetched: Fetched): GitSource[] => 
     .flatMap(([, skill]) => gitOf(resolved, skill, fetched) ?? []),
 ];
 
-// The files a skill part installs: its Git source's folder, else its pack entry's.
-const filesOf = (resolved: Resolved, skill: Skill, fetched: Fetched): Result<Folder["files"]> => {
+// The files a skill part installs: its Git source's folder, else its pack entry's; undefined when its source was not
+// fetched, so its installed files stay as they are.
+const filesOf = (resolved: Resolved, skill: Skill, fetched: Fetched): Result<Folder["files"] | undefined> => {
   const git = gitOf(resolved, skill, fetched);
-  if (git !== undefined) return { ok: true, value: fetched.get(sourceKey(git))?.files ?? [] };
+  if (git !== undefined) return { ok: true, value: fetched.get(sourceKey(git))?.files };
   const { source } = skill;
-  if ("git" in source) return { ok: true, value: [] };
+  if ("git" in source) return { ok: true, value: undefined };
   const folder = packFolder(resolved, source.pack, fetched);
   const entry = entryOf(source, "skill", folder);
   return entry.ok ? entryFiles(source, folder) : entry;
@@ -71,16 +70,18 @@ export const skillFiles = (
 ): Result<{ wanted: Map<string, Wanted>; stale: string[] }> => {
   const wanted = new Map<string, Wanted>();
   const folders = skills(resolved).map(([id, skill]) => ({ id, skill, folder: join(home, "skills", nameOf(skill)) }));
+  const left = new Set<string>();
   for (const { skill, folder } of folders.filter(({ id }) => resolved.on.has(`machine.${id}`))) {
     const files = filesOf(resolved, skill, fetched);
     if (!files.ok) return files;
-    for (const { path, mode, content } of files.value) {
+    if (files.value === undefined) left.add(folder);
+    for (const { path, mode, content } of files.value ?? []) {
       const target = join(folder, ...path.split("/"));
       if (!isUtf8(content)) return { ok: false, finding: { code: "apply.not-text", params: { path: target } } };
       wanted.set(target, { content: content.toString("utf8"), ...(mode === "100755" ? { mode: 0o755 } : {}) });
     }
   }
-  const roots = folders.map(({ folder }) => folder + sep);
+  const roots = folders.filter(({ folder }) => !left.has(folder)).map(({ folder }) => folder + sep);
   const stale = [...written.keys()].filter((path) => !wanted.has(path) && roots.some((root) => path.startsWith(root)));
   return { ok: true, value: { wanted, stale } };
 };

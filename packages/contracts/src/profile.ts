@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
-import { GitSource, PackId } from "./pack.ts";
+import { GitSource, PackId, skillFolder, skillName } from "./pack.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText, shown, UNSAFE } from "./text.ts";
 import type { Json } from "./json.ts";
@@ -268,6 +268,13 @@ const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
     if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
     return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
   });
+// A skill from Git installs into a folder of a skill's name (https://agentskills.io/specification).
+const skillIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
+  Object.entries(machine).flatMap(([id, each]): Issue[] =>
+    each.type === "skill" && "git" in each.source && !skillName(skillFolder(each.source))
+      ? [[["machine", id, "source"], "a path or repository whose last part is a skill's name"]]
+      : [],
+  );
 // A plugin's marketplace goes by the name its plugin id carries, as Claude Code resolves the id through it.
 const marketplaceIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
   Object.entries(machine).flatMap(([id, each]): Issue[] =>
@@ -293,7 +300,12 @@ export const Profile = z
     ...whole,
   })
   .superRefine((profile, ctx) =>
-    report(ctx, [...optionsIssues(profile.machine), ...marketplaceIssues(profile.machine), ...probeIssues(profile)]),
+    report(ctx, [
+      ...optionsIssues(profile.machine),
+      ...marketplaceIssues(profile.machine),
+      ...skillIssues(profile.machine),
+      ...probeIssues(profile),
+    ]),
   );
 export type Profile = z.infer<typeof Profile>;
 

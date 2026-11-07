@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
+  canonicalJson,
   type Finding,
+  type PackSources,
   PLAN_SCHEMA_VERSION,
   type Plan,
   ProfileSelection,
@@ -22,7 +24,7 @@ import {
 } from "@cedarloom/profiles";
 import { loadRegistry } from "./accounts.ts";
 import type { Fetch } from "./extensions.ts";
-import { fetchSources } from "./sources.ts";
+import { fetchSources, readRecord, writeRecord } from "./sources.ts";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
@@ -83,18 +85,26 @@ const selectedProfile = (config: string): Result<Resolved> => {
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
-// Fetches the Git sources the profile needs, in rounds: its packs and the skills' own sources, then a pack's skill
-// entry's source once that pack's folder is here.
+// Fetches the Git sources the profile needs, in rounds: its packs and the skills' own sources, then each pack's skill
+// entry's source once that pack's folder is here, until nothing new comes; then keeps the record of the followed ones.
 const fetchAll = async (state: string, resolved: Resolved, fetch: Fetch) => {
+  const record = readRecord(state);
+  if (!record.ok) return record;
   const fetched = new Map<string, Tree>();
+  const entries: PackSources["sources"] = {};
   const findings: Finding[] = [];
-  for (let round = 0; round < 2; round += 1) {
-    const missing = sourcesOf(resolved, fetched).filter((source) => !fetched.has(sourceKey(source)));
-    const got = missing.length === 0 ? null : await fetchSources(state, missing, fetch);
-    if (got?.ok === false) return got;
-    for (const [key, tree] of got?.value.trees ?? []) fetched.set(key, tree);
-    findings.push(...(got?.value.findings ?? []));
+  const tried = new Set<string>();
+  for (let round = 0; round < 5; round += 1) {
+    const missing = sourcesOf(resolved, fetched).filter((source) => !tried.has(sourceKey(source)));
+    if (missing.length === 0) break;
+    for (const source of missing) tried.add(sourceKey(source));
+    const got = await fetchSources(state, missing, fetch, record.value);
+    if (!got.ok) return got;
+    for (const [key, tree] of got.value.trees) fetched.set(key, tree);
+    Object.assign(entries, got.value.entries);
+    findings.push(...got.value.findings);
   }
+  if (canonicalJson(entries) !== canonicalJson(record.value)) writeRecord(state, entries);
   return { ok: true as const, value: { fetched, findings } };
 };
 

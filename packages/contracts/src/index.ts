@@ -8,6 +8,8 @@ export {
   AgentVersion,
   ContractCheckRecord,
   formatRegistry,
+  modelWindow,
+  Quota,
   QuotaWindow,
   Reading,
   sameFolder,

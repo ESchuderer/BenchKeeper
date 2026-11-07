@@ -93,13 +93,21 @@ type RateLimitInfo = z.infer<typeof RateLimit>["rate_limit_info"];
 // Claude Code's window names in the agent-neutral quota model; a window not listed is reported but not stored.
 const QUOTA: Readonly<Record<string, UsageWindow["quota"]>> = { five_hour: "fiveHour", seven_day: "sevenDay" };
 
+// A model's own weekly window, `seven_day_<family>` as Claude's usage report names it, is that model's `sevenDay:<family>`.
+// shortcut: the stream's name for it is unverified (2.1.316's showed only five_hour and seven_day); check it with a live
+// run once an account has such a window.
+const quotaOf = (window: string): UsageWindow["quota"] => {
+  const family = /^seven_day_([a-z]{1,20})$/.exec(window)?.[1];
+  return QUOTA[window] ?? (family === undefined ? null : `sevenDay:${family}`);
+};
+
 const windows = (info: RateLimitInfo): UsageWindow[] =>
   Object.entries(info.unifiedWindows ?? { [info.rateLimitType]: info }).map(([window, reading]) => ({
     window,
     status: reading.status,
     percent: reading.utilization === undefined ? null : Math.round(reading.utilization * 10_000) / 100,
     resetsAt: reading.resetsAt === undefined ? null : new Date(reading.resetsAt * 1000).toISOString(),
-    quota: QUOTA[window] ?? null,
+    quota: quotaOf(window),
   }));
 
 const parseJson = (line: string): Json => {

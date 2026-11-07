@@ -236,6 +236,8 @@ export const Finding = z
     finding("profile.extra", { item: z.string() }),
     // An `apply --remove` item the plan does not offer.
     finding("profile.remove-unknown", { item: z.string() }),
+    // A `profiles init` target that holds a file, which may be a profile the owner edited, or is the selection file.
+    finding("profile.copy-exists", { path: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
@@ -424,6 +426,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.binding-waiting": { severity: "info", effort: "command" },
   "profile.drift": { severity: "warning", effort: "command" },
   "profile.remove-unknown": { severity: "error", effort: "manual" },
+  "profile.copy-exists": { severity: "error", effort: "manual" },
   "profile.extra": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },

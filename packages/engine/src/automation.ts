@@ -1,4 +1,4 @@
-import type { AutomationLevel, AutomationSettings } from "@cedarloom/contracts";
+import type { AutomationLevel, AutomationSettings, GatePoint } from "@cedarloom/contracts";
 
 /** The points where a task's run may wait for the owner's approval. */
 export type ApprovalGate = "before-implementation" | "after-verdict" | "before-merge";
@@ -23,6 +23,21 @@ const WAITS: Readonly<Record<AutomationLevel, readonly ApprovalGate[]>> = {
  */
 export const waitsForOwner = (level: AutomationLevel, gate: ApprovalGate, ownerOnly: readonly OwnerOnly[]): boolean =>
   ownerOnly.length > 0 || WAITS[level].includes(gate);
+
+// A graph run's gates as the task gates they stand for (Q10 a): a node with effects starts the work, and a plan the run
+// built is its merge.
+const GRAPH_GATES: Readonly<Record<GatePoint, ApprovalGate>> = {
+  "before-node": "before-implementation",
+  "before-apply": "before-merge",
+};
+
+/**
+ * Whether a graph run at `level` waits for the owner at `point`: Supervised at both, Checkpoint before a plan applies,
+ * Auto at neither. A human.approval node waits at every level on its own.
+ */
+export const waitsAtGraphGate = (level: AutomationLevel, point: GatePoint): boolean =>
+  // shortcut: no owner-only step yet; a graph's first run of a workflow version asks before its commands next.
+  waitsForOwner(level, GRAPH_GATES[point], []);
 
 // How often each level waits for the owner, the most first.
 const WAIT_RANK: Readonly<Record<AutomationLevel, number>> = { supervised: 2, checkpoint: 1, auto: 0 };

@@ -730,7 +730,8 @@ test.skipIf(process.platform === "win32")(
       return phaseLaunch(...args);
     };
     const agents = { config, host, runtime: agentRuntime(), launch };
-    const ran = await runWorkflow(state, file, {}, { project: linked, agents, report: true });
+    // Its config sets no level, so Supervised applies, whose gate before an agent a report run never reaches.
+    const ran = await runWorkflow(state, file, {}, { project: linked, agents, report: true, config });
     expect(ran).toMatchObject({ ok: true, value: { status: "succeeded" } });
     expect(closed.at(-1)).toEqual([realpathSync(linked), [join(realpathSync(work), ".git")]]);
     expect(existsSync(join(state, "worktrees"))).toBe(false);

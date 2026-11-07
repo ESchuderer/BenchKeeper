@@ -153,6 +153,23 @@ test("a window past its reset is unknown until claude-swap reads it again, and a
   expect(switches(state)[2]).toMatchObject({ to: "spare", reason: "no-readings" });
 });
 
+test("a running worker in a folder bound to its account stays on it, and nothing is recorded", () => {
+  const state = stateWithReadings(95, 20);
+  const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };
+  const project = join(tmpdir(), "bound-project");
+  const bound = {
+    ...registry,
+    pools: { claude: { ...registry.pools.claude, main } },
+    folders: { [project]: { account: "work" } },
+  };
+  const request = { task: "t8", agent: "claude", pool: "main", from: "work", trigger: "line" } as const;
+  expect(chooseMove(state, bound, { ...request, project: join(project, "app") }, NOW)).toEqual({
+    ok: true,
+    value: { move: false, reason: "bound", candidates: [] },
+  });
+  expect(switches(state)).toEqual([]);
+});
+
 test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row or a later start", () => {
   const state = stateWithReadings(95, 20);
   const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };

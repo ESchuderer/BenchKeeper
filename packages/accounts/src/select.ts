@@ -223,9 +223,9 @@ export type Move =
       readonly move: false;
       /**
        * `off`: the pool is unconfirmed, does not move running workers, or no longer holds the worker's account.
-       * `no-target`: no account clears the bar.
+       * `no-target`: no account clears the bar. `bound`: `accounts map` bound the worker's folder to its account.
        */
-      readonly reason: "off" | "within-line" | "cooldown" | "no-target";
+      readonly reason: "off" | "within-line" | "cooldown" | "no-target" | "bound";
       readonly candidates: readonly Candidate[];
     };
 

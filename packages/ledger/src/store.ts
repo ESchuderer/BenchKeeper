@@ -648,6 +648,17 @@ export class RunStore extends RunView {
     this.db.prepare("UPDATE launches SET totals = ? WHERE runId = ?").run(canonicalJson(totals), runId);
   }
 
+  /** When the task last changed account or started a worker: its latest switch row or launch; null when neither. */
+  lastSwitchOrLaunch(task: string): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT max(at) AS at FROM (SELECT max(at) AS at FROM switches WHERE task = ?
+         UNION ALL SELECT max(startedAt) FROM launches WHERE task = ?)`,
+      )
+      .get(task, task);
+    return typeof row?.["at"] === "string" ? row["at"] : null;
+  }
+
   /** The account choices in the order they were made. */
   switches(): AccountSwitch[] {
     return this.db

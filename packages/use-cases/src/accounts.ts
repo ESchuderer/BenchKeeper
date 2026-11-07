@@ -498,27 +498,30 @@ export interface MoveRequest {
   /** Accounts whose login check failed: held, so no worker moves onto them. */
   readonly held?: ReadonlySet<string>;
   readonly model?: string | undefined;
+  /** The project folder the worker works in, by its real path: a folder `accounts map` bound to its account keeps it. */
+  readonly project?: string | undefined;
 }
 
 /**
  * Decides under the store's lock whether a running worker of the task moves to another account of its pool now
  * (`selectMove`), and records a move in the ledger with its trigger. claude-swap's cooldown counts from the task's latest
- * row or worker start: a resumed worker starts without a row.
+ * row or worker start: a resumed worker starts without a row. A worker in a folder bound to an account stays on it, as a
+ * new worker there takes no other account.
  */
 export const chooseMove = (
   state: string,
   registry: AccountRegistry,
   request: MoveRequest,
   now?: number,
-): Result<Move> =>
-  withStore(state, (store) => {
+): Result<Move> => {
+  const bound = request.project === undefined ? null : boundTarget(registry, request.project);
+  if (bound !== null && "account" in bound)
+    return { ok: true, value: { move: false, reason: "bound", candidates: [] } };
+  return withStore(state, (store) => {
     const readings = store.readings();
     const judged = now ?? Date.now();
-    const times = [
-      ...store.switches().flatMap((row) => (row.task === request.task ? [Date.parse(row.at)] : [])),
-      ...store.launches().flatMap((run) => (run.task === request.task ? [Date.parse(run.startedAt)] : [])),
-    ];
-    const since = times.length === 0 ? null : Math.max(...times);
+    const last = store.lastSwitchOrLaunch(request.task);
+    const since = last === null ? null : Date.parse(last);
     const move = selectMove(
       registry,
       { ...request, since, busy: fullAccounts(store, request.agent) },
@@ -532,6 +535,7 @@ export const chooseMove = (
     }
     return { ok: true, value: move };
   });
+};
 
 /**
  * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases and the

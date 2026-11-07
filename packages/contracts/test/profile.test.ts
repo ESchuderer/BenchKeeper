@@ -328,6 +328,15 @@ test("the root and each parent are read as profiles, so a file the reader refuse
 const manual = (text: string) => ({
   manual: { type: "manual", title: "m", default: "on", claudeImport: true, rules: [{ inline: text }] },
 });
+const withOptions = (options: object) => set(defaults, ["machine", "plugin.ponytail", "options", "set"], options);
+test("a plugin's options hold at most 1,000 values, since a file of them would merge value by value", () => {
+  const full = Object.fromEntries(Array.from({ length: 1000 }, (_, at) => [`k${at}`, at]));
+  expect([outcome(readProfile(withOptions(full))), outcome(readProfile(withOptions({ ...full, more: 1 })))]).toEqual([
+    "ok",
+    ["machine.plugin.ponytail.options.set"],
+  ]);
+});
+
 test("a list of texts grows like any list", () => {
   const parent = file({ ...own, id: "acme.p", project: manual("a\n") });
   const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }], project: manual("b\n") });

@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   type Composed,
   composeProfile,
@@ -108,24 +108,12 @@ export const readEntry = (ref: Ref, kind: EntryKind, folder?: Folder): Result<st
   return { ok: true, value: bytes.value.toString("utf8") };
 };
 
-/** The files under a pack's folder entry, paths relative to it. */
-export const entryFiles = (ref: Ref, folder?: Folder): Result<Folder["files"]> => {
+/** The files under a fetched pack's folder entry, paths relative to it. */
+export const entryFiles = (ref: Ref, folder: Folder): Folder["files"] => {
   const prefix = `${ref.path}/`;
-  if (folder !== undefined) {
-    const files = folder.files.filter((file) => file.path.startsWith(prefix));
-    return { ok: true, value: files.map((file) => ({ ...file, path: file.path.slice(prefix.length) })) };
-  }
-  const root = join(BUNDLED, ref.pack, ref.path);
-  try {
-    const found = readdirSync(root, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile());
-    const files = found.map((entry) => {
-      const path = join(entry.parentPath, entry.name);
-      return { path: relative(root, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
-    });
-    return { ok: true, value: files };
-  } catch (error) {
-    return refuse({ code: "document.unreadable", params: { path: root, error: errorCode(error) } });
-  }
+  return folder.files
+    .filter((file) => file.path.startsWith(prefix))
+    .map((file) => ({ ...file, path: file.path.slice(prefix.length) }));
 };
 
 // A file's JSON; a missing one is unreadable.

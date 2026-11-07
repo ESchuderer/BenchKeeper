@@ -4010,6 +4010,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.source-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "git.too-large"
               },
               "params": {
@@ -8557,6 +8587,36 @@
                   "source",
                   "commit",
                   "offered"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.source-unavailable"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "commit"
                 ],
                 "additionalProperties": false
               }

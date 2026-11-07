@@ -268,13 +268,22 @@ const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
     if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
     return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
   });
-// A skill from Git installs into a folder of a skill's name (https://agentskills.io/specification).
-const skillIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
-  Object.entries(machine).flatMap(([id, each]): Issue[] =>
-    each.type === "skill" && "git" in each.source && !skillName(skillFolder(each.source))
-      ? [[["machine", id, "source"], "a path or repository whose last part is a skill's name"]]
-      : [],
-  );
+// A skill installs into a folder of its name, a skill's name for one from Git (https://agentskills.io/specification), and
+// no two skills share one.
+const skillIssues = (machine: z.infer<typeof whole.machine>): Issue[] => {
+  const names = new Set<string>();
+  return Object.entries(machine).flatMap(([id, each]): Issue[] => {
+    if (each.type !== "skill") return [];
+    const { source } = each;
+    const name = "git" in source ? skillFolder(source) : source.path.slice(source.path.lastIndexOf("/") + 1);
+    const taken = names.has(name);
+    names.add(name);
+    if ("git" in source && !skillName(name))
+      return [[["machine", id, "source"], "a path or repository whose last part is a skill's name"]];
+    return taken ? [[["machine", id, "source"], "a folder no other skill installs into"]] : [];
+  });
+};
+
 // A plugin's marketplace goes by the name its plugin id carries, as Claude Code resolves the id through it.
 const marketplaceIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
   Object.entries(machine).flatMap(([id, each]): Issue[] =>

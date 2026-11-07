@@ -257,6 +257,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.source} has the digest ${p.found} at its commit, not the pinned ${p.expected}; nothing of it is used.`,
   "profile.source-waiting": (p) =>
     `${p.source} has a new commit ${p.commit.slice(0, 12)}; it is taken from ${p.offered}, 3 days after this machine first saw it.`,
+  "profile.source-unavailable": (p) =>
+    `${p.source} no longer has the commit in use, ${p.commit.slice(0, 12)}, while its new commit waits its 3 days; pin the source by commit and digest.`,
   "profile.target-approval": (p) =>
     `${p.part} writes ${p.targets.join(", ")}, which may run or set how tools run; it waits for your approval by name: cedarloom profiles apply --project <folder> --allow ${p.part}`,
   "profile.owner-changed": (p) =>

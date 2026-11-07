@@ -585,14 +585,15 @@ test.skipIf(process.platform === "win32")(
 
 const Grouped = z.object({ type: z.literal("grouped"), pid: z.int() });
 
-// Windows ends a dead host's children through Node's job object; taskkill /T ends the tree on a cancel.
+// On Windows a dead host's job object ends the CLI only, not its commands (hub issue 142): this holds for POSIX.
 test.skipIf(process.platform === "win32")("a host that dies leaves none of its CLI's processes running", async () => {
   const host = spawn(process.execPath, [join(fixtures, "host.ts")], { stdio: ["ignore", "pipe", "inherit"] });
   const [line] = await once(host.stdout, "data");
-  const { cli, command } = z.object({ cli: z.int(), command: z.int() }).parse(JSON.parse(String(line)));
+  const pids = z.object({ cli: z.int(), command: z.int(), grouped: z.int() }).parse(JSON.parse(String(line)));
   host.kill("SIGKILL");
   await once(host, "exit");
-  for (const pid of [cli, command]) {
+  // The command in a group of its own goes as the CLI stops it on SIGTERM, the grouped one with the group.
+  for (const pid of [pids.cli, pids.command, pids.grouped]) {
     await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow("ESRCH"), { timeout: 3000 });
   }
 });

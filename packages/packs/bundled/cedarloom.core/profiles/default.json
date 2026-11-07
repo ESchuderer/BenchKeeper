@@ -266,10 +266,10 @@
     "sandbox": {
       "type": "settings",
       "title": "Claude Code's sandbox for Bash commands, on this machine",
-      "description": "Off by default: it runs on macOS, Linux and WSL2 only, Linux needs bubblewrap and socat, and docker, which the dev container command runs, fails inside it (https://code.claude.com/docs/en/sandboxing).",
+      "description": "Commands still ask before they run. Off by default: it runs on macOS, Linux and WSL2 only, Linux needs bubblewrap and socat, and docker, which the dev container command runs, fails inside it (https://code.claude.com/docs/en/sandboxing).",
       "default": "off",
       "commit": false,
-      "set": { "sandbox": { "enabled": true } }
+      "set": { "sandbox": { "enabled": true, "autoAllowBashIfSandboxed": false } }
     },
     "tier": {
       "type": "tier",

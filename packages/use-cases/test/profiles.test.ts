@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { Plan } from "@cedarloom/contracts";
 import { applyPlan, claudeHome, type Fetch, planChoice, planProfile } from "@cedarloom/use-cases";
@@ -401,17 +410,19 @@ const treeFile = (path: string, content: string) => ({
   content: Buffer.from(content),
 });
 // The test's packs (`a.git`, `b.git`) as one commit with a manifest that lists these entries and a skill's folder,
-// `skills/review`; any other source as `stock`'s.
+// `skills/review`, with these files more; any other source as `stock`'s.
 const packWith =
-  (entries: Record<string, unknown>): Fetch =>
+  (entries: Record<string, unknown>, more: string[] = []): Fetch =>
   async (source, options) => {
     if (!/\/[ab]\.git$/.test(source.url)) return stock(source, options);
     const manifest = { schemaVersion: 1, kind: "cedarloom.pack", id: "acme.skills", version: "1.0.0", name: "Skills" };
     const text = JSON.stringify({ ...manifest, minApp: "0.1.0", entries });
-    const files = [treeFile("cedarloom-pack.json", text), treeFile("skills/review/SKILL.md", "# Review\n")];
+    const extra = more.map((path) => treeFile(path, "{}\n"));
+    const files = [treeFile("cedarloom-pack.json", text), treeFile("skills/review/SKILL.md", "# Review\n"), ...extra];
     return { ok: true, value: { commit: "1".repeat(40), digest: "2".repeat(64), files } };
   };
-const packs = packWith({ "skills/review": { kind: "skill" } });
+const REVIEW = { "skills/review": { kind: "skill" } };
+const packs = packWith(REVIEW);
 const SKILLS = { "acme.skills": { git: "https://x.example/a.git", ref: "main" } };
 const packsPart = (list: string[], more: Record<string, unknown> = {}) => ({
   packs: { type: "packs", title: "Packs", default: "on", packs: list, ...more },
@@ -464,4 +475,29 @@ test("a machine's plan keeps the record of a project's skill sources, even of a 
   const before = entry();
   ok(await planProfile(box.config, box.state, where, { fetch, allow: PLUGINS }));
   expect([entry(), before?.commit]).toEqual([before, "1".repeat(40)]);
+});
+
+test("a skill's file a link leads onto a sealed name stops the plan", async () => {
+  const pinned = { "acme.skills": { git: "https://x.example/a.git", commit: "1".repeat(40), digest: "2".repeat(64) } };
+  const box = custom(packsPart(["acme.skills"]), pinned);
+  const linked = projectWith();
+  mkdirSync(join(linked, ".claude", "skills"), { recursive: true });
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(join(linked, ".claude"), join(linked, ".claude", "skills", "review"), "junction");
+  const target = ".claude/skills/review/settings.json";
+  const params = { part: "project", target, path: join(linked, ".claude", "settings.json") };
+  expect(await planned(box, linked, packWith(REVIEW, ["skills/review/settings.json"]))).toEqual({
+    ok: false,
+    finding: { code: "profile.target-linked", params },
+  });
+});
+
+test("a files target in the skills folder goes when its part is switched off", async () => {
+  const files = { ".claude/skills/foo/SKILL.md": { inline: "# Foo\n" } };
+  const box = custom({ notes: { type: "files", title: "Notes", default: "on", commit: true, files } });
+  const project = projectWith();
+  applied(box.state, (await projectPlan(box, project, ["project.notes"])).plan);
+  applied(box.state, ok(planChoice(box.config, { part: "project.notes", on: false })));
+  applied(box.state, (await projectPlan(box, project)).plan);
+  expect(existsSync(join(project, ".claude", "skills", "foo", "SKILL.md"))).toBe(false);
 });

@@ -15,7 +15,7 @@ import {
   planHash,
 } from "@cedarloom/ledger";
 import { afterEach, expect, test, vi } from "vitest";
-import { failCommits } from "./helpers.ts";
+import { failCommits } from "./fail-commits.ts";
 
 const definition: WorkflowDefinition = {
   schemaVersion: 1,

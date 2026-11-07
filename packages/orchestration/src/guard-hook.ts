@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
@@ -67,7 +66,7 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
  */
 export const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
   const policy = policyJson === null ? null : readPolicy(policyJson);
-  if (policy === null) return "its policy file is missing or invalid";
+  if (policy === null) return "its policy is missing or invalid";
   const call = commandOf(readCall(input));
   if (call === "none") return null;
   if (call === "unreadable") return "its input is no tool call with a command and an absolute folder";
@@ -84,13 +83,11 @@ const once = (remotes: Remotes): Remotes => {
   };
 };
 
-// Run by Claude Code as a PreToolUse command hook, the policy file its argument: exit code 2 with the reason on stderr
-// refuses the call. A crash refuses it too, through the hook's onFailure "block".
+// Run by Claude Code as a PreToolUse command hook, the policy's JSON its argument, so it reads no file: exit code 2 with
+// the reason on stderr refuses the call. A crash refuses it too, through the hook's onFailure "block".
 if (import.meta.main) {
   try {
-    const path = process.argv[2];
-    const policy = path === undefined ? null : readFileSync(path, "utf8");
-    const reason = guardHook(await text(process.stdin), policy, once(gitRemotes));
+    const reason = guardHook(await text(process.stdin), process.argv[2] ?? null, once(gitRemotes));
     if (reason !== null) {
       process.stderr.write(`CedarLoom's guard refused this call: ${reason}.\n`);
       process.exitCode = 2;

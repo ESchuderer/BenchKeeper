@@ -1765,6 +1765,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.newer-pack";
+            params: {
+                path: string;
+                recorded: string;
+                local: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.binding-waiting";
             params: {
                 part: string;
@@ -2990,6 +2998,14 @@ export interface components {
             code: "profile.copy-exists";
             params: {
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.newer-pack";
+            params: {
+                path: string;
+                recorded: string;
+                local: string;
             };
         } | {
             /** @constant */

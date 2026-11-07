@@ -275,6 +275,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
   "profile.copy-exists": (p) =>
     `${p.path} is there already or is the selection file; profiles init copies into a new file, so name another one.`,
+  "profile.newer-pack": (p) =>
+    `${p.path} was written from ${p.recorded}, newer than ${p.local} here; CedarLoom leaves it until it is updated here.`,
   "profile.binding-waiting": (p) =>
     `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.when-unmet": (p) =>

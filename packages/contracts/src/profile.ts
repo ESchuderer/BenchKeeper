@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
-import { GitSource, PackId, skillFolder, skillName } from "./pack.ts";
+import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText, shown, UNSAFE } from "./text.ts";
 import type { Json } from "./json.ts";
-import { JsonValue, License, semver } from "./workflow.ts";
+import { JsonValue, License, SEMVER, semver } from "./workflow.ts";
 
 /** The profile format (`cedarloom.profile`) this CedarLoom reads; readers refuse a newer one. */
 export const PROFILE_SCHEMA_VERSION = 1;
@@ -421,7 +421,11 @@ export const ProfileFiles = z
         PortablePath,
         z.strictObject({
           sha256: Sha256,
-          pack: z.string().max(200).optional().describe("The pack its text came from, as `id@version`"),
+          pack: z
+            .string()
+            .regex(new RegExp(`^${PACK_ID}@${SEMVER}$`))
+            .optional()
+            .describe("The pack its text came from, as `id@version`: a pack id and its SemVer version"),
         }),
       ),
       2000,

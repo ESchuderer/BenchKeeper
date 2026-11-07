@@ -31,7 +31,8 @@
         "confirmedFor": [
           "work",
           "spare"
-        ]
+        ],
+        "moveRunning": true
       }
     }
   }

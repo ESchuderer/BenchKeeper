@@ -31,9 +31,9 @@
             "pattern": "^[0-9a-f]{64}$"
           },
           "pack": {
-            "description": "The pack its text came from, as `id@version`",
+            "description": "The pack its text came from, as `id@version`: a pack id and its SemVer version",
             "type": "string",
-            "maxLength": 200
+            "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}@\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
           }
         },
         "required": [

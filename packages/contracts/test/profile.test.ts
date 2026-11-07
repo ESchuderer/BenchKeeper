@@ -2,11 +2,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   composeProfile,
+  FILES_SCHEMA_VERSION,
   type LoadParent,
   MAX_PROFILE_FILES,
   Profile,
   PROFILE_SCHEMA_VERSION,
   ProfileFile,
+  ProfileFiles,
   ProfileSelection,
   readDocument,
   readProfile,
@@ -477,4 +479,21 @@ test.for<[string, string, string]>([
   [".claude/agents/reviewer.md", "---", "configuration"],
 ])("a target %s is %s", ([target, text, expected]) => {
   expect(targetClass(target, text)).toBe(expected);
+});
+
+// A recorded pack is a pack id and its SemVer version, so a newer one is never read as older (hub issue 160).
+test.for<[string, boolean]>([
+  ["cedarloom.core@0.1.0", true],
+  ["cedarloom.core@1.2.3-rc.1", true],
+  ["cedarloom.core", false],
+  ["cedarloom.core@0.1", false],
+  ["cedarloom.core@0", false],
+  ["core@0.1.0", false],
+])("a record's pack %s is read: %s", ([pack, valid]) => {
+  const record = {
+    schemaVersion: 1,
+    kind: "cedarloom.profile-files",
+    files: { "a.md": { sha256: "0".repeat(64), pack } },
+  };
+  expect(readDocument(ProfileFiles, FILES_SCHEMA_VERSION, record).ok).toBe(valid);
 });

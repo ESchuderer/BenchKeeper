@@ -124,18 +124,6 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project.packs.packs.0"],
   ],
   [
-    "Claude Code's project settings as a file",
-    ["project", "agent-docs", "files", ".claude/settings.json"],
-    { inline: "{}" },
-    ["project.agent-docs.files..claude/settings.json"],
-  ],
-  [
-    "a Git hook as a file",
-    ["project", "agent-docs", "files", ".git/hooks/pre-commit"],
-    { inline: "#!/bin/sh" },
-    ["project.agent-docs.files..git/hooks/pre-commit"],
-  ],
-  [
     "a project plugin that would be committed",
     ["project", "plugin"],
     { type: "plugin", commit: true },
@@ -143,6 +131,21 @@ test.for<[string, (string | number)[], unknown, unknown]>([
   ],
 ])("a profile file with %s is refused", ([, path, value, expected]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toEqual(expected);
+});
+
+// Claude Code's settings, MCP lists and Git's folder in every spelling a file system would read as them.
+test.for([
+  ".claude/settings.json",
+  "sub/.claude/settings.local.json",
+  "sub/.MCP.json",
+  "./.claude/settings.json",
+  ".claude//settings.json",
+  ".mcp.json.",
+  ".git/hooks/pre-commit",
+  ".git./hooks/pre-commit",
+])("a files part may not write %s", (target) => {
+  const changed = set(defaults, ["project", "agent-docs", "files", target], { inline: "{}" });
+  expect(outcome(readProfile(changed))).toEqual([`project.agent-docs.files.${target}`]);
 });
 
 test.for<[string, (string | number)[], unknown]>([
@@ -172,9 +175,9 @@ test.for<[string, (string | number)[], unknown, string]>([
     "machine.plugin.ponytail.options.file",
   ],
   [
-    "a plugin's options in gh's credential folder",
-    ["machine", "plugin.ponytail", "plugin"],
-    "gh@x",
+    "a plugin's options in gh's credential folder, its own by name",
+    ["machine", "plugin.ponytail"],
+    { type: "plugin", title: "x", default: "on", plugin: "gh@x", options: { file: ".config/gh/hosts.yml", set: {} } },
     "machine.plugin.ponytail.options.file",
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {

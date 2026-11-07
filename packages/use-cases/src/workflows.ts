@@ -32,6 +32,7 @@ import {
   type Prepared,
   type Recovery,
   replay,
+  reportOnly,
   startRun,
 } from "@cedarloom/engine";
 import {
@@ -72,6 +73,8 @@ export interface RunOptions {
   readonly sleep?: ExecuteOptions["sleep"];
   /** What `agent.run` nodes start their workers with; a workflow with one is refused without it. */
   readonly agents?: AgentOptions | undefined;
+  /** A new run only reports (A28): it writes nothing but its record. A stored run keeps the mode it started with. */
+  readonly report?: boolean | undefined;
 }
 
 // Stored outputs are blanked after the same 90 days as plan contents, since a command's output can hold a secret.
@@ -236,7 +239,7 @@ const fileWrite =
       planHash: hash,
       run: async () => {
         const applied = await retryBusy(() =>
-          withStore(state, (store) => ({ ok: true, value: apply(store, plan, hash, { onBegun }) })),
+          withStore(state, (store) => ({ ok: true, value: apply(store, plan, hash, { onBegun, realPaths: true }) })),
         );
         const code = applied.ok ? applied.value.findings[0]?.code : applied.finding.code;
         return code === undefined ? { ok: true } : { ok: false, values: { error: code } };
@@ -266,6 +269,26 @@ const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boo
   return commands && shell === null ? { code: "run.shell-missing", params: {} } : null;
 };
 
+// What a new report run (A28) cannot have: a node that may write, or one that needs an OS sandbox where none runs, as a
+// command or a precheck until they run in one, and on native Windows, which has none, an agent (Q7).
+const reportRefusal = (workflow: WorkflowDefinition): Finding | null => {
+  const write = reportOnly(workflow.nodes)[0];
+  if (write !== undefined) return write;
+  const node = workflow.nodes.find(
+    (each) =>
+      each.type === "command.run" ||
+      each.with?.["precheck"] !== undefined ||
+      (process.platform === "win32" && each.type === "agent.run"),
+  );
+  return node === undefined ? null : { code: "run.sandbox-unavailable", params: { node: node.id } };
+};
+
+// A report run's command or precheck, as a stored run's that its start did not check: none runs outside an OS sandbox.
+const unsandboxed = (): Prepared => ({
+  pid: null,
+  run: () => Promise.resolve({ ok: false, values: { error: "run.sandbox-unavailable" } }),
+});
+
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.
 const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise<Result<T>>): Promise<Result<T>> => {
   const store = openGraphStore(state);
@@ -290,9 +313,9 @@ const runHeld = async (
 ): Promise<Result<GraphOutcome>> => {
   const { lease } = held;
   const { project, state, agents } = options;
-  const run = { state, runId: lease.runId, project };
+  const run = { state, runId: lease.runId, project, report: options.report === true };
   const executors: Executors = {
-    "command.run": command(shell, project),
+    "command.run": run.report ? unsandboxed : command(shell, project),
     "file.read": fileRead(project),
     "file.write": fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
@@ -350,6 +373,8 @@ export const runWorkflow = async (
   const typed = typedInputs(workflow.value, inputs);
   const shell = check(workflow.value, typed, options);
   if (!shell.ok) return shell;
+  const refusal = options.report === true ? reportRefusal(workflow.value) : null;
+  if (refusal !== null) return { ok: false, finding: refusal };
   const project = realFolder(options.project ?? process.cwd());
   if (!project.ok) return project;
   return withGraphs(state, (store) => {
@@ -359,7 +384,7 @@ export const runWorkflow = async (
       definition,
       inputs: typed,
       trigger: "manual",
-      mode: "act",
+      mode: options.report === true ? "report" : "act",
       parentRun: null,
       parentNode: null,
       project: project.value,
@@ -430,7 +455,14 @@ const takenOver = (state: string, runId: string, options: RunOptions, first: Fir
     const lease = store.takeOver(runId);
     if (!lease.ok) return lease;
     for (const event of told.value) store.append(runId, lease.value.epoch, event);
-    return runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value, state });
+    // A stored run runs in the mode it started in.
+    const report = run.mode === "report";
+    return runOn(store, { run, lease: lease.value }, shell.value, {
+      ...options,
+      report,
+      project: project.value,
+      state,
+    });
   });
 
 // Opens the graph runs of `state` for reading, runs `read` with them (null while there are none), and closes them.

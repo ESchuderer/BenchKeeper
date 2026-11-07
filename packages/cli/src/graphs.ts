@@ -27,8 +27,9 @@ export const workflowsRun = async (
   ctx: Context,
   file: string,
   inputs: Record<string, string>,
-  project: string,
-): Promise<number> => ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, runOptions(ctx, project)));
+  { project, report }: { project: string; report: boolean },
+): Promise<number> =>
+  ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, { ...runOptions(ctx, project), report }));
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
 // What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,

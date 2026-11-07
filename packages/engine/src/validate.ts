@@ -204,18 +204,19 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 };
 
 /**
- * A28: a run a schedule starts only reports, so its workflow has no node that may write a file: no file.write,
- * and no workflow.run, whose child the validator cannot see. No extension action either, which may write through the
- * host or change other systems (P9 b).
+ * A28: a report run, as a schedule starts, has no node that may write a file: no file.write, and no workflow.run, whose
+ * child the validator cannot see. No extension action either, which may write through the host or change other systems
+ * (P9 b).
  */
-const reportOnly = ({ nodes }: Graph): Finding[] =>
-  nodes.some((node) => node.type === "trigger.schedule")
-    ? nodes.flatMap((node): Finding[] => {
-        if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
-        const writes = node.type === "file.write" || node.type === "workflow.run";
-        return writes ? [{ code: "workflow.report-only-write", params: { node: node.id } }] : [];
-      })
-    : [];
+export const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
+  nodes.flatMap((node): Finding[] => {
+    if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
+    const writes = node.type === "file.write" || node.type === "workflow.run";
+    return writes ? [{ code: "workflow.report-only-write", params: { node: node.id } }] : [];
+  });
+
+const scheduledReports = ({ nodes }: Graph): Finding[] =>
+  nodes.some((node) => node.type === "trigger.schedule") ? reportOnly(nodes) : [];
 
 const strays = ({ workflow, types }: Graph): Finding[] =>
   (["execution", "layout"] as const).flatMap((section) =>
@@ -328,7 +329,7 @@ export const validateWorkflow = (workflow: WorkflowDefinition, actions: ActionCa
     cycle,
     unreachable,
     strays,
-    reportOnly,
+    scheduledReports,
   ];
   return checks.flatMap((check) => check(graph));
 };

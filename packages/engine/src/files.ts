@@ -10,6 +10,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -23,6 +24,14 @@ export const errorCode = (error: unknown): string =>
   error instanceof Error && "code" in error ? String(error.code) : String(error);
 
 const changed = (): Error => Object.assign(new Error("the file changed during the write"), { code: "ECHANGED" });
+
+// Whether the folders on the way to `path` are still the real ones a plan named: its nearest folder that is there must
+// be its own real path, so a folder swapped for a link since the plan is found (hub issue 141).
+const realWay = (path: string): boolean => {
+  let folder = dirname(path);
+  while (lstatSync(folder, { throwIfNoEntry: false }) === undefined) folder = dirname(folder);
+  return realpathSync.native(folder) === folder;
+};
 
 /** The file's bytes, or null when there is no file. */
 export const readOrNull = (path: string): Buffer | null => {
@@ -191,13 +200,20 @@ const putIn = (temp: string, path: string, aside: string): void => {
  * absent for a moment, and a crash there leaves the old file aside for recover() to put back.
  */
 export const writeStep = (
-  target: Target & { aside: string },
+  target: Target & { aside: string; real: boolean },
   content: string,
   mode: number | undefined,
   onSetAside: () => void,
 ): void => {
   const { path, before, temp, aside } = target;
+  // Checked before the missing folders are made, which would follow a link, and again right before the write.
+  const way = (): void => {
+    if (target.real && !realWay(path))
+      throw Object.assign(new Error(`a link on the way to ${path}`), { code: "ELOOP" });
+  };
+  way();
   mkdirSync(dirname(path), { recursive: true });
+  way();
   try {
     writeTemp(temp, content, mode);
     if (before !== null) setAside(path, aside, before);

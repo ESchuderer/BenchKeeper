@@ -366,6 +366,16 @@ const listed = (listing: Buffer, path: string): boolean =>
     .some((line) => real(line.slice("worktree ".length)) === real(path));
 
 /**
+ * The git folder a checkout shares with its main checkout, as an absolute path (`git rev-parse --git-common-dir`): a
+ * linked worktree's own `.git` is a file, and its objects and refs live in the main checkout's folder.
+ */
+export const commonDir = async (folder: string, program = "git"): Promise<Result<string>> => {
+  const base = { program, cwd: folder, env: environment([]), timeoutMs: 60_000, maxBytes: 64 * 1024 };
+  const found = await run(["rev-parse", "--path-format=absolute", "--git-common-dir"], base);
+  return succeeded(found) ? { ok: true, value: found.stdout.toString("utf8").trim() } : failed("worktree", why(found));
+};
+
+/**
  * The worktree of the repository `repo` at `path` on the branch `branch`: the one git lists there, or a new one. The
  * branch is made from HEAD unless an add that failed left it; a listed worktree whose folder is gone is added again. No
  * hook runs, not even one the user's configuration names, as for a fetch. `program` is the git to run.

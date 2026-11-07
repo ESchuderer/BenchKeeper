@@ -208,6 +208,41 @@ test("a run is refused before it starts: no shell, a node type that does not run
   expect(codeOf(listGraphRuns(read.state))).toBe("store.newer-schema");
 });
 
+test("a report run with a node that may write, a command or a precheck is refused before it starts (A28)", async () => {
+  const write = project([{ id: "w", type: "file.write", with: { path: "out.txt" } }], "t.start>w.run");
+  expect(await runWorkflow(write.state, write.file, {}, { ...write.options, report: true })).toEqual(
+    refused("workflow.report-only-write", { node: "w" }),
+  );
+  const touch = project([command("a", "touch touched")], "t.start>a.run");
+  expect(await runWorkflow(touch.state, touch.file, {}, { ...touch.options, report: true })).toEqual(
+    refused("run.sandbox-unavailable", { node: "a" }),
+  );
+  expect(existsSync(join(touch.root, "touched"))).toBe(false);
+  const read: Node = { id: "r", type: "file.read", with: { path: "w.json" } };
+  const prechecked = project([], "t.start>r.run", {
+    nodes: [{ id: "t", type: "trigger.manual", with: { precheck: "true" } }, read],
+  });
+  expect(await runWorkflow(prechecked.state, prechecked.file, {}, { ...prechecked.options, report: true })).toEqual(
+    refused("run.sandbox-unavailable", { node: "t" }),
+  );
+  expect(listGraphRuns(touch.state)).toMatchObject({ ok: true, value: [] });
+  // A stored report run that no start checked, resumed without the option, still runs no command.
+  const created = openGraphStore(touch.state);
+  if (!created.ok) throw new Error(created.finding.code);
+  const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(touch.file, "utf8")));
+  const run = { inputs: {}, trigger: "manual", mode: "report", parentRun: null, parentNode: null } as const;
+  const lease = created.value.create({ ...run, definition, project: realpathSync(touch.root) });
+  lease.release();
+  created.value.close();
+  expect(await resumeRun(touch.state, lease.runId, touch.options)).toMatchObject({ value: { status: "failed" } });
+  expect(eventsOf(touch.state, lease.runId).find((event) => event.type === "ended")).toMatchObject({
+    node: "a",
+    outcome: "failed",
+    values: { error: "run.sandbox-unavailable" },
+  });
+  expect(existsSync(join(touch.root, "touched"))).toBe(false);
+});
+
 test("a resume says why a stored run no longer starts, and refuses a journal it cannot trust", async () => {
   const at = project([command("a", "true")], "t.start>a.run");
   const created = openGraphStore(at.state);
@@ -475,7 +510,9 @@ test("a write into folders that are not there yet makes them, below the project"
 });
 
 test("a write that cannot record its apply run on its attempt writes nothing, as under a report run", async () => {
-  const at = writing();
+  // Without a command, which a report run runs none of.
+  const at = project([{ id: "out", type: "file.write", with: { path: "out.txt" } }], "t.start>out.run");
+  writeFileSync(join(at.root, "out.txt"), "old");
   const graphs = openGraphStore(at.state);
   if (!graphs.ok) throw new Error(graphs.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(at.file, "utf8")));
@@ -486,7 +523,10 @@ test("a write that cannot record its apply run on its attempt writes nothing, as
   // The ledger refuses an apply run under a report run, so the attempt's record of it is refused.
   expect(await resumeRun(at.state, created.runId, at.options)).toMatchObject({ value: { status: "waiting" } });
   const decided = await decideRun(at.state, created.runId, { node: "out", approved: true }, at.options);
-  expect([decided, at.text()]).toMatchObject([{ ok: false, finding: { code: "run.report-only-apply" } }, "old"]);
+  expect([decided, readFileSync(join(at.root, "out.txt"), "utf8")]).toMatchObject([
+    { ok: false, finding: { code: "run.report-only-apply" } },
+    "old",
+  ]);
 });
 
 // A run of the write workflow whose runner died in the write: its journal ends with the record of the apply run

@@ -11,8 +11,8 @@
   "capabilities": {
     "programs": {
       "orca": {
-        "darwin": ["orca"],
-        "linux": ["orca-ide", "~/.config/orca/linux-orca-cli-shim/orca"]
+        "darwin": ["orca", "~/.local/bin/orca"],
+        "linux": ["orca-ide", "~/.local/bin/orca-ide", "~/.config/orca/linux-orca-cli-shim/orca"]
       }
     }
   },

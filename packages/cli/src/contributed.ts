@@ -10,7 +10,7 @@ const text = (value: unknown): string => (typeof value === "string" ? value : JS
 const runVerb = async (ctx: Context, id: string, action: string): Promise<number> => {
   const ran = await useCases.runBundled(ctx, id, action);
   if (!ran.ok) return fail(ctx, "extension", [ran.finding], EXIT.refused);
-  const lines = Object.entries(ran.value).map(([name, value]) => `${name}: ${shown(text(value))}`);
+  const lines = Object.entries(ran.value).map(([name, value]) => `${shown(name)}: ${shown(text(value))}`);
   emit(ctx, "extension", { extension: id, action, outputs: ran.value }, lines.join("\n"));
   return EXIT.ok;
 };

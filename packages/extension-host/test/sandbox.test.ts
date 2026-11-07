@@ -5,7 +5,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { type Launch, sandboxRuntime } from "@cedarloom/extension-host";
+import { type Launch, type SandboxPolicy, sandboxRuntime } from "@cedarloom/extension-host";
 import { afterAll, expect, test } from "vitest";
 
 const run = promisify(execFile);
@@ -27,8 +27,12 @@ afterAll(() => {
 const sandbox = sandboxRuntime();
 const policy = { read: [own], write: [], network: "none" as const };
 // A machine where no sandboxed process starts (the rootless dev container) skips; CI's runners do not.
-const wrapped = async (launch: Launch, skip: (note: string) => void): Promise<Launch> => {
-  const result = await sandbox.wrap(launch, policy).catch((error: unknown) => String(error));
+const wrapped = async (
+  launch: Launch,
+  skip: (note: string) => void,
+  given: SandboxPolicy = policy,
+): Promise<Launch> => {
+  const result = await sandbox.wrap(launch, given).catch((error: unknown) => String(error));
   if (typeof result !== "object" && process.env["CI"] !== "true") skip(String(result));
   if (typeof result !== "object") throw new Error(String(result));
   return result;
@@ -89,6 +93,22 @@ test.skipIf(process.platform === "win32")(
     await expect(sandbox.wrap({ command: program, args: [], cwd: own, env: {} }, policy)).rejects.toThrow(
       join(scratch, "outside"),
     );
+  },
+  60_000,
+);
+
+test.skipIf(process.platform === "win32")(
+  "a POSIX sh inside sandbox-runtime runs the system's programs, reads its policy's folders and writes only its own",
+  async ({ skip }) => {
+    const out = join(scratch, "out");
+    mkdirSync(out);
+    const line = `/bin/cat file; printf x > ${out}/w && echo wrote; (printf x > ${join(scratch, "else")}) 2> /dev/null; true`;
+    const launch = { command: "/bin/sh", args: ["-c", line], cwd: own, env: { PATH: "/usr/bin:/bin" } };
+    const given: SandboxPolicy = { read: [own, out, "/dev/null"], write: [out], network: "none", probe: ["-c", ""] };
+    const inside = await wrapped(launch, skip, given);
+    const { stdout } = await run(inside.command, inside.args, { cwd: own, env: inside.env, timeout: 30_000 });
+    // macOS refuses the write outside; on Linux it lands in the sandbox's own root, which is gone with it.
+    expect([stdout, existsSync(join(scratch, "else"))]).toEqual(["ownwrote\n", false]);
   },
   60_000,
 );

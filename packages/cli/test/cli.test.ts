@@ -726,11 +726,14 @@ test("workflows run runs a graph run; runs list and show show it with its attemp
   expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
   expect((await cli("runs", "show", runId)).out).toMatch(
     /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
-  ); // A report run runs no command outside an OS sandbox.
-  const report = await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root, "--report");
+  );
+  // A report run writes nothing: a workflow with a write is refused before it starts.
+  const write = { id: "a", type: "file.write", with: { path: "out.txt" } } as const;
+  const writing = planFile(root, { ...workflow, nodes: [workflow.nodes[0], write] }, "write.json");
+  const report = await cli("--json", "workflows", "run", writing, "--input", "name=Ada", "--project", root, "--report");
   expect([report.code, json(report.out)]).toMatchObject([
     EXIT.refused,
-    { findings: [{ code: "run.sandbox-unavailable", params: { node: "a" } }] },
+    { findings: [{ code: "workflow.report-only-write", params: { node: "a" } }] },
   ]);
 });
 

@@ -34,6 +34,8 @@
     { "path": "packages/engine/test" },
     { "path": "packages/work-items" },
     { "path": "packages/work-items/test" },
+    { "path": "packages/adapter-github" },
+    { "path": "packages/adapter-github/test" },
     { "path": "packages/use-cases" },
     { "path": "packages/use-cases/test" },
     { "path": "packages/server" },

@@ -1,0 +1,85 @@
+{
+  "source": "Answers: the examples of GitHub's REST API description, github/rest-api-description at 2f8f80e47ea4d3292cf4e37ba9d9b25475e06140 (components/examples). notFound: an unauthenticated GET of a missing issue's comments on api.github.com, 2026-11-07. The live test with a hub-issues token replaces them with recorded answers.",
+  "comments": [
+    {
+      "id": 1,
+      "node_id": "MDEyOklzc3VlQ29tbWVudDE=",
+      "url": "https://api.github.com/repos/octocat/Hello-World/issues/comments/1",
+      "html_url": "https://github.com/octocat/Hello-World/issues/1347#issuecomment-1",
+      "body": "Me too",
+      "user": {
+        "login": "octocat",
+        "id": 1,
+        "node_id": "MDQ6VXNlcjE=",
+        "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/octocat",
+        "html_url": "https://github.com/octocat",
+        "followers_url": "https://api.github.com/users/octocat/followers",
+        "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+        "organizations_url": "https://api.github.com/users/octocat/orgs",
+        "repos_url": "https://api.github.com/users/octocat/repos",
+        "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/octocat/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "created_at": "2011-04-14T16:00:49Z",
+      "updated_at": "2011-04-14T16:00:49Z",
+      "issue_url": "https://api.github.com/repos/octocat/Hello-World/issues/1347",
+      "author_association": "COLLABORATOR",
+      "minimized": null
+    }
+  ],
+  "labels": [
+    {
+      "id": 208045946,
+      "node_id": "MDU6TGFiZWwyMDgwNDU5NDY=",
+      "url": "https://api.github.com/repos/octocat/Hello-World/labels/bug",
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "f29513",
+      "default": true,
+      "archived_at": null,
+      "archived_by": null
+    },
+    {
+      "id": 208045947,
+      "node_id": "MDU6TGFiZWwyMDgwNDU5NDc=",
+      "url": "https://api.github.com/repos/octocat/Hello-World/labels/enhancement",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef",
+      "default": false,
+      "archived_at": "2023-01-01T12:00:00Z",
+      "archived_by": {
+        "login": "octocat",
+        "id": 1,
+        "node_id": "MDQ6VXNlcjE=",
+        "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/octocat",
+        "html_url": "https://github.com/octocat",
+        "followers_url": "https://api.github.com/users/octocat/followers",
+        "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+        "organizations_url": "https://api.github.com/users/octocat/orgs",
+        "repos_url": "https://api.github.com/users/octocat/repos",
+        "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/octocat/received_events",
+        "type": "User",
+        "site_admin": false
+      }
+    }
+  ],
+  "notFound": {
+    "message": "Not Found",
+    "documentation_url": "https://docs.github.com/rest/issues/comments#list-issue-comments",
+    "status": "404"
+  }
+}

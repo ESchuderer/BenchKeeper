@@ -49,6 +49,7 @@
       }
     },
     "switchTargets": { "interactive": { "agent": "claude" } },
+    "sessionProviders": { "claude": { "agent": "claude", "program": "cswap" } },
     "doctor": { "claude-swap": { "title": "claude-swap" } },
     "commands": ["status", "install"]
   }

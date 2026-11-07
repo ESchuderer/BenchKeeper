@@ -286,16 +286,13 @@ test.skipIf(process.platform === "win32")(
   "a stopped git returns at once, though a child of it keeps its pipes open",
   async () => {
     const program = join(mkdtempSync(join(root, "hang-")), "hang.sh");
-    writeFileSync(program, "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
-    const started = Date.now();
+    // Longer than the test's time limit, so a git that waited for it would fail the test.
+    writeFileSync(program, "#!/bin/sh\nsleep 60\n", { mode: 0o755 });
     const tree = await fetchTreeOver(["ext"])(
       { url: `ext::${program}`, ref: "v1" },
       { parent: parent(), timeoutMs: 500 },
     );
-    expect([codeOf(tree), Date.now() - started < 3000]).toEqual([
-      { code: "git.failed", params: { step: "fetch", error: "stopped at the time limit" } },
-      true,
-    ]);
+    expect(codeOf(tree)).toEqual({ code: "git.failed", params: { step: "fetch", error: "stopped at the time limit" } });
   },
   30_000,
 );

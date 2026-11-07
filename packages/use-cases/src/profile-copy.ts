@@ -1,7 +1,14 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PackRef, Plan, Result } from "@cedarloom/contracts";
-import { composedProfile, DEFAULT_PROFILE, type ProfileChange, profileChanges, readEntry } from "@cedarloom/profiles";
+import {
+  composedProfile,
+  DEFAULT_PROFILE,
+  onDisk,
+  type ProfileChange,
+  profileChanges,
+  readEntry,
+} from "@cedarloom/profiles";
 import { planChoice, readSelection, selectionPath } from "./profiles.ts";
 
 /**
@@ -11,7 +18,7 @@ import { planChoice, readSelection, selectionPath } from "./profiles.ts";
  */
 export const planProfileCopy = (config: string, from: PackRef, file: string): Result<Plan> => {
   const path = resolve(file);
-  if (existsSync(path) || path === selectionPath(config))
+  if (existsSync(path) || onDisk(path) === onDisk(selectionPath(config)))
     return { ok: false, finding: { code: "profile.copy-exists", params: { path } } };
   const text = readEntry(from, "profile");
   if (!text.ok) return text;

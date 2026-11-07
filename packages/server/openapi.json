@@ -2947,7 +2947,8 @@
                       "start",
                       "fetch",
                       "list",
-                      "read"
+                      "read",
+                      "worktree"
                     ]
                   },
                   "error": {
@@ -6688,7 +6689,8 @@
                       "start",
                       "fetch",
                       "list",
-                      "read"
+                      "read",
+                      "worktree"
                     ]
                   },
                   "error": {

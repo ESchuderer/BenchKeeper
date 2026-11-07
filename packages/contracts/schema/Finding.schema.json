@@ -2840,7 +2840,8 @@
                 "start",
                 "fetch",
                 "list",
-                "read"
+                "read",
+                "worktree"
               ]
             },
             "error": {

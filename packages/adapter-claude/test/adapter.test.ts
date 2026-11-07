@@ -8,6 +8,7 @@ import {
   type ClaudeLaunch,
   claudeTelemetry,
   FRESH_INSTALL_PHASES,
+  phaseLaunch,
 } from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
 import { expect, test, vi } from "vitest";
@@ -105,6 +106,18 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   ]) {
     expect(fake.env).not.toHaveProperty(name);
   }
+});
+
+test("a worker's launch in a phase runs on that phase's settings, in the folder given, allowing nothing more", () => {
+  const { model, subagentModel, effort, permissionMode, cwd, allow } = phaseLaunch(launch({}), "plan", "/work/tree");
+  expect({ model, subagentModel, effort, permissionMode, cwd, allow }).toEqual({
+    model: "claude-opus-5-5",
+    subagentModel: "claude-opus-5-5",
+    effort: "high",
+    permissionMode: "plan",
+    cwd: "/work/tree",
+    allow: [],
+  });
 });
 
 test("the login runs claude auth login with the account's environment, and tells how it ended", () => {

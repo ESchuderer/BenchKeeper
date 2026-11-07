@@ -1,3 +1,4 @@
+import { claudeRuntime } from "@cedarloom/adapter-claude";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -49,6 +50,8 @@ const setup = (
           authMethod: "claude.ai",
           configDirectory: env["CLAUDE_CONFIG_DIR"] ?? null,
         },
+      // No test starts an agent.
+      agent: claudeRuntime(["false"]),
       ...(fetch === undefined ? {} : { fetch }),
     };
     return { code: await main(argv, io), out, err };
@@ -635,6 +638,7 @@ const startUi = async (port: number) => {
     untilStopped: () => stopped.promise,
     login: () => ({ code: null }),
     authStatus: async () => ({ kind: "logged-out" }) as const,
+    agent: claudeRuntime(["false"]),
   };
   const running = main(["--state", join(root, "state"), "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a

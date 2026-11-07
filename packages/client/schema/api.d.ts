@@ -1247,7 +1247,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {
@@ -2062,7 +2062,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {

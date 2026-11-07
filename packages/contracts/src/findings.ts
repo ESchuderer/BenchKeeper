@@ -144,8 +144,9 @@ export const Finding = z
     finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
-    // Git could not start, fetch, list or read; `error` is the end of its message. Never the URL: it may hold a token.
-    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read"]), error: z.string() }),
+    // Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
+    // hold a token.
+    finding("git.failed", { step: z.enum(["start", "fetch", "list", "read", "worktree"]), error: z.string() }),
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),

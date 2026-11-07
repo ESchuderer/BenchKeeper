@@ -1,25 +1,39 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
-import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES } from "@cedarloom/adapter-claude";
-import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
-import { openRunStore, type RunStore } from "@cedarloom/ledger";
+import { type ClaudeLaunch, claudeRuntime, FRESH_INSTALL_PHASES, phaseLaunch } from "@cedarloom/adapter-claude";
+import type { AgentRuntime } from "@cedarloom/agent-contracts";
+import {
+  type AccountRegistry,
+  formatRegistry,
+  type JournalEvent,
+  type Json,
+  WorkflowDefinition,
+} from "@cedarloom/contracts";
+import { openGraphStore, openRunStore, type RunStore } from "@cedarloom/ledger";
 import {
   type Decided,
   doctor,
   launchWorker,
+  leaseWorker,
+  listGraphRuns,
   MAX_CONCURRENT,
   ownHome,
+  resumeRun,
+  runWorkflow,
   startTelemetry,
   type TelemetryRun,
   WORKFLOW_PLUGIN,
@@ -277,8 +291,15 @@ test("a worker's API requests reach its run's token rows through the receiver, a
     const runId = outcome.ok && outcome.value.kind === "finished" ? outcome.value.runId : null;
     // The row carries the run and account the token names.
     expect(withLedger(state, (store) => store.tokenRows())).toMatchObject([{ runId, account: "work", inputTokens: 2 }]);
-    const headers = { "content-type": "application/json", authorization: `Bearer ${tokens.join("")}` };
-    expect((await fetch(receiver.endpoint, { method: "POST", headers, body: "{}" })).status).toBe(401);
+    // A leased worker that never runs ends its token on release, as a run does when it ends.
+    const leased = await leaseWorker(state, config, sent, { ...host, telemetry: { ...receiver, register } });
+    if (!leased.ok || leased.value.kind !== "leased") throw new Error("no lease");
+    await leased.value.release();
+    const statuses = tokens.map(async (token) => {
+      const headers = { "content-type": "application/json", authorization: `Bearer ${token}` };
+      return (await fetch(receiver.endpoint, { method: "POST", headers, body: "{}" })).status;
+    });
+    expect(await Promise.all(statuses)).toEqual([401, 401]);
   } finally {
     await receiver.close();
   }
@@ -549,3 +570,254 @@ test("a storage error while keeping a run's usage drops that usage, and the run 
     writer.mockRestore();
   }
 });
+
+// A launch on the fake CLI with its stream and `more` of the fake's settings.
+const faked = <T extends ClaudeLaunch>(launch: T, more: Record<string, string>): T => ({
+  ...launch,
+  env: { ...launch.env, FAKE_STREAM: join(fixtures, "stream.jsonl"), ...more },
+});
+// The fake CLI as the runtime of agent nodes: a run also gets `env`, and writes a result of `verdict` with its own run
+// id, as the result prompt names it (none when null).
+const agentRuntime = (
+  env: Record<string, string> = {},
+  verdict: string | null = "pass",
+): AgentRuntime<ClaudeLaunch> => {
+  const start = (launch: ClaudeLaunch) => {
+    const runId = /"runId":"([^"]+)"/.exec(launch.prompt)?.[1] ?? "";
+    const result = { schemaVersion: 1, runId, verdict, summary: "Reviewed." };
+    const written =
+      verdict === null ? {} : { FAKE_RESULT: launch.resultFile, FAKE_RESULT_TEXT: JSON.stringify(result) };
+    return runtime.start(faked(launch, { ...env, ...written }));
+  };
+  const checkContract = (probe: Parameters<typeof runtime.checkContract>[0]) =>
+    runtime.checkContract(faked({ ...probe, prompt: "", verifiedVersions: [] }, {}));
+  return { ...runtime, checkContract, start };
+};
+
+// The project as a git repository with one commit, and a workflow file beside it: t -> a, an agent.run of `config`
+// whose result is the run's output.
+const agentWorkflow = (work: string, config: Record<string, Json>, execution: Record<string, Json> = {}): string => {
+  execFileSync("git", ["init", "--quiet"], { cwd: work });
+  const user = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org"];
+  execFileSync("git", [...user, "commit", "--quiet", "--allow-empty", "-m", "start"], { cwd: work });
+  const file = join(work, "..", "agent.json");
+  const workflow = {
+    schemaVersion: 1,
+    kind: "cedarloom.workflow",
+    metadata: { id: "agent", name: "Agent", version: "1.0.0" },
+    outputs: { result: { type: "string" } },
+    nodes: [
+      { id: "t", type: "trigger.manual" },
+      { id: "a", type: "agent.run", with: config },
+    ],
+    edges: [
+      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } },
+      { id: "e2", from: { node: "a", handle: "result" }, to: { output: "result" } },
+    ],
+    execution,
+  };
+  writeFileSync(file, JSON.stringify(workflow));
+  return file;
+};
+const REVIEW = { task: "Review the change.", phase: "review" };
+const attemptsOf = (state: string) =>
+  new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true })
+    .prepare("SELECT state, outputs, sessionId FROM node_attempts")
+    .all()
+    .map((row) => ({ state: row["state"], outputs: JSON.parse(String(row["outputs"])), sessionId: row["sessionId"] }));
+
+test("an agent node runs a worker in the run's worktree on its phase's settings, keeps its session and gives its summary", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const ran = await runWorkflow(
+    state,
+    file,
+    {},
+    { project: work, agents: { config, host, runtime: agentRuntime(), launch: phaseLaunch } },
+  );
+  expect(ran).toMatchObject({ ok: true, value: { status: "succeeded" } });
+  const runId = ran.ok ? ran.value.runId : "";
+  expect(attemptsOf(state)).toEqual([
+    {
+      state: "done",
+      outputs: { result: "Reviewed.", verdict: "pass" },
+      sessionId: "00000000-0000-4000-8000-000000000001",
+    },
+  ]);
+  const tree = join(state, "worktrees", runId);
+  expect(execFileSync("git", ["branch", "--show-current"], { cwd: tree, encoding: "utf8" }).trim()).toBe(
+    `cedarloom/${runId}`,
+  );
+  expect(withLedger(state, (store) => store.launches())).toMatchObject([
+    {
+      task: `${runId}:a`,
+      verdict: "pass",
+      labels: { phase: "review", model: "claude-opus-5-5", review: true, level: "supervised", tier: null },
+    },
+  ]);
+}, 30_000);
+
+test("an agent that sends nothing for its stall time is stopped and times out; a cancel stops a running one", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const hang = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), launch: phaseLaunch, stallMs: 300 };
+  const stalled = await runWorkflow(state, file, {}, { project: work, agents: hang });
+  const stop = new AbortController();
+  const onEvent = (event: JournalEvent) => event.type === "session" && stop.abort();
+  const agents = { ...hang, stallMs: 60_000 };
+  const cancelled = await runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal, onEvent });
+  expect([stalled, cancelled]).toMatchObject([{ value: { status: "failed" } }, { value: { status: "cancelled" } }]);
+  expect(attemptsOf(state).map((row) => row.state)).toEqual(["timed-out", "cancelled"]);
+}, 30_000);
+
+// A retry's backoff that does not wait.
+const noWait = () => Promise.resolve();
+// Waits until `done` holds.
+const until = async (done: () => boolean): Promise<void> => {
+  while (!done()) await new Promise((wake) => setTimeout(wake, 10));
+};
+const runFolders = (state: string) =>
+  existsSync(join(state, "worktrees")) ? readdirSync(join(state, "worktrees")) : [];
+const branches = (work: string) =>
+  execFileSync("git", ["branch", "--list", "--format=%(refname:short)", "cedarloom/*"], { cwd: work, encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean);
+
+test("a cancel while the worktree is added starts no session, and lets the lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const stop = new AbortController();
+  const onEvent = (event: JournalEvent) => event.type === "started" && stop.abort();
+  const agents = { config, host, runtime: agentRuntime({ FAKE_HANG: "1" }, null), launch: phaseLaunch };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent, signal: stop.signal })).toMatchObject({
+    value: { status: "cancelled" },
+  });
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual(["not-run"]);
+}, 15_000);
+
+test("a leased worker whose signal ended already stops its session at once", async () => {
+  const { state, config, work } = setup();
+  const leased = await leaseWorker(state, config, request(work, { runEnv: { FAKE_HANG: "1" } }), host);
+  if (!leased.ok || leased.value.kind !== "leased") throw new Error("no lease");
+  expect(await leased.value.run({ signal: AbortSignal.abort() })).toMatchObject({
+    ok: true,
+    value: { kind: "finished", verdict: "failed" },
+  });
+}, 15_000);
+
+test("an agent waits for a free lease of its account before it starts, and a cancel ends the wait", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const held = fill(state, "work", 1);
+  let freed = false;
+  setTimeout(() => {
+    freed = true;
+    for (const lock of held) lock?.release();
+  }, 300);
+  const order: boolean[] = [];
+  const onEvent = (event: JournalEvent) => event.type === "started" && order.push(freed);
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch, retryMs: 50 };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(order).toEqual([true]);
+  // A run is listed once its runner listens for a stop.
+  const again = fill(state, "work", 3);
+  const stop = new AbortController();
+  const waiting = runWorkflow(state, file, {}, { project: work, agents, signal: stop.signal });
+  await until(() => {
+    const listed = listGraphRuns(state);
+    return listed.ok && listed.value.length === 2;
+  });
+  stop.abort();
+  expect(await waiting).toMatchObject({ value: { status: "cancelled" } });
+  for (const lock of again) lock?.release();
+}, 30_000);
+
+test("an agent fails, saying why, before it makes a worktree or a branch; one stopped first lets its lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, config: join(config, "none") } });
+  const plain = join(work, "..", "plain");
+  mkdirSync(plain);
+  await runWorkflow(state, file, {}, { project: plain, agents });
+  // Stopped while its launch is built, before it goes.
+  const stop = new AbortController();
+  const launch = (...args: Parameters<typeof phaseLaunch>) => {
+    stop.abort();
+    return phaseLaunch(...args);
+  };
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, launch }, signal: stop.signal });
+  // gh's own login refuses the launch; a session whose init line proves no settings is stopped.
+  const loggedIn = { ...host, gh: [node, "-e", "process.exit(0)"] } as const;
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, host: loggedIn } });
+  const unproven = agentRuntime({ FAKE_STREAM: join(fixtures, "unapplied.jsonl") });
+  await runWorkflow(state, file, {}, { project: work, agents: { ...agents, runtime: unproven } });
+  // The level's settings file cannot be read.
+  writeFileSync(join(config, "automation.json"), "{");
+  await runWorkflow(state, file, {}, { project: work, agents });
+  expect(attemptsOf(state).map((row) => [row.state, row.outputs])).toEqual([
+    ["failed", { error: "no-single-pool" }],
+    ["failed", { error: "git.failed" }],
+    ["cancelled", {}],
+    ["failed", { error: "launch.gh-login" }],
+    ["failed", { error: "launch.settings-unproven" }],
+    ["failed", { error: "document.invalid" }],
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual([
+    "not-run",
+    "not-run",
+    "failed",
+  ]);
+  // Only the run whose session started has a worktree and a branch.
+  expect([runFolders(state).length, branches(work).length]).toEqual([1, 1]);
+}, 30_000);
+
+test("an add of the worktree that failed is tried again by the next attempt, and lets its lease go", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW, { nodes: { a: { retries: 1 } } });
+  const folder = () => {
+    const listed = listGraphRuns(state);
+    return join(state, "worktrees", (listed.ok ? listed.value[0]?.id : undefined) ?? "none");
+  };
+  // A folder is in the worktree's way when the first attempt goes, and gone when the second does.
+  const onEvent = (event: JournalEvent) => {
+    if (event.type === "started" && event.attempt === 1) {
+      mkdirSync(folder(), { recursive: true });
+      writeFileSync(join(folder(), "x.txt"), "x");
+    }
+    if (event.type === "ended" && event.attempt === 1) rmSync(folder(), { recursive: true, force: true });
+  };
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await runWorkflow(state, file, {}, { project: work, agents, onEvent, sleep: noWait })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(attemptsOf(state).map((row) => [row.state, row.outputs])).toEqual([
+    ["failed", { error: "git.failed" }],
+    ["done", { result: "Reviewed.", verdict: "pass" }],
+  ]);
+  expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual(["not-run", "pass"]);
+}, 30_000);
+
+test("a later runner of a run works in the worktree the run has", async () => {
+  const { state, config, work } = setup();
+  const file = agentWorkflow(work, REVIEW);
+  const graphs = openGraphStore(state);
+  if (!graphs.ok) throw new Error(graphs.finding.code);
+  const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(file, "utf8")));
+  const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const created = graphs.value.create({ ...base, definition, project: realpathSync(work) });
+  created.release();
+  graphs.value.close();
+  const folder = join(state, "worktrees", created.runId);
+  execFileSync("git", ["worktree", "add", "--quiet", "-b", `cedarloom/${created.runId}`, folder, "HEAD"], {
+    cwd: work,
+  });
+  writeFileSync(join(folder, "kept.txt"), "kept");
+  const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
+  expect(await resumeRun(state, created.runId, { project: work, agents })).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect([existsSync(join(folder, "kept.txt")), branches(work)]).toEqual([true, [`cedarloom/${created.runId}`]]);
+}, 30_000);

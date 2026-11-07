@@ -1,5 +1,17 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { closeSync, constants, existsSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  openSync,
+  readSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve as absolute, sep, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
@@ -44,7 +56,7 @@ import {
   type RunLease,
 } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
-import { stopTree } from "@cedarloom/extension-host";
+import { type Launch, type Sandbox, type SandboxPolicy, sandboxRuntime, stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
 import { readJson, retryBusy, withStore, withView } from "./use-cases.ts";
@@ -75,6 +87,8 @@ export interface RunOptions {
   readonly agents?: AgentOptions | undefined;
   /** A new run only reports (A28): it writes nothing but its record. A stored run keeps the mode it started with. */
   readonly report?: boolean | undefined;
+  /** The OS sandbox a report run's commands and precheck run in: sandbox-runtime's when absent. */
+  readonly sandbox?: Sandbox | undefined;
 }
 
 // Stored outputs are blanked after 90 days, since a command's output can hold a secret.
@@ -110,64 +124,110 @@ const GATE = 'read -r _ || exit 125; eval "$CEDARLOOM_COMMAND"';
 const text = (value: Json | undefined): string => (typeof value === "string" ? value : JSON.stringify(value));
 
 // Values reach a command only as CEDARLOOM_INPUT_<name>, which sh expands after it has parsed the line.
-const spawnGated = (
-  shell: string,
-  project: string,
-  { config, inputs }: Attempt,
-): ChildProcessByStdio<Writable, Readable, null> => {
+const launchOf = (shell: string, project: string, { config, inputs }: Pick<Attempt, "config" | "inputs">): Launch => {
   const values = Object.entries(inputs).map(([name, value]) => [`CEDARLOOM_INPUT_${name}`, text(value)]);
-  return spawn(shell, ["-c", GATE], {
+  return {
+    command: shell,
+    args: ["-c", GATE],
     cwd: join(project, text(config["cwd"] ?? ".")),
     env: {
       ...cleanEnv(process.env, process.platform),
       ...Object.fromEntries(values),
       CEDARLOOM_COMMAND: text(config["command"]),
     },
+  };
+};
+
+const spawnGated = ({ command, args, cwd, env }: Launch): ChildProcessByStdio<Writable, Readable, null> =>
+  spawn(command, args, {
+    cwd,
+    env,
     stdio: ["pipe", "pipe", "ignore"],
     detached: process.platform !== "win32",
     windowsHide: true,
   });
+
+// The gated command as an attempt: its exit code and its standard output, up to just over the cap.
+const attemptOf = (child: ChildProcessByStdio<Writable, Readable, null>, { signal }: Attempt): Prepared => {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  /* v8 ignore next -- a child that died before its gate opened fails the write; its close says how it ended */
+  child.stdin.on("error", () => undefined);
+  child.stdout.on("data", (chunk: Buffer) => {
+    if (size <= OUTPUT_CAP) chunks.push(chunk);
+    size += chunk.length;
+  });
+  const { promise, resolve } = Promise.withResolvers<number | null>();
+  child.once("error", () => resolve(null));
+  child.once("close", (code) => resolve(code));
+  // On Windows a stopped command's tree can keep its output open (Git for Windows' sh): its shell's exit ends it.
+  child.once("exit", (code) => {
+    if (signal.aborted) resolve(code);
+  });
+  const abort = (): void => {
+    // A timeout or a cancel ends the command's whole process tree.
+    stopTree(Number(child.pid), child);
+    // A shell that has exited already, its background child holding the output, ends the attempt now.
+    if (child.exitCode === null && child.signalCode === null) return;
+    child.stdout.destroy();
+    resolve(child.exitCode);
+  };
+  const closed = promise.finally(() => signal.removeEventListener("abort", abort));
+  return {
+    pid: child.pid ?? null,
+    run: async () => {
+      signal.addEventListener("abort", abort, { once: true });
+      child.stdin.end(signal.aborted ? "" : "\n");
+      const code = await closed;
+      return { ok: code === 0, values: { stdout: Buffer.concat(chunks).toString("utf8"), exitCode: code ?? -1 } };
+    },
+  };
 };
 
 /** `command.run`: the command's exit code and its standard output, up to just over the cap. */
 const command =
   (shell: string, project: string) =>
-  (attempt: Attempt): Prepared => {
-    const child = spawnGated(shell, project, attempt);
-    const { signal } = attempt;
-    const chunks: Buffer[] = [];
-    let size = 0;
-    /* v8 ignore next -- a child that died before its gate opened fails the write; its close says how it ended */
-    child.stdin.on("error", () => undefined);
-    child.stdout.on("data", (chunk: Buffer) => {
-      if (size <= OUTPUT_CAP) chunks.push(chunk);
-      size += chunk.length;
-    });
-    const { promise, resolve } = Promise.withResolvers<number | null>();
-    child.once("error", () => resolve(null));
-    child.once("close", (code) => resolve(code));
-    // On Windows a stopped command's tree can keep its output open (Git for Windows' sh): its shell's exit ends it.
-    child.once("exit", (code) => {
-      if (signal.aborted) resolve(code);
-    });
-    const abort = (): void => {
-      // A timeout or a cancel ends the command's whole process tree.
-      stopTree(Number(child.pid), child);
-      // A shell that has exited already, its background child holding the output, ends the attempt now.
-      if (child.exitCode === null && child.signalCode === null) return;
-      child.stdout.destroy();
-      resolve(child.exitCode);
-    };
-    const closed = promise.finally(() => signal.removeEventListener("abort", abort));
-    return {
-      pid: child.pid ?? null,
-      run: async () => {
-        signal.addEventListener("abort", abort, { once: true });
-        child.stdin.end(signal.aborted ? "" : "\n");
-        const code = await closed;
-        return { ok: code === 0, values: { stdout: Buffer.concat(chunks).toString("utf8"), exitCode: code ?? -1 } };
-      },
-    };
+  (attempt: Attempt): Prepared =>
+    attemptOf(spawnGated(launchOf(shell, project, attempt)), attempt);
+
+// What a report run's command or precheck may do in the OS sandbox: read the project, write only `temp`, and reach no
+// network. A program also reads what it writes to, as macOS's cat looks up its output's path: `temp` and /dev/null.
+const policyOf = (project: string, temp: string[]): SandboxPolicy => ({
+  read: [project, ...temp, "/dev/null"],
+  write: temp,
+  network: "none",
+  probe: ["-c", ""],
+});
+
+// What a report run's executors refuse: a command or precheck where the OS sandbox does not run, and a write, which the
+// ledger also refuses to record (as a stored run's that its start did not check). A refused precheck counts as not
+// passed: the run ends skipped.
+const refusing = (code: string) => (): Prepared => ({
+  pid: null,
+  run: () => Promise.resolve({ ok: false, values: { error: code } }),
+});
+
+/**
+ * A report run's `command.run`, and its precheck, in the OS sandbox: a temporary folder of its own (TMPDIR) is all it may
+ * write, and it goes with the attempt. Where the sandbox does not run, the attempt fails and runs nothing.
+ */
+const sandboxed =
+  (shell: string, project: string, sandbox: Sandbox) =>
+  async (attempt: Attempt): Promise<Prepared> => {
+    // shortcut: an attempt dropped before it runs leaves its empty folder in the system's temporary folder.
+    // shortcut: srt's wrapper gets the environment on its command line, so the command's inputs show in the process list
+    // to other local users; hand them over in a file once inputs can hold secrets.
+    const temp = realpathSync.native(mkdtempSync(join(tmpdir(), "cedarloom-command-")));
+    const gone = (): void => rmSync(temp, { recursive: true, force: true });
+    const plain = launchOf(shell, project, attempt);
+    const launch = { ...plain, env: { ...plain.env, TMPDIR: temp } };
+    const inside = await sandbox.wrap(launch, policyOf(project, [temp])).catch(() => undefined);
+    if (inside === undefined) {
+      gone();
+      return refusing("run.sandbox-unavailable")();
+    }
+    const prepared = attemptOf(spawnGated(inside), attempt);
+    return { ...prepared, run: () => prepared.run().finally(gone) };
   };
 
 // The file a node names, below the real path of its nearest folder that is there (a write makes the ones missing); null
@@ -269,27 +329,25 @@ const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boo
   return commands && shell === null ? { code: "run.shell-missing", params: {} } : null;
 };
 
-// What a new report run (A28) cannot have: a node that may write, or one that needs an OS sandbox where none runs, as a
-// command or a precheck until they run in one, and on native Windows, which has none, an agent (Q7).
-const reportRefusal = (workflow: WorkflowDefinition): Finding | null => {
+// What a new report run (A28) cannot have: a node that may write; on native Windows, which has no OS sandbox, an agent
+// (Q7); and a command or a precheck where the sandbox does not run sh, as on Windows or in a rootless container.
+const reportRefusal = async (
+  workflow: WorkflowDefinition,
+  shell: string,
+  project: string,
+  sandbox: Sandbox,
+): Promise<Finding | null> => {
   const write = reportOnly(workflow.nodes)[0];
   if (write !== undefined) return write;
-  const node = workflow.nodes.find(
-    (each) =>
-      each.type === "command.run" ||
-      each.with?.["precheck"] !== undefined ||
-      (process.platform === "win32" && each.type === "agent.run"),
-  );
-  return node === undefined ? null : { code: "run.sandbox-unavailable", params: { node: node.id } };
+  const agent = workflow.nodes.find((each) => process.platform === "win32" && each.type === "agent.run");
+  const node =
+    agent ?? workflow.nodes.find((each) => each.type === "command.run" || each.with?.["precheck"] !== undefined);
+  if (node === undefined) return null;
+  const nothing = { command: shell, args: ["-c", ""], cwd: project, env: {} };
+  const inside =
+    agent === undefined ? await sandbox.wrap(nothing, policyOf(project, [])).catch(() => undefined) : undefined;
+  return inside === undefined ? { code: "run.sandbox-unavailable", params: { node: node.id } } : null;
 };
-
-// What a report run's executors refuse, as a stored run's that its start did not check: a command or precheck outside an
-// OS sandbox, and a write, which the ledger also refuses to record. A refused precheck counts as not passed: the run ends
-// skipped.
-const refusing = (code: string) => (): Prepared => ({
-  pid: null,
-  run: () => Promise.resolve({ ok: false, values: { error: code } }),
-});
 
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.
 const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise<Result<T>>): Promise<Result<T>> => {
@@ -317,7 +375,9 @@ const runHeld = async (
   const { project, state, agents } = options;
   const run = { state, runId: lease.runId, project, report: options.report === true };
   const executors: Executors = {
-    "command.run": run.report ? refusing("run.sandbox-unavailable") : command(shell, project),
+    "command.run": run.report
+      ? sandboxed(shell, project, options.sandbox ?? sandboxRuntime())
+      : command(shell, project),
     "file.read": fileRead(project),
     "file.write": run.report ? refusing("run.report-only-apply") : fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
@@ -375,10 +435,12 @@ export const runWorkflow = async (
   const typed = typedInputs(workflow.value, inputs);
   const shell = check(workflow.value, typed, options);
   if (!shell.ok) return shell;
-  const refusal = options.report === true ? reportRefusal(workflow.value) : null;
-  if (refusal !== null) return { ok: false, finding: refusal };
   const project = realFolder(options.project ?? process.cwd());
   if (!project.ok) return project;
+  const sandbox = options.sandbox ?? sandboxRuntime();
+  const refusal =
+    options.report === true ? await reportRefusal(workflow.value, shell.value, project.value, sandbox) : null;
+  if (refusal !== null) return { ok: false, finding: refusal };
   return withGraphs(state, (store) => {
     store.prune(OUTPUT_DAYS);
     const definition = workflow.value;

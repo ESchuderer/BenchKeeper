@@ -781,6 +781,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "run.not-waiting";
+            params: {
+                runId: string;
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.report-only-apply";
             params: {
                 runId: string;
@@ -1439,6 +1446,23 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -1798,6 +1822,13 @@ export interface components {
             params: {
                 runId: string;
                 status: string;
+            };
+        } | {
+            /** @constant */
+            code: "run.not-waiting";
+            params: {
+                runId: string;
+                node: string;
             };
         } | {
             /** @constant */
@@ -2456,6 +2487,23 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub";
+            };
+        } | {
+            /** @constant */
+            code: "profile.approval-needed";
+            params: {
+                part: string;
+                plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.options-guarded";
+            params: {
+                part: string;
+                path: string;
             };
         } | {
             /** @constant */

@@ -41,6 +41,7 @@ export { canonicalJson, type Json } from "./json.ts";
 export {
   LaunchPlugins,
   LaunchRecord,
+  RunTotals,
   RunLabels,
   Verdict,
   WORKER_RESULT_SCHEMA_VERSION,
@@ -49,6 +50,7 @@ export {
 export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {
   AttemptOutcome,
+  GatePoint,
   GraphRun,
   NodeAttempt,
   JournalEvent,

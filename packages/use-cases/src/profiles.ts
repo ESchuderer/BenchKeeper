@@ -11,6 +11,7 @@ import {
 } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 import { DEFAULT_PROFILE, onDisk, planMachine, resolveProfile, rulesFolder } from "@cedarloom/profiles";
+import { loadRegistry } from "./accounts.ts";
 import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
@@ -37,8 +38,31 @@ export interface ProfilePlan {
   readonly findings: Finding[];
 }
 
-/** Plans the selected profile's machine level for `home`; a profile with problems gets no plan, only its findings. */
-export const planProfile = (config: string, state: string, home: string): Result<ProfilePlan> => {
+/** This machine's folders: its Claude Code home and the user's home. */
+export interface Machine {
+  readonly home: string;
+  readonly user: string;
+}
+
+// The folders no plugin options file may reach: every Claude Code home, the default one included, an account's
+// folders, and CedarLoom's own config and state, which hold the worker homes.
+const guardedFolders = (config: string, state: string, { home, user }: Machine): Result<string[]> => {
+  const registry = loadRegistry(config);
+  if (!registry.ok) return registry;
+  const accounts = (registry.value?.accounts ?? []).flatMap((account) => [account.home, ...(account.aliases ?? [])]);
+  return { ok: true, value: [home, join(user, ".claude"), config, state, ...accounts] };
+};
+
+/**
+ * Plans the selected profile's machine level; a profile with problems gets no plan, only its findings. A plugin part
+ * is planned only when `allow` names it.
+ */
+export const planProfile = (
+  config: string,
+  state: string,
+  { home, user }: Machine,
+  allow: readonly string[] = [],
+): Result<ProfilePlan> => {
   const read = readSelection(config);
   if (!read.ok) return read;
   const resolved = resolveProfile(read.value.selection);
@@ -51,7 +75,10 @@ export const planProfile = (config: string, state: string, home: string): Result
     value: view?.written(rulesFolder(home)) ?? new Map<string, string | null>(),
   }));
   if (!written.ok) return written;
-  const level = planMachine(resolved.value, home, written.value);
+  const guarded = guardedFolders(config, state, { home, user });
+  if (!guarded.ok) return guarded;
+  const target = { home, user, guarded: guarded.value };
+  const level = planMachine(resolved.value, target, written.value, new Set(allow));
   if (!level.ok) return level;
   const { operations, findings } = level.value;
   const plan: Plan | null = operations.length === 0 ? null : { schemaVersion: PLAN_SCHEMA_VERSION, operations };

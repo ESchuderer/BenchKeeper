@@ -64,12 +64,15 @@ const part = <T extends string, S extends z.ZodRawShape>(type: T, shape: S) => {
   return { whole, layer: whole.partial().required({ type: true }) };
 };
 
-const plugin = part("plugin", {
+const declared = {
   plugin: z
     .string()
     .regex(/^[a-z0-9][a-z0-9-]{0,63}@[a-z0-9][a-z0-9-]{0,63}$/)
     .describe("`<plugin>@<marketplace>`"),
   marketplace: Marketplace.optional().describe("Declared when Claude Code does not know it; named as in the plugin id"),
+};
+const plugin = part("plugin", {
+  ...declared,
   options: z
     .strictObject({
       file: PortablePath.describe("Relative to the user's home"),
@@ -105,6 +108,12 @@ const files = part("files", {
   onlyIfAbsent: z.boolean().optional(),
 });
 const projectSettings = part("settings", { set: JsonObject, commit: z.boolean() });
+// Claude Code downloads a plugin enabled only in the committed settings for no one, so a project's plugin goes into the
+// local settings (https://code.claude.com/docs/en/plugins/loading#enabled-in-project-settings-but-not-installed).
+const projectPlugin = part("plugin", {
+  ...declared,
+  commit: z.literal(false).describe("Written to `.claude/settings.local.json`, never committed"),
+});
 const packs = part("packs", { packs: distinct(PackId).max(50) });
 const tier = part("tier", { tier: z.enum(["quick", "standard", "full", "research"]).nullable() });
 const gates = part("gates", {
@@ -124,6 +133,7 @@ const whole = {
       localManual.whole,
       files.whole,
       projectSettings.whole,
+      projectPlugin.whole,
       packs.whole,
       tier.whole,
       gates.whole,
@@ -139,6 +149,7 @@ const layer = {
       localManual.layer,
       files.layer,
       projectSettings.layer,
+      projectPlugin.layer,
       packs.layer,
       tier.layer,
       gates.layer,
@@ -289,11 +300,13 @@ const skillIssues = (machine: z.infer<typeof whole.machine>): Issue[] => {
 };
 
 // A plugin's marketplace goes by the name its plugin id carries, as Claude Code resolves the id through it.
-const marketplaceIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
-  Object.entries(machine).flatMap(([id, each]): Issue[] =>
-    each.type === "plugin" && each.marketplace !== undefined && !each.plugin.endsWith(`@${each.marketplace.name}`)
-      ? [[["machine", id, "marketplace", "name"], "the marketplace its plugin id names"]]
-      : [],
+const marketplaceIssues = (profile: Pick<z.infer<z.ZodObject<typeof whole>>, "machine" | "project">): Issue[] =>
+  (["machine", "project"] as const).flatMap((name) =>
+    Object.entries(profile[name]).flatMap(([id, each]): Issue[] =>
+      each.type === "plugin" && each.marketplace !== undefined && !each.plugin.endsWith(`@${each.marketplace.name}`)
+        ? [[[name, id, "marketplace", "name"], "the marketplace its plugin id names"]]
+        : [],
+    ),
   );
 const probeIssues = (
   profile: Record<(typeof LEVELS)[number], Record<string, { default: string; when?: string | undefined }>>,
@@ -315,7 +328,7 @@ export const Profile = z
   .superRefine((profile, ctx) =>
     report(ctx, [
       ...optionsIssues(profile.machine),
-      ...marketplaceIssues(profile.machine),
+      ...marketplaceIssues(profile),
       ...skillIssues(profile.machine),
       ...probeIssues(profile),
     ]),

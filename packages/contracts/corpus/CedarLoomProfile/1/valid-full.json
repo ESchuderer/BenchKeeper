@@ -103,6 +103,10 @@
       "onlyIfAbsent": true,
       "files": { "orca.yaml": { "pack": "acme.shared", "path": "templates/orca.yaml" } }
     },
-    "packs": { "type": "packs", "title": "Acme packs", "default": "on", "packs": ["acme.shared"] }
+    "packs": { "type": "packs", "title": "Acme packs", "default": "on", "packs": ["acme.shared"] },
+    "lsp": {
+      "type": "plugin", "title": "Acme language server", "default": "off", "commit": false,
+      "plugin": "acme-lsp@acme", "marketplace": { "name": "acme", "github": "acme/plugins", "ref": "v2" }
+    }
   }
 }

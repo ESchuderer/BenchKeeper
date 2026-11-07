@@ -1,5 +1,5 @@
 import { isAbsolute, resolve } from "node:path";
-import type { Finding, Operation, Plan } from "@cedarloom/contracts";
+import type { Finding, Operation, Plan, StoreUpdate } from "@cedarloom/contracts";
 import { type RunStore, sha256 } from "@cedarloom/ledger";
 import { asidePath, backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeStep } from "./files.ts";
 
@@ -9,7 +9,17 @@ import { asidePath, backUp, errorCode, hashFile, isSymlink, remove, tempPath, wr
  */
 export type Phase = "backed-up" | "journaled" | "set-aside" | "written" | "settled";
 
+/** The workflow store's branch, which `store.update` operations move (the git package's store). */
+export interface StoreBranch {
+  head: () => string | null;
+  move: (after: string | null, before: string | null) => boolean;
+}
+
+type FileOperation = Exclude<Operation, StoreUpdate>;
+
 export interface ApplyOptions {
+  /** Without it, every `store.update` is refused as a moved branch. */
+  branch?: StoreBranch;
   kind?: "apply" | "undo";
   undoes?: string | null;
   /** Called after each phase; tests use it to crash or race at every point. */
@@ -23,8 +33,9 @@ export interface Outcome {
 }
 
 const BACKUP_DAYS = 90;
+export const NO_BRANCH: StoreBranch = { head: () => null, move: () => false };
 
-const targetProblem = (op: Operation, actual: string | null): Finding | undefined => {
+const targetProblem = (op: FileOperation, actual: string | null): Finding | undefined => {
   if (isSymlink(op.path)) return { code: "apply.symlink", params: { path: op.path } };
   if (actual !== op.before)
     return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual } };
@@ -32,7 +43,7 @@ const targetProblem = (op: Operation, actual: string | null): Finding | undefine
 };
 
 /** A path's first operation: an absolute, normalized path to a regular file (or none) that hashes as the plan expects. */
-const firstProblem = (op: Operation): Finding | undefined => {
+const firstProblem = (op: FileOperation): Finding | undefined => {
   if (!isAbsolute(op.path) || resolve(op.path) !== op.path)
     return { code: "plan.path-not-absolute", params: { path: op.path } };
   try {
@@ -46,19 +57,48 @@ const firstProblem = (op: Operation): Finding | undefined => {
  * Every operation before anything is written: a path's first one against the file now, each later one against the
  * hash the operations before it leave, so a plan whose chain breaks writes nothing.
  */
-const operationProblem = (op: Operation, index: number, expected: string | null | undefined): Finding | undefined => {
+const operationProblem = (
+  op: FileOperation,
+  index: number,
+  expected: string | null | undefined,
+): Finding | undefined => {
   if (expected === undefined) return firstProblem(op);
   if (op.before === expected) return undefined;
   return { code: "plan.chain-broken", params: { path: op.path, index, expected, found: op.before } };
 };
 
-const planProblems = (plan: Plan): Finding[] => {
+const moved = (op: StoreUpdate, actual: string | null): Finding => ({
+  code: "store.moved",
+  params: { ref: op.ref, expected: op.before, actual },
+});
+
+/** The branch where the operations before it leave it, or where it is now, must be where the operation expects it. */
+const branchProblem = (
+  op: StoreUpdate,
+  expected: string | null | undefined,
+  branch: StoreBranch,
+): Finding | undefined => {
+  const actual = expected === undefined ? branch.head() : expected;
+  return actual === op.before ? undefined : moved(op, actual);
+};
+
+// What an operation leaves at its path or branch: the written file's hash, the branch's new commit, or nothing.
+const leaves = (op: Operation): string | null => {
+  if (op.kind === "write") return sha256(op.content);
+  return op.kind === "store.update" ? op.after : null;
+};
+
+const planProblems = (plan: Plan, branch: StoreBranch): Finding[] => {
   const next = new Map<string, string | null>();
   const problems: Finding[] = [];
   for (const [index, op] of plan.operations.entries()) {
-    const problem = operationProblem(op, index, next.get(op.path));
+    const key = op.kind === "store.update" ? op.ref : op.path;
+    const problem =
+      op.kind === "store.update"
+        ? branchProblem(op, next.get(key), branch)
+        : operationProblem(op, index, next.get(key));
     if (problem !== undefined) problems.push(problem);
-    next.set(op.path, op.kind === "write" ? sha256(op.content) : null);
+    next.set(key, leaves(op));
   }
   return problems;
 };
@@ -66,11 +106,12 @@ const planProblems = (plan: Plan): Finding[] => {
 interface Run {
   store: RunStore;
   runId: string;
+  branch: StoreBranch;
   onPhase: Required<ApplyOptions>["onPhase"];
 }
 
 /** What took the file's place: its hash, or (a folder, say) not a file at all, as the plan check reports it. */
-const changedFinding = (op: Operation): Finding => {
+const changedFinding = (op: FileOperation): Finding => {
   try {
     return { code: "plan.file-changed", params: { path: op.path, expected: op.before, actual: hashFile(op.path) } };
   } catch (error) {
@@ -78,7 +119,7 @@ const changedFinding = (op: Operation): Finding => {
   }
 };
 
-const change = (run: Run, index: number, op: Operation, mode: number | null): Finding | undefined => {
+const change = (run: Run, index: number, op: FileOperation, mode: number | null): Finding | undefined => {
   const aside = asidePath(op.path, run.runId, index);
   const onSetAside = (): void => run.onPhase(index, "set-aside");
   try {
@@ -96,7 +137,7 @@ const change = (run: Run, index: number, op: Operation, mode: number | null): Fi
 };
 
 /** Backs up an existing file and checks the copy against the precondition; returns the file's mode or the problem. */
-const backup = ({ store, runId }: Run, index: number, op: Operation): Finding | number | null => {
+const backup = ({ store, runId }: Run, index: number, op: FileOperation): Finding | number | null => {
   const { path, before } = op;
   let copy = { hash: hashFile(path), mode: 0, text: true };
   try {
@@ -110,7 +151,7 @@ const backup = ({ store, runId }: Run, index: number, op: Operation): Finding | 
 };
 
 /** Backup checked against the precondition, journal `running`, write, check the written hash, journal `done`. */
-const step = (run: Run, index: number, op: Operation): Finding | undefined => {
+const step = (run: Run, index: number, op: FileOperation): Finding | undefined => {
   const { store, runId, onPhase } = run;
   const mode = backup(run, index, op);
   if (mode !== null && typeof mode === "object") return mode;
@@ -129,17 +170,31 @@ const step = (run: Run, index: number, op: Operation): Finding | undefined => {
   return undefined;
 };
 
+/** Journal `running`, move the branch only while it is where the plan found it, journal `done`. */
+const branchStep = (run: Run, index: number, op: StoreUpdate): Finding | undefined => {
+  run.store.start(run.runId, index, null);
+  run.onPhase(index, "journaled");
+  if (!run.branch.move(op.after, op.before)) return moved(op, run.branch.head());
+  run.onPhase(index, "written");
+  run.store.settle(run.runId, index, "done");
+  run.onPhase(index, "settled");
+  return undefined;
+};
+
 const steps = (run: Run, plan: Plan): Finding | undefined => {
   for (const [index, op] of plan.operations.entries()) {
-    const finding = step(run, index, op);
+    const finding = op.kind === "store.update" ? branchStep(run, index, op) : step(run, index, op);
     if (finding !== undefined) return finding;
   }
   return undefined;
 };
 
+const onPhaseOf = (options: ApplyOptions): Run["onPhase"] => options.onPhase ?? (() => undefined);
+
 /** Applies an approved plan as one run; stops at the first operation that fails and leaves the run for undo. */
 export const apply = (store: RunStore, plan: Plan, approvedHash: string, options: ApplyOptions = {}): Outcome => {
-  const problems = planProblems(plan);
+  const branch = options.branch ?? NO_BRANCH;
+  const problems = planProblems(plan, branch);
   if (problems.length > 0) return { runId: null, status: "refused", findings: problems };
   const begun = store.begin(options.kind ?? "apply", plan, approvedHash, options.undoes ?? null);
   if (!begun.ok) return { runId: null, status: "refused", findings: [begun.finding] };
@@ -147,7 +202,7 @@ export const apply = (store: RunStore, plan: Plan, approvedHash: string, options
   let finding: Finding | undefined;
   try {
     store.prune(BACKUP_DAYS);
-    finding = steps({ store, runId, onPhase: options.onPhase ?? (() => undefined) }, plan);
+    finding = steps({ store, runId, branch, onPhase: onPhaseOf(options) }, plan);
   } catch (error) {
     store.finish(runId, "failed");
     throw error;

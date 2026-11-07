@@ -1,4 +1,4 @@
-export { type ApplyOptions, apply, type Outcome, type Phase } from "./apply.ts";
+export { type ApplyOptions, apply, type Outcome, type Phase, type StoreBranch } from "./apply.ts";
 export {
   type ApprovalGate,
   levelAt,

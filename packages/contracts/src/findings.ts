@@ -220,6 +220,8 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
+    // An auto part that stays off until this machine names the binding it waits for.
+    finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -402,6 +404,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.owner-changed": { severity: "warning", effort: "manual" },
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.binding-waiting": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },

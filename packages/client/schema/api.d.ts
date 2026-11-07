@@ -1592,6 +1592,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.binding-waiting";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "gates";
+            };
+        } | {
+            /** @constant */
             code: "profile.approval-needed";
             params: {
                 part: string;
@@ -2748,6 +2756,14 @@ export interface components {
                 part: string;
                 /** @enum {string} */
                 binding: "hub" | "gates";
+            };
+        } | {
+            /** @constant */
+            code: "profile.binding-waiting";
+            params: {
+                part: string;
+                /** @enum {string} */
+                binding: "gates";
             };
         } | {
             /** @constant */

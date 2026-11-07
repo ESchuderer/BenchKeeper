@@ -218,12 +218,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -358,12 +359,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -504,12 +506,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -598,12 +601,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -671,12 +675,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -809,12 +814,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -895,12 +901,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -992,12 +999,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1086,12 +1094,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1192,12 +1201,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1255,12 +1265,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1373,12 +1384,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1433,12 +1445,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1500,12 +1513,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {
@@ -1567,12 +1581,13 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
-                  "no-devcontainer"
+                  "no-devcontainer",
+                  "gates"
                 ]
               },
               "requires": {

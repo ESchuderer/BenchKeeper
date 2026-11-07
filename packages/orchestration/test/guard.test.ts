@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
 import { guardCommand } from "@cedarloom/orchestration";
@@ -25,13 +24,8 @@ test.each(cases)("$name", ({ policy, command, rule }) => {
 });
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");
-const policyFile = (): string => {
-  const path = join(mkdtempSync(join(tmpdir(), "cedarloom-guard-")), "policy.json");
-  writeFileSync(path, JSON.stringify(fixtures.policies["worker"]));
-  return path;
-};
 // `policy` null: the hook runs without its argument.
-const hook = (input: string, policy: string | null = policyFile()) => {
+const hook = (input: string, policy: string | null = JSON.stringify(fixtures.policies["worker"])) => {
   const ran = spawnSync(process.execPath, policy === null ? [HOOK] : [HOOK, policy], { input, encoding: "utf8" });
   return { status: ran.status, refused: ran.stderr !== "" };
 };
@@ -43,12 +37,12 @@ test("the hook lets a call run with exit 0 and refuses one with exit 2 and its r
   expect(hook(bash("sudo rm -rf /tmp/x"))).toEqual({ status: 2, refused: true });
 }, 30_000);
 
-test("the hook refuses what it cannot read: input that is no JSON, a call without its command, a missing policy", () => {
+test("the hook refuses what it cannot read: input that is no JSON, a call without its command, a missing or invalid policy", () => {
   expect(hook("{not json")).toEqual({ status: 2, refused: true });
   expect(hook(bash(undefined))).toEqual({ status: 2, refused: true });
   expect(hook(bash("ls", "relative"))).toEqual({ status: 2, refused: true });
   expect(hook(bash("ls"), null)).toEqual({ status: 2, refused: true });
-  expect(hook(bash("ls"), join(tmpdir(), "no-such-policy.json"))).toEqual({ status: 2, refused: true });
+  expect(hook(bash("ls"), '{"schemaVersion":1}')).toEqual({ status: 2, refused: true });
 }, 30_000);
 
 const monitor = (input: object) => JSON.stringify({ tool_name: "Monitor", tool_input: input, cwd: "/work/app" });

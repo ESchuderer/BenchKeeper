@@ -379,8 +379,11 @@ test("accounts: the list shows each account with its pool, says when there are n
 
 test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
   const { cli } = withRegistry();
-  const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
-  expect(codex.code).toBe(EXIT.refused);
+  const codex = await cli("--json", "accounts", "pool", "confirm", "main", "--agent", "codex");
+  expect([codex.code, json(codex.out)["findings"]]).toMatchObject([
+    EXIT.refused,
+    [{ code: "accounts.codex-switching-off" }],
+  ]);
   const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
   const preview = await cli("accounts", "pool", "confirm", "main");
   expect(preview.err).toContain("warning:");

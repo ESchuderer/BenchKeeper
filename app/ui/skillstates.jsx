@@ -64,7 +64,7 @@ const packImpact = (p) => (p.plugin
 const packFacts = (p, eli5) => ({ summary: p.pickWhen ?? p.title, impact: packImpact(p), default: p.suggested ? `on, suggested: ${p.suggested}` : 'off', current: p.enabled ? 'on' : 'off',
   eli5: eli5 ?? (p.plugin ? 'a plugin adds skills and commands to the agent from a folder of its own' : 'a set of skills, instruction files the agent reads when a task fits them') });
 
-const OWNER = 'these skills run the steps of larger tasks: questions first, a spec and tickets, tests first, a review';
+const OWNER = 'these skills run the steps of larger tasks: questions first, a spec and tickets, a test where one is called for, a review';
 
 // One switch per pack of a project, the workflow owner in a section of its own, and "Copy packs from project". The switches
 // only change the plan below them; nothing is written before that plan is applied.

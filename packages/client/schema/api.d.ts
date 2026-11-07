@@ -1326,6 +1326,24 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.foreign-kind";
+            params: {
+                kind: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.secret-like";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.forbidden-setting";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "git.too-large";
             params: {
                 path: string | null;
@@ -2160,6 +2178,24 @@ export interface components {
                 /** @enum {string} */
                 step: "stage" | "start" | "initialize" | "run";
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.foreign-kind";
+            params: {
+                kind: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.secret-like";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.forbidden-setting";
+            params: {
+                path: string;
             };
         } | {
             /** @constant */

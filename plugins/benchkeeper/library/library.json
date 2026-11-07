@@ -455,7 +455,7 @@
       "id": "matt-pocock",
       "title": "Matt Pocock's skills",
       "role": "workflow owner",
-      "pickWhen": "The project uses his grilling, spec, tickets, test-first and review skills",
+      "pickWhen": "The project uses his grilling, spec, tickets, tdd and review skills",
       "plugins": {
         "claude": {
           "id": "mattpocock-skills@claude-plugins-official"
@@ -478,7 +478,7 @@
           ]
         }
       ],
-      "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, tests first, code review against the issue, pull request text.",
+      "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, `tdd` (the red-green loop once a test is called for), code review against the issue, pull request text.",
       "pluginSkills": {
         "version": "1.3.1",
         "skills": [

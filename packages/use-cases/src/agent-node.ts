@@ -40,6 +40,8 @@ export interface AgentOptions<L extends Launch = Launch> {
   readonly stallMs?: number;
   /** How long a wait for a free account lease waits before it asks again: 5 seconds when unset. */
   readonly retryMs?: number;
+  /** Keeps the accounts' latest readings (claude-swap's) before a new worker's account is chosen. */
+  readonly readings?: () => Promise<unknown>;
 }
 
 /** The run an agent works for: its state folder, id and project folder, and whether it only reports. */
@@ -209,7 +211,11 @@ const attempted = async (
   if (!readOnly.ok) return failed(readOnly.finding.code);
   const request = requestOf(attempt, run, options, { resume, readOnly: readOnly.value });
   if (typeof request === "string") return failed(request);
-  const lease = () => leaseWorker(run.state, options.config, request, options.host);
+  const lease = async () => {
+    // A resumed worker keeps its account; a new one is chosen on readings as fresh as each try for a lease.
+    if (resume === null) await options.readings?.();
+    return leaseWorker(run.state, options.config, request, options.host);
+  };
   const got = await leased(attempt, lease, options.retryMs ?? RETRY_MS);
   if (!got.ok) return failed(got.finding.code);
   if (got.value.kind === "no-account") return failed(got.value.reason);

@@ -180,7 +180,8 @@ export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCase
     "/api/imports",
     { schema: { body: source, response: answers({ 200: ImportPreview, 409: Refusal }) } },
     async (req, reply) => {
-      const read = await useCases.planImport(state, req.body, fetch);
+      // Only the URL and the ref go on: the use case's folder branch takes nothing from a request.
+      const read = await useCases.planImport(state, { git: req.body.git, ref: req.body.ref }, fetch);
       if (!read.ok) return reply.code(409).send(refusal(read.finding));
       const { review, plan } = read.value;
       if (plan === null) return { id: null, review, planHash: null, plan: null };

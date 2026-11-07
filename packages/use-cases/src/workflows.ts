@@ -30,6 +30,7 @@ import {
   hashFile,
   OUTPUT_CAP,
   type Prepared,
+  type Recovery,
   replay,
   startRun,
 } from "@cedarloom/engine";
@@ -243,6 +244,19 @@ const fileWrite =
     };
   };
 
+/**
+ * The recovery of `file.write` attempts a dead runner left (plan section 3): done when the apply run it began has
+ * applied, which opening the run store settles, else interrupted (Q4), so a retry plans again and nothing applies twice.
+ */
+const writeRecover =
+  (state: string): Recovery =>
+  async ({ applyRun }) => {
+    if (applyRun === null) return null;
+    const runs = await retryBusy(() => withStore(state, (store) => ({ ok: true, value: store.runs() })));
+    const applied = runs.ok && runs.value.some((each) => each.id === applyRun && each.status === "applied");
+    return applied ? { pid: null, run: () => Promise.resolve({ ok: true }) } : null;
+  };
+
 // What a run needs before it starts: node types this version runs, and sh for commands and a precheck.
 const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boolean): Finding | null => {
   const node = workflow.nodes.find((each) => !RUNNABLE.has(each.type) && !(agents && each.type === "agent.run"));
@@ -282,8 +296,12 @@ const runHeld = async (
     "file.write": fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
   };
-  // An agent attempt a dead runner left ends with its result or resumes its session; every other one ends interrupted.
-  const recover = agents === undefined ? {} : { "agent.run": agentRecover(run, agents) };
+  // An agent attempt a dead runner left ends with its result or resumes its session, and a write ends with its apply
+  // run; every other one ends interrupted.
+  const recover = {
+    "file.write": writeRecover(state),
+    ...(agents === undefined ? {} : { "agent.run": agentRecover(run, agents) }),
+  };
   try {
     const { signal, onEvent, sleep } = options;
     const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover });

@@ -113,12 +113,22 @@ const methods = (app: FastifyInstance): void => {
   app.addHook("onRequest", async (req, reply) => (req.routeOptions.url === undefined ? answer(req, reply) : undefined));
 };
 
+// A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
+// Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
+// A JSON body with a __proto__ or constructor.prototype key is refused: Fastify's default, stated as CedarLoom's policy.
+const SERVER = {
+  bodyLimit: BODY_LIMIT,
+  frameworkErrors,
+  requestTimeout: 30_000,
+  forceCloseConnections: true,
+  onProtoPoisoning: "error",
+  onConstructorPoisoning: "error",
+} as const;
+
 /** The local server's routes over the use cases, with the session guard on every request. */
 export const buildApp = async (options: AppOptions): Promise<FastifyInstance> => {
   const { state, config, machine, session, log, ui, every = 1000, fetch } = options;
-  // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
-  // Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
-  const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000, forceCloseConnections: true });
+  const app = Fastify(SERVER);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(swagger, {

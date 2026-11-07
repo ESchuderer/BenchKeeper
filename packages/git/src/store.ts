@@ -54,7 +54,8 @@ const OFF = flags([
   ["gc.auto", "0"],
 ]);
 
-const BASE = { windowsHide: true, maxBuffer: 256 * 1024 * 1024 };
+// A git that does not end in a minute is stopped: a synchronous call would otherwise hold the process for good.
+const BASE = { windowsHide: true, maxBuffer: 256 * 1024 * 1024, timeout: 60_000 };
 
 // The hooks the user's configuration names run whatever core.hooksPath says (git 2.54), `init` among them: read where
 // no repository is found, so only the user's own configuration is, and turned off.

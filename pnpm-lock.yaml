@@ -207,6 +207,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
 
   packages/ledger:
     dependencies:

@@ -58,7 +58,7 @@ import {
   planHash,
   type RunLease,
 } from "@cedarloom/ledger";
-import { cleanEnv } from "@cedarloom/orchestration";
+import { cleanEnv, programPath } from "@cedarloom/orchestration";
 import { type Launch, type Sandbox, type SandboxPolicy, sandboxRuntime, stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
@@ -112,13 +112,11 @@ const RUNNABLE = new Set([
 ]);
 
 /** The POSIX `sh` that runs commands: /bin/sh, or on Windows Git for Windows' sh.exe on PATH or in its usual folder. */
-const findShell = (platform: NodeJS.Platform = process.platform, env = process.env): string | null => {
-  if (platform !== "win32") return "/bin/sh";
+const findShell = (): string | null => {
+  if (process.platform !== "win32") return "/bin/sh";
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
-  const git = win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin");
-  // Only absolute folders: an empty or relative PATH entry would find a sh.exe in the project.
-  const dirs = [...(env["PATH"] ?? "").split(";").filter((dir) => win32.isAbsolute(dir)), git];
-  return dirs.map((dir) => win32.join(dir, "sh.exe")).find((file) => existsSync(file)) ?? null;
+  const git = win32.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "Git", "bin", "sh.exe");
+  return programPath("sh", process.env) ?? (existsSync(git) ? git : null);
   /* v8 ignore stop */
 };
 

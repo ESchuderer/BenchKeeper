@@ -113,3 +113,4 @@ export {
   profileDoctor,
 } from "./profiles.ts";
 export { diffProfile, planProfileCopy } from "./profile-copy.ts";
+export { programPath } from "@cedarloom/orchestration";

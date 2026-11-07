@@ -417,3 +417,9 @@ export const ExportIndex = z
   })
   .register(fileFormats, { id: "ExportIndex" });
 export type ExportIndex = z.infer<typeof ExportIndex>;
+
+/** The file texts of an export's index and lock: keys sorted, two spaces, a final line break. */
+export const formatExport = (index: ExportIndex): string =>
+  `${JSON.stringify(ExportIndex.parse(sortKeys(index)), null, 2)}\n`;
+export const formatLock = (lock: ExtensionLock): string =>
+  `${JSON.stringify(ExtensionLock.parse(sortKeys(lock)), null, 2)}\n`;

@@ -19,6 +19,7 @@ import {
   runsList,
   runsShow,
   runsUndo,
+  workflowsExport,
   workflowsHistory,
   workflowsOpen,
   workflowsSave,
@@ -82,6 +83,15 @@ const storeCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
     .addArgument(new Argument("<id>", ID).argParser(workflowId))
     .option("--at <commit>", "the version's commit from the history (default: the latest)")
     .action((id, options) => done(workflowsOpen(ctx(), id, options)));
+  workflows
+    .command("export")
+    .description("show writing stored workflows and their extensions' lock into a folder; with --yes, write them")
+    .argument("<id...>", "the workflows' ids")
+    .requiredOption("--to <folder>", "the export folder, which you commit and push with your own Git")
+    .option("--name <text>", "the export's name (default: the folder's name)")
+    .option("--license <spdx>", "the license of each workflow that names none")
+    .option("--yes", "write the files as computed now")
+    .action((ids, { to, ...options }) => done(workflowsExport(ctx(), ids, resolve(to), options)));
 };
 
 const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {

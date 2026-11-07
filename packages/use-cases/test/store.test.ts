@@ -7,6 +7,7 @@ import {
   applyPlan,
   deleteDraft,
   openVersion,
+  planExport,
   planSave,
   readDraft,
   saveDraft,
@@ -156,5 +157,60 @@ test("a branch git cannot move, its ref locked by another process, is git's fail
       { code: "run.failed", params: { runId: locked.runId, undoes: null } },
     ],
     ["1.0.0"],
+  ]);
+});
+
+// A stored workflow w that uses the extension acme.jira.
+const storedWithExtension = (dir: string): void => {
+  const minimal = sample("valid-minimal.json");
+  const nodes = [...minimal.nodes, { id: "jira", type: "acme.jira/search-issues" }];
+  ok(saveDraft(dir, "w", { ...minimal, metadata: { ...minimal.metadata, id: "w" }, nodes }, null));
+  ok(applyPlan(dir, ok(planSave(dir, "w")).plan, { yes: true }));
+};
+
+test("an export writes the index, each stored workflow byte for byte, and the lock of the extensions they use", () => {
+  const dir = state();
+  storedWithExtension(dir);
+  const installed = join(corpus, "..", "..", "InstalledExtensions", "1", "valid-installed.json");
+  writeFileSync(join(dir, "extensions.json"), readFileSync(installed));
+  const folder = join(dir, "shared");
+  const { plan, extensions } = ok(planExport(dir, ["w"], folder, { name: "Team flows" }));
+  ok(applyPlan(dir, plan, { yes: true }));
+  const store = openStore(join(dir, "store.git"));
+  const blob = String(store.blob(String(store.head()), "workflows/workflow-w.json"));
+  const read = (path: string): string => readFileSync(join(folder, path), "utf8");
+  expect([
+    extensions,
+    JSON.parse(read("cedarloom-export.json")),
+    JSON.parse(read("cedarloom.lock.json")),
+    read("workflows/workflow-w.json") === ok(store.read(blob)).toString("utf8"),
+  ]).toEqual([
+    ["acme.jira"],
+    { schemaVersion: 1, kind: "cedarloom.export", name: "Team flows", workflows: ["w"] },
+    {
+      schemaVersion: 1,
+      kind: "cedarloom.lock",
+      extensions: {
+        "acme.jira": {
+          version: "2.1.0",
+          source: { git: "https://git.example.org/acme/jira.git", commit: "9b2e4c1f0a8d7e6b5c4a3f2e1d0c9b8a7f6e5d4c" },
+          digest: "3f0c6d1e2b4a59687a8b9c0d1e2f30415263748596a7b8c9d0e1f2031425364a",
+        },
+      },
+    },
+    true,
+  ]);
+});
+
+test("an export refuses a workflow the store does not hold, and an extension not installed here", () => {
+  const dir = state();
+  storedWithExtension(dir);
+  const folder = join(dir, "shared");
+  expect([
+    refusal(planExport(dir, ["v"], folder, { name: "x" })),
+    refusal(planExport(dir, ["w"], folder, { name: "x" })),
+  ]).toEqual([
+    { code: "store.not-found", params: { id: "v", commit: null } },
+    { code: "extension.unknown", params: { extension: "acme.jira" } },
   ]);
 });

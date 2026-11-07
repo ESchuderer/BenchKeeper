@@ -355,6 +355,30 @@
           },
           "minProperties": 1,
           "maxProperties": 100
+        },
+        "doctor": {
+          "description": "The extension's own checks, which the doctor asks it for (doctor/run)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "maxProperties": 20
         }
       },
       "required": [

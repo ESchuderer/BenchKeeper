@@ -5,6 +5,8 @@ import {
   ACTION_FAILED,
   type Action,
   defineExtension,
+  doctorRun,
+  type ExtensionOptions,
   exit,
   HOST_FAILED,
   hostFetch,
@@ -70,10 +72,10 @@ const actions: Record<string, Action> = {
 type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
 
 /** The host's end of a connection to an extension on in-memory streams, the log lines it got, and its exit. */
-const connect = (): Connected => {
+const connect = (more: Pick<ExtensionOptions, "doctor"> = {}): Connected => {
   const [toExtension, toHost] = [new PassThrough(), new PassThrough()];
   const exited = Promise.withResolvers<number>();
-  defineExtension(actions, { input: toExtension, output: toHost, onExit: exited.resolve });
+  defineExtension(actions, { input: toExtension, output: toHost, onExit: exited.resolve, ...more });
   const host = createMessageConnection(new StreamMessageReader(toHost), new StreamMessageWriter(toExtension));
   const logs: LogParams[] = [];
   host.onNotification(log, (line) => {
@@ -228,3 +230,19 @@ test("an extension on its real stdio keeps every other write off standard output
     expect.stringMatching(/a stray line for standard output[\s\S]*stray: 'object'[\s\S]*a stray write/),
   ]);
 }, 30_000);
+
+// A check whose text is the language it was asked in.
+const doctor: ExtensionOptions["doctor"] = ({ locale }) => [
+  { check: "setup", severity: "info", code: "example.language", message: locale },
+];
+
+test("the doctor's checks run in the language initialize named, and an extension without checks has none", async () => {
+  const { host } = connect({ doctor });
+  await host.sendRequest(initialize, hello);
+  const plain = connect().host;
+  await plain.sendRequest(initialize, hello);
+  expect([await host.sendRequest(doctorRun), await plain.sendRequest(doctorRun)]).toEqual([
+    { findings: [{ check: "setup", severity: "info", code: "example.language", message: "de" }] },
+    { findings: [] },
+  ]);
+});

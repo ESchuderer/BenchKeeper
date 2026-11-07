@@ -166,6 +166,12 @@ const requests = {
     return { protocol, actions: { "x-noactions": "all", "x-deep": [deep] }[mode] ?? names };
   },
   "action/run": async (params) => ({ outputs: await actions[params.action](params) }),
+  // Its own check: x-slow-doctor never answers, x-other-check names a check its manifest does not.
+  "doctor/run": () => {
+    if (mode === "x-slow-doctor") return new Promise(() => undefined);
+    const check = mode === "x-other-check" ? "elsewhere" : "fixture";
+    return { findings: [{ check, severity: "warning", code: "fixture.checked", message: "checked\u001b[2K" }] };
+  },
   shutdown: () => null,
 };
 

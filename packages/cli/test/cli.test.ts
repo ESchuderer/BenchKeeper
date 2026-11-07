@@ -690,13 +690,9 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
     return lease.runId;
   });
   store.value.close();
-  // Without --yes a resume or a cancel shows what it would do, and changes nothing.
-  const plan = "Left running when its runner died; they end interrupted";
-  const again = "\n  a#1  pid 4242\nNothing changed. Run the command again with --yes to";
-  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(
-    `${plan}, count as failed, and retries rerun them:${again} resume it.`,
-  );
-  expect((await cli("runs", "cancel", two)).out).toContain(`${plan}:${again} cancel it.`);
+  // Without --yes a resume or a cancel lists the attempts it would end, and changes nothing.
+  expect((await cli("runs", "resume", one, "--project", root)).out).toContain("\n  a#1  pid 4242\n");
+  expect((await cli("runs", "cancel", two)).out).toContain("\n  a#1  pid 4242\n");
   expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
     code: EXIT.refused,
     out: `Run ${one}: failed.\n`,

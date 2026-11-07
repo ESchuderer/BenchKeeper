@@ -627,19 +627,6 @@ test("an extension from elsewhere that names programs is refused, since a progra
   expect(result.ok ? "started" : result.finding).toEqual(refusal("programs"));
 });
 
-// Whether the process `pid` is gone, within a second: a killed one is reaped by init shortly after.
-const gone = async (pid: number): Promise<boolean> => {
-  for (let tries = 0; tries < 20; tries += 1) {
-    try {
-      process.kill(pid, 0);
-    } catch {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return false;
-};
-
 test.skipIf(process.platform === "win32")(
   "host/exec stops a program's whole tree at its limit and answers at once",
   async () => {
@@ -651,11 +638,13 @@ test.skipIf(process.platform === "win32")(
       { program: "sh", args: ["-c", `sleep 30 & echo $! > '${pidFile}'; echo started`] },
     ]);
     const answeredIn = Date.now() - begun;
-    expect([answers, answeredIn < 5000, await gone(Number(readFileSync(pidFile, "utf8")))]).toEqual([
+    expect([answers, answeredIn < 5000]).toEqual([
       { answers: [{ error: { code: HOST_FAILED, message: "stopped at the time limit of 500 ms" } }] },
       true,
-      true,
     ]);
+    // A killed process is gone once init has reaped it, shortly after.
+    const background = Number(readFileSync(pidFile, "utf8"));
+    await vi.waitFor(() => expect(() => process.kill(background, 0)).toThrow("ESRCH"), { timeout: 3000 });
   },
 );
 
@@ -687,4 +676,41 @@ test.runIf(process.platform === "win32")("host/exec finds a candidate named with
   const fixture = await extension({ manifest: withPrograms({ node: ["node.exe"] }) });
   const answers = await execs(fixture, [{ program: "node", args: ["-e", "process.stdout.write('found')"] }]);
   expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "found", stderr: "" } }] });
+});
+
+// A doctor run that ended without findings of the extension's own.
+const unanswered = (error: string) => ({
+  code: "extension.failed",
+  params: { extension: "acme.fixture", step: "doctor", error },
+});
+
+test("the doctor asks an extension's own checks once and shows their texts safely; no answer in time is a finding", async () => {
+  const plain = manifestOf(ACTIONS);
+  const checked = ExtensionManifest.parse({
+    ...plain,
+    contributes: { ...plain.contributes, doctor: { fixture: { title: "Fixture" } } },
+  });
+  const ask = async (more: Partial<ExtensionLaunch>) => (await extension({ manifest: checked, ...more })).doctor();
+  expect([
+    await ask({}),
+    await ask({ locale: "x-slow-doctor", limits: { doctorMs: 200 } }),
+    await ask({ locale: "x-other-check" }),
+    await (await extension()).doctor(),
+  ]).toEqual([
+    [
+      {
+        code: "extension.finding",
+        params: {
+          extension: "acme.fixture",
+          check: "fixture",
+          severity: "warning",
+          code: "fixture.checked",
+          message: "checked\\u001b[2K",
+        },
+      },
+    ],
+    [unanswered("no answer within 200 ms")],
+    [unanswered("an answer the host refuses")],
+    [],
+  ]);
 });

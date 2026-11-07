@@ -68,6 +68,15 @@ export const HOST_REFUSED = 2;
 export const HOST_FAILED = 3;
 export const HOST_MISSING = 4;
 
+/**
+ * One finding of the extension's own checks (its manifest's `contributes.doctor`): which check, how bad, a code of the
+ * extension's own, and its text for people in the language `initialize` named, from the extension's own catalog.
+ */
+export type DoctorFinding = { check: string; severity: "error" | "warning" | "info"; code: string; message: string };
+export type DoctorResult = { findings: DoctorFinding[] };
+/** The host asks once per doctor run, and gives up after its limit: no answer is a finding of its own. */
+export const doctorRun = new RequestType0<DoctorResult, void>("doctor/run");
+
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");

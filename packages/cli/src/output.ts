@@ -1,4 +1,4 @@
-import { type Finding, findingInfo } from "@cedarloom/contracts";
+import { type Finding, severityOf } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
 import type { ClaudeLaunch } from "@cedarloom/adapter-claude";
 import type { AgentOptions, Fetch, LoginRun, LoginStatus } from "@cedarloom/use-cases";
@@ -42,7 +42,7 @@ export const emit = (ctx: Context, format: string, data: Record<string, unknown>
 
 export const report = (ctx: Context, findings: Finding[], to: "out" | "err" = "err"): void => {
   if (ctx.json) return;
-  for (const finding of findings) ctx.io[to](`${findingInfo[finding.code].severity}: ${describe(finding)}\n`);
+  for (const finding of findings) ctx.io[to](`${severityOf(finding)}: ${describe(finding)}\n`);
 };
 
 /** Emits the findings as the command's result and returns its exit code. */

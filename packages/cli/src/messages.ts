@@ -31,6 +31,7 @@ const EXTENSION_STEPS = {
   start: "start",
   initialize: "answer its handshake",
   run: "run an action",
+  doctor: "answer the doctor's checks",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",
@@ -196,6 +197,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
+  "extension.finding": (p) => `${p.extension}: ${p.message}`,
   "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
   "extension.consent-needed": (p) =>
     `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,

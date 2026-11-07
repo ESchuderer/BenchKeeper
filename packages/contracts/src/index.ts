@@ -46,7 +46,7 @@ export {
   WORKER_RESULT_SCHEMA_VERSION,
   WorkerResult,
 } from "./launch.ts";
-export { Finding, type FindingCode, findingInfo } from "./findings.ts";
+export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {
   AttemptOutcome,
   GraphRun,

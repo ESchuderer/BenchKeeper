@@ -9,7 +9,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import type { Finding, Plan } from "@cedarloom/contracts";
 import { createHash } from "node:crypto";
 import {
@@ -20,9 +20,10 @@ import {
   type PlanOptions,
   planChoice,
   planProfile,
+  planSwitch,
   profileDoctor,
 } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
 const root = testRoot("profiles");
@@ -324,6 +325,62 @@ test("a broken block, or a project that is no folder, stops the plan", async () 
     },
     { ok: false, finding: { code: "document.unreadable", params: { path: missing, error: "not a folder" } } },
   ]);
+});
+
+// An app folder shipping cedarloom.orca, whose program is a file in `bin` of a name no PATH holds.
+const orcaApp = () => {
+  const at = mkdtempSync(join(root, "orca-"));
+  const [extension, bin] = [join(at, "app", "cedarloom.orca"), join(at, "bin")];
+  mkdirSync(extension, { recursive: true });
+  mkdirSync(bin);
+  const name = ["cedarloom-test-orca"];
+  const manifest = {
+    schemaVersion: 1,
+    kind: "cedarloom.extension",
+    id: "cedarloom.orca",
+    version: "1.0.0",
+    name: "Orca",
+    api: "1.0",
+    runtime: { kind: "node", entry: "main.mjs" },
+    capabilities: { programs: { orca: { darwin: name, linux: name, win32: name } } },
+    contributes: { actions: { status: { title: "Status" } } },
+  };
+  writeFileSync(join(extension, "cedarloom-extension.json"), JSON.stringify(manifest));
+  writeFileSync(join(bin, process.platform === "win32" ? "cedarloom-test-orca.exe" : "cedarloom-test-orca"), "", {
+    mode: 0o755,
+  });
+  return { app: join(at, "app"), bin };
+};
+
+test("Orca's worktree files are planned only while its extension is not switched off and its program is found, also when selected", async () => {
+  const box = machine();
+  const { app, bin } = orcaApp();
+  const project = projectWith();
+  // The findings about the orca part; on, it waits for its approval, as its files configure a tool.
+  const orcaFindings = async () => {
+    const result = ok(
+      await planProfile(box.config, box.state, { home: box.home, user: box.home }, { app, fetch: stock, project }),
+    );
+    return result.findings
+      .filter((finding) => "part" in finding.params && finding.params.part === "project.orca")
+      .map(({ code }) => code);
+  };
+  const missing = await orcaFindings();
+  vi.stubEnv("PATH", `${bin}${delimiter}${process.env["PATH"] ?? ""}`);
+  try {
+    const found = await orcaFindings();
+    applied(box.state, ok(planSwitch(app, box.config, "cedarloom.orca", "off")));
+    const off = await orcaFindings();
+    applied(box.state, ok(planChoice(box.config, { part: "project.orca", on: true })));
+    expect([missing, found, off, await orcaFindings()]).toEqual([
+      [],
+      ["profile.target-approval"],
+      [],
+      ["profile.when-unmet"],
+    ]);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 test("a project's plan keeps the record of the machine's skills", async () => {
@@ -712,7 +769,7 @@ test("a part switched off is reported as present, and a check without its Git so
   const where = { home: box.home, user: box.user };
   applied(box.state, ok(planChoice(box.config, { part: "machine.rules.global", on: false })));
   // Offline is no problem of the machine: the doctor keeps the line and drops the error.
-  const doctor = driftLines(await profileDoctor(box.config, box.state, where, failing));
+  const doctor = driftLines(await profileDoctor(box.config, box.state, where, { fetch: failing }));
   expect([
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: stock }))),
     driftLines(ok(await checkProfile(box.config, box.state, where, { fetch: failing }))),

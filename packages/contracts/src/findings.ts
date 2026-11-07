@@ -240,6 +240,9 @@ export const Finding = z
     finding("profile.copy-exists", { path: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
+    // A part the selection switches on that stays off while its condition fails: for `orca`, the Orca extension is
+    // switched off or no orca program is found.
+    finding("profile.when-unmet", { part: z.string(), when: z.enum(["orca"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -424,6 +427,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.binding-waiting": { severity: "info", effort: "command" },
+  "profile.when-unmet": { severity: "warning", effort: "command" },
   "profile.drift": { severity: "warning", effort: "command" },
   "profile.remove-unknown": { severity: "error", effort: "manual" },
   "profile.copy-exists": { severity: "error", effort: "manual" },

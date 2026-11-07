@@ -167,7 +167,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
   const [logins, own, profile] = await Promise.all([
     useCases.checkLogins(ctx.state, ctx.config, host),
     useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
-    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch),
+    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), { app: ctx.app, fetch: ctx.io.fetch }),
   ]);
   const findings = [
     ...useCases.doctor(ctx.state),
@@ -622,7 +622,7 @@ export const profilesApply = async (
   ctx: Context,
   { yes, allow = [], project, remove = [] }: { yes?: true; allow?: string[]; project?: string; remove?: string[] },
 ): Promise<number> => {
-  const options = { allow, fetch: ctx.io.fetch, project, remove };
+  const options = { allow, app: ctx.app, fetch: ctx.io.fetch, project, remove };
   const profile = await useCases.planProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
@@ -646,7 +646,8 @@ export const profilesApply = async (
 
 /** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */
 export const profilesCheck = async (ctx: Context, { project }: { project?: string }): Promise<number> => {
-  const checked = await useCases.checkProfile(ctx.config, ctx.state, machineOf(ctx), { fetch: ctx.io.fetch, project });
+  const options = { app: ctx.app, fetch: ctx.io.fetch, project };
+  const checked = await useCases.checkProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!checked.ok) return refused(ctx, "plan", checked.finding);
   const drift = checked.value;
   const level = project === undefined ? "This machine" : "This project";

@@ -44,8 +44,8 @@ test.for<[string, object, unknown]>([
   ],
   [
     "a template where a rules text belongs",
-    { pack: "cedarloom.core", path: "templates/orca.yaml" },
-    { code: "profile.entry-unknown", params: { pack: "cedarloom.core", path: "templates/orca.yaml", kind: "rules" } },
+    { pack: "cedarloom.core", path: "templates/domain.md" },
+    { code: "profile.entry-unknown", params: { pack: "cedarloom.core", path: "templates/domain.md", kind: "rules" } },
   ],
 ])("a rules text with %s stops the plan", ([, text, expected]) => {
   expect(planWith(text)).toEqual(expected);

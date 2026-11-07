@@ -89,6 +89,10 @@ const resolve = (manifest: ExtensionManifest, program: string, env: NodeJS.Proce
   return file ?? new ResponseError(HOST_MISSING, `${program} is not installed: none of ${candidates.join(", ")} found`);
 };
 
+/** Whether host/exec would find the program from the manifest's candidates for this platform. */
+export const programFound = (manifest: ExtensionManifest, program: string): boolean =>
+  !(resolve(manifest, program, cleanEnv()) instanceof ResponseError);
+
 type Run = { file: string; args: string[]; env: NodeJS.ProcessEnv; ms: number; bytes: number; stop: AbortSignal };
 
 /**

@@ -52,14 +52,6 @@
       "kind": "template",
       "description": "scripts/dc, the dev container command"
     },
-    "templates/orca.yaml": {
-      "kind": "template",
-      "description": "Orca's per-worktree setup and archive scripts"
-    },
-    "templates/worktreeinclude": {
-      "kind": "template",
-      "description": ".worktreeinclude: the local files a new worktree copies"
-    },
     "templates/memory": {
       "kind": "template",
       "description": "The memory repository's first files: README.md, INDEX.md, the pull request template"

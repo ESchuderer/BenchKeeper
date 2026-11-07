@@ -907,7 +907,8 @@ test("a project's record names each committed file CedarLoom wrote, and stays as
 
 test("another clone takes a committed file as CedarLoom's by the project's record, CRLF or not: its older text is outdated", async () => {
   const project = projectWith();
-  applied(machine().state, (await projectPlan(machine(), project)).plan);
+  const first = machine();
+  applied(first.state, (await projectPlan(first, project)).plan);
   const [domain, path] = [
     join(realpathSync.native(project), "docs", "agents", "domain.md"),
     join(realpathSync.native(project), ".cedarloom", "profile-files.json"),
@@ -944,6 +945,24 @@ test("committed files another machine's profile wrote and recorded stay where a 
     ok(await planned(custom(packsPart([]), SKILLS), project, packs)).plan,
     deletes((await projectPlan(off, project)).plan),
   ]).toEqual([null, []]);
+});
+
+test("a clone on an older pack leaves files a newer one recorded, and says so where their text differs", async () => {
+  const project = projectWith();
+  const first = machine();
+  applied(first.state, (await projectPlan(first, project)).plan);
+  const domain = join(realpathSync.native(project), "docs", "agents", "domain.md");
+  const path = join(project, ".cedarloom", "profile-files.json");
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  record.files["docs/agents/domain.md"] = { sha256: sha("- newer\n"), pack: "cedarloom.core@99.0.0" };
+  // A file the newer pack left as this machine's pack has it: held, but nothing to report.
+  record.files["docs/agents/issue-tracker.md"].pack = "cedarloom.core@99.0.0";
+  writeFileSync(path, JSON.stringify(record));
+  writeFileSync(domain, "- newer\n");
+  const local = expect.stringMatching(/^cedarloom\.core@0\./);
+  const params = { path: domain, recorded: "cedarloom.core@99.0.0", local };
+  const { plan, findings } = await projectPlan(machine(), project);
+  expect([plan, findings]).toEqual([null, [{ code: "profile.newer-pack", params }]]);
 });
 
 // The test's packs with the review skill's text as given, in CRLF line endings, as a pack written on Windows may have.

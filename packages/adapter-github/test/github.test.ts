@@ -124,7 +124,7 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     { status: 403, body: secondary },
     { status: 429, body: secondary },
     { status: 401, body: { message: "Bad credentials" } },
-    { status: 502, body: { message: "Server Error" } },
+    { status: 502, headers: { "x-ratelimit-reset": "1794077799" }, body: { message: "Server Error" } },
     new TypeError("fetch failed"),
     { status: 403, body: forbidden },
     { status: 201, body: { id: 1, html_url: "javascript:alert(1)" } },
@@ -135,9 +135,10 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     const sent = await tracker.comment(issue, "Run ended.");
     findings.push(sent.ok ? "sent" : sent.finding);
   }
-  expect(findings.slice(0, 2)).toMatchObject([
+  expect([findings[0], findings[1], findings[5]]).toMatchObject([
     { params: { retryAfter: null, rateLimitReset: "1794077799" } },
     { params: { retryAfter: "60", rateLimitReset: null } },
+    { params: { retryAfter: null, rateLimitReset: null } },
   ]);
   expect(findings.map((found) => (typeof found === "string" ? found : Reflect.get(Object(found), "code")))).toEqual([
     "tracker.unavailable",

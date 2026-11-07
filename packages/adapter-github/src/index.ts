@@ -29,9 +29,9 @@ const limited = ({ status, response, message }: HttpError): boolean =>
       response?.headers["retry-after"] !== undefined ||
       /secondary rate limit/i.test(message)));
 
-// A header of GitHub's answer as it was sent; null when there was no answer or no such header.
+// A header of a rate limit's answer as GitHub sent it; null for any other answer, as every one carries x-ratelimit-reset.
 const header = (error: unknown, name: string): string | null => {
-  const value = httpError(error) ? error.response?.headers[name] : undefined;
+  const value = httpError(error) && limited(error) ? error.response?.headers[name] : undefined;
   return typeof value === "string" ? value : null;
 };
 

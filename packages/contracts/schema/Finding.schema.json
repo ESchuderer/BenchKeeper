@@ -4587,6 +4587,36 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "outbox.key-taken"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "outbox.not-hub"
         },
         "params": {

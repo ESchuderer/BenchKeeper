@@ -1915,6 +1915,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
             code: "outbox.not-hub";
             params: {
                 id: string;
@@ -3196,6 +3203,13 @@ export interface components {
             /** @constant */
             code: "outbox.not-found";
             params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.key-taken";
+            params: {
+                key: string;
                 id: string;
             };
         } | {

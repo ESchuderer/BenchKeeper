@@ -48,7 +48,8 @@ export class WorkItemStore {
 
   /**
    * Queues an intent under an idempotency key, approved by the owner or a mirroring opt-in through its hash: refused
-   * when the approval names another intent. A key queued before keeps its entry, which is returned again.
+   * when the approval names another intent. A key queued before keeps its entry, which is returned again for the same
+   * intent and refused for another one.
    */
   enqueue(key: string, input: Intent, approval: { by: OutboxEntry["approvedBy"]; hash: string }): Result<OutboxEntry> {
     const intent = Intent.parse(input);
@@ -64,7 +65,8 @@ export class WorkItemStore {
         )
         .run(randomUUID(), OutboxEntry.shape.key.parse(key), canonicalJson(intent), hash, hash, approval.by, now());
       const [entry] = this.#where(`"key" = ?`, key);
-      if (entry?.intentHash !== hash) throw new Error(`the outbox key ${key} holds another intent`);
+      if (entry === undefined) throw new Error(`no outbox entry under ${key}`);
+      if (entry.intentHash !== hash) return refuse({ code: "outbox.key-taken", params: { key, id: entry.id } });
       return { ok: true, value: entry };
     });
   }

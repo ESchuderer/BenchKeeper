@@ -1272,6 +1272,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "import.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "draft.too-large"
               },
               "params": {
@@ -4135,519 +4161,6 @@
           }
         ]
       },
-      "RunInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "apply",
-              "undo"
-            ]
-          },
-          "undoes": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "planHash": {
-            "$ref": "#/components/schemas/Sha256Input"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "running",
-              "applied",
-              "failed",
-              "interrupted"
-            ]
-          },
-          "epoch": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "startedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "finishedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "undoes",
-          "planHash",
-          "status",
-          "epoch",
-          "startedAt",
-          "finishedAt"
-        ]
-      },
-      "StepInput": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "path": {
-            "type": "string"
-          },
-          "before": {
-            "anyOf": [
-              {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/Sha256Input"
-                  },
-                  {
-                    "$ref": "#/components/schemas/GitOidInput"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "after": {
-            "anyOf": [
-              {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/Sha256Input"
-                  },
-                  {
-                    "$ref": "#/components/schemas/GitOidInput"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "running",
-              "done",
-              "skipped"
-            ]
-          },
-          "mode": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "index",
-          "path",
-          "before",
-          "after",
-          "state",
-          "mode"
-        ]
-      },
-      "PlanPreviewInput": {
-        "type": "object",
-        "properties": {
-          "planHash": {
-            "$ref": "#/components/schemas/Sha256Input"
-          },
-          "plan": {
-            "type": "object",
-            "properties": {
-              "schemaVersion": {
-                "type": "number",
-                "const": 1
-              },
-              "operations": {
-                "type": "array",
-                "items": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/DeleteFileInput"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "write"
-                        },
-                        "path": {
-                          "type": "string",
-                          "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
-                        },
-                        "before": {
-                          "anyOf": [
-                            {
-                              "$ref": "#/components/schemas/Sha256Input"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mode": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 4095
-                        },
-                        "after": {
-                          "$ref": "#/components/schemas/Sha256Input"
-                        },
-                        "bytes": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "path",
-                        "before",
-                        "after",
-                        "bytes"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "$ref": "#/components/schemas/StoreUpdateInput"
-                    }
-                  ]
-                }
-              }
-            },
-            "required": [
-              "schemaVersion",
-              "operations"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "planHash",
-          "plan"
-        ],
-        "additionalProperties": false
-      },
-      "UndoPreviewInput": {
-        "type": "object",
-        "properties": {
-          "planHash": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Sha256Input"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "plan": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "schemaVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "operations": {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/DeleteFileInput"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "write"
-                            },
-                            "path": {
-                              "type": "string",
-                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
-                            },
-                            "before": {
-                              "anyOf": [
-                                {
-                                  "$ref": "#/components/schemas/Sha256Input"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "mode": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 4095
-                            },
-                            "after": {
-                              "$ref": "#/components/schemas/Sha256Input"
-                            },
-                            "bytes": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "path",
-                            "before",
-                            "after",
-                            "bytes"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "$ref": "#/components/schemas/StoreUpdateInput"
-                        }
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "schemaVersion",
-                  "operations"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FindingInput"
-            }
-          }
-        },
-        "required": [
-          "planHash",
-          "plan",
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "RunResultInput": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "applied",
-              "failed",
-              "refused",
-              "nothing-to-undo"
-            ]
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FindingInput"
-            }
-          }
-        },
-        "required": [
-          "runId",
-          "status",
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "RefusalInput": {
-        "type": "object",
-        "properties": {
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FindingInput"
-            }
-          }
-        },
-        "required": [
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "RunsEventInput": {
-        "type": "object",
-        "properties": {
-          "runs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RunInput"
-            }
-          }
-        },
-        "required": [
-          "runs"
-        ],
-        "additionalProperties": false
-      },
-      "WorkflowJsonInput": {
-        "anyOf": [
-          {
-            "not": {
-              "type": "object"
-            },
-            "items": {
-              "$ref": "#/components/schemas/WorkflowJsonInput"
-            }
-          },
-          {
-            "type": "object",
-            "propertyNames": {
-              "not": {
-                "const": "__proto__"
-              }
-            },
-            "additionalProperties": {
-              "$ref": "#/components/schemas/WorkflowJsonInput"
-            },
-            "not": {
-              "required": [
-                "constructor"
-              ],
-              "properties": {
-                "constructor": {
-                  "type": "object",
-                  "required": [
-                    "prototype"
-                  ]
-                }
-              }
-            }
-          }
-        ]
-      },
-      "DraftInfoInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "bytes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "bytes"
-        ],
-        "additionalProperties": false
-      },
-      "DraftInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "hash": {
-            "$ref": "#/components/schemas/Sha256Input"
-          },
-          "workflow": {
-            "$ref": "#/components/schemas/WorkflowJsonInput"
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "hash",
-          "workflow"
-        ],
-        "additionalProperties": false
-      },
-      "DraftSavedInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "hash": {
-            "$ref": "#/components/schemas/Sha256Input"
-          },
-          "bytes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "overwrote": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "hash",
-          "bytes",
-          "overwrote"
-        ],
-        "additionalProperties": false
-      },
       "ImportReviewInput": {
         "type": "object",
         "properties": {
@@ -5018,6 +4531,634 @@
           "units",
           "risks",
           "extensions"
+        ],
+        "additionalProperties": false
+      },
+      "RunInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "undo"
+            ]
+          },
+          "undoes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "planHash": {
+            "$ref": "#/components/schemas/Sha256Input"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "applied",
+              "failed",
+              "interrupted"
+            ]
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "undoes",
+          "planHash",
+          "status",
+          "epoch",
+          "startedAt",
+          "finishedAt"
+        ]
+      },
+      "StepInput": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "path": {
+            "type": "string"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOidInput"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOidInput"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "skipped"
+            ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "path",
+          "before",
+          "after",
+          "state",
+          "mode"
+        ]
+      },
+      "PlanPreviewInput": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "$ref": "#/components/schemas/Sha256Input"
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "number",
+                "const": 1
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeleteFileInput"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "write"
+                        },
+                        "path": {
+                          "type": "string",
+                          "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                        },
+                        "before": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/Sha256Input"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mode": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4095
+                        },
+                        "after": {
+                          "$ref": "#/components/schemas/Sha256Input"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "path",
+                        "before",
+                        "after",
+                        "bytes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/StoreUpdateInput"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "operations"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "planHash",
+          "plan"
+        ],
+        "additionalProperties": false
+      },
+      "UndoPreviewInput": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFileInput"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256Input"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256Input"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdateInput"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingInput"
+            }
+          }
+        },
+        "required": [
+          "planHash",
+          "plan",
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "ImportPreviewInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review": {
+            "$ref": "#/components/schemas/ImportReviewInput"
+          },
+          "planHash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFileInput"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256Input"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256Input"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdateInput"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "review",
+          "planHash",
+          "plan"
+        ],
+        "additionalProperties": false
+      },
+      "RunResultInput": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "failed",
+              "refused",
+              "nothing-to-undo"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingInput"
+            }
+          }
+        },
+        "required": [
+          "runId",
+          "status",
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "RefusalInput": {
+        "type": "object",
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingInput"
+            }
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "RunsEventInput": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunInput"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowJsonInput": {
+        "anyOf": [
+          {
+            "not": {
+              "type": "object"
+            },
+            "items": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "not": {
+                "const": "__proto__"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowJsonInput"
+            },
+            "not": {
+              "required": [
+                "constructor"
+              ],
+              "properties": {
+                "constructor": {
+                  "type": "object",
+                  "required": [
+                    "prototype"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DraftInfoInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "bytes"
+        ],
+        "additionalProperties": false
+      },
+      "DraftInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "hash": {
+            "$ref": "#/components/schemas/Sha256Input"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJsonInput"
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "hash",
+          "workflow"
+        ],
+        "additionalProperties": false
+      },
+      "DraftSavedInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "hash": {
+            "$ref": "#/components/schemas/Sha256Input"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "overwrote": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "hash",
+          "bytes",
+          "overwrote"
         ],
         "additionalProperties": false
       },
@@ -6286,6 +6427,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "import.not-found"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "draft.too-large"
               },
               "params": {
@@ -9149,486 +9316,6 @@
           }
         ]
       },
-      "Run": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "apply",
-              "undo"
-            ]
-          },
-          "undoes": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "planHash": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "running",
-              "applied",
-              "failed",
-              "interrupted"
-            ]
-          },
-          "epoch": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "startedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "finishedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "undoes",
-          "planHash",
-          "status",
-          "epoch",
-          "startedAt",
-          "finishedAt"
-        ],
-        "additionalProperties": false
-      },
-      "Step": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "path": {
-            "type": "string"
-          },
-          "before": {
-            "anyOf": [
-              {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/Sha256"
-                  },
-                  {
-                    "$ref": "#/components/schemas/GitOid"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "after": {
-            "anyOf": [
-              {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/Sha256"
-                  },
-                  {
-                    "$ref": "#/components/schemas/GitOid"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "running",
-              "done",
-              "skipped"
-            ]
-          },
-          "mode": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "index",
-          "path",
-          "before",
-          "after",
-          "state",
-          "mode"
-        ],
-        "additionalProperties": false
-      },
-      "PlanPreview": {
-        "type": "object",
-        "properties": {
-          "planHash": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "plan": {
-            "type": "object",
-            "properties": {
-              "schemaVersion": {
-                "type": "number",
-                "const": 1
-              },
-              "operations": {
-                "type": "array",
-                "items": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/DeleteFile"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "write"
-                        },
-                        "path": {
-                          "type": "string",
-                          "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
-                        },
-                        "before": {
-                          "anyOf": [
-                            {
-                              "$ref": "#/components/schemas/Sha256"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mode": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 4095
-                        },
-                        "after": {
-                          "$ref": "#/components/schemas/Sha256"
-                        },
-                        "bytes": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "path",
-                        "before",
-                        "after",
-                        "bytes"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "$ref": "#/components/schemas/StoreUpdate"
-                    }
-                  ]
-                }
-              }
-            },
-            "required": [
-              "schemaVersion",
-              "operations"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "planHash",
-          "plan"
-        ],
-        "additionalProperties": false
-      },
-      "UndoPreview": {
-        "type": "object",
-        "properties": {
-          "planHash": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Sha256"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "plan": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "schemaVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "operations": {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/DeleteFile"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "write"
-                            },
-                            "path": {
-                              "type": "string",
-                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
-                            },
-                            "before": {
-                              "anyOf": [
-                                {
-                                  "$ref": "#/components/schemas/Sha256"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "mode": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 4095
-                            },
-                            "after": {
-                              "$ref": "#/components/schemas/Sha256"
-                            },
-                            "bytes": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "path",
-                            "before",
-                            "after",
-                            "bytes"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "$ref": "#/components/schemas/StoreUpdate"
-                        }
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "schemaVersion",
-                  "operations"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Finding"
-            }
-          }
-        },
-        "required": [
-          "planHash",
-          "plan",
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "RunResult": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "applied",
-              "failed",
-              "refused",
-              "nothing-to-undo"
-            ]
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Finding"
-            }
-          }
-        },
-        "required": [
-          "runId",
-          "status",
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "Refusal": {
-        "type": "object",
-        "properties": {
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Finding"
-            }
-          }
-        },
-        "required": [
-          "findings"
-        ],
-        "additionalProperties": false
-      },
-      "RunsEvent": {
-        "type": "object",
-        "properties": {
-          "runs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Run"
-            }
-          }
-        },
-        "required": [
-          "runs"
-        ],
-        "additionalProperties": false
-      },
-      "WorkflowJson": {},
-      "DraftInfo": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "bytes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "bytes"
-        ],
-        "additionalProperties": false
-      },
-      "Draft": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "hash": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "workflow": {
-            "$ref": "#/components/schemas/WorkflowJson"
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "hash",
-          "workflow"
-        ],
-        "additionalProperties": false
-      },
-      "DraftSaved": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "hash": {
-            "$ref": "#/components/schemas/Sha256"
-          },
-          "bytes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "overwrote": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "savedAt",
-          "hash",
-          "bytes",
-          "overwrote"
-        ],
-        "additionalProperties": false
-      },
       "ImportReview": {
         "type": "object",
         "properties": {
@@ -9999,6 +9686,601 @@
           "units",
           "risks",
           "extensions"
+        ],
+        "additionalProperties": false
+      },
+      "Run": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "undo"
+            ]
+          },
+          "undoes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "planHash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "applied",
+              "failed",
+              "interrupted"
+            ]
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "undoes",
+          "planHash",
+          "status",
+          "epoch",
+          "startedAt",
+          "finishedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Step": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "path": {
+            "type": "string"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOid"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sha256"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitOid"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "skipped"
+            ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "path",
+          "before",
+          "after",
+          "state",
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "PlanPreview": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "number",
+                "const": 1
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DeleteFile"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "write"
+                        },
+                        "path": {
+                          "type": "string",
+                          "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                        },
+                        "before": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/Sha256"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mode": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4095
+                        },
+                        "after": {
+                          "$ref": "#/components/schemas/Sha256"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "path",
+                        "before",
+                        "after",
+                        "bytes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/StoreUpdate"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "operations"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "planHash",
+          "plan"
+        ],
+        "additionalProperties": false
+      },
+      "UndoPreview": {
+        "type": "object",
+        "properties": {
+          "planHash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFile"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdate"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          }
+        },
+        "required": [
+          "planHash",
+          "plan",
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "ImportPreview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review": {
+            "$ref": "#/components/schemas/ImportReview"
+          },
+          "planHash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DeleteFile"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "write"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+                            },
+                            "before": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/Sha256"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mode": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4095
+                            },
+                            "after": {
+                              "$ref": "#/components/schemas/Sha256"
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "path",
+                            "before",
+                            "after",
+                            "bytes"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/components/schemas/StoreUpdate"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "review",
+          "planHash",
+          "plan"
+        ],
+        "additionalProperties": false
+      },
+      "RunResult": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "failed",
+              "refused",
+              "nothing-to-undo"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          }
+        },
+        "required": [
+          "runId",
+          "status",
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "Refusal": {
+        "type": "object",
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "RunsEvent": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowJson": {},
+      "DraftInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "bytes"
+        ],
+        "additionalProperties": false
+      },
+      "Draft": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "hash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowJson"
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "hash",
+          "workflow"
+        ],
+        "additionalProperties": false
+      },
+      "DraftSaved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "hash": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "overwrote": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "savedAt",
+          "hash",
+          "bytes",
+          "overwrote"
         ],
         "additionalProperties": false
       }
@@ -10632,6 +10914,169 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "git": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "git",
+                  "ref"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports/{importId}/apply": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approve": {
+                    "$ref": "#/components/schemas/Sha256Input"
+                  }
+                },
+                "required": [
+                  "approve"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "importId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RunResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Refusal"
+                    }
+                  ]
                 }
               }
             }

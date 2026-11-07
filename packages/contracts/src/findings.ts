@@ -62,6 +62,8 @@ export const Finding = z
     finding("store.busy", { dir: z.string() }),
     finding("store.network-filesystem", { dir: z.string(), fsType: z.string() }),
     finding("draft.not-found", { id: z.string() }),
+    // An import the server keeps no plan for: applied already, older than its latest reviews, or from before a restart.
+    finding("import.not-found", { id: z.string() }),
     finding("draft.too-large", { id: z.string(), bytes: z.int(), limit: z.int() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
     // A run store from before 0.1.0, which is not carried over (pre-release only).
@@ -289,6 +291,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "store.busy": { severity: "error", effort: "manual" },
   "store.network-filesystem": { severity: "error", effort: "manual" },
   "draft.not-found": { severity: "error", effort: "manual" },
+  "import.not-found": { severity: "error", effort: "command" },
   "draft.too-large": { severity: "error", effort: "manual" },
   "store.newer-schema": { severity: "error", effort: "manual" },
   "store.older-schema": { severity: "error", effort: "manual" },

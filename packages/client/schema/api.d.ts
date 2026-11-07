@@ -551,6 +551,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        git: string;
+                        ref: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportPreview"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/imports/{importId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    importId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        approve: components["schemas"]["Sha256Input"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"];
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunResult"] | components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -861,6 +995,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };
@@ -1508,97 +1648,6 @@ export interface components {
                 unit: "files" | "bytes";
             };
         };
-        RunInput: {
-            id: string;
-            /** @enum {string} */
-            kind: "apply" | "undo";
-            undoes: string | null;
-            planHash: components["schemas"]["Sha256Input"];
-            /** @enum {string} */
-            status: "running" | "applied" | "failed" | "interrupted";
-            epoch: number;
-            /** Format: date-time */
-            startedAt: string;
-            finishedAt: string | null;
-        };
-        StepInput: {
-            index: number;
-            path: string;
-            before: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
-            after: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
-            /** @enum {string} */
-            state: "pending" | "running" | "done" | "skipped";
-            mode: number | null;
-        };
-        PlanPreviewInput: {
-            planHash: components["schemas"]["Sha256Input"];
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFileInput"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256Input"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256Input"];
-                    bytes: number;
-                } | components["schemas"]["StoreUpdateInput"])[];
-            };
-        };
-        UndoPreviewInput: {
-            planHash: components["schemas"]["Sha256Input"] | null;
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFileInput"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256Input"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256Input"];
-                    bytes: number;
-                } | components["schemas"]["StoreUpdateInput"])[];
-            } | null;
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RunResultInput: {
-            runId: string | null;
-            /** @enum {string} */
-            status: "applied" | "failed" | "refused" | "nothing-to-undo";
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RefusalInput: {
-            findings: components["schemas"]["FindingInput"][];
-        };
-        RunsEventInput: {
-            runs: components["schemas"]["RunInput"][];
-        };
-        WorkflowJsonInput: unknown | {
-            [key: string]: components["schemas"]["WorkflowJsonInput"];
-        };
-        DraftInfoInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            bytes: number;
-        };
-        DraftInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256Input"];
-            workflow: components["schemas"]["WorkflowJsonInput"];
-        };
-        DraftSavedInput: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256Input"];
-            bytes: number;
-            overwrote: boolean;
-        };
         ImportReviewInput: {
             source: {
                 folder: string;
@@ -1668,6 +1717,115 @@ export interface components {
                     };
                 } | null;
             }[];
+        };
+        RunInput: {
+            id: string;
+            /** @enum {string} */
+            kind: "apply" | "undo";
+            undoes: string | null;
+            planHash: components["schemas"]["Sha256Input"];
+            /** @enum {string} */
+            status: "running" | "applied" | "failed" | "interrupted";
+            epoch: number;
+            /** Format: date-time */
+            startedAt: string;
+            finishedAt: string | null;
+        };
+        StepInput: {
+            index: number;
+            path: string;
+            before: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
+            after: (components["schemas"]["Sha256Input"] | components["schemas"]["GitOidInput"]) | null;
+            /** @enum {string} */
+            state: "pending" | "running" | "done" | "skipped";
+            mode: number | null;
+        };
+        PlanPreviewInput: {
+            planHash: components["schemas"]["Sha256Input"];
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdateInput"])[];
+            };
+        };
+        UndoPreviewInput: {
+            planHash: components["schemas"]["Sha256Input"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdateInput"])[];
+            } | null;
+            findings: components["schemas"]["FindingInput"][];
+        };
+        ImportPreviewInput: {
+            id: string | null;
+            review: components["schemas"]["ImportReviewInput"];
+            planHash: components["schemas"]["Sha256Input"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFileInput"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256Input"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256Input"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdateInput"])[];
+            } | null;
+        };
+        RunResultInput: {
+            runId: string | null;
+            /** @enum {string} */
+            status: "applied" | "failed" | "refused" | "nothing-to-undo";
+            findings: components["schemas"]["FindingInput"][];
+        };
+        RefusalInput: {
+            findings: components["schemas"]["FindingInput"][];
+        };
+        RunsEventInput: {
+            runs: components["schemas"]["RunInput"][];
+        };
+        WorkflowJsonInput: unknown | {
+            [key: string]: components["schemas"]["WorkflowJsonInput"];
+        };
+        DraftInfoInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            bytes: number;
+        };
+        DraftInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            workflow: components["schemas"]["WorkflowJsonInput"];
+        };
+        DraftSavedInput: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256Input"];
+            bytes: number;
+            overwrote: boolean;
         };
         SchemaVersion: number;
         Sha256: string;
@@ -1941,6 +2099,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };
@@ -2588,95 +2752,6 @@ export interface components {
                 unit: "files" | "bytes";
             };
         };
-        Run: {
-            id: string;
-            /** @enum {string} */
-            kind: "apply" | "undo";
-            undoes: string | null;
-            planHash: components["schemas"]["Sha256"];
-            /** @enum {string} */
-            status: "running" | "applied" | "failed" | "interrupted";
-            epoch: number;
-            /** Format: date-time */
-            startedAt: string;
-            finishedAt: string | null;
-        };
-        Step: {
-            index: number;
-            path: string;
-            before: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
-            after: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
-            /** @enum {string} */
-            state: "pending" | "running" | "done" | "skipped";
-            mode: number | null;
-        };
-        PlanPreview: {
-            planHash: components["schemas"]["Sha256"];
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFile"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256"];
-                    bytes: number;
-                } | components["schemas"]["StoreUpdate"])[];
-            };
-        };
-        UndoPreview: {
-            planHash: components["schemas"]["Sha256"] | null;
-            plan: {
-                /** @constant */
-                schemaVersion: 1;
-                operations: (components["schemas"]["DeleteFile"] | {
-                    /** @constant */
-                    kind: "write";
-                    path: string;
-                    before: components["schemas"]["Sha256"] | null;
-                    mode?: number;
-                    after: components["schemas"]["Sha256"];
-                    bytes: number;
-                } | components["schemas"]["StoreUpdate"])[];
-            } | null;
-            findings: components["schemas"]["Finding"][];
-        };
-        RunResult: {
-            runId: string | null;
-            /** @enum {string} */
-            status: "applied" | "failed" | "refused" | "nothing-to-undo";
-            findings: components["schemas"]["Finding"][];
-        };
-        Refusal: {
-            findings: components["schemas"]["Finding"][];
-        };
-        RunsEvent: {
-            runs: components["schemas"]["Run"][];
-        };
-        WorkflowJson: unknown;
-        DraftInfo: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            bytes: number;
-        };
-        Draft: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256"];
-            workflow: components["schemas"]["WorkflowJson"];
-        };
-        DraftSaved: {
-            id: string;
-            /** Format: date-time */
-            savedAt: string;
-            hash: components["schemas"]["Sha256"];
-            bytes: number;
-            overwrote: boolean;
-        };
         ImportReview: {
             source: {
                 folder: string;
@@ -2746,6 +2821,113 @@ export interface components {
                     };
                 } | null;
             }[];
+        };
+        Run: {
+            id: string;
+            /** @enum {string} */
+            kind: "apply" | "undo";
+            undoes: string | null;
+            planHash: components["schemas"]["Sha256"];
+            /** @enum {string} */
+            status: "running" | "applied" | "failed" | "interrupted";
+            epoch: number;
+            /** Format: date-time */
+            startedAt: string;
+            finishedAt: string | null;
+        };
+        Step: {
+            index: number;
+            path: string;
+            before: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
+            after: (components["schemas"]["Sha256"] | components["schemas"]["GitOid"]) | null;
+            /** @enum {string} */
+            state: "pending" | "running" | "done" | "skipped";
+            mode: number | null;
+        };
+        PlanPreview: {
+            planHash: components["schemas"]["Sha256"];
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFile"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdate"])[];
+            };
+        };
+        UndoPreview: {
+            planHash: components["schemas"]["Sha256"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFile"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdate"])[];
+            } | null;
+            findings: components["schemas"]["Finding"][];
+        };
+        ImportPreview: {
+            id: string | null;
+            review: components["schemas"]["ImportReview"];
+            planHash: components["schemas"]["Sha256"] | null;
+            plan: {
+                /** @constant */
+                schemaVersion: 1;
+                operations: (components["schemas"]["DeleteFile"] | {
+                    /** @constant */
+                    kind: "write";
+                    path: string;
+                    before: components["schemas"]["Sha256"] | null;
+                    mode?: number;
+                    after: components["schemas"]["Sha256"];
+                    bytes: number;
+                } | components["schemas"]["StoreUpdate"])[];
+            } | null;
+        };
+        RunResult: {
+            runId: string | null;
+            /** @enum {string} */
+            status: "applied" | "failed" | "refused" | "nothing-to-undo";
+            findings: components["schemas"]["Finding"][];
+        };
+        Refusal: {
+            findings: components["schemas"]["Finding"][];
+        };
+        RunsEvent: {
+            runs: components["schemas"]["Run"][];
+        };
+        WorkflowJson: unknown;
+        DraftInfo: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            bytes: number;
+        };
+        Draft: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256"];
+            workflow: components["schemas"]["WorkflowJson"];
+        };
+        DraftSaved: {
+            id: string;
+            /** Format: date-time */
+            savedAt: string;
+            hash: components["schemas"]["Sha256"];
+            bytes: number;
+            overwrote: boolean;
         };
     };
     responses: never;

@@ -142,18 +142,17 @@ const holdsLink = (folder: string): boolean =>
  */
 const folderIsPlain = (folder: string): boolean => !/[*?]/.test(folder) && !holdsLink(folder);
 
-/**
- * How to start the extension: under Node's permission flags, reading its folder only, `node:sqlite` off (it reaches
- * files past the flags), and for an extension from elsewhere in a sandbox. Node denies the network under
- * `--permission` only from version 25 (`--allow-net`, v25.0.0), so an older Node is refused.
- */
-// Why an extension from elsewhere may not run at all: a program the host runs is outside every sandbox (Q-O1 a), and
-// native Windows has none.
+// Why an extension from elsewhere may not run: a program runs outside every sandbox (Q-O1 a); Windows has none.
 const elsewhere = (launch: ExtensionLaunch): Refusal | undefined => {
   if (launch.manifest.capabilities?.programs !== undefined) return "programs";
   return (launch.platform ?? process.platform) === "win32" ? "windows" : undefined;
 };
 
+/**
+ * How to start the extension: under Node's permission flags, reading its folder only, `node:sqlite` off (it reaches
+ * files past the flags), and for an extension from elsewhere in a sandbox. Node denies the network under
+ * `--permission` only from version 25 (`--allow-net`, v25.0.0), so an older Node is refused.
+ */
 const launchOf = async (launch: ExtensionLaunch, folder: string): Promise<Launch | Finding> => {
   const { id, api, runtime } = launch.manifest;
   const flags = ["--permission", "--no-experimental-sqlite", `--allow-fs-read=${folder}`, join(folder, runtime.entry)];

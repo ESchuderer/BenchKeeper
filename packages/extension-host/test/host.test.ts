@@ -1,4 +1,13 @@
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -617,3 +626,52 @@ test("an extension from elsewhere that names programs is refused, since a progra
   });
   expect(result.ok ? "started" : result.finding).toEqual(refusal("programs"));
 });
+
+// Whether the process `pid` is gone, within a second: a killed one is reaped by init shortly after.
+const gone = async (pid: number): Promise<boolean> => {
+  for (let tries = 0; tries < 20; tries += 1) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+};
+
+test.skipIf(process.platform === "win32")(
+  "host/exec stops a program's whole tree at its limit and answers at once",
+  async () => {
+    // The shell exits at once; its background child holds the output open and would run on for 30 s.
+    const pidFile = join(scratch, "background.pid");
+    const fixture = await extension({ manifest: withPrograms({ sh: ["sh"] }), limits: { execMs: 500 } });
+    const begun = Date.now();
+    const answers = await execs(fixture, [
+      { program: "sh", args: ["-c", `sleep 30 & echo $! > '${pidFile}'; echo started`] },
+    ]);
+    const answeredIn = Date.now() - begun;
+    expect([answers, answeredIn < 5000, await gone(Number(readFileSync(pidFile, "utf8")))]).toEqual([
+      { answers: [{ error: { code: HOST_FAILED, message: "stopped at the time limit of 500 ms" } }] },
+      true,
+      true,
+    ]);
+  },
+);
+
+test.runIf(process.platform === "win32")(
+  "host/exec finds a program on a Windows search path spelled Path",
+  async () => {
+    const path = process.env["PATH"] ?? "";
+    delete process.env["PATH"];
+    process.env["Path"] = path;
+    try {
+      const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+      const answers = await execs(fixture, [{ program: "node", args: ["-e", "process.stdout.write('found')"] }]);
+      expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "found", stderr: "" } }] });
+    } finally {
+      delete process.env["Path"];
+      process.env["PATH"] = path;
+    }
+  },
+);

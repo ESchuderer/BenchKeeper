@@ -6,6 +6,7 @@ import type { ExtensionManifest } from "@cedarloom/contracts";
 import { type ExecResult, HOST_FAILED, HOST_MISSING, HOST_REFUSED } from "@cedarloom/extension-sdk";
 import { type CancellationToken, ResponseError } from "vscode-jsonrpc/node";
 import { z } from "zod";
+import { stopTree } from "./tree.ts";
 
 type Answer = ExecResult | ResponseError;
 type Limits = { execMs: number; execBytes: number; execs: number };
@@ -25,17 +26,24 @@ const Request = z.strictObject({
   timeoutMs: z.int().min(1).optional(),
 });
 
-// What a program needs to find the user's configuration, runtime and temp folders, and nothing more: no token, no
-// CLAUDE_CONFIG_DIR or CLAUDE_SECURESTORAGE_CONFIG_DIR (which take a tool away from the default home; claude-swap
-// refuses to run with them), no GIT_*.
+// What a program needs to find the user's configuration, runtime and temp folders and to reach the network through
+// the user's proxy, and nothing more: no token, no CLAUDE_CONFIG_DIR or CLAUDE_SECURESTORAGE_CONFIG_DIR (which take a
+// tool away from the default home; claude-swap refuses to run with them), no GIT_*. Names compare in upper case, so
+// Windows' Path and a lower-case http_proxy count.
 const KEPT = new Set(
   ["HOME", "PATH", "USER", "LOGNAME", "LANG", "LC_ALL", "TZ", "TMPDIR", "XDG_CONFIG_HOME", "XDG_DATA_HOME"].concat(
     ["XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR", "SYSTEMROOT", "WINDIR", "USERPROFILE", "APPDATA"],
-    ["LOCALAPPDATA", "TEMP", "TMP"],
+    ["LOCALAPPDATA", "TEMP", "TMP", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"],
   ),
 );
 const cleanEnv = (): NodeJS.ProcessEnv =>
   Object.fromEntries(Object.entries(process.env).filter(([name]) => KEPT.has(name.toUpperCase())));
+// The program search path: on Windows its name has any case, and a desktop's is spelled Path.
+const searchPath = (env: NodeJS.ProcessEnv): string =>
+  process.platform === "win32"
+    ? (Object.entries(env).find(([name]) => name.toUpperCase() === "PATH")?.[1] ?? "")
+    : (env["PATH"] ?? "");
+const PLATFORMS = new Set(["darwin", "linux", "win32"] as const);
 
 // A file this user may run; on Windows an .exe or .com, since a .cmd or .bat would run through a shell.
 const runnable = (path: string): boolean => {
@@ -67,18 +75,20 @@ const refused = (message: string): ResponseError => new ResponseError(HOST_REFUS
 const resolve = (manifest: ExtensionManifest, program: string, env: NodeJS.ProcessEnv): string | ResponseError => {
   const programs = manifest.capabilities?.programs ?? {};
   if (!Object.hasOwn(programs, program)) return refused(`no program ${program} in the manifest`);
-  const platform = process.platform === "darwin" || process.platform === "linux" ? process.platform : "win32";
-  const candidates = programs[program]?.[platform] ?? [];
-  const file = candidates.map((candidate) => located(candidate, env["PATH"] ?? "")).find(Boolean);
+  // A platform the manifest cannot name has no candidates.
+  const platform = [...PLATFORMS].find((each) => each === process.platform);
+  const candidates = platform === undefined ? [] : (programs[program]?.[platform] ?? []);
+  const file = candidates.map((candidate) => located(candidate, searchPath(env))).find(Boolean);
   return file ?? new ResponseError(HOST_MISSING, `${program} is not installed: none of ${candidates.join(", ")} found`);
 };
 
 type Run = { file: string; args: string[]; env: NodeJS.ProcessEnv; ms: number; bytes: number; stop: AbortSignal };
 
 /**
- * Runs the file without a shell in the user's home folder, and answers when it exits: its code and output, or why it
- * was stopped (the time limit, the output cap, a cancel, the session's end, a start that failed). A stopped program
- * answers at its exit, as its own children may hold its pipes open longer.
+ * Runs the file without a shell in the user's home folder, in a process group of its own, and answers when it ends:
+ * its code and output, or why it was stopped (the time limit, the output cap, a cancel, the session's end, a start that
+ * failed). A stop ends the whole tree, background children included, and answers at once when the program itself has
+ * exited already while a child of it holds its output open.
  */
 const run = ({ file, args, env, ms, bytes, stop }: Run): Promise<Answer> =>
   new Promise((done) => {
@@ -87,15 +97,29 @@ const run = ({ file, args, env, ms, bytes, stop }: Run): Promise<Answer> =>
       env,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
       windowsHide: true,
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let total = 0;
     let failure: string | undefined;
+    let answered = false;
+    const finish = (code: number | null): void => {
+      if (answered) return;
+      answered = true;
+      clearTimeout(timer);
+      stop.removeEventListener("abort", cancel);
+      if (failure !== undefined) done(new ResponseError(HOST_FAILED, failure));
+      else done({ code, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") });
+    };
     const end = (why: string): void => {
       failure ??= why;
-      child.kill("SIGKILL");
+      if (child.pid !== undefined) stopTree(child.pid, child);
+      if (child.exitCode === null && child.signalCode === null) return;
+      child.stdout.destroy();
+      child.stderr.destroy();
+      finish(child.exitCode);
     };
     const timer = setTimeout(() => end(`stopped at the time limit of ${ms} ms`), ms);
     const cancel = (): void => end("stopped: the run was cancelled or the extension ended");
@@ -107,15 +131,6 @@ const run = ({ file, args, env, ms, bytes, stop }: Run): Promise<Answer> =>
     };
     child.stdout.on("data", collect(out));
     child.stderr.on("data", collect(err));
-    let answered = false;
-    const finish = (code: number | null): void => {
-      if (answered) return;
-      answered = true;
-      clearTimeout(timer);
-      stop.removeEventListener("abort", cancel);
-      if (failure !== undefined) done(new ResponseError(HOST_FAILED, failure));
-      else done({ code, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") });
-    };
     child.on("error", (error) => {
       failure ??= error.message;
       finish(null);

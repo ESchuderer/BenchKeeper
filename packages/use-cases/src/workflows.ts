@@ -26,7 +26,8 @@ import {
 } from "@cedarloom/engine";
 import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
-import { stopOrphans, stopTree } from "./orphans.ts";
+import { stopTree } from "@cedarloom/extension-host";
+import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRun } from "./agent-node.ts";
 import { readJson } from "./use-cases.ts";
 

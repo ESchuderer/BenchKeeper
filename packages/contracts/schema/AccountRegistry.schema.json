@@ -105,6 +105,10 @@
                 "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
               },
               "description": "The accounts the confirmation named; once the pool's accounts differ, it counts as unconfirmed"
+            },
+            "moveRunning": {
+              "description": "Whether running workers move to another account of the pool at their line or limit; off when unset",
+              "type": "boolean"
             }
           },
           "required": [

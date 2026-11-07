@@ -50,6 +50,10 @@ const Pool = z.strictObject({
   confirmedFor: z
     .array(Name)
     .describe("The accounts the confirmation named; once the pool's accounts differ, it counts as unconfirmed"),
+  moveRunning: z
+    .boolean()
+    .optional()
+    .describe("Whether running workers move to another account of the pool at their line or limit; off when unset"),
 });
 
 // A folder as the registry compares it: without trailing separators, so `/a/b/` is `/a/b`.
@@ -194,6 +198,8 @@ export const AccountSwitch = z.strictObject({
   from: Name.nullable(),
   to: Name,
   reason: z.enum(["most-headroom", "soonest-weekly-reset", "highest-tier", "no-readings"]),
+  // `launch`: a new worker's choice; `line` and `at-limit`: a running worker's move.
+  trigger: z.enum(["launch", "line", "at-limit"]),
   readings: z.array(CountedReading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });

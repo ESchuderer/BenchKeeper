@@ -43,6 +43,7 @@ CREATE TABLE switches (
   fromAccount TEXT,
   toAccount TEXT NOT NULL,
   reason TEXT NOT NULL CHECK (reason IN ('most-headroom', 'soonest-weekly-reset', 'highest-tier', 'no-readings')),
+  trigger TEXT NOT NULL CHECK (trigger IN ('launch', 'line', 'at-limit')),
   readings TEXT NOT NULL,
   candidates TEXT NOT NULL
 ) STRICT;

@@ -36,8 +36,8 @@ import {
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
 const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
-// Its number follows every schema before 0.1.0 (1 to 15), so a store from before it is never read as this one.
-const SCHEMA = 16;
+// Its number follows every schema before 0.1.0 (1 to 16), so a store from before it is never read as this one.
+const SCHEMA = 17;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
@@ -499,13 +499,14 @@ export class RunStore extends RunView {
   recordSwitch(input: AccountSwitch): void {
     const choice = AccountSwitch.parse(input);
     this.db
-      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(
         choice.at,
         choice.task,
         choice.from,
         choice.to,
         choice.reason,
+        choice.trigger,
         JSON.stringify(choice.readings),
         JSON.stringify(choice.candidates),
       );
@@ -643,7 +644,7 @@ export class RunStore extends RunView {
     return this.db
       .prepare(
         `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount, 'reason', reason,
-         'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
+         'trigger', trigger, 'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
       )
       .all()
       .map((row) => AccountSwitch.parse(JSON.parse(String(row["row"]))));

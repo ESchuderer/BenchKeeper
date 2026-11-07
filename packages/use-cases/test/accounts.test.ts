@@ -20,6 +20,7 @@ import {
   applyPlan,
   checkLogins,
   chooseAccount,
+  chooseMove,
   isConfirmed,
   loadRegistry,
   loginAccount,
@@ -97,6 +98,7 @@ test("a task's worker starts on the pool account with headroom, and the choice i
       from: "work",
       to: "spare",
       reason: "most-headroom",
+      trigger: "launch",
       readings: expect.arrayContaining([expect.objectContaining({ account: "spare" })]),
       candidates: [
         { account: "work", margin: 2 },
@@ -145,6 +147,26 @@ test("a window past its reset counts as 0 percent, the row records that as assum
     { ...next, window: "fiveHour", source: "reported" },
     { ...next, window: "sevenDay", source: "reported" },
   ]);
+});
+
+test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row", () => {
+  const state = stateWithReadings(95, 20);
+  const main = { confirmedAt: AT, confirmedFor: ["work", "spare"], moveRunning: true };
+  const moving = { ...registry, pools: { claude: { ...registry.pools.claude, main } } };
+  const request = { task: "t6", agent: "claude", pool: "main", from: "work", trigger: "line" } as const;
+  expect(chooseMove(state, moving, request, NOW)).toMatchObject({
+    ok: true,
+    value: { move: true, account: { name: "spare" } },
+  });
+  const [row] = switches(state);
+  expect(row).toMatchObject({ task: "t6", from: "work", to: "spare", reason: "most-headroom", trigger: "line" });
+  // The row keeps the readings of the account it left too.
+  expect(row?.readings.map((reading) => reading.account)).toEqual(["spare", "spare", "work", "work"]);
+  expect(chooseMove(state, moving, request, NOW + 60_000)).toMatchObject({
+    ok: true,
+    value: { move: false, reason: "cooldown" },
+  });
+  expect(switches(state)).toHaveLength(1);
 });
 
 test("with no known reading the task stays and the row says why; a pool without headroom records nothing", () => {
@@ -308,6 +330,15 @@ test("a pool is confirmed by a plan that replaces the registry; Codex pools and 
     confirmedAt: AT,
     confirmedFor: ["work"],
   });
+  // Running moves are set by a confirmation that says so, and kept by one that does not.
+  for (const change of [{ moveRunning: true }, {}]) {
+    const again = planConfirm(config, { agent: "claude", pool: "main", ...change }, AT);
+    if (!again.ok) throw new Error(again.finding.code);
+    applyPlan(state, again.value.plan, { yes: true });
+    expect(JSON.parse(readFileSync(join(config, "accounts.json"), "utf8")).pools.claude.main).toMatchObject({
+      moveRunning: true,
+    });
+  }
 });
 
 // A config folder with the registry written: work (Claude Code) and cx (Codex), in /accounts.

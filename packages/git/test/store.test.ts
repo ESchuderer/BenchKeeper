@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Result } from "@cedarloom/contracts";
@@ -26,19 +26,24 @@ const ok = <T>(result: Result<T>): T => {
 };
 
 test("a commit stays inert until the branch moves to it, and the branch moves only from where the caller says", () => {
-  home("[user]\n\tname = Ada\n\temail = ada@example.org\n");
-  const store = openStore(join(root, "store.git"));
+  // The store is SHA-1 on main whatever the user's init settings say.
+  home(
+    "[user]\n\tname = Ada\n\temail = ada@example.org\n[init]\n\tdefaultObjectFormat = sha256\n\tdefaultBranch = trunk\n",
+  );
+  const dir = join(root, "store.git");
+  const store = openStore(dir);
   const { commit } = ok(store.commit(null, "workflows/workflow-w.json", "{}\n", "w 1.0.0\n"));
   const inert = store.head();
   const wrong = "1".repeat(40);
-  const moves = [store.move(commit, wrong), store.move(commit, null), store.move(commit, null), store.move(null, null)];
-  expect([inert, moves, store.head(), store.move(null, wrong), store.move(null, commit), store.head()]).toEqual([
+  const moved = (after: string | null, before: string | null): boolean => store.move(after, before).ok;
+  const moves = [moved(commit, wrong), moved(commit, null), moved(commit, null), moved(null, null)];
+  const removals = [store.head(), moved(null, wrong), moved(null, commit), store.head()];
+  expect([commit.length, readFileSync(join(dir, "HEAD"), "utf8"), inert, moves, removals]).toEqual([
+    40,
+    "ref: refs/heads/main\n",
     null,
     [false, true, false, false],
-    commit,
-    false,
-    true,
-    null,
+    [commit, false, true, null],
   ]);
 });
 

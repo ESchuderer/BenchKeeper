@@ -2865,7 +2865,8 @@
                       "list",
                       "read",
                       "worktree",
-                      "commit"
+                      "commit",
+                      "update"
                     ]
                   },
                   "error": {
@@ -6741,7 +6742,8 @@
                       "list",
                       "read",
                       "worktree",
-                      "commit"
+                      "commit",
+                      "update"
                     ]
                   },
                   "error": {

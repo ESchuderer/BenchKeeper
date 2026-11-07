@@ -1,5 +1,5 @@
 import { isAbsolute, resolve } from "node:path";
-import type { Finding, Operation, Plan, StoreUpdate } from "@cedarloom/contracts";
+import type { Finding, Operation, Plan, Result, StoreUpdate } from "@cedarloom/contracts";
 import { type RunStore, sha256 } from "@cedarloom/ledger";
 import { asidePath, backUp, errorCode, hashFile, isSymlink, remove, tempPath, writeStep } from "./files.ts";
 
@@ -12,7 +12,7 @@ export type Phase = "backed-up" | "journaled" | "set-aside" | "written" | "settl
 /** The workflow store's branch, which `store.update` operations move (the git package's store). */
 export interface StoreBranch {
   head: () => string | null;
-  move: (after: string | null, before: string | null) => boolean;
+  move: (after: string | null, before: string | null) => Result<null>;
 }
 
 type FileOperation = Exclude<Operation, StoreUpdate>;
@@ -33,7 +33,10 @@ export interface Outcome {
 }
 
 const BACKUP_DAYS = 90;
-export const NO_BRANCH: StoreBranch = { head: () => null, move: () => false };
+export const NO_BRANCH: StoreBranch = {
+  head: () => null,
+  move: () => ({ ok: false, finding: { code: "git.failed", params: { step: "update", error: "no workflow store" } } }),
+};
 
 const targetProblem = (op: FileOperation, actual: string | null): Finding | undefined => {
   if (isSymlink(op.path)) return { code: "apply.symlink", params: { path: op.path } };
@@ -174,7 +177,12 @@ const step = (run: Run, index: number, op: FileOperation): Finding | undefined =
 const branchStep = (run: Run, index: number, op: StoreUpdate): Finding | undefined => {
   run.store.start(run.runId, index, null);
   run.onPhase(index, "journaled");
-  if (!run.branch.move(op.after, op.before)) return moved(op, run.branch.head());
+  const done = run.branch.move(op.after, op.before);
+  if (!done.ok) {
+    // A branch still at `before` did not move for another reason, such as a lock another git holds: git's error.
+    const actual = run.branch.head();
+    return actual === op.before ? done.finding : moved(op, actual);
+  }
   run.onPhase(index, "written");
   run.store.settle(run.runId, index, "done");
   run.onPhase(index, "settled");

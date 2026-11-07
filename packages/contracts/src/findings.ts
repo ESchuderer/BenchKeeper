@@ -137,7 +137,7 @@ export const Finding = z
     // Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
     // hold a token.
     finding("git.failed", {
-      step: z.enum(["start", "fetch", "list", "read", "worktree", "commit"]),
+      step: z.enum(["start", "fetch", "list", "read", "worktree", "commit", "update"]),
       error: z.string(),
     }),
     // The workflow store (P3 a). A draft opened from another stored version than the one there now (an import changed

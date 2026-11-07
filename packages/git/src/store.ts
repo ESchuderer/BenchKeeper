@@ -31,14 +31,17 @@ export interface Store {
   ) => Result<{ blob: string; commit: string }>;
   /** The commits on the branch that changed `path`, newest first. */
   log: (path: string) => Result<Commit[]>;
-  /** Moves the branch to `after` (null: removes it), only while it is at `before` (null: while it does not exist). */
-  move: (after: string | null, before: string | null) => boolean;
+  /**
+   * Moves the branch to `after` (null: removes it), only while it is at `before` (null: while it does not exist); git's
+   * error otherwise, a moved branch or a lock another process holds.
+   */
+  move: (after: string | null, before: string | null) => Result<null>;
 }
 
 type Ran = { ok: boolean; out: string; stdout: Buffer; error: string };
 type Git = (args: string[], input?: string, extra?: NodeJS.ProcessEnv) => Ran;
 
-const failed = (step: "start" | "read" | "commit", ran: Ran): Result<never> => ({
+const failed = (step: "start" | "read" | "commit" | "update", ran: Ran): Result<never> => ({
   ok: false,
   finding: { code: "git.failed", params: { step, error: ran.error } },
 });
@@ -108,7 +111,9 @@ const committer =
   (parent, path, content, message) => {
     const known = identity(git);
     if (!known.ok) return known;
-    const made = existsSync(join(dir, "HEAD")) ? undefined : git(["init", "--bare", "--quiet", "--template=", dir]);
+    // SHA-1 and main whatever the user's init.defaultObjectFormat and init.defaultBranch say.
+    const init = ["init", "--bare", "--quiet", "--template=", "--object-format=sha1", "--initial-branch=main", dir];
+    const made = existsSync(join(dir, "HEAD")) ? undefined : git(init);
     if (made !== undefined && !made.ok) return failed("start", made);
     const blob = git(["hash-object", "-w", "--stdin"], content);
     const index = join(dir, `index-${randomUUID()}`);
@@ -154,9 +159,13 @@ export const openStore = (dir: string, program = "git"): Store => {
     commit: committer(dir, git),
     log: logOf(git),
     move: (after, before) => {
-      // A removal names the commit it removes: `update-ref -d` with no old value would remove whatever is there.
-      if (after === null) return before !== null && git(["update-ref", "-d", STORE_REF, before]).ok;
-      return git(["update-ref", STORE_REF, after, before ?? ""]).ok;
+      // A removal names the commit it removes: `update-ref -d` with an empty or zero old value removes whatever is there.
+      if (after === null && before === null) {
+        return { ok: false, finding: { code: "git.failed", params: { step: "update", error: "no commit to remove" } } };
+      }
+      const args = after === null ? ["-d", STORE_REF, String(before)] : [STORE_REF, after, before ?? ""];
+      const ran = git(["update-ref", ...args]);
+      return ran.ok ? { ok: true, value: null } : failed("update", ran);
     },
   };
 };

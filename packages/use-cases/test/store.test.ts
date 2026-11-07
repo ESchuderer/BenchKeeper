@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Result, RunResult, WorkflowDefinition } from "@cedarloom/contracts";
@@ -31,7 +31,8 @@ afterEach(() => {
 });
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+const sample = (name: string) => JSON.parse(readFileSync(join(corpus, name), "utf8"));
+const base = sample("valid-build-and-review.json");
 const at = (version: string): WorkflowDefinition => ({ ...base, metadata: { ...base.metadata, id: "w", version } });
 const state = (): string => mkdtempSync(join(root, "state-"));
 
@@ -123,5 +124,37 @@ test("a stored version opens as the draft, based on that version, and never over
     "1.0.0",
     { code: "store.draft-exists", params: { id: "w" } },
     { code: "store.conflict", params: { id: "w" } },
+  ]);
+});
+
+test("a validation error refuses a save, and a missing extension alone does not", () => {
+  const dir = state();
+  const twin = sample("findings-duplicate-edge.json");
+  ok(saveDraft(dir, "w", { ...twin, metadata: { ...twin.metadata, id: "w" } }, null));
+  const refused = refusal(planSave(dir, "w"));
+  const minimal = sample("valid-minimal.json");
+  const nodes = [...minimal.nodes, { id: "jira", type: "acme.jira/search-issues" }];
+  ok(saveDraft(dir, "w", { ...minimal, metadata: { ...minimal.metadata, id: "w" }, nodes }, null));
+  expect([refused, refusal(planSave(dir, "w"))]).toEqual([
+    { code: "workflow.duplicate-edge", params: { edge: "twin", of: "first" } },
+    "planned",
+  ]);
+});
+
+test("a branch git cannot move, its ref locked by another process, is git's failure, not a moved branch", () => {
+  const dir = state();
+  stored(dir, "1.0.0");
+  ok(saveDraft(dir, "w", at("1.1.0"), null));
+  const { plan } = ok(planSave(dir, "w"));
+  mkdirSync(join(dir, "store.git", "refs", "heads"), { recursive: true });
+  writeFileSync(join(dir, "store.git", "refs", "heads", "main.lock"), "");
+  const locked = ok(applyPlan(dir, plan, { yes: true }));
+  expect([locked.status, locked.findings, versions(dir)]).toEqual([
+    "failed",
+    [
+      { code: "git.failed", params: { step: "update", error: expect.stringContaining("main.lock") } },
+      { code: "run.failed", params: { runId: locked.runId, undoes: null } },
+    ],
+    ["1.0.0"],
   ]);
 });

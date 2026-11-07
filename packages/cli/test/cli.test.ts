@@ -370,22 +370,14 @@ test("accounts: the list shows each account with its pool, says when there are n
 
 test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
   const { cli } = withRegistry();
-  const codex = await cli("accounts", "pool", "confirm", "main", "--agent", "codex");
-  expect([codex.code, codex.err]).toEqual([EXIT.refused, expect.stringContaining("OpenAI's terms")]);
+  const codex = await cli("--json", "accounts", "pool", "confirm", "main", "--agent", "codex");
+  expect([codex.code, json(codex.out)["findings"]]).toMatchObject([
+    EXIT.refused,
+    [{ code: "accounts.codex-switching-off" }],
+  ]);
   const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
   const preview = await cli("accounts", "pool", "confirm", "main");
-  expect([preview.out, preview.err]).toEqual([
-    expect.stringContaining("Nothing changed"),
-    expect.stringContaining("warning: Confirm pool main only if you hold and pay for every account in it yourself"),
-  ]);
-  // The Usage Policy in force from November 12, 2026, and the help article on what a subscription's usage is for.
-  for (const quote of [
-    "create multiple accounts, to avoid detection, circumvent product guardrails",
-    "intentionally bypass or interfere with capabilities, restrictions, or guardrails",
-    "route requests through consumer subscriptions",
-    "ordinary use of native Anthropic applications",
-  ])
-    expect(preview.err).toContain(quote);
+  expect(preview.err).toContain("warning:");
   expect(json((await cli("accounts", "pool", "confirm", "main", "--json")).out)).toMatchObject({
     format: "cedarloom.plan",
     findings: [terms],

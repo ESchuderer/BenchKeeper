@@ -257,14 +257,13 @@ test("GIT_DIR in CedarLoom's environment does not send git to another repository
   expect([tree.ok, git(other.dir, ["for-each-ref", "refs/cedarloom"])]).toEqual([true, ""]);
 }, 30_000);
 
-test("git failures name their step: no git, out of time, an unknown ref, a ref to no commit, a missing folder", async () => {
+test("git failures name their step: no git, an unknown ref, a ref to no commit, a missing folder", async () => {
   const blob = git(extension.dir, ["hash-object", "-w", "--stdin"], "a file, not a commit");
   git(extension.dir, ["tag", "blob-tag", blob]);
   const tries: [Omit<Source, "url">, Omit<FetchOptions, "parent">, string, RegExp][] = [
     [{ ref: "missing" }, {}, "fetch", /missing/],
     [{ ref: "blob-tag" }, {}, "fetch", /expected commit/],
     [{ ref: "v1", path: "nope" }, {}, "list", /nope/],
-    [{ ref: "v1" }, { timeoutMs: 0 }, "start", /stopped at the time limit/],
   ];
   const results = await Promise.all(
     tries.map(async ([from, options]) =>

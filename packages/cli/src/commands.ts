@@ -211,7 +211,8 @@ const windowLines = (name: string, readings: readonly Reading[], now: number): s
     ? []
     : [
         ...own.map(
-          (r) => `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt}`,
+          (r) =>
+            `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt ?? "unknown"}`,
         ),
         ...unknown.map((window) => `  ${window}  unknown`),
       ];

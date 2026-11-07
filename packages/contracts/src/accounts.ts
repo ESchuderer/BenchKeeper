@@ -148,8 +148,9 @@ export const Reading = z.strictObject({
   account: Name,
   window: Quota,
   usedPercent: Percent,
-  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
-  resetsAt: z.iso.datetime({ precision: 3 }),
+  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order. Null: the
+  // source gave a share without a reset, which counts until the next reading replaces it, as claude-swap judges it.
+  resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   source: z.enum(["worker", "cswap"]),
 });

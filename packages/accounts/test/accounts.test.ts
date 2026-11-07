@@ -179,6 +179,12 @@ test("a window that has reset since its last reading is unknown until it is read
     reason: "no-readings",
     candidates: POOL.map((name) => ({ account: name, margin: null })),
   });
+  // A reading without a reset counts until the next one replaces it.
+  const unreset = used("two", 50, 0).map((reading) => ({ ...reading, resetsAt: null }));
+  expect(selectAccount(registry, main, unreset, NOW)).toMatchObject({
+    account: { name: "two" },
+    reason: "most-headroom",
+  });
   // A reset at the very moment of the choice has passed too.
   const now = selectAccount(registry, main, [...used("one", 50, 0), ...used("two", 0, 0, ADDED_AT)], NOW);
   expect(now.candidates).toEqual([

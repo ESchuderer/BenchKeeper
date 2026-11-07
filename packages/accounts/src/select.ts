@@ -44,10 +44,11 @@ export type Selection =
 
 /**
  * The readings a choice at `now` counts: a window whose reset time has passed since its last reading is unknown until
- * the next reading replaces it, as is a window whose reset time does not parse, or one never read.
+ * the next reading replaces it, as is a window whose reset time does not parse, or one never read. A reading without a
+ * reset counts until the next one replaces it.
  */
 export const counted = <T extends Current>(readings: readonly T[], now: number): T[] =>
-  readings.filter((reading) => Date.parse(reading.resetsAt) > now);
+  readings.filter((reading) => reading.resetsAt === null || Date.parse(reading.resetsAt) > now);
 
 // A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
 // disqualifies the account even when the other window is unknown. The worker model's own weekly window counts when it
@@ -86,11 +87,11 @@ const REASONS = {
   "priority-consume-first": "highest-tier",
 } as const;
 
-// When the account's 7-day window resets next, in milliseconds; never for one unknown or already reset.
-const weeklyReset = (account: Account, readings: readonly Current[], now: number): number => {
+// When the account's 7-day window resets next, by the counted readings, in milliseconds; never for one unknown or
+// without a reset.
+const weeklyReset = (account: Account, readings: readonly Current[]): number => {
   const reading = readings.find((each) => each.account === account.name && each.window === "sevenDay");
-  const at = reading === undefined ? Number.NaN : Date.parse(reading.resetsAt);
-  return at > now ? at : Number.POSITIVE_INFINITY;
+  return reading === undefined || reading.resetsAt === null ? Number.POSITIVE_INFINITY : Date.parse(reading.resetsAt);
 };
 
 // The candidate with a margin of at least 0 the strategy ranks first, the first one listed on a tie: `best` by the
@@ -191,7 +192,7 @@ export const selectAccount = (
   const scored = members.map((account) => ({
     account,
     margin: margin(account, current, model),
-    reset: weeklyReset(account, current, now),
+    reset: weeklyReset(account, current),
   }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = ranked(scored, swap);

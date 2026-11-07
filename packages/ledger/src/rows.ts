@@ -33,7 +33,7 @@ CREATE TABLE readings (
   account TEXT NOT NULL,
   "window" TEXT NOT NULL CHECK ("window" IN ('fiveHour', 'sevenDay') OR "window" GLOB 'sevenDay:[a-z]*'),
   usedPercent REAL NOT NULL,
-  resetsAt TEXT NOT NULL,
+  resetsAt TEXT,
   readAt TEXT NOT NULL,
   source TEXT NOT NULL CHECK (source IN ('worker', 'cswap')),
   PRIMARY KEY (account, "window")

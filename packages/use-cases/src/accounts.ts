@@ -351,22 +351,19 @@ const utc = (time: string): string => new Date(time).toISOString();
 
 /**
  * Keeps claude-swap's windows of `account` as its readings, next to the workers' own: the newest per window counts. A
- * window without a read time (claude-swap's usage of that row was not ok) or a reset is left out. Returns how many
- * were kept.
+ * window without a read time (claude-swap's row was not ok, so it no longer trusts that share) drops the stored
+ * claude-swap reading of that window; a worker's stays. Returns how many were kept.
  */
 export const keepSwapReadings = (state: string, account: string, windows: readonly SwapWindow[]): Result<number> =>
   withStore(state, (store) => {
     let kept = 0;
     for (const { window, usedPercent, resetsAt, readAt } of windows) {
-      if (resetsAt === null || readAt === null) continue;
-      store.recordReading({
-        account,
-        window,
-        usedPercent,
-        resetsAt: utc(resetsAt),
-        readAt: utc(readAt),
-        source: "cswap",
-      });
+      if (readAt === null) {
+        store.dropReading({ account, window, source: "cswap" });
+        continue;
+      }
+      const reset = resetsAt === null ? null : utc(resetsAt);
+      store.recordReading({ account, window, usedPercent, resetsAt: reset, readAt: utc(readAt), source: "cswap" });
       kept += 1;
     }
     return { ok: true, value: kept };
@@ -407,8 +404,8 @@ export const chooseAccount = (
   });
 
 /**
- * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases aside.
- * Nothing is recorded; a state folder without a store has no readings.
+ * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases and the
+ * worker's model aside. Nothing is recorded; a state folder without a store has no readings.
  */
 export const accountsStatus = (
   state: string,

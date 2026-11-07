@@ -206,7 +206,9 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action(() => done(accountsList(ctx())));
   accounts
     .command("status")
-    .description("show the account a new worker of each confirmed pool would start on now, and its windows")
+    .description(
+      "show the account a new worker of each confirmed pool would start on now (leases and the worker's model aside), and its windows",
+    )
     .action(() => done(accountsStatus(ctx())));
   accounts
     .command("pool")

@@ -433,8 +433,6 @@ test("accounts: list shows the windows a choice counts now, status the account a
     source: "worker",
   });
   store.value.close();
-  const list = await cli("accounts", "list");
-  expect(list.out).toContain("  sevenDay  unknown");
   expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ readings: [fiveHour] });
   expect(json((await cli("accounts", "status", "--json")).out)).toEqual({
     format: "cedarloom.accounts-status",

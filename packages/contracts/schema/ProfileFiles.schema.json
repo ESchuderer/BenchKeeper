@@ -33,7 +33,7 @@
           "pack": {
             "description": "The pack its text came from, as `id@version`: a pack id and its SemVer version",
             "type": "string",
-            "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}@\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+            "pattern": "^[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}@(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?$"
           }
         },
         "required": [

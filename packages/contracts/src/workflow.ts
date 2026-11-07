@@ -11,8 +11,11 @@ const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const WorkflowId = id;
 // Names of handles and of the workflow's inputs and outputs.
 export const HandleName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
-// A SemVer version's pattern without anchors, for formats that embed one.
-export const SEMVER = String.raw`\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?`;
+// A SemVer version's pattern without anchors, for formats that embed one: semver.org's, without build metadata
+// (https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string).
+const NUMBER = String.raw`(?:0|[1-9]\d*)`;
+const PRE_RELEASE = String.raw`(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)`;
+export const SEMVER = String.raw`${NUMBER}\.${NUMBER}\.${NUMBER}(?:-${PRE_RELEASE}(?:\.${PRE_RELEASE})*)?`;
 export const semver = z.string().regex(new RegExp(`^${SEMVER}$`));
 const identifier = (a: string, b: string): number => {
   const [x, y] = [/^\d+$/.test(a), /^\d+$/.test(b)];

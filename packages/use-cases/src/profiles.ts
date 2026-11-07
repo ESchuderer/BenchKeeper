@@ -8,6 +8,7 @@ import {
   type PackSources,
   PLAN_SCHEMA_VERSION,
   type Plan,
+  type ProfilePart,
   ProfileSelection,
   readDocument,
   type Result,
@@ -22,6 +23,7 @@ import {
   type Fetched,
   hasContainer,
   type Level,
+  LEVELS,
   onDisk,
   planMachine,
   planProject,
@@ -281,6 +283,27 @@ const driftOf = (operation: Operation, written: ReadonlyMap<string, string | nul
   return [{ code: "profile.drift", params: { status, subject: operation.path, remove: null } }];
 };
 
+// The level's plan, read only, with its drift lines in place of its findings (see checkProfile).
+const driftPlan = async (
+  config: string,
+  state: string,
+  machine: Machine,
+  { app, fetch, project }: Pick<PlanOptions, "app" | "fetch" | "project">,
+): Promise<Result<ProfilePlan>> => {
+  const planned = await planProfile(config, state, machine, { app, fetch, project, readOnly: true });
+  const level = project === undefined ? machine.home : onDisk(resolve(project));
+  if (!planned.ok && planned.finding.code.startsWith("git.")) {
+    const params = { status: "not-run" as const, subject: level, remove: null };
+    return { ok: true, value: { plan: null, findings: [{ code: "profile.drift", params }, planned.finding] } };
+  }
+  if (!planned.ok) return planned;
+  const written = writtenAt(state, level, project !== undefined);
+  if (!written.ok) return written;
+  const { plan, findings } = planned.value;
+  const lines = (plan?.operations ?? []).flatMap((operation) => driftOf(operation, written.value));
+  return { ok: true, value: { plan, findings: [...lines, ...findings] } };
+};
+
 /**
  * The drift of the machine level, or with `project` that project's level, read only (plan section 2.9): a line for
  * each write or delete the next apply would run, and the plan's own lines (an owner's change, a waiting approval or
@@ -291,19 +314,38 @@ export const checkProfile = async (
   config: string,
   state: string,
   machine: Machine,
-  { app, fetch, project }: Pick<PlanOptions, "app" | "fetch" | "project"> = {},
+  options: Pick<PlanOptions, "app" | "fetch" | "project"> = {},
 ): Promise<Result<Finding[]>> => {
-  const planned = await planProfile(config, state, machine, { app, fetch, project, readOnly: true });
-  const level = project === undefined ? machine.home : onDisk(resolve(project));
-  if (!planned.ok && planned.finding.code.startsWith("git.")) {
-    const params = { status: "not-run" as const, subject: level, remove: null };
-    return { ok: true, value: [{ code: "profile.drift", params }, planned.finding] };
-  }
-  if (!planned.ok) return planned;
-  const written = writtenAt(state, level, project !== undefined);
-  if (!written.ok) return written;
-  const lines = (planned.value.plan?.operations ?? []).flatMap((operation) => driftOf(operation, written.value));
-  return { ok: true, value: [...lines, ...planned.value.findings] };
+  const checked = await driftPlan(config, state, machine, options);
+  return checked.ok ? { ok: true, value: checked.value.findings } : checked;
+};
+
+/**
+ * The Profile view, read only: the selected profile's parts, each on or off at this machine's level, with the probe of
+ * an auto part the selection leaves to it; and the machine level's plan with its drift lines.
+ */
+export const showProfile = async (
+  config: string,
+  state: string,
+  machine: Machine,
+  options: Pick<PlanOptions, "app" | "fetch"> = {},
+): Promise<Result<ProfilePlan & { parts: ProfilePart[] }>> => {
+  const read = readSelection(config);
+  if (!read.ok) return read;
+  const resolved = resolveProfile(read.value.selection, APP_VERSION, probeOf(options.app, config, undefined));
+  if (!resolved.ok) return resolved;
+  const { profile, on } = resolved.value;
+  const select = read.value.selection?.select ?? {};
+  const parts = LEVELS.flatMap((level) =>
+    Object.entries(profile[level]).map(([name, part]): ProfilePart => {
+      const id = `${level}.${name}`;
+      const left = part.default === "auto" && select[id] === undefined;
+      const when = left ? (part.when ?? null) : null;
+      return { id, level, title: part.title, description: part.description ?? null, on: on.has(id), when };
+    }),
+  );
+  const planned = await driftPlan(config, state, machine, options);
+  return planned.ok ? { ok: true, value: { ...planned.value, parts } } : planned;
 };
 
 /**

@@ -10,6 +10,7 @@ import {
   NodeAttempt,
   ImportPreview,
   type Plan,
+  ProfileView,
   Refusal,
   Run,
   RunResult,
@@ -198,6 +199,48 @@ export const graphRunRoutes: FastifyPluginAsyncZod<{ state: string }> = async (a
       const shown = useCases.showGraphRun(state, req.params.graphRunId);
       if (!shown.ok) return reply.code(status(shown.finding)).send(refusal(shown.finding));
       return { run: summaryOf(shown.value.run), attempts: shown.value.attempts };
+    },
+  );
+};
+
+/**
+ * The Profile view: the selected profile's parts with this machine's plan and drift lines, read only (Git sources are
+ * fetched, nothing is written); and a part switched on or off as `profiles select <part> on|off --yes` does it, by one
+ * run that writes the selection file, with its undo.
+ */
+export const profileRoutes: FastifyPluginAsyncZod<{
+  config: string;
+  state: string;
+  machine: useCases.Machine;
+  app: string | undefined;
+  fetch: useCases.Fetch | undefined;
+}> = async (server, { config, state, machine, app, fetch }) => {
+  server.get(
+    "/api/profile",
+    { schema: { response: answers({ 200: ProfileView, 409: Refusal }) } },
+    async (_req, reply) => {
+      const shown = await useCases.showProfile(config, state, machine, { app, fetch });
+      if (!shown.ok) return reply.code(409).send(refusal(shown.finding));
+      const { parts, plan, findings } = shown.value;
+      return { parts, plan: plan === null ? null : useCases.previewPlan(plan).plan, findings };
+    },
+  );
+  server.put(
+    "/api/profile/parts/:part",
+    {
+      schema: {
+        params: z.strictObject({ part: z.string().describe("The part as level.id, such as machine.rules.global") }),
+        body: z.strictObject({ on: z.boolean() }),
+        // 409 with a run result: refused (the selection file changed meanwhile) or stopped midway.
+        response: answers({ 200: RunResult, 409: z.union([RunResult, Refusal]) }),
+      },
+    },
+    async (req, reply) => {
+      const plan = useCases.planChoice(config, { part: req.params.part, on: req.body.on });
+      if (!plan.ok) return reply.code(409).send(refusal(plan.finding));
+      const applied = useCases.applyPlan(state, plan.value, { yes: true });
+      if (!applied.ok) return reply.code(409).send(refusal(applied.finding));
+      return reply.code(applied.value.status === "applied" ? 200 : 409).send(applied.value);
     },
   );
 };

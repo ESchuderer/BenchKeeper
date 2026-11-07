@@ -2,10 +2,22 @@ import type { Finding } from "@cedarloom/contracts";
 import { t } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
-/** The findings the editor shows: the validator's, and why an imported file or a draft was refused. */
+/** The findings the UI shows: the validator's, why an imported file or a draft was refused, and the profile's lines. */
 type Shown = Extract<
   Finding["code"],
-  `workflow.${string}` | `draft.${string}` | `document.${string}` | "run.node-unsupported"
+  | `workflow.${string}`
+  | `draft.${string}`
+  | `document.${string}`
+  | "run.node-unsupported"
+  | "profile.part-unknown"
+  | "profile.part-requires"
+  | "profile.binding-missing"
+  | "profile.binding-waiting"
+  | "profile.when-unmet"
+  | "profile.drift"
+  | "profile.extra"
+  | "profile.owner-changed"
+  | "profile.approval-needed"
 >;
 
 // A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
@@ -51,12 +63,24 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.unreachable": (p) => t("problem.unreachable", p),
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
   "run.node-unsupported": (p) => t("problem.nodeUnsupported", p),
+  "profile.part-unknown": (p) => t("problem.partUnknown", p),
+  "profile.part-requires": (p) => t("problem.partRequires", p),
+  "profile.binding-missing": (p) => t("problem.bindingMissing", p),
+  "profile.binding-waiting": (p) => t("problem.bindingWaiting", p),
+  "profile.when-unmet": (p) => t("problem.whenUnmet", p),
+  "profile.drift": ({ subject, status, remove }) =>
+    remove === null
+      ? t("problem.drift", { subject, status: status === "deselected-present" ? "deselected" : status })
+      : t("problem.driftRemovable", { subject, remove }),
+  "profile.extra": (p) => t("problem.extra", p),
+  "profile.owner-changed": (p) => t("problem.ownerChanged", p),
+  "profile.approval-needed": (p) => t("problem.approvalNeeded", p),
 };
 
 const text = <C extends Shown>(code: C, params: Params[C]): string => texts[code](params);
 
 const shown = (finding: Finding): finding is Extract<Finding, { code: Shown }> => Object.hasOwn(texts, finding.code);
 
-/** The sentence for a finding in the problems panel; a code it has no sentence for shows as the code. */
+/** The sentence for a finding; a code it has no sentence for shows as the code. */
 export const describe = (finding: Finding): string =>
   shown(finding) ? text(finding.code, finding.params) : finding.code;

@@ -160,7 +160,7 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 };
 
 // This machine's Claude Code home and the user's home.
-const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
+export const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
 
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };

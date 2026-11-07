@@ -80,6 +80,30 @@ export const ImportPreview = z
   })
   .register(contracts, { id: "ImportPreview" });
 
+/**
+ * A part of the selected profile: its id (`level.id`), whether it is on at this machine's level, and `when`, the probe
+ * of an auto part the selection leaves to it, which a project runs in that project.
+ */
+export const ProfilePart = z
+  .strictObject({
+    id: z.string(),
+    level: z.enum(["machine", "workspace", "project"]),
+    title: z.string(),
+    description: z.string().nullable(),
+    on: z.boolean(),
+    when: z.enum(["orca", "devcontainer", "no-devcontainer", "gates"]).nullable(),
+  })
+  .register(contracts, { id: "ProfilePart" });
+export type ProfilePart = z.infer<typeof ProfilePart>;
+
+/**
+ * The selected profile's parts, and this machine's plan (null: no file to change) with its drift lines and what keeps
+ * parts from applying.
+ */
+export const ProfileView = z
+  .strictObject({ parts: z.array(ProfilePart), plan: summary.nullable(), findings })
+  .register(contracts, { id: "ProfileView" });
+
 /** How a change ended; a run that stopped midway carries a `run.failed` finding that names it and its undo. */
 export const RunResult = z
   .strictObject({

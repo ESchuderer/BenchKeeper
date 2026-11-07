@@ -22,6 +22,7 @@ import {
   planProfile,
   planSwitch,
   profileDoctor,
+  showProfile,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
@@ -128,6 +129,19 @@ test("the selection names only the profile's parts, and a part goes back to its 
       ok: false,
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },
     },
+  ]);
+});
+
+test("the view names the probe of an auto part the selection leaves to it, and none once the selection names it", async () => {
+  const { config, state, home, user } = machine();
+  const { parts } = ok(await showProfile(config, state, { home, user }, { fetch: stock }));
+  const shown = parts.filter((part) =>
+    ["project.dc-wrapper", "project.gates", "machine.rules.global"].includes(part.id),
+  );
+  expect(shown.map(({ id, on, when }) => ({ id, on, when }))).toEqual([
+    { id: "machine.rules.global", on: true, when: null },
+    { id: "project.dc-wrapper", on: false, when: "devcontainer" },
+    { id: "project.gates", on: false, when: null },
   ]);
 });
 

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ProfileView.schema.json",
+  "type": "object",
+  "properties": {
+    "parts": {
+      "type": "array",
+      "items": {
+        "$ref": "ProfilePart.schema.json"
+      }
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "DeleteFile.schema.json"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "write"
+                      },
+                      "path": {
+                        "type": "string",
+                        "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)",
+                        "description": "Absolute, normalized path of the file (POSIX, drive letter or UNC); apply refuses others"
+                      },
+                      "before": {
+                        "anyOf": [
+                          {
+                            "$ref": "Sha256.schema.json"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Hash the file must have when the plan applies; null: the file must not exist"
+                      },
+                      "mode": {
+                        "description": "Permission bits of a file the write creates; a replaced file keeps its own",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4095
+                      },
+                      "after": {
+                        "$ref": "Sha256.schema.json"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "path",
+                      "before",
+                      "after",
+                      "bytes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "$ref": "StoreUpdate.schema.json"
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "operations"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "Finding.schema.json"
+      }
+    }
+  },
+  "required": [
+    "parts",
+    "plan",
+    "findings"
+  ],
+  "additionalProperties": false
+}

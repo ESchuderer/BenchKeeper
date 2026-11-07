@@ -33,6 +33,8 @@ export {
   GraphRunSummary,
   ImportPreview,
   PlanPreview,
+  ProfilePart,
+  ProfileView,
   Refusal,
   Run,
   RunResult,

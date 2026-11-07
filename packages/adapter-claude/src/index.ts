@@ -31,7 +31,10 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
 // at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
 // ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
-const stop = (child: ChildProcess): void => {
+// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL; once it has exited, kill() sends nothing.
+// shortcut: SIGKILL ends the CLI, not commands a wedged CLI left; upgrade to a process group of its own once the host
+// stops the CLI on SIGHUP and on a crash too.
+const stop = (child: ChildProcess, killAfterMs: number): void => {
   // Once the CLI has exited, Windows may give its process ID to another process, whose tree taskkill would end.
   if (child.exitCode !== null || child.signalCode !== null) return;
   /* v8 ignore start -- Windows only; the Windows CI leg runs it */
@@ -44,10 +47,20 @@ const stop = (child: ChildProcess): void => {
   }
   /* v8 ignore stop */
   child.kill();
+  setTimeout(() => child.kill("SIGKILL"), killAfterMs).unref();
 };
 
+// The CLI's own bound on its exit after SIGTERM (30 s, above), with a margin.
+const KILL_AFTER_MS = 35_000;
+
+/** The CLI and any arguments before its own, and how long a stopped CLI may take to exit. */
+interface Cli {
+  readonly command: Command;
+  readonly killAfterMs: number;
+}
+
 const run = (
-  command: Command,
+  { command, killAfterMs }: Cli,
   launch: ClaudeLaunch,
   extraArgs: readonly string[] = [],
   verified = (version: string) => launch.verifiedVersions.includes(version),
@@ -83,7 +96,7 @@ const run = (
       for await (const line of lines(child.stdout.iterator({ destroyOnReturn: false }), MAX_LINE_BYTES)) {
         if (line === null) {
           error = { code: "line-too-long", limitBytes: MAX_LINE_BYTES };
-          stop(child);
+          stop(child, killAfterMs);
         } else if (line.trim() !== "") yield parse(line);
       }
     } finally {
@@ -95,7 +108,7 @@ const run = (
   return {
     events: events(),
     cancel: async () => {
-      stop(child);
+      stop(child, killAfterMs);
       await exited;
     },
   };
@@ -185,11 +198,16 @@ export const claudeLogin =
 
 /**
  * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the
- * CLI and any arguments before its own; a bare name is looked up on the PATH of the launch's environment.
+ * CLI and any arguments before its own; a bare name is looked up on the PATH of the launch's environment. A cancel that
+ * the CLI has not obeyed after `killAfterMs` kills it.
  */
-export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<ClaudeLaunch> => {
+export const claudeRuntime = (
+  command: Command = ["claude"],
+  killAfterMs = KILL_AFTER_MS,
+): AgentRuntime<ClaudeLaunch> => {
   const [file, ...prefix] = command;
-  const start = (launch: ClaudeLaunch): AgentSession => run(command, launch);
+  const cli = { command, killAfterMs };
+  const start = (launch: ClaudeLaunch): AgentSession => run(cli, launch);
   return {
     // Usage is partial: the CLI does not document its rate-limit lines, so they are read only on checked versions.
     capabilities: {
@@ -213,14 +231,14 @@ export const claudeRuntime = (command: Command = ["claude"]): AgentRuntime<Claud
     },
     checkContract: async (launch) => {
       const probe = { ...launch, prompt: PROBE_PROMPT, verifiedVersions: [] };
-      return contractCheck(run(command, probe, [], () => true));
+      return contractCheck(run(cli, probe, [], () => true));
     },
     loginStatus: claudeAuthStatus(command),
     start,
     // The CLI reads a value that starts with `-` as a flag, and `--resume` also takes a title or a transcript path.
     resume: (sessionId, launch) => {
       if (!z.uuid().safeParse(sessionId).success) throw new Error(`not a session ID: ${sessionId}`);
-      return run(command, launch, ["--resume", sessionId]);
+      return run(cli, launch, ["--resume", sessionId]);
     },
     handover: async (from, to) => {
       launchArgs(to); // refuses a bad launch while `from` still runs

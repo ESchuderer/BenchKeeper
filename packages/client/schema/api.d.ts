@@ -649,6 +649,15 @@ export interface paths {
                     };
                 };
                 /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -980,6 +989,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };
@@ -2072,6 +2087,12 @@ export interface components {
         } | {
             /** @constant */
             code: "draft.not-found";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "import.not-found";
             params: {
                 id: string;
             };

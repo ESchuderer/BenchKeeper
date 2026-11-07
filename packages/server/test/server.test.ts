@@ -108,6 +108,7 @@ const open = async (tokenMs?: number, ui?: string): Promise<Client> => {
   return client;
 };
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(started.splice(0).map((client) => client.server.close()));
 });
 
@@ -638,12 +639,15 @@ test("an import of a Git ref is reviewed with its plan under an id, which applie
   await client.login();
   const imports = (body: object) => client.api({ method: "POST", path: "/api/imports", body });
   const reviewed = await imports({ git: SHARED, ref: "main" });
-  const { id, planHash } = z.object({ id: z.string(), planHash: z.string() }).parse(reviewed.body);
+  const units = z.array(z.object({ status: z.string() }));
+  const { id, planHash, review } = z
+    .object({ id: z.string(), planHash: z.string(), review: z.object({ units }) })
+    .parse(reviewed.body);
   const apply = (approve: string) =>
     client.api({ method: "POST", path: `/api/imports/${id}/apply`, body: { approve } });
   const answers = [
     reviewed.status,
-    Reflect.get(Object(reviewed.body), "review").units.map((unit: { status: string }) => unit.status),
+    review.units.map((unit) => unit.status),
     (await apply(sha256("another plan"))).status,
     (await apply(planHash)).status,
     (await apply(planHash)).status,
@@ -651,6 +655,5 @@ test("an import of a Git ref is reviewed with its plan under an id, which applie
     // The API reads no folder a request names: an export folder is imported through its Git URL, or with the CLI.
     (await imports({ folder: home })).status,
   ];
-  vi.unstubAllEnvs();
   expect(answers).toEqual([200, ["new"], 409, 200, 404, 409, 400]);
 }, 30_000);

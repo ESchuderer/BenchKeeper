@@ -198,12 +198,14 @@ export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCase
         params: z.strictObject({ importId: z.uuid() }),
         body: z.strictObject({ approve: Sha256.describe("The planHash of the import preview the user approved") }),
         // 404: no plan under this id (applied, or older than the latest reviews); 409 with a run result: refused.
-        response: answers({ 200: RunResult, 409: z.union([RunResult, Refusal]) }),
+        response: answers({ 200: RunResult, 404: Refusal, 409: z.union([RunResult, Refusal]) }),
       },
     },
     async (req, reply) => {
       const plan = planned.get(req.params.importId);
-      if (plan === undefined) return reply.code(404).send({ error: "import" });
+      if (plan === undefined) {
+        return reply.code(404).send(refusal({ code: "import.not-found", params: { id: req.params.importId } }));
+      }
       const applied = useCases.applyPlan(state, plan, { approve: req.body.approve });
       if (!applied.ok) return reply.code(409).send(refusal(applied.finding));
       if (applied.value.status !== "applied") return reply.code(409).send(applied.value);

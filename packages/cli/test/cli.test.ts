@@ -285,7 +285,6 @@ const withRegistry = () => {
     join(root, "config", "accounts.json"),
     formatRegistry({
       schemaVersion: 1,
-      minimum: { fiveHour: 8, sevenDay: 3 },
       accounts: [account("work", "main"), account("solo", null)],
       pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
     }),

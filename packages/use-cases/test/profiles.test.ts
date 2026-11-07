@@ -914,14 +914,17 @@ test("a CedarLoom text with CRLF line endings is CedarLoom's on another machine 
   expect([plan?.operations.map((op) => "path" in op && op.path), findings]).toEqual([[skill, record], []]);
 });
 
-test("a record a Git conflict left unreadable, or one that does not fit its schema, stops the plan, named", async () => {
+test("a record a Git conflict left unreadable, one that does not fit its schema or a newer one stops the plan, named", async () => {
   const box = machine();
-  const refusal = async (text: string) => {
+  const refusal = async (text: string, code: string, params: Record<string, unknown>) => {
     const project = projectWith({ ".cedarloom/profile-files.json": text });
     const path = join(realpathSync.native(project), ".cedarloom", "profile-files.json");
-    const params = { issues: expect.any(Array), path };
-    return [await planned(box, project), { ok: false, finding: { code: "document.invalid", params } }];
+    return [await planned(box, project), { ok: false, finding: { code, params: { ...params, path } } }];
   };
-  const [conflict, unfit] = [await refusal("<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n"), await refusal("{}\n")];
-  expect([conflict[0], unfit[0]]).toEqual([conflict[1], unfit[1]]);
+  const results = [
+    await refusal("<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n", "document.invalid", { issues: expect.any(Array) }),
+    await refusal("{}\n", "document.invalid", { issues: expect.any(Array) }),
+    await refusal('{ "schemaVersion": 2 }\n', "document.newer-schema", { found: 2, known: 1 }),
+  ];
+  expect(results.map(([actual]) => actual)).toEqual(results.map(([, expected]) => expected));
 });

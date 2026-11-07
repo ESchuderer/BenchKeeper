@@ -19,9 +19,12 @@ type Entry = ProfileFiles["files"][string];
 /** A project's committed record of the files CedarLoom wrote there, by path on disk. */
 export type FilesRecord = ReadonlyMap<string, Entry>;
 
-// A record that does not parse (a Git conflict in it) or fit its schema, named, so the owner knows which file to mend.
-const named = (finding: Finding, path: string): Finding =>
-  finding.code === "document.invalid" ? { ...finding, params: { ...finding.params, path } } : finding;
+// A record that does not parse (a Git conflict in it), fit its schema or has a newer one, named, so the owner knows
+// which file to mend.
+const named = (finding: Finding, path: string): Finding => {
+  if (finding.code === "document.invalid") return { ...finding, params: { ...finding.params, path } };
+  return finding.code === "document.newer-schema" ? { ...finding, params: { ...finding.params, path } } : finding;
+};
 
 /** The record at `path` (`.cedarloom/profile-files.json` on disk) by the files' paths on disk; empty without one. */
 export const recordOf = (project: string, path: string): Result<FilesRecord> => {

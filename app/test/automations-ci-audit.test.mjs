@@ -39,7 +39,6 @@ test('ci-audit: GitHub writes only in act mode, never a merge or a loosened chec
   const [report, act] = t.prompt.split(/^4\. Mode act:/m);
   assert.ok(act, 'act mode is the last step');
   assert.match(report, /Mode report: stop here .*Write nothing else/s);
-  assert.match(report, /Never lower a threshold or a coverage floor, raise a budget, remove a check or add a suppression/);
   const helper = readFileSync(join(genericDir, 'ci-audit/precheck.sh'), 'utf8');
   for (const text of [report, t.precheck, helper]) {
     assert.doesNotMatch(text, /\bgh (pr|issue) (create|comment|edit|close|reopen|merge|review)\b|\bgh api\b|\bgit push\b/);

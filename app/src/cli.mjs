@@ -187,10 +187,10 @@ Usage: benchkeeper <command> [options]
                                     of a registered repository unless --worktree; remove only unregisters
   projects audit [dir] [--only workflows,tests,code,findings] [--json]
                                     where the project's CI and tests are bloated or in bad shape, from files only: workflow
-                                    triggers, cancel, cache, repeated builds, matrix size, pins, permissions, a coverage floor
-                                    far below the measured value, duplicated code and tests, large files, a lint step that
-                                    cannot fail; a check whose need is missing (a report, a floor) is listed as skipped with
-                                    how to enable it; Markdown, nothing is run or written
+                                    triggers, cancel, cache, repeated builds, matrix size, pins, permissions, duplicated
+                                    code and tests, large files, a lint step that cannot fail; a check whose need is missing
+                                    (workflows, tests, source) is listed as skipped with how to enable it; Markdown, nothing
+                                    is run or written
   projects rename <dir> [name] [--notes text]
                                     display name and notes (in projects.json only; an empty one clears it)
   projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it

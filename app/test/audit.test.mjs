@@ -59,8 +59,7 @@ const LINTER_ONLY = () => tree({
   '.github/workflows/ci.yml': ci(),
 });
 const MANY_TOOLS = () => tree({
-  'package.json': { name: 'b', scripts: { test: 'node --test --experimental-test-coverage --test-coverage-lines=50 test/*.test.js' } },
-  'coverage/coverage-summary.json': { total: { lines: { pct: 92 }, branches: { pct: 80 }, functions: { pct: 90 }, statements: { pct: 92 } } },
+  'package.json': { name: 'b', scripts: { test: 'node --test test/*.test.js' } },
   'src/index.js': SOURCE,
   'test/index.test.js': TESTFILE,
   // Unfiltered push next to pull_request, and an install without a cache.
@@ -70,39 +69,21 @@ const MANY_TOOLS = () => tree({
 test('a project with only a linter: the checks that need no tool run, the others are listed as skipped', () => {
   const r = audit(ctx, LINTER_ONLY());
   assert.deepEqual(r.findings, []);
-  assert.deepEqual(r.skipped.map((s) => s.id), ['tests/coverage-floor', 'tests/duplicate', 'tests/snapshot-size']);
-  assert.equal(r.ran, CATALOGUE.length - 3);
-  const floor = r.skipped[0];
-  assert.match(floor.reason, /no coverage floor.*no coverage report/);
-  assert.match(floor.enable, /--test-coverage-lines=80.*json-summary or lcov/);
+  assert.deepEqual(r.skipped.map((s) => s.id), ['tests/duplicate', 'tests/snapshot-size']);
+  assert.equal(r.ran, CATALOGUE.length - 2);
   assert.ok(r.skipped.every((s) => !/install/i.test(s.enable)), 'no skipped check tells the project to install a tool');
   assert.deepEqual(r.summary, { error: 0, warning: 0, info: 0 });
 });
 
-test('a duplicated trigger, an uncached install and a floor far below the measured value are exactly three findings', () => {
+test('a duplicated trigger and an uncached install are exactly two findings', () => {
   const dir = MANY_TOOLS();
   const r = audit(ctx, dir);
-  assert.deepEqual(r.findings.map((f) => f.id).sort(), ['tests/coverage-floor', 'workflows/duplicate-trigger:.github/workflows/ci.yml', 'workflows/no-cache:.github/workflows/ci.yml#test']);
+  assert.deepEqual(r.findings.map((f) => f.id).sort(), ['workflows/duplicate-trigger:.github/workflows/ci.yml', 'workflows/no-cache:.github/workflows/ci.yml#test']);
   assert.deepEqual(r.skipped.map((s) => s.id), ['tests/snapshot-size']);
   const byId = Object.fromEntries(r.findings.map((f) => [f.id.split(':')[0], f]));
   assert.deepEqual(byId['workflows/duplicate-trigger'].evidence, { file: '.github/workflows/ci.yml', line: 3 });
   const installLine = readFileSync(join(dir, '.github/workflows/ci.yml'), 'utf8').split('\n').findIndex((l) => l.includes('npm ci')) + 1;
   assert.deepEqual(byId['workflows/no-cache'].evidence, { file: '.github/workflows/ci.yml', line: installLine, job: 'test' });
-  assert.deepEqual(byId['tests/coverage-floor'].evidence, { file: 'package.json', line: 1, report: 'coverage/coverage-summary.json', metrics: [{ metric: 'lines', floor: 50, measured: 92 }] });
-  assert.match(byId['tests/coverage-floor'].fix, /lines 91.*only ever rises/);
-});
-
-test('the floor check: near the measured value is fine, lcov and c8 configuration are read, the highest floor counts', () => {
-  const near = tree({ 'package.json': { scripts: { test: 'node --test --test-coverage-lines=90' } }, 'coverage/coverage-summary.json': { total: { lines: { pct: 92 } } } });
-  assert.deepEqual(ids(near), []);
-  const lcov = tree({ 'package.json': { scripts: { test: 'c8 --lines 30 node --test' }, c8: { lines: 40, branches: 20 } }, 'coverage/lcov.info': 'SF:a\nLF:10\nLH:9\nBRF:4\nBRH:4\nFNF:2\nFNH:2\nend_of_record\n' });
-  const [f] = audit(ctx, lcov).findings;
-  assert.deepEqual(f.evidence.metrics, [{ metric: 'lines', floor: 40, measured: 90 }, { metric: 'branches', floor: 20, measured: 100 }]);
-  assert.equal(f.evidence.report, 'coverage/lcov.info');
-  const rc = tree({ '.c8rc.json': { statements: 10 }, 'coverage/coverage-summary.json': { total: { statements: { pct: 'Unknown' }, lines: { pct: 50 } } } });
-  assert.deepEqual(ids(rc), [], 'a metric the report does not hold is not compared');
-  const jest = tree({ 'package.json': { jest: { coverageThreshold: { global: { functions: 10 } } } }, 'coverage/coverage-summary.json': { total: { functions: { pct: 80 } } } });
-  assert.deepEqual(ids(jest), ['tests/coverage-floor']);
 });
 
 test('workflow checks: cancel, path filter, repeated build, matrix, pins, permissions', () => {
@@ -303,7 +284,6 @@ test('the finding shape is the one of the insights findings', () => {
   const body = (n) => `test('t${n}', () => {\n${Array.from({ length: 12 }, (_, i) => `  assert.equal(compute(${i}, 'case-${i}', { flag: true, retries: ${i} }), expected(${i}, 'case-${i}'));`).join('\n')}\n});\n`;
   const everything = tree({
     'package.json': { scripts: { test: 'c8 --lines 10 node --test' } },
-    'coverage/coverage-summary.json': { total: { lines: { pct: 99 } } },
     'src/long.js': lines(1001),
     'test/a.test.js': body(1),
     'test/b.test.js': body(1),
@@ -330,9 +310,8 @@ test('projects audit prints a Markdown report; --json one document under the env
   const dir = MANY_TOOLS();
   const text = await run(['projects', 'audit', dir]);
   assert.equal(text.code, 0);
-  assert.match(text.text, /^# Audit of .*\n\n3 findings \(0 error, 3 warning, 0 info\); 13 checks ran, 1 skipped\./);
+  assert.match(text.text, /^# Audit of .*\n\n2 findings \(0 error, 2 warning, 0 info\); 12 checks ran, 1 skipped\./);
   assert.match(text.text, /## workflows\n\n- \*\*warning\*\* `workflows\/duplicate-trigger:.github\/workflows\/ci.yml` .*\(\.github\/workflows\/ci\.yml:3\)\n {2}- fix \(small\): /);
-  assert.match(text.text, /## tests\n/);
   assert.match(text.text, /## Skipped\n\n- `tests\/snapshot-size`: no snapshot or fixture files\./);
   const json = await run(['projects', 'audit', dir, '--json']);
   const doc = JSON.parse(json.text);
@@ -340,10 +319,10 @@ test('projects audit prints a Markdown report; --json one document under the env
   assert.equal(doc.schemaVersion, 1);
   assert.equal(doc.command, 'projects audit');
   assert.deepEqual(Object.keys(doc).slice(2), ['dir', 'ran', 'findings', 'skipped', 'summary']);
-  assert.deepEqual(doc.summary, { error: 0, warning: 3, info: 0 });
+  assert.deepEqual(doc.summary, { error: 0, warning: 2, info: 0 });
   assert.equal(auditMarkdown(JSON.parse(json.text)), text.text);
   const only = JSON.parse((await run(['projects', 'audit', dir, '--only', 'tests,code', '--json'])).text);
-  assert.deepEqual(only.findings.map((f) => f.id), ['tests/coverage-floor']);
+  assert.deepEqual(only.findings.map((f) => f.id), []);
 });
 
 test('--only is refused outside projects audit', async () => {

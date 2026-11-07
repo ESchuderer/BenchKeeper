@@ -26,8 +26,8 @@ Every tier:
    | Tier | Steps |
    |---|---|
    | quick | edit, fast checks after each edit; verify; commit |
-   | standard | settle; existing tests of the touched code; test first, implement; verify, review before pushing |
-   | full | settle, spec with acceptance table; existing tests; test first ticket by ticket; verify and run it; review in rounds ([full-tier.md](full-tier.md)) |
+   | standard | settle; existing tests of the touched code; implement, a new test only where the [test rule](#verify) calls for one, written first; verify, review before pushing |
+   | full | settle, spec with acceptance table; existing tests; ticket by ticket, a new test first only where the [test rule](#verify) calls for one; verify and run it; review in rounds ([full-tier.md](full-tier.md)) |
 
 4. **Batch** when the user asks for it or names several tasks for one branch: the tasks run one after another, each at quick tier with no per-task review. Tier each task first (step 1): a task that is risky or above quick tier is not batched and runs at its own tier. Step 5 and the reviews then run once for the whole branch.
 5. **Long checks last.** Fast checks (types, lint, the tests of the touched code) after each edit. The full suite, end-to-end and browser tests and builds run once, after the last edit, in a subagent that returns only failures and key lines. Reviews start then and follow the tier playbook, including its remediation and re-review rounds. A long check writes to a log file and is read by its failures and last lines. Fixes follow the project's commit convention, and failed checks rerun. Waiting for pull request checks: watch them in the background (GitHub: `gh pr checks --watch`) or with one until-loop Monitor, never a leading `sleep`; load a deferred tool's schema (ToolSearch) before the first call.
@@ -63,6 +63,6 @@ A follow-up commit on an open pull request keeps its tier and needs no workflow 
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
+The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: add a test only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
 
 After a compaction, read this skill and the playbook of the current tier again before the next step.

@@ -194,7 +194,7 @@ const optionsWrites = (plugins: [string, Plugin][], target: Target): Result<Oper
     if (target.guarded.some((root) => within(path, root))) {
       return refuse({ code: "profile.options-guarded", params: { part, path } });
     }
-    const write = fileWrite(path, (json) => sets.reduce(mergeSet, json));
+    const write = fileWrite(path, (json) => sets.reduce((value, set) => mergeSet(value, set), json));
     if (!write.ok) return write;
     operations.push(...write.value.operations);
   }
@@ -227,7 +227,7 @@ const settingsPlan = ({ profile, on }: Resolved, target: Target, approved: Reado
   if (sets.length + plugins.length === 0) return { ok: true, value: { operations: [], findings: [] } };
   const settings = fileWrite(join(target.home, "settings.json"), (json) =>
     withPlugins(
-      sets.reduce(mergeSet, json),
+      sets.reduce((value, set) => mergeSet(value, set), json),
       allowed.map(([, plugin]) => plugin),
     ),
   );

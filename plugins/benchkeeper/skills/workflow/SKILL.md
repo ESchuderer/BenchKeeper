@@ -45,7 +45,7 @@ Sets the tier when the user named none, and the check before done. Never run a c
 | Dependency patch or minor | quick | full suite, package audit |
 | UI tweak | quick | browser check, screenshot baselines updated only for intended changes |
 | UI behavior in an existing flow | standard, full for a new page or flow | end-to-end and accessibility tests |
-| Bug | standard | known cause: a failing test first. Unknown: diagnose the cause first (a diagnosis skill, when installed) |
+| Bug | standard | known cause: a failing test first, where the [test rule](#verify) allows one. Unknown: diagnose the cause first (a diagnosis skill, when installed) |
 | Refactor | standard in one module, full across modules or with a changed interface | suite unchanged and passing |
 | Dependency major or security advisory | standard | changelog read, full suite, package audit |
 | CI workflow | standard, full for deploy steps | `actionlint` |
@@ -63,6 +63,6 @@ A follow-up commit on an open pull request keeps its tier and needs no workflow 
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: add a test only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
+The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: no tests by default; add one only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
 
 After a compaction, read this skill and the playbook of the current tier again before the next step.

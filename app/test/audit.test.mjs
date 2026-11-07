@@ -283,7 +283,7 @@ test('the finding shape is the one of the insights findings', () => {
   const fromInsights = insights({ doctorFindings: [{ level: 'warning', check: 'env', message: 'm', fix: 'f', file: 'x', line: 2 }] }).findings;
   const body = (n) => `test('t${n}', () => {\n${Array.from({ length: 12 }, (_, i) => `  assert.equal(compute(${i}, 'case-${i}', { flag: true, retries: ${i} }), expected(${i}, 'case-${i}'));`).join('\n')}\n});\n`;
   const everything = tree({
-    'package.json': { scripts: { test: 'c8 --lines 10 node --test' } },
+    'package.json': { scripts: { test: 'node --test' } },
     'src/long.js': lines(1001),
     'test/a.test.js': body(1),
     'test/b.test.js': body(1),

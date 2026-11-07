@@ -181,6 +181,9 @@ importers:
       '@cedarloom/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
       vscode-jsonrpc:
         specifier: 10.0.0
         version: 10.0.0
@@ -213,6 +216,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@cedarloom/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
 
   packages/ledger:
     dependencies:

@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import type { ExtensionManifest } from "@cedarloom/contracts";
 import { type ExecResult, HOST_FAILED, HOST_MISSING, HOST_REFUSED } from "@cedarloom/extension-sdk";
+import { programPath, runnable } from "@cedarloom/orchestration";
 import { type CancellationToken, ResponseError } from "vscode-jsonrpc/node";
 import { z } from "zod";
 import { stopTree } from "./tree.ts";
@@ -44,36 +44,13 @@ const KEPT = new Set(
 );
 const cleanEnv = (): NodeJS.ProcessEnv =>
   Object.fromEntries(Object.entries(process.env).filter(([name]) => KEPT.has(name.toUpperCase())));
-// The program search path: on Windows its name has any case, and a desktop's is spelled Path.
-const searchPath = (env: NodeJS.ProcessEnv): string =>
-  process.platform === "win32"
-    ? (Object.entries(env).find(([name]) => name.toUpperCase() === "PATH")?.[1] ?? "")
-    : (env["PATH"] ?? "");
 const PLATFORMS = new Set(["darwin", "linux", "win32"] as const);
 
-// A file this user may run; on Windows an .exe or .com, since a .cmd or .bat would run through a shell.
-const runnable = (path: string): boolean => {
-  try {
-    if (!statSync(path).isFile()) return false;
-    if (process.platform === "win32") return /\.(?:exe|com)$/i.test(path);
-    accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-// Where a candidate is: `~/` and a path in the user's home folder, or a file name in an absolute PATH folder (a
-// relative one would follow the current folder).
-const located = (candidate: string, path: string): string | undefined => {
-  if (candidate.startsWith("~/")) {
-    const file = join(homedir(), ...candidate.slice(2).split("/"));
-    return runnable(file) ? file : undefined;
-  }
-  const named = process.platform !== "win32" || /\.(?:exe|com)$/i.test(candidate);
-  const names = named ? [candidate] : [`${candidate}.exe`, `${candidate}.com`];
-  const folders = path.split(delimiter).filter((folder) => isAbsolute(folder));
-  return folders.flatMap((folder) => names.map((name) => join(folder, name))).find(runnable);
+// Where a candidate is: `~/` and a path in the user's home folder, or a file name in an absolute PATH folder.
+const located = (candidate: string, env: NodeJS.ProcessEnv): string | undefined => {
+  if (!candidate.startsWith("~/")) return programPath(candidate, env);
+  const file = join(homedir(), ...candidate.slice(2).split("/"));
+  return runnable(file) ? file : undefined;
 };
 
 const refused = (message: string): ResponseError => new ResponseError(HOST_REFUSED, message);
@@ -85,7 +62,7 @@ const resolve = (manifest: ExtensionManifest, program: string, env: NodeJS.Proce
   // A platform the manifest cannot name has no candidates.
   const platform = [...PLATFORMS].find((each) => each === process.platform);
   const candidates = platform === undefined ? [] : (programs[program]?.[platform] ?? []);
-  const file = candidates.map((candidate) => located(candidate, searchPath(env))).find(Boolean);
+  const file = candidates.map((candidate) => located(candidate, env)).find(Boolean);
   return file ?? new ResponseError(HOST_MISSING, `${program} is not installed: none of ${candidates.join(", ")} found`);
 };
 

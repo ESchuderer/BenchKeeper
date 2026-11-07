@@ -223,7 +223,7 @@ const statusOf = (code: number | string | undefined, stdout: string, message: st
  * claudeRuntime.
  */
 export const claudeAuthStatus =
-  (command: Command = ["claude"], timeoutMs = 30_000) =>
+  (command: Command, timeoutMs = 30_000) =>
   (env: Readonly<Record<string, string>>): Promise<LoginStatus> =>
     new Promise((resolve) => {
       const [file, ...prefix] = command;
@@ -240,7 +240,7 @@ export const claudeAuthStatus =
  * start. `command` is the CLI as for claudeRuntime.
  */
 export const claudeLogin =
-  (command: Command = ["claude"]) =>
+  (command: Command) =>
   (env: Record<string, string>): { readonly code: number | null; readonly error?: string } => {
     const [file, ...prefix] = command;
     // Its output goes to stderr, the same terminal, so stdout keeps only CedarLoom's result (also with --json).
@@ -250,13 +250,10 @@ export const claudeLogin =
 
 /**
  * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the
- * CLI and any arguments before its own; a bare name is looked up on the PATH of the launch's environment. A cancel that
- * the CLI has not obeyed after `killAfterMs` kills it.
+ * CLI by its file and any arguments before its own: Windows looks for a bare name in the launch's folder before PATH. A
+ * cancel that the CLI has not obeyed after `killAfterMs` kills it.
  */
-export const claudeRuntime = (
-  command: Command = ["claude"],
-  killAfterMs = KILL_AFTER_MS,
-): AgentRuntime<ClaudeLaunch> => {
+export const claudeRuntime = (command: Command, killAfterMs = KILL_AFTER_MS): AgentRuntime<ClaudeLaunch> => {
   const [file, ...prefix] = command;
   const cli = { command, killAfterMs };
   const start = (launch: ClaudeLaunch): AgentSession => run(cli, launch);

@@ -30,6 +30,7 @@
     "@anthropic-ai/sandbox-runtime": "0.0.81",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/extension-sdk": "workspace:*",
+    "@cedarloom/orchestration": "workspace:*",
     "vscode-jsonrpc": "10.0.0",
     "zod": "catalog:"
   },

@@ -328,7 +328,7 @@ const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.m
 const besideCommitted = (agents) => [
   'this repository commits AGENTS.md and the setup stays local',
   agents.includes('claude') && `Claude Code reads AGENTS.md next to the BenchKeeper block of ${LOCAL_CLAUDE}`,
-  agents.includes('codex') && `Codex reads ${OVERRIDE} instead, with a copy of AGENTS.md that only projects apply in this checkout rebuilds`,
+  agents.includes('codex') && `Codex reads ${OVERRIDE} instead, with a copy of AGENTS.md that is stale after AGENTS.md changes (a pull) until the next apply here`,
   '--share would commit the block into the repository\'s AGENTS.md',
 ].filter(Boolean).join('; ');
 

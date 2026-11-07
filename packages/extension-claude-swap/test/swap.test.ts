@@ -11,7 +11,7 @@ import {
 import { expect, test } from "vitest";
 
 // claude-swap 0.30.0's own answers to --version, list --json and status --json, recorded with three of its accounts;
-// emails, organizations, aliases and plans replaced.
+// emails, organizations and aliases replaced, and fields this extension does not read (plans, countdowns, pace) cut.
 const recorded = (name: string): string =>
   readFileSync(join(import.meta.dirname, "fixtures", "cswap-0.30.0", name), "utf8");
 const LIST = recorded("list.json");

@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { phaseLaunch } from "@cedarloom/adapter-claude";
-import type { Finding, GraphRun, Json, Result } from "@cedarloom/contracts";
+import { type Finding, type GraphRun, type Json, type Result, shown as safeText } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail } from "./output.ts";
 
@@ -73,6 +73,19 @@ interface Acting {
 // A configuration value as text: the validator checked that these are strings.
 const said = (value: Json | undefined): string => (typeof value === "string" ? value : JSON.stringify(value ?? ""));
 
+// A write's content as the owner reads it before approving: its lines and tabs as they are, every other control or
+// bidirectional character as an escape, so the untrusted content cannot move the cursor or rewrite what is shown.
+const escaped = (content: string): string =>
+  content
+    .split("\n")
+    .map((line) =>
+      line
+        .split("\t")
+        .map((part) => safeText(part, Number.POSITIVE_INFINITY))
+        .join("\t"),
+    )
+    .join("\n");
+
 // What a node waits for: an approval's question, or a gate with the plan it would apply.
 const waitText = (run: GraphRun, { node, point, planHash }: useCases.Waiting): string => {
   const config = run.definition.nodes.find((each) => each.id === node)?.with ?? {};
@@ -97,7 +110,7 @@ export const runsDecide = async (
   const wait = shown.value.waits.find((each) => each.node === node);
   if (wait === undefined) return fail(ctx, "run", [{ code: "run.not-waiting", params: { runId, node } }], EXIT.refused);
   const verb = approved ? "approve" : "reject";
-  const writes = wait.content === null ? [] : ["It writes:", wait.content];
+  const writes = wait.content === null ? [] : ["It writes:", escaped(wait.content)];
   const lines = [
     `Run ${runId}: ${waitText(shown.value.run, wait)}.`,
     ...writes,

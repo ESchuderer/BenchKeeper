@@ -693,6 +693,27 @@ test("runs approve shows what a waiting node waits for, and with --yes approves 
   ]);
 });
 
+test("runs approve shows a write's content with its control characters escaped, so none of it rewrites the prompt", async () => {
+  const { root, cli } = setup();
+  const writing = WorkflowDefinition.parse({
+    ...workflow,
+    nodes: [
+      { id: "t", type: "trigger.manual" },
+      { id: "say", type: "command.run", with: { command: "printf '\\033[2Jkept\\tline\\nnext'" } },
+      { id: "out", type: "file.write", with: { path: "out.txt" } },
+    ],
+    edges: [
+      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "say", handle: "run" } },
+      { id: "e2", from: { node: "say", handle: "done" }, to: { node: "out", handle: "run" } },
+      { id: "e3", from: { node: "say", handle: "stdout" }, to: { node: "out", handle: "content" } },
+    ],
+  });
+  const file = planFile(root, writing, "write.json");
+  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  const { out } = await cli("runs", "approve", String(ran["runId"]), "out");
+  expect([out.includes("\u001b"), out]).toEqual([false, expect.stringContaining("\\u001b[2Jkept\tline\nnext")]);
+});
+
 test("runs resume and cancel take over a graph run no process runs, and Ctrl+C cancels one this process runs", async () => {
   const { root, state, cli } = setup();
   const file = planFile(root, workflow, "greet.json");

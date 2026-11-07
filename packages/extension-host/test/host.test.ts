@@ -801,7 +801,7 @@ const START = {
   repository: "/work/repo",
 };
 
-test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, or answering outside the contract fails", async () => {
+test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, answering or asked outside the contract fails", async () => {
   const wraps = {
     wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
   };
@@ -816,6 +816,7 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     codeOf(await community.worker("worker/show", show)),
     codeOf(await fixture.worker("worker/show", { ...show, runner: "elsewhere" })),
     codeOf(await bad.worker("worker/start", START)),
+    codeOf(await fixture.worker("worker/start", { ...START, line: [] })),
   ]).toEqual([
     { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
     { state: "succeeded", settled: true },
@@ -823,5 +824,6 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     failure("worker", "worker runners are the app's own extensions' only"),
     failure("worker", "no worker runner elsewhere"),
     failure("worker", "an answer the host refuses"),
+    failure("worker", "a request outside its contract"),
   ]);
 });

@@ -23,3 +23,6 @@ export const programVersion = async (
   if (answer.code !== 0) throw new Error(`${program} --version exited with ${answer.code}`);
   return { installed: true, version: answer.stdout.trim() };
 };
+
+/** A word as a POSIX shell takes it unchanged: in single quotes, each single quote closed, escaped and opened again. */
+export const shellWord = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;

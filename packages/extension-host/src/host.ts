@@ -34,7 +34,7 @@ import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { ANSWERS, PolicySet } from "./targets.ts";
-import { WORKER_ANSWERS } from "./workers.ts";
+import { WORKER_ANSWERS, WORKER_PARAMS } from "./workers.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -430,6 +430,8 @@ const targetOf = (manifest: Manifest, trust: Trust, session: Session, limits: Ho
 const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
   const ask = askOf(manifest, trust, session, limits);
   return async <C extends WorkerCall>(call: C, params: WorkerCallParams[C]): Promise<Result<WorkerAnswers[C]>> => {
+    if (!WORKER_PARAMS[call].safeParse(params).success)
+      return failed(manifest.id, "worker", "a request outside its contract");
     const names = manifest.contributes.workerRunners;
     const answer = WORKER_ANSWERS[call];
     return ask(call, params, { step: "worker", what: "worker runner", names, name: params.runner, answer });

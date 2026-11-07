@@ -38,7 +38,7 @@ import {
   type WorkerCallParams,
 } from "./protocol.ts";
 
-export { type ProgramVersion, programVersion, valueAt } from "./answers.ts";
+export { type ProgramVersion, programVersion, shellWord, valueAt } from "./answers.ts";
 export * from "./protocol.ts";
 
 /**

@@ -128,6 +128,18 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     { type: "plugin", commit: true },
     ["project.plugin.type"],
   ],
+  [
+    "an unknown key shaped like a token, reported at its object",
+    ["machine", "rules.global", "ghp_0123456789abcdefghij0123456789abcdef"],
+    1,
+    ["machine.rules.global"],
+  ],
+  [
+    "a broken label named like a token, reported at its object",
+    ["workspace", "hub", "labels", "ghp_0123456789abcdefghij0123456789abcdef"],
+    { color: "white" },
+    ["workspace.hub.labels"],
+  ],
 ])("a profile file with %s is refused", ([, path, value, expected]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toEqual(expected);
 });
@@ -177,6 +189,18 @@ test.for<[string, (string | number)[], unknown, string]>([
     "a plugin's options in gh's credential folder, its own by name",
     ["machine", "plugin.ponytail"],
     { type: "plugin", title: "x", default: "on", plugin: "gh@x", options: { file: ".config/gh/hosts.yml", set: {} } },
+    "machine.plugin.ponytail.options.file",
+  ],
+  [
+    "a plugin's options in Claude Code's folder by its XDG name",
+    ["machine", "plugin.ponytail"],
+    {
+      type: "plugin",
+      title: "x",
+      default: "on",
+      plugin: "claude@x",
+      options: { file: ".config/claude/settings.json", set: {} },
+    },
     "machine.plugin.ponytail.options.file",
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
@@ -350,15 +374,21 @@ test(`more than ${MAX_PROFILE_FILES} profile files through parents are refused, 
   });
 });
 
-test("a part replaced whole forgets who set its fields", () => {
-  const files = loader({ "acme.x/c": tier("acme.c", "quick"), "acme.x/a": tier("acme.a", "full", ["c"]) });
-  const project = { tier: { type: "packs", title: "p", default: "on", packs: [] } };
+const deny = (rule: string) => ({
+  guards: { type: "settings", title: "g", default: "on", commit: true, set: { permissions: { deny: [rule] } } },
+});
+test("a part replaced whole forgets who set its values, however deep they sit", () => {
+  const files = loader({
+    "acme.x/c": file({ ...own, id: "acme.c", project: deny("Bash(sudo *)") }),
+    "acme.x/a": file({ ...own, id: "acme.a", extends: [{ pack: "acme.x", path: "c" }], project: deny("Bash(curl *)") }),
+  });
+  const project = { guards: { type: "packs", title: "p", default: "on", packs: [] } };
   const composed = composeProfile(
     file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "a" }], project }),
     files,
   );
   const setters = composed.ok && Object.entries(composed.value.setBy).filter(([at]) => at.startsWith("/project/"));
-  expect(setters).toEqual([["/project/tier", "acme.root"]]);
+  expect(setters).toEqual([["/project/guards", "acme.root"]]);
 });
 
 const hub = (id: string, label: string) => ({

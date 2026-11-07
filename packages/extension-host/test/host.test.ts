@@ -785,3 +785,43 @@ test("a call of an extension that is not the app's own, to a target the manifest
     failure("target", "no answer within 200 ms"),
   ]);
 });
+
+// The fixture as a worker runner for Claude Code, and a worker for it to start.
+const runners = (): ExtensionManifest => {
+  const plain = manifestOf(ACTIONS);
+  const workerRunners = { claude: { agent: "claude" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, workerRunners } });
+};
+const START = {
+  runner: "claude",
+  worktree: "path:/work/tree",
+  line: ["cswap", "run", "1", "--require-session", "--"],
+  spec: "Fix it.",
+  title: "fix",
+  repository: "/work/repo",
+};
+
+test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, or answering outside the contract fails", async () => {
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
+  const community = await extension({ manifest: runners(), trust: "community", platform: "darwin", sandbox: wraps });
+  const fixture = await extension({ manifest: runners() });
+  const bad = await extension({ manifest: runners(), locale: "x-bad-worker" });
+  const show = { runner: "claude", dispatch: "ctx_1" };
+  expect([
+    codeOf(await fixture.worker("worker/start", START)),
+    codeOf(await fixture.worker("worker/show", show)),
+    codeOf(await fixture.worker("worker/release", { runner: "claude", handles: ["term_1", "term_2"] })),
+    codeOf(await community.worker("worker/show", show)),
+    codeOf(await fixture.worker("worker/show", { ...show, runner: "elsewhere" })),
+    codeOf(await bad.worker("worker/start", START)),
+  ]).toEqual([
+    { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
+    { state: "succeeded", settled: true },
+    { released: true },
+    failure("worker", "worker runners are the app's own extensions' only"),
+    failure("worker", "no worker runner elsewhere"),
+    failure("worker", "an answer the host refuses"),
+  ]);
+});

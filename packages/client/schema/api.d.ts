@@ -1626,7 +1626,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
                 error: string;
             };
         } | {
@@ -2862,7 +2862,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker";
                 error: string;
             };
         } | {

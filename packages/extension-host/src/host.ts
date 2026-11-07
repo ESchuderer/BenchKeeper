@@ -14,6 +14,9 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
+  type WorkerAnswers,
+  type WorkerCall,
+  type WorkerCallParams,
 } from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
@@ -28,6 +31,7 @@ import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { ANSWERS, PolicySet, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
+import { WORKER_ANSWERS } from "./workers.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -121,10 +125,15 @@ export type RunningExtension = {
    * call's contract.
    */
   target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswer<C>>>;
+  /**
+   * Asks one of its worker runners (`contributes.workerRunners`), as `target` asks a switch target: `extension.failed`
+   * (step worker) on the same grounds.
+   */
+  worker: <C extends WorkerCall>(call: C, params: WorkerCallParams[C]) => Promise<Result<WorkerAnswers[C]>>;
 };
 
 type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
-type Step = "start" | "initialize" | "run" | "doctor" | "target";
+type Step = "start" | "initialize" | "run" | "doctor" | "target" | "worker";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
   code: "extension.refused",
@@ -373,27 +382,56 @@ const DoctorAnswer = (checks: string[]) =>
       .max(50),
   });
 
-const targetOf =
+// What a contributed call names, in the extension's manifest, and its answer's contract.
+type Contributed<A> = {
+  step: "target" | "worker";
+  what: string;
+  names: object | undefined;
+  name: string;
+  answer: z.ZodType<A>;
+};
+
+// Switching an agent's account and starting workers are the app's own extensions' work, within `targetMs`.
+const askOf =
   (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) =>
-  async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswer<C>>> => {
-    // Switching an agent's account is the app's own extensions' work.
-    if (trust !== "bundled") return failed(manifest.id, "target", "switch targets are the app's own extensions' only");
-    if (!Object.hasOwn(manifest.contributes.switchTargets ?? {}, params.target)) {
-      return failed(manifest.id, "target", `no switch target ${params.target}`);
-    }
-    if (!PolicySet.safeParse(Reflect.get(params, "set") ?? {}).success) {
-      return failed(manifest.id, "target", "settings its answer could not hold");
-    }
+  async <A>(call: string, params: object, { step, what, names, name, answer }: Contributed<A>): Promise<Result<A>> => {
+    if (trust !== "bundled") return failed(manifest.id, step, `${what}s are the app's own extensions' only`);
+    if (!Object.hasOwn(names ?? {}, name)) return failed(manifest.id, step, `no ${what} ${name}`);
     const asked = Promise.resolve().then(() => session.connection.sendRequest(call, params));
-    const answer = await within(asked, limits.targetMs, `no answer within ${limits.targetMs} ms`).catch(
+    const answered = await within(asked, limits.targetMs, `no answer within ${limits.targetMs} ms`).catch(
       (error: unknown) => new Error(session.broken() ?? messageOf(error)),
     );
-    if (answer instanceof Error) return failed(manifest.id, "target", answer.message);
-    const parsed = ANSWERS[call].safeParse(answer);
-    return parsed.success
-      ? { ok: true, value: parsed.data }
-      : failed(manifest.id, "target", "an answer the host refuses");
+    if (answered instanceof Error) return failed(manifest.id, step, answered.message);
+    const parsed = answer.safeParse(answered);
+    return parsed.success ? { ok: true, value: parsed.data } : failed(manifest.id, step, "an answer the host refuses");
   };
+
+const targetOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
+  const ask = askOf(manifest, trust, session, limits);
+  return async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswer<C>>> => {
+    // Checked before the call, as the answer echoes the settings.
+    if (trust === "bundled" && !PolicySet.safeParse(Reflect.get(params, "set") ?? {}).success) {
+      return failed(manifest.id, "target", "settings its answer could not hold");
+    }
+    const names = manifest.contributes.switchTargets;
+    return ask(call, params, {
+      step: "target",
+      what: "switch target",
+      names,
+      name: params.target,
+      answer: ANSWERS[call],
+    });
+  };
+};
+
+const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
+  const ask = askOf(manifest, trust, session, limits);
+  return async <C extends WorkerCall>(call: C, params: WorkerCallParams[C]): Promise<Result<WorkerAnswers[C]>> => {
+    const names = manifest.contributes.workerRunners;
+    const answer = WORKER_ANSWERS[call];
+    return ask(call, params, { step: "worker", what: "worker runner", names, name: params.runner, answer });
+  };
+};
 
 const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits): Promise<Finding[]> => {
   const checks = Object.keys(manifest.contributes.doctor ?? {});
@@ -422,6 +460,7 @@ const running = (
 ): RunningExtension => ({
   doctor: () => doctorOf(manifest, session, limits),
   target: targetOf(manifest, trust, session, limits),
+  worker: workerOf(manifest, trust, session, limits),
   run: async (request, signal) => {
     const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");

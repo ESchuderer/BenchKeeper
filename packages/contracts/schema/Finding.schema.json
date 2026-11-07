@@ -3304,7 +3304,8 @@
                 "initialize",
                 "run",
                 "doctor",
-                "target"
+                "target",
+                "worker"
               ]
             },
             "error": {

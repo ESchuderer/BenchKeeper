@@ -140,6 +140,8 @@ export {
   HandleType,
   JoinConfig,
   JsonValue,
+  MAX_WORKFLOW_EDGES,
+  MAX_WORKFLOW_NODES,
   semverAbove,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,

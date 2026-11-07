@@ -14,6 +14,7 @@ import {
   type Plan,
   type Result,
   readDocument,
+  Sha256,
   STORE_REF,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
@@ -144,7 +145,7 @@ const storedJson = <T>(
 // The record of the last imports: workflow ids to the SHA-256 of their texts, nothing else.
 const asImported = (json: unknown): Result<Record<string, string>> => {
   const entries = typeof json === "object" && json !== null && !Array.isArray(json) ? Object.entries(json) : null;
-  const valid = entries?.every(([, hash]) => typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash)) === true;
+  const valid = entries?.every(([, hash]) => Sha256.safeParse(hash).success) === true;
   if (entries === null || !valid)
     return refuse({ code: "document.invalid", params: { issues: [{ path: IMPORTED, code: "custom" }] } });
   return { ok: true, value: Object.fromEntries(entries.map(([id, hash]) => [id, String(hash)])) };

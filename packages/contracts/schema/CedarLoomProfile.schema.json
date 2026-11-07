@@ -314,7 +314,8 @@
                     },
                     "additionalProperties": {
                       "$ref": "JsonValue.schema.json"
-                    }
+                    },
+                    "description": "At most 1,000 values"
                   }
                 },
                 "required": [

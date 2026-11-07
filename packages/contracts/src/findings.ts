@@ -51,7 +51,7 @@ export const Finding = z
     finding("run.shell-missing", {}),
     // A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
     // sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
-    finding("run.sandbox-unavailable", { node: z.string() }),
+    finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
     // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.

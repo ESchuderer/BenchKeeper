@@ -202,10 +202,23 @@ const policyOf = (project: string, temp: string[]): SandboxPolicy => ({
 // What a report run's executors refuse: a command or precheck where the OS sandbox does not run, and a write, which the
 // ledger also refuses to record (as a stored run's that its start did not check). A refused precheck counts as not
 // passed: the run ends skipped.
-const refusing = (code: string) => (): Prepared => ({
+const refusing = (code: string, reason?: string) => (): Prepared => ({
   pid: null,
-  run: () => Promise.resolve({ ok: false, values: { error: code } }),
+  run: () => Promise.resolve({ ok: false, values: { error: code, ...(reason === undefined ? {} : { reason }) } }),
 });
+
+// The launch inside the OS sandbox, or why the sandbox does not run it: the probe's error, as bubblewrap's in a rootless
+// container, or that it runs on no such system.
+const inSandbox = async (sandbox: Sandbox, launch: Launch, policy: SandboxPolicy): Promise<Launch | string> => {
+  try {
+    return (
+      (await sandbox.wrap(launch, policy)) ??
+      "the OS sandbox does not run on this system, or a program it needs is missing"
+    );
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};
 
 /**
  * A report run's `command.run`, and its precheck, in the OS sandbox: a temporary folder of its own (TMPDIR) is all it may
@@ -221,10 +234,10 @@ const sandboxed =
     const gone = (): void => rmSync(temp, { recursive: true, force: true });
     const plain = launchOf(shell, project, attempt);
     const launch = { ...plain, env: { ...plain.env, TMPDIR: temp } };
-    const inside = await sandbox.wrap(launch, policyOf(project, [temp])).catch(() => undefined);
-    if (inside === undefined) {
+    const inside = await inSandbox(sandbox, launch, policyOf(project, [temp]));
+    if (typeof inside === "string") {
       gone();
-      return refusing("run.sandbox-unavailable")();
+      return refusing("run.sandbox-unavailable", inside)();
     }
     const prepared = attemptOf(spawnGated(inside), attempt);
     return { ...prepared, run: () => prepared.run().finally(gone) };
@@ -340,13 +353,16 @@ const reportRefusal = async (
   const write = reportOnly(workflow.nodes)[0];
   if (write !== undefined) return write;
   const agent = workflow.nodes.find((each) => process.platform === "win32" && each.type === "agent.run");
-  const node =
-    agent ?? workflow.nodes.find((each) => each.type === "command.run" || each.with?.["precheck"] !== undefined);
+  if (agent !== undefined) {
+    return { code: "run.sandbox-unavailable", params: { node: agent.id, reason: "native Windows has no OS sandbox" } };
+  }
+  const node = workflow.nodes.find((each) => each.type === "command.run" || each.with?.["precheck"] !== undefined);
   if (node === undefined) return null;
   const nothing = { command: shell, args: ["-c", ""], cwd: project, env: {} };
-  const inside =
-    agent === undefined ? await sandbox.wrap(nothing, policyOf(project, [])).catch(() => undefined) : undefined;
-  return inside === undefined ? { code: "run.sandbox-unavailable", params: { node: node.id } } : null;
+  const inside = await inSandbox(sandbox, nothing, policyOf(project, []));
+  return typeof inside === "string"
+    ? { code: "run.sandbox-unavailable", params: { node: node.id, reason: inside } }
+    : null;
 };
 
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.

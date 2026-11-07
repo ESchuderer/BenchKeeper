@@ -216,7 +216,7 @@ test("a report run is refused before it starts with a node that may write, or a 
   );
   const touch = project([command("a", "touch touched")], "t.start>a.run");
   const none = { ...touch.options, report: true, sandbox: unavailable };
-  expect(await runWorkflow(touch.state, touch.file, {}, none)).toEqual(
+  expect(await runWorkflow(touch.state, touch.file, {}, none)).toMatchObject(
     refused("run.sandbox-unavailable", { node: "a" }),
   );
   expect(existsSync(join(touch.root, "touched"))).toBe(false);
@@ -224,7 +224,7 @@ test("a report run is refused before it starts with a node that may write, or a 
   const prechecked = project([], "t.start>r.run", {
     nodes: [{ id: "t", type: "trigger.manual", with: { precheck: "true" } }, read],
   });
-  expect(await runWorkflow(prechecked.state, prechecked.file, {}, { ...none, project: prechecked.root })).toEqual(
+  expect(await runWorkflow(prechecked.state, prechecked.file, {}, { ...none, project: prechecked.root })).toMatchObject(
     refused("run.sandbox-unavailable", { node: "t" }),
   );
   expect(listGraphRuns(touch.state)).toMatchObject({ ok: true, value: [] });

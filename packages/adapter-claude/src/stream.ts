@@ -1,5 +1,5 @@
 import type { AgentEvent, UsageWindow } from "@cedarloom/agent-contracts";
-import { AgentVersion, type Json } from "@cedarloom/contracts";
+import { AgentVersion, type Json, type RunTotals } from "@cedarloom/contracts";
 import { z } from "zod";
 import { SETTINGS_SENTINEL } from "./overlay.ts";
 
@@ -52,6 +52,41 @@ const Result = z.looseObject({
   is_error: z.boolean(),
   result: z.string().optional(),
 });
+
+const Tokens = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
+// What a result reports of the session's spend: the cost and each model's tokens, read apart from the result itself, so
+// a field of another shape costs only the totals, never the verdict.
+const Spend = z.looseObject({
+  total_cost_usd: z.number().min(0).max(1e9),
+  modelUsage: z.record(
+    z.string(),
+    z.looseObject({
+      inputTokens: Tokens,
+      outputTokens: Tokens,
+      cacheReadInputTokens: Tokens,
+      cacheCreationInputTokens: Tokens,
+    }),
+  ),
+});
+
+// The session's totals over every model it used, subagents included, which `usage` leaves out
+// (https://code.claude.com/docs/en/agent-sdk/cost-tracking); none when the result reports none, or only zeros, as the
+// result of a crashed session may.
+const totalsOf = (raw: Json): RunTotals | null => {
+  const spend = Spend.safeParse(raw);
+  if (!spend.success) return null;
+  const models = Object.values(spend.data.modelUsage);
+  const sum = (key: "inputTokens" | "outputTokens" | "cacheReadInputTokens" | "cacheCreationInputTokens"): number =>
+    models.reduce((total, model) => total + model[key], 0);
+  const totals = {
+    inputTokens: sum("inputTokens"),
+    outputTokens: sum("outputTokens"),
+    cacheReadTokens: sum("cacheReadInputTokens"),
+    cacheCreationTokens: sum("cacheCreationInputTokens"),
+    costUsd: spend.data.total_cost_usd,
+  };
+  return Object.values(totals).every((value) => value === 0) ? null : totals;
+};
 
 type RateLimitInfo = z.infer<typeof RateLimit>["rate_limit_info"];
 
@@ -142,7 +177,7 @@ export const streamParser = (verified: (version: string) => boolean): ((line: st
     const result = Result.safeParse(raw);
     if (result.success) {
       const ok = !result.data.is_error && result.data.subtype === "success";
-      return { type: "result", ok, text: result.data.result ?? null, raw };
+      return { type: "result", ok, text: result.data.result ?? null, totals: totalsOf(raw), raw };
     }
     return { type: "other", raw };
   };

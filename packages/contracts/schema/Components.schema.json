@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Components.schema.json",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "cedarloom.components"
+    },
+    "components": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}(\\.[a-z][a-z0-9-]{0,63})?$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "off"
+        ]
+      },
+      "maxProperties": 100
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "components"
+  ],
+  "additionalProperties": false
+}

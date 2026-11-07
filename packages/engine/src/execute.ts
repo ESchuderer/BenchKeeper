@@ -170,7 +170,12 @@ class Runner {
 
   /** Carries out the actions left from the journal, then each event's actions, until the run has finished. */
   async run(actions: readonly Action[]): Promise<Result<RunStatus>> {
-    this.#options.signal?.addEventListener("abort", () => this.#post({ type: "cancel" }), { once: true });
+    const { signal } = this.#options;
+    const cancel = (): void => this.#post({ type: "cancel" });
+    // The run's end removes the listener, so a signal that outlives the run keeps no finished runner.
+    signal?.addEventListener("abort", cancel, { once: true, signal: this.#ending.signal });
+    // A signal that ended already sends no abort event.
+    if (signal?.aborted === true) cancel();
     actions.forEach((action) => this.#handle(action));
     while (this.#status === "running" && this.#lost === null) {
       const event = this.#inbox.shift();

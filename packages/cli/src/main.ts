@@ -21,6 +21,8 @@ import {
   profilesApply,
   profilesCheck,
   profilesChoose,
+  profilesDiff,
+  profilesInit,
   runsList,
   runsShow,
   runsUndo,
@@ -336,6 +338,28 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((binding, repository, options) =>
       done(profilesChoose(ctx(), binding === "hub" ? { hub: repository } : { gates: repository }, options)),
     );
+  profileFiles(profiles, ctx, done);
+};
+
+// The commands for a profile file of the owner's: a copy of a pack's to edit, and how it differs from the pack's.
+const profileFiles = (profiles: Command, ctx: Ctx, done: Done): void => {
+  profiles
+    .command("init")
+    .description("show copying a pack's profile into a file that this machine then applies; with --yes, copy it")
+    .argument("<file>", "the copy, a profile file of your own to edit")
+    .requiredOption("--from <profile>", "the pack's profile as pack/path, such as cedarloom.core/profiles/default.json")
+    .option("--yes", "copy the profile and select it as computed now")
+    .action((file, options) => done(profilesInit(ctx(), file, options)));
+  profiles
+    .command("diff")
+    .description(
+      "list how this machine's profile differs from a pack's, by field and part: + added, - removed, ~ changed",
+    )
+    .requiredOption(
+      "--against <profile>",
+      "the pack's profile as pack/path, such as cedarloom.core/profiles/default.json",
+    )
+    .action((options) => done(profilesDiff(ctx(), options)));
 };
 
 const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {

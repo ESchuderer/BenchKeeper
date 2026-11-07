@@ -142,13 +142,13 @@ const loadParent: LoadParent = (parent) => {
   return !json.ok && json.finding.code === "profile.entry-unknown" ? undefined : json;
 };
 
-// The selected profile file as JSON, and whether it ships in this release; the default without a selection.
 /** The JSON of the profile file a selection names: a pack's entry, or a file of the owner's. */
 export const profileJson = (profile: ProfileSelection["profile"]): Result<unknown> =>
   "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
 
+// The selected profile file as JSON, and whether it ships in this release; the default without a selection.
 const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; bundled: boolean }> => {
-  const json = "pack" in profile ? profileEntry(profile) : jsonAt(profile.file);
+  const json = profileJson(profile);
   return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 

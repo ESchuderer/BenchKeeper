@@ -181,7 +181,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // expected document 65, a rule 1.
 export const refused = (
   ctx: Context,
-  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "versions",
+  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "profile-diff" | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
@@ -594,3 +594,18 @@ export const profilesCheck = async (ctx: Context, { project }: { project?: strin
 /** Shows a change of this machine's profile selection, or with --yes makes it as one run. */
 export const profilesChoose = (ctx: Context, choice: useCases.Choice, { yes }: { yes?: true }): number =>
   configChange(ctx, useCases.planChoice(ctx.config, choice), yes);
+
+/** Shows copying a pack's profile into a file that this machine's selection then names; with --yes, does it. */
+export const profilesInit = (ctx: Context, file: string, { from, yes }: { from: string; yes?: true }): number =>
+  configChange(ctx, useCases.planProfileCopy(ctx.config, from, file), yes);
+
+const SIGNS = { added: "+", removed: "-", changed: "~" } as const;
+
+/** Lists how this machine's profile differs from a pack's, by field and by part. */
+export const profilesDiff = (ctx: Context, { against }: { against: string }): number => {
+  const diff = useCases.diffProfile(ctx.config, against);
+  if (!diff.ok) return refused(ctx, "profile-diff", diff.finding);
+  const lines = diff.value.map((entry) => `${SIGNS[entry.change]} ${entry.key}`);
+  emit(ctx, "profile-diff", { changes: diff.value }, lines.join("\n") || `The profile is the same as ${against}.`);
+  return EXIT.ok;
+};

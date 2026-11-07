@@ -5,6 +5,7 @@ export {
   type NewGraphRun,
   openGraphStore,
   openGraphView,
+  type PassedGate,
   type RunLease,
 } from "./graph.ts";
 export { planHash, sha256 } from "./hash.ts";

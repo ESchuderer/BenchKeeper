@@ -55,6 +55,7 @@ import {
   type GraphView,
   openGraphStore,
   openGraphView,
+  type PassedGate,
   planHash,
   type RunLease,
 } from "@cedarloom/ledger";
@@ -623,11 +624,14 @@ export const listGraphRuns = (state: string): Result<GraphRun[]> =>
   withGraphView(state, (view) => ({ ok: true, value: view?.graphRuns() ?? [] }));
 
 /** A graph run with its attempts; the pid of an attempt that ended interrupted is what a user checks by hand. */
-export const showGraphRun = (state: string, runId: string): Result<{ run: GraphRun; attempts: NodeAttempt[] }> =>
+export const showGraphRun = (
+  state: string,
+  runId: string,
+): Result<{ run: GraphRun; attempts: NodeAttempt[]; passed: PassedGate[] }> =>
   withGraphView(state, (view) => {
     const run = view?.graphRun(runId);
     if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
-    return { ok: true, value: { run, attempts: view.attempts(runId) } };
+    return { ok: true, value: { run, attempts: view.attempts(runId), passed: view.passedGates(runId) } };
   });
 
 /**

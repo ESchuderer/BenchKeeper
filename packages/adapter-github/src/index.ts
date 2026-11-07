@@ -3,6 +3,7 @@ import type { Tracker } from "@cedarloom/work-items";
 import { Octokit } from "@octokit/core";
 import { paginateRest } from "@octokit/plugin-paginate-rest";
 import { RequestError } from "@octokit/request-error";
+import { z } from "zod";
 
 const GitHub = Octokit.plugin(paginateRest);
 
@@ -19,12 +20,18 @@ const limited = ({ status, response }: RequestError): boolean =>
 
 /**
  * A failed call as a finding. It waits (the entry stays queued) without an answer (Octokit's status 500), on a server
- * error, a rate limit or a token GitHub does not take (401), which no entry can fix; any other answer refuses the entry.
+ * error, a rate limit or a token GitHub does not take (401), which no entry can fix; any other answer refuses the entry,
+ * as does one that is no comment.
  */
-const failure = (error: unknown): Finding =>
-  error instanceof RequestError && error.status < 500 && error.status !== 401 && !limited(error)
+const failure = (error: unknown): Finding => {
+  if (error instanceof z.ZodError) {
+    const issues = error.issues.map(({ path, code }) => `${path.join(".")} ${code}`);
+    return { code: "tracker.invalid-answer", params: { error: issues.join(", ") } };
+  }
+  return error instanceof RequestError && error.status < 500 && error.status !== 401 && !limited(error)
     ? { code: "tracker.refused", params: { status: error.status, error: error.message } }
     : { code: "tracker.unavailable", params: { error: error instanceof Error ? error.message : String(error) } };
+};
 
 const call = async <T>(work: () => Promise<T>): Promise<Result<T>> => {
   try {
@@ -51,12 +58,14 @@ const repoOf = ({ repo }: IssueRef): { owner: string; repo: string } => {
 const issueOf = (issue: IssueRef) => ({ ...repoOf(issue), issue_number: issue.number, ...VERSION });
 
 /**
- * The tracker on GitHub's REST API, with a token of the hub's `hub-issues` access profile (A37). `fetch` stands in for
- * the network in tests. Answers are checked before they are kept, as GitHub's text is untrusted.
+ * The tracker of the hub (`owner/name`, from local config) on GitHub's REST API, with a token of its `hub-issues` access
+ * profile (A37). `fetch` stands in for the network in tests. Answers are checked before they are kept, as GitHub's text
+ * is untrusted.
  */
-export const githubTracker = (token: string, fetch?: typeof globalThis.fetch): Tracker => {
+export const githubTracker = (hub: string, token: string, fetch?: typeof globalThis.fetch): Tracker => {
   const github = new GitHub({ auth: token, request: fetch === undefined ? {} : { fetch } });
   return {
+    hub,
     hasLabel: (issue, label) =>
       call(async () => {
         const route = "GET /repos/{owner}/{repo}/issues/{issue_number}/labels";

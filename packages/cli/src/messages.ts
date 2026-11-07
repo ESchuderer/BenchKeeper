@@ -340,6 +340,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "tracker.unavailable": (p) =>
     `The tracker could not be reached (${shown(p.error, 300)}); the entry stays queued for the next send.`,
   "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
+  "tracker.invalid-answer": (p) =>
+    `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

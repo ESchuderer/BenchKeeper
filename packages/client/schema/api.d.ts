@@ -1948,6 +1948,12 @@ export interface components {
                 status: number;
                 error: string;
             };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
+                error: string;
+            };
         };
         ImportReviewInput: {
             source: {
@@ -3231,6 +3237,12 @@ export interface components {
             code: "tracker.refused";
             params: {
                 status: number;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "tracker.invalid-answer";
+            params: {
                 error: string;
             };
         };

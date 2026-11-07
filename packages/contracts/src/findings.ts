@@ -309,6 +309,9 @@ export const Finding = z
     finding("tracker.unavailable", { error: z.string() }),
     // The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission.
     finding("tracker.refused", { status: z.int(), error: z.string() }),
+    // The tracker's answer is not what CedarLoom reads, such as a comment without a link: the entry fails, as a retry
+    // would read the same answer; the write itself may have happened.
+    finding("tracker.invalid-answer", { error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });
 export type Finding = z.infer<typeof Finding>;
@@ -469,6 +472,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "outbox.not-undoable": { severity: "warning", effort: "manual" },
   "tracker.unavailable": { severity: "warning", effort: "command" },
   "tracker.refused": { severity: "error", effort: "manual" },
+  "tracker.invalid-answer": { severity: "error", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

@@ -33,7 +33,7 @@ const replay = (answers: Answer[]) => {
       headers,
     });
   };
-  return { requests, tracker: githubTracker("test-token", fetch) };
+  return { requests, tracker: githubTracker("acme/tracker", "test-token", fetch) };
 };
 
 test("a comment is posted to the issue with the token in its header, and GitHub's answer gives its id and link", async () => {
@@ -93,7 +93,7 @@ test("a deletion of what is gone is done, and a missing issue refuses the write"
   });
 });
 
-test("a rate limit, a refused token, a server error and no answer keep the write waiting; a forbidden one is refused", async () => {
+test("a rate limit, a refused token, a server error and no answer keep the write waiting; a forbidden write or an answer that is no comment fails", async () => {
   const forbidden = { message: "Resource not accessible by personal access token" };
   const { tracker } = replay([
     { status: 403, headers: { "x-ratelimit-remaining": "0" }, body: { message: "API rate limit exceeded" } },
@@ -102,9 +102,10 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     { status: 502, body: { message: "Server Error" } },
     new TypeError("fetch failed"),
     { status: 403, body: forbidden },
+    { status: 201, body: { id: 1, html_url: "javascript:alert(1)" } },
   ]);
   const codes: string[] = [];
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 7; i += 1) {
     const sent = await tracker.comment(issue, "Run ended.");
     codes.push(sent.ok ? "sent" : sent.finding.code);
   }
@@ -115,5 +116,6 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     "tracker.unavailable",
     "tracker.unavailable",
     "tracker.refused",
+    "tracker.invalid-answer",
   ]);
 });

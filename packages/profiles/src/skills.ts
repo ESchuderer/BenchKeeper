@@ -39,9 +39,13 @@ const gitOf = (resolved: Resolved, { source }: Skill, fetched: Fetched): GitSour
  * The Git sources a plan needs, each marked as a pack's folder or a skill's: the profile's Git packs, and the source of
  * each skill part that is on, a pack entry's once its pack is fetched.
  */
-export const sourcesOf = (resolved: Resolved, fetched: Fetched): { source: GitSource; pack: boolean }[] => [
+export const sourcesOf = (
+  resolved: Resolved,
+  fetched: Fetched,
+  withSkills = true,
+): { source: GitSource; pack: boolean }[] => [
   ...Object.values(resolved.profile.packs).flatMap((source) => ("bundled" in source ? [] : [{ source, pack: true }])),
-  ...skills(resolved)
+  ...(withSkills ? skills(resolved) : [])
     .filter(([id]) => resolved.on.has(`machine.${id}`))
     .flatMap(([, skill]) => {
       const source = gitOf(resolved, skill, fetched);

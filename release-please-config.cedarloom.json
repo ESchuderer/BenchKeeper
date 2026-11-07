@@ -10,6 +10,7 @@
       "components": [
         "accounts",
         "adapter-claude",
+        "adapter-github",
         "agent-contracts",
         "cli",
         "client",
@@ -33,6 +34,7 @@
   "packages": {
     "packages/accounts": { "component": "accounts" },
     "packages/adapter-claude": { "component": "adapter-claude" },
+    "packages/adapter-github": { "component": "adapter-github" },
     "packages/agent-contracts": { "component": "agent-contracts" },
     "packages/cli": { "component": "cli" },
     "packages/client": { "component": "client" },

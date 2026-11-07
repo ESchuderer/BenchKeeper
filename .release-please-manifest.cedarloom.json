@@ -1,6 +1,7 @@
 {
   "packages/accounts": "0.0.0",
   "packages/adapter-claude": "0.0.0",
+  "packages/adapter-github": "0.0.0",
   "packages/agent-contracts": "0.0.0",
   "packages/cli": "0.0.0",
   "packages/client": "0.0.0",

@@ -172,7 +172,7 @@ const lockOf = (state: string, ids: Set<string>): Result<ExtensionLock> => {
   const installed = installedExtensions(state);
   if (!installed.ok) return installed;
   const extensions: ExtensionLock["extensions"] = {};
-  for (const id of [...ids].toSorted()) {
+  for (const id of [...ids].toSorted((a, b) => a.localeCompare(b))) {
     const pin = installed.value.find((entry) => entry.id === id);
     if (pin === undefined) return refuse({ code: "extension.unknown", params: { extension: id } });
     extensions[id] = { version: pin.version, source: pin.source, digest: pin.digest };

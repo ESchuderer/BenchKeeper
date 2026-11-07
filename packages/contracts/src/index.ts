@@ -8,6 +8,8 @@ export {
   AgentVersion,
   ContractCheckRecord,
   formatRegistry,
+  modelWindow,
+  Quota,
   QuotaWindow,
   Reading,
   sameFolder,
@@ -75,6 +77,7 @@ export { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "./catalog.
 export { isPlainText, PlainText, shown } from "./text.ts";
 export { CSRF_HEADER } from "./http.ts";
 export {
+  Commit,
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   EXTENSION_SCHEMA_VERSION,
@@ -95,7 +98,15 @@ export {
   PortablePath,
   UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";
-export { PACK_SCHEMA_VERSION, PackManifest } from "./pack.ts";
+export { ImportReview } from "./imports.ts";
+export {
+  GitSource,
+  PACK_SCHEMA_VERSION,
+  PackManifest,
+  PackSources,
+  SOURCES_SCHEMA_VERSION,
+  skillFolder,
+} from "./pack.ts";
 export {
   Profile,
   PROFILE_SCHEMA_VERSION,

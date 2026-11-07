@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ImportReview.schema.json",
+  "type": "object",
+  "properties": {
+    "source": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "folder": {
+              "type": "string",
+              "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
+            }
+          },
+          "required": [
+            "folder"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "git": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+              "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+            },
+            "ref": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "description": "The commit, never a branch or tag that can move"
+            }
+          },
+          "required": [
+            "git",
+            "ref",
+            "commit"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "same",
+              "update",
+              "conflict"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+          },
+          "stored": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored version; null when there is none"
+          },
+          "license": {
+            "description": "Its own license, else the export's; null: none stated",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changes": {
+            "type": "object",
+            "properties": {
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "removed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "changed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "additionalProperties": false,
+            "description": "Node ids against the stored version"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "version",
+          "stored",
+          "license",
+          "changes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          },
+          "node": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "schedule",
+              "precheck",
+              "command",
+              "agent",
+              "write",
+              "workflow",
+              "extension"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "The command, task, schedule, path or node type in full"
+          }
+        },
+        "required": [
+          "workflow",
+          "node",
+          "kind",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!(?:trigger|agent|command|file|condition|join|human|workflow)\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+          },
+          "git": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^(?:https:\\/\\/|ssh:\\/\\/|[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9])[!-[\\]-~]*$",
+            "description": "An https or ssh Git URL, or user@host:path; no password, no user over https, no user or host starting with -, no query or fragment, nothing percent-encoded below space or above ~"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$",
+            "description": "The commit, never a branch or tag that can move"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+            "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
+          },
+          "digest": {
+            "description": "SHA-256 of the folder's listing at the commit: per file one line `<mode> <SHA-256 of the file> <path>` ending in \\n, the mode 100644 or 100755, the path relative to the folder; the lines in the byte order of the paths",
+            "$ref": "Sha256.schema.json"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "mismatch",
+              "unreachable"
+            ]
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "Installed here at this commit and digest; the import installs none"
+          },
+          "capabilities": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "description": "Hosts the extension may call through the host's fetch, and no others",
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 300,
+                      "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                    },
+                    "uniqueItems": true
+                  },
+                  "credentials": {
+                    "description": "Credential types the extension uses; it never receives their values",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "maxLength": 2000,
+                          "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
+                        },
+                        "scheme": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "http"
+                                },
+                                "scheme": {
+                                  "type": "string",
+                                  "enum": [
+                                    "bearer",
+                                    "basic"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "scheme"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "apiKey"
+                                },
+                                "in": {
+                                  "type": "string",
+                                  "const": "header"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9-]{1,64}$"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "in",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ],
+                          "description": "The host refuses a request in which the extension sets this header itself"
+                        },
+                        "hosts": {
+                          "minItems": 1,
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 300,
+                            "pattern": "^https:\\/\\/[a-z0-9][a-z0-9.-]*(?::[1-9][0-9]{0,4})?$"
+                          },
+                          "uniqueItems": true,
+                          "description": "The host adds the credential to requests to these hosts only; each is in `net`"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "hosts"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxProperties": 16
+                  },
+                  "projectRead": {
+                    "description": "Reads project files through the host",
+                    "type": "boolean"
+                  },
+                  "planWrite": {
+                    "description": "Proposes file writes, which apply only through a plan the user approves",
+                    "type": "boolean"
+                  },
+                  "programs": {
+                    "description": "Programs the host runs for the extension (host/exec), found from these candidates; bundled extensions only",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "darwin": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        },
+                        "linux": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        },
+                        "win32": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63}|~(?:\\/\\.?[A-Za-z0-9_][A-Za-z0-9._-]{0,63}){1,16})$"
+                          }
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Where the host looks for the program on each platform; none listed: not on that platform"
+                    },
+                    "maxProperties": 8
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What its manifest at the commit asks for; null when not verified, or its manifest does not read or names another id or version"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "git",
+          "commit",
+          "digest",
+          "status",
+          "installed",
+          "capabilities"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "source",
+    "units",
+    "risks",
+    "extensions"
+  ],
+  "additionalProperties": false
+}

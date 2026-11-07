@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Agent, WorkflowId } from "@cedarloom/contracts";
+import { Agent, Commit, GitUrl, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
@@ -30,6 +30,7 @@ import {
 } from "./commands.ts";
 import { contributedGroups } from "./contributed.ts";
 import { runsCancel, runsDecide, runsResume, workflowsRun } from "./graphs.ts";
+import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
@@ -118,6 +119,31 @@ const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     );
 };
 
+const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("import")
+    .description("show what importing workflows from an export folder or a Git URL would do; with --yes, store them")
+    .argument("<source>", "an export folder, or an https or ssh Git URL")
+    .option("--ref <ref>", "the branch, tag or commit of a Git source (default: its default branch)")
+    .option("--yes", "store the new and updated workflows; from Git only at the full commit id its review showed")
+    .action(async (source, { ref, yes }, command) => {
+      const git = GitUrl.safeParse(source).success;
+      // A URL CedarLoom does not fetch (one with a password, say) is neither shown nor read as a folder.
+      if (!git && /^[a-z][a-z0-9+.-]*:\/\//i.test(source)) {
+        return command.error("error: a Git source is an https or ssh URL without a password; for a folder, use ./");
+      }
+      if (!git && ref !== undefined)
+        return command.error("error: --ref is for a Git source; a folder is read as it is");
+      // A commit names its files, so the ones stored are the ones reviewed; a branch or tag can move in between.
+      if (git && yes === true && !Commit.safeParse(ref).success) {
+        return command.error("error: --yes imports from Git only at a full commit id; run again with --ref <commit>");
+      }
+      return done(
+        await importCommand(ctx(), git ? { git: source, ref: ref ?? "HEAD" } : { folder: resolve(source) }, yes),
+      );
+    });
+};
+
 const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const runs = program.command("runs").description("runs in the journal");
   runs
@@ -166,9 +192,7 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
 };
 
 const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
-  const accounts = program
-    .command("accounts")
-    .description("agent accounts: config folders, pools and minimums, no credential");
+  const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
   accounts
     .command("list")
     .description("list the accounts and their pools")
@@ -276,7 +300,7 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .description("show the profile's plan for this machine's Claude Code home; with --yes, apply it as one run")
     .option("--allow <part...>", "include a plugin part, which --yes alone never does, such as machine.plugin.ponytail")
     .option("--yes", "apply the plan as computed now")
-    .action((options) => done(profilesApply(ctx(), options)));
+    .action(async (options) => done(await profilesApply(ctx(), options)));
   profiles
     .command("select")
     .description("switch a part on or off, or back to its default; with --yes, save it as one run")
@@ -327,6 +351,7 @@ const GROUPS = [
   plansGroup,
   runsGroup,
   workflowsGroup,
+  importGroup,
   accountsGroup,
   extensionsGroup,
   componentsGroup,

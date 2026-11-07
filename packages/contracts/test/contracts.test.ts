@@ -8,9 +8,11 @@ import {
   type Json,
   formatWorkflow,
   isCron,
+  modelWindow,
   NODE_CONFIGS,
   PLAN_SCHEMA_VERSION,
   Plan,
+  Quota,
   readDocument,
   sameFolder,
   type Result,
@@ -75,12 +77,18 @@ const promisedAccounts: Record<string, string[]> = {
   "invalid-duplicate-home.json": ["accounts.1.home"],
   "invalid-duplicate-name.json": ["accounts.1.name"],
   "invalid-inherited-pool.json": ["accounts.0.pool"],
-  "invalid-minimum-over-100.json": ["minimum.fiveHour"],
   "invalid-pool-of-other-agent.json": ["accounts.0.pool"],
   "invalid-proto-pool.json": ["pools.claude.__proto__"],
   "invalid-relative-home.json": ["accounts.0.home"],
   "invalid-token.json": ["accounts.0.token"],
 };
+
+test("a model's own weekly window is named by its family; other window names are refused", () => {
+  const models = ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-5"].map((model) => modelWindow(model));
+  expect(models).toEqual(["sevenDay:opus", "sevenDay:sonnet", null]);
+  const names = ["fiveHour", "sevenDay:opus", "sevenDay:Opus", "weekly"].map((name) => Quota.safeParse(name).success);
+  expect(names).toEqual([true, true, false, false]);
+});
 
 test("registry folders are the same without trailing separators, a root stays a root, and others differ", () => {
   expect(sameFolder("/a/b/", "/a/b")).toBe(true);

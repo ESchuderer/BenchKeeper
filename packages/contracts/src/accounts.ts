@@ -25,9 +25,6 @@ export const AccountName = Name;
 // A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary.
 const Percent = z.number().min(0).max(100);
 
-/** The headroom a launch needs in each usage window, in percent of the window. */
-const Minimums = z.strictObject({ fiveHour: Percent, sevenDay: Percent });
-
 const Account = z.strictObject({
   name: Name,
   agent: Agent,
@@ -36,9 +33,10 @@ const Account = z.strictObject({
   aliases: z
     .array(AbsolutePath)
     .optional()
-    .describe("Other tools' config folders of the same account, for readings only: nothing is written into them"),
+    .describe(
+      "Earlier and other config folders of the same account; workers may not read them, and nothing reads or writes them",
+    ),
   pool: Name.nullable(),
-  minimum: Minimums.partial().optional().describe("The account's own minimums, in place of the registry's"),
   added: z.iso.datetime(),
 });
 
@@ -74,13 +72,12 @@ const folders = (account: z.infer<typeof Account>, index: number): [string, (str
 ];
 
 /**
- * The accounts by config folder, their pools per agent and the minimums: never a credential, as every object is strict.
+ * The accounts by config folder and their pools per agent: never a credential, as every object is strict.
  * Names and folders, homes and aliases alike, are unique, and an account's pool is one of its agent's pools.
  */
 export const AccountRegistry = z
   .strictObject({
     schemaVersion: z.literal(ACCOUNTS_SCHEMA_VERSION),
-    minimum: Minimums,
     accounts: z.array(Account),
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
   })
@@ -126,14 +123,27 @@ export type Account = AccountRegistry["accounts"][number];
 export const formatRegistry = (registry: AccountRegistry): string =>
   `${JSON.stringify(AccountRegistry.parse(sortKeys(registry)), null, 2)}\n`;
 
-/** The usage windows of the agent-neutral quota model. */
+/** The usage windows every account has, of the agent-neutral quota model. */
 export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);
 export type QuotaWindow = z.infer<typeof QuotaWindow>;
+
+/**
+ * A usage window: one every account has, or a model's own weekly window, `sevenDay:<model family>`, which only some
+ * accounts have.
+ */
+export const Quota = z.union([QuotaWindow, z.string().regex(/^sevenDay:[a-z]{1,20}$/)]);
+export type Quota = z.infer<typeof Quota>;
+
+/** A model's own weekly window, such as `sevenDay:opus` for claude-opus-5-5; null for an ID without a model family. */
+export const modelWindow = (model: string): Quota | null => {
+  const family = /^claude-([a-z]{1,20})-/.exec(model)?.[1];
+  return family === undefined ? null : `sevenDay:${family}`;
+};
 
 /** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
 export const Reading = z.strictObject({
   account: Name,
-  window: QuotaWindow,
+  window: Quota,
   usedPercent: Percent,
   // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
   resetsAt: z.iso.datetime({ precision: 3 }),
@@ -156,7 +166,7 @@ export const UsageSample = z.strictObject({
   agent: Agent,
   agentVersion: AgentVersion,
   window: z.string().min(1).max(64),
-  quota: QuotaWindow.nullable(),
+  quota: Quota.nullable(),
   usedPercent: Percent.nullable(),
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),

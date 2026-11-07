@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { phaseLaunch } from "@cedarloom/adapter-claude";
+import { FRESH_INSTALL_PHASES, phaseLaunch } from "@cedarloom/adapter-claude";
 import { type Finding, type GraphRun, type Json, type Result, shown as safeText } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit, fail } from "./output.ts";
@@ -15,11 +15,14 @@ const ran = (ctx: Context, result: Result<{ runId: string; status: string }>): n
   return status === "failed" ? EXIT.refused : EXIT.ok;
 };
 
+// The model a worker of the phase runs, for its account's choice.
+const phaseModel = (phase: keyof typeof FRESH_INSTALL_PHASES): string => FRESH_INSTALL_PHASES[phase].model;
+
 const runOptions = (ctx: Context, project: string | undefined): useCases.RunOptions => {
   const stop = new AbortController();
   void ctx.io.untilStopped().then(() => stop.abort());
   const host = { parent: ctx.io.env, platform: process.platform, home: homedir() };
-  const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch };
+  const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch, model: phaseModel };
   return { project, signal: stop.signal, agents };
 };
 
@@ -32,12 +35,13 @@ export const workflowsRun = async (
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
 // What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,
-// except an agent's that a resume recovers.
+// except an agent's that a resume recovers and a write whose apply run applied.
 const ATTEMPTS = {
   live: "Running now; its runner ends them cancelled:",
   resume:
-    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, the others end interrupted, count as failed, and retries rerun them:",
-  cancel: "Left running when its runner died; they end interrupted:",
+    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, a write whose apply run applied ends done, the others end interrupted, count as failed, and retries rerun them:",
+  cancel:
+    "Left running when its runner died; a write whose apply run applied ends cancelled with its file written, the others end interrupted:",
 } as const;
 
 const preview = (ctx: Context, runId: string, project: string | undefined, verb: "resume" | "cancel"): number => {

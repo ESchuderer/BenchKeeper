@@ -42,7 +42,7 @@ const NONE: InstalledExtensions = {
 // shortcut: only the ref's newest commit is fetched, so a ref that moves more often than every 3 days never offers an
 // update; follow a tag or release branch (--ref) there. Upgrade: remember each commit seen and offer the newest one
 // that has waited, fetched by its SHA where the server allows that.
-const UPDATE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
+export const UPDATE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
 // A quarantine older than any fetch can take (the git package's 5 minutes, twice over) was left behind, for example by
 // a Windows process holding one of its files when the fetch removed it.
 const SWEEP_MS = 10 * 60 * 1000;
@@ -101,7 +101,7 @@ const sweep = (state: string): void => {
 };
 
 // Fetches into `<state>/fetch`, after the sweep.
-const fetchInto = async (state: string, source: Source, fetch: Fetch): Promise<Result<Tree>> => {
+export const fetchInto = async (state: string, source: Source, fetch: Fetch): Promise<Result<Tree>> => {
   sweep(state);
   const parent = join(state, "fetch");
   mkdirSync(parent, { recursive: true });
@@ -109,7 +109,7 @@ const fetchInto = async (state: string, source: Source, fetch: Fetch): Promise<R
 };
 
 // The manifest at the root of the fetched folder, read as data: nothing of the extension runs.
-const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
+export const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
   const file = tree.files.find((each) => each.path === MANIFEST);
   if (file === undefined) return { ok: false, finding: refusal(null, "no-manifest") };
   return parseDocument(file.content.toString("utf8"), (json) =>
@@ -243,7 +243,7 @@ export const planRemove = (state: string, id: string): Result<Plan> => {
 
 const seenPath = (state: string): string => join(state, "extension-updates.json");
 
-const iso = (ms: number): string => new Date(ms).toISOString();
+export const iso = (ms: number): string => new Date(ms).toISOString();
 
 // A commit at an extension's ref, and the commit the extension is installed at.
 type Sighting = { id: string; commit: string; installed: string };

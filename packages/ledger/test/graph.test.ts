@@ -252,34 +252,31 @@ test("an attempt keeps the id of its agent's session, which a later runner resum
   expect(rows(dir, "SELECT sessionId FROM node_attempts")).toEqual([{ sessionId: "s-1" }]);
 });
 
-test("one process applies under the store lock while another appends events, and both succeed", async () => {
+test("one process appends events while another applies under the store lock, and both succeed", async () => {
   const dir = fresh();
   const store = graphs(dir);
   const { runId: id } = store.create(manual);
-  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "apply.ts"), dir, "2000"]);
+  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "apply.ts"), dir]);
   const exited = once(child, "exit");
+  // The apply is under way: its step is journaled, and its process holds the store lock.
   await once(child.stdout, "data");
-  const failures: string[] = [];
-  let attempt = 0;
-  // A pair per timer tick, some 300 events a second, far more than an executor appends. Measured while writing this
-  // test: two processes that both wrote without a pause kept one of them out past its 1 s wait in 4 of 6 runs.
-  for (const end = Date.now() + 1500; Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 1))) {
-    attempt += 1;
-    try {
-      store.append(id, 1, { type: "started", node: "lint", attempt, pid: null });
-      store.append(id, 1, { type: "ended", node: "lint", attempt, outcome: "failed" });
-    } catch (error) {
-      failures.push(String(error));
-    }
-  }
+  const appended = [
+    store.append(id, 1, { type: "started", node: "lint", attempt: 1, pid: null }),
+    store.append(id, 1, { type: "ended", node: "lint", attempt: 1, outcome: "failed" }),
+  ];
+  child.stdin.end("go\n");
   const [code] = await exited;
-  expect([code, failures]).toEqual([0, []]);
-  const events = store.events(id);
-  expect(events.ok && events.value.length).toBe(attempt * 2);
   const runs = openRunStore(dir);
   open.push(...(runs.ok ? [runs.value] : []));
-  expect(runs.ok && new Set(runs.value.runs().map((run) => run.status))).toEqual(new Set(["applied"]));
-}, 15_000);
+  expect([appended, code, runs.ok && runs.value.runs().map((run) => run.status)]).toEqual([
+    [
+      { ok: true, value: 1 },
+      { ok: true, value: 2 },
+    ],
+    0,
+    ["applied"],
+  ]);
+});
 
 test("a run whose runner let go of it to wait reads waiting, and its next runner runs it again", () => {
   const store = graphs(fresh());
@@ -374,7 +371,7 @@ test("a view of graph runs is none without a store, and refuses a store from bef
   open.splice(0).forEach((store) => store.close());
   const db = new DatabaseSync(join(dir, "runs.sqlite"));
   db.exec("PRAGMA user_version = 10");
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 14 } } };
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 10, known: 15 } } };
   expect([openGraphView(dir), openGraphStore(dir)]).toEqual([older, older]);
   db.exec("PRAGMA user_version = 99");
   db.close();

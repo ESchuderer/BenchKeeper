@@ -294,7 +294,6 @@ const withRegistry = () => {
     join(root, "config", "accounts.json"),
     formatRegistry({
       schemaVersion: 1,
-      minimum: { fiveHour: 8, sevenDay: 3 },
       accounts: [account("work", "main"), account("solo", null)],
       pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
     }),
@@ -542,6 +541,7 @@ test("every finding code has an English sentence", () => {
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
   if (schema instanceof z.ZodBoolean) return true;
+  if (schema instanceof z.ZodString) return sha256(key);
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {
@@ -996,7 +996,7 @@ test("extensions: a manifest's unknown key reaches the terminal escaped, never a
   expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
 });
 
-test("workflows save stores a draft as a version, history lists it, export writes it, and an id that is none exits 64", async () => {
+test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {
   const { root, state, cli } = setup();
   // Store commits carry the user's Git identity, from a home folder of the test's own.
   writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
@@ -1013,8 +1013,19 @@ test("workflows save stores a draft as a version, history lists it, export write
   const exported = await cli("workflows", "export", "w", "--to", join(root, "shared"), "--yes", "--json");
   const index = JSON.parse(readFileSync(join(root, "shared", "cedarloom-export.json"), "utf8"));
   const badId = await cli("workflows", "export", "9w", "--to", join(root, "other"));
+  // Another machine imports the export folder and stores the version.
+  const other = setup();
+  const imported = await other.cli("import", join(root, "shared"), "--yes", "--json");
+  const there = json((await other.cli("workflows", "history", "w", "--json")).out);
+  // --yes stores only what the review showed: from Git that is a commit, never a ref that can move.
+  const unpinned = await other.cli("import", "https://example.org/flows.git", "--ref", "main", "--yes");
+  const folderRef = await other.cli("import", join(root, "shared"), "--ref", "main");
+  // A URL with a password is no Git source and no folder, and the password is not shown.
+  const secret = await other.cli("import", "https://ada:hunter2@example.org/flows.git");
   vi.unstubAllEnvs();
-  expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code]).toEqual([
+  const refusals = [unpinned.code, folderRef.code, secret.code, `${secret.out}${secret.err}`.includes("hunter2")];
+  const stored = [imported.code, Reflect.get(Object(there["versions"]), "length"), ...refusals];
+  expect([saved.code, history["versions"], none.code, exported.code, index["workflows"], badId.code, stored]).toEqual([
     EXIT.ok,
     [
       {
@@ -1028,6 +1039,7 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.ok,
     ["w"],
     EXIT.usage,
+    [EXIT.ok, 1, EXIT.usage, EXIT.usage, EXIT.usage, false],
   ]);
 });
 

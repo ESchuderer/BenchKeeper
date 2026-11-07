@@ -1,12 +1,23 @@
-import { type Account, type AccountRegistry, type Agent, QuotaWindow, type Reading } from "@cedarloom/contracts";
+import {
+  type Account,
+  type AccountRegistry,
+  type Agent,
+  modelWindow,
+  type Quota,
+  QuotaWindow,
+  type Reading,
+} from "@cedarloom/contracts";
 
 /** What the choice reads of a reading: the time it was read is not needed. */
 type Current = Omit<Reading, "readAt">;
 
-/** The minimums a new registry starts with, in percent of each window. */
-export const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
+/**
+ * The headroom a new worker needs in each window, in percent, the same for every account: claude-swap's lines replace
+ * it for pool accounts once they reach the choice (owner decision, 2026-11-07).
+ */
+const DEFAULT_MINIMUM = { fiveHour: 8, sevenDay: 3 } as const;
 
-/** A pool account as the choice saw it: its smallest margin above its minimums, null when a window is unknown. */
+/** A pool account as the choice saw it: its smallest margin above the minimums, null when a window is unknown. */
 export interface Candidate {
   readonly account: string;
   readonly margin: number | null;
@@ -46,19 +57,20 @@ export const counted = <T extends Current>(readings: readonly T[], now: number):
 export type Counted<T extends Current> = T & { readonly source: "reported" | "assumed-after-reset" };
 
 // A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
-// disqualifies the account even when the other window is unknown.
-const margin = (registry: AccountRegistry, account: Account, readings: readonly Current[]) => {
+// disqualifies the account even when the other window is unknown. The worker model's own weekly window counts when it
+// was read, against the weekly minimum, as claude-swap judges model windows; an account without one is not unknown.
+const margin = (account: Account, readings: readonly Current[], model: string | undefined) => {
   let smallest = Number.POSITIVE_INFINITY;
   let unknown = false;
+  const read = (window: Quota) => readings.find((each) => each.account === account.name && each.window === window);
   for (const window of QuotaWindow.options) {
-    const reading = readings.find((each) => each.account === account.name && each.window === window);
+    const reading = read(window);
     if (reading === undefined) unknown = true;
-    else
-      smallest = Math.min(
-        smallest,
-        100 - reading.usedPercent - (account.minimum?.[window] ?? registry.minimum[window]),
-      );
+    else smallest = Math.min(smallest, 100 - reading.usedPercent - DEFAULT_MINIMUM[window]);
   }
+  const own = model === undefined ? null : modelWindow(model);
+  const reading = own === null ? undefined : read(own);
+  if (reading !== undefined) smallest = Math.min(smallest, 100 - reading.usedPercent - DEFAULT_MINIMUM.sevenDay);
   return unknown && smallest >= 0 ? null : smallest;
 };
 
@@ -104,18 +116,24 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
 };
 
 /**
- * Chooses the account a new worker starts on: the pool account with the most headroom above both of its minimums, the
+ * Chooses the account a new worker starts on: the pool account with the most headroom above both minimums, the
  * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
  * or on the pool's first account (owner decision, 2026-11-06). An account in `busy` runs its most workers at
- * once and is passed over. `readings` holds the latest reading per account and window, counted at `now` (milliseconds).
+ * once and is passed over. `model` is the worker's, whose own weekly window counts too. `readings` holds the latest
+ * reading per account and window, counted at `now` (milliseconds).
  */
 export const selectAccount = (
   registry: AccountRegistry,
   {
     previous = null,
     busy,
+    model,
     ...ref
-  }: PoolRef & { readonly previous?: string | null; readonly busy?: ReadonlySet<string> },
+  }: PoolRef & {
+    readonly previous?: string | null;
+    readonly busy?: ReadonlySet<string>;
+    readonly model?: string | undefined;
+  },
   readings: readonly Current[],
   now: number,
 ): Selection => {
@@ -124,7 +142,7 @@ export const selectAccount = (
   const members = freeMembers(registry, ref, busy ?? new Set());
   if (members === null) return { ok: false, reason: "all-leased", candidates: [] };
   const current = counted(readings, now);
-  const scored = members.map((account) => ({ account, margin: margin(registry, account, current) }));
+  const scored = members.map((account) => ({ account, margin: margin(account, current, model) }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
   const best = most(scored);
   if (best !== undefined) return { ok: true, account: best.account, reason: "most-headroom", candidates };

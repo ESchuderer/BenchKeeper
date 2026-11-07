@@ -1,6 +1,6 @@
 import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { counted, DEFAULT_MINIMUM, type Selection, selectAccount } from "@cedarloom/accounts";
+import { counted, type Selection, selectAccount } from "@cedarloom/accounts";
 import type { LoginStatus } from "@cedarloom/agent-contracts";
 import {
   type Account,
@@ -131,7 +131,7 @@ const readAccount = (config: string, name: string): Result<Read> => {
 
 /**
  * Plans moving account `name` into its own home: the registry names that folder, and the folder it named before stays
- * as an alias, read for usage only. The plan is null when the account is in its own home already.
+ * as an alias, which workers may not read. The plan is null when the account is in its own home already.
  */
 export const planHome = (config: string, state: string, name: string): Result<{ plan: Plan | null; home: string }> => {
   const read = readAccount(config, name);
@@ -169,7 +169,7 @@ const registryToChange = (path: string): Result<{ registry: AccountRegistry; bef
     return {
       ok: true,
       value: {
-        registry: { schemaVersion: ACCOUNTS_SCHEMA_VERSION, minimum: DEFAULT_MINIMUM, accounts: [], pools: {} },
+        registry: { schemaVersion: ACCOUNTS_SCHEMA_VERSION, accounts: [], pools: {} },
         before: null,
       },
     };
@@ -332,6 +332,8 @@ export interface AccountRequest {
   readonly pool: string;
   /** The account the task last ran on; null on its first launch. */
   readonly previous: string | null;
+  /** The model the worker runs: its own weekly window counts too, once read. */
+  readonly model?: string | undefined;
 }
 
 /**

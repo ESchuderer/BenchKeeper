@@ -120,6 +120,10 @@
           "approve": {
             "type": "string",
             "description": "The command line that allows it"
+          },
+          "hint": {
+            "type": "string",
+            "description": "What claude-swap's auto mode does now, or where it runs instead"
           }
         }
       }

@@ -290,11 +290,15 @@ test("auto mode is claude-swap's menu bar service on macOS, installed or removed
     (await autoOff({ exec: cswap(), config: allowed }, "darwin"))["service"],
     keys(await auto({ exec: cswap() }, "linux")),
     keys(await autoOn({ exec: cswap(), config: allowed }, "linux")),
+    keys(await autoOff({ exec: cswap(), config: allowed }, "win32")),
+    keys(await auto({ exec: missing }, "darwin")),
   ]).toEqual([
     "Menu bar service is not installed.",
     { runs: "cswap menubar --install-service", approve: "cedarloom claude-swap auto-on --allow cswap" },
     "Menu bar service installed (com.cswap.menubar).",
     "Menu bar service removed.",
+    ["hint"],
+    ["hint"],
     ["hint"],
     ["hint"],
   ]);
@@ -312,5 +316,5 @@ test("the policy is claude-swap's own settings, set through cswap config set; a 
     policy?.values["autoswitch.strategy"],
     "autoswitch.weeklyThreshold" in (policy?.values ?? {}),
     ran[0],
-  ]).toEqual([90, "best", false, ["config", "set", "autoswitch.threshold", "85"]]);
+  ]).toEqual([90, "best", false, ["config", "set", "--", "autoswitch.threshold", "85"]]);
 });

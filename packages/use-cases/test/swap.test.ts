@@ -19,7 +19,7 @@ const root = testRoot("swap");
 const ID = "cedarloom.claude-swap";
 
 // A machine whose app ships a claude-swap extension (the fixture's switch target) and whose registry has the Claude
-// Code accounts work and home.
+// Code accounts work (claude-swap's active account 1), elsewhere (its account 2) and home (no claude-swap alias).
 const machine = () => {
   const at = mkdtempSync(join(root, "machine-"));
   const paths = { state: join(at, "state"), config: join(at, "config"), app: join(at, "app") };
@@ -37,7 +37,7 @@ const machine = () => {
   };
   writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
   copyFileSync(join(import.meta.dirname, "fixtures", "doctor", "main.mjs"), join(folder, "main.mjs"));
-  for (const name of ["work", "home"]) {
+  for (const name of ["work", "home", "elsewhere"]) {
     const added = ok(planAdd(paths.config, paths.state, { name, agent: "claude", pool: null }));
     ok(applyPlan(paths.state, added.plan, { yes: true }));
   }
@@ -55,7 +55,13 @@ test("claude-swap's readings are kept for the accounts whose claude-swap alias i
   ok(applyPlan(paths.state, ok(planSwitch(paths.app, paths.config, ID, "auto")), { yes: true }));
   expect([off, [await readSwapAccounts(paths), readings()]]).toEqual([
     [{ findings: [], interactive: null }, []],
-    [{ findings: [], interactive: { number: 1, account: "work" } }, [["work", "fiveHour", 40, "cswap"]]],
+    [
+      { findings: [], interactive: { number: 1, account: "work" } },
+      [
+        ["elsewhere", "fiveHour", 10, "cswap"],
+        ["work", "fiveHour", 40, "cswap"],
+      ],
+    ],
   ]);
 });
 
@@ -93,21 +99,26 @@ test("interactive sessions switch to an account by its claude-swap alias, never 
   const before = [
     code(await switchInteractive(paths, "nobody", false)),
     code(await switchInteractive(paths, "home", false)),
-    code(await switchInteractive(paths, "work", false)),
-    code(await switchInteractive(paths, "work", true)),
+    code(await switchInteractive(paths, "elsewhere", false)),
+    code(await switchInteractive(paths, "elsewhere", true)),
     code(await swapPolicy(paths, { "autoswitch.threshold": "85" })),
   ];
-  const held = leased(paths.state, "work");
-  const busy = code(await switchInteractive(paths, "work", true));
-  held?.release();
+  const held = [leased(paths.state, "elsewhere"), leased(paths.state, "work")];
+  const busy = [
+    code(await switchInteractive(paths, "elsewhere", true)),
+    code(await switchInteractive(paths, "work", true)),
+  ];
+  for (const each of held) each?.release();
   ok(applyPlan(paths.state, ok(planSwitch(paths.app, paths.config, ID, "off")), { yes: true }));
-  expect([...before, busy, code(await swapPolicy(paths))]).toEqual([
+  expect([...before, ...busy, code(await swapPolicy(paths))]).toEqual([
     "accounts.unknown-account",
     "accounts.swap-unlinked",
-    { number: 1, switched: null },
-    { number: 1, switched: false },
+    { number: 2, switched: null },
+    { number: 2, switched: true },
     { "autoswitch.threshold": "85" },
     "accounts.swap-busy",
+    // Interactive sessions already use it: nothing moves, so its workers do not refuse.
+    { number: 1, switched: false },
     "accounts.swap-unavailable",
   ]);
 });

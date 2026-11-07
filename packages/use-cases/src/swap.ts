@@ -99,15 +99,19 @@ export const switchInteractive = async (
   const names = claudeNames(paths);
   if (!names.ok) return names;
   if (!names.value.has(name)) return refuse({ code: "accounts.unknown-account", params: { account: name } });
-  const live = await retryBusy(() => withStore(paths.state, (store) => ({ ok: true, value: store.liveLeases() })));
-  if (!live.ok) return live;
-  if ((live.value.get(name) ?? 0) > 0) return refuse({ code: "accounts.swap-busy", params: { account: name } });
   type Switched = { number: number; switched: boolean | null };
   return askSwap(paths, async (running): Promise<Result<Switched>> => {
     const listed = await running.target("target/accounts", INTERACTIVE);
     if (!listed.ok) return listed;
-    const number = listed.value.accounts.find(({ alias }) => alias === name)?.number;
-    if (number === undefined) return refuse({ code: "accounts.swap-unlinked", params: { account: name } });
+    const target = listed.value.accounts.find(({ alias }) => alias === name);
+    if (target === undefined) return refuse({ code: "accounts.swap-unlinked", params: { account: name } });
+    const { number } = target;
+    if (target.active) return { ok: true, value: { number, switched: false } };
+    // shortcut: a worker that leases the account between this check and the switch is not held off; hold the account
+    // across the switch once the ledger has a hold that stays after A3 removes the login check's.
+    const live = await retryBusy(() => withStore(paths.state, (store) => ({ ok: true, value: store.liveLeases() })));
+    if (!live.ok) return live;
+    if ((live.value.get(name) ?? 0) > 0) return refuse({ code: "accounts.swap-busy", params: { account: name } });
     if (!run) return { ok: true, value: { number, switched: null } };
     const selected = await running.target("target/select", { ...INTERACTIVE, number });
     return selected.ok ? { ok: true, value: { number, switched: selected.value.switched } } : selected;

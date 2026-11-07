@@ -324,10 +324,11 @@ export const accountsPolicy = async (
     emit(ctx, "accounts-policy", { set: { [setting.key]: setting.value }, values: null }, human);
     return EXIT.ok;
   }
-  const values = await useCases.swapPolicy(pathsOf(ctx), setting === null ? {} : { [setting.key]: setting.value });
+  const set = setting === null ? {} : { [setting.key]: setting.value };
+  const values = await useCases.swapPolicy(pathsOf(ctx), set);
   if (!values.ok) return refused(ctx, "accounts", values.finding);
   const lines = Object.entries(values.value).map(([key, value]) => `${key}  ${String(value)}`);
-  emit(ctx, "accounts-policy", { values: values.value }, lines.join("\n"));
+  emit(ctx, "accounts-policy", { set, values: values.value }, lines.join("\n"));
   return EXIT.ok;
 };
 

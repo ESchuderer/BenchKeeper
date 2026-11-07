@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { type Finding, type Operation, type Result, targetClass } from "@cedarloom/contracts";
-import { hashFile } from "@cedarloom/engine";
+import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { onDisk, textOf, unknownApprovals } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
@@ -142,17 +142,23 @@ const filesOf = (resolved: Resolved, project: string, fetched: Fetched, approved
 };
 
 // The exclude file Git reads for a repository whose `.git` is in `root`: in its common Git folder, also from a linked
-// worktree, whose `.git` file names its own folder; null when `root` holds no `.git`.
+// worktree, whose `.git` file names its own folder; null when `root` holds no `.git`. Each file is read as it is, never
+// checked first, so nothing changes between a check and its read.
 const excludeAt = (root: string): string | null => {
   const dotGit = join(root, ".git");
-  const found = statSync(dotGit, { throwIfNoEntry: false });
-  if (found?.isDirectory() === true) return join(dotGit, "info", "exclude");
-  const gitdir =
-    found?.isFile() === true ? /^gitdir: (.+)$/m.exec(readFileSync(dotGit, "utf8"))?.[1]?.trim() : undefined;
+  let text: string;
+  try {
+    text = readFileSync(dotGit, "utf8");
+  } catch (error) {
+    // A `.git` folder, or a link to one, cannot be read as a file.
+    return errorCode(error) === "EISDIR" ? join(dotGit, "info", "exclude") : null;
+  }
+  const gitdir = /^gitdir: (.+)$/m.exec(text)?.[1]?.trim();
   if (gitdir === undefined) return null;
   const folder = resolve(root, gitdir);
-  const common = join(folder, "commondir");
-  return join(existsSync(common) ? resolve(folder, readFileSync(common, "utf8").trim()) : folder, "info", "exclude");
+  const common = textFile(join(folder, "commondir"));
+  const shared = common.ok && common.value !== null ? resolve(folder, common.value.trim()) : folder;
+  return join(shared, "info", "exclude");
 };
 
 // The repository a folder lies in, the folder's own or a parent's, with its exclude file; null outside Git.

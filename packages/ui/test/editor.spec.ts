@@ -338,6 +338,7 @@ test("auto layout runs ELK in a worker and moves only positions in one undo step
   const shown = await said().locator("span").elementHandle();
   await button.press("Enter");
   await expect.poll(() => shown?.evaluate((node) => node.isConnected)).toBe(false);
+  await expect(said()).not.toBeEmpty();
   const after: { nodes: unknown; edges: unknown; layout: { nodes: Record<string, { x: number }> } } = JSON.parse(
     await exported(),
   );

@@ -241,7 +241,7 @@ test("while the API keeps failing, each check waits twice as long as the one bef
   errors.length = 0;
 });
 
-test("a new tab has no session and says how to get one", async () => {
+test("a new tab without a session shows an alert, and the page passes axe", async () => {
   const fresh = await context.newPage();
   await fresh.goto(`${new URL(server.url).origin}/`);
   await expect(fresh.getByRole("alert")).toBeVisible();

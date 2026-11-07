@@ -21,6 +21,7 @@ import {
   type GraphRun,
   type JournalEvent,
   type NodeAttempt,
+  type PassedGate,
   type Json,
   JsonValue,
   PLAN_SCHEMA_VERSION,
@@ -55,7 +56,6 @@ import {
   type GraphView,
   openGraphStore,
   openGraphView,
-  type PassedGate,
   planHash,
   type RunLease,
 } from "@cedarloom/ledger";

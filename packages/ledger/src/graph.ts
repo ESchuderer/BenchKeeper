@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  AutomationLevel,
+  type AutomationLevel,
   canonicalJson,
-  GatePoint,
+  type GatePoint,
   GraphRun,
   JournalEvent,
   NodeAttempt,
+  PassedGate,
   type Result,
 } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
@@ -223,15 +224,11 @@ export class GraphStore {
   passedGates(runId: string): PassedGate[] {
     const rows = this.#db
       .prepare(
-        `SELECT nodeId, point, level, decidedAt FROM gates WHERE runId = ? AND "by" = 'level' ORDER BY decidedAt, rowid`,
+        `SELECT nodeId AS node, point, level, decidedAt AS at FROM gates WHERE runId = ? AND "by" = 'level'
+         ORDER BY decidedAt, rowid`,
       )
       .all(runId);
-    return rows.map((row) => ({
-      node: String(row["nodeId"]),
-      point: GatePoint.parse(row["point"]),
-      level: AutomationLevel.parse(row["level"]),
-      at: String(row["decidedAt"]),
-    }));
+    return rows.map((row) => PassedGate.parse(row));
   }
 
   /** A run's attempts in the order they started. */
@@ -372,9 +369,6 @@ export type GraphView = Pick<
   GraphStore,
   "graphRun" | "graphRuns" | "attempts" | "events" | "ownerApproved" | "passedGates" | "close"
 >;
-
-/** A gate a level passed without the owner: the node, where, at which level and when. */
-export type PassedGate = { node: string; point: GatePoint; level: AutomationLevel; at: string };
 
 /** Opens the graph runs of `dir` for reading; null when no run was ever recorded. */
 export const openGraphView = (dir: string): Result<GraphView | null> => {

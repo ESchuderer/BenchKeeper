@@ -59,6 +59,7 @@ export {
   GatePoint,
   GraphRun,
   NodeAttempt,
+  PassedGate,
   JournalEvent,
   NodeRun,
   NodeState,

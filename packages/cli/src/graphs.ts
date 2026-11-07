@@ -149,7 +149,6 @@ export const graphRunShow = (ctx: Context, runId: string): number => {
   const head = `Run ${run.id}: graph ${run.definition.metadata.id}, ${run.status}, ${run.startedAt}`;
   const waiting = useCases.waitsOf(ctx.state, runId);
   const waits = waiting.ok ? waiting.value.waits.map((wait) => `  ${waitText(run, wait)}`) : [];
-  // The gates a level passed without the owner, as Auto approves and records.
   const passes = passed.map(({ node, point, level, at }) => `  ${node} passed ${point} at ${level}, ${at}`);
   emit(ctx, "run", { run, attempts, passed }, [head, ...lines, ...waits, ...passes].join("\n"));
   return EXIT.ok;

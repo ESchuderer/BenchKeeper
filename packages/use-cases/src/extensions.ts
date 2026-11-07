@@ -28,7 +28,8 @@ type Read = { text: string | null; installed: InstalledExtensions };
 /** What an extension may do, as its manifest asks for it. */
 export type Capabilities = NonNullable<ExtensionManifest["capabilities"]>;
 
-const MANIFEST = "cedarloom-extension.json";
+/** The manifest's file name at the root of an extension's folder. */
+export const MANIFEST = "cedarloom-extension.json";
 const installedPath = (state: string): string => join(state, "extensions.json");
 const NONE: InstalledExtensions = {
   schemaVersion: INSTALLED_SCHEMA_VERSION,
@@ -50,7 +51,7 @@ const STAGING_MS = 60 * 60 * 1000;
 
 const refusal = (
   extension: string | null,
-  reason: "no-manifest" | "entry" | "protocol" | "installed" | "id",
+  reason: "no-manifest" | "entry" | "protocol" | "installed" | "id" | "reserved",
 ): Finding => ({
   code: "extension.install-refused",
   params: { extension, reason },
@@ -117,6 +118,8 @@ const manifestOf = (tree: Tree): Result<ExtensionManifest> => {
 };
 
 const runnable = (manifest: ExtensionManifest, tree: Tree): Finding | undefined => {
+  // The app ships its own extensions: from Git one would pass for first-party.
+  if (manifest.id.startsWith("cedarloom.")) return refusal(manifest.id, "reserved");
   if (!tree.files.some((file) => file.path === manifest.runtime.entry)) return refusal(manifest.id, "entry");
   return speaks(manifest.api) ? undefined : refusal(manifest.id, "protocol");
 };
@@ -212,11 +215,14 @@ export const planInstall = async (
   return pinned(state, { read: read.value, source, tree: tree.value, manifest: manifest.value });
 };
 
+/** An installed extension: its pin, id and trust, which is `community` for every one from Git. */
+export type Installed = Pin & { id: string; trust: "community" };
+
 /**
  * The installed extensions by id. Each came from Git, so each is community code: its trust comes from where its code
  * came from, never from its manifest (bundled extensions ship inside CedarLoom and are never installed).
  */
-export const installedExtensions = (state: string): Result<(Pin & { id: string; trust: "community" })[]> => {
+export const installedExtensions = (state: string): Result<Installed[]> => {
   const read = readInstalled(state);
   if (!read.ok) return read;
   const entries = Object.entries(read.value.installed.extensions);

@@ -243,6 +243,7 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
   profiles
     .command("apply")
     .description("show the profile's plan for this machine's Claude Code home; with --yes, apply it as one run")
+    .option("--allow <part...>", "include a plugin part, which --yes alone never does, such as machine.plugin.ponytail")
     .option("--yes", "apply the plan as computed now")
     .action((options) => done(profilesApply(ctx(), options)));
   profiles

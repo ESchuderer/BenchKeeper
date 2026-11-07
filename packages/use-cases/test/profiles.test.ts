@@ -19,12 +19,18 @@ const applied = (state: string, plan: Plan | null): void => {
   expect(ok(applyPlan(state, plan, { yes: true })).status).toBe("applied");
 };
 
-// A machine with its hub named: config, state and Claude Code home folders of its own.
+// The default profile's plugin parts, approved by name.
+const PLUGINS = ["machine.plugin.cedarloom", "machine.plugin.ponytail", "machine.plugin.matt-pocock"];
+// A machine with its hub named: config, state, Claude Code home and user home folders of its own.
 const machine = () => {
-  const [config, state, home] = ["config-", "state-", "home-"].map((name) => mkdtempSync(join(root, name)));
-  if (config === undefined || state === undefined || home === undefined) throw new Error("no folders");
+  const [config, state, home, user] = ["config-", "state-", "home-", "user-"].map((name) =>
+    mkdtempSync(join(root, name)),
+  );
+  if (config === undefined || state === undefined || home === undefined || user === undefined)
+    throw new Error("no folders");
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
-  return { config, state, home, plan: () => ok(planProfile(config, state, home)) };
+  const plan = (allow = PLUGINS) => ok(planProfile(config, state, { home, user }, allow));
+  return { config, state, home, user, plan };
 };
 const setUp = () => {
   const box = machine();
@@ -65,12 +71,39 @@ test("a rules file the owner deleted is written again", () => {
   expect(plan().plan?.operations.map((op) => [op.kind, "path" in op ? op.path : null])).toEqual([["write", path]]);
 });
 
+test("a plugin part waits for approval by name; approved, the settings declare its marketplace and the plugin", () => {
+  const { home, user, plan } = machine();
+  const waiting = plan([]).findings.flatMap((finding) =>
+    finding.code === "profile.approval-needed" ? [finding.params.part] : [],
+  );
+  const writes = new Map(
+    (plan(["machine.plugin.cedarloom", "machine.plugin.ponytail"]).plan?.operations ?? []).flatMap((op) =>
+      op.kind === "write" ? [[op.path, op.content]] : [],
+    ),
+  );
+  expect([
+    waiting,
+    JSON.parse(writes.get(join(home, "settings.json")) ?? "null"),
+    JSON.parse(writes.get(join(user, ".config", "ponytail", "config.json")) ?? "null"),
+  ]).toMatchObject([
+    PLUGINS,
+    {
+      extraKnownMarketplaces: {
+        cedarloom: { source: { source: "git", url: "https://github.com/cedarloom/cedarloom.git", ref: "stable" } },
+        ponytail: { source: { source: "github", repo: "DietrichGebert/ponytail" }, autoUpdate: false },
+      },
+      enabledPlugins: { "cedarloom@cedarloom": true, "ponytail@ponytail": true },
+    },
+    { defaultMode: "full" },
+  ]);
+});
+
 const DISABLED = "1";
 test("settings merge into the owner's file, each change named with the profile file that set it", () => {
   const { home, plan } = machine();
   const path = join(home, "settings.json");
   writeFileSync(path, JSON.stringify({ model: "opus", autoUpdatesChannel: "latest", env: { FOO: "x" } }));
-  const planned = plan();
+  const planned = plan([]);
   const write = planned.plan?.operations.find((op) => op.kind === "write" && op.path === path);
   expect([
     write?.kind === "write" ? JSON.parse(write.content) : null,
@@ -109,7 +142,7 @@ test("a settings file that is no JSON is never rewritten", () => {
   const { config, state, home } = machine();
   const path = join(home, "settings.json");
   writeFileSync(path, '{ "model": "opus", // mine\n}');
-  expect(planProfile(config, state, home)).toEqual({
+  expect(planProfile(config, state, { home, user: home })).toEqual({
     ok: false,
     finding: { code: "document.unreadable", params: { path, error: "not JSON" } },
   });

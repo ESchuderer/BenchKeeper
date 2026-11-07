@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { homedir } from "node:os";
 import {
   type Account,
   Agent,
@@ -509,8 +510,9 @@ const changeLines = (planned: useCases.ProfilePlan["changes"]): string =>
     .join("");
 
 /** Shows the profile's plan for this machine with who set each change, or with --yes applies it as one run. */
-export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => {
-  const profile = useCases.planProfile(ctx.config, ctx.state, useCases.claudeHome(ctx.io.env));
+export const profilesApply = (ctx: Context, { yes, allow = [] }: { yes?: true; allow?: string[] }): number => {
+  const machine = { home: useCases.claudeHome(ctx.io.env), user: homedir() };
+  const profile = useCases.planProfile(ctx.config, ctx.state, machine, allow);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, changes: setters, findings } = profile.value;
   if (findings.some((finding) => findingInfo[finding.code].severity === "error")) {

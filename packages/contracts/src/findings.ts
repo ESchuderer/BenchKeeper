@@ -202,6 +202,9 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
+    finding("profile.approval-needed", { part: z.string(), plugin: z.string() }),
+    finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -334,4 +337,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.owner-changed": { severity: "warning", effort: "manual" },
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.approval-needed": { severity: "warning", effort: "command" },
+  "profile.options-guarded": { severity: "error", effort: "manual" },
 };

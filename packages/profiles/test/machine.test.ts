@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BUNDLED } from "@cedarloom/packs";
@@ -8,7 +8,7 @@ import { expect, test } from "vitest";
 const folder = () => mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-machine-"));
 
 // The machine plan of the default profile with the global rules part's text replaced, for a home of its own.
-const planWith = (text: object, home = folder()) => {
+const planWith = (text: object, home = folder(), target = { home, user: home, guarded: [] as string[] }) => {
   const profile = JSON.parse(readFileSync(join(BUNDLED, DEFAULT_PROFILE.pack, DEFAULT_PROFILE.path), "utf8"));
   profile.machine["rules.global"].text = text;
   const file = join(folder(), "mine.json");
@@ -22,7 +22,7 @@ const planWith = (text: object, home = folder()) => {
   };
   const resolved = resolveProfile(selection, "0.1.0");
   if (!resolved.ok) throw new Error(resolved.finding.code);
-  const plan = planMachine(resolved.value, home, new Map());
+  const plan = planMachine(resolved.value, target, new Map(), new Set(["machine.plugin.ponytail"]));
   return plan.ok ? plan.value : plan.finding;
 };
 
@@ -48,5 +48,16 @@ test("a rules file the plan cannot read stops it, by name", () => {
   expect(planWith({ inline: "- mine\n" }, home)).toEqual({
     code: "document.unreadable",
     params: { path, error: "EISDIR" },
+  });
+});
+
+test("a plugin's options never land in a Claude Code home, not even through a link", () => {
+  const [home, user] = [folder(), folder()];
+  mkdirSync(join(user, ".config"));
+  // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.
+  symlinkSync(home, join(user, ".config", "ponytail"), "junction");
+  expect(planWith({ inline: "- mine\n" }, home, { home, user, guarded: [home] })).toEqual({
+    code: "profile.options-guarded",
+    params: { part: "machine.plugin.ponytail", path: join(user, ".config", "ponytail", "config.json") },
   });
 });

@@ -1,4 +1,5 @@
-import { join, sep } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import {
   canonicalJson,
   type Finding,
@@ -145,24 +146,22 @@ const valueAt = (value: Json | undefined, pointer: string): Json | undefined =>
 const same = (a: Json | undefined, b: Json | undefined): boolean =>
   a === undefined || b === undefined ? a === b : canonicalJson(a) === canonicalJson(b);
 
+/** What a part merges into a JSON file, and the pointer of that value in the composed profile, for its setter. */
+type Source = { set: Json; pointer: string };
+
 /**
- * Merges each settings part that is on into the settings file, in profile order, by the rule of every `set`. Each
- * changed value names the file that set it; an item a list gains, the file that set the list. shortcut: the file is
- * written back as two-space JSON with every key in its order, comments refused; a format-keeping edit is due once
- * owners keep their own formatting there.
+ * Merges each source into a JSON file, in order, by the rule of every `set`. Each changed value names the file that
+ * set it; an item a list gains, the file that set the list. shortcut: the file is written back as two-space JSON with
+ * every key in its order, comments refused; a format-keeping edit is due once owners keep their own formatting there.
  */
-const settingsPlan = ({ profile, on, setBy }: Resolved, path: string): Result<LevelPlan> => {
-  const parts = Object.entries(profile.machine).flatMap(([id, part]) =>
-    part.type === "settings" && on.has(`machine.${id}`) ? [{ id, set: part.set }] : [],
-  );
-  const current = parts.length === 0 ? null : readSettings(path);
+const mergeFile = (path: string, sources: Source[], setBy: Record<string, string>): Result<LevelPlan> => {
+  const current = sources.length === 0 ? null : readSettings(path);
   if (current?.ok === false) return current;
   const { json, before } = current?.value ?? { json: {}, before: null };
   let merged: Json = json;
   const marked = new Map<string, string>();
-  for (const { id, set } of parts) {
-    merged = mergeJson(merged, set, "", (at) => marked.set(at, `/machine/${id}/set${at}`));
-  }
+  for (const { set, pointer } of sources)
+    merged = mergeJson(merged, set, "", (at) => marked.set(at, `${pointer}${at}`));
   const changes = [...marked]
     .filter(([at]) => !same(valueAt(json, at), valueAt(merged, at)))
     .map(([at, pointer]): Change => {
@@ -174,17 +173,115 @@ const settingsPlan = ({ profile, on, setBy }: Resolved, path: string): Result<Le
   return { ok: true, value: { operations, changes, findings: [] } };
 };
 
+type Plugin = Extract<Resolved["profile"]["machine"][string], { type: "plugin" }>;
+
+// What a plugin part writes into the user settings: its marketplace when it names one, and the plugin switched on.
+// https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces
+const pluginSources = (id: string, { plugin, marketplace }: Plugin): Source[] => {
+  const enabled = { set: { enabledPlugins: { [plugin]: true } }, pointer: `/machine/${id}/plugin` };
+  if (marketplace === undefined) return [enabled];
+  const { name, ref, autoUpdate } = marketplace;
+  const where =
+    "github" in marketplace ? { source: "github", repo: marketplace.github } : { source: "git", url: marketplace.git };
+  const entry = {
+    source: { ...where, ...(ref === undefined ? {} : { ref }) },
+    ...(autoUpdate === undefined ? {} : { autoUpdate }),
+  };
+  return [{ set: { extraKnownMarketplaces: { [name]: entry } }, pointer: `/machine/${id}/marketplace` }, enabled];
+};
+
+/** The folders a plan writes into: the Claude Code home, the user's home, and the folders no options file may reach. */
+export interface Target {
+  readonly home: string;
+  readonly user: string;
+  readonly guarded: readonly string[];
+}
+
+// The path as the file system resolves it: its deepest existing folder through links, the rest as written.
+const real = (path: string): string => {
+  const rest: string[] = [];
+  let at = path;
+  for (; !existsSync(at) && dirname(at) !== at; at = dirname(at)) rest.unshift(basename(at));
+  return join(realpathSync.native(at), ...rest);
+};
+const within = (path: string, root: string): boolean => {
+  const way = relative(real(root), real(path));
+  return way === "" || !(way === ".." || way.startsWith(`..${sep}`) || isAbsolute(way));
+};
+
+const optionsSources = (id: string, plugin: Plugin): Source[] =>
+  plugin.options === undefined ? [] : [{ set: plugin.options.set, pointer: `/machine/${id}/options/set` }];
+
+// A plugin's options file, merged like the settings; never inside a Claude Code home or CedarLoom's state folder.
+const optionsPlan = (id: string, plugin: Plugin, target: Target, setBy: Record<string, string>): Result<LevelPlan> => {
+  const path = join(target.user, plugin.options?.file ?? "");
+  if (plugin.options !== undefined && target.guarded.some((root) => within(path, root))) {
+    return refuse({ code: "profile.options-guarded", params: { part: `machine.${id}`, path } });
+  }
+  return mergeFile(path, optionsSources(id, plugin), setBy);
+};
+
+// A plugin part not approved by name whose writes would change something: a named approval line, never preselected
+// (owner, hub issue 130), since a plugin's hooks, MCP servers and commands run in every session.
+const pending = (plugins: [string, Plugin][], target: Target, setBy: Record<string, string>): Finding[] =>
+  plugins
+    .filter(([id, plugin]) =>
+      [
+        mergeFile(join(target.home, "settings.json"), pluginSources(id, plugin), setBy),
+        mergeFile(join(target.user, plugin.options?.file ?? ""), optionsSources(id, plugin), setBy),
+      ].some((merged) => !merged.ok || merged.value.changes.length > 0),
+    )
+    .map(([id, { plugin }]) => ({ code: "profile.approval-needed", params: { part: `machine.${id}`, plugin } }));
+
+const joined = (plans: LevelPlan[]): LevelPlan => ({
+  operations: plans.flatMap((plan) => plan.operations),
+  changes: plans.flatMap((plan) => plan.changes),
+  findings: plans.flatMap((plan) => plan.findings),
+});
+
+// The settings file with the settings parts and the approved plugin parts, then each approved plugin's options file.
+const settingsPlans = (resolved: Resolved, target: Target, approved: ReadonlySet<string>): Result<LevelPlan> => {
+  const { profile, on, setBy } = resolved;
+  const parts = Object.entries(profile.machine).filter(([id]) => on.has(`machine.${id}`));
+  const plugins = parts.flatMap(([id, part]): [string, Plugin][] => (part.type === "plugin" ? [[id, part]] : []));
+  const allowed = plugins.filter(([id]) => approved.has(`machine.${id}`));
+  const sources = [
+    ...parts.flatMap(([id, part]) =>
+      part.type === "settings" ? [{ set: part.set, pointer: `/machine/${id}/set` }] : [],
+    ),
+    ...allowed.flatMap(([id, plugin]) => pluginSources(id, plugin)),
+  ];
+  const plans = [mergeFile(join(target.home, "settings.json"), sources, setBy)];
+  plans.push(...allowed.map(([id, plugin]) => optionsPlan(id, plugin, target, setBy)));
+  const failed = plans.find((plan) => !plan.ok);
+  if (failed !== undefined) return failed;
+  const waiting = pending(
+    plugins.filter(([id]) => !approved.has(`machine.${id}`)),
+    target,
+    setBy,
+  );
+  return {
+    ok: true,
+    value: joined([
+      ...plans.flatMap((plan) => (plan.ok ? [plan.value] : [])),
+      { operations: [], changes: [], findings: waiting },
+    ]),
+  };
+};
+
 /**
  * The machine level for one Claude Code home: each rules part as a file of its rules folder, the hub's question rule
- * with `{{hub}}` filled, and the settings parts merged into its settings file. `written` holds what CedarLoom last
- * left at each path of the rules folder (the run store's `written`), which tells its own files from the owner's.
+ * with `{{hub}}` filled, the settings parts and the plugin parts `approved` names merged into its settings file, and
+ * those plugins' options files. `written` holds what CedarLoom last left at each path of the rules folder (the run
+ * store's `written`), which tells its own files from the owner's.
  */
 export const planMachine = (
   resolved: Resolved,
-  home: string,
+  target: Target,
   written: ReadonlyMap<string, string | null>,
+  approved: ReadonlySet<string> = new Set(),
 ): Result<LevelPlan> => {
-  const folder = rulesFolder(home);
+  const folder = rulesFolder(target.home);
   const files = rulesOf(resolved).map((each): [string, Wanted] => [join(folder, each.file), each]);
   // One file per name: of two parts on that name it, the later one's text is written, as a later value wins.
   const wanted = new Map(files.filter(([, each]) => each.on));
@@ -193,13 +290,6 @@ export const planMachine = (
   const off = new Set(files.map(([path]) => path).filter((path) => !wanted.has(path)));
   const rules = rulesRemovals(writes.value, off, written);
   if (!rules.ok) return rules;
-  const settings = settingsPlan(resolved, join(home, "settings.json"));
-  if (!settings.ok) return settings;
-  const { operations, changes, findings } = rules.value;
-  const merged: LevelPlan = {
-    operations: [...operations, ...settings.value.operations],
-    changes: [...changes, ...settings.value.changes],
-    findings,
-  };
-  return { ok: true, value: merged };
+  const settings = settingsPlans(resolved, target, approved);
+  return settings.ok ? { ok: true, value: joined([rules.value, settings.value]) } : settings;
 };

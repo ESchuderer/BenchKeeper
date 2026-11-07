@@ -38,8 +38,22 @@ export interface ProfilePlan {
   readonly findings: Finding[];
 }
 
-/** Plans the selected profile's machine level for `home`; a profile with problems gets no plan, only its findings. */
-export const planProfile = (config: string, state: string, home: string): Result<ProfilePlan> => {
+/** This machine's folders: its Claude Code home and the user's home. */
+export interface Machine {
+  readonly home: string;
+  readonly user: string;
+}
+
+/**
+ * Plans the selected profile's machine level; a profile with problems gets no plan, only its findings. A plugin part
+ * is planned only when `allow` names it.
+ */
+export const planProfile = (
+  config: string,
+  state: string,
+  { home, user }: Machine,
+  allow: readonly string[] = [],
+): Result<ProfilePlan> => {
   const read = readSelection(config);
   if (!read.ok) return read;
   const resolved = resolveProfile(read.value.selection);
@@ -52,7 +66,9 @@ export const planProfile = (config: string, state: string, home: string): Result
     value: view?.written(rulesFolder(home)) ?? new Map<string, string | null>(),
   }));
   if (!written.ok) return written;
-  const level = planMachine(resolved.value, home, written.value);
+  // An options file never lands in a Claude Code home, the default one included, nor in CedarLoom's worker homes.
+  const target = { home, user, guarded: [home, join(user, ".claude"), state] };
+  const level = planMachine(resolved.value, target, written.value, new Set(allow));
   if (!level.ok) return level;
   const { operations, changes, findings } = level.value;
   return {

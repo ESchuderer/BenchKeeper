@@ -14,7 +14,6 @@ type Markers = readonly [string, string];
 const MARKDOWN: Markers = ["<!-- cedarloom start -->", "<!-- cedarloom end -->"];
 const EXCLUDE: Markers = ["# cedarloom start", "# cedarloom end"];
 
-
 // The text with CedarLoom's marked block set to `body`, or taken out when it is null; the lines outside it stay.
 const withBlock = (text: string, [start, end]: Markers, body: string | null): string => {
   const from = text.indexOf(start);

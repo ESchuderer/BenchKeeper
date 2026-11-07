@@ -247,6 +247,27 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
+test("commands write in no plugin folder; a read-only launch writes nothing in its working folder, pushes nothing", async () => {
+  const plugin = join(fixtures, "plugins", "workflow");
+  const Settings = z.object({
+    permissions: z.object({ deny: z.array(z.string()) }),
+    sandbox: z.object({ filesystem: z.object({ denyWrite: z.array(z.string()) }) }),
+  });
+  const settingsOf = async (readOnly: boolean) => {
+    const { args } = started(await events(runtime.start(launch({}, { readOnly, pluginDirs: [plugin] }))));
+    return Settings.parse(JSON.parse(args[args.indexOf("--settings") + 1] ?? ""));
+  };
+  const [worker, report] = [await settingsOf(false), await settingsOf(true)];
+  // The file tools by a deny rule, shell commands by the sandbox; the result file lies outside the working folder.
+  expect([worker.sandbox.filesystem.denyWrite, report.sandbox.filesystem.denyWrite]).toEqual([
+    [join(fixtures, ".github", "workflows"), plugin],
+    [fixtures, plugin],
+  ]);
+  expect(report.permissions.deny).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^Edit\(\/\/.*fixtures\/\*\*\)$/), "Bash(git push *)"]),
+  );
+});
+
 test("the worker's own home stays closed to its file tools only where the login and the account's state live", async () => {
   const own = launch({}, { denyRead: [fixtures, "/accounts/other"] });
   const settings = z
